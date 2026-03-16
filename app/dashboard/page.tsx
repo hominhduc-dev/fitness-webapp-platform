@@ -1,5 +1,3 @@
-import { Calendar, Flame, Target, TrendingUp } from "lucide-react"
-
 import { Header } from "@/components/layout/header"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -10,6 +8,7 @@ import { StatsCard } from "@/components/dashboard/stats-card"
 import { TodayWorkout } from "@/components/dashboard/today-workout"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchMeals, fetchWorkouts } from "@/lib/fitness/api"
+import { getServerMessages, getServerLocale } from "@/lib/i18n/server"
 
 function startOfWeek(date: Date) {
   const value = new Date(date)
@@ -18,7 +17,10 @@ function startOfWeek(date: Date) {
   return value
 }
 
-function resolveNextWorkoutLabel(schedule: Record<number, Awaited<ReturnType<typeof fetchWorkouts>>["todayWorkout"]>) {
+function resolveNextWorkoutLabel(
+  schedule: Record<number, Awaited<ReturnType<typeof fetchWorkouts>>["todayWorkout"]>,
+  messages: Awaited<ReturnType<typeof getServerMessages>>,
+) {
   const today = new Date().getDay()
 
   for (let offset = 0; offset < 7; offset += 1) {
@@ -32,31 +34,32 @@ function resolveNextWorkoutLabel(schedule: Record<number, Awaited<ReturnType<typ
     if (offset === 0) {
       return {
         subtitle: workout.name,
-        value: "Today",
+        value: messages.common.today,
       }
     }
 
     if (offset === 1) {
       return {
         subtitle: workout.name,
-        value: "Tomorrow",
+        value: messages.dashboard.tomorrow,
       }
     }
 
     return {
       subtitle: workout.name,
-      value: `In ${offset} days`,
+      value: messages.dashboard.inDays(offset),
     }
   }
 
   return {
-    subtitle: "No workout scheduled",
-    value: "Rest",
+    subtitle: messages.dashboard.noWorkoutScheduled,
+    value: messages.dashboard.rest,
   }
 }
 
 export default async function DashboardPage() {
   const { accessToken, profile } = await requireAppSession({ role: "trainee" })
+  const messages = await getServerMessages()
   const [workoutData, mealData] = await Promise.all([fetchWorkouts(accessToken), fetchMeals(accessToken)])
   const weekStart = startOfWeek(new Date())
   const workoutsThisWeek = workoutData.recentLogs.filter((log) => log.startedAt >= weekStart).length
@@ -64,7 +67,7 @@ export default async function DashboardPage() {
   const totalVolume = workoutData.recentLogs
     .filter((log) => log.startedAt >= weekStart)
     .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
-  const nextWorkout = resolveNextWorkoutLabel(workoutData.schedule)
+  const nextWorkout = resolveNextWorkoutLabel(workoutData.schedule, messages)
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -77,12 +80,12 @@ export default async function DashboardPage() {
           <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
             <div className="mb-6">
               <h1 className="text-2xl font-bold md:text-3xl">
-                Welcome back, <span className="text-primary">{profile.name.split(" ")[0]}</span>
+                {messages.dashboard.welcomeBack}, <span className="text-primary">{profile.name.split(" ")[0]}</span>
               </h1>
               <p className="mt-1 text-muted-foreground">
                 {workoutData.todayWorkout
-                  ? "Ready to crush your workout today?"
-                  : "No workout assigned today yet. Use the schedule with your coach to plan the week."}
+                  ? messages.dashboard.readyToday
+                  : messages.dashboard.noWorkoutToday}
               </p>
             </div>
 
@@ -92,25 +95,25 @@ export default async function DashboardPage() {
 
             <div className="mb-6 grid gap-4 grid-cols-2 lg:grid-cols-4">
               <StatsCard
-                title="Weekly Streak"
-                value={`${workoutData.recentLogs.length} logs`}
-                icon={Flame}
+                title={messages.dashboard.weeklyStreak}
+                value={`${workoutData.recentLogs.length} ${messages.dashboard.logs}`}
+                iconName="flame"
                 variant="accent"
               />
               <StatsCard
-                title="This Week"
+                title={messages.dashboard.thisWeek}
                 value={`${workoutsThisWeek}/${scheduledThisWeek || 0}`}
-                subtitle="workouts completed"
-                icon={Target}
+                subtitle={messages.dashboard.workoutsCompleted}
+                iconName="target"
                 variant="primary"
               />
               <StatsCard
-                title="Total Volume"
+                title={messages.dashboard.totalVolume}
                 value={totalVolume > 0 ? totalVolume.toLocaleString() : "0"}
-                subtitle="logged this week"
-                icon={TrendingUp}
+                subtitle={messages.dashboard.loggedThisWeek}
+                iconName="trending-up"
               />
-              <StatsCard title="Next Workout" value={nextWorkout.value} subtitle={nextWorkout.subtitle} icon={Calendar} />
+              <StatsCard title={messages.dashboard.nextWorkout} value={nextWorkout.value} subtitle={nextWorkout.subtitle} iconName="calendar" />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">

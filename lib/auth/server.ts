@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 
 import type { AppProfile, AppRole } from "./types"
+import { getRoleLandingPath } from "./roles"
 import { fetchCurrentProfile } from "./api"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 
@@ -52,7 +53,7 @@ async function requireAppSession(options?: { redirectTo?: string; role?: AppRole
   }
 
   if (options?.role && authState.profile.role !== options.role) {
-    redirect(options.role === "coach" ? "/dashboard" : "/coach")
+    redirect(getRoleLandingPath(authState.profile.role))
   }
 
   return {

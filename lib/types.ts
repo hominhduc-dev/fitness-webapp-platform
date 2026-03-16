@@ -1,9 +1,11 @@
-export type UserRole = "trainee" | "coach"
+export type UserRole = "trainee" | "coach" | "admin"
 
 export interface User {
   id: string
   name: string
   email: string
+  username?: string
+  phone?: string
   role: UserRole
   avatar?: string
   fitnessGoals?: string[]

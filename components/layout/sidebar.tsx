@@ -15,10 +15,14 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import type { AppRole } from "@/lib/auth/types"
+import { getRoleLandingPath } from "@/lib/auth/roles"
 import { useState } from "react"
+import { useLocale } from "@/components/providers/locale-provider"
 
 interface NavItem {
   href: string
@@ -26,30 +30,29 @@ interface NavItem {
   label: string
 }
 
-const traineeNavItems: NavItem[] = [
-  { href: "/dashboard", icon: Home, label: "Dashboard" },
-  { href: "/schedule", icon: Calendar, label: "Weekly Schedule" },
-  { href: "/workout", icon: Dumbbell, label: "Workout" },
-  { href: "/meals", icon: Utensils, label: "Meal Tracking" },
-  { href: "/progress", icon: BarChart3, label: "Progress" },
-  { href: "/coach/find", icon: UserPlus, label: "Add Coach" },
-]
-
-const coachNavItems: NavItem[] = [
-  { href: "/coach", icon: Home, label: "Dashboard" },
-  { href: "/coach/trainees", icon: Users, label: "Trainees" },
-  { href: "/coach/programs", icon: Dumbbell, label: "Programs" },
-  { href: "/coach/analytics", icon: BarChart3, label: "Analytics" },
-]
-
 interface SidebarProps {
-  role?: "trainee" | "coach"
+  role?: AppRole
 }
 
 export function Sidebar({ role = "trainee" }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const navItems = role === "coach" ? coachNavItems : traineeNavItems
+  const { messages } = useLocale()
+  const traineeNavItems: NavItem[] = [
+    { href: "/dashboard", icon: Home, label: messages.shell.dashboard },
+    { href: "/schedule", icon: Calendar, label: messages.shell.weeklySchedule },
+    { href: "/workout", icon: Dumbbell, label: messages.shell.workout },
+    { href: "/meals", icon: Utensils, label: messages.shell.mealTracking },
+    { href: "/progress", icon: BarChart3, label: messages.shell.progress },
+    { href: "/coach/find", icon: UserPlus, label: messages.common.addCoach },
+  ]
+  const coachNavItems: NavItem[] = [
+    { href: "/coach", icon: Home, label: messages.shell.dashboard },
+    { href: "/coach/trainees", icon: Users, label: messages.shell.trainees },
+    { href: "/coach/programs", icon: Dumbbell, label: messages.shell.programs },
+  ]
+  const adminNavItems: NavItem[] = [{ href: "/admin", icon: ShieldCheck, label: messages.shell.adminDashboard }]
+  const navItems = role === "coach" ? coachNavItems : role === "admin" ? adminNavItems : traineeNavItems
 
   return (
     <aside
@@ -60,7 +63,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
     >
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         {!collapsed && (
-          <Link href={role === "coach" ? "/coach" : "/dashboard"} className="flex items-center gap-2">
+          <Link href={getRoleLandingPath(role)} className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Dumbbell className="h-5 w-5 text-primary-foreground" />
             </div>
@@ -87,12 +90,12 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_rgba(34,197,94,0.2)]"
+                  ? "bg-primary/10 text-primary shadow-sm"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 collapsed && "justify-center px-2",
               )}
             >
-              <item.icon className={cn("h-5 w-5 shrink-0", isActive && "drop-shadow-[0_0_6px_rgba(34,197,94,0.4)]")} />
+              <item.icon className={cn("h-5 w-5 shrink-0 transition-transform", isActive && "scale-105")} />
               {!collapsed && <span>{item.label}</span>}
             </Link>
           )
@@ -108,7 +111,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
           )}
         >
           <Settings className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>Settings</span>}
+          {!collapsed && <span>{messages.common.settings}</span>}
         </Link>
       </div>
     </aside>

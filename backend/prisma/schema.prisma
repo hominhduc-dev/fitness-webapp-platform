@@ -11,6 +11,7 @@ datasource db {
 enum UserRole {
   trainee
   coach
+  admin
 }
 
 enum ProgramDifficulty {
@@ -65,6 +66,8 @@ model User {
   supabaseAuthUserId     String?             @unique @db.Uuid
   name                   String
   email                  String              @unique
+  username               String?             @unique
+  phone                  String?             @unique
   role                   UserRole
   avatar                 String?
   fitnessGoals           String[]            @default([])
@@ -84,6 +87,8 @@ model User {
   updatedAt              DateTime            @updatedAt
 
   @@index([coachId])
+  @@index([username])
+  @@index([phone])
 }
 
 model Exercise {

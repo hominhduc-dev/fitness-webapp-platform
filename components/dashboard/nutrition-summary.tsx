@@ -3,12 +3,14 @@
 import { Flame } from "lucide-react"
 import Link from "next/link"
 import type { DailyNutrition } from "@/lib/types"
+import { useLocale } from "@/components/providers/locale-provider"
 
 interface NutritionSummaryProps {
   nutrition: DailyNutrition
 }
 
 export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
+  const { messages } = useLocale()
   const percentage = Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100)
   const remaining = nutrition.targetCalories - nutrition.totalCalories
 
@@ -16,7 +18,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
     <Link href="/meals" className="block">
       <div className="rounded-xl border border-border bg-card p-6 transition-all hover:border-primary/30">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Today's Nutrition</h3>
+          <h3 className="text-lg font-semibold">{messages.dashboard.todaysNutrition}</h3>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
             <Flame className="h-5 w-5 text-accent" />
           </div>
@@ -54,13 +56,13 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
             </div>
             <div className="flex-1 space-y-2">
               <div>
-                <p className="text-sm text-muted-foreground">Consumed</p>
+                <p className="text-sm text-muted-foreground">{messages.dashboard.consumed}</p>
                 <p className="text-xl font-bold">
                   {nutrition.totalCalories} <span className="text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Remaining</p>
+                <p className="text-sm text-muted-foreground">{messages.dashboard.remaining}</p>
                 <p className="text-lg font-semibold text-primary">
                   {remaining} <span className="text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
@@ -70,11 +72,16 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
 
           {/* Meals summary */}
           <div className="grid grid-cols-2 gap-2 text-sm">
-            {["breakfast", "lunch", "dinner", "snack"].map((mealType) => {
-              const meal = nutrition.meals.find((m) => m.type === mealType)
+            {[
+              { key: "breakfast", label: messages.dashboard.breakfast },
+              { key: "lunch", label: messages.dashboard.lunch },
+              { key: "dinner", label: messages.dashboard.dinner },
+              { key: "snack", label: messages.dashboard.snack },
+            ].map((mealType) => {
+              const meal = nutrition.meals.find((m) => m.type === mealType.key)
               return (
-                <div key={mealType} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                  <span className="capitalize text-muted-foreground">{mealType}</span>
+                <div key={mealType.key} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                  <span className="capitalize text-muted-foreground">{mealType.label}</span>
                   <span className={meal ? "font-medium" : "text-muted-foreground"}>
                     {meal ? `${meal.calories}` : "—"}
                   </span>

@@ -6,7 +6,9 @@ import type {
   CoachDashboardData,
   CoachProgram,
   CoachTrainee,
+  CoachTraineeDetail,
   CreateCoachProgramInput,
+  DiscoverableCoach,
   MealCollection,
   WeeklyCaloriesPoint,
   WorkoutCollection,
@@ -95,6 +97,28 @@ type SerializedCoachRequest = {
   status: "pending" | "approved" | "rejected"
   trainee: SerializedAssignedTrainee
   traineeId: string
+}
+
+type SerializedDiscoverableCoach = {
+  activeTrainees: number
+  avatar?: string | null
+  createdAt: string
+  email: string
+  fitnessGoals: string[]
+  id: string
+  name: string
+  requestId?: string
+  requestStatus: DiscoverableCoach["requestStatus"]
+}
+
+type SerializedCoachRequestCreate = {
+  request: {
+    coachId: string
+    createdAt: string
+    id: string
+    requestStatus: "pending" | "approved" | "rejected"
+    traineeId: string
+  }
 }
 
 type SerializedDailyNutrition = Omit<DailyNutrition, "date" | "meals"> & {
@@ -226,6 +250,20 @@ function mapCoachTrainee(trainee: SerializedCoachTrainee): CoachTrainee {
   }
 }
 
+function mapDiscoverableCoach(coach: SerializedDiscoverableCoach): DiscoverableCoach {
+  return {
+    activeTrainees: coach.activeTrainees,
+    avatar: coach.avatar,
+    createdAt: new Date(coach.createdAt),
+    email: coach.email,
+    fitnessGoals: coach.fitnessGoals,
+    id: coach.id,
+    name: coach.name,
+    requestId: coach.requestId,
+    requestStatus: coach.requestStatus,
+  }
+}
+
 async function fetchMeals(accessToken: string, date?: string): Promise<MealCollection> {
   const query = date ? `?date=${encodeURIComponent(date)}` : ""
   const response = await request<{
@@ -262,6 +300,27 @@ async function createMeal(
   const response = await request<{ meal: SerializedMeal }>("/api/meals", accessToken, {
     body: JSON.stringify(input),
     method: "POST",
+  })
+
+  return mapMeal(response.meal)
+}
+
+async function updateMeal(
+  accessToken: string,
+  mealId: string,
+  input: {
+    calories: number
+    carbs?: number
+    fat?: number
+    name: string
+    protein?: number
+    recordedAt?: string
+    type: Meal["type"]
+  },
+) {
+  const response = await request<{ meal: SerializedMeal }>(`/api/meals/${mealId}`, accessToken, {
+    body: JSON.stringify(input),
+    method: "PATCH",
   })
 
   return mapMeal(response.meal)
@@ -327,9 +386,43 @@ async function createCoachProgram(accessToken: string, input: CreateCoachProgram
   return mapCoachProgram(response.program)
 }
 
+async function fetchCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(`/api/coach/programs/${programId}`, accessToken)
+  return mapCoachProgram(response.program)
+}
+
+async function updateCoachProgram(accessToken: string, programId: string, input: CreateCoachProgramInput) {
+  const response = await request<{ program: SerializedCoachProgram }>(`/api/coach/programs/${programId}`, accessToken, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+
+  return mapCoachProgram(response.program)
+}
+
+async function deleteCoachProgram(accessToken: string, programId: string) {
+  await request<{ deleted: boolean; id: string }>(`/api/coach/programs/${programId}`, accessToken, {
+    method: "DELETE",
+  })
+}
+
 async function fetchCoachTrainees(accessToken: string): Promise<CoachTrainee[]> {
   const response = await request<{ trainees: SerializedCoachTrainee[] }>("/api/coach/trainees", accessToken)
   return response.trainees.map(mapCoachTrainee)
+}
+
+async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): Promise<CoachTraineeDetail> {
+  const response = await request<{
+    programs: SerializedCoachProgram[]
+    recentLogs: SerializedWorkoutLog[]
+    trainee: SerializedCoachTrainee
+  }>(`/api/coach/trainees/${traineeId}`, accessToken)
+
+  return {
+    programs: response.programs.map(mapCoachProgram),
+    recentLogs: response.recentLogs.map(mapWorkoutLog),
+    trainee: mapCoachTrainee(response.trainee),
+  }
 }
 
 async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardData> {
@@ -351,16 +444,68 @@ async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardD
   }
 }
 
+async function fetchDiscoverableCoaches(accessToken: string): Promise<DiscoverableCoach[]> {
+  const response = await request<{ coaches: SerializedDiscoverableCoach[] }>("/api/coach/discover", accessToken)
+  return response.coaches.map(mapDiscoverableCoach)
+}
+
+async function createCoachRequest(accessToken: string, coachId: string) {
+  const response = await request<SerializedCoachRequestCreate>("/api/coach/requests", accessToken, {
+    body: JSON.stringify({
+      coachId,
+    }),
+    method: "POST",
+  })
+
+  return {
+    coachId: response.request.coachId,
+    createdAt: new Date(response.request.createdAt),
+    id: response.request.id,
+    status: response.request.requestStatus,
+    traineeId: response.request.traineeId,
+  }
+}
+
+async function updateCoachRequestStatus(
+  accessToken: string,
+  requestId: string,
+  status: "approved" | "rejected",
+) {
+  const response = await request<{ request: SerializedCoachRequest }>(`/api/coach/requests/${requestId}`, accessToken, {
+    body: JSON.stringify({
+      status,
+    }),
+    method: "PATCH",
+  })
+
+  return {
+    coachId: response.request.coachId,
+    createdAt: new Date(response.request.createdAt),
+    id: response.request.id,
+    status: response.request.status,
+    trainee: response.request.trainee,
+    traineeId: response.request.traineeId,
+  }
+}
+
 export {
+  createCoachRequest,
   createCoachProgram,
   createMeal,
   createWorkoutLog,
   deleteMeal,
+  deleteCoachProgram,
+  fetchDiscoverableCoaches,
   fetchCoachDashboard,
+  fetchCoachProgram,
   fetchCoachPrograms,
+  fetchCoachTraineeDetail,
   fetchCoachTrainees,
   fetchExercises,
   fetchMeals,
   fetchWorkoutDetail,
   fetchWorkouts,
+  updateCoachProgram,
+  updateCoachRequestStatus,
+  updateMeal,
 }

@@ -1,5 +1,6 @@
 import { Router } from "express"
 
+import { adminRouter } from "./admin.route"
 import { authRouter } from "./auth.route"
 import { coachRouter } from "./coach.route"
 import { exerciseRouter } from "./exercise.route"
@@ -18,6 +19,7 @@ apiRouter.get("/", (_req, res) => {
 
 apiRouter.use("/health", healthRouter)
 apiRouter.use("/auth", authRouter)
+apiRouter.use("/admin", adminRouter)
 apiRouter.use("/coach", coachRouter)
 apiRouter.use("/exercises", exerciseRouter)
 apiRouter.use("/meals", mealRouter)

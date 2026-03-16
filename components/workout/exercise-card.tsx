@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronUp, Check, Plus } from "lucide-react"
+import { ChevronDown, ChevronUp, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -74,14 +74,6 @@ export function ExerciseCard({ exercise, exerciseIndex, onSetComplete, isActive 
           {exercise.sets.map((set, setIdx) => (
             <SetRow key={set.id} set={set} setIndex={setIdx} onComplete={(data) => onSetComplete?.(set.id, data)} />
           ))}
-
-          {/* Add set button */}
-          <div className="p-3 border-t border-border">
-            <Button variant="ghost" size="sm" className="w-full gap-2">
-              <Plus className="h-4 w-4" />
-              Add Set
-            </Button>
-          </div>
         </div>
       )}
     </div>

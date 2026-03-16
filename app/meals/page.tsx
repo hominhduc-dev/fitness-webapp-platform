@@ -1,38 +1,144 @@
 "use client"
 
-import { useState } from "react"
-import { Header } from "@/components/layout/header"
-import { Sidebar } from "@/components/layout/sidebar"
-import { MobileNav } from "@/components/layout/mobile-nav"
-import { MealCard } from "@/components/meals/meal-card"
-import { AddMealDialog } from "@/components/meals/add-meal-dialog"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
+import { addDays, format } from "date-fns"
 import { ChevronLeft, ChevronRight, Flame } from "lucide-react"
-import { todaysMeals, dailyNutrition, weeklyCaloriesData } from "@/lib/mock-data"
-import { format } from "date-fns"
+import { useEffect, useState } from "react"
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+
+import { Header } from "@/components/layout/header"
+import { MobileNav } from "@/components/layout/mobile-nav"
+import { Sidebar } from "@/components/layout/sidebar"
+import { AddMealDialog } from "@/components/meals/add-meal-dialog"
+import { MealCard } from "@/components/meals/meal-card"
+import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { createMeal, deleteMeal, fetchMeals, updateMeal } from "@/lib/fitness/api"
+import type { WeeklyCaloriesPoint } from "@/lib/fitness/types"
 import type { Meal } from "@/lib/types"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 
 export default function MealsPage() {
-  const [meals, setMeals] = useState<Meal[]>(todaysMeals)
-  const totalCalories = meals.reduce((acc, m) => acc + m.calories, 0)
-  const targetCalories = dailyNutrition.targetCalories
-  const remaining = targetCalories - totalCalories
-  const percentage = Math.round((totalCalories / targetCalories) * 100)
+  const { locale, messages } = useLocale()
+  const { isLoading: authLoading, session } = useAuth()
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [meals, setMeals] = useState<Meal[]>([])
+  const [targetCalories, setTargetCalories] = useState(2500)
+  const [weeklyCalories, setWeeklyCalories] = useState<WeeklyCaloriesPoint[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleAddMeal = (mealData: Omit<Meal, "id" | "time">) => {
-    const newMeal: Meal = {
-      ...mealData,
-      id: Date.now().toString(),
-      time: new Date(),
+  const selectedDateKey = format(selectedDate, "yyyy-MM-dd")
+
+  async function loadMeals(accessToken: string, dateKey: string) {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const data = await fetchMeals(accessToken, dateKey)
+      setMeals(data.meals)
+      setTargetCalories(data.dailyNutrition.targetCalories)
+      setWeeklyCalories(data.weeklyCalories)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : locale === "en" ? "Unable to load nutrition data." : "Không thể tải dữ liệu dinh dưỡng.")
+    } finally {
+      setIsLoading(false)
     }
-    setMeals([...meals, newMeal])
   }
 
-  const totalProtein = meals.reduce((acc, m) => acc + (m.protein || 0), 0)
-  const totalCarbs = meals.reduce((acc, m) => acc + (m.carbs || 0), 0)
-  const totalFat = meals.reduce((acc, m) => acc + (m.fat || 0), 0)
+  useEffect(() => {
+    if (!session?.access_token) {
+      if (!authLoading) {
+        setMeals([])
+        setWeeklyCalories([])
+        setIsLoading(false)
+      }
+
+      return
+    }
+
+    void loadMeals(session.access_token, selectedDateKey)
+  }, [authLoading, selectedDateKey, session?.access_token])
+
+  const totalCalories = meals.reduce((accumulator, meal) => accumulator + meal.calories, 0)
+  const remaining = targetCalories - totalCalories
+  const percentage = targetCalories > 0 ? Math.min(100, Math.round((totalCalories / targetCalories) * 100)) : 0
+  const totalProtein = meals.reduce((accumulator, meal) => accumulator + (meal.protein || 0), 0)
+  const totalCarbs = meals.reduce((accumulator, meal) => accumulator + (meal.carbs || 0), 0)
+  const totalFat = meals.reduce((accumulator, meal) => accumulator + (meal.fat || 0), 0)
+
+  const handleAddMeal = async (mealData: Omit<Meal, "id" | "time">) => {
+    if (!session?.access_token) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      await createMeal(session.access_token, {
+        calories: mealData.calories,
+        carbs: mealData.carbs,
+        fat: mealData.fat,
+        name: mealData.name,
+        protein: mealData.protein,
+        recordedAt: selectedDate.toISOString(),
+        type: mealData.type,
+      })
+      await loadMeals(session.access_token, selectedDateKey)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : locale === "en" ? "Unable to save the meal." : "Không thể lưu bữa ăn.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteMeal = async (mealId: string) => {
+    if (!session?.access_token) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      await deleteMeal(session.access_token, mealId)
+      await loadMeals(session.access_token, selectedDateKey)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : locale === "en" ? "Unable to delete the meal." : "Không thể xóa bữa ăn.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleUpdateMeal = async (mealData: Omit<Meal, "id" | "time">) => {
+    if (!session?.access_token || !editingMeal) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      await updateMeal(session.access_token, editingMeal.id, {
+        calories: mealData.calories,
+        carbs: mealData.carbs,
+        fat: mealData.fat,
+        name: mealData.name,
+        protein: mealData.protein,
+        recordedAt: editingMeal.time.toISOString(),
+        type: mealData.type,
+      })
+      setEditingMeal(null)
+      await loadMeals(session.access_token, selectedDateKey)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : locale === "en" ? "Unable to update the meal." : "Không thể cập nhật bữa ăn.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -43,37 +149,58 @@ export default function MealsPage() {
 
         <main className="flex-1 overflow-auto pb-20 md:pb-6">
           <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
-            {/* Page header */}
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-2xl font-bold md:text-3xl">Meal Tracking</h1>
-                <p className="mt-1 text-muted-foreground">Track your daily nutrition and calories</p>
+                <h1 className="text-2xl font-bold md:text-3xl">{messages.meals.title}</h1>
+                <p className="mt-1 text-muted-foreground">{messages.meals.subtitle}</p>
               </div>
               <AddMealDialog onAdd={handleAddMeal} />
             </div>
 
-            {/* Date navigation */}
+            <AddMealDialog
+              description={messages.meals.editMealDescription}
+              initialMeal={editingMeal ?? undefined}
+              onAdd={handleUpdateMeal}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setEditingMeal(null)
+                }
+              }}
+              open={Boolean(editingMeal)}
+              submitLabel={messages.meals.saveMeal}
+              title={messages.meals.editMeal}
+              trigger={null}
+            />
+
             <div className="mb-6 flex items-center justify-center gap-4">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" onClick={() => setSelectedDate((current) => addDays(current, -1))}>
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <div className="text-center">
-                <p className="font-semibold">Today</p>
-                <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, MMM d")}</p>
+                <p className="font-semibold">
+                  {selectedDateKey === format(new Date(), "yyyy-MM-dd") ? messages.meals.today : messages.meals.selectedDay}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {format(selectedDate, locale === "en" ? "EEEE, MMM d" : "EEEE, dd/MM")}
+                </p>
               </div>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" onClick={() => setSelectedDate((current) => addDays(current, 1))}>
                 <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
 
+            {error ? (
+              <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            ) : null}
+
             <div className="grid gap-6 lg:grid-cols-3">
-              {/* Main content */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Daily summary card */}
                 <div className="rounded-xl border border-border bg-card p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">DAILY CALORIES</p>
+                      <p className="text-sm font-medium text-muted-foreground">{messages.meals.dailyCalories}</p>
                       <p className="text-3xl font-bold mt-1">
                         {totalCalories}{" "}
                         <span className="text-lg font-normal text-muted-foreground">/ {targetCalories} kcal</span>
@@ -86,38 +213,40 @@ export default function MealsPage() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Progress</span>
+                      <span className="text-muted-foreground">{messages.meals.progress}</span>
                       <span className="font-medium">{percentage}%</span>
                     </div>
                     <Progress value={percentage} className="h-3" />
                     <p className="text-sm text-muted-foreground">
-                      {remaining > 0 ? `${remaining} kcal remaining` : `${Math.abs(remaining)} kcal over target`}
+                      {remaining > 0 ? messages.meals.remaining(remaining) : messages.meals.overTarget(remaining)}
                     </p>
                   </div>
 
-                  {/* Macro breakdown */}
                   <div className="mt-6 grid grid-cols-3 gap-4">
                     <div className="rounded-lg bg-info/10 p-3 text-center">
                       <p className="text-2xl font-bold text-info">{totalProtein}g</p>
-                      <p className="text-xs text-muted-foreground">Protein</p>
+                      <p className="text-xs text-muted-foreground">{messages.meals.protein}</p>
                     </div>
                     <div className="rounded-lg bg-warning/10 p-3 text-center">
                       <p className="text-2xl font-bold text-warning">{totalCarbs}g</p>
-                      <p className="text-xs text-muted-foreground">Carbs</p>
+                      <p className="text-xs text-muted-foreground">{messages.meals.carbs}</p>
                     </div>
                     <div className="rounded-lg bg-accent/10 p-3 text-center">
                       <p className="text-2xl font-bold text-accent">{totalFat}g</p>
-                      <p className="text-xs text-muted-foreground">Fat</p>
+                      <p className="text-xs text-muted-foreground">{messages.meals.fat}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Meals list */}
                 <div>
-                  <h2 className="mb-4 text-lg font-semibold">Today's Meals</h2>
-                  {meals.length === 0 ? (
+                  <h2 className="mb-4 text-lg font-semibold">{messages.meals.meals}</h2>
+                  {isLoading ? (
+                    <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+                      {messages.meals.loadingMeals}
+                    </div>
+                  ) : meals.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-border p-8 text-center">
-                      <p className="text-muted-foreground mb-4">No meals logged today</p>
+                      <p className="text-muted-foreground mb-4">{messages.meals.noMeals}</p>
                       <AddMealDialog onAdd={handleAddMeal} />
                     </div>
                   ) : (
@@ -126,8 +255,8 @@ export default function MealsPage() {
                         <MealCard
                           key={meal.id}
                           meal={meal}
-                          onEdit={() => console.log("Edit meal", meal.id)}
-                          onDelete={() => setMeals(meals.filter((m) => m.id !== meal.id))}
+                          onDelete={() => void handleDeleteMeal(meal.id)}
+                          onEdit={() => setEditingMeal(meal)}
                         />
                       ))}
                     </div>
@@ -135,14 +264,12 @@ export default function MealsPage() {
                 </div>
               </div>
 
-              {/* Sidebar */}
               <div className="space-y-6">
-                {/* Weekly trend */}
                 <div className="rounded-xl border border-border bg-card p-6">
-                  <h3 className="mb-4 text-lg font-semibold">Weekly Trend</h3>
+                  <h3 className="mb-4 text-lg font-semibold">{messages.meals.weeklyTrend}</h3>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={weeklyCaloriesData}>
+                      <AreaChart data={weeklyCalories}>
                         <defs>
                           <linearGradient id="calorieGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#22C55E" stopOpacity={0.3} />
@@ -185,35 +312,35 @@ export default function MealsPage() {
                   <div className="mt-4 flex items-center justify-center gap-6 text-sm">
                     <div className="flex items-center gap-2">
                       <div className="h-3 w-3 rounded-full bg-primary" />
-                      <span className="text-muted-foreground">Actual</span>
+                      <span className="text-muted-foreground">{messages.meals.actual}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="h-3 w-3 rounded-full border border-muted-foreground" />
-                      <span className="text-muted-foreground">Target</span>
+                      <span className="text-muted-foreground">{messages.meals.target}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Quick add meals */}
                 <div className="rounded-xl border border-border bg-card p-6">
-                  <h3 className="mb-4 text-lg font-semibold">Quick Add</h3>
+                  <h3 className="mb-4 text-lg font-semibold">{messages.meals.quickAdd}</h3>
                   <div className="space-y-2">
                     {[
-                      { name: "Protein Shake", calories: 180 },
-                      { name: "Greek Yogurt", calories: 120 },
-                      { name: "Banana", calories: 105 },
-                      { name: "Rice & Chicken", calories: 450 },
+                      { calories: 180, name: "Protein Shake" },
+                      { calories: 120, name: "Greek Yogurt" },
+                      { calories: 105, name: "Banana" },
+                      { calories: 450, name: "Rice & Chicken" },
                     ].map((item) => (
                       <button
                         key={item.name}
                         onClick={() =>
-                          handleAddMeal({
+                          void handleAddMeal({
+                            calories: item.calories,
                             name: item.name,
                             type: "snack",
-                            calories: item.calories,
                           })
                         }
-                        className="flex w-full items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm transition-colors hover:bg-muted"
+                        className="flex w-full items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={isSubmitting}
                       >
                         <span>{item.name}</span>
                         <span className="text-muted-foreground">{item.calories} kcal</span>

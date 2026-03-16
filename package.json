@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "create:admin": "npm --prefix backend run create:admin --",
     "build": "next build",
     "build:backend": "npm --prefix backend run build",
     "dev": "next dev",

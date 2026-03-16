@@ -3,35 +3,37 @@
 import Link from "next/link"
 import { Dumbbell, Utensils, Calendar, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-const actions = [
-  {
-    href: "/workout/quick",
-    icon: Dumbbell,
-    label: "Quick Workout",
-    color: "primary",
-  },
-  {
-    href: "/meals/add",
-    icon: Utensils,
-    label: "Log Meal",
-    color: "secondary",
-  },
-  {
-    href: "/schedule",
-    icon: Calendar,
-    label: "Schedule",
-    color: "accent",
-  },
-  {
-    href: "/progress",
-    icon: TrendingUp,
-    label: "Progress",
-    color: "info",
-  },
-]
+import { useLocale } from "@/components/providers/locale-provider"
 
 export function QuickActions() {
+  const { messages } = useLocale()
+  const actions = [
+    {
+      href: "/workout",
+      icon: Dumbbell,
+      label: messages.dashboard.quickWorkout,
+      color: "primary",
+    },
+    {
+      href: "/meals",
+      icon: Utensils,
+      label: messages.dashboard.logMeal,
+      color: "secondary",
+    },
+    {
+      href: "/schedule",
+      icon: Calendar,
+      label: messages.dashboard.schedule,
+      color: "accent",
+    },
+    {
+      href: "/progress",
+      icon: TrendingUp,
+      label: messages.dashboard.progress,
+      color: "info",
+    },
+  ] as const
+
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {actions.map((action) => (

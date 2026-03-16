@@ -58,6 +58,24 @@ type CoachDashboardData = {
   trainees: CoachTrainee[]
 }
 
+type DiscoverableCoach = {
+  activeTrainees: number
+  avatar?: string | null
+  createdAt: Date
+  email: string
+  fitnessGoals: string[]
+  id: string
+  name: string
+  requestId?: string
+  requestStatus: "none" | "pending" | "approved" | "rejected" | "connected"
+}
+
+type CoachTraineeDetail = {
+  programs: CoachProgram[]
+  recentLogs: WorkoutLog[]
+  trainee: CoachTrainee
+}
+
 type CreateCoachProgramInput = {
   description?: string
   difficulty: CoachProgram["difficulty"]
@@ -89,7 +107,9 @@ export type {
   CoachProgram,
   CoachRequestSummary,
   CoachTrainee,
+  CoachTraineeDetail,
   CreateCoachProgramInput,
+  DiscoverableCoach,
   MealCollection,
   WeeklyCaloriesPoint,
   WorkoutCollection,

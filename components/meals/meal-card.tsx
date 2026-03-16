@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Clock, Edit2, Trash2, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { Meal } from "@/lib/types"
@@ -28,7 +29,14 @@ const mealTypeIcons = {
 }
 
 export function MealCard({ meal, onEdit, onDelete }: MealCardProps) {
+  const { locale, messages } = useLocale()
   const [expanded, setExpanded] = useState(false)
+  const typeLabels = {
+    breakfast: messages.meals.breakfast,
+    lunch: messages.meals.lunch,
+    dinner: messages.meals.dinner,
+    snack: messages.meals.snack,
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -46,9 +54,9 @@ export function MealCard({ meal, onEdit, onDelete }: MealCardProps) {
             <p className="font-semibold">{meal.name}</p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
-              <span>{format(meal.time, "h:mm a")}</span>
+              <span>{format(meal.time, locale === "en" ? "h:mm a" : "HH:mm")}</span>
               <span>·</span>
-              <span className="capitalize">{meal.type}</span>
+              <span>{typeLabels[meal.type]}</span>
             </div>
           </div>
         </div>
@@ -71,32 +79,37 @@ export function MealCard({ meal, onEdit, onDelete }: MealCardProps) {
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="text-center">
               <p className="text-2xl font-bold text-info">{meal.protein || 0}g</p>
-              <p className="text-xs text-muted-foreground">Protein</p>
+              <p className="text-xs text-muted-foreground">{messages.meals.protein}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-warning">{meal.carbs || 0}g</p>
-              <p className="text-xs text-muted-foreground">Carbs</p>
+              <p className="text-xs text-muted-foreground">{messages.meals.carbs}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-accent">{meal.fat || 0}g</p>
-              <p className="text-xs text-muted-foreground">Fat</p>
+              <p className="text-xs text-muted-foreground">{messages.meals.fat}</p>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 gap-2 bg-transparent" onClick={onEdit}>
-              <Edit2 className="h-4 w-4" />
-              Edit
-            </Button>
-            <Button
-              variant="outline"
-              className="text-destructive hover:bg-destructive/10 bg-transparent"
-              onClick={onDelete}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          {onEdit || onDelete ? (
+            <div className="flex gap-2">
+              {onEdit ? (
+                <Button variant="outline" className="flex-1 gap-2 bg-transparent" onClick={onEdit}>
+                  <Edit2 className="h-4 w-4" />
+                  {messages.meals.edit}
+                </Button>
+              ) : null}
+              {onDelete ? (
+                <Button
+                  variant="outline"
+                  className="text-destructive hover:bg-destructive/10 bg-transparent"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </div>

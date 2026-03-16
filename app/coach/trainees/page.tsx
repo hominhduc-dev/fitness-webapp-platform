@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Calendar, TrendingUp, Users } from "lucide-react"
 
 import { Header } from "@/components/layout/header"
@@ -44,8 +45,9 @@ export default async function TraineesPage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {trainees.map((trainee) => (
-                  <div
+                  <Link
                     key={trainee.id}
+                    href={`/coach/trainees/${trainee.id}`}
                     className="group rounded-xl border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
                   >
                     <div className="flex items-start gap-4 mb-4">
@@ -99,7 +101,7 @@ export default async function TraineesPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

@@ -19,8 +19,10 @@ authRouter.post("/register", async (req, res) => {
       email: String(req.body.email ?? ""),
       name: String(req.body.name ?? ""),
       password: String(req.body.password ?? ""),
+      phone: String(req.body.phone ?? ""),
       redirectTo: typeof req.body.redirectTo === "string" ? req.body.redirectTo : undefined,
       role: typeof req.body.role === "string" ? req.body.role : undefined,
+      username: String(req.body.username ?? ""),
     })
 
     res.status(result.requiresEmailConfirmation ? 202 : 201).json(result)
@@ -32,7 +34,7 @@ authRouter.post("/register", async (req, res) => {
 authRouter.post("/login", async (req, res) => {
   try {
     const result = await loginUser({
-      email: String(req.body.email ?? ""),
+      identifier: String(req.body.identifier ?? req.body.email ?? ""),
       password: String(req.body.password ?? ""),
     })
 
@@ -58,7 +60,7 @@ authRouter.post("/refresh", async (req, res) => {
 authRouter.post("/forgot-password", async (req, res) => {
   try {
     const result = await requestPasswordReset({
-      email: String(req.body.email ?? ""),
+      email: String(req.body.identifier ?? req.body.email ?? ""),
       redirectTo: typeof req.body.redirectTo === "string" ? req.body.redirectTo : undefined,
     })
 

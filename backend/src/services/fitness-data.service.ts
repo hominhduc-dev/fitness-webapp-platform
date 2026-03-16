@@ -67,6 +67,12 @@ function assertCoach(profile: SerializedProfile) {
   }
 }
 
+function assertTrainee(profile: SerializedProfile) {
+  if (profile.role !== UserRole.trainee) {
+    throw new AuthServiceError("Chỉ trainee mới có quyền truy cập dữ liệu này.", 403)
+  }
+}
+
 function toDateRange(date = new Date()) {
   const start = new Date(date)
   start.setHours(0, 0, 0, 0)
@@ -370,6 +376,53 @@ async function createMealForUser(
   return serializeMeal(meal)
 }
 
+async function updateMealForUser(
+  profile: SerializedProfile,
+  mealId: string,
+  input: {
+    calories: number
+    carbs?: number
+    fat?: number
+    name: string
+    protein?: number
+    recordedAt?: string | null
+    type: Meal["type"]
+  },
+) {
+  const db = ensurePrisma()
+  const meal = await db.meal.findFirst({
+    where: {
+      id: mealId,
+      userId: profile.id,
+    },
+  })
+
+  if (!meal) {
+    throw new AuthServiceError("Không tìm thấy bữa ăn.", 404)
+  }
+
+  if (!input.name.trim()) {
+    throw new AuthServiceError("Tên bữa ăn không được để trống.")
+  }
+
+  const updatedMeal = await db.meal.update({
+    data: {
+      calories: Math.max(0, Math.round(input.calories)),
+      carbs: input.carbs != null ? Math.round(input.carbs) : undefined,
+      fat: input.fat != null ? Math.round(input.fat) : undefined,
+      name: input.name.trim(),
+      protein: input.protein != null ? Math.round(input.protein) : undefined,
+      recordedAt: input.recordedAt ? new Date(input.recordedAt) : meal.recordedAt,
+      type: input.type,
+    },
+    where: {
+      id: mealId,
+    },
+  })
+
+  return serializeMeal(updatedMeal)
+}
+
 async function deleteMealForUser(profile: SerializedProfile, mealId: string) {
   const db = ensurePrisma()
   const meal = await db.meal.findFirst({
@@ -604,6 +657,125 @@ async function createWorkoutLogForTrainee(
   return serializeWorkoutLog(log as WorkoutLogRecord)
 }
 
+async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const [coaches, requests] = await Promise.all([
+    db.user.findMany({
+      include: {
+        _count: {
+          select: {
+            trainees: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      where: {
+        role: UserRole.coach,
+      },
+    }),
+    db.coachRequest.findMany({
+      where: {
+        traineeId: profile.id,
+      },
+    }),
+  ])
+
+  const requestByCoach = new Map(requests.map((request) => [request.coachId, request]))
+
+  return coaches.map((coach) => {
+    const request = requestByCoach.get(coach.id)
+    const requestStatus = profile.coachId === coach.id ? "connected" : request?.status ?? "none"
+
+    return {
+      activeTrainees: coach._count.trainees,
+      avatar: coach.avatar,
+      createdAt: coach.createdAt,
+      email: coach.email,
+      fitnessGoals: coach.fitnessGoals,
+      id: coach.id,
+      name: coach.name,
+      requestId: request?.id,
+      requestStatus,
+    }
+  })
+}
+
+async function createCoachRequestForTrainee(profile: SerializedProfile, coachId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  if (profile.coachId) {
+    throw new AuthServiceError("Bạn đã được gán coach. Hãy ngắt kết nối trước khi gửi request mới.", 400)
+  }
+
+  const coach = await db.user.findFirst({
+    where: {
+      id: coachId,
+      role: UserRole.coach,
+    },
+  })
+
+  if (!coach) {
+    throw new AuthServiceError("Không tìm thấy coach.", 404)
+  }
+
+  const existingRequest = await db.coachRequest.findUnique({
+    where: {
+      traineeId_coachId: {
+        coachId,
+        traineeId: profile.id,
+      },
+    },
+  })
+
+  if (existingRequest?.status === CoachRequestStatus.pending) {
+    return {
+      request: {
+        coachId: existingRequest.coachId,
+        createdAt: existingRequest.createdAt,
+        id: existingRequest.id,
+        requestStatus: existingRequest.status,
+        traineeId: existingRequest.traineeId,
+      },
+    }
+  }
+
+  if (existingRequest?.status === CoachRequestStatus.approved) {
+    throw new AuthServiceError("Coach request này đã được phê duyệt.", 400)
+  }
+
+  const request =
+    existingRequest != null
+      ? await db.coachRequest.update({
+          data: {
+            status: CoachRequestStatus.pending,
+          },
+          where: {
+            id: existingRequest.id,
+          },
+        })
+      : await db.coachRequest.create({
+          data: {
+            coachId,
+            traineeId: profile.id,
+          },
+        })
+
+  return {
+    request: {
+      coachId: request.coachId,
+      createdAt: request.createdAt,
+      id: request.id,
+      requestStatus: request.status,
+      traineeId: request.traineeId,
+    },
+  }
+}
+
 async function listCoachPrograms(profile: SerializedProfile) {
   assertCoach(profile)
   const db = ensurePrisma()
@@ -642,6 +814,48 @@ async function listCoachPrograms(profile: SerializedProfile) {
   })
 
   return programs.map((program) => serializeProgram(program as ProgramRecord))
+}
+
+async function getCoachProgramDetail(profile: SerializedProfile, programId: string) {
+  assertCoach(profile)
+  const db = ensurePrisma()
+  const program = await db.program.findFirst({
+    include: {
+      assignments: {
+        include: {
+          user: true,
+        },
+      },
+      workouts: {
+        include: {
+          exercises: {
+            include: {
+              exercise: true,
+              sets: {
+                orderBy: {
+                  setNumber: "asc",
+                },
+              },
+            },
+            orderBy: {
+              order: "asc",
+            },
+          },
+        },
+        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+      },
+    },
+    where: {
+      createdById: profile.id,
+      id: programId,
+    },
+  })
+
+  if (!program) {
+    throw new AuthServiceError("Không tìm thấy chương trình.", 404)
+  }
+
+  return serializeProgram(program as ProgramRecord)
 }
 
 async function createCoachProgram(
@@ -761,6 +975,169 @@ async function createCoachProgram(
   return serializeProgram(program as ProgramRecord)
 }
 
+async function updateCoachProgram(
+  profile: SerializedProfile,
+  programId: string,
+  input: {
+    assignToUserIds?: string[]
+    description?: string | null
+    difficulty: ProgramDifficulty
+    duration: number
+    name: string
+    workouts: Array<{
+      duration?: number
+      exercises: Array<{
+        exerciseId: string
+        reps: number
+        restTime?: number
+        sets: number
+      }>
+      name: string
+      scheduledDay?: number
+    }>
+  },
+) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const existingProgram = await db.program.findFirst({
+    select: {
+      id: true,
+    },
+    where: {
+      createdById: profile.id,
+      id: programId,
+    },
+  })
+
+  if (!existingProgram) {
+    throw new AuthServiceError("Không tìm thấy chương trình.", 404)
+  }
+
+  if (!input.name.trim()) {
+    throw new AuthServiceError("Tên chương trình không được để trống.")
+  }
+
+  if (input.workouts.length === 0) {
+    throw new AuthServiceError("Chương trình cần ít nhất một buổi tập.")
+  }
+
+  const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+
+  if (assignToUserIds.length > 0) {
+    const validTrainees = await db.user.count({
+      where: {
+        coachId: profile.id,
+        id: {
+          in: assignToUserIds,
+        },
+        role: UserRole.trainee,
+      },
+    })
+
+    if (validTrainees !== assignToUserIds.length) {
+      throw new AuthServiceError("Chỉ có thể gán chương trình cho trainee thuộc coach này.", 400)
+    }
+  }
+
+  const program = await db.program.update({
+    data: {
+      assignments: {
+        create: assignToUserIds.map((userId) => ({
+          userId,
+        })),
+        deleteMany: {},
+      },
+      description: input.description?.trim() || undefined,
+      difficulty: input.difficulty,
+      duration: Math.max(1, Math.round(input.duration)),
+      name: input.name.trim(),
+      workouts: {
+        create: input.workouts.map((workout, workoutIndex) => ({
+          duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
+          exercises: {
+            create: workout.exercises.map((exercise, exerciseIndex) => ({
+              exerciseId: exercise.exerciseId,
+              order: exerciseIndex + 1,
+              restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
+              sets: {
+                create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
+                  setNumber: setIndex + 1,
+                  targetReps: Math.max(1, Math.round(exercise.reps)),
+                })),
+              },
+            })),
+          },
+          name: workout.name.trim() || `Day ${workoutIndex + 1}`,
+          scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
+        })),
+        deleteMany: {},
+      },
+      workoutsPerWeek: input.workouts.length,
+    },
+    include: {
+      assignments: {
+        include: {
+          user: true,
+        },
+      },
+      workouts: {
+        include: {
+          exercises: {
+            include: {
+              exercise: true,
+              sets: {
+                orderBy: {
+                  setNumber: "asc",
+                },
+              },
+            },
+            orderBy: {
+              order: "asc",
+            },
+          },
+        },
+        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+      },
+    },
+    where: {
+      id: existingProgram.id,
+    },
+  })
+
+  return serializeProgram(program as ProgramRecord)
+}
+
+async function deleteCoachProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const existingProgram = await db.program.findFirst({
+    select: {
+      id: true,
+    },
+    where: {
+      createdById: profile.id,
+      id: programId,
+    },
+  })
+
+  if (!existingProgram) {
+    throw new AuthServiceError("Không tìm thấy chương trình.", 404)
+  }
+
+  await db.program.delete({
+    where: {
+      id: existingProgram.id,
+    },
+  })
+
+  return {
+    deleted: true,
+    id: existingProgram.id,
+  }
+}
+
 async function listCoachTrainees(profile: SerializedProfile) {
   assertCoach(profile)
   const db = ensurePrisma()
@@ -819,6 +1196,114 @@ async function listCoachTrainees(profile: SerializedProfile) {
   }))
 }
 
+async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: string) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const trainee = await db.user.findFirst({
+    include: {
+      _count: {
+        select: {
+          programAssignments: true,
+          workoutLogs: true,
+        },
+      },
+      programAssignments: {
+        include: {
+          program: {
+            include: {
+              assignments: {
+                include: {
+                  user: true,
+                },
+              },
+              workouts: {
+                include: {
+                  exercises: {
+                    include: {
+                      exercise: true,
+                      sets: {
+                        orderBy: {
+                          setNumber: "asc",
+                        },
+                      },
+                    },
+                    orderBy: {
+                      order: "asc",
+                    },
+                  },
+                },
+                orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+              },
+            },
+          },
+        },
+      },
+      workoutLogs: {
+        include: {
+          workout: {
+            include: {
+              exercises: {
+                include: {
+                  exercise: true,
+                  sets: {
+                    orderBy: {
+                      setNumber: "asc",
+                    },
+                  },
+                },
+                orderBy: {
+                  order: "asc",
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          startedAt: "desc",
+        },
+        take: 10,
+      },
+    },
+    where: {
+      coachId: profile.id,
+      id: traineeId,
+      role: UserRole.trainee,
+    },
+  })
+
+  if (!trainee) {
+    throw new AuthServiceError("Không tìm thấy trainee.", 404)
+  }
+
+  const recentWindow = toRecentWindow(7)
+  const thisWeekWorkouts = await db.workoutLog.count({
+    where: {
+      startedAt: {
+        gte: recentWindow.start,
+        lte: recentWindow.end,
+      },
+      userId: trainee.id,
+    },
+  })
+
+  return {
+    programs: trainee.programAssignments.map((assignment) => serializeProgram(assignment.program as ProgramRecord)),
+    recentLogs: trainee.workoutLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    trainee: {
+      avatar: trainee.avatar,
+      createdAt: trainee.createdAt,
+      email: trainee.email,
+      fitnessGoals: trainee.fitnessGoals,
+      id: trainee.id,
+      name: trainee.name,
+      programCount: trainee._count.programAssignments,
+      thisWeekWorkouts,
+      totalWorkoutLogs: trainee._count.workoutLogs,
+    },
+  }
+}
+
 async function getCoachDashboard(profile: SerializedProfile) {
   assertCoach(profile)
   const db = ensurePrisma()
@@ -844,16 +1329,97 @@ async function getCoachDashboard(profile: SerializedProfile) {
   }
 }
 
+async function updateCoachRequestStatus(
+  profile: SerializedProfile,
+  requestId: string,
+  status: CoachRequestStatus,
+) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  if (status === CoachRequestStatus.pending) {
+    throw new AuthServiceError("Trạng thái cập nhật không hợp lệ.", 400)
+  }
+
+  const existingRequest = await db.coachRequest.findFirst({
+    include: {
+      trainee: true,
+    },
+    where: {
+      coachId: profile.id,
+      id: requestId,
+    },
+  })
+
+  if (!existingRequest) {
+    throw new AuthServiceError("Không tìm thấy coach request.", 404)
+  }
+
+  if (existingRequest.status !== CoachRequestStatus.pending) {
+    throw new AuthServiceError("Coach request này đã được xử lý.", 400)
+  }
+
+  const updatedRequest = await db.$transaction(async (transaction) => {
+    const request = await transaction.coachRequest.update({
+      data: {
+        status,
+      },
+      include: {
+        trainee: true,
+      },
+      where: {
+        id: requestId,
+      },
+    })
+
+    if (status === CoachRequestStatus.approved) {
+      await transaction.user.update({
+        data: {
+          coachId: profile.id,
+        },
+        where: {
+          id: existingRequest.traineeId,
+        },
+      })
+
+      await transaction.coachRequest.updateMany({
+        data: {
+          status: CoachRequestStatus.rejected,
+        },
+        where: {
+          id: {
+            not: requestId,
+          },
+          status: CoachRequestStatus.pending,
+          traineeId: existingRequest.traineeId,
+        },
+      })
+    }
+
+    return request
+  })
+
+  return serializeCoachRequest(updatedRequest)
+}
+
 export {
+  createCoachRequestForTrainee,
   createCoachProgram,
   createMealForUser,
   createWorkoutLogForTrainee,
   deleteMealForUser,
+  deleteCoachProgram,
   getCoachDashboard,
+  getCoachProgramDetail,
+  getCoachTraineeDetail,
   getWorkoutDetailForTrainee,
+  listAvailableCoachesForTrainee,
   listCoachPrograms,
   listCoachTrainees,
   listExercises,
   listMealsForUser,
   listWorkoutsForTrainee,
+  updateCoachProgram,
+  updateCoachRequestStatus,
+  updateMealForUser,
 }

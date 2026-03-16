@@ -1,4 +1,4 @@
-export type AppRole = "trainee" | "coach"
+export type AppRole = "trainee" | "coach" | "admin"
 
 export interface AppProfile {
   avatar?: string | null
@@ -8,9 +8,11 @@ export interface AppProfile {
   fitnessGoals: string[]
   id: string
   name: string
+  phone?: string | null
   role: AppRole
   supabaseAuthUserId?: string | null
   updatedAt: string
+  username?: string | null
 }
 
 export interface AuthenticatedUserPayload {

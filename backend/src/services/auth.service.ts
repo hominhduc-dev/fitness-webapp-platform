@@ -1,4 +1,4 @@
-import { UserRole, type User as AppUser } from "@prisma/client"
+import { Prisma, UserRole, type User as AppUser } from "@prisma/client"
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
 
 import { env } from "../config/env"
@@ -43,6 +43,8 @@ class AuthServiceError extends Error {
   }
 }
 
+const USERNAME_PATTERN = /^(?=.{3,30}$)[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$/
+
 function fallbackNameFromEmail(email?: string | null) {
   if (!email) {
     return "YeahBuddy User"
@@ -52,6 +54,17 @@ function fallbackNameFromEmail(email?: string | null) {
 }
 
 function normalizeRole(role?: string | null) {
+  switch (role) {
+    case UserRole.admin:
+      return UserRole.admin
+    case UserRole.coach:
+      return UserRole.coach
+    default:
+      return UserRole.trainee
+  }
+}
+
+function normalizePublicRole(role?: string | null) {
   return role === UserRole.coach ? UserRole.coach : UserRole.trainee
 }
 
@@ -66,6 +79,71 @@ function normalizeFitnessGoals(value: unknown) {
   }
 
   return value.map((goal) => String(goal).trim()).filter(Boolean)
+}
+
+function normalizeEmail(value?: string | null) {
+  const trimmed = value?.trim().toLowerCase()
+  return trimmed || undefined
+}
+
+function normalizeUsername(value?: string | null) {
+  const trimmed = value?.trim().toLowerCase()
+
+  if (!trimmed) {
+    return undefined
+  }
+
+  if (!USERNAME_PATTERN.test(trimmed)) {
+    throw new AuthServiceError(
+      "Username chỉ được chứa chữ thường, số, dấu chấm hoặc gạch dưới, dài từ 3 đến 30 ký tự.",
+    )
+  }
+
+  return trimmed
+}
+
+function normalizePhoneNumber(value?: string | null) {
+  const trimmed = value?.trim()
+
+  if (!trimmed) {
+    return undefined
+  }
+
+  const normalized = trimmed.replace(/[^\d+]/g, "")
+
+  if (normalized.startsWith("+")) {
+    const digits = normalized.slice(1).replace(/\D/g, "")
+
+    if (digits.length < 8 || digits.length > 15) {
+      throw new AuthServiceError("Số điện thoại không hợp lệ.")
+    }
+
+    return `+${digits}`
+  }
+
+  const digitsOnly = normalized.replace(/\D/g, "")
+
+  if (digitsOnly.length < 8 || digitsOnly.length > 15) {
+    throw new AuthServiceError("Số điện thoại không hợp lệ.")
+  }
+
+  if (digitsOnly.startsWith("0")) {
+    return `+84${digitsOnly.slice(1)}`
+  }
+
+  if (digitsOnly.startsWith("84")) {
+    return `+${digitsOnly}`
+  }
+
+  return `+${digitsOnly}`
+}
+
+function looksLikeEmail(value: string) {
+  return value.includes("@")
+}
+
+function looksLikePhone(value: string) {
+  return /^[+\d][\d\s().-]{7,}$/.test(value.trim())
 }
 
 function resolveUserName(authUser: SupabaseUser, nameOverride?: string | null) {
@@ -90,6 +168,18 @@ function resolveUserAvatar(authUser: SupabaseUser, avatarOverride?: string | nul
 
   const metadata = authUser.user_metadata
   return sanitizeText(metadata?.avatar_url) ?? sanitizeText(metadata?.picture)
+}
+
+function resolveUserUsername(authUser: SupabaseUser, usernameOverride?: string | null) {
+  const metadataUsername =
+    typeof authUser.user_metadata?.username === "string" ? authUser.user_metadata.username : undefined
+
+  return normalizeUsername(usernameOverride ?? metadataUsername)
+}
+
+function resolveUserPhone(authUser: SupabaseUser, phoneOverride?: string | null) {
+  const metadataPhone = typeof authUser.user_metadata?.phone === "string" ? authUser.user_metadata.phone : undefined
+  return normalizePhoneNumber(phoneOverride ?? authUser.phone ?? metadataPhone)
 }
 
 function resolveUserRole(authUser: SupabaseUser, roleOverride?: string | null) {
@@ -153,20 +243,45 @@ function serializeProfile(profile: AppUser | null) {
     fitnessGoals: profile.fitnessGoals,
     id: profile.id,
     name: profile.name,
+    phone: profile.phone,
     role: profile.role,
     supabaseAuthUserId: profile.supabaseAuthUserId,
     updatedAt: profile.updatedAt,
+    username: profile.username,
   }
 }
 
-async function syncProfile(authUser: SupabaseUser, overrides?: { avatar?: string | null; name?: string | null; role?: string | null }) {
+async function syncProfile(authUser: SupabaseUser, overrides?: {
+  avatar?: string | null
+  name?: string | null
+  phone?: string | null
+  role?: string | null
+  username?: string | null
+}) {
   if (!prisma || !authUser.email) {
     return null
   }
 
+  const email = normalizeEmail(authUser.email) as string
+  const username = resolveUserUsername(authUser, overrides?.username)
+  const phone = resolveUserPhone(authUser, overrides?.phone)
+  const lookupConditions: Prisma.UserWhereInput[] = [{ supabaseAuthUserId: authUser.id }]
+
+  if (email) {
+    lookupConditions.push({ email })
+  }
+
+  if (phone) {
+    lookupConditions.push({ phone })
+  }
+
+  if (username) {
+    lookupConditions.push({ username })
+  }
+
   const existingProfile = await prisma.user.findFirst({
     where: {
-      OR: [{ supabaseAuthUserId: authUser.id }, { email: authUser.email }],
+      OR: lookupConditions,
     },
   })
 
@@ -179,11 +294,13 @@ async function syncProfile(authUser: SupabaseUser, overrides?: { avatar?: string
     return prisma.user.update({
       data: {
         avatar: avatar ?? existingProfile.avatar,
-        email: authUser.email,
+        email,
         fitnessGoals: existingProfile.fitnessGoals.length > 0 ? existingProfile.fitnessGoals : metadataGoals,
         name,
+        phone: phone ?? existingProfile.phone,
         role: nextRole,
         supabaseAuthUserId: authUser.id,
+        username: username ?? existingProfile.username,
       },
       where: {
         id: existingProfile.id,
@@ -194,13 +311,120 @@ async function syncProfile(authUser: SupabaseUser, overrides?: { avatar?: string
   return prisma.user.create({
     data: {
       avatar,
-      email: authUser.email,
+      email,
       fitnessGoals: metadataGoals,
       name,
+      phone,
       role: nextRole,
       supabaseAuthUserId: authUser.id,
+      username,
     },
   })
+}
+
+async function findUserByIdentifier(identifier: string) {
+  const db = prisma
+  const trimmedIdentifier = identifier.trim()
+
+  if (!db || !trimmedIdentifier) {
+    return null
+  }
+
+  if (looksLikeEmail(trimmedIdentifier)) {
+    const email = normalizeEmail(trimmedIdentifier)
+
+    if (!email) {
+      return null
+    }
+
+    return db.user.findUnique({
+      where: {
+        email,
+      },
+    })
+  }
+
+  if (looksLikePhone(trimmedIdentifier)) {
+    const phone = normalizePhoneNumber(trimmedIdentifier)
+
+    if (!phone) {
+      return null
+    }
+
+    return db.user.findUnique({
+      where: {
+        phone,
+      },
+    })
+  }
+
+  const username = normalizeUsername(trimmedIdentifier)
+
+  if (!username) {
+    return null
+  }
+
+  return db.user.findUnique({
+    where: {
+      username,
+    },
+  })
+}
+
+async function resolveLoginEmail(identifier: string) {
+  const trimmedIdentifier = identifier.trim()
+
+  if (!trimmedIdentifier) {
+    throw new AuthServiceError("Vui lòng nhập email, số điện thoại hoặc username.")
+  }
+
+  if (looksLikeEmail(trimmedIdentifier)) {
+    return normalizeEmail(trimmedIdentifier) as string
+  }
+
+  const profile = await findUserByIdentifier(trimmedIdentifier)
+
+  if (!profile?.email) {
+    throw new AuthServiceError("Tài khoản hoặc mật khẩu không chính xác.", 401)
+  }
+
+  return profile.email
+}
+
+async function ensureRegistrationIdentifiersAvailable(input: { email: string; phone: string; username: string }) {
+  if (!prisma) {
+    return
+  }
+
+  const existingByEmail = await prisma.user.findUnique({
+    where: {
+      email: input.email,
+    },
+  })
+
+  if (existingByEmail) {
+    throw new AuthServiceError("Email này đã được sử dụng.")
+  }
+
+  const existingByUsername = await prisma.user.findUnique({
+    where: {
+      username: input.username,
+    },
+  })
+
+  if (existingByUsername) {
+    throw new AuthServiceError("Username này đã được sử dụng.")
+  }
+
+  const existingByPhone = await prisma.user.findUnique({
+    where: {
+      phone: input.phone,
+    },
+  })
+
+  if (existingByPhone) {
+    throw new AuthServiceError("Số điện thoại này đã được sử dụng.")
+  }
 }
 
 async function getVerifiedUser(accessToken: string) {
@@ -218,21 +442,31 @@ async function registerUser(input: {
   email: string
   name: string
   password: string
+  phone: string
   redirectTo?: string
   role?: string | null
+  username: string
 }) {
   const client = ensureAuthClient()
-  const email = input.email.trim().toLowerCase()
+  const email = normalizeEmail(input.email) as string
   const password = input.password.trim()
   const name = input.name.trim()
+  const phone = normalizePhoneNumber(input.phone)
+  const username = normalizeUsername(input.username)
 
-  if (!email || !password || !name) {
-    throw new AuthServiceError("Vui lòng điền đầy đủ họ tên, email và mật khẩu.")
+  if (!email || !password || !name || !phone || !username) {
+    throw new AuthServiceError("Vui lòng điền đầy đủ họ tên, email, username, số điện thoại và mật khẩu.")
   }
 
   if (password.length < 6) {
     throw new AuthServiceError("Mật khẩu phải có ít nhất 6 ký tự.")
   }
+
+  await ensureRegistrationIdentifiersAvailable({
+    email,
+    phone,
+    username,
+  })
 
   const { data, error } = await client.auth.signUp({
     email,
@@ -240,7 +474,9 @@ async function registerUser(input: {
     options: {
       data: {
         name,
-        role: normalizeRole(input.role),
+        phone,
+        role: normalizePublicRole(input.role),
+        username,
       },
       emailRedirectTo: input.redirectTo ?? `${env.frontendUrl}/auth/callback`,
     },
@@ -250,7 +486,9 @@ async function registerUser(input: {
     throw new AuthServiceError(error.message, 400)
   }
 
-  const profile = data.user ? await syncProfile(data.user, { name, role: input.role }) : null
+  const profile = data.user
+    ? await syncProfile(data.user, { name, phone, role: normalizePublicRole(input.role), username })
+    : null
   const requiresEmailConfirmation = !data.session
 
   return {
@@ -264,11 +502,12 @@ async function registerUser(input: {
   } satisfies AuthResult
 }
 
-async function loginUser(input: { email: string; password: string }) {
+async function loginUser(input: { identifier: string; password: string }) {
   const client = ensureAuthClient()
+  const email = await resolveLoginEmail(input.identifier)
 
   const { data, error } = await client.auth.signInWithPassword({
-    email: input.email.trim().toLowerCase(),
+    email,
     password: input.password,
   })
 
@@ -395,8 +634,9 @@ async function updateCurrentProfile(
 
 async function requestPasswordReset(input: { email: string; redirectTo?: string }) {
   const client = ensureAuthClient()
+  const email = await resolveLoginEmail(input.email)
 
-  const { error } = await client.auth.resetPasswordForEmail(input.email.trim().toLowerCase(), {
+  const { error } = await client.auth.resetPasswordForEmail(email, {
     redirectTo: input.redirectTo ?? `${env.frontendUrl}/auth/callback?next=/reset-password`,
   })
 

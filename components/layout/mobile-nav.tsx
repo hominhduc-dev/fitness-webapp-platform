@@ -4,8 +4,10 @@ import type React from "react"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Calendar, Dumbbell, Utensils, BarChart3, Users } from "lucide-react"
+import { Home, Calendar, Dumbbell, Utensils, BarChart3, Users, Settings, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { AppRole } from "@/lib/auth/types"
+import { useLocale } from "@/components/providers/locale-provider"
 
 interface NavItem {
   href: string
@@ -13,28 +15,30 @@ interface NavItem {
   label: string
 }
 
-const traineeNavItems: NavItem[] = [
-  { href: "/dashboard", icon: Home, label: "Home" },
-  { href: "/schedule", icon: Calendar, label: "Schedule" },
-  { href: "/workout", icon: Dumbbell, label: "Workout" },
-  { href: "/meals", icon: Utensils, label: "Meals" },
-  { href: "/progress", icon: BarChart3, label: "Progress" },
-]
-
-const coachNavItems: NavItem[] = [
-  { href: "/coach", icon: Home, label: "Home" },
-  { href: "/coach/trainees", icon: Users, label: "Trainees" },
-  { href: "/coach/programs", icon: Dumbbell, label: "Programs" },
-  { href: "/coach/analytics", icon: BarChart3, label: "Analytics" },
-]
-
 interface MobileNavProps {
-  role?: "trainee" | "coach"
+  role?: AppRole
 }
 
 export function MobileNav({ role = "trainee" }: MobileNavProps) {
   const pathname = usePathname()
-  const navItems = role === "coach" ? coachNavItems : traineeNavItems
+  const { messages } = useLocale()
+  const traineeNavItems: NavItem[] = [
+    { href: "/dashboard", icon: Home, label: messages.shell.home },
+    { href: "/schedule", icon: Calendar, label: messages.shell.schedule },
+    { href: "/workout", icon: Dumbbell, label: messages.shell.workout },
+    { href: "/meals", icon: Utensils, label: messages.shell.meals },
+    { href: "/progress", icon: BarChart3, label: messages.shell.progress },
+  ]
+  const coachNavItems: NavItem[] = [
+    { href: "/coach", icon: Home, label: messages.shell.home },
+    { href: "/coach/trainees", icon: Users, label: messages.shell.trainees },
+    { href: "/coach/programs", icon: Dumbbell, label: messages.shell.programs },
+  ]
+  const adminNavItems: NavItem[] = [
+    { href: "/admin", icon: ShieldCheck, label: messages.shell.admin },
+    { href: "/profile", icon: Settings, label: messages.common.settings },
+  ]
+  const navItems = role === "coach" ? coachNavItems : role === "admin" ? adminNavItems : traineeNavItems
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 backdrop-blur-lg md:hidden">
@@ -50,7 +54,7 @@ export function MobileNav({ role = "trainee" }: MobileNavProps) {
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <item.icon className={cn("h-5 w-5", isActive && "drop-shadow-[0_0_8px_rgba(34,197,94,0.5)]")} />
+              <item.icon className={cn("h-5 w-5 transition-transform", isActive && "scale-105")} />
               <span className="font-medium">{item.label}</span>
             </Link>
           )

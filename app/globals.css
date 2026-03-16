@@ -3,74 +3,64 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Sporty Fitness App Dark Theme */
 :root {
-  /* Primary - Neon Sport Green */
-  --primary: #22c55e;
-  --primary-hover: #16a34a;
-  --primary-pressed: #15803d;
-  --primary-foreground: #0b0f14;
+  color-scheme: light;
 
-  /* Secondary - Electric Blue */
-  --secondary: #2563eb;
-  --secondary-hover: #1d4ed8;
-  --secondary-foreground: #f9fafb;
+  /* FitDash - Modern SaaS Dashboard */
+  --primary: #1349ec;
+  --primary-hover: #0f3dd1;
+  --primary-pressed: #0d35b5;
+  --primary-foreground: #ffffff;
 
-  /* Accent - Sport Red */
-  --accent: #f43f5e;
-  --accent-foreground: #f9fafb;
+  --secondary: #eff3ff;
+  --secondary-hover: #dfe8ff;
+  --secondary-foreground: #1e293b;
 
-  /* Backgrounds */
-  --background: #0b0f14;
-  --foreground: #f9fafb;
+  --accent: #eff3ff;
+  --accent-foreground: #1349ec;
 
-  /* Surface & Cards */
-  --card: #1f2937;
-  --card-foreground: #f9fafb;
-  --surface: #111827;
+  --background: #f8fafc;
+  --foreground: #1e293b;
 
-  /* Popover */
-  --popover: #1f2937;
-  --popover-foreground: #f9fafb;
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --surface: #ffffff;
 
-  /* Muted */
-  --muted: #374151;
-  --muted-foreground: #9ca3af;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
 
-  /* Text */
-  --text-primary: #f9fafb;
-  --text-secondary: #d1d5db;
+  --muted: #eff3ff;
+  --muted-foreground: #64748b;
 
-  /* Status Colors */
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --info: #38bdf8;
-  --destructive: #f43f5e;
-  --destructive-foreground: #f9fafb;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
 
-  /* Border & Input */
-  --border: #374151;
-  --input: #374151;
-  --ring: #22c55e;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
-  /* Chart Colors */
-  --chart-1: #22c55e;
-  --chart-2: #2563eb;
-  --chart-3: #f43f5e;
-  --chart-4: #fbbf24;
-  --chart-5: #38bdf8;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #1349ec;
+
+  --chart-1: #1349ec;
+  --chart-2: #3b82f6;
+  --chart-3: #22c55e;
+  --chart-4: #f59e0b;
+  --chart-5: #cbd5e1;
 
   --radius: 0.75rem;
 
-  /* Sidebar */
-  --sidebar: #111827;
-  --sidebar-foreground: #f9fafb;
-  --sidebar-primary: #22c55e;
-  --sidebar-primary-foreground: #0b0f14;
-  --sidebar-accent: #1f2937;
-  --sidebar-accent-foreground: #f9fafb;
-  --sidebar-border: #374151;
-  --sidebar-ring: #22c55e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #1349ec;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eff3ff;
+  --sidebar-accent-foreground: #1349ec;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #1349ec;
 }
 
 @theme inline {
@@ -122,26 +112,31 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    @apply bg-background;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar for light theme */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: #94a3b8;
 }

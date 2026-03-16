@@ -16,7 +16,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { LocaleToggle } from "@/components/locale/locale-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
+import { getRoleLandingPath } from "@/lib/auth/roles"
 
 interface HeaderProps {
   showMenu?: boolean
@@ -26,10 +29,11 @@ interface HeaderProps {
 export function Header({ showMenu, onMenuClick }: HeaderProps) {
   const router = useRouter()
   const { isLoading, profile, signOut } = useAuth()
+  const { messages } = useLocale()
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const dashboardHref = profile?.role === "coach" ? "/coach" : "/dashboard"
-  const displayName = profile?.name ?? "YeahBuddy User"
-  const displayEmail = profile?.email ?? "Loading..."
+  const dashboardHref = getRoleLandingPath(profile?.role)
+  const displayName = profile?.name ?? messages.shell.yeahBuddyUser
+  const displayEmail = profile?.email ?? messages.shell.loadingEmail
   const initials = displayName
     .split(" ")
     .filter(Boolean)
@@ -67,9 +71,10 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <LocaleToggle compact />
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" />
+            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" />
           </Button>
 
           <DropdownMenu>
@@ -92,17 +97,17 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
               <DropdownMenuItem asChild>
                 <Link href="/profile">
                   <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  {messages.common.settings}
                 </Link>
               </DropdownMenuItem>
-              {profile?.role !== "coach" && (
+              {profile?.role === "trainee" && (
                 <DropdownMenuItem asChild>
-                  <Link href="/coach/find">Add Coach</Link>
+                  <Link href="/coach/find">{messages.common.addCoach}</Link>
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => void handleSignOut()} disabled={isSigningOut}>
-                {isSigningOut ? "Signing Out..." : "Sign Out"}
+                {isSigningOut ? messages.common.signingOut : messages.common.signOut}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

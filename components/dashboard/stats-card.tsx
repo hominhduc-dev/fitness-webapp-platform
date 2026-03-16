@@ -1,11 +1,38 @@
+"use client"
+
+import {
+  Calendar,
+  ClipboardList,
+  Flame,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+  UserPlus,
+  Users,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
+import { useLocale } from "@/components/providers/locale-provider"
+
+const iconMap = {
+  calendar: Calendar,
+  "clipboard-list": ClipboardList,
+  flame: Flame,
+  "shield-check": ShieldCheck,
+  target: Target,
+  "trending-up": TrendingUp,
+  "user-plus": UserPlus,
+  users: Users,
+} satisfies Record<string, LucideIcon>
+
+type StatsCardIconName = keyof typeof iconMap
 
 interface StatsCardProps {
   title: string
   value: string | number
   subtitle?: string
-  icon: LucideIcon
+  icon?: LucideIcon
+  iconName?: StatsCardIconName
   trend?: {
     value: number
     positive: boolean
@@ -13,7 +40,10 @@ interface StatsCardProps {
   variant?: "default" | "primary" | "accent"
 }
 
-export function StatsCard({ title, value, subtitle, icon: Icon, trend, variant = "default" }: StatsCardProps) {
+export function StatsCard({ title, value, subtitle, icon, iconName, trend, variant = "default" }: StatsCardProps) {
+  const { locale } = useLocale()
+  const Icon = icon ?? (iconName ? iconMap[iconName] : undefined)
+
   return (
     <div
       className={cn(
@@ -38,27 +68,29 @@ export function StatsCard({ title, value, subtitle, icon: Icon, trend, variant =
           {trend && (
             <p className={cn("text-xs font-medium", trend.positive ? "text-success" : "text-accent")}>
               {trend.positive ? "+" : ""}
-              {trend.value}% from last week
+              {trend.value}% {locale === "en" ? "from last week" : "so với tuần trước"}
             </p>
           )}
         </div>
-        <div
-          className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-lg",
-            variant === "default" && "bg-muted",
-            variant === "primary" && "bg-primary/10",
-            variant === "accent" && "bg-accent/10",
-          )}
-        >
-          <Icon
+        {Icon ? (
+          <div
             className={cn(
-              "h-5 w-5",
-              variant === "default" && "text-muted-foreground",
-              variant === "primary" && "text-primary",
-              variant === "accent" && "text-accent",
+              "flex h-10 w-10 items-center justify-center rounded-lg",
+              variant === "default" && "bg-muted",
+              variant === "primary" && "bg-primary/10",
+              variant === "accent" && "bg-accent/10",
             )}
-          />
-        </div>
+          >
+            <Icon
+              className={cn(
+                "h-5 w-5",
+                variant === "default" && "text-muted-foreground",
+                variant === "primary" && "text-primary",
+                variant === "accent" && "text-accent",
+              )}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Decorative gradient */}

@@ -1,14 +1,16 @@
 import Link from "next/link"
-import { Calendar, ChevronRight, TrendingUp, UserPlus, Users } from "lucide-react"
+import { Calendar, ChevronRight, Users } from "lucide-react"
 
 import { Header } from "@/components/layout/header"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { Sidebar } from "@/components/layout/sidebar"
 import { StatsCard } from "@/components/dashboard/stats-card"
+import { PendingRequestsPanel } from "@/components/coach/pending-requests-panel"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchCoachDashboard } from "@/lib/fitness/api"
+import { getServerMessages } from "@/lib/i18n/server"
 
 function getInitials(name: string) {
   return name
@@ -19,6 +21,7 @@ function getInitials(name: string) {
 
 export default async function CoachDashboardPage() {
   const { accessToken, profile } = await requireAppSession({ role: "coach" })
+  const messages = await getServerMessages()
   const dashboard = await fetchCoachDashboard(accessToken)
   const workoutsThisWeek = dashboard.trainees.reduce((sum, trainee) => sum + trainee.thisWeekWorkouts, 0)
   const compliance =
@@ -36,76 +39,46 @@ export default async function CoachDashboardPage() {
           <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:px-6">
             <div className="mb-4 sm:mb-6">
               <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">
-                Welcome, <span className="text-primary">{profile.name}</span>
+                {messages.coach.welcome}, <span className="text-primary">{profile.name}</span>
               </h1>
               <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-                Manage your trainees and track their progress
+                {messages.coach.subtitle}
               </p>
             </div>
 
             <div className="mb-4 sm:mb-6 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-              <StatsCard title="Active Trainees" value={dashboard.trainees.length} icon={Users} variant="primary" />
+              <StatsCard title={messages.coach.activeTrainees} value={dashboard.trainees.length} iconName="users" variant="primary" />
               <StatsCard
-                title="Pending Requests"
+                title={messages.coach.pendingRequests}
                 value={dashboard.pendingRequests.length}
-                icon={UserPlus}
+                iconName="user-plus"
                 variant="accent"
               />
-              <StatsCard title="Workouts This Week" value={workoutsThisWeek} subtitle="across all trainees" icon={Calendar} />
-              <StatsCard title="Avg. Compliance" value={`${compliance}%`} icon={TrendingUp} />
+              <StatsCard title={messages.coach.workoutsThisWeek} value={workoutsThisWeek} subtitle={messages.coach.acrossAllTrainees} iconName="calendar" />
+              <StatsCard title={messages.coach.compliance} value={`${compliance}%`} iconName="trending-up" />
             </div>
 
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-              {dashboard.pendingRequests.length > 0 ? (
-                <div className="lg:col-span-3 rounded-xl border border-accent/30 bg-accent/5 p-3 sm:p-6">
-                  <div className="flex items-center justify-between mb-3 sm:mb-4">
-                    <h3 className="text-base font-semibold sm:text-lg">Pending Requests</h3>
-                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
-                      {dashboard.pendingRequests.length} new
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {dashboard.pendingRequests.map((request) => (
-                      <div
-                        key={request.id}
-                        className="flex flex-col gap-3 rounded-lg bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
-                      >
-                        <div className="flex items-center gap-3 sm:gap-4">
-                          <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-accent/20">
-                            <AvatarImage src={request.trainee.avatar || "/placeholder.svg"} />
-                            <AvatarFallback>{getInitials(request.trainee.name)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-semibold sm:text-base">{request.trainee.name}</p>
-                            <p className="text-xs text-muted-foreground sm:text-sm">{request.trainee.email}</p>
-                          </div>
-                        </div>
-                        <Button size="sm" variant="outline" disabled className="w-full sm:w-auto bg-transparent">
-                          Approval flow not wired yet
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
+              <PendingRequestsPanel initialRequests={dashboard.pendingRequests} />
 
               <div className="lg:col-span-2 rounded-xl border border-border bg-card p-3 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <h3 className="text-base font-semibold sm:text-lg">Your Trainees</h3>
+                  <h3 className="text-base font-semibold sm:text-lg">{messages.coach.yourTrainees}</h3>
                   <Link href="/coach/trainees">
                     <Button variant="ghost" size="sm" className="gap-1 text-xs sm:text-sm">
-                      View All
+                      {messages.coach.viewAll}
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </Link>
                 </div>
                 <div className="space-y-2 sm:space-y-3">
                   {dashboard.trainees.length === 0 ? (
-                    <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">No trainees assigned yet.</div>
+                    <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">{messages.coach.noTrainees}</div>
                   ) : (
                     dashboard.trainees.map((trainee) => (
-                      <div
+                      <Link
                         key={trainee.id}
+                        href={`/coach/trainees/${trainee.id}`}
                         className="flex items-center justify-between rounded-lg bg-muted/30 p-3 sm:p-4"
                       >
                         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
@@ -118,15 +91,15 @@ export default async function CoachDashboardPage() {
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold truncate sm:text-base">{trainee.name}</p>
                             <p className="text-xs text-muted-foreground truncate hidden xs:block sm:text-sm">
-                              {trainee.fitnessGoals.join(", ") || "No goals added"}
+                              {trainee.fitnessGoals.join(", ") || messages.coach.noGoals}
                             </p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-medium">{trainee.thisWeekWorkouts} workouts</p>
-                          <p className="text-xs text-muted-foreground">{trainee.programCount} programs</p>
+                          <p className="text-sm font-medium">{trainee.thisWeekWorkouts} {messages.coach.workouts}</p>
+                          <p className="text-xs text-muted-foreground">{trainee.programCount} {messages.coach.programs}</p>
                         </div>
-                      </div>
+                      </Link>
                     ))
                   )}
                 </div>
@@ -134,28 +107,28 @@ export default async function CoachDashboardPage() {
 
               <div className="space-y-4 sm:space-y-6">
                 <div className="rounded-xl border border-border bg-card p-3 sm:p-6">
-                  <h3 className="mb-3 sm:mb-4 text-base font-semibold sm:text-lg">Quick Actions</h3>
+                  <h3 className="mb-3 sm:mb-4 text-base font-semibold sm:text-lg">{messages.coach.quickActions}</h3>
                   <div className="space-y-2">
                     <Link href="/coach/programs/new">
                       <Button variant="outline" className="w-full justify-start gap-2 bg-transparent text-sm">
                         <Calendar className="h-4 w-4" />
-                        Create Program
+                        {messages.coach.createProgram}
                       </Button>
                     </Link>
                     <Link href="/coach/trainees">
                       <Button variant="outline" className="w-full justify-start gap-2 bg-transparent text-sm">
                         <Users className="h-4 w-4" />
-                        View All Trainees
+                        {messages.coach.viewAllTrainees}
                       </Button>
                     </Link>
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-border bg-card p-3 sm:p-6">
-                  <h3 className="mb-3 sm:mb-4 text-base font-semibold sm:text-lg">Recent Activity</h3>
+                  <h3 className="mb-3 sm:mb-4 text-base font-semibold sm:text-lg">{messages.coach.recentActivity}</h3>
                   <div className="space-y-3 sm:space-y-4">
                     {activeTrainees.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No trainee activity recorded this week yet.</p>
+                      <p className="text-sm text-muted-foreground">{messages.coach.noActivity}</p>
                     ) : (
                       activeTrainees.slice(0, 3).map((trainee) => (
                         <div key={trainee.id} className="flex items-start gap-2 sm:gap-3">
@@ -164,10 +137,10 @@ export default async function CoachDashboardPage() {
                             <p className="text-xs sm:text-sm">
                               <span className="font-medium">{trainee.name}</span>{" "}
                               <span className="text-muted-foreground">
-                                completed {trainee.thisWeekWorkouts} workouts this week
+                                {messages.coach.completedWorkouts(trainee.thisWeekWorkouts)}
                               </span>
                             </p>
-                            <p className="text-xs text-muted-foreground">{trainee.totalWorkoutLogs} total workout logs</p>
+                            <p className="text-xs text-muted-foreground">{messages.coach.totalLogs(trainee.totalWorkoutLogs)}</p>
                           </div>
                         </div>
                       ))

@@ -4,22 +4,23 @@ import type React from "react"
 
 import { startTransition, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle, Phone } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useLocale } from "@/components/providers/locale-provider"
 import {
   ApiError,
   forgotPasswordRequest,
   loginRequest,
   registerRequest,
 } from "@/lib/auth/api"
+import type { AppRole } from "@/lib/auth/types"
+import { getRoleLandingPath } from "@/lib/auth/roles"
 import { createBrowserSupabaseClient } from "@/lib/supabase/client"
 import { getAppBaseUrl } from "@/lib/supabase/config"
 
@@ -30,7 +31,7 @@ interface AuthModalProps {
   redirectToPath?: string | null
 }
 
-const REMEMBERED_EMAIL_KEY = "yeahbuddy:remembered-email"
+const REMEMBERED_IDENTIFIER_KEY = "yeahbuddy:remembered-identifier"
 const supabase = createBrowserSupabaseClient()
 
 function sanitizeRedirectPath(path?: string | null) {
@@ -39,10 +40,6 @@ function sanitizeRedirectPath(path?: string | null) {
   }
 
   return path
-}
-
-function getRoleLandingPath(role?: string | null) {
-  return role === "coach" ? "/coach" : "/dashboard"
 }
 
 function createCallbackRedirect(nextPath?: string | null) {
@@ -57,6 +54,7 @@ function createCallbackRedirect(nextPath?: string | null) {
 }
 
 export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectToPath }: AuthModalProps) {
+  const { messages } = useLocale()
   const [activeTab, setActiveTab] = useState<"login" | "register">(defaultTab)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
@@ -65,15 +63,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [oauthLoadingProvider, setOauthLoadingProvider] = useState<"google" | "apple" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [loginEmail, setLoginEmail] = useState("")
+  const [loginIdentifier, setLoginIdentifier] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
   const [registerName, setRegisterName] = useState("")
   const [registerEmail, setRegisterEmail] = useState("")
+  const [registerPhone, setRegisterPhone] = useState("")
+  const [registerUsername, setRegisterUsername] = useState("")
   const [registerPassword, setRegisterPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
-  const isMobile = useIsMobile()
   const router = useRouter()
   const finalRedirectPath = sanitizeRedirectPath(redirectToPath)
 
@@ -84,14 +83,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   }, [defaultTab])
 
   useEffect(() => {
-    const rememberedEmail = window.localStorage.getItem(REMEMBERED_EMAIL_KEY)
+    const rememberedIdentifier = window.localStorage.getItem(REMEMBERED_IDENTIFIER_KEY)
 
-    if (!rememberedEmail) {
+    if (!rememberedIdentifier) {
       return
     }
 
     startTransition(() => {
-      setLoginEmail(rememberedEmail)
+      setLoginIdentifier(rememberedIdentifier)
       setRememberMe(true)
     })
   }, [])
@@ -114,13 +113,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     }
   }
 
-  async function finalizeAuthentication(role?: string | null, session?: { accessToken: string; refreshToken: string } | null) {
+  async function finalizeAuthentication(role?: AppRole | null, session?: { accessToken: string; refreshToken: string } | null) {
     await applyBrowserSession(session)
 
     if (rememberMe) {
-      window.localStorage.setItem(REMEMBERED_EMAIL_KEY, loginEmail.trim())
+      window.localStorage.setItem(REMEMBERED_IDENTIFIER_KEY, loginIdentifier.trim())
     } else {
-      window.localStorage.removeItem(REMEMBERED_EMAIL_KEY)
+      window.localStorage.removeItem(REMEMBERED_IDENTIFIER_KEY)
     }
 
     onOpenChange(false)
@@ -136,18 +135,23 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
     try {
       const response = await loginRequest({
-        email: loginEmail,
+        identifier: loginIdentifier,
         password: loginPassword,
       })
 
       if (!response.session) {
-        throw new Error("Backend không trả về session đăng nhập.")
+        throw new Error(messages.auth.backendMissingSession)
       }
 
-      setSuccess("Đăng nhập thành công.")
+      setSuccess(messages.auth.loginSuccess)
       await finalizeAuthentication(response.profile?.role, response.session)
     } catch (rawError) {
-      const message = rawError instanceof ApiError || rawError instanceof Error ? rawError.message : "Không thể đăng nhập."
+      const message =
+        rawError instanceof ApiError || rawError instanceof Error
+          ? rawError.message
+          : messages.auth.login === "Sign In"
+            ? "Unable to sign in."
+            : "Không thể đăng nhập."
       setError(message)
     } finally {
       setIsLoading(false)
@@ -160,12 +164,12 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setSuccess(null)
 
     if (registerPassword !== confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp.")
+      setError(messages.auth.passwordMismatch)
       return
     }
 
     if (registerPassword.length < 6) {
-      setError("Mật khẩu phải có ít nhất 6 ký tự.")
+      setError(messages.auth.passwordTooShort)
       return
     }
 
@@ -176,22 +180,29 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
         email: registerEmail,
         name: registerName,
         password: registerPassword,
+        phone: registerPhone,
         redirectTo: createCallbackRedirect(finalRedirectPath),
         role: "trainee",
+        username: registerUsername,
       })
 
       if (response.requiresEmailConfirmation || !response.session) {
-        setSuccess(response.message ?? "Tài khoản đã được tạo. Vui lòng xác nhận email để tiếp tục.")
+        setSuccess(response.message ?? messages.auth.registerPending)
         setActiveTab("login")
-        setLoginEmail(registerEmail.trim())
+        setLoginIdentifier(registerUsername.trim())
         setLoginPassword("")
         return
       }
 
-      setSuccess("Tạo tài khoản thành công.")
+      setSuccess(messages.auth.registerSuccess)
       await finalizeAuthentication(response.profile?.role, response.session)
     } catch (rawError) {
-      const message = rawError instanceof ApiError || rawError instanceof Error ? rawError.message : "Không thể đăng ký."
+      const message =
+        rawError instanceof ApiError || rawError instanceof Error
+          ? rawError.message
+          : messages.auth.register === "Create Account"
+            ? "Unable to create your account."
+            : "Không thể đăng ký."
       setError(message)
     } finally {
       setIsLoading(false)
@@ -202,10 +213,10 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setError(null)
     setSuccess(null)
 
-    const targetEmail = loginEmail.trim()
+    const targetIdentifier = loginIdentifier.trim()
 
-    if (!targetEmail) {
-      setError("Nhập email trước khi yêu cầu đặt lại mật khẩu.")
+    if (!targetIdentifier) {
+      setError(messages.auth.missingResetIdentifier)
       return
     }
 
@@ -213,14 +224,18 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
     try {
       const response = await forgotPasswordRequest({
-        email: targetEmail,
+        identifier: targetIdentifier,
         redirectTo: createCallbackRedirect("/reset-password"),
       })
 
-      setSuccess(response.message ?? "Email đặt lại mật khẩu đã được gửi.")
+      setSuccess(response.message ?? messages.auth.resetEmailSent)
     } catch (rawError) {
       const message =
-        rawError instanceof ApiError || rawError instanceof Error ? rawError.message : "Không thể gửi email đặt lại mật khẩu."
+        rawError instanceof ApiError || rawError instanceof Error
+          ? rawError.message
+          : messages.auth.login === "Sign In"
+            ? "Unable to send the password reset email."
+            : "Không thể gửi email đặt lại mật khẩu."
       setError(message)
     } finally {
       setIsLoading(false)
@@ -285,13 +300,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             value="login"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
           >
-            Đăng nhập
+            {messages.auth.login}
           </TabsTrigger>
           <TabsTrigger
             value="register"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
           >
-            Đăng ký
+            {messages.auth.register}
           </TabsTrigger>
         </TabsList>
 
@@ -299,16 +314,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
           <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="login-email" className="text-sm">
-                Email
+                {messages.auth.identifierLabel}
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="login-email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={loginEmail}
-                  onChange={(event) => setLoginEmail(event.target.value)}
+                  type="text"
+                  placeholder={messages.auth.identifierPlaceholder}
+                  value={loginIdentifier}
+                  onChange={(event) => setLoginIdentifier(event.target.value)}
                   className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
@@ -317,7 +332,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="login-password" className="text-sm">
-                Mật khẩu
+                {messages.auth.passwordLabel}
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -344,7 +359,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               <div className="flex items-center space-x-2">
                 <Checkbox id="remember" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(Boolean(checked))} />
                 <Label htmlFor="remember" className="text-xs sm:text-sm font-normal cursor-pointer">
-                  Ghi nhớ email
+                  {messages.auth.rememberMe}
                 </Label>
               </div>
               <button
@@ -352,7 +367,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 onClick={() => void handleForgotPassword()}
                 className="text-xs sm:text-sm text-primary hover:text-primary/80 transition-colors"
               >
-                Quên mật khẩu?
+                {messages.auth.forgotPassword}
               </button>
             </div>
 
@@ -364,11 +379,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang xử lý...
+                  {messages.auth.processing}
                 </>
               ) : (
                 <>
-                  Đăng nhập
+                  {messages.auth.login}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -379,7 +394,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-surface px-2 text-muted-foreground">Hoặc tiếp tục với</span>
+                <span className="bg-surface px-2 text-muted-foreground">{messages.auth.continueWith}</span>
               </div>
             </div>
 
@@ -394,14 +409,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
           <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-name" className="text-sm">
-                Họ và tên
+                {messages.auth.fullName}
               </Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="register-name"
                   type="text"
-                  placeholder="Nguyễn Văn A"
+                  placeholder={messages.auth.fullNamePlaceholder}
                   value={registerName}
                   onChange={(event) => setRegisterName(event.target.value)}
                   className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
@@ -411,15 +426,51 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             </div>
 
             <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="register-username" className="text-sm">
+                {messages.auth.username}
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="register-username"
+                  type="text"
+                  placeholder={messages.auth.usernamePlaceholder}
+                  value={registerUsername}
+                  onChange={(event) => setRegisterUsername(event.target.value)}
+                  className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="register-phone" className="text-sm">
+                {messages.auth.phone}
+              </Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="register-phone"
+                  type="tel"
+                  placeholder={messages.auth.phonePlaceholder}
+                  value={registerPhone}
+                  onChange={(event) => setRegisterPhone(event.target.value)}
+                  className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-email" className="text-sm">
-                Email
+                {messages.auth.email}
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="register-email"
                   type="email"
-                  placeholder="email@example.com"
+                  placeholder={messages.auth.emailPlaceholder}
                   value={registerEmail}
                   onChange={(event) => setRegisterEmail(event.target.value)}
                   className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
@@ -430,7 +481,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-password" className="text-sm">
-                Mật khẩu
+                {messages.auth.passwordLabel}
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -455,7 +506,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="confirm-password" className="text-sm">
-                Xác nhận mật khẩu
+                {messages.auth.confirmPasswordLabel}
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -486,13 +537,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 className="mt-0.5"
               />
               <Label htmlFor="terms" className="text-xs sm:text-sm font-normal cursor-pointer leading-relaxed">
-                Tôi đồng ý với{" "}
+                {messages.auth.termsPrefix}{" "}
                 <button type="button" className="text-primary hover:underline">
-                  Điều khoản dịch vụ
+                  {messages.auth.terms}
                 </button>{" "}
-                và{" "}
+                {messages.auth.and}{" "}
                 <button type="button" className="text-primary hover:underline">
-                  Chính sách bảo mật
+                  {messages.auth.privacy}
                 </button>
               </Label>
             </div>
@@ -505,11 +556,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang tạo tài khoản...
+                  {messages.auth.createAccountLoading}
                 </>
               ) : (
                 <>
-                  Tạo tài khoản
+                  {messages.auth.createAccount}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -520,7 +571,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-surface px-2 text-muted-foreground">Hoặc đăng ký với</span>
+                <span className="bg-surface px-2 text-muted-foreground">{messages.auth.signUpWith}</span>
               </div>
             </div>
 
@@ -534,69 +585,42 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     </>
   )
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="bg-surface border-border max-h-[90vh] flex flex-col">
-          <div className="mx-auto w-full max-w-md flex flex-col flex-1 overflow-hidden">
-            <div className="relative bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-4 pt-4 pb-3 shrink-0">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
-              <DrawerHeader className="relative p-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
-                      <Dumbbell className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                    <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
-                  </div>
-                  <DrawerClose asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </DrawerClose>
-                </div>
-                <DrawerTitle className="text-lg mt-3 text-left">
-                  {activeTab === "login" ? "Chào mừng trở lại!" : "Tạo tài khoản"}
-                </DrawerTitle>
-                <DrawerDescription className="text-muted-foreground text-sm text-left">
-                  {activeTab === "login"
-                    ? "Đăng nhập để tiếp tục hành trình fitness"
-                    : "Bắt đầu hành trình fitness của bạn"}
-                </DrawerDescription>
-              </DrawerHeader>
-            </div>
-
-            <div className="px-4 pb-8 pt-2 overflow-y-auto flex-1">{renderAuthContent()}</div>
-          </div>
-        </DrawerContent>
-      </Drawer>
-    )
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] bg-surface border-border p-0 overflow-hidden">
-        <div className="relative bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-6 pt-6 pb-4">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
-          <DialogHeader className="relative">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
-                <Dumbbell className="h-5 w-5 text-primary-foreground" />
+      <DialogContent
+        showCloseButton={false}
+        className="!bottom-0 !left-0 !right-0 !top-auto !grid !max-h-[90vh] !w-full !max-w-none !translate-x-0 !translate-y-0 !gap-0 !overflow-hidden !rounded-b-none !rounded-t-[28px] !border-x-0 !border-b-0 !border-border !bg-surface !p-0 sm:!bottom-auto sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!w-full sm:!max-w-[425px] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!rounded-2xl sm:!border"
+      >
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col overflow-hidden sm:max-w-none">
+          <div className="relative shrink-0 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
+            <DialogHeader className="relative gap-0 p-0 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25 sm:h-10 sm:w-10">
+                    <Dumbbell className="h-4 w-4 text-primary-foreground sm:h-5 sm:w-5" />
+                  </div>
+                  <span className="text-lg font-bold tracking-tight sm:text-xl">YeahBuddy</span>
+                </div>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
               </div>
-              <span className="text-xl font-bold tracking-tight">YeahBuddy</span>
-            </div>
-            <DialogTitle className="text-xl">
-              {activeTab === "login" ? "Chào mừng trở lại!" : "Tạo tài khoản"}
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              {activeTab === "login"
-                ? "Đăng nhập để tiếp tục hành trình fitness của bạn"
-                : "Bắt đầu hành trình fitness của bạn ngay hôm nay"}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+              <DialogTitle className="mt-3 text-left text-lg sm:text-xl">
+                {activeTab === "login" ? messages.auth.loginWelcome : messages.auth.registerWelcome}
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-left text-sm text-muted-foreground">
+                {activeTab === "login"
+                  ? messages.auth.loginDescription
+                  : messages.auth.registerDescription}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-        <div className="px-6 pb-6">{renderAuthContent()}</div>
+          <div className="flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-6 sm:pb-6">{renderAuthContent()}</div>
+        </div>
       </DialogContent>
     </Dialog>
   )

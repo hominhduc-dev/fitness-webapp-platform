@@ -12,12 +12,14 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { forgotPasswordRequest } from "@/lib/auth/api"
 import { getAppBaseUrl } from "@/lib/supabase/config"
 
 const availableGoals = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"]
 
 export default function ProfilePage() {
+  const { locale, messages } = useLocale()
   const { isLoading, profile, updateProfile } = useAuth()
   const [name, setName] = useState("")
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
@@ -58,9 +60,9 @@ export default function ProfilePage() {
         name,
       })
 
-      setSuccess("Thông tin hồ sơ đã được cập nhật.")
+      setSuccess(messages.profile.updated)
     } catch (rawError) {
-      setError(rawError instanceof Error ? rawError.message : "Không thể cập nhật hồ sơ.")
+      setError(rawError instanceof Error ? rawError.message : messages.profile.updateFailed)
     } finally {
       setIsSaving(false)
     }
@@ -80,13 +82,13 @@ export default function ProfilePage() {
       redirectUrl.searchParams.set("next", "/reset-password")
 
       const response = await forgotPasswordRequest({
-        email: profile.email,
+        identifier: profile.email,
         redirectTo: redirectUrl.toString(),
       })
 
-      setSuccess(response.message ?? "Email đổi mật khẩu đã được gửi.")
+      setSuccess(response.message ?? messages.profile.resetEmailSent)
     } catch (rawError) {
-      setError(rawError instanceof Error ? rawError.message : "Không thể gửi email đổi mật khẩu.")
+      setError(rawError instanceof Error ? rawError.message : locale === "en" ? "Unable to send the password reset email." : "Không thể gửi email đổi mật khẩu.")
     } finally {
       setIsSendingReset(false)
     }
@@ -97,7 +99,7 @@ export default function ProfilePage() {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Đang tải hồ sơ...
+          {messages.profile.loading}
         </div>
       </div>
     )
@@ -120,8 +122,8 @@ export default function ProfilePage() {
         <main className="flex-1 overflow-auto pb-20 md:pb-6">
           <div className="mx-auto max-w-2xl px-4 py-6 md:px-6">
             <div className="mb-6">
-              <h1 className="text-2xl font-bold md:text-3xl">Settings</h1>
-              <p className="mt-1 text-muted-foreground">Manage your account and preferences</p>
+              <h1 className="text-2xl font-bold md:text-3xl">{messages.profile.title}</h1>
+              <p className="mt-1 text-muted-foreground">{messages.profile.subtitle}</p>
             </div>
 
             {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
@@ -130,7 +132,7 @@ export default function ProfilePage() {
             <div className="rounded-xl border border-border bg-card p-6 mb-6">
               <div className="flex items-center gap-2 mb-6">
                 <User className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Profile</h2>
+                <h2 className="text-lg font-semibold">{messages.profile.profile}</h2>
               </div>
 
               <div className="flex flex-col items-center gap-4 mb-6">
@@ -142,7 +144,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
-                    title="Avatar upload chưa được triển khai"
+                    title={messages.profile.avatarUploadPending}
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -151,11 +153,11 @@ export default function ProfilePage() {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">{messages.profile.fullName}</Label>
                   <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">{messages.profile.email}</Label>
                   <Input id="email" type="email" value={profile.email} disabled className="cursor-not-allowed opacity-80" />
                 </div>
               </div>
@@ -164,7 +166,7 @@ export default function ProfilePage() {
             <div className="rounded-xl border border-border bg-card p-6 mb-6">
               <div className="flex items-center gap-2 mb-6">
                 <Palette className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Fitness Goals</h2>
+                <h2 className="text-lg font-semibold">{messages.profile.fitnessGoals}</h2>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -190,21 +192,21 @@ export default function ProfilePage() {
             <div className="rounded-xl border border-border bg-card p-6 mb-6">
               <div className="flex items-center gap-2 mb-6">
                 <Bell className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Notifications</h2>
+                <h2 className="text-lg font-semibold">{messages.profile.notifications}</h2>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Push Notifications</p>
-                    <p className="text-sm text-muted-foreground">Receive workout reminders</p>
+                    <p className="font-medium">{messages.profile.pushNotifications}</p>
+                    <p className="text-sm text-muted-foreground">{messages.profile.pushNotificationsCopy}</p>
                   </div>
                   <Switch checked={notifications} onCheckedChange={setNotifications} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Rest Timer Sound</p>
-                    <p className="text-sm text-muted-foreground">Play sound when rest is over</p>
+                    <p className="font-medium">{messages.profile.restTimer}</p>
+                    <p className="text-sm text-muted-foreground">{messages.profile.restTimerCopy}</p>
                   </div>
                   <Switch checked={restTimerSound} onCheckedChange={setRestTimerSound} />
                 </div>
@@ -214,24 +216,24 @@ export default function ProfilePage() {
             <div className="rounded-xl border border-border bg-card p-6 mb-6">
               <div className="flex items-center gap-2 mb-6">
                 <Lock className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Security</h2>
+                <h2 className="text-lg font-semibold">{messages.profile.security}</h2>
               </div>
 
               <Button variant="outline" className="w-full bg-transparent" onClick={() => void handlePasswordReset()} disabled={isSendingReset}>
                 {isSendingReset ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Đang gửi email...
+                    {messages.common.sendingEmail}
                   </>
                 ) : (
-                  "Gửi email đổi mật khẩu"
+                  messages.common.sendResetEmail
                 )}
               </Button>
             </div>
 
             <Button className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => void handleSave()} disabled={isSaving}>
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isSaving ? "Đang lưu..." : "Save Changes"}
+              {isSaving ? messages.common.saving : messages.common.saveChanges}
             </Button>
           </div>
         </main>

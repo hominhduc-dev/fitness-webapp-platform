@@ -1,4 +1,4 @@
-import type { AuthResponse, UpdateProfileInput } from "./types"
+import type { AppRole, AuthResponse, UpdateProfileInput } from "./types"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 
 class ApiError extends Error {
@@ -42,7 +42,7 @@ function createHeaders(accessToken?: string) {
   }
 }
 
-async function loginRequest(input: { email: string; password: string }) {
+async function loginRequest(input: { identifier: string; password: string }) {
   return request<AuthResponse>("/api/auth/login", {
     body: JSON.stringify(input),
     headers: createHeaders(),
@@ -54,8 +54,10 @@ async function registerRequest(input: {
   email: string
   name: string
   password: string
+  phone: string
   redirectTo?: string
-  role?: "coach" | "trainee"
+  role?: Exclude<AppRole, "admin">
+  username: string
 }) {
   return request<AuthResponse>("/api/auth/register", {
     body: JSON.stringify(input),
@@ -72,7 +74,7 @@ async function refreshSessionRequest(input: { accessToken?: string; refreshToken
   })
 }
 
-async function forgotPasswordRequest(input: { email: string; redirectTo?: string }) {
+async function forgotPasswordRequest(input: { identifier: string; redirectTo?: string }) {
   return request<AuthResponse>("/api/auth/forgot-password", {
     body: JSON.stringify(input),
     headers: createHeaders(),

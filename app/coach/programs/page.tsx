@@ -156,6 +156,14 @@ export default async function CoachProgramsPage() {
                           Created {program.createdAt.toLocaleDateString()}
                         </span>
                       </div>
+
+                      <div className="mt-4">
+                        <Link href={`/coach/programs/${program.id}`}>
+                          <Button variant="outline" className="w-full bg-transparent">
+                            View Details
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 ))}
