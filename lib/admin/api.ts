@@ -47,13 +47,19 @@ async function parseJson<T>(response: Response) {
 }
 
 async function request<T>(path: string, accessToken: string) {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    })
+  } catch {
+    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
+  }
 
   return parseJson<T>(response)
 }

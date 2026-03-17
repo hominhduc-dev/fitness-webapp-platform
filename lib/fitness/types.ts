@@ -94,6 +94,19 @@ type CreateCoachProgramInput = {
   }>
 }
 
+type CreateWorkoutInput = {
+  duration?: number
+  exercises: Array<{
+    exerciseId: string
+    reps: number
+    restTime?: number
+    sets: number
+  }>
+  name: string
+  notes?: string
+  scheduledDay?: number
+}
+
 type WorkoutLogInput = {
   completedAt?: string
   exercises: Workout["exercises"]
@@ -109,6 +122,7 @@ export type {
   CoachTrainee,
   CoachTraineeDetail,
   CreateCoachProgramInput,
+  CreateWorkoutInput,
   DiscoverableCoach,
   MealCollection,
   WeeklyCaloriesPoint,

@@ -8,6 +8,7 @@ import type {
   CoachTrainee,
   CoachTraineeDetail,
   CreateCoachProgramInput,
+  CreateWorkoutInput,
   DiscoverableCoach,
   MealCollection,
   WeeklyCaloriesPoint,
@@ -142,15 +143,21 @@ async function parseJson<T>(response: Response) {
 }
 
 async function request<T>(path: string, accessToken: string, init?: RequestInit) {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    cache: "no-store",
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      cache: "no-store",
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    })
+  } catch {
+    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
+  }
 
   return parseJson<T>(response)
 }
@@ -355,6 +362,15 @@ async function fetchWorkoutDetail(accessToken: string, workoutId: string) {
   return mapWorkout(response.workout)
 }
 
+async function createWorkout(accessToken: string, input: CreateWorkoutInput) {
+  const response = await request<{ workout: SerializedWorkout }>("/api/workouts", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return mapWorkout(response.workout)
+}
+
 async function createWorkoutLog(accessToken: string, workoutId: string, input: WorkoutLogInput) {
   const response = await request<{ log: SerializedWorkoutLog }>(`/api/workouts/${workoutId}/logs`, accessToken, {
     body: JSON.stringify({
@@ -492,6 +508,7 @@ export {
   createCoachRequest,
   createCoachProgram,
   createMeal,
+  createWorkout,
   createWorkoutLog,
   deleteMeal,
   deleteCoachProgram,

@@ -47,26 +47,28 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30",
-        variant === "primary" && "border-primary/20 bg-primary/5",
-        variant === "accent" && "border-accent/20 bg-accent/5",
+        "group relative overflow-hidden rounded-[24px] border p-4 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_24px_55px_-34px_rgba(15,23,42,0.24)] sm:p-5",
+        variant === "default" && "border-slate-200/70 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]",
+        variant === "primary" && "border-primary/15 bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)]",
+        variant === "accent" && "border-accent/15 bg-[linear-gradient(180deg,rgba(34,197,94,0.05)_0%,#ffffff_100%)]",
       )}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</p>
           <p
             className={cn(
-              "text-2xl font-bold tracking-tight",
+              "text-2xl font-black tracking-tight sm:text-3xl",
+              variant === "default" && "text-slate-950",
               variant === "primary" && "text-primary",
               variant === "accent" && "text-accent",
             )}
           >
             {value}
           </p>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          {subtitle && <p className="max-w-[15rem] text-xs leading-5 text-slate-500">{subtitle}</p>}
           {trend && (
-            <p className={cn("text-xs font-medium", trend.positive ? "text-success" : "text-accent")}>
+            <p className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold", trend.positive ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
               {trend.positive ? "+" : ""}
               {trend.value}% {locale === "en" ? "from last week" : "so với tuần trước"}
             </p>
@@ -75,8 +77,8 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
         {Icon ? (
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-lg",
-              variant === "default" && "bg-muted",
+              "flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm transition-transform group-hover:scale-105",
+              variant === "default" && "bg-slate-100",
               variant === "primary" && "bg-primary/10",
               variant === "accent" && "bg-accent/10",
             )}
@@ -84,7 +86,7 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
             <Icon
               className={cn(
                 "h-5 w-5",
-                variant === "default" && "text-muted-foreground",
+                variant === "default" && "text-slate-500",
                 variant === "primary" && "text-primary",
                 variant === "accent" && "text-accent",
               )}
@@ -96,8 +98,8 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
       {/* Decorative gradient */}
       <div
         className={cn(
-          "absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 blur-2xl",
-          variant === "default" && "bg-foreground",
+          "absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-20 blur-3xl",
+          variant === "default" && "bg-slate-300",
           variant === "primary" && "bg-primary",
           variant === "accent" && "bg-accent",
         )}

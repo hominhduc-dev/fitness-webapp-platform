@@ -1,5 +1,3 @@
-import { Header } from "@/components/layout/header"
-import { MobileNav } from "@/components/layout/mobile-nav"
 import { Sidebar } from "@/components/layout/sidebar"
 import { WeeklyCalendar } from "@/components/schedule/weekly-calendar"
 import { requireAppSession } from "@/lib/auth/server"
@@ -10,19 +8,15 @@ export default async function SchedulePage() {
   const workoutData = await fetchWorkouts(accessToken)
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-[#f6f6f8] text-foreground md:bg-background">
       <Sidebar role="trainee" />
 
-      <div className="flex-1 flex flex-col">
-        <Header />
-
-        <main className="flex-1 overflow-auto pb-20 md:pb-6">
-          <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6 md:px-6">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#f6f6f8] md:bg-transparent">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto pb-20 md:pb-6">
+          <div className="w-full md:mx-auto md:max-w-[1240px] md:px-8 md:py-8">
             <WeeklyCalendar recentLogs={workoutData.recentLogs} schedule={workoutData.schedule} />
           </div>
         </main>
-
-        <MobileNav role="trainee" />
       </div>
     </div>
   )

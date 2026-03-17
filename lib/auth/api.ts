@@ -27,10 +27,16 @@ async function parseJson<T>(response: Response) {
 }
 
 async function request<T>(path: string, init?: RequestInit) {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    cache: "no-store",
-    ...init,
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      cache: "no-store",
+      ...init,
+    })
+  } catch {
+    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
+  }
 
   return parseJson<T>(response)
 }

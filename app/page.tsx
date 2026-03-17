@@ -106,30 +106,37 @@ export default function Home() {
         <div className="absolute inset-x-0 top-0 -z-10 h-[680px] bg-[linear-gradient(to_right,rgba(19,73,236,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(19,73,236,0.05)_1px,transparent_1px)] bg-[size:72px_72px] [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
         <div className="absolute left-1/2 top-28 -z-10 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
 
-        <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 lg:px-8">
+        <header className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary shadow-[0_18px_40px_-18px_rgba(19,73,236,0.9)]">
               <DumbbellIcon className="h-5 w-5 text-primary-foreground" />
             </div>
-            <div>
-              <div className="text-2xl font-black tracking-tight">YeahBuddy</div>
-              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Performance OS</div>
+            <div className="min-w-0">
+              <div className="truncate text-xl font-black tracking-tight sm:text-2xl">YeahBuddy</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground sm:text-xs sm:tracking-[0.28em]">
+                Performance OS
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <LocaleToggle />
-            <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/80 p-1.5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+            <div className="sm:hidden">
+              <LocaleToggle compact />
+            </div>
+            <div className="hidden sm:block">
+              <LocaleToggle />
+            </div>
+            <div className="flex flex-1 items-center justify-end gap-2 rounded-full border border-white/70 bg-white/80 p-1.5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur sm:flex-none">
               <Button
                 variant="ghost"
                 onClick={openLogin}
-                className="rounded-full px-4 text-sm font-semibold transition-colors hover:bg-primary/10 hover:text-primary sm:px-5"
+                className="rounded-full px-3 text-sm font-semibold transition-colors hover:bg-primary/10 hover:text-primary sm:px-5"
               >
                 {messages.auth.login}
               </Button>
               <Button
                 onClick={openRegister}
-                className="rounded-full px-4 text-sm font-semibold transition-transform duration-300 hover:-translate-y-0.5 sm:px-5"
+                className="rounded-full px-3 text-sm font-semibold transition-transform duration-300 hover:-translate-y-0.5 sm:px-5"
               >
                 {messages.landing.finalPrimaryCta}
               </Button>
@@ -138,15 +145,15 @@ export default function Home() {
         </header>
 
         <main>
-          <section className="mx-auto max-w-7xl px-6 pb-14 pt-6 lg:px-8 lg:pb-20 lg:pt-10">
-            <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1.02fr)_minmax(420px,0.98fr)]">
+          <section className="mx-auto max-w-7xl px-4 pb-12 pt-4 sm:px-6 lg:px-8 lg:pb-20 lg:pt-10">
+            <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(420px,0.98fr)] lg:gap-14">
               <div className="max-w-3xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/12 bg-white/88 px-4 py-2.5 text-sm font-semibold text-primary shadow-[0_18px_45px_-32px_rgba(19,73,236,0.7)] backdrop-blur">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/12 bg-white/88 px-3 py-2 text-xs font-semibold text-primary shadow-[0_18px_45px_-32px_rgba(19,73,236,0.7)] backdrop-blur sm:px-4 sm:py-2.5 sm:text-sm">
                   <Sparkles className="h-4 w-4" />
                   {messages.landing.badge}
                 </div>
 
-                <h1 className="mt-7 max-w-[9.2ch] text-[clamp(3.8rem,9vw,6.2rem)] font-black leading-[0.88] tracking-[-0.068em] text-slate-950">
+                <h1 className="mt-6 max-w-[7.4ch] text-[clamp(3rem,15vw,6.2rem)] font-black leading-[0.9] tracking-[-0.068em] text-slate-950 sm:mt-7 sm:max-w-[8.4ch] lg:max-w-[9.2ch]">
                   <span className="block">{messages.landing.heroLine1}</span>
                   <span className="block bg-[linear-gradient(135deg,#1349ec_0%,#3b82f6_50%,#8baeff_100%)] bg-clip-text text-transparent lg:-mt-1">
                     {messages.landing.heroLine2}
@@ -155,7 +162,7 @@ export default function Home() {
                   <span className="block lg:-mt-1">{messages.landing.heroLine4}</span>
                 </h1>
 
-                <p className="mt-8 max-w-[37rem] text-lg leading-8 text-slate-600 sm:text-[1.28rem]">
+                <p className="mt-6 max-w-[37rem] text-base leading-7 text-slate-600 sm:mt-8 sm:text-[1.28rem] sm:leading-8">
                   {messages.landing.description}
                 </p>
 
@@ -163,7 +170,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     onClick={openRegister}
-                    className="h-14 rounded-2xl px-8 text-base font-semibold shadow-[0_22px_45px_-18px_rgba(19,73,236,0.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_28px_55px_-18px_rgba(19,73,236,0.72)]"
+                    className="h-14 w-full rounded-2xl px-8 text-base font-semibold shadow-[0_22px_45px_-18px_rgba(19,73,236,0.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_28px_55px_-18px_rgba(19,73,236,0.72)] sm:w-auto"
                   >
                     {messages.landing.primaryCta}
                     <ArrowRight className="ml-2 h-5 w-5" />
@@ -172,13 +179,13 @@ export default function Home() {
                     size="lg"
                     variant="outline"
                     onClick={openLogin}
-                    className="h-14 rounded-2xl border-white bg-white/85 px-8 text-base font-semibold shadow-[0_18px_45px_-30px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_26px_60px_-34px_rgba(15,23,42,0.35)]"
+                    className="h-14 w-full rounded-2xl border-white bg-white/85 px-8 text-base font-semibold shadow-[0_18px_45px_-30px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_26px_60px_-34px_rgba(15,23,42,0.35)] sm:w-auto"
                   >
                     {messages.landing.secondaryCta}
                   </Button>
                 </div>
 
-                <div className="mt-10 grid gap-4 sm:grid-cols-3">
+                <div className="mt-8 grid gap-4 sm:mt-10 sm:grid-cols-3">
                   <div className="group rounded-[1.75rem] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/15 hover:shadow-[0_26px_65px_-34px_rgba(15,23,42,0.34)]">
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
                       <ShieldCheck className="h-4 w-4 text-primary transition-transform duration-300 group-hover:scale-110" />
@@ -214,23 +221,23 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_35px_90px_-42px_rgba(15,23,42,0.4)] backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_42px_100px_-40px_rgba(15,23,42,0.38)] sm:p-6">
-                  <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50/90 px-4 py-3">
+                <div className="rounded-[1.75rem] border border-white/80 bg-white/86 p-4 shadow-[0_35px_90px_-42px_rgba(15,23,42,0.4)] backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_42px_100px_-40px_rgba(15,23,42,0.38)] sm:rounded-[2rem] sm:p-6">
+                  <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-slate-50/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{messages.landing.performanceCockpit}</div>
                       <div className="mt-1 text-xl font-bold text-slate-950">{messages.landing.weeklySchedule}</div>
                     </div>
-                    <div className="rounded-2xl bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">Oct 23 - Oct 29</div>
+                    <div className="w-fit rounded-2xl bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">Oct 23 - Oct 29</div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-4 gap-3">
+                  <div className="mt-5 grid grid-cols-4 gap-2 sm:gap-3">
                     {scheduleDays.map((item) => (
                       <div
                         key={item.day}
                         className={
                           item.active
-                            ? "rounded-3xl bg-primary px-3 py-4 text-center text-primary-foreground shadow-[0_18px_40px_-20px_rgba(19,73,236,0.8)] transition-transform duration-300 hover:-translate-y-1"
-                            : "rounded-3xl border border-slate-200 bg-white px-3 py-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-primary/15 hover:shadow-[0_16px_35px_-26px_rgba(15,23,42,0.3)]"
+                            ? "rounded-[1.35rem] bg-primary px-2 py-4 text-center text-primary-foreground shadow-[0_18px_40px_-20px_rgba(19,73,236,0.8)] transition-transform duration-300 hover:-translate-y-1 sm:rounded-3xl sm:px-3"
+                            : "rounded-[1.35rem] border border-slate-200 bg-white px-2 py-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-primary/15 hover:shadow-[0_16px_35px_-26px_rgba(15,23,42,0.3)] sm:rounded-3xl sm:px-3"
                         }
                       >
                         <div className={item.active ? "text-xs font-semibold uppercase tracking-[0.2em] text-white/75" : "text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"}>
@@ -243,17 +250,17 @@ export default function Home() {
                     ))}
                   </div>
 
-                  <div className="mt-5 rounded-[1.85rem] border border-primary/15 bg-[linear-gradient(135deg,#0f3dd1_0%,#1349ec_45%,#3b82f6_100%)] p-5 text-primary-foreground shadow-[0_20px_50px_-30px_rgba(19,73,236,0.75)] transition-transform duration-500 hover:-translate-y-1">
-                    <div className="flex items-start justify-between gap-4">
+                  <div className="mt-5 rounded-[1.65rem] border border-primary/15 bg-[linear-gradient(135deg,#0f3dd1_0%,#1349ec_45%,#3b82f6_100%)] p-4 text-primary-foreground shadow-[0_20px_50px_-30px_rgba(19,73,236,0.75)] transition-transform duration-500 hover:-translate-y-1 sm:rounded-[1.85rem] sm:p-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-white/75">
                           <Activity className="h-4 w-4" />
                           {messages.landing.activeNow}
                         </div>
-                        <h2 className="mt-3 text-2xl font-black tracking-tight">Push Day - Hypertrophy</h2>
+                        <h2 className="mt-3 text-xl font-black tracking-tight sm:text-2xl">Push Day - Hypertrophy</h2>
                         <p className="mt-2 text-sm text-white/80">{messages.landing.target}: Chest, Shoulders, Triceps</p>
                       </div>
-                      <div className="rounded-2xl bg-white/14 px-4 py-3 text-right">
+                      <div className="w-fit rounded-2xl bg-white/14 px-4 py-3 text-right">
                         <div className="text-3xl font-black">45%</div>
                         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/75">{messages.landing.progress}</div>
                       </div>
@@ -270,7 +277,7 @@ export default function Home() {
                           className={
                             exercise.done
                               ? "flex items-center gap-3 rounded-2xl bg-white/14 px-4 py-3 transition-all duration-300 hover:bg-white/18"
-                              : "flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-slate-900 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-26px_rgba(15,23,42,0.35)]"
+                              : "flex flex-col items-stretch gap-3 rounded-2xl bg-white px-4 py-3 text-slate-900 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-26px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between"
                           }
                         >
                           <div className="flex items-center gap-3">
@@ -289,7 +296,7 @@ export default function Home() {
                             </div>
                           </div>
                           {!exercise.done ? (
-                            <div className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+                            <div className="rounded-full bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground sm:w-auto">
                               {locale === "en" ? "Resume" : "Tiếp tục"}
                             </div>
                           ) : null}
@@ -326,8 +333,8 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-6 pb-8 lg:px-8">
-            <div className="grid gap-4 md:grid-cols-4">
+          <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
               {statItems.map((item) => (
                 <div
                   key={item.label}
@@ -341,7 +348,7 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
+          <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
             <div className="mb-8 max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-4 py-2 text-sm font-semibold text-primary">
                 <Target className="h-4 w-4" />
@@ -353,7 +360,7 @@ export default function Home() {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[2.2rem] border border-primary/10 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-7 shadow-[0_26px_65px_-36px_rgba(19,73,236,0.35)]">
+              <div className="rounded-[2rem] border border-primary/10 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-[0_26px_65px_-36px_rgba(19,73,236,0.35)] sm:rounded-[2.2rem] sm:p-7">
                 <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-primary">
                   <Dumbbell className="h-4 w-4" />
                   {messages.landing.featureSection}
@@ -379,7 +386,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-[2.2rem] border border-white/75 bg-[linear-gradient(160deg,#1349ec_0%,#1a53fb_62%,#3b82f6_100%)] p-6 text-primary-foreground shadow-[0_24px_60px_-30px_rgba(19,73,236,0.9)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_70px_-30px_rgba(19,73,236,0.88)]">
+              <div className="relative overflow-hidden rounded-[2rem] border border-white/75 bg-[linear-gradient(160deg,#1349ec_0%,#1a53fb_62%,#3b82f6_100%)] p-5 text-primary-foreground shadow-[0_24px_60px_-30px_rgba(19,73,236,0.9)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_70px_-30px_rgba(19,73,236,0.88)] sm:rounded-[2.2rem] sm:p-6">
                 <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
                 <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-white/75">
                   <HeartPulse className="h-4 w-4" />
@@ -395,8 +402,8 @@ export default function Home() {
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-6 pb-24 pt-4 lg:px-8">
-            <div className="relative overflow-hidden rounded-[2.25rem] border border-primary/10 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_45%,#eff3ff_100%)] p-8 shadow-[0_28px_75px_-40px_rgba(15,23,42,0.34)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_80px_-40px_rgba(15,23,42,0.32)] sm:p-10 lg:p-12">
+          <section className="mx-auto max-w-7xl px-4 pb-20 pt-4 sm:px-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_45%,#eff3ff_100%)] p-6 shadow-[0_28px_75px_-40px_rgba(15,23,42,0.34)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_80px_-40px_rgba(15,23,42,0.32)] sm:rounded-[2.25rem] sm:p-10 lg:p-12">
               <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-primary/10 blur-[90px]" />
               <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
                 <div className="max-w-3xl">
@@ -412,7 +419,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     onClick={openRegister}
-                    className="h-14 rounded-2xl px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1"
+                    className="h-14 w-full rounded-2xl px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 sm:w-auto"
                   >
                     {messages.landing.finalPrimaryCta}
                     <ArrowRight className="ml-2 h-5 w-5" />
@@ -421,7 +428,7 @@ export default function Home() {
                     size="lg"
                     variant="outline"
                     onClick={openLogin}
-                    className="h-14 rounded-2xl border-white bg-white/90 px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 hover:bg-white"
+                    className="h-14 w-full rounded-2xl border-white bg-white/90 px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 hover:bg-white sm:w-auto"
                   >
                     {messages.landing.finalSecondaryCta}
                   </Button>

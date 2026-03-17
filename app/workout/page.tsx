@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/header"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Button } from "@/components/ui/button"
+import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchWorkouts } from "@/lib/fitness/api"
 
@@ -25,11 +26,9 @@ export default async function WorkoutPage() {
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h1 className="text-2xl font-bold md:text-3xl">Workouts</h1>
-                <p className="mt-1 text-muted-foreground">Your assigned workouts and training templates</p>
+                <p className="mt-1 text-muted-foreground">Coach-assigned plans and personal workouts you can build yourself</p>
               </div>
-              <Button disabled className="gap-2">
-                Assigned by coach
-              </Button>
+              <CreateWorkoutDialog />
             </div>
 
             {quickStartWorkout ? (
@@ -63,10 +62,13 @@ export default async function WorkoutPage() {
               <h2 className="mb-4 text-lg font-semibold">Your Workouts</h2>
               {workoutData.workouts.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border p-8 text-center">
-                  <p className="text-lg font-semibold">No workouts assigned yet</p>
+                  <p className="text-lg font-semibold">No workouts yet</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Ask your coach to assign a program, or create one from the coach dashboard.
+                    Create your own workout now or wait for a coach to assign a program.
                   </p>
+                  <div className="mt-4 flex justify-center">
+                    <CreateWorkoutDialog />
+                  </div>
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

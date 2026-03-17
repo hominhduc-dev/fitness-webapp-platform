@@ -16,18 +16,20 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
 
   return (
     <Link href="/meals" className="block">
-      <div className="rounded-xl border border-border bg-card p-6 transition-all hover:border-primary/30">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">{messages.dashboard.todaysNutrition}</h3>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+      <div className="rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_22px_55px_-36px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_28px_60px_-36px_rgba(15,23,42,0.24)]">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{messages.dashboard.todaysNutrition}</p>
+            <h3 className="mt-1 text-xl font-black tracking-tight text-slate-950">{messages.dashboard.todaysNutrition}</h3>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/10">
             <Flame className="h-5 w-5 text-accent" />
           </div>
         </div>
 
         <div className="space-y-4">
-          {/* Calorie ring visualization */}
-          <div className="flex items-center gap-6">
-            <div className="relative h-24 w-24">
+          <div className="flex items-center gap-5">
+            <div className="relative h-24 w-24 shrink-0">
               <svg className="h-24 w-24 -rotate-90 transform">
                 <circle
                   cx="48"
@@ -51,26 +53,25 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold">{percentage}%</span>
+                <span className="text-2xl font-black text-slate-950">{percentage}%</span>
               </div>
             </div>
             <div className="flex-1 space-y-2">
               <div>
-                <p className="text-sm text-muted-foreground">{messages.dashboard.consumed}</p>
-                <p className="text-xl font-bold">
-                  {nutrition.totalCalories} <span className="text-sm font-normal text-muted-foreground">kcal</span>
+                <p className="text-sm text-slate-500">{messages.dashboard.consumed}</p>
+                <p className="text-xl font-black text-slate-950">
+                  {nutrition.totalCalories} <span className="text-sm font-normal text-slate-500">kcal</span>
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{messages.dashboard.remaining}</p>
-                <p className="text-lg font-semibold text-primary">
-                  {remaining} <span className="text-sm font-normal text-muted-foreground">kcal</span>
+                <p className="text-sm text-slate-500">{messages.dashboard.remaining}</p>
+                <p className="text-lg font-bold text-primary">
+                  {remaining} <span className="text-sm font-normal text-slate-500">kcal</span>
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Meals summary */}
           <div className="grid grid-cols-2 gap-2 text-sm">
             {[
               { key: "breakfast", label: messages.dashboard.breakfast },
@@ -80,9 +81,9 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
             ].map((mealType) => {
               const meal = nutrition.meals.find((m) => m.type === mealType.key)
               return (
-                <div key={mealType.key} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                  <span className="capitalize text-muted-foreground">{mealType.label}</span>
-                  <span className={meal ? "font-medium" : "text-muted-foreground"}>
+                <div key={mealType.key} className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white px-3 py-2.5">
+                  <span className="capitalize text-slate-500">{mealType.label}</span>
+                  <span className={meal ? "font-semibold text-slate-950" : "text-slate-400"}>
                     {meal ? `${meal.calories}` : "—"}
                   </span>
                 </div>

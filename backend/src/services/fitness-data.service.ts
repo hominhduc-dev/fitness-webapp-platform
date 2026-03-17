@@ -657,6 +657,120 @@ async function createWorkoutLogForTrainee(
   return serializeWorkoutLog(log as WorkoutLogRecord)
 }
 
+async function createPersonalWorkoutForTrainee(
+  profile: SerializedProfile,
+  input: {
+    duration?: number
+    exercises: Array<{
+      exerciseId: string
+      reps: number
+      restTime?: number
+      sets: number
+    }>
+    name: string
+    notes?: string | null
+    scheduledDay?: number
+  },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const workoutName = input.name.trim()
+
+  if (!workoutName) {
+    throw new AuthServiceError("Tên buổi tập không được để trống.")
+  }
+
+  if (input.exercises.length === 0) {
+    throw new AuthServiceError("Buổi tập cần ít nhất một bài tập.", 400)
+  }
+
+  if (input.scheduledDay != null && (input.scheduledDay < 0 || input.scheduledDay > 6)) {
+    throw new AuthServiceError("Ngày tập không hợp lệ.", 400)
+  }
+
+  if (input.exercises.some((exercise) => !exercise.exerciseId)) {
+    throw new AuthServiceError("Mỗi dòng bài tập cần có exercise hợp lệ.", 400)
+  }
+
+  const exerciseIds = Array.from(new Set(input.exercises.map((exercise) => exercise.exerciseId)))
+  const validExerciseCount = await db.exercise.count({
+    where: {
+      id: {
+        in: exerciseIds,
+      },
+    },
+  })
+
+  if (validExerciseCount !== exerciseIds.length) {
+    throw new AuthServiceError("Có bài tập không tồn tại trong thư viện.", 400)
+  }
+
+  const program = await db.program.create({
+    data: {
+      assignments: {
+        create: {
+          userId: profile.id,
+        },
+      },
+      createdById: profile.id,
+      description: "Personal workout created by trainee.",
+      difficulty: ProgramDifficulty.beginner,
+      duration: 1,
+      name: workoutName,
+      workouts: {
+        create: {
+          duration: input.duration ? Math.max(1, Math.round(input.duration)) : undefined,
+          exercises: {
+            create: input.exercises.map((exercise, exerciseIndex) => ({
+              exerciseId: exercise.exerciseId,
+              order: exerciseIndex + 1,
+              restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
+              sets: {
+                create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
+                  setNumber: setIndex + 1,
+                  targetReps: Math.max(1, Math.round(exercise.reps)),
+                })),
+              },
+            })),
+          },
+          name: workoutName,
+          notes: input.notes?.trim() || undefined,
+          scheduledDay: typeof input.scheduledDay === "number" ? input.scheduledDay : undefined,
+        },
+      },
+      workoutsPerWeek: 1,
+    },
+    include: {
+      workouts: {
+        include: {
+          exercises: {
+            include: {
+              exercise: true,
+              sets: {
+                orderBy: {
+                  setNumber: "asc",
+                },
+              },
+            },
+            orderBy: {
+              order: "asc",
+            },
+          },
+        },
+      },
+    },
+  })
+
+  const workout = program.workouts[0]
+
+  if (!workout) {
+    throw new AuthServiceError("Không thể tạo buổi tập.", 500)
+  }
+
+  return serializeWorkout(workout as WorkoutRecord)
+}
+
 async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -1406,6 +1520,7 @@ export {
   createCoachRequestForTrainee,
   createCoachProgram,
   createMealForUser,
+  createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,
   deleteMealForUser,
   deleteCoachProgram,

@@ -39,6 +39,7 @@ export function LocaleToggle({ compact = false }: { compact?: boolean }) {
 
       {(["en", "vi"] as const).map((option) => {
         const isActive = locale === option
+        const label = compact ? (option === "en" ? "EN" : "VI") : option === "en" ? messages.common.english : messages.common.vietnamese
 
         return (
           <button
@@ -51,7 +52,7 @@ export function LocaleToggle({ compact = false }: { compact?: boolean }) {
               isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {option === "en" ? messages.common.english : messages.common.vietnamese}
+            {label}
           </button>
         )
       })}
