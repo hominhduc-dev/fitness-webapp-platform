@@ -653,15 +653,10 @@ async function requestPasswordReset(input: { email: string; redirectTo?: string 
 }
 
 async function logoutCurrentSession(accessToken: string) {
-  const client = ensureAdminClient()
-  const { error } = await client.auth.admin.signOut(accessToken, "global")
-
-  if (error) {
-    throw new AuthServiceError(error.message, 400)
-  }
+  await getVerifiedUser(accessToken)
 
   return {
-    message: "Đăng xuất thành công.",
+    message: "Đăng xuất thiết bị hiện tại thành công.",
     profile: null,
     session: null,
     user: null,

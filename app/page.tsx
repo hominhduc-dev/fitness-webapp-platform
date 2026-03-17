@@ -1,8 +1,6 @@
-"use client"
-
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   Activity,
   Apple,
@@ -17,10 +15,10 @@ import {
   Users,
 } from "lucide-react"
 
-import { AuthModal } from "@/components/auth/auth-modal"
+import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
 import { LocaleToggle } from "@/components/locale/locale-toggle"
-import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
 
 const scheduleDays = [
   { day: "Mon", date: "23" },
@@ -35,11 +33,8 @@ const exerciseItems = [
   { title: "Cable Fly", detail: "3 sets x 15 reps", done: false },
 ]
 
-export default function Home() {
-  const { locale, messages } = useLocale()
-  const [authOpen, setAuthOpen] = useState(false)
-  const [authTab, setAuthTab] = useState<"login" | "register">("login")
-  const [redirectToPath, setRedirectToPath] = useState<string | null>(null)
+export default async function Home() {
+  const [locale, messages] = await Promise.all([getServerLocale(), getServerMessages()])
   const featureItems = [
     {
       icon: Dumbbell,
@@ -76,29 +71,6 @@ export default function Home() {
     { label: messages.landing.metricReviews, value: "4.9★", tone: "text-success" },
   ]
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const authQuery = params.get("auth")
-
-    if (!authQuery) {
-      return
-    }
-
-    setRedirectToPath(params.get("next"))
-    setAuthTab(authQuery === "register" ? "register" : "login")
-    setAuthOpen(true)
-  }, [])
-
-  const openLogin = () => {
-    setAuthTab("login")
-    setAuthOpen(true)
-  }
-
-  const openRegister = () => {
-    setAuthTab("register")
-    setAuthOpen(true)
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="relative isolate overflow-hidden">
@@ -128,17 +100,21 @@ export default function Home() {
             </div>
             <div className="flex flex-1 items-center justify-end gap-2 rounded-full border border-white/70 bg-white/80 p-1.5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur sm:flex-none">
               <Button
+                asChild
                 variant="ghost"
-                onClick={openLogin}
                 className="rounded-full px-3 text-sm font-semibold transition-colors hover:bg-primary/10 hover:text-primary sm:px-5"
               >
-                {messages.auth.login}
+                <Link href="/?auth=login" scroll={false}>
+                  {messages.auth.login}
+                </Link>
               </Button>
               <Button
-                onClick={openRegister}
+                asChild
                 className="rounded-full px-3 text-sm font-semibold transition-transform duration-300 hover:-translate-y-0.5 sm:px-5"
               >
-                {messages.landing.finalPrimaryCta}
+                <Link href="/?auth=register" scroll={false}>
+                  {messages.landing.finalPrimaryCta}
+                </Link>
               </Button>
             </div>
           </div>
@@ -168,20 +144,24 @@ export default function Home() {
 
                 <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                   <Button
+                    asChild
                     size="lg"
-                    onClick={openRegister}
                     className="h-14 w-full rounded-2xl px-8 text-base font-semibold shadow-[0_22px_45px_-18px_rgba(19,73,236,0.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_28px_55px_-18px_rgba(19,73,236,0.72)] sm:w-auto"
                   >
-                    {messages.landing.primaryCta}
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    <Link href="/?auth=register" scroll={false}>
+                      {messages.landing.primaryCta}
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
                   </Button>
                   <Button
+                    asChild
                     size="lg"
                     variant="outline"
-                    onClick={openLogin}
                     className="h-14 w-full rounded-2xl border-white bg-white/85 px-8 text-base font-semibold shadow-[0_18px_45px_-30px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_26px_60px_-34px_rgba(15,23,42,0.35)] sm:w-auto"
                   >
-                    {messages.landing.secondaryCta}
+                    <Link href="/?auth=login" scroll={false}>
+                      {messages.landing.secondaryCta}
+                    </Link>
                   </Button>
                 </div>
 
@@ -417,20 +397,24 @@ export default function Home() {
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
                   <Button
+                    asChild
                     size="lg"
-                    onClick={openRegister}
                     className="h-14 w-full rounded-2xl px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 sm:w-auto"
                   >
-                    {messages.landing.finalPrimaryCta}
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    <Link href="/?auth=register" scroll={false}>
+                      {messages.landing.finalPrimaryCta}
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
                   </Button>
                   <Button
+                    asChild
                     size="lg"
                     variant="outline"
-                    onClick={openLogin}
                     className="h-14 w-full rounded-2xl border-white bg-white/90 px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 hover:bg-white sm:w-auto"
                   >
-                    {messages.landing.finalSecondaryCta}
+                    <Link href="/?auth=login" scroll={false}>
+                      {messages.landing.finalSecondaryCta}
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -439,7 +423,7 @@ export default function Home() {
         </main>
       </div>
 
-      <AuthModal open={authOpen} onOpenChange={setAuthOpen} defaultTab={authTab} redirectToPath={redirectToPath} />
+      <AuthModalLauncher />
     </div>
   )
 }

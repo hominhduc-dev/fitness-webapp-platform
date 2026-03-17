@@ -11,12 +11,13 @@ interface NutritionSummaryProps {
 
 export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
   const { messages } = useLocale()
-  const percentage = Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100)
+  const percentage =
+    nutrition.targetCalories > 0 ? Math.min(100, Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100)) : 0
   const remaining = nutrition.targetCalories - nutrition.totalCalories
 
   return (
     <Link href="/meals" className="block">
-      <div className="rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_22px_55px_-36px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_28px_60px_-36px_rgba(15,23,42,0.24)]">
+      <div className="rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-[0_22px_55px_-36px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_28px_60px_-36px_rgba(15,23,42,0.24)] sm:p-6">
         <div className="mb-5 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{messages.dashboard.todaysNutrition}</p>
@@ -28,8 +29,8 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center gap-5">
-            <div className="relative h-24 w-24 shrink-0">
+          <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
+            <div className="relative mx-auto h-24 w-24 shrink-0 sm:mx-0">
               <svg className="h-24 w-24 -rotate-90 transform">
                 <circle
                   cx="48"
@@ -56,7 +57,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
                 <span className="text-2xl font-black text-slate-950">{percentage}%</span>
               </div>
             </div>
-            <div className="flex-1 space-y-2">
+            <div className="w-full flex-1 space-y-2">
               <div>
                 <p className="text-sm text-slate-500">{messages.dashboard.consumed}</p>
                 <p className="text-xl font-black text-slate-950">
@@ -72,7 +73,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             {[
               { key: "breakfast", label: messages.dashboard.breakfast },
               { key: "lunch", label: messages.dashboard.lunch },

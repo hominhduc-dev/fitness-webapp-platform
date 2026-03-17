@@ -4,7 +4,7 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 import { createContext, startTransition, useContext, useEffect, useState } from "react"
 
-import { fetchCurrentProfile, logoutRequest, updateProfileRequest } from "@/lib/auth/api"
+import { fetchCurrentProfile, updateProfileRequest } from "@/lib/auth/api"
 import type { AppProfile, UpdateProfileInput } from "@/lib/auth/types"
 import { createBrowserSupabaseClient } from "@/lib/supabase/client"
 
@@ -117,15 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    const {
-      data: { session: currentSession },
-    } = await supabase.auth.getSession()
-
-    if (currentSession?.access_token) {
-      await logoutRequest(currentSession.access_token).catch(() => null)
-    }
-
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: "local" })
 
     startTransition(() => {
       setSession(null)

@@ -105,19 +105,11 @@ async function updateProfileRequest(accessToken: string, input: UpdateProfileInp
   })
 }
 
-async function logoutRequest(accessToken: string) {
-  return request<AuthResponse>("/api/auth/logout", {
-    headers: createHeaders(accessToken),
-    method: "POST",
-  })
-}
-
 export {
   ApiError,
   fetchCurrentProfile,
   forgotPasswordRequest,
   loginRequest,
-  logoutRequest,
   refreshSessionRequest,
   registerRequest,
   updateProfileRequest,
