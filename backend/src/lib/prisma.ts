@@ -18,7 +18,7 @@ function getPrismaDatasourceUrl() {
     // its default connection count. Keep the pool intentionally tiny unless the
     // URL already sets an explicit limit.
     if (/pooler\.supabase\.com$/i.test(url.hostname) && !url.searchParams.has("connection_limit")) {
-      url.searchParams.set("connection_limit", "1")
+      url.searchParams.set("connection_limit", "10")
     }
 
     return url.toString()

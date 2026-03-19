@@ -104,19 +104,30 @@ async function parseJson<T>(response: Response) {
   return payload as T
 }
 
-async function request<T>(path: string, accessToken: string, init?: RequestInit) {
+async function request<T>(path: string, accessToken: string, init?: RequestInit & { next?: { revalidate?: number; tags?: string[] } }) {
   let response: Response
 
+  const fetchOptions: RequestInit & { next?: { revalidate?: number; tags?: string[] } } = {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  }
+
+  // Default GET requests to short revalidation; mutations stay uncached
+  if (!fetchOptions.next?.revalidate && fetchOptions.cache === undefined) {
+    const method = (fetchOptions.method ?? "GET").toUpperCase()
+    if (method === "GET") {
+      fetchOptions.next = { ...fetchOptions.next, revalidate: 30 }
+    } else {
+      fetchOptions.cache = "no-store"
+    }
+  }
+
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, {
-      cache: "no-store",
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    })
+    response = await fetch(`${getApiBaseUrl()}${path}`, fetchOptions)
   } catch {
     throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
   }

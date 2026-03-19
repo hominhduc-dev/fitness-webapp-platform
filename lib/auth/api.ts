@@ -26,14 +26,20 @@ async function parseJson<T>(response: Response) {
   return payload as T
 }
 
-async function request<T>(path: string, init?: RequestInit) {
+async function request<T>(path: string, init?: RequestInit & { next?: { revalidate?: number; tags?: string[] } }) {
   let response: Response
 
+  const fetchOptions: RequestInit & { next?: { revalidate?: number; tags?: string[] } } = {
+    ...init,
+  }
+
+  // Only force no-store when the caller hasn't specified any caching strategy
+  if (!fetchOptions.next?.revalidate && fetchOptions.cache === undefined) {
+    fetchOptions.cache = "no-store"
+  }
+
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, {
-      cache: "no-store",
-      ...init,
-    })
+    response = await fetch(`${getApiBaseUrl()}${path}`, fetchOptions)
   } catch {
     throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
   }
@@ -92,6 +98,7 @@ async function fetchCurrentProfile(accessToken: string) {
   const response = await request<AuthResponse>("/api/auth/me", {
     headers: createHeaders(accessToken),
     method: "GET",
+    next: { revalidate: 30 },
   })
 
   return response.profile
