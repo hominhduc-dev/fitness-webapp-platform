@@ -1689,6 +1689,116 @@ async function createBodyMetricForTrainee(
   return serializeBodyMetricEntry(entry as BodyMetricRecord)
 }
 
+async function listBodyMetricsForCurrentTrainee(
+  profile: SerializedProfile,
+  options?: {
+    days?: number
+  },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const requestedDays = options?.days ?? 30
+  const normalizedDays = requestedDays === 90 || requestedDays === 365 ? requestedDays : 30
+  const window = toRecentWindow(normalizedDays)
+
+  const entries = await db.bodyMetricEntry.findMany({
+    include: {
+      coach: true,
+    },
+    orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+    where: {
+      recordedAt: {
+        gte: window.start,
+        lte: window.end,
+      },
+      traineeId: profile.id,
+      weightKg: {
+        not: null,
+      },
+    },
+  })
+
+  return entries.map((entry) => serializeBodyMetricEntry(entry as BodyMetricRecord))
+}
+
+async function createBodyMetricForCurrentTrainee(
+  profile: SerializedProfile,
+  input: {
+    note?: string | null
+    recordedAt?: string | null
+    weightKg?: number | null
+  },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const weightKg = sanitizeOptionalMeasurement(input.weightKg)
+  const note = input.note?.trim() || undefined
+
+  if (weightKg == null && !note) {
+    throw new AuthServiceError("Vui lòng nhập cân nặng hoặc ghi chú.", 400)
+  }
+
+  const entry = await db.bodyMetricEntry.create({
+    data: {
+      note,
+      recordedAt: input.recordedAt ? new Date(input.recordedAt) : new Date(),
+      traineeId: profile.id,
+      weightKg,
+    },
+    include: {
+      coach: true,
+    },
+  })
+
+  return serializeBodyMetricEntry(entry as BodyMetricRecord)
+}
+
+async function resetCurrentTraineeData(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const [meals, workoutLogs, bodyMetrics, coachCheckIns, personalPrograms] = await db.$transaction([
+    db.meal.deleteMany({
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.workoutLog.deleteMany({
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.bodyMetricEntry.deleteMany({
+      where: {
+        traineeId: profile.id,
+      },
+    }),
+    db.coachCheckIn.deleteMany({
+      where: {
+        traineeId: profile.id,
+      },
+    }),
+    db.program.deleteMany({
+      where: {
+        createdById: profile.id,
+      },
+    }),
+  ])
+
+  return {
+    message: "Đã reset dữ liệu tracking của trainee.",
+    resetCounts: {
+      bodyMetrics: bodyMetrics.count,
+      coachCheckIns: coachCheckIns.count,
+      meals: meals.count,
+      personalPrograms: personalPrograms.count,
+      workoutLogs: workoutLogs.count,
+    },
+  }
+}
+
 async function createCoachCheckInForTrainee(
   profile: SerializedProfile,
   traineeId: string,
@@ -2119,6 +2229,7 @@ async function updateCoachRequestStatus(
 export {
   assignCoachProgramToTrainee,
   createBodyMetricForTrainee,
+  createBodyMetricForCurrentTrainee,
   createCoachCheckInForTrainee,
   createCoachRequestForTrainee,
   createCoachProgram,
@@ -2133,11 +2244,13 @@ export {
   getCoachTraineeDetail,
   getWorkoutDetailForTrainee,
   listAvailableCoachesForTrainee,
+  listBodyMetricsForCurrentTrainee,
   listCoachPrograms,
   listCoachTrainees,
   listExercises,
   listMealsForUser,
   listWorkoutsForTrainee,
+  resetCurrentTraineeData,
   unassignCoachProgramFromTrainee,
   updateCoachProgram,
   updateCoachRequestStatus,

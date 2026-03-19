@@ -5,10 +5,8 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Dumbbell, GripVertical, Plus, Save, Trash2, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
-import { Header } from "@/components/layout/header"
-import { MobileNav } from "@/components/layout/mobile-nav"
-import { Sidebar } from "@/components/layout/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -308,67 +306,60 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
   }
 
   if (isLoadingPage) {
-    return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">Loading program...</div>
+    return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">Loading program...</div>
   }
 
   const selectedTrainees = traineeOptions.filter((trainee) => selectedTraineeIds.includes(trainee.id))
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar role="coach" />
+    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 md:px-6">
+      <div className="mb-4 flex items-center gap-3 sm:mb-6">
+        <Link href="/coach/programs">
+          <Button variant="ghost" size="icon" className="shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold sm:text-2xl">
+            {programId ? currentProgram?.name || "Program Details" : "Create new program"}
+          </h1>
+          <p className="truncate text-sm text-muted-foreground">
+            {programId ? "Update or remove this saved program" : "Save directly to Prisma/Postgres"}
+          </p>
+        </div>
+      </div>
 
-      <div className="flex-1 flex flex-col">
-        <Header />
+      {error ? (
+        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
-        <main className="flex-1 overflow-auto pb-20 md:pb-6">
-          <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 md:px-6">
-            <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <Link href="/coach/programs">
-                <Button variant="ghost" size="icon" className="shrink-0">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
+      {selectedTrainees.length ? (
+        <div className="mb-4 rounded-xl border border-border bg-card p-4 sm:p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-base font-semibold sm:text-lg">Selected Trainees</h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {selectedTrainees.map((trainee) => (
+              <Link
+                key={trainee.id}
+                href={`/coach/trainees/${trainee.id}`}
+                className="flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2 text-sm transition-colors hover:border-primary/30"
+              >
+                <Avatar className="h-7 w-7">
+                  <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
+                  <AvatarFallback className="text-xs">{getInitials(trainee.name)}</AvatarFallback>
+                </Avatar>
+                <span>{trainee.name}</span>
               </Link>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold sm:text-2xl">
-                  {programId ? currentProgram?.name || "Program Details" : "Create new program"}
-                </h1>
-                <p className="text-sm text-muted-foreground truncate">
-                  {programId ? "Update or remove this saved program" : "Save directly to Prisma/Postgres"}
-                </p>
-              </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-            {error ? (
-              <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                {error}
-              </div>
-            ) : null}
-
-            {selectedTrainees.length ? (
-              <div className="mb-4 rounded-xl border border-border bg-card p-4 sm:p-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-base font-semibold sm:text-lg">Selected Trainees</h2>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {selectedTrainees.map((trainee) => (
-                    <Link
-                      key={trainee.id}
-                      href={`/coach/trainees/${trainee.id}`}
-                      className="flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2 text-sm transition-colors hover:border-primary/30"
-                    >
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                        <AvatarFallback className="text-xs">{getInitials(trainee.name)}</AvatarFallback>
-                      </Avatar>
-                      <span>{trainee.name}</span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="space-y-4 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6">
               <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold mb-4 sm:text-lg">Basic Information</h2>
 
@@ -510,8 +501,8 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
 
                 <div className="space-y-4">
                   {workoutDays.map((day) => (
-                    <div key={day.id} className="rounded-lg border border-border bg-muted/20 overflow-hidden">
-                      <div className="flex flex-col gap-3 p-3 bg-muted/30 border-b border-border sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                    <div key={day.id} className="relative rounded-lg border border-border bg-muted/20 overflow-visible">
+                      <div className="flex flex-col gap-3 rounded-t-lg border-b border-border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                           <Input
@@ -559,122 +550,137 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                         {day.exercises.map((exercise) => (
                           <div
                             key={exercise.id}
-                            className="flex flex-col gap-2 rounded-lg bg-card p-3 sm:flex-row sm:items-center sm:gap-3"
+                            className="rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm"
                           >
-                            <Select
-                              value={exercise.exerciseId}
-                              onValueChange={(value) => {
-                                setWorkoutDays((current) =>
-                                  current.map((item) =>
-                                    item.id === day.id
-                                      ? {
-                                          ...item,
-                                          exercises: item.exercises.map((entry) =>
-                                            entry.id === exercise.id ? { ...entry, exerciseId: value } : entry,
-                                          ),
-                                        }
-                                      : item,
-                                  ),
-                                )
-                              }}
-                            >
-                              <SelectTrigger className="flex-1 bg-muted/30 border-border h-9 text-sm">
-                                <SelectValue placeholder="Choose exercise" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-card border-border max-h-[200px]">
-                                {exerciseOptions.map((option) => (
-                                  <SelectItem key={option.id} value={option.id}>
-                                    {option.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                              <div className="min-w-0 flex-1">
+                                <ExercisePicker
+                                  selectedExerciseId={exercise.exerciseId}
+                                  exercises={exerciseOptions}
+                                  onSelect={(exerciseId) => {
+                                    setWorkoutDays((current) =>
+                                      current.map((item) =>
+                                        item.id === day.id
+                                          ? {
+                                              ...item,
+                                              exercises: item.exercises.map((entry) =>
+                                                entry.id === exercise.id ? { ...entry, exerciseId } : entry,
+                                              ),
+                                            }
+                                          : item,
+                                      ),
+                                    )
+                                  }}
+                                />
+                              </div>
 
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="number"
-                                  value={exercise.sets}
-                                  min={1}
-                                  onChange={(event) => {
-                                    setWorkoutDays((current) =>
-                                      current.map((item) =>
-                                        item.id === day.id
-                                          ? {
-                                              ...item,
-                                              exercises: item.exercises.map((entry) =>
-                                                entry.id === exercise.id
-                                                  ? { ...entry, sets: Number(event.target.value) || 1 }
-                                                  : entry,
-                                              ),
-                                            }
-                                          : item,
-                                      ),
-                                    )
-                                  }}
-                                  className="w-14 h-9 text-center bg-muted/30 border-border text-sm"
-                                />
-                                <span className="text-xs text-muted-foreground">sets</span>
+                              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                                <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
+                                  <Label htmlFor={`${exercise.id}-sets`} className="sr-only">
+                                    Sets
+                                  </Label>
+                                  <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                                    Sets
+                                  </span>
+                                  <Input
+                                    id={`${exercise.id}-sets`}
+                                    type="number"
+                                    value={exercise.sets}
+                                    min={1}
+                                    onChange={(event) => {
+                                      setWorkoutDays((current) =>
+                                        current.map((item) =>
+                                          item.id === day.id
+                                            ? {
+                                                ...item,
+                                                exercises: item.exercises.map((entry) =>
+                                                  entry.id === exercise.id
+                                                    ? { ...entry, sets: Number(event.target.value) || 1 }
+                                                    : entry,
+                                                ),
+                                              }
+                                            : item,
+                                        ),
+                                      )
+                                    }}
+                                    className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                                  />
+                                </div>
+
+                                <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
+                                  <Label htmlFor={`${exercise.id}-reps`} className="sr-only">
+                                    Reps
+                                  </Label>
+                                  <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                                    Reps
+                                  </span>
+                                  <Input
+                                    id={`${exercise.id}-reps`}
+                                    type="number"
+                                    value={exercise.reps}
+                                    min={1}
+                                    onChange={(event) => {
+                                      setWorkoutDays((current) =>
+                                        current.map((item) =>
+                                          item.id === day.id
+                                            ? {
+                                                ...item,
+                                                exercises: item.exercises.map((entry) =>
+                                                  entry.id === exercise.id
+                                                    ? { ...entry, reps: Number(event.target.value) || 1 }
+                                                    : entry,
+                                                ),
+                                              }
+                                            : item,
+                                        ),
+                                      )
+                                    }}
+                                    className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                                  />
+                                </div>
+
+                                <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
+                                  <Label htmlFor={`${exercise.id}-rest`} className="sr-only">
+                                    Rest time in seconds
+                                  </Label>
+                                  <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                                    Rest
+                                  </span>
+                                  <Input
+                                    id={`${exercise.id}-rest`}
+                                    type="number"
+                                    value={exercise.restTime}
+                                    min={0}
+                                    onChange={(event) => {
+                                      setWorkoutDays((current) =>
+                                        current.map((item) =>
+                                          item.id === day.id
+                                            ? {
+                                                ...item,
+                                                exercises: item.exercises.map((entry) =>
+                                                  entry.id === exercise.id
+                                                    ? { ...entry, restTime: Number(event.target.value) || 0 }
+                                                    : entry,
+                                                ),
+                                              }
+                                            : item,
+                                        ),
+                                      )
+                                    }}
+                                    className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                                  />
+                                </div>
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => removeExercise(day.id, exercise.id)}
+                                  className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
+                                  aria-label="Remove exercise"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
-                              <span className="text-muted-foreground">×</span>
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="number"
-                                  value={exercise.reps}
-                                  min={1}
-                                  onChange={(event) => {
-                                    setWorkoutDays((current) =>
-                                      current.map((item) =>
-                                        item.id === day.id
-                                          ? {
-                                              ...item,
-                                              exercises: item.exercises.map((entry) =>
-                                                entry.id === exercise.id
-                                                  ? { ...entry, reps: Number(event.target.value) || 1 }
-                                                  : entry,
-                                              ),
-                                            }
-                                          : item,
-                                      ),
-                                    )
-                                  }}
-                                  className="w-14 h-9 text-center bg-muted/30 border-border text-sm"
-                                />
-                                <span className="text-xs text-muted-foreground">reps</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="number"
-                                  value={exercise.restTime}
-                                  min={0}
-                                  onChange={(event) => {
-                                    setWorkoutDays((current) =>
-                                      current.map((item) =>
-                                        item.id === day.id
-                                          ? {
-                                              ...item,
-                                              exercises: item.exercises.map((entry) =>
-                                                entry.id === exercise.id
-                                                  ? { ...entry, restTime: Number(event.target.value) || 0 }
-                                                  : entry,
-                                              ),
-                                            }
-                                          : item,
-                                      ),
-                                    )
-                                  }}
-                                  className="w-16 h-9 text-center bg-muted/30 border-border text-sm"
-                                />
-                                <span className="text-xs text-muted-foreground">sec</span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeExercise(day.id, exercise.id)}
-                                className="h-8 w-8 text-muted-foreground hover:text-accent shrink-0"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
                             </div>
                           </div>
                         ))}
@@ -723,36 +729,31 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                   {isSaving ? "Saving..." : programId ? "Update Program" : "Save Program"}
                 </Button>
               </div>
-            </div>
-          </div>
-        </main>
-
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Delete this program?</DialogTitle>
-              <DialogDescription>
-                This will permanently remove the program and all workout days inside it. This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-
-            <DialogFooter>
-              <Button variant="outline" className="bg-transparent" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => void handleDeleteProgram()}
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete Program"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <MobileNav role="coach" />
       </div>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this program?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove the program and all workout days inside it. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" className="bg-transparent" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeleteProgram()}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete Program"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

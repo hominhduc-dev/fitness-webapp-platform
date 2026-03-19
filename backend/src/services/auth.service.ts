@@ -33,6 +33,17 @@ type AuthenticatedProfileContext = {
   profile: SerializedProfile
 }
 
+type ProfileUpdateInput = {
+  avatar?: string | null
+  dailyCalorieGoal?: number | null
+  fitnessGoals?: string[]
+  heightCm?: number | null
+  name?: string | null
+  phone?: string | null
+  preferredWeightUnit?: string | null
+  targetWeightKg?: number | null
+}
+
 class AuthServiceError extends Error {
   status: number
 
@@ -47,6 +58,21 @@ const USERNAME_PATTERN = /^(?=.{3,30}$)[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$/
 const DEFAULT_DAILY_CALORIE_GOAL = 2500
 const MIN_DAILY_CALORIE_GOAL = 500
 const MAX_DAILY_CALORIE_GOAL = 10000
+const MIN_HEIGHT_CM = 50
+const MAX_HEIGHT_CM = 300
+const MIN_TARGET_WEIGHT_KG = 20
+const MAX_TARGET_WEIGHT_KG = 500
+const AVATAR_BUCKET = "avatars"
+const MAX_AVATAR_FILE_SIZE_BYTES = 2 * 1024 * 1024
+const AVATAR_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
+
+type SupportedAvatarContentType = (typeof AVATAR_CONTENT_TYPES)[number]
+
+const AVATAR_EXTENSION_BY_CONTENT_TYPE: Record<SupportedAvatarContentType, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+}
 
 function fallbackNameFromEmail(email?: string | null) {
   if (!email) {
@@ -71,9 +97,119 @@ function normalizePublicRole(role?: string | null) {
   return role === UserRole.coach ? UserRole.coach : UserRole.trainee
 }
 
+function isSupportedAvatarContentType(value: string): value is SupportedAvatarContentType {
+  return AVATAR_CONTENT_TYPES.includes(value as SupportedAvatarContentType)
+}
+
 function sanitizeText(value?: string | null) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
+}
+
+function parseAvatarDataUrl(dataUrl: string) {
+  const match = dataUrl.match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i)
+
+  if (!match) {
+    throw new AuthServiceError("Ảnh đại diện không hợp lệ.")
+  }
+
+  const contentType = match[1].toLowerCase()
+
+  if (!isSupportedAvatarContentType(contentType)) {
+    throw new AuthServiceError("Ảnh đại diện phải là JPG, PNG hoặc WebP.")
+  }
+
+  const buffer = Buffer.from(match[2], "base64")
+
+  if (!buffer.byteLength) {
+    throw new AuthServiceError("Ảnh đại diện không hợp lệ.")
+  }
+
+  if (buffer.byteLength > MAX_AVATAR_FILE_SIZE_BYTES) {
+    throw new AuthServiceError("Ảnh đại diện không được vượt quá 2MB.")
+  }
+
+  return {
+    buffer,
+    contentType,
+    extension: AVATAR_EXTENSION_BY_CONTENT_TYPE[contentType],
+  }
+}
+
+function createAvatarObjectPath(userId: string, contentType: SupportedAvatarContentType) {
+  const extension = AVATAR_EXTENSION_BY_CONTENT_TYPE[contentType]
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  return `profiles/${userId}/${uniqueSuffix}.${extension}`
+}
+
+function extractManagedAvatarPath(url?: string | null) {
+  if (!url) {
+    return null
+  }
+
+  try {
+    const pathname = new URL(url).pathname
+    const publicPrefix = `/storage/v1/object/public/${AVATAR_BUCKET}/`
+    const prefixIndex = pathname.indexOf(publicPrefix)
+
+    if (prefixIndex === -1) {
+      return null
+    }
+
+    const objectPath = pathname.slice(prefixIndex + publicPrefix.length)
+    return objectPath || null
+  } catch {
+    return null
+  }
+}
+
+async function ensureAvatarBucket() {
+  if (!supabaseAdmin) {
+    throw new AuthServiceError("Supabase Storage chưa được cấu hình.", 500)
+  }
+
+  const { data: bucket, error: bucketError } = await supabaseAdmin.storage.getBucket(AVATAR_BUCKET)
+
+  if (bucketError) {
+    const normalizedMessage = bucketError.message.toLowerCase()
+
+    if (normalizedMessage.includes("not found") || normalizedMessage.includes("does not exist")) {
+      const { error: createError } = await supabaseAdmin.storage.createBucket(AVATAR_BUCKET, {
+        allowedMimeTypes: [...AVATAR_CONTENT_TYPES],
+        fileSizeLimit: MAX_AVATAR_FILE_SIZE_BYTES,
+        public: true,
+      })
+
+      if (createError && !createError.message.toLowerCase().includes("already exists")) {
+        throw new AuthServiceError(createError.message, 400)
+      }
+
+      return
+    }
+
+    throw new AuthServiceError(bucketError.message, 400)
+  }
+
+  if (!bucket.public) {
+    const { error: updateError } = await supabaseAdmin.storage.updateBucket(AVATAR_BUCKET, {
+      allowedMimeTypes: [...AVATAR_CONTENT_TYPES],
+      fileSizeLimit: MAX_AVATAR_FILE_SIZE_BYTES,
+      public: true,
+    })
+
+    if (updateError) {
+      throw new AuthServiceError(updateError.message, 400)
+    }
+  }
+}
+
+async function removeAvatarObject(objectPath?: string | null) {
+  if (!supabaseAdmin || !objectPath) {
+    return
+  }
+
+  await supabaseAdmin.storage.from(AVATAR_BUCKET).remove([objectPath])
 }
 
 function normalizeFitnessGoals(value: unknown) {
@@ -173,6 +309,73 @@ function normalizeDailyCalorieGoal(value?: number | null) {
   return rounded
 }
 
+function roundMetric(value: number, fractionDigits = 1) {
+  return Number(value.toFixed(fractionDigits))
+}
+
+function parseOptionalFiniteNumber(value: unknown) {
+  if (value == null || value === "") {
+    return undefined
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function normalizeHeightCm(value?: number | null) {
+  if (value == null) {
+    return null
+  }
+
+  if (!Number.isFinite(value)) {
+    throw new AuthServiceError("Chiều cao không hợp lệ.")
+  }
+
+  if (value < MIN_HEIGHT_CM || value > MAX_HEIGHT_CM) {
+    throw new AuthServiceError(`Chiều cao phải nằm trong khoảng ${MIN_HEIGHT_CM}-${MAX_HEIGHT_CM} cm.`)
+  }
+
+  return roundMetric(value, 1)
+}
+
+function normalizeTargetWeightKg(value?: number | null) {
+  if (value == null) {
+    return null
+  }
+
+  if (!Number.isFinite(value)) {
+    throw new AuthServiceError("Mục tiêu cân nặng không hợp lệ.")
+  }
+
+  if (value < MIN_TARGET_WEIGHT_KG || value > MAX_TARGET_WEIGHT_KG) {
+    throw new AuthServiceError(
+      `Mục tiêu cân nặng phải nằm trong khoảng ${MIN_TARGET_WEIGHT_KG}-${MAX_TARGET_WEIGHT_KG} kg.`,
+    )
+  }
+
+  return roundMetric(value, 2)
+}
+
+function parseMetadataHeightCm(value: unknown) {
+  const parsed = parseOptionalFiniteNumber(value)
+
+  if (parsed == null || parsed < MIN_HEIGHT_CM || parsed > MAX_HEIGHT_CM) {
+    return undefined
+  }
+
+  return roundMetric(parsed, 1)
+}
+
+function parseMetadataTargetWeightKg(value: unknown) {
+  const parsed = parseOptionalFiniteNumber(value)
+
+  if (parsed == null || parsed < MIN_TARGET_WEIGHT_KG || parsed > MAX_TARGET_WEIGHT_KG) {
+    return undefined
+  }
+
+  return roundMetric(parsed, 2)
+}
+
 function looksLikeEmail(value: string) {
   return value.includes("@")
 }
@@ -269,6 +472,7 @@ function serializeProfile(profile: AppUser | null) {
     dailyCalorieGoal: profile.dailyCalorieGoal,
     email: profile.email,
     fitnessGoals: profile.fitnessGoals,
+    heightCm: profile.heightCm,
     id: profile.id,
     isActive: profile.isActive,
     name: profile.name,
@@ -276,6 +480,7 @@ function serializeProfile(profile: AppUser | null) {
     preferredWeightUnit: profile.preferredWeightUnit,
     role: profile.role,
     supabaseAuthUserId: profile.supabaseAuthUserId,
+    targetWeightKg: profile.targetWeightKg,
     updatedAt: profile.updatedAt,
     username: profile.username,
   }
@@ -341,6 +546,8 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
   const name = resolveUserName(authUser, overrides?.name)
   const avatar = resolveUserAvatar(authUser, overrides?.avatar)
   const metadataGoals = normalizeFitnessGoals(authUser.user_metadata?.fitnessGoals)
+  const metadataHeightCm = parseMetadataHeightCm(authUser.user_metadata?.heightCm)
+  const metadataTargetWeightKg = parseMetadataTargetWeightKg(authUser.user_metadata?.targetWeightKg)
   const nextRole = existingProfile?.role ?? resolveUserRole(authUser, overrides?.role)
 
   if (existingProfile) {
@@ -350,11 +557,13 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
         dailyCalorieGoal: existingProfile.dailyCalorieGoal,
         email,
         fitnessGoals: existingProfile.fitnessGoals.length > 0 ? existingProfile.fitnessGoals : metadataGoals,
+        heightCm: existingProfile.heightCm ?? metadataHeightCm,
         name,
         phone: phone ?? existingProfile.phone,
         preferredWeightUnit: existingProfile.preferredWeightUnit,
         role: nextRole,
         supabaseAuthUserId: authUser.id,
+        targetWeightKg: existingProfile.targetWeightKg ?? metadataTargetWeightKg,
         username: username ?? existingProfile.username,
       },
       where: {
@@ -368,10 +577,12 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
       avatar,
       email,
       fitnessGoals: metadataGoals,
+      heightCm: metadataHeightCm,
       name,
       phone,
       role: nextRole,
       supabaseAuthUserId: authUser.id,
+      targetWeightKg: metadataTargetWeightKg,
       username,
     },
   })
@@ -640,37 +851,28 @@ async function requireCurrentProfile(accessToken: string): Promise<Authenticated
   }
 }
 
-async function updateCurrentProfile(
-  accessToken: string,
-  updates: {
-    avatar?: string | null
-    dailyCalorieGoal?: number | null
-    fitnessGoals?: string[]
-    name?: string | null
-    phone?: string | null
-    preferredWeightUnit?: string | null
-  },
-) {
-  const authUser = await getVerifiedUser(accessToken)
+async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, updates: ProfileUpdateInput) {
+  const db = prisma
 
-  if (!prisma || !authUser.email) {
+  if (!db) {
     throw new AuthServiceError("Database is not configured for profile updates.", 500)
   }
 
-  const profile = await syncProfile(authUser)
+  const nextName = sanitizeText(updates.name) ?? profile.name
+  let nextAvatar = profile.avatar
 
-  if (!profile) {
-    throw new AuthServiceError("Không tìm thấy hồ sơ người dùng.", 404)
+  if (updates.avatar !== undefined) {
+    nextAvatar = updates.avatar === null || updates.avatar.trim() === "" ? null : sanitizeText(updates.avatar) ?? null
   }
 
-  const nextName = sanitizeText(updates.name) ?? profile.name
-  const nextAvatar = updates.avatar === "" ? null : sanitizeText(updates.avatar) ?? profile.avatar
   const nextGoals = Array.isArray(updates.fitnessGoals)
     ? updates.fitnessGoals.map((goal) => goal.trim()).filter(Boolean)
     : profile.fitnessGoals
   const hasPhoneUpdate = updates.phone !== undefined
   const hasDailyCalorieGoalUpdate = updates.dailyCalorieGoal !== undefined
+  const hasHeightUpdate = updates.heightCm !== undefined
   const hasWeightUnitUpdate = updates.preferredWeightUnit !== undefined
+  const hasTargetWeightUpdate = updates.targetWeightKg !== undefined
   const nextPhone = hasPhoneUpdate
     ? updates.phone === null || updates.phone?.trim() === ""
       ? null
@@ -679,12 +881,16 @@ async function updateCurrentProfile(
   const nextDailyCalorieGoal = hasDailyCalorieGoalUpdate
     ? normalizeDailyCalorieGoal(updates.dailyCalorieGoal)
     : profile.dailyCalorieGoal
+  const nextHeightCm = hasHeightUpdate ? normalizeHeightCm(updates.heightCm) : profile.heightCm
   const nextWeightUnit = hasWeightUnitUpdate
     ? normalizeWeightUnit(updates.preferredWeightUnit)
     : profile.preferredWeightUnit
+  const nextTargetWeightKg = hasTargetWeightUpdate
+    ? normalizeTargetWeightKg(updates.targetWeightKg)
+    : profile.targetWeightKg
 
   if (nextPhone) {
-    const existingPhoneOwner = await prisma.user.findFirst({
+    const existingPhoneOwner = await db.user.findFirst({
       select: {
         id: true,
       },
@@ -701,14 +907,16 @@ async function updateCurrentProfile(
     }
   }
 
-  const updatedProfile = await prisma.user.update({
+  const updatedProfile = await db.user.update({
     data: {
       avatar: nextAvatar,
       dailyCalorieGoal: nextDailyCalorieGoal,
       fitnessGoals: nextGoals,
+      heightCm: nextHeightCm,
       name: nextName,
       phone: nextPhone,
       preferredWeightUnit: nextWeightUnit,
+      targetWeightKg: nextTargetWeightKg,
     },
     where: {
       id: profile.id,
@@ -723,16 +931,36 @@ async function updateCurrentProfile(
         dailyCalorieGoal: nextDailyCalorieGoal,
         fitnessGoals: nextGoals,
         full_name: nextName,
+        heightCm: nextHeightCm,
         name: nextName,
         phone: nextPhone ?? undefined,
         preferredWeightUnit: nextWeightUnit,
+        targetWeightKg: nextTargetWeightKg,
       },
     })
 
-    if (error) {
+    if (error != null) {
       throw new AuthServiceError(error.message, 400)
     }
   }
+
+  return updatedProfile
+}
+
+async function updateCurrentProfile(accessToken: string, updates: ProfileUpdateInput) {
+  const authUser = await getVerifiedUser(accessToken)
+
+  if (!prisma || !authUser.email) {
+    throw new AuthServiceError("Database is not configured for profile updates.", 500)
+  }
+
+  const profile = await syncProfile(authUser)
+
+  if (!profile) {
+    throw new AuthServiceError("Không tìm thấy hồ sơ người dùng.", 404)
+  }
+
+  const updatedProfile = await applyProfileUpdates(authUser, profile, updates)
 
   return {
     message: "Hồ sơ đã được cập nhật.",
@@ -740,6 +968,71 @@ async function updateCurrentProfile(
     session: null,
     user: serializeAuthUser(authUser),
   } satisfies AuthResult
+}
+
+async function uploadCurrentProfileAvatar(
+  accessToken: string,
+  input: {
+    dataUrl: string
+    fileName?: string | null
+  },
+) {
+  const authUser = await getVerifiedUser(accessToken)
+
+  if (!prisma || !authUser.email) {
+    throw new AuthServiceError("Database is not configured for avatar uploads.", 500)
+  }
+
+  if (!supabaseAdmin) {
+    throw new AuthServiceError("Supabase Storage chưa được cấu hình.", 500)
+  }
+
+  const profile = await syncProfile(authUser)
+
+  if (!profile) {
+    throw new AuthServiceError("Không tìm thấy hồ sơ người dùng.", 404)
+  }
+
+  await ensureAvatarBucket()
+
+  const { buffer, contentType } = parseAvatarDataUrl(input.dataUrl)
+  const objectPath = createAvatarObjectPath(profile.id, contentType)
+  const previousAvatarPath = extractManagedAvatarPath(profile.avatar)
+  const bucket = supabaseAdmin.storage.from(AVATAR_BUCKET)
+
+  const { error: uploadError } = await bucket.upload(objectPath, buffer, {
+    cacheControl: "31536000",
+    contentType,
+    upsert: false,
+  })
+
+  if (uploadError) {
+    throw new AuthServiceError(uploadError.message, 400)
+  }
+
+  const {
+    data: { publicUrl },
+  } = bucket.getPublicUrl(objectPath)
+
+  try {
+    const updatedProfile = await applyProfileUpdates(authUser, profile, {
+      avatar: publicUrl,
+    })
+
+    if (previousAvatarPath && previousAvatarPath !== objectPath) {
+      void removeAvatarObject(previousAvatarPath)
+    }
+
+    return {
+      message: "Ảnh đại diện đã được cập nhật.",
+      profile: serializeProfile(updatedProfile),
+      session: null,
+      user: serializeAuthUser(authUser),
+    } satisfies AuthResult
+  } catch (error) {
+    await removeAvatarObject(objectPath)
+    throw error
+  }
 }
 
 async function requestPasswordReset(input: { email: string; redirectTo?: string }) {
@@ -795,5 +1088,6 @@ export {
   requestPasswordReset,
   type AuthenticatedProfileContext,
   type SerializedProfile,
+  uploadCurrentProfileAvatar,
   updateCurrentProfile,
 }

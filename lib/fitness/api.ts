@@ -389,6 +389,28 @@ async function fetchMeals(accessToken: string, date?: string): Promise<MealColle
   }
 }
 
+async function fetchWeightEntries(accessToken: string, days = 30): Promise<BodyMetricEntry[]> {
+  const query = Number.isFinite(days) ? `?days=${encodeURIComponent(String(days))}` : ""
+  const response = await request<{ bodyMetrics: SerializedBodyMetricEntry[] }>(`/api/progress/weight${query}`, accessToken)
+  return response.bodyMetrics.map(mapBodyMetricEntry)
+}
+
+async function createWeightEntry(
+  accessToken: string,
+  input: {
+    note?: string
+    recordedAt?: string
+    weightKg: number
+  },
+) {
+  const response = await request<{ bodyMetric: SerializedBodyMetricEntry }>("/api/progress/weight", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return mapBodyMetricEntry(response.bodyMetric)
+}
+
 async function createMeal(
   accessToken: string,
   input: {
@@ -712,11 +734,13 @@ export {
   createCoachRequest,
   createCoachProgram,
   createMeal,
+  createWeightEntry,
   createWorkout,
   createWorkoutLog,
   deleteWorkout,
   deleteMeal,
   deleteCoachProgram,
+  fetchWeightEntries,
   fetchDiscoverableCoaches,
   fetchCoachDashboard,
   fetchCoachProgram,

@@ -2,10 +2,11 @@
 
 import type React from "react"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 
+import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
 import type { Exercise, Workout } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 type WorkoutExerciseDraft = {
   exerciseId: string
@@ -132,12 +134,16 @@ export function CreateWorkoutDialog({
   const [isSaving, setIsSaving] = useState(false)
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [showExerciseListFade, setShowExerciseListFade] = useState(false)
+  const exerciseListRef = useRef<HTMLDivElement | null>(null)
 
   const templateOptions = useMemo(
     () => (isEditing ? [] : sortWorkoutTemplates(workoutTemplates)),
     [isEditing, workoutTemplates],
   )
   const hasTemplateOptions = templateOptions.length > 0
+  const shouldLockExerciseListHeight = isMobileViewport ? exerciseRows.length >= 2 : exerciseRows.length >= 3
   const isScheduledDayLocked = !isEditing && typeof defaultScheduledDay === "number"
   const selectedDayLabel = getDayLabel(scheduledDay)
   const triggerContent = trigger ?? (
@@ -180,6 +186,20 @@ export function CreateWorkoutDialog({
 
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)")
+    const syncViewport = () => {
+      setIsMobileViewport(mediaQuery.matches)
+    }
+
+    syncViewport()
+    mediaQuery.addEventListener("change", syncViewport)
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport)
+    }
   }, [])
 
   const resetForm = () => {
@@ -255,6 +275,42 @@ export function CreateWorkoutDialog({
       cancelled = true
     }
   }, [exerciseOptions.length, isEditing, mode, open, session?.access_token])
+
+  const syncExerciseListFade = () => {
+    const node = exerciseListRef.current
+
+    if (!node) {
+      setShowExerciseListFade(false)
+      return
+    }
+
+    const hasOverflow = node.scrollHeight - node.clientHeight > 8
+    const isAtBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 8
+
+    setShowExerciseListFade(hasOverflow && !isAtBottom)
+  }
+
+  useEffect(() => {
+    if (!open) {
+      setShowExerciseListFade(false)
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      syncExerciseListFade()
+    })
+
+    const handleResize = () => {
+      syncExerciseListFade()
+    }
+
+    window.addEventListener("resize", handleResize)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener("resize", handleResize)
+    }
+  }, [exerciseRows.length, mode, open])
 
   const addExerciseRow = () => {
     setExerciseRows((current) => [...current, createExerciseDraft(exerciseOptions[0]?.id ?? "")])
@@ -427,15 +483,21 @@ export function CreateWorkoutDialog({
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold">Exercises</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(248,250,255,0.98)_0%,rgba(255,255,255,0.92)_100%)] px-4 py-3 shadow-sm">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold">Exercises</h3>
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                {exerciseRows.length} {exerciseRows.length === 1 ? "move" : "moves"}
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground">Choose the movements and target set structure.</p>
           </div>
           <Button
             type="button"
             variant="outline"
-            className="gap-2 bg-transparent"
+            size="sm"
+            className="gap-2 rounded-full border-primary/20 bg-background/90 px-4"
             onClick={addExerciseRow}
             disabled={isLoadingExercises || exerciseOptions.length === 0}
           >
@@ -444,94 +506,109 @@ export function CreateWorkoutDialog({
           </Button>
         </div>
 
-        <div className="space-y-3">
-          {exerciseRows.map((row) => (
-            <div key={row.id} className="rounded-xl border border-border bg-muted/20 p-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="min-w-0 flex-1">
-                  <Label className="sr-only">Exercise</Label>
-                  <Select
-                    value={row.exerciseId}
-                    onValueChange={(value) => updateExerciseRow(row.id, { exerciseId: value })}
-                    disabled={isLoadingExercises}
-                  >
-                    <SelectTrigger aria-label="Exercise" className="h-10 w-full">
-                      <SelectValue placeholder={isLoadingExercises ? "Loading exercises..." : "Choose an exercise"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {exerciseOptions.map((exercise) => (
-                        <SelectItem key={exercise.id} value={exercise.id}>
-                          {exercise.name} · {exercise.muscleGroup}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`${row.id}-sets`} className="sr-only">
-                      Sets
-                    </Label>
-                    <Input
-                      id={`${row.id}-sets`}
-                      type="number"
-                      min={1}
-                      value={row.sets}
-                      onChange={(event) => updateExerciseRow(row.id, { sets: event.target.value })}
-                      className="h-10 w-14 text-center"
+        <div className="relative">
+          <div
+            ref={exerciseListRef}
+            onScroll={syncExerciseListFade}
+            className={cn(
+              "space-y-3 pr-1 pb-2",
+              shouldLockExerciseListHeight &&
+                "max-h-[12rem] overflow-y-auto overscroll-contain [scrollbar-color:rgba(148,163,184,0.45)_transparent] [scrollbar-width:thin] [touch-action:pan-y] [-webkit-overflow-scrolling:touch] md:max-h-[15rem] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/80 [&::-webkit-scrollbar-track]:bg-transparent",
+            )}
+          >
+            {exerciseRows.map((row) => (
+              <div
+                key={row.id}
+                className="rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm"
+              >
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Label className="sr-only">Exercise</Label>
+                    <ExercisePicker
+                      selectedExerciseId={row.exerciseId}
+                      exercises={exerciseOptions}
+                      disabled={isLoadingExercises}
+                      onSelect={(exerciseId) => updateExerciseRow(row.id, { exerciseId })}
                     />
-                    <span className="text-sm text-muted-foreground">sets</span>
                   </div>
 
-                  <span className="text-sm text-muted-foreground">x</span>
+                  <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                    <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
+                      <Label htmlFor={`${row.id}-sets`} className="sr-only">
+                        Sets
+                      </Label>
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                        Sets
+                      </span>
+                      <Input
+                        id={`${row.id}-sets`}
+                        type="number"
+                        min={1}
+                        value={row.sets}
+                        onChange={(event) => updateExerciseRow(row.id, { sets: event.target.value })}
+                        className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                      />
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`${row.id}-reps`} className="sr-only">
-                      Reps
-                    </Label>
-                    <Input
-                      id={`${row.id}-reps`}
-                      type="number"
-                      min={1}
-                      value={row.reps}
-                      onChange={(event) => updateExerciseRow(row.id, { reps: event.target.value })}
-                      className="h-10 w-14 text-center"
-                    />
-                    <span className="text-sm text-muted-foreground">reps</span>
+                    <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
+                      <Label htmlFor={`${row.id}-reps`} className="sr-only">
+                        Reps
+                      </Label>
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                        Reps
+                      </span>
+                      <Input
+                        id={`${row.id}-reps`}
+                        type="number"
+                        min={1}
+                        value={row.reps}
+                        onChange={(event) => updateExerciseRow(row.id, { reps: event.target.value })}
+                        className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                      />
+                    </div>
+
+                    <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
+                      <Label htmlFor={`${row.id}-rest`} className="sr-only">
+                        Rest time in seconds
+                      </Label>
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                        Rest
+                      </span>
+                      <Input
+                        id={`${row.id}-rest`}
+                        type="number"
+                        min={0}
+                        value={row.restTime}
+                        onChange={(event) => updateExerciseRow(row.id, { restTime: event.target.value })}
+                        placeholder="90"
+                        className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
+                      onClick={() => removeExerciseRow(row.id)}
+                      disabled={exerciseRows.length === 1}
+                      aria-label="Remove exercise"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`${row.id}-rest`} className="sr-only">
-                      Rest time in seconds
-                    </Label>
-                    <Input
-                      id={`${row.id}-rest`}
-                      type="number"
-                      min={0}
-                      value={row.restTime}
-                      onChange={(event) => updateExerciseRow(row.id, { restTime: event.target.value })}
-                      placeholder="90"
-                      className="h-10 w-16 text-center"
-                    />
-                    <span className="text-sm text-muted-foreground">sec</span>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="h-10 w-10 shrink-0"
-                    onClick={() => removeExerciseRow(row.id)}
-                    disabled={exerciseRows.length === 1}
-                    aria-label="Remove exercise"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          <div
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 h-14 rounded-b-[24px] bg-gradient-to-t from-background via-background/90 to-transparent transition-opacity duration-200",
+              showExerciseListFade ? "opacity-100" : "opacity-0",
+            )}
+          />
         </div>
       </div>
 
@@ -623,13 +700,13 @@ export function CreateWorkoutDialog({
         {triggerContent}
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">
+      <DialogContent className="max-h-[92svh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[28px] sm:max-h-[90vh] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 overflow-y-auto pr-1">
+        <div className="min-h-0 space-y-5 overflow-y-auto pr-1 pb-1 [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
           {error ? (
             <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
               {error}

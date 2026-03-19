@@ -11,6 +11,8 @@ export interface User {
   fitnessGoals?: string[]
   preferredWeightUnit?: "kg" | "lbs"
   dailyCalorieGoal?: number
+  heightCm?: number
+  targetWeightKg?: number
   coachId?: string
   createdAt: Date
 }

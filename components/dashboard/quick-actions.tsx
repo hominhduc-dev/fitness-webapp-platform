@@ -1,27 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { Calendar, Dumbbell, TrendingUp, Utensils } from "lucide-react"
+import { Calendar, Scale, TrendingUp, Utensils } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
 
-type QuickActionsProps = {
-  primaryAction?: {
-    description: string
-    href: string
-    label: string
-  }
-}
-
-export function QuickActions({ primaryAction }: QuickActionsProps) {
+export function QuickActions() {
   const { messages } = useLocale()
 
   const actions = [
     {
-      href: primaryAction?.href ?? "/workout",
-      icon: Dumbbell,
-      label: primaryAction?.label ?? messages.dashboard.quickWorkout,
+      href: "/trackweight",
+      icon: Scale,
+      label: messages.dashboard.quickLogWeight,
       tone: "primary",
     },
     {

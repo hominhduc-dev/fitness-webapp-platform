@@ -4,8 +4,8 @@ import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 import { createContext, startTransition, useContext, useEffect, useState } from "react"
 
-import { fetchCurrentProfile, updateProfileRequest } from "@/lib/auth/api"
-import type { AppProfile, UpdateProfileInput } from "@/lib/auth/types"
+import { fetchCurrentProfile, updateProfileRequest, uploadAvatarRequest } from "@/lib/auth/api"
+import type { AppProfile, UpdateProfileInput, UploadAvatarInput } from "@/lib/auth/types"
 import { createBrowserSupabaseClient } from "@/lib/supabase/client"
 
 type AuthContextValue = {
@@ -14,6 +14,7 @@ type AuthContextValue = {
   refreshProfile: () => Promise<AppProfile | null>
   session: Session | null
   signOut: () => Promise<void>
+  uploadAvatar: (input: UploadAvatarInput) => Promise<AppProfile | null>
   updateProfile: (input: UpdateProfileInput) => Promise<AppProfile | null>
 }
 
@@ -116,6 +117,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response.profile
   }
 
+  async function uploadAvatar(input: UploadAvatarInput) {
+    const {
+      data: { session: currentSession },
+    } = await supabase.auth.getSession()
+
+    if (!currentSession?.access_token) {
+      throw new Error("Bạn chưa đăng nhập.")
+    }
+
+    const response = await uploadAvatarRequest(currentSession.access_token, input)
+
+    startTransition(() => {
+      setProfile(response.profile)
+    })
+
+    return response.profile
+  }
+
   async function signOut() {
     await supabase.auth.signOut({ scope: "local" })
 
@@ -134,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshProfile,
         session,
         signOut,
+        uploadAvatar,
         updateProfile,
       }}
     >

@@ -79,6 +79,8 @@ model User {
   fitnessGoals           String[]            @default([])
   preferredWeightUnit    WeightUnit          @default(kg)
   dailyCalorieGoal       Int                 @default(2500)
+  heightCm               Float?
+  targetWeightKg         Float?
   coachId                String?             @db.Uuid
   coach                  User?               @relation("CoachTrainees", fields: [coachId], references: [id], onDelete: SetNull)
   trainees               User[]              @relation("CoachTrainees")

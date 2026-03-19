@@ -7,6 +7,7 @@ export interface AppProfile {
   dailyCalorieGoal: number
   email: string
   fitnessGoals: string[]
+  heightCm?: number | null
   id: string
   isActive: boolean
   name: string
@@ -14,6 +15,7 @@ export interface AppProfile {
   preferredWeightUnit: "kg" | "lbs"
   role: AppRole
   supabaseAuthUserId?: string | null
+  targetWeightKg?: number | null
   updatedAt: string
   username?: string | null
 }
@@ -39,11 +41,18 @@ export interface AuthResponse {
   user: AuthenticatedUserPayload | null
 }
 
+export interface UploadAvatarInput {
+  dataUrl: string
+  fileName?: string | null
+}
+
 export interface UpdateProfileInput {
   avatar?: string | null
   dailyCalorieGoal?: number | null
   fitnessGoals?: string[]
+  heightCm?: number | null
   name?: string | null
   phone?: string | null
   preferredWeightUnit?: "kg" | "lbs"
+  targetWeightKg?: number | null
 }

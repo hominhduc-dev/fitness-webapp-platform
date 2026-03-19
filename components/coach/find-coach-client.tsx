@@ -3,9 +3,6 @@
 import { useDeferredValue, useMemo, useState } from "react"
 import { Check, Clock, Search, Users } from "lucide-react"
 
-import { Header } from "@/components/layout/header"
-import { MobileNav } from "@/components/layout/mobile-nav"
-import { Sidebar } from "@/components/layout/sidebar"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -74,18 +71,11 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar role="trainee" />
-
-      <div className="flex-1 flex flex-col">
-        <Header />
-
-        <main className="flex-1 overflow-auto pb-20 md:pb-6">
-          <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold md:text-3xl">{messages.coach.findCoachTitle}</h1>
-              <p className="mt-1 text-muted-foreground">{messages.coach.findCoachSubtitle}</p>
-            </div>
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold md:text-3xl">{messages.coach.findCoachTitle}</h1>
+        <p className="mt-1 text-muted-foreground">{messages.coach.findCoachSubtitle}</p>
+      </div>
 
             <div className="mb-6 relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -245,11 +235,6 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
                 </div>
               )}
             </div>
-          </div>
-        </main>
-
-        <MobileNav role="trainee" />
-      </div>
     </div>
   )
 }

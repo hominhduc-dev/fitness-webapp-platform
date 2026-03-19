@@ -7,6 +7,7 @@ import { dashboardMessages } from "@/lib/i18n/messages/dashboard"
 import { landingMessages } from "@/lib/i18n/messages/landing"
 import { mealsMessages } from "@/lib/i18n/messages/meals"
 import { profileMessages } from "@/lib/i18n/messages/profile"
+import { progressMessages } from "@/lib/i18n/messages/progress"
 import { scheduleMessages } from "@/lib/i18n/messages/schedule"
 
 type WidenLiteral<T> =
@@ -23,6 +24,7 @@ const enMessages = {
   ...authMessages.en,
   ...dashboardMessages.en,
   ...scheduleMessages.en,
+  ...progressMessages.en,
   ...mealsMessages.en,
   ...profileMessages.en,
   ...coachMessages.en,
@@ -37,6 +39,7 @@ const viMessages: AppMessages = {
   ...authMessages.vi,
   ...dashboardMessages.vi,
   ...scheduleMessages.vi,
+  ...progressMessages.vi,
   ...mealsMessages.vi,
   ...profileMessages.vi,
   ...coachMessages.vi,

@@ -117,9 +117,38 @@
     @apply bg-background;
   }
 
-  body {
-    @apply bg-background text-foreground antialiased;
+body {
+  @apply bg-background text-foreground antialiased;
   }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes page-loading-bar {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  50% {
+    transform: translateX(120%);
+  }
+
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+.page-loading-bar {
+  animation: page-loading-bar 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
 }
 
 /* Custom scrollbar for light theme */

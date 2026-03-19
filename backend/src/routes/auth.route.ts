@@ -5,10 +5,13 @@ import {
   loginUser,
   logoutCurrentSession,
   refreshAuthSession,
+  requireCurrentProfile,
   registerUser,
   requestPasswordReset,
+  uploadCurrentProfileAvatar,
   updateCurrentProfile,
 } from "../services/auth.service"
+import { resetCurrentTraineeData } from "../services/fitness-data.service"
 import { getAccessToken, sendError } from "./route.utils"
 
 const authRouter = Router()
@@ -79,6 +82,19 @@ authRouter.get("/me", async (req, res) => {
   }
 })
 
+authRouter.post("/me/avatar", async (req, res) => {
+  try {
+    const result = await uploadCurrentProfileAvatar(getAccessToken(req), {
+      dataUrl: typeof req.body.dataUrl === "string" ? req.body.dataUrl : "",
+      fileName: typeof req.body.fileName === "string" ? req.body.fileName : undefined,
+    })
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
 authRouter.patch("/me", async (req, res) => {
   try {
     const result = await updateCurrentProfile(getAccessToken(req), {
@@ -88,13 +104,26 @@ authRouter.patch("/me", async (req, res) => {
       fitnessGoals: Array.isArray(req.body.fitnessGoals)
         ? req.body.fitnessGoals.map((goal: unknown) => String(goal))
         : undefined,
+      heightCm: req.body.heightCm == null ? req.body.heightCm : Number(req.body.heightCm),
       name: typeof req.body.name === "string" || req.body.name === null ? req.body.name : undefined,
       phone: typeof req.body.phone === "string" || req.body.phone === null ? req.body.phone : undefined,
       preferredWeightUnit:
         typeof req.body.preferredWeightUnit === "string" || req.body.preferredWeightUnit === null
           ? req.body.preferredWeightUnit
           : undefined,
+      targetWeightKg: req.body.targetWeightKg == null ? req.body.targetWeightKg : Number(req.body.targetWeightKg),
     })
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+authRouter.post("/me/reset-trainee-data", async (req, res) => {
+  try {
+    const currentProfile = await requireCurrentProfile(getAccessToken(req))
+    const result = await resetCurrentTraineeData(currentProfile.profile)
 
     res.json(result)
   } catch (error) {

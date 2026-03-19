@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { cache } from "react"
 
 import type { AppProfile, AppRole } from "./types"
 import { getRoleLandingPath } from "./roles"
@@ -10,42 +11,43 @@ type ServerAuthState = {
   profile: AppProfile | null
 }
 
-async function getServerAuthState(): Promise<ServerAuthState> {
+const getServerAuthState = cache(async (): Promise<ServerAuthState> => {
   const supabase = await createServerSupabaseClient()
-  const { data: userResult } = await supabase.auth.getUser()
-
-  if (!userResult.user) {
-    return {
-      accessToken: null,
-      profile: null,
-    }
-  }
-
-  const {
-    data: { session: sessionResult },
-  } = await supabase.auth.getSession()
-
-  if (!sessionResult?.access_token) {
-    return {
-      accessToken: null,
-      profile: null,
-    }
-  }
 
   try {
-    const profile = await fetchCurrentProfile(sessionResult.access_token)
+    const {
+      data: { session: sessionResult },
+    } = await supabase.auth.getSession()
 
-    return {
-      accessToken: sessionResult.access_token,
-      profile,
+    // `getSession()` can read directly from the request cookies, so we avoid
+    // a blocking round-trip to Supabase before fetching the profile.
+    if (!sessionResult?.access_token) {
+      return {
+        accessToken: null,
+        profile: null,
+      }
+    }
+
+    try {
+      const profile = await fetchCurrentProfile(sessionResult.access_token)
+
+      return {
+        accessToken: sessionResult.access_token,
+        profile,
+      }
+    } catch {
+      return {
+        accessToken: sessionResult.access_token,
+        profile: null,
+      }
     }
   } catch {
     return {
-      accessToken: sessionResult.access_token,
+      accessToken: null,
       profile: null,
     }
   }
-}
+})
 
 async function requireAppUser(options?: { redirectTo?: string; role?: AppRole }) {
   const { profile } = await requireAppSession(options)

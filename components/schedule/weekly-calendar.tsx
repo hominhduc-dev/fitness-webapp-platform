@@ -14,6 +14,7 @@ import type { Workout, WorkoutLog, WeeklySchedule } from "@/lib/types"
 type WeeklyCalendarProps = {
   recentLogs: WorkoutLog[]
   schedule: WeeklySchedule
+  showHero?: boolean
   workouts: Workout[]
 }
 
@@ -89,7 +90,7 @@ function getMobileEntrySubcopy(entry: ScheduleEntry) {
   return `${entry.workout.name} · ${exerciseCount} exercise${exerciseCount === 1 ? "" : "s"}`
 }
 
-export function WeeklyCalendar({ recentLogs, schedule, workouts }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ recentLogs, schedule, showHero = true, workouts }: WeeklyCalendarProps) {
   const [weekOffset, setWeekOffset] = useState(0)
   const [copied, setCopied] = useState(false)
 
@@ -136,34 +137,45 @@ export function WeeklyCalendar({ recentLogs, schedule, workouts }: WeeklyCalenda
     }
   }
 
+  const actionButtons = (
+    <div className="flex flex-wrap items-center gap-3">
+      <Button
+        type="button"
+        variant="outline"
+        className="gap-2 bg-transparent"
+        onClick={() => void handleCopyWeek()}
+      >
+        <Copy className="h-4 w-4" />
+        {copied ? "Copied" : "Copy Week"}
+      </Button>
+      <CreateWorkoutDialog
+        workoutTemplates={workouts}
+        trigger={
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Workout
+          </Button>
+        }
+      />
+    </div>
+  )
+
   return (
     <section className="space-y-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Weekly Schedule</h1>
-          <p className="max-w-2xl text-base text-muted-foreground">Plan and organize your training week</p>
-        </div>
+      <header
+        className={cn(
+          "flex flex-col gap-4",
+          showHero ? "lg:flex-row lg:items-start lg:justify-between" : "sm:flex-row sm:items-center sm:justify-end",
+        )}
+      >
+        {showHero ? (
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Weekly Schedule</h1>
+            <p className="max-w-2xl text-base text-muted-foreground">Plan and organize your training week</p>
+          </div>
+        ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2 bg-transparent"
-            onClick={() => void handleCopyWeek()}
-          >
-            <Copy className="h-4 w-4" />
-            {copied ? "Copied" : "Copy Week"}
-          </Button>
-          <CreateWorkoutDialog
-            workoutTemplates={workouts}
-            trigger={
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                New Workout
-              </Button>
-            }
-          />
-        </div>
+        {actionButtons}
       </header>
 
       <div className="space-y-5">

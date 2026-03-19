@@ -34,9 +34,14 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  return { response, user }
+    return { response, user }
+  } catch {
+    // Fail soft in middleware when Supabase is temporarily unreachable.
+    return { response, user: null }
+  }
 }

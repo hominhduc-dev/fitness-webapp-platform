@@ -3,6 +3,7 @@
 import {
   Activity,
   BarChart3,
+  ChevronRight,
   ClipboardList,
   Dumbbell,
   FileSpreadsheet,
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -93,6 +95,13 @@ type ExerciseImportIssue = {
   rowNumber?: number
 }
 
+type ExerciseGroupItem = {
+  exercises: AdminExerciseItem[]
+  groupKey: string
+  muscleGroup: string
+  totalUsageCount: number
+}
+
 const EXERCISE_IMPORT_HEADERS = {
   equipment: ["equipment", "gear", "device", "dung cu", "thiet bi"],
   muscleGroup: ["muscle group", "musclegroup", "muscle_group", "body part", "bodypart", "nhom co"],
@@ -112,8 +121,8 @@ function normalizeImportHeader(value: unknown) {
 function resolveImportColumn(value: unknown): keyof typeof EXERCISE_IMPORT_HEADERS | null {
   const normalizedValue = normalizeImportHeader(value)
 
-  for (const [column, aliases] of Object.entries(EXERCISE_IMPORT_HEADERS) as Array<
-    [keyof typeof EXERCISE_IMPORT_HEADERS, string[]]
+  for (const [column, aliases] of Object.entries(EXERCISE_IMPORT_HEADERS) as ReadonlyArray<
+    [keyof typeof EXERCISE_IMPORT_HEADERS, readonly string[]]
   >) {
     if (aliases.includes(normalizedValue)) {
       return column
@@ -236,6 +245,87 @@ function EmptyState({ copy }: { copy: string }) {
   return <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
 }
 
+function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
+  return (
+    <Tabs defaultValue="dashboard" className="space-y-5">
+      <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl bg-muted/70 p-2">
+        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+        <TabsTrigger value="users">Users</TabsTrigger>
+        <TabsTrigger value="requests">Coach Requests</TabsTrigger>
+        <TabsTrigger value="connections">Connections</TabsTrigger>
+        <TabsTrigger value="programs">Programs</TabsTrigger>
+        <TabsTrigger value="exercises">Exercises</TabsTrigger>
+        <TabsTrigger value="audit">Audit</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="dashboard" className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} className="rounded-2xl border border-border bg-card p-5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-3 h-9 w-28" />
+              <Skeleton className="mt-2 h-4 w-36" />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-44" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+
+          <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 p-1">
+            <Skeleton className="h-8 w-20 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-full" />
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="rounded-2xl border border-border bg-card p-4">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="mt-2 h-4 w-48 max-w-full" />
+              <div className="mt-6 flex h-44 items-end gap-2">
+                {Array.from({ length: 6 }, (_, barIndex) => (
+                  <div key={barIndex} className="flex flex-1 flex-col items-center gap-2">
+                    <Skeleton className="h-3 w-8" />
+                    <div className="flex h-32 w-full items-end rounded-xl bg-muted/40 p-1.5">
+                      <Skeleton className="w-full rounded-lg" style={{ height: `${35 + barIndex * 8}%` }} />
+                    </div>
+                    <Skeleton className="h-3 w-6" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          {Array.from({ length: 2 }, (_, index) => (
+            <div key={index} className="rounded-2xl border border-border bg-card p-5">
+              <Skeleton className="h-6 w-36" />
+              <Skeleton className="mt-2 h-4 w-52 max-w-full" />
+              <div className="mt-5 space-y-3">
+                {Array.from({ length: 4 }, (_, itemIndex) => (
+                  <Skeleton key={itemIndex} className="h-16 rounded-2xl" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="min-h-[40px] text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{locale === "en" ? "Loading admin console..." : "Đang tải bảng điều khiển admin..."}</span>
+          </div>
+        </div>
+      </TabsContent>
+    </Tabs>
+  )
+}
+
 export function AdminConsole() {
   const { locale } = useLocale()
   const { session } = useAuth()
@@ -264,6 +354,7 @@ export function AdminConsole() {
   const [connectionSearch, setConnectionSearch] = useState("")
   const [programSearch, setProgramSearch] = useState("")
   const [exerciseSearch, setExerciseSearch] = useState("")
+  const [openExerciseGroups, setOpenExerciseGroups] = useState<string[]>([])
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
@@ -721,6 +812,42 @@ export function AdminConsole() {
   const filteredExercises = exercises.filter((exercise) =>
     matchesSearch([exercise.name, exercise.muscleGroup, exercise.equipment, exercise.createdBy?.name], exerciseSearch),
   )
+  const groupedExercisesMap = new Map<string, ExerciseGroupItem>()
+  const sortedExercises = [...filteredExercises].sort((left, right) => {
+    const language = locale === "vi" ? "vi" : "en"
+    const groupComparison = left.muscleGroup.localeCompare(right.muscleGroup, language, { sensitivity: "base" })
+
+    if (groupComparison !== 0) {
+      return groupComparison
+    }
+
+    return left.name.localeCompare(right.name, language, { sensitivity: "base" })
+  })
+
+  for (const exercise of sortedExercises) {
+    const muscleGroup = exercise.muscleGroup.trim() || (locale === "en" ? "Other" : "Khác")
+    const groupKey = muscleGroup.toLocaleLowerCase(locale === "vi" ? "vi-VN" : "en-US")
+    const existingGroup = groupedExercisesMap.get(groupKey)
+
+    if (existingGroup) {
+      existingGroup.exercises.push(exercise)
+      existingGroup.totalUsageCount += exercise.usageCount
+      continue
+    }
+
+    groupedExercisesMap.set(groupKey, {
+      exercises: [exercise],
+      groupKey,
+      muscleGroup,
+      totalUsageCount: exercise.usageCount,
+    })
+  }
+
+  const groupedExercises = Array.from(groupedExercisesMap.values()).sort((left, right) =>
+    left.muscleGroup.localeCompare(right.muscleGroup, locale === "vi" ? "vi" : "en", { sensitivity: "base" }),
+  )
+  const shouldAutoExpandExerciseGroups = exerciseSearch.trim().length > 0
+  const totalExerciseUsageCount = groupedExercises.reduce((sum, group) => sum + group.totalUsageCount, 0)
 
   const importPreviewRows = importRows.slice(0, 8)
 
@@ -728,17 +855,13 @@ export function AdminConsole() {
     const matchesEntityType = auditEntityType === "all" ? true : log.entityType === auditEntityType
     return matchesEntityType && matchesSearch([log.action, log.entityType, log.entityLabel, log.admin.name], auditSearch)
   })
-
-  if (!session?.access_token || isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center rounded-3xl border border-border bg-card">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>{locale === "en" ? "Loading admin console..." : "Đang tải bảng điều khiển admin..."}</span>
-        </div>
-      </div>
-    )
-  }
+  const isConsolePending = !session?.access_token || isLoading
+  const topStats = [
+    { label: "Admins", value: dashboard?.stats.totalAdmins },
+    { label: "Programs", value: dashboard?.stats.totalPrograms },
+    { label: "Meals", value: dashboard?.stats.totalMeals },
+    { label: "Workout Logs", value: dashboard?.stats.totalWorkoutLogs },
+  ] as const
 
   return (
     <>
@@ -760,38 +883,37 @@ export function AdminConsole() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Admins</p>
-              <p className="text-xl font-semibold">{dashboard?.stats.totalAdmins ?? 0}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Programs</p>
-              <p className="text-xl font-semibold">{dashboard?.stats.totalPrograms ?? 0}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Meals</p>
-              <p className="text-xl font-semibold">{dashboard?.stats.totalMeals ?? 0}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Workout Logs</p>
-              <p className="text-xl font-semibold">{dashboard?.stats.totalWorkoutLogs ?? 0}</p>
-            </div>
+            {topStats.map((item) => (
+              <div key={item.label}>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                {typeof item.value === "number" ? (
+                  <p className="text-xl font-semibold tabular-nums">{item.value}</p>
+                ) : (
+                  <Skeleton className="mt-2 h-7 w-16" />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        {error ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
+        <div className="min-h-[52px]">
+          {error ? (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
 
-        {notice ? (
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
-            {notice}
-          </div>
-        ) : null}
+          {!error && notice ? (
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+              {notice}
+            </div>
+          ) : null}
+        </div>
 
-        <Tabs defaultValue="dashboard" className="space-y-5">
+        {isConsolePending ? (
+          <AdminConsoleLoadingState locale={locale} />
+        ) : (
+          <Tabs defaultValue="dashboard" className="space-y-5">
           <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl bg-muted/70 p-2">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
@@ -1465,38 +1587,110 @@ export function AdminConsole() {
                 </div>
 
                 <div className="rounded-2xl border border-border bg-card p-4">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={exerciseSearch} onChange={(event) => setExerciseSearch(event.target.value)} placeholder={locale === "en" ? "Search exercises..." : "Tìm bài tập..."} className="pl-9" />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold">{locale === "en" ? "Exercise groups" : "Nhóm bài tập"}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {locale === "en"
+                          ? `${formatNumber(groupedExercises.length, locale)} muscle groups • ${formatNumber(filteredExercises.length, locale)} exercises • ${formatNumber(totalExerciseUsageCount, locale)} workout references`
+                          : `${formatNumber(groupedExercises.length, locale)} nhóm cơ • ${formatNumber(filteredExercises.length, locale)} bài tập • ${formatNumber(totalExerciseUsageCount, locale)} lượt dùng trong workout`}
+                      </p>
+                    </div>
+
+                    <div className="relative w-full sm:max-w-sm">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input value={exerciseSearch} onChange={(event) => setExerciseSearch(event.target.value)} placeholder={locale === "en" ? "Search exercises..." : "Tìm bài tập..."} className="pl-9" />
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  {filteredExercises.length ? (
-                    filteredExercises.map((exercise) => (
-                      <div key={exercise.id} className="rounded-2xl border border-border bg-card p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold">{exercise.name}</h3>
-                              <Badge variant="outline">{exercise.muscleGroup}</Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">{exercise.equipment ?? (locale === "en" ? "No equipment" : "Không có thiết bị")}</p>
-                            <p className="mt-2 text-xs text-muted-foreground">{exercise.usageCount} {locale === "en" ? "workout references" : "lần được dùng trong workout"}</p>
-                          </div>
+                  {groupedExercises.length ? (
+                    groupedExercises.map((group) => {
+                      const isOpen = shouldAutoExpandExerciseGroups || openExerciseGroups.includes(group.groupKey)
 
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" variant="outline" onClick={() => setExerciseForm({ equipment: exercise.equipment ?? "", id: exercise.id, muscleGroup: exercise.muscleGroup, name: exercise.name })}>
-                              {locale === "en" ? "Edit" : "Sửa"}
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: exercise.id, kind: "exercise", label: exercise.name })}>
-                              <Trash2 className="h-4 w-4" />
-                              {locale === "en" ? "Delete" : "Xoá"}
-                            </Button>
-                          </div>
+                      return (
+                        <div key={group.groupKey} className="overflow-hidden rounded-2xl border border-border bg-card">
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/20"
+                            onClick={() =>
+                              setOpenExerciseGroups((currentGroups) =>
+                                currentGroups.includes(group.groupKey)
+                                  ? currentGroups.filter((currentGroup) => currentGroup !== group.groupKey)
+                                  : [...currentGroups, group.groupKey],
+                              )
+                            }
+                          >
+                            <div className="flex min-w-0 items-start gap-3">
+                              <div className="mt-0.5 rounded-full border border-border bg-muted/30 p-1">
+                                <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="font-semibold">{group.muscleGroup}</h3>
+                                  <Badge variant="outline">
+                                    {formatNumber(group.exercises.length, locale)} {locale === "en" ? "exercises" : "bài tập"}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                  {formatNumber(group.totalUsageCount, locale)}{" "}
+                                  {locale === "en" ? "total workout references" : "tổng lượt dùng trong workout"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {isOpen ? (locale === "en" ? "Collapse" : "Thu gọn") : locale === "en" ? "Expand" : "Mở rộng"}
+                            </span>
+                          </button>
+
+                          {isOpen ? (
+                            <div className="border-t border-border bg-muted/10 p-4">
+                              <div className="space-y-3">
+                                {group.exercises.map((exercise) => (
+                                  <div key={exercise.id} className="rounded-xl border border-border bg-card p-4">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                      <div>
+                                        <h4 className="font-semibold">{exercise.name}</h4>
+                                        <p className="text-sm text-muted-foreground">
+                                          {exercise.equipment ?? (locale === "en" ? "No equipment" : "Không có thiết bị")}
+                                        </p>
+                                        <p className="mt-2 text-xs text-muted-foreground">
+                                          {formatNumber(exercise.usageCount, locale)}{" "}
+                                          {locale === "en" ? "workout references" : "lần được dùng trong workout"}
+                                        </p>
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            setExerciseForm({
+                                              equipment: exercise.equipment ?? "",
+                                              id: exercise.id,
+                                              muscleGroup: exercise.muscleGroup,
+                                              name: exercise.name,
+                                            })
+                                          }
+                                        >
+                                          {locale === "en" ? "Edit" : "Sửa"}
+                                        </Button>
+                                        <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: exercise.id, kind: "exercise", label: exercise.name })}>
+                                          <Trash2 className="h-4 w-4" />
+                                          {locale === "en" ? "Delete" : "Xoá"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
-                      </div>
-                    ))
+                      )
+                    })
                   ) : (
                     <EmptyState copy={locale === "en" ? "No exercises match the current search." : "Không có bài tập nào khớp tìm kiếm hiện tại."} />
                   )}
@@ -1553,7 +1747,8 @@ export function AdminConsole() {
               )}
             </div>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        )}
       </div>
 
       <Dialog open={isImportDialogOpen} onOpenChange={handleImportDialogChange}>

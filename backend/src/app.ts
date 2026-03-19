@@ -12,7 +12,11 @@ app.use(
     origin: env.frontendUrl,
   }),
 )
-app.use(express.json())
+app.use(
+  express.json({
+    limit: "5mb",
+  }),
+)
 
 app.get("/", (_req, res) => {
   res.json({

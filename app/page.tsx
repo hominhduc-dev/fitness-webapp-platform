@@ -37,13 +37,16 @@ const exerciseItems = [
 ]
 
 export default async function Home() {
-  const authState = await getServerAuthState()
+  const authStatePromise = getServerAuthState()
+  const localePromise = getServerLocale()
+  const messagesPromise = getServerMessages()
+  const authState = await authStatePromise
 
   if (authState.accessToken && authState.profile) {
     redirect(getRoleLandingPath(authState.profile.role))
   }
 
-  const [locale, messages] = await Promise.all([getServerLocale(), getServerMessages()])
+  const [locale, messages] = await Promise.all([localePromise, messagesPromise])
   const featureItems = [
     {
       icon: Dumbbell,

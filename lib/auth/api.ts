@@ -1,4 +1,4 @@
-import type { AppRole, AuthResponse, UpdateProfileInput } from "./types"
+import type { AppRole, AuthResponse, UpdateProfileInput, UploadAvatarInput } from "./types"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 
 class ApiError extends Error {
@@ -105,12 +105,29 @@ async function updateProfileRequest(accessToken: string, input: UpdateProfileInp
   })
 }
 
+async function uploadAvatarRequest(accessToken: string, input: UploadAvatarInput) {
+  return request<AuthResponse>("/api/auth/me/avatar", {
+    body: JSON.stringify(input),
+    headers: createHeaders(accessToken),
+    method: "POST",
+  })
+}
+
+async function resetCurrentTraineeDataRequest(accessToken: string) {
+  return request<{ message: string; resetCounts: Record<string, number> }>("/api/auth/me/reset-trainee-data", {
+    headers: createHeaders(accessToken),
+    method: "POST",
+  })
+}
+
 export {
   ApiError,
   fetchCurrentProfile,
   forgotPasswordRequest,
   loginRequest,
+  resetCurrentTraineeDataRequest,
   refreshSessionRequest,
   registerRequest,
+  uploadAvatarRequest,
   updateProfileRequest,
 }
