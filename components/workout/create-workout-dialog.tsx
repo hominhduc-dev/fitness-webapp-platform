@@ -4,7 +4,24 @@ import type React from "react"
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Plus, Trash2 } from "lucide-react"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { GripVertical, Loader2, Plus, Trash2 } from "lucide-react"
 
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -110,6 +127,142 @@ function sortWorkoutTemplates(workouts: Workout[]) {
 
 function getDayLabel(dayValue: string) {
   return DAY_OPTIONS.find((option) => option.value === dayValue)?.label ?? "Selected Day"
+}
+
+function SortableExerciseRow({
+  row,
+  index,
+  exerciseOptions,
+  isLoadingExercises,
+  canRemove,
+  onUpdate,
+  onRemove,
+}: {
+  row: WorkoutExerciseDraft
+  index: number
+  exerciseOptions: Exercise[]
+  isLoadingExercises: boolean
+  canRemove: boolean
+  onUpdate: (patch: Partial<WorkoutExerciseDraft>) => void
+  onRemove: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: row.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 2 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm transition-all relative",
+        isDragging ? "opacity-90 scale-[1.02] shadow-md border-primary/40 ring-2 ring-primary/20 z-50 bg-background" : ""
+      )}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            className="flex h-10 w-8 shrink-0 touch-none items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 hover:text-foreground active:bg-muted/80 active:text-foreground"
+            aria-label="Drag to reorder"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-5 w-5" />
+          </button>
+          
+          <div className="min-w-0 flex-1">
+            <Label className="sr-only">Exercise</Label>
+            <ExercisePicker
+              selectedExerciseId={row.exerciseId}
+              exercises={exerciseOptions}
+              disabled={isLoadingExercises}
+              onSelect={(exerciseId) => onUpdate({ exerciseId })}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 pl-[2.5rem] sm:gap-3 sm:pl-[3.25rem]">
+          <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
+            <Label htmlFor={`${row.id}-sets`} className="sr-only">
+              Sets
+            </Label>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+              Sets
+            </span>
+            <Input
+              id={`${row.id}-sets`}
+              type="number"
+              min={1}
+              value={row.sets}
+              onChange={(event) => onUpdate({ sets: event.target.value })}
+              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
+            <Label htmlFor={`${row.id}-reps`} className="sr-only">
+              Reps
+            </Label>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+              Reps
+            </span>
+            <Input
+              id={`${row.id}-reps`}
+              type="number"
+              min={1}
+              value={row.reps}
+              onChange={(event) => onUpdate({ reps: event.target.value })}
+              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="flex h-10 w-[3.75rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.75rem] sm:px-2">
+            <Label htmlFor={`${row.id}-rest`} className="sr-only">
+              Rest
+            </Label>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+              Rest
+            </span>
+            <Input
+              id={`${row.id}-rest`}
+              type="number"
+              min={0}
+              value={row.restTime}
+              onChange={(event) => onUpdate({ restTime: event.target.value })}
+              placeholder="90"
+              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="ml-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
+              onClick={onRemove}
+              disabled={!canRemove}
+              aria-label="Remove exercise"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function CreateWorkoutDialog({
@@ -330,6 +483,24 @@ export function CreateWorkoutDialog({
     })
   }
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setExerciseRows((current) => {
+        const oldIndex = current.findIndex((row) => row.id === active.id)
+        const newIndex = current.findIndex((row) => row.id === over.id)
+        return arrayMove(current, oldIndex, newIndex)
+      })
+    }
+  }
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
 
@@ -491,7 +662,7 @@ export function CreateWorkoutDialog({
                 {exerciseRows.length} {exerciseRows.length === 1 ? "move" : "moves"}
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">Choose the movements and target set structure.</p>
+            <p className="text-sm text-muted-foreground">Hold and drag to reorder. Tap name to change exercise.</p>
           </div>
           <Button
             type="button"
@@ -513,93 +684,25 @@ export function CreateWorkoutDialog({
             className={cn(
               "space-y-3 pr-1 pb-2",
               shouldLockExerciseListHeight &&
-                "max-h-[12rem] overflow-y-auto overscroll-contain [scrollbar-color:rgba(148,163,184,0.45)_transparent] [scrollbar-width:thin] [touch-action:pan-y] [-webkit-overflow-scrolling:touch] md:max-h-[15rem] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/80 [&::-webkit-scrollbar-track]:bg-transparent",
+                "max-h-[16rem] overflow-y-auto overscroll-contain [scrollbar-color:rgba(148,163,184,0.45)_transparent] [scrollbar-width:thin] [touch-action:pan-y] [-webkit-overflow-scrolling:touch] md:max-h-[20rem] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/80 [&::-webkit-scrollbar-track]:bg-transparent",
             )}
           >
-            {exerciseRows.map((row) => (
-              <div
-                key={row.id}
-                className="rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm"
-              >
-                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                  <div className="min-w-0 flex-1">
-                    <Label className="sr-only">Exercise</Label>
-                    <ExercisePicker
-                      selectedExerciseId={row.exerciseId}
-                      exercises={exerciseOptions}
-                      disabled={isLoadingExercises}
-                      onSelect={(exerciseId) => updateExerciseRow(row.id, { exerciseId })}
-                    />
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                    <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
-                      <Label htmlFor={`${row.id}-sets`} className="sr-only">
-                        Sets
-                      </Label>
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-                        Sets
-                      </span>
-                      <Input
-                        id={`${row.id}-sets`}
-                        type="number"
-                        min={1}
-                        value={row.sets}
-                        onChange={(event) => updateExerciseRow(row.id, { sets: event.target.value })}
-                        className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-                      />
-                    </div>
-
-                    <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
-                      <Label htmlFor={`${row.id}-reps`} className="sr-only">
-                        Reps
-                      </Label>
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-                        Reps
-                      </span>
-                      <Input
-                        id={`${row.id}-reps`}
-                        type="number"
-                        min={1}
-                        value={row.reps}
-                        onChange={(event) => updateExerciseRow(row.id, { reps: event.target.value })}
-                        className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-                      />
-                    </div>
-
-                    <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
-                      <Label htmlFor={`${row.id}-rest`} className="sr-only">
-                        Rest time in seconds
-                      </Label>
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-                        Rest
-                      </span>
-                      <Input
-                        id={`${row.id}-rest`}
-                        type="number"
-                        min={0}
-                        value={row.restTime}
-                        onChange={(event) => updateExerciseRow(row.id, { restTime: event.target.value })}
-                        placeholder="90"
-                        className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-                      />
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
-                      onClick={() => removeExerciseRow(row.id)}
-                      disabled={exerciseRows.length === 1}
-                      aria-label="Remove exercise"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={exerciseRows.map((row) => row.id)} strategy={verticalListSortingStrategy}>
+                {exerciseRows.map((row, index) => (
+                  <SortableExerciseRow
+                    key={row.id}
+                    row={row}
+                    index={index}
+                    exerciseOptions={exerciseOptions}
+                    isLoadingExercises={isLoadingExercises}
+                    canRemove={exerciseRows.length > 1}
+                    onUpdate={(patch) => updateExerciseRow(row.id, patch)}
+                    onRemove={() => removeExerciseRow(row.id)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
 
           <div

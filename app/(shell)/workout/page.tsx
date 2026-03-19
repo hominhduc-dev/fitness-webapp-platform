@@ -4,6 +4,7 @@ import { ChevronDown, Clock, Dumbbell, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
+import { EditWorkoutButton } from "@/components/workout/edit-workout-button"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchWorkouts } from "@/lib/fitness/api"
 
@@ -42,23 +43,30 @@ export default async function WorkoutPage() {
               </div>
             </div>
 
-            <div className="mb-4 min-h-[5.5rem] space-y-2">
+            <div className="mb-4 min-h-[6.75rem] space-y-2.5">
               {workout.exercises.slice(0, 3).map((exercise) => (
-                <div key={exercise.id} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{exercise.exercise.name}</span>
-                  <span>
-                    {exercise.sets.length} × {exercise.sets[0]?.targetReps}
+                <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+                  <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
+                    {exercise.exercise.name}
+                  </span>
+                  <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
+                    {exercise.sets.length} × {exercise.sets[0]?.targetReps ?? "?"}
                   </span>
                 </div>
               ))}
               {workout.exercises.length > 3 ? (
-                <p className="text-xs text-muted-foreground">+{workout.exercises.length - 3} more</p>
+                <p className="pt-0.5 text-xs font-medium text-muted-foreground">
+                  +{workout.exercises.length - 3} more exercises
+                </p>
               ) : null}
             </div>
 
-            <div className="mt-auto flex min-h-[2rem] flex-wrap content-start gap-1">
+            <div className="mt-auto flex min-h-[2rem] flex-wrap content-start gap-2">
               {[...new Set(workout.exercises.map((exercise) => exercise.exercise.muscleGroup))].map((group) => (
-                <span key={group} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                <span
+                  key={group}
+                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+                >
                   {group}
                 </span>
               ))}
@@ -72,6 +80,7 @@ export default async function WorkoutPage() {
                 Start Workout
               </Button>
             </Link>
+            {workout.isPersonal ? <EditWorkoutButton workout={workout} /> : null}
             {workout.isPersonal ? <DeleteWorkoutButton workoutId={workout.id} /> : null}
           </div>
         </div>

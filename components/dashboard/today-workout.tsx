@@ -32,27 +32,48 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
   return (
     <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <h3 className="text-2xl font-black tracking-tight text-foreground">{messages.dashboard.todaysWorkout}</h3>
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Dumbbell className="h-5 w-5" />
-        </div>
-      </div>
+      <h3 className="text-2xl font-black tracking-tight text-foreground">{messages.dashboard.todaysWorkout}</h3>
 
-      <div className="flex min-h-[290px] flex-col justify-between">
-        <div className="flex flex-1 flex-col items-center justify-center text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Play className="ml-1 h-9 w-9 fill-current" />
+      <div className="mt-5 flex min-h-[290px] flex-col justify-between">
+        <div className="space-y-5">
+          <div>
+            <p className="text-3xl font-bold tracking-tight text-foreground">{workout.name}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-base text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-4 w-4" />
+                {workout.duration ?? "?"} {messages.dashboard.min}
+              </span>
+              <span>
+                {workout.exercises.length} {messages.dashboard.exercises}
+              </span>
+            </div>
           </div>
-          <p className="mt-6 text-3xl font-bold tracking-tight text-foreground">{workout.name}</p>
-          <p className="mt-3 text-base text-muted-foreground">
-            {workout.exercises.length} {messages.dashboard.exercises} · {workout.duration ?? "?"} {messages.dashboard.min}
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
+
+          <div className="space-y-2.5">
             {workout.exercises.slice(0, 3).map((exercise) => (
-              <span key={exercise.id} className="inline-flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                {exercise.exercise.name}
+              <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+                <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
+                  {exercise.exercise.name}
+                </span>
+                <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
+                  {exercise.sets.length} × {exercise.sets[0]?.targetReps ?? "?"}
+                </span>
+              </div>
+            ))}
+            {workout.exercises.length > 3 ? (
+              <p className="pt-0.5 text-xs font-medium text-muted-foreground">
+                {messages.dashboard.moreExercises(workout.exercises.length - 3)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[...new Set(workout.exercises.map((exercise) => exercise.exercise.muscleGroup))].map((group) => (
+              <span
+                key={group}
+                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+              >
+                {group}
               </span>
             ))}
           </div>
@@ -60,6 +81,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
         <Link href={`/workout/${workout.id}/start`} className="mt-6">
           <Button className="h-12 w-full rounded-2xl text-base font-semibold">
+            <Play className="h-4 w-4" />
             {messages.dashboard.start}
           </Button>
         </Link>

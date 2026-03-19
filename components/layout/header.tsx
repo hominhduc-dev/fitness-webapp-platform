@@ -60,33 +60,35 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur-lg">
-      <div className="flex h-14 items-center justify-between gap-2 px-3 sm:h-16 sm:px-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+      <div className="flex h-16 items-center justify-between gap-2 px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-3">
           {showMenu && (
             <Button variant="ghost" size="icon" onClick={onMenuClick} className="md:hidden">
               <Menu className="h-5 w-5" />
             </Button>
           )}
-          <Link href={dashboardHref} className="flex min-w-0 items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+          <Link href={dashboardHref} className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
               <Dumbbell className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="hidden truncate text-lg font-bold tracking-tight sm:inline">YeahBuddy</span>
+            <span className="truncate text-lg font-bold tracking-tight">YeahBuddy</span>
           </Link>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <LocaleToggle compact />
-          <Button variant="ghost" size="icon" className="relative hidden sm:inline-flex">
+          <div className="hidden md:block">
+            <LocaleToggle compact />
+          </div>
+          <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full">
             <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" />
+            <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-primary" />
           </Button>
 
           {isMounted ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full" disabled={isLoading}>
-                  <Avatar className="h-9 w-9 border-2 border-primary/20">
+                <Button variant="ghost" className="relative h-10 w-10 rounded-full" disabled={isLoading}>
+                  <Avatar className="h-10 w-10 border-2 border-primary/20">
                     <AvatarImage src={profile?.avatar || "/placeholder.svg"} alt={displayName} />
                     <AvatarFallback className="bg-primary/10 text-primary">{initials || "YB"}</AvatarFallback>
                   </Avatar>
@@ -118,8 +120,8 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full" disabled>
-              <Avatar className="h-9 w-9 border-2 border-primary/20">
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full" disabled>
+              <Avatar className="h-10 w-10 border-2 border-primary/20">
                 <AvatarImage src={profile?.avatar || "/placeholder.svg"} alt={displayName} />
                 <AvatarFallback className="bg-primary/10 text-primary">{initials || "YB"}</AvatarFallback>
               </Avatar>

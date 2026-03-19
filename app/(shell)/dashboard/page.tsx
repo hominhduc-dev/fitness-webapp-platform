@@ -131,7 +131,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
   return (
     <>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map((card) => {
           const isHelperAccent = "helperTone" in card && card.helperTone === "accent"
 
@@ -139,19 +139,21 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "rounded-[28px] border p-5 shadow-sm",
+                "rounded-[24px] border p-4 shadow-sm md:rounded-[28px] md:p-5",
                 card.tone === "primary" && "border-primary/18 bg-primary/5",
                 card.tone === "blue" && "border-primary/18 bg-primary/6",
                 card.tone === "neutral" && "border-border bg-card",
               )}
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
-                  <p className="mt-3 text-3xl font-black tracking-tight text-foreground">{card.value}</p>
+                  <p className="mt-2 text-2xl font-black leading-none tracking-tight text-foreground md:mt-3 md:text-3xl">
+                    {card.value}
+                  </p>
                   <p
                     className={cn(
-                      "mt-2 text-sm",
+                      "mt-2 text-sm leading-snug md:leading-7",
                       isHelperAccent
                         ? "font-semibold text-emerald-600"
                         : card.tone === "primary"
@@ -165,13 +167,13 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
                 <div
                   className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl md:h-10 md:w-10",
                     card.tone === "primary" && "bg-primary/10 text-primary",
                     card.tone === "blue" && "bg-primary/10 text-primary",
                     card.tone === "neutral" && "bg-muted text-muted-foreground",
                   )}
                 >
-                  <card.icon className="h-5 w-5" />
+                  <card.icon className="h-5 w-5 md:h-5 md:w-5" />
                 </div>
               </div>
             </div>
@@ -179,7 +181,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
         })}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_470px]">
+      <section className="grid gap-6 md:grid-cols-2">
         <TodayWorkout workout={workoutData.todayWorkout} />
         <NutritionSummary nutrition={mealData.dailyNutrition} />
       </section>
@@ -192,17 +194,17 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 function DashboardOverviewSkeleton() {
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="rounded-[28px] border border-border bg-card p-5 shadow-sm">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="mt-3 h-9 w-28" />
+          <div key={index} className="rounded-[24px] border border-border bg-card p-4 shadow-sm md:rounded-[28px] md:p-5">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="mt-2 h-8 w-24 md:mt-3 md:h-9 md:w-28" />
             <Skeleton className="mt-2 h-4 w-32" />
           </div>
         ))}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_470px]">
+      <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
           <Skeleton className="h-8 w-40" />
           <div className="mt-8 flex min-h-[290px] flex-col items-center justify-center">
@@ -254,10 +256,10 @@ export default async function DashboardPage() {
       : "Track today's training, nutrition, and progress from one dashboard."
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-4 py-6 md:px-8 md:py-8">
-      <div className="space-y-7">
-        <section className="space-y-2">
-          <h1 className="text-4xl font-black tracking-tight text-foreground md:text-5xl">
+    <div className="mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6 md:py-8">
+      <div className="space-y-6 md:space-y-7">
+        <section className="space-y-2.5">
+          <h1 className="text-2xl font-black leading-tight tracking-tight text-foreground md:text-3xl">
             {messages.dashboard.welcomeBack},{" "}
             <span className="text-primary">{firstName}</span>
           </h1>

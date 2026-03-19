@@ -37,13 +37,13 @@ export function QuickActions() {
   ] as const
 
   return (
-    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
           className={cn(
-            "group flex min-h-[132px] flex-col items-center justify-center rounded-[28px] border px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5",
+            "group flex min-h-[132px] flex-col items-center justify-center rounded-[24px] border px-3 py-4 text-center shadow-sm transition-all hover:-translate-y-0.5 md:min-h-[166px] md:rounded-[28px] md:px-4 md:py-6",
             action.tone === "accent" &&
               "border-emerald-200 bg-[linear-gradient(180deg,#f4fcf7_0%,#ffffff_100%)] hover:border-emerald-300",
             action.tone === "primary" && "border-border bg-card hover:border-primary/20",
@@ -52,15 +52,17 @@ export function QuickActions() {
         >
           <div
             className={cn(
-              "flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-105",
+              "flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-105 md:h-16 md:w-16 md:rounded-3xl",
               action.tone === "primary" && "bg-primary/10 text-primary",
               action.tone === "accent" && "bg-emerald-100 text-emerald-600",
               action.tone === "neutral" && "bg-muted text-muted-foreground",
             )}
           >
-            <action.icon className="h-5 w-5" />
+            <action.icon className="h-5 w-5 md:h-7 md:w-7" />
           </div>
-          <p className="mt-4 text-lg font-semibold tracking-tight text-foreground">{action.label}</p>
+          <p className="mt-3 text-sm font-semibold tracking-tight text-foreground md:mt-5 md:text-lg md:leading-none">
+            {action.label}
+          </p>
         </Link>
       ))}
     </section>
