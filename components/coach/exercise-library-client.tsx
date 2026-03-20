@@ -5,10 +5,10 @@ import { Dumbbell, Search } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Exercise } from "@/lib/fitness/types"
+import type { ExerciseLibraryExercise } from "@/lib/fitness/types"
 
 type ExerciseLibraryClientProps = {
-  initialExercises: Exercise[]
+  initialExercises: ExerciseLibraryExercise[]
 }
 
 export function ExerciseLibraryClient({ initialExercises }: ExerciseLibraryClientProps) {
@@ -28,7 +28,11 @@ export function ExerciseLibraryClient({ initialExercises }: ExerciseLibraryClien
       const matchesGroup = muscleGroup === "all" || exercise.muscleGroup === muscleGroup
       const matchesQuery =
         !query ||
-        [exercise.name, exercise.muscleGroup, exercise.equipment ?? ""]
+        [
+          exercise.name,
+          exercise.muscleGroup,
+          ...exercise.variations.flatMap((variation) => [variation.name, variation.equipment ?? ""]),
+        ]
           .join(" ")
           .toLowerCase()
           .includes(query)
@@ -38,7 +42,15 @@ export function ExerciseLibraryClient({ initialExercises }: ExerciseLibraryClien
   }, [deferredSearch, initialExercises, muscleGroup])
 
   const equipmentCount = useMemo(
-    () => new Set(initialExercises.map((exercise) => exercise.equipment).filter(Boolean)).size,
+    () =>
+      new Set(
+        initialExercises.flatMap((exercise) => exercise.variations.map((variation) => variation.equipment).filter(Boolean)),
+      ).size,
+    [initialExercises],
+  )
+
+  const variationCount = useMemo(
+    () => initialExercises.reduce((sum, exercise) => sum + exercise.variations.length, 0),
     [initialExercises],
   )
 
@@ -50,8 +62,8 @@ export function ExerciseLibraryClient({ initialExercises }: ExerciseLibraryClien
           <p className="mt-2 text-3xl font-bold">{initialExercises.length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Muscle Groups</p>
-          <p className="mt-2 text-3xl font-bold">{muscleGroups.length}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Variations</p>
+          <p className="mt-2 text-3xl font-bold">{variationCount}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Equipment Types</p>
@@ -107,8 +119,20 @@ export function ExerciseLibraryClient({ initialExercises }: ExerciseLibraryClien
                     {exercise.muscleGroup}
                   </span>
                   <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
-                    {exercise.equipment || "No equipment"}
+                    {exercise.variations.length} variation{exercise.variations.length === 1 ? "" : "s"}
                   </span>
+                  {exercise.variations
+                    .slice()
+                    .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name))
+                    .map((variation) => (
+                      <span key={variation.id} className="rounded-full bg-background px-3 py-1 text-xs text-muted-foreground">
+                        {variation.equipment
+                          ? variation.isDefault
+                            ? variation.equipment
+                            : `${variation.name} · ${variation.equipment}`
+                          : variation.name}
+                      </span>
+                    ))}
                 </div>
               </div>
             ))}

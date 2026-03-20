@@ -40,16 +40,17 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
-import type { Exercise, Workout } from "@/lib/types"
+import type { ExerciseVariationOption, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type WorkoutExerciseDraft = {
-  exerciseId: string
+  variationId: string
   id: string
   reps: string
-  restTime: string
   sets: string
+  weight: string
 }
 
 type DialogMode = "create" | "template"
@@ -79,23 +80,23 @@ function createDraftId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function createExerciseDraft(defaultExerciseId = ""): WorkoutExerciseDraft {
+function createExerciseDraft(defaultVariationId = ""): WorkoutExerciseDraft {
   return {
-    exerciseId: defaultExerciseId,
+    variationId: defaultVariationId,
     id: createDraftId(),
     reps: "10",
-    restTime: "90",
     sets: "3",
+    weight: "",
   }
 }
 
 function createExerciseDraftFromWorkout(exercise: Workout["exercises"][number]): WorkoutExerciseDraft {
   return {
-    exerciseId: exercise.exercise.id,
+    variationId: exercise.variation.id,
     id: createDraftId(),
     reps: String(Math.max(1, exercise.sets[0]?.targetReps ?? 1)),
-    restTime: exercise.restTime != null ? String(exercise.restTime) : "",
     sets: String(Math.max(1, exercise.sets.length)),
+    weight: exercise.sets[0]?.weight != null ? String(exercise.sets[0].weight) : "",
   }
 }
 
@@ -106,7 +107,13 @@ function getExerciseGroups(workout: Workout) {
 function getExercisePreview(workout: Workout) {
   return workout.exercises
     .slice(0, 3)
-    .map((exercise) => exercise.exercise.name)
+    .map((exercise) =>
+      formatExerciseVariationLabel({
+        exerciseName: exercise.exercise.name,
+        isDefault: exercise.variation.isDefault,
+        variationName: exercise.variation.name,
+      }),
+    )
     .join(", ")
 }
 
@@ -140,7 +147,7 @@ function SortableExerciseRow({
 }: {
   row: WorkoutExerciseDraft
   index: number
-  exerciseOptions: Exercise[]
+  exerciseOptions: ExerciseVariationOption[]
   isLoadingExercises: boolean
   canRemove: boolean
   onUpdate: (patch: Partial<WorkoutExerciseDraft>) => void
@@ -185,73 +192,76 @@ function SortableExerciseRow({
           <div className="min-w-0 flex-1">
             <Label className="sr-only">Exercise</Label>
             <ExercisePicker
-              selectedExerciseId={row.exerciseId}
+              selectedVariationId={row.variationId}
               exercises={exerciseOptions}
               disabled={isLoadingExercises}
-              onSelect={(exerciseId) => onUpdate({ exerciseId })}
+              onSelect={(variationId) => onUpdate({ variationId })}
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pl-[2.5rem] sm:gap-3 sm:pl-[3.25rem]">
-          <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
-            <Label htmlFor={`${row.id}-sets`} className="sr-only">
-              Sets
-            </Label>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-              Sets
-            </span>
-            <Input
-              id={`${row.id}-sets`}
-              type="number"
-              min={1}
-              value={row.sets}
-              onChange={(event) => onUpdate({ sets: event.target.value })}
-              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            />
-          </div>
+        <div className="pl-[2.5rem] sm:pl-[3.25rem]">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 sm:gap-3">
+              <div className="flex h-11 min-w-0 w-full flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-2">
+                <Label htmlFor={`${row.id}-sets`} className="sr-only">
+                  Sets
+                </Label>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                  Sets
+                </span>
+                <Input
+                  id={`${row.id}-sets`}
+                  type="number"
+                  min={1}
+                  value={row.sets}
+                  onChange={(event) => onUpdate({ sets: event.target.value })}
+                  className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                />
+              </div>
 
-          <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
-            <Label htmlFor={`${row.id}-reps`} className="sr-only">
-              Reps
-            </Label>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-              Reps
-            </span>
-            <Input
-              id={`${row.id}-reps`}
-              type="number"
-              min={1}
-              value={row.reps}
-              onChange={(event) => onUpdate({ reps: event.target.value })}
-              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            />
-          </div>
+              <div className="flex h-11 min-w-0 w-full flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-2">
+                <Label htmlFor={`${row.id}-reps`} className="sr-only">
+                  Reps
+                </Label>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                  Reps
+                </span>
+                <Input
+                  id={`${row.id}-reps`}
+                  type="number"
+                  min={1}
+                  value={row.reps}
+                  onChange={(event) => onUpdate({ reps: event.target.value })}
+                  className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                />
+              </div>
 
-          <div className="flex h-10 w-[3.75rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.75rem] sm:px-2">
-            <Label htmlFor={`${row.id}-rest`} className="sr-only">
-              Rest
-            </Label>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-              Rest
-            </span>
-            <Input
-              id={`${row.id}-rest`}
-              type="number"
-              min={0}
-              value={row.restTime}
-              onChange={(event) => onUpdate({ restTime: event.target.value })}
-              placeholder="90"
-              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            />
-          </div>
+              <div className="flex h-11 min-w-0 w-full flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-2">
+                <Label htmlFor={`${row.id}-weight`} className="sr-only">
+                  Weight
+                </Label>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+                  Weight
+                </span>
+                <Input
+                  id={`${row.id}-weight`}
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  value={row.weight}
+                  onChange={(event) => onUpdate({ weight: event.target.value })}
+                  placeholder="0"
+                  className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                />
+              </div>
+            </div>
 
-          <div className="ml-auto">
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
+              className="h-11 w-11 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
               onClick={onRemove}
               disabled={!canRemove}
               aria-label="Remove exercise"
@@ -276,7 +286,7 @@ export function CreateWorkoutDialog({
   const isEditing = Boolean(workoutToEdit)
   const [isMounted, setIsMounted] = useState(false)
   const [open, setOpen] = useState(false)
-  const [exerciseOptions, setExerciseOptions] = useState<Exercise[]>([])
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
   const [mode, setMode] = useState<DialogMode>("create")
   const [name, setName] = useState("")
   const [scheduledDay, setScheduledDay] = useState(String(defaultScheduledDay ?? new Date().getDay()))
@@ -314,14 +324,14 @@ export function CreateWorkoutDialog({
     return "create" as const
   }
 
-  const createInitialFormState = (defaultExerciseId = "") => {
+  const createInitialFormState = (defaultVariationId = "") => {
     if (workoutToEdit) {
       return {
         duration: workoutToEdit.duration ? String(workoutToEdit.duration) : "45",
         exerciseRows:
           workoutToEdit.exercises.length > 0
             ? workoutToEdit.exercises.map(createExerciseDraftFromWorkout)
-            : [createExerciseDraft(defaultExerciseId)],
+            : [createExerciseDraft(defaultVariationId)],
         name: workoutToEdit.name,
         notes: workoutToEdit.notes ?? "",
         scheduledDay: String(workoutToEdit.scheduledDay ?? defaultScheduledDay ?? new Date().getDay()),
@@ -330,7 +340,7 @@ export function CreateWorkoutDialog({
 
     return {
       duration: "45",
-      exerciseRows: [createExerciseDraft(defaultExerciseId)],
+      exerciseRows: [createExerciseDraft(defaultVariationId)],
       name: "",
       notes: "",
       scheduledDay: String(defaultScheduledDay ?? new Date().getDay()),
@@ -403,10 +413,10 @@ export function CreateWorkoutDialog({
         setExerciseOptions(exercises)
         setExerciseRows((current) =>
           current.map((row, index) =>
-            index === 0 && !row.exerciseId && exercises[0]
+            index === 0 && !row.variationId && exercises[0]
               ? {
                   ...row,
-                  exerciseId: exercises[0].id,
+                  variationId: exercises[0].id,
                 }
               : row,
           ),
@@ -518,13 +528,20 @@ export function CreateWorkoutDialog({
     }
 
     const normalizedExercises = exerciseRows
-      .filter((row) => row.exerciseId)
-      .map((row) => ({
-        exerciseId: row.exerciseId,
-        reps: Math.max(1, Number(row.reps) || 1),
-        restTime: row.restTime ? Math.max(0, Number(row.restTime) || 0) : undefined,
-        sets: Math.max(1, Number(row.sets) || 1),
-      }))
+      .filter((row) => row.variationId)
+      .map((row) => {
+        const parsedWeight = Number(row.weight)
+
+        return {
+          variationId: row.variationId,
+          reps: Math.max(1, Number(row.reps) || 1),
+          sets: Math.max(1, Number(row.sets) || 1),
+          weight:
+            row.weight.trim() && Number.isFinite(parsedWeight)
+              ? Math.max(0, parsedWeight)
+              : undefined,
+        }
+      })
 
     if (!name.trim()) {
       setError("Workout name is required.")
@@ -588,10 +605,10 @@ export function CreateWorkoutDialog({
       await createWorkout(session.access_token, {
         duration: template.duration,
         exercises: template.exercises.map((exercise) => ({
-          exerciseId: exercise.exercise.id,
+          variationId: exercise.variation.id,
           reps: Math.max(1, exercise.sets[0]?.targetReps ?? 1),
-          restTime: exercise.restTime,
           sets: Math.max(1, exercise.sets.length),
+          weight: exercise.sets[0]?.weight,
         })),
         name: template.name,
         notes: template.notes,

@@ -6,6 +6,7 @@
     "build": "tsc -p tsconfig.json",
     "create:admin": "tsx src/scripts/create-admin.ts",
     "dev": "tsx watch src/index.ts",
+    "seed:exercises": "tsx src/scripts/seed-exercise-library.ts",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
@@ -19,7 +20,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
-    "prisma": "^6.19.0"
+    "prisma": "^6.19.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

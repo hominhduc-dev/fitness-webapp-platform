@@ -4,7 +4,6 @@ import {
   PrismaClient,
   UserRole,
   type AdminAuditLog,
-  type Exercise,
   type Program,
   type User,
 } from "@prisma/client"
@@ -34,12 +33,28 @@ type ProgramSummaryRecord = Program & {
   }
 }
 
-type ExerciseSummaryRecord = Exercise & {
-  createdBy: User | null
+const ADMIN_VARIATION_INCLUDE = {
   _count: {
-    workoutExercises: number
+    select: {
+      workoutExercises: true,
+    },
+  },
+  exercise: {
+    include: {
+      createdBy: true,
+    },
+  },
+} satisfies Prisma.VariationInclude
+
+type ExerciseSummaryRecord = Prisma.VariationGetPayload<{
+  include: typeof ADMIN_VARIATION_INCLUDE
+}>
+
+type ExerciseWithVariationsRecord = Prisma.ExerciseGetPayload<{
+  include: {
+    variations: true
   }
-}
+}>
 
 type CoachRequestRecord = {
   coach: User
@@ -57,10 +72,13 @@ type AuditLogRecord = AdminAuditLog & {
 }
 
 type ExerciseImportRowInput = {
+  exerciseName?: string
   equipment?: string
+  isDefault?: boolean
   muscleGroup?: string
-  name?: string
   rowNumber?: number
+  sortOrder?: number
+  variationName?: string
 }
 
 const DAILY_CHART_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -89,6 +107,10 @@ function assertAdmin(profile: SerializedProfile) {
 function sanitizeText(value?: string | null) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
 }
 
 function normalizeSearch(value?: string | null) {
@@ -180,13 +202,15 @@ function serializeProgramSummary(program: ProgramSummaryRecord) {
 function serializeExerciseSummary(exercise: ExerciseSummaryRecord) {
   return {
     createdAt: exercise.createdAt,
-    createdBy: exercise.createdBy ? serializeMiniUser(exercise.createdBy) : null,
+    createdBy: exercise.exercise.createdBy ? serializeMiniUser(exercise.exercise.createdBy) : null,
     equipment: exercise.equipment ?? undefined,
     id: exercise.id,
-    muscleGroup: exercise.muscleGroup,
-    name: exercise.name,
+    isDefault: exercise.isDefault,
+    muscleGroup: exercise.exercise.muscleGroup,
+    name: exercise.exercise.name,
     updatedAt: exercise.updatedAt,
     usageCount: exercise._count.workoutExercises,
+    variationName: exercise.name,
   }
 }
 
@@ -1350,22 +1374,15 @@ async function deleteAdminProgram(profile: SerializedProfile, programId: string)
 async function listAdminExercises(profile: SerializedProfile, options?: { search?: string }) {
   assertAdmin(profile)
   const db = ensurePrisma()
-  const exercises = await db.exercise.findMany({
-    include: {
-      _count: {
-        select: {
-          workoutExercises: true,
-        },
-      },
-      createdBy: true,
-    },
-    orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
+  const exercises = await db.variation.findMany({
+    include: ADMIN_VARIATION_INCLUDE,
+    orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { createdAt: "asc" }],
   })
 
   const search = normalizeSearch(options?.search)
 
   return exercises
-    .filter((exercise) => matchesSearch([exercise.name, exercise.muscleGroup, exercise.equipment], search))
+    .filter((exercise) => matchesSearch([exercise.exercise.name, exercise.exercise.muscleGroup, exercise.equipment], search))
     .map((exercise) => serializeExerciseSummary(exercise as ExerciseSummaryRecord))
 }
 
@@ -1390,28 +1407,39 @@ async function createAdminExercise(
   const exercise = await db.exercise.create({
     data: {
       createdById: profile.id,
-      equipment,
       muscleGroup,
       name,
-    },
-    include: {
-      _count: {
-        select: {
-          workoutExercises: true,
+      variations: {
+        create: {
+          equipment,
+          isDefault: true,
+          name: "Default",
+          sortOrder: 0,
         },
       },
-      createdBy: true,
     },
   })
 
+  const variation = await db.variation.findFirst({
+    include: ADMIN_VARIATION_INCLUDE,
+    where: {
+      exerciseId: exercise.id,
+      isDefault: true,
+    },
+  })
+
+  if (!variation) {
+    throw new AuthServiceError("Không thể tạo bài tập.", 500)
+  }
+
   await logAdminAudit(db, profile.id, {
     action: "exercise.created",
-    entityId: exercise.id,
+    entityId: variation.id,
     entityLabel: exercise.name,
     entityType: "exercise",
   })
 
-  return serializeExerciseSummary(exercise as ExerciseSummaryRecord)
+  return serializeExerciseSummary(variation as ExerciseSummaryRecord)
 }
 
 async function importAdminExercises(
@@ -1430,13 +1458,17 @@ async function importAdminExercises(
   }
 
   const sanitizedRows = rows.map((row, index) => ({
+    exerciseName: sanitizeText(row.exerciseName),
     equipment: sanitizeText(row.equipment),
+    isDefault: row.isDefault === true,
     muscleGroup: sanitizeText(row.muscleGroup),
-    name: sanitizeText(row.name),
+    sortOrder:
+      typeof row.sortOrder === "number" && Number.isFinite(row.sortOrder) ? Math.max(0, Math.round(row.sortOrder)) : undefined,
+    variationName: sanitizeText(row.variationName) ?? "Default",
     rowNumber: row.rowNumber ?? index + 2,
   }))
 
-  const invalidRows = sanitizedRows.filter((row) => !row.name || !row.muscleGroup)
+  const invalidRows = sanitizedRows.filter((row) => !row.exerciseName || !row.muscleGroup || !row.variationName)
 
   if (invalidRows.length > 0) {
     const invalidPreview = invalidRows
@@ -1445,111 +1477,313 @@ async function importAdminExercises(
       .join(", ")
 
     throw new AuthServiceError(
-      `Có dòng thiếu tên bài tập hoặc nhóm cơ. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
+      `Có dòng thiếu exercise name, muscle group hoặc variation name. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
       400,
     )
   }
 
-  function buildSignature(row: { equipment?: string | null; muscleGroup?: string | null; name?: string | null }) {
-    return `${row.name?.trim().toLowerCase() ?? ""}::${row.muscleGroup?.trim().toLowerCase() ?? ""}::${row.equipment?.trim().toLowerCase() ?? ""}`
+  function buildExerciseSignature(row: { exerciseName?: string | null; muscleGroup?: string | null }) {
+    return `${row.exerciseName?.trim().toLowerCase() ?? ""}::${row.muscleGroup?.trim().toLowerCase() ?? ""}`
   }
 
+  function buildVariationSignature(row: {
+    exerciseName?: string | null
+    muscleGroup?: string | null
+    variationName?: string | null
+  }) {
+    return `${buildExerciseSignature(row)}::${row.variationName?.trim().toLowerCase() ?? ""}`
+  }
+
+  // --- Phase 1: Deduplicate within the file ---
   const duplicateRowsInFile: Array<{
+    exerciseName: string
     equipment?: string
+    isDefault?: boolean
     muscleGroup: string
-    name: string
     reason: "duplicate_in_file"
     rowNumber: number
+    sortOrder?: number
+    variationName: string
   }> = []
   const uniqueRows: Array<{
+    exerciseName: string
     equipment?: string
+    isDefault: boolean
     muscleGroup: string
-    name: string
     rowNumber: number
+    sortOrder?: number
+    variationName: string
   }> = []
   const seenSignatures = new Set<string>()
 
   sanitizedRows.forEach((row) => {
-    const signature = buildSignature(row)
+    const signature = buildVariationSignature(row)
 
     if (seenSignatures.has(signature)) {
       duplicateRowsInFile.push({
+        exerciseName: row.exerciseName as string,
         equipment: row.equipment,
+        isDefault: row.isDefault,
         muscleGroup: row.muscleGroup as string,
-        name: row.name as string,
         reason: "duplicate_in_file",
         rowNumber: row.rowNumber,
+        sortOrder: row.sortOrder,
+        variationName: row.variationName as string,
       })
       return
     }
 
     seenSignatures.add(signature)
     uniqueRows.push({
+      exerciseName: row.exerciseName as string,
       equipment: row.equipment,
+      isDefault: row.isDefault,
       muscleGroup: row.muscleGroup as string,
-      name: row.name as string,
       rowNumber: row.rowNumber,
+      sortOrder: row.sortOrder,
+      variationName: row.variationName as string,
     })
   })
 
-  const existingExercises = await db.exercise.findMany({
-    select: {
-      equipment: true,
-      muscleGroup: true,
-      name: true,
+  // --- Phase 2: Deduplicate against existing DB records ---
+  const existingVariations = await db.variation.findMany({
+    include: {
+      exercise: true,
     },
   })
 
-  const existingSignatures = new Set(existingExercises.map((exercise) => buildSignature(exercise)))
+  const existingSignatures = new Set(
+    existingVariations.map((variation) =>
+      buildVariationSignature({
+        exerciseName: variation.exercise.name,
+        muscleGroup: variation.exercise.muscleGroup,
+        variationName: variation.name,
+      }),
+    ),
+  )
+
   const rowsToCreate: Array<{
     createdById: string
+    exerciseName: string
     equipment?: string
+    isDefault: boolean
     muscleGroup: string
-    name: string
+    rowNumber: number
+    sortOrder?: number
+    variationName: string
   }> = []
   const duplicateRowsExisting: Array<{
+    exerciseName: string
     equipment?: string
+    isDefault?: boolean
     muscleGroup: string
-    name: string
     reason: "already_exists"
     rowNumber: number
+    sortOrder?: number
+    variationName: string
   }> = []
 
   uniqueRows.forEach((row) => {
-    const signature = buildSignature(row)
+    const signature = buildVariationSignature(row)
 
     if (existingSignatures.has(signature)) {
       duplicateRowsExisting.push({
+        exerciseName: row.exerciseName,
         equipment: row.equipment,
+        isDefault: row.isDefault,
         muscleGroup: row.muscleGroup,
-        name: row.name,
         reason: "already_exists",
         rowNumber: row.rowNumber,
+        sortOrder: row.sortOrder,
+        variationName: row.variationName,
       })
       return
     }
 
     rowsToCreate.push({
       createdById: profile.id,
+      exerciseName: row.exerciseName,
       equipment: row.equipment,
+      isDefault: row.isDefault,
       muscleGroup: row.muscleGroup,
-      name: row.name,
+      rowNumber: row.rowNumber,
+      sortOrder: row.sortOrder,
+      variationName: row.variationName,
     })
     existingSignatures.add(signature)
   })
 
+  // --- Phase 3: Batch create inside a single transaction ---
+  let createdCount = 0
+
   if (rowsToCreate.length > 0) {
-    await db.exercise.createMany({
-      data: rowsToCreate,
+    createdCount = await db.$transaction(async (tx) => {
+      // 3a. Build map of existing exercises
+      const allExercises = await tx.exercise.findMany({
+        include: {
+          variations: {
+            orderBy: [{ isDefault: "desc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      })
+
+      const existingExerciseMap = new Map<string, ExerciseWithVariationsRecord>()
+      allExercises.forEach((exercise) => {
+        const signature = buildExerciseSignature({
+          exerciseName: exercise.name,
+          muscleGroup: exercise.muscleGroup,
+        })
+        if (!existingExerciseMap.has(signature)) {
+          existingExerciseMap.set(signature, exercise)
+        }
+      })
+
+      // 3b. Group rows by exercise
+      const rowsByExercise = rowsToCreate.reduce<Map<string, typeof rowsToCreate>>((result, row) => {
+        const signature = buildExerciseSignature({
+          exerciseName: row.exerciseName,
+          muscleGroup: row.muscleGroup,
+        })
+        const group = result.get(signature) ?? []
+        group.push(row)
+        result.set(signature, group)
+        return result
+      }, new Map())
+
+      // 3c. Create missing parent exercises
+      for (const [exerciseSignature, exerciseRows] of rowsByExercise.entries()) {
+        if (!existingExerciseMap.has(exerciseSignature)) {
+          const created = await tx.exercise.create({
+            data: {
+              createdById: exerciseRows[0]?.createdById,
+              muscleGroup: exerciseRows[0]?.muscleGroup ?? "",
+              name: exerciseRows[0]?.exerciseName ?? "",
+            },
+            include: {
+              variations: true,
+            },
+          })
+          existingExerciseMap.set(exerciseSignature, created)
+        }
+      }
+
+      // 3d. Create variations — batch non-default, individual for default
+      let count = 0
+      const bulkNonDefaultData: Array<{
+        equipment: string | null
+        exerciseId: string
+        isDefault: boolean
+        name: string
+        sortOrder: number
+      }> = []
+
+      for (const [exerciseSignature, exerciseRows] of rowsByExercise.entries()) {
+        const exercise = existingExerciseMap.get(exerciseSignature)!
+        const explicitDefaultIndex = exerciseRows.findIndex(
+          (row) => row.isDefault || row.variationName.trim().toLowerCase() === "default",
+        )
+        let hasExistingDefault = exercise.variations.some((v) => v.isDefault)
+        const variationSignatures = new Set(
+          exercise.variations.map((v) => v.name.trim().toLowerCase()),
+        )
+
+        for (const [index, row] of exerciseRows.entries()) {
+          const variationSignature = row.variationName.trim().toLowerCase()
+
+          if (variationSignatures.has(variationSignature)) {
+            duplicateRowsExisting.push({
+              exerciseName: row.exerciseName,
+              equipment: row.equipment,
+              isDefault: row.isDefault,
+              muscleGroup: row.muscleGroup,
+              reason: "already_exists",
+              rowNumber: row.rowNumber,
+              sortOrder: row.sortOrder,
+              variationName: row.variationName,
+            })
+            continue
+          }
+
+          const shouldBeDefault =
+            explicitDefaultIndex >= 0 ? index === explicitDefaultIndex : !hasExistingDefault && index === 0
+
+          if (shouldBeDefault) {
+            // Default variations need individual create + updateMany to unset old defaults
+            try {
+              const createdVariation = await tx.variation.create({
+                data: {
+                  equipment: row.equipment ?? null,
+                  exerciseId: exercise.id,
+                  isDefault: true,
+                  name: row.variationName,
+                  sortOrder: row.sortOrder ?? index,
+                },
+                select: { id: true },
+              })
+
+              await tx.variation.updateMany({
+                data: { isDefault: false },
+                where: {
+                  exerciseId: exercise.id,
+                  id: { not: createdVariation.id },
+                },
+              })
+
+              variationSignatures.add(variationSignature)
+              count += 1
+              hasExistingDefault = true
+            } catch (error) {
+              if (isUniqueConstraintError(error)) {
+                duplicateRowsExisting.push({
+                  exerciseName: row.exerciseName,
+                  equipment: row.equipment,
+                  isDefault: row.isDefault,
+                  muscleGroup: row.muscleGroup,
+                  reason: "already_exists",
+                  rowNumber: row.rowNumber,
+                  sortOrder: row.sortOrder,
+                  variationName: row.variationName,
+                })
+                continue
+              }
+              throw error
+            }
+          } else {
+            // Non-default: accumulate for batch createMany
+            bulkNonDefaultData.push({
+              equipment: row.equipment ?? null,
+              exerciseId: exercise.id,
+              isDefault: false,
+              name: row.variationName,
+              sortOrder: row.sortOrder ?? index,
+            })
+            variationSignatures.add(variationSignature)
+          }
+        }
+      }
+
+      // 3e. Batch insert all non-default variations at once
+      if (bulkNonDefaultData.length > 0) {
+        const batchResult = await tx.variation.createMany({
+          data: bulkNonDefaultData,
+          skipDuplicates: true,
+        })
+        count += batchResult.count
+      }
+
+      return count
+    }, {
+      timeout: 120_000, // 2 minute timeout for the transaction
     })
   }
 
   await logAdminAudit(db, profile.id, {
     action: "exercise.imported",
-    entityLabel: `Imported ${rowsToCreate.length} exercises`,
+    entityLabel: `Imported ${createdCount} exercises`,
     entityType: "exercise",
     metadata: {
-      createdCount: rowsToCreate.length,
+      createdCount,
       duplicateInFileCount: duplicateRowsInFile.length,
       existingDuplicateCount: duplicateRowsExisting.length,
       totalRows: rows.length,
@@ -1557,7 +1791,7 @@ async function importAdminExercises(
   })
 
   return {
-    createdCount: rowsToCreate.length,
+    createdCount,
     skippedCount: duplicateRowsInFile.length + duplicateRowsExisting.length,
     skippedRows: [...duplicateRowsInFile, ...duplicateRowsExisting].slice(0, 20),
     totalRows: rows.length,
@@ -1583,7 +1817,8 @@ async function updateAdminExercise(
     throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
   }
 
-  const existingExercise = await db.exercise.findUnique({
+  const existingExercise = await db.variation.findUnique({
+    include: ADMIN_VARIATION_INCLUDE,
     where: {
       id: exerciseId,
     },
@@ -1593,34 +1828,37 @@ async function updateAdminExercise(
     throw new AuthServiceError("Không tìm thấy bài tập.", 404)
   }
 
-  const exercise = await db.exercise.update({
-    data: {
-      equipment,
-      muscleGroup,
-      name,
-    },
-    include: {
-      _count: {
-        select: {
-          workoutExercises: true,
-        },
+  const exercise = await db.$transaction(async (transaction) => {
+    await transaction.exercise.update({
+      data: {
+        muscleGroup,
+        name,
       },
-      createdBy: true,
-    },
-    where: {
-      id: existingExercise.id,
-    },
+      where: {
+        id: existingExercise.exerciseId,
+      },
+    })
+
+    return transaction.variation.update({
+      data: {
+        equipment,
+      },
+      include: ADMIN_VARIATION_INCLUDE,
+      where: {
+        id: existingExercise.id,
+      },
+    })
   })
 
   await logAdminAudit(db, profile.id, {
     action: "exercise.updated",
     entityId: exercise.id,
-    entityLabel: exercise.name,
+    entityLabel: exercise.exercise.name,
     entityType: "exercise",
     metadata: {
       previousEquipment: existingExercise.equipment,
-      previousMuscleGroup: existingExercise.muscleGroup,
-      previousName: existingExercise.name,
+      previousMuscleGroup: existingExercise.exercise.muscleGroup,
+      previousName: existingExercise.exercise.name,
     },
   })
 
@@ -1630,14 +1868,8 @@ async function updateAdminExercise(
 async function deleteAdminExercise(profile: SerializedProfile, exerciseId: string) {
   assertAdmin(profile)
   const db = ensurePrisma()
-  const exercise = await db.exercise.findUnique({
-    include: {
-      _count: {
-        select: {
-          workoutExercises: true,
-        },
-      },
-    },
+  const exercise = await db.variation.findUnique({
+    include: ADMIN_VARIATION_INCLUDE,
     where: {
       id: exerciseId,
     },
@@ -1652,16 +1884,25 @@ async function deleteAdminExercise(profile: SerializedProfile, exerciseId: strin
   }
 
   await db.$transaction(async (transaction) => {
-    await transaction.exercise.delete({
+    await transaction.variation.delete({
       where: {
         id: exercise.id,
+      },
+    })
+
+    await transaction.exercise.deleteMany({
+      where: {
+        id: exercise.exerciseId,
+        variations: {
+          none: {},
+        },
       },
     })
 
     await logAdminAudit(transaction, profile.id, {
       action: "exercise.deleted",
       entityId: exercise.id,
-      entityLabel: exercise.name,
+      entityLabel: exercise.exercise.name,
       entityType: "exercise",
     })
   })
@@ -1669,6 +1910,88 @@ async function deleteAdminExercise(profile: SerializedProfile, exerciseId: strin
   return {
     deleted: true,
     id: exercise.id,
+  }
+}
+
+async function deleteAdminExerciseGroup(profile: SerializedProfile, muscleGroupInput: string) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const muscleGroup = sanitizeText(muscleGroupInput)
+
+  if (!muscleGroup) {
+    throw new AuthServiceError("Nhóm cơ không được để trống.", 400)
+  }
+
+  const exercises = await db.variation.findMany({
+    include: ADMIN_VARIATION_INCLUDE,
+    orderBy: [{ exercise: { name: "asc" } }, { createdAt: "asc" }],
+    where: {
+      exercise: {
+        muscleGroup: {
+          equals: muscleGroup,
+          mode: "insensitive",
+        },
+      },
+    },
+  })
+
+  if (!exercises.length) {
+    throw new AuthServiceError("Không tìm thấy nhóm bài tập.", 404)
+  }
+
+  const deletableExercises = exercises.filter((exercise) => exercise._count.workoutExercises === 0)
+  const skippedExercises = exercises
+    .filter((exercise) => exercise._count.workoutExercises > 0)
+    .map((exercise) => ({
+      id: exercise.id,
+      name: exercise.exercise.name,
+      usageCount: exercise._count.workoutExercises,
+    }))
+  const deletedIds = deletableExercises.map((exercise) => exercise.id)
+  const deletedExerciseIds = Array.from(new Set(deletableExercises.map((exercise) => exercise.exerciseId)))
+
+  await db.$transaction(async (transaction) => {
+    if (deletedIds.length > 0) {
+      await transaction.variation.deleteMany({
+        where: {
+          id: {
+            in: deletedIds,
+          },
+        },
+      })
+
+      await transaction.exercise.deleteMany({
+        where: {
+          id: {
+            in: deletedExerciseIds,
+          },
+          variations: {
+            none: {},
+          },
+        },
+      })
+    }
+
+    await logAdminAudit(transaction, profile.id, {
+      action: "exercise.group_deleted",
+      entityLabel: muscleGroup,
+      entityType: "exercise",
+      metadata: {
+        deletedCount: deletedIds.length,
+        deletedIds,
+        skippedCount: skippedExercises.length,
+        skippedExercises: skippedExercises.slice(0, 20),
+        totalCount: exercises.length,
+      },
+    })
+  })
+
+  return {
+    deletedCount: deletedIds.length,
+    deletedIds,
+    muscleGroup,
+    skippedCount: skippedExercises.length,
+    skippedExercises,
   }
 }
 
@@ -1707,6 +2030,7 @@ export {
   importAdminExercises,
   deleteAdminCoachRequest,
   deleteAdminExercise,
+  deleteAdminExerciseGroup,
   deleteAdminProgram,
   getAdminDashboard,
   getAdminUserDetail,

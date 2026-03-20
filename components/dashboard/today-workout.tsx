@@ -5,6 +5,7 @@ import { Clock, Dumbbell, Play } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { Workout } from "@/lib/types"
 
 interface TodayWorkoutProps {
@@ -53,7 +54,11 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
             {workout.exercises.slice(0, 3).map((exercise) => (
               <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
                 <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
-                  {exercise.exercise.name}
+                  {formatExerciseVariationLabel({
+                    exerciseName: exercise.exercise.name,
+                    isDefault: exercise.variation.isDefault,
+                    variationName: exercise.variation.name,
+                  })}
                 </span>
                 <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
                   {exercise.sets.length} × {exercise.sets[0]?.targetReps ?? "?"}

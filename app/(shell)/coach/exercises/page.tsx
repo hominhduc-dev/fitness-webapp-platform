@@ -1,10 +1,10 @@
 import { ExerciseLibraryClient } from "@/components/coach/exercise-library-client"
 import { requireAppSession } from "@/lib/auth/server"
-import { fetchExercises } from "@/lib/fitness/api"
+import { fetchExerciseLibrary } from "@/lib/fitness/api"
 
 export default async function CoachExercisesPage() {
   const { accessToken } = await requireAppSession({ role: "coach" })
-  const exercises = await fetchExercises(accessToken)
+  const exercises = await fetchExerciseLibrary(accessToken)
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">

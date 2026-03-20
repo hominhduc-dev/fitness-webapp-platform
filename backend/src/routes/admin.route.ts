@@ -7,6 +7,7 @@ import {
   createAdminExercise,
   deleteAdminCoachRequest,
   deleteAdminExercise,
+  deleteAdminExerciseGroup,
   deleteAdminProgram,
   getAdminDashboard,
   getAdminUserDetail,
@@ -260,10 +261,13 @@ adminRouter.post("/exercises/import", async (req, res) => {
           const source = row && typeof row === "object" ? (row as Record<string, unknown>) : {}
 
           return {
+            exerciseName: getOptionalString(source.exerciseName) ?? getOptionalString(source.name),
             equipment: getOptionalString(source.equipment),
+            isDefault: typeof source.isDefault === "boolean" ? source.isDefault : undefined,
             muscleGroup: getOptionalString(source.muscleGroup),
-            name: getOptionalString(source.name),
             rowNumber: typeof source.rowNumber === "number" ? source.rowNumber : undefined,
+            sortOrder: typeof source.sortOrder === "number" ? source.sortOrder : undefined,
+            variationName: getOptionalString(source.variationName),
           }
         })
       : []
@@ -298,6 +302,17 @@ adminRouter.delete("/exercises/:exerciseId", async (req, res) => {
   try {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     const result = await deleteAdminExercise(profile, String(req.params.exerciseId))
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.delete("/exercise-groups", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const result = await deleteAdminExerciseGroup(profile, String(req.body.muscleGroup ?? ""))
 
     res.json(result)
   } catch (error) {

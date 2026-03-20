@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import type React from "react"
 
 import Link from "next/link"
@@ -239,7 +240,9 @@ export function LandingPage({
         </main>
       </div>
 
-      <AuthModalLauncher />
+      <Suspense fallback={null}>
+        <AuthModalLauncher />
+      </Suspense>
     </div>
   )
 }

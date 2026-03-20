@@ -4,21 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, ChevronDown, Search } from "lucide-react"
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
-import type { Exercise } from "@/lib/types"
+import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
+import type { ExerciseVariationOption } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type ExercisePickerProps = {
   disabled?: boolean
-  exercises: Exercise[]
-  onSelect: (exerciseId: string) => void
-  selectedExerciseId: string
+  exercises: ExerciseVariationOption[]
+  onSelect: (variationId: string) => void
+  selectedVariationId: string
 }
 
 export function ExercisePicker({
   disabled,
   exercises,
   onSelect,
-  selectedExerciseId,
+  selectedVariationId,
 }: ExercisePickerProps) {
   const [open, setOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -28,16 +29,38 @@ export function ExercisePicker({
   const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   const selectedExercise = useMemo(
-    () => exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null,
-    [exercises, selectedExerciseId],
+    () => exercises.find((exercise) => exercise.id === selectedVariationId) ?? null,
+    [exercises, selectedVariationId],
   )
 
   const groupedExercises = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    const grouped = new Map<string, Exercise[]>()
+    const grouped = new Map<string, ExerciseVariationOption[]>()
 
-    for (const exercise of exercises.slice().sort((left, right) => left.name.localeCompare(right.name))) {
-      const searchable = `${exercise.name} ${exercise.muscleGroup} ${exercise.equipment ?? ""}`.toLowerCase()
+    for (const exercise of exercises.slice().sort((left, right) => {
+      const exerciseNameComparison = left.exerciseName.localeCompare(right.exerciseName)
+
+      if (exerciseNameComparison !== 0) {
+        return exerciseNameComparison
+      }
+
+      const sortOrderComparison = left.sortOrder - right.sortOrder
+
+      if (sortOrderComparison !== 0) {
+        return sortOrderComparison
+      }
+
+      return left.variationName.localeCompare(right.variationName)
+    })) {
+      const searchable = [
+        exercise.exerciseName,
+        exercise.variationName,
+        exercise.name,
+        exercise.muscleGroup,
+        exercise.equipment ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
 
       if (normalizedQuery && !searchable.includes(normalizedQuery)) {
         continue
@@ -132,7 +155,7 @@ export function ExercisePicker({
     })
   }
 
-  const handleSelectExercise = (exercise: Exercise) => {
+  const handleSelectExercise = (exercise: ExerciseVariationOption) => {
     onSelect(exercise.id)
     setExpandedGroups(new Set([exercise.muscleGroup]))
     setQuery("")
@@ -153,7 +176,7 @@ export function ExercisePicker({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search exercise or muscle group"
+          placeholder="Search exercise, variation, or muscle group"
           className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-xl border bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-[3px]"
         />
       </div>
@@ -196,7 +219,7 @@ export function ExercisePicker({
                 {isExpanded ? (
                   <div className="space-y-1 border-t border-border/60 px-2 py-2">
                     {group.items.map((exercise) => {
-                      const isSelected = exercise.id === selectedExerciseId
+                      const isSelected = exercise.id === selectedVariationId
 
                       return (
                         <button
@@ -217,9 +240,14 @@ export function ExercisePicker({
                             {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{exercise.name}</span>
+                            <span className="block truncate text-sm font-medium">{exercise.exerciseName}</span>
                             <span className="block text-xs text-muted-foreground">
-                              {exercise.equipment ? `${exercise.equipment} · ${exercise.muscleGroup}` : exercise.muscleGroup}
+                              {formatExerciseVariationMeta({
+                                equipment: exercise.equipment,
+                                isDefault: exercise.isDefault,
+                                muscleGroup: exercise.muscleGroup,
+                                variationName: exercise.variationName,
+                              })}
                             </span>
                           </span>
                         </button>
@@ -240,7 +268,7 @@ export function ExercisePicker({
       <button
         type="button"
         className={cn(
-          "flex h-10 w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/90 px-4 text-left shadow-none transition-colors sm:h-11",
+          "flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/90 px-4 py-2 text-left shadow-none transition-colors",
           disabled ? "cursor-not-allowed opacity-60" : "hover:border-primary/25",
           open && "border-primary/35 ring-2 ring-primary/10",
         )}
@@ -253,18 +281,36 @@ export function ExercisePicker({
         aria-haspopup="listbox"
         disabled={disabled}
       >
-        <span className={cn("truncate text-sm sm:text-base", selectedExercise ? "text-foreground" : "text-muted-foreground")}>
-          {selectedExercise ? `${selectedExercise.name} · ${selectedExercise.muscleGroup}` : "Choose an exercise"}
+        <span className="min-w-0 flex-1">
+          <span className={cn("block truncate text-sm sm:text-base", selectedExercise ? "text-foreground" : "text-muted-foreground")}>
+            {selectedExercise
+              ? formatExerciseVariationLabel({
+                  exerciseName: selectedExercise.exerciseName,
+                  isDefault: selectedExercise.isDefault,
+                  variationName: selectedExercise.variationName,
+                })
+              : "Choose an exercise"}
+          </span>
+          {selectedExercise ? (
+            <span className="block truncate text-xs text-muted-foreground">
+              {formatExerciseVariationMeta({
+                equipment: selectedExercise.equipment,
+                isDefault: selectedExercise.isDefault,
+                muscleGroup: selectedExercise.muscleGroup,
+                variationName: selectedExercise.variationName,
+              })}
+            </span>
+          ) : null}
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
 
       {open && isMobile ? (
         <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent className="max-h-[82svh] overflow-hidden rounded-t-[28px] border-t border-border bg-background/98">
+              <DrawerContent className="max-h-[82svh] overflow-hidden rounded-t-[28px] border-t border-border bg-background/98">
             <DrawerHeader className="px-4 pt-4 text-left">
               <DrawerTitle>Choose an exercise</DrawerTitle>
-              <DrawerDescription>Search quickly or browse by muscle group.</DrawerDescription>
+              <DrawerDescription>Search by exercise name, variation, or muscle group.</DrawerDescription>
             </DrawerHeader>
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-5">
               {pickerPanel}

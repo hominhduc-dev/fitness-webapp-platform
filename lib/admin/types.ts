@@ -64,17 +64,22 @@ type AdminExerciseItem = {
   createdBy: AdminMiniUser | null
   equipment?: string
   id: string
+  isDefault: boolean
   muscleGroup: string
   name: string
   updatedAt: Date
   usageCount: number
+  variationName: string
 }
 
 type AdminExerciseImportRow = {
+  exerciseName: string
   equipment?: string
+  isDefault?: boolean
   muscleGroup: string
-  name: string
   rowNumber: number
+  sortOrder?: number
+  variationName: string
 }
 
 type AdminExerciseImportSkippedRow = AdminExerciseImportRow & {
@@ -86,6 +91,20 @@ type AdminExerciseImportResult = {
   skippedCount: number
   skippedRows: AdminExerciseImportSkippedRow[]
   totalRows: number
+}
+
+type AdminExerciseGroupDeleteSkippedItem = {
+  id: string
+  name: string
+  usageCount: number
+}
+
+type AdminExerciseGroupDeleteResult = {
+  deletedCount: number
+  deletedIds: string[]
+  muscleGroup: string
+  skippedCount: number
+  skippedExercises: AdminExerciseGroupDeleteSkippedItem[]
 }
 
 type AdminAuditLogItem = {
@@ -192,6 +211,8 @@ export type {
   AdminExerciseImportResult,
   AdminExerciseImportRow,
   AdminExerciseImportSkippedRow,
+  AdminExerciseGroupDeleteResult,
+  AdminExerciseGroupDeleteSkippedItem,
   AdminMiniUser,
   AdminProgramSummary,
   AdminUserDetail,

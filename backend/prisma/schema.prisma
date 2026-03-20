@@ -108,17 +108,34 @@ model User {
 }
 
 model Exercise {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String
+  muscleGroup String
+  createdById String?     @db.Uuid
+  createdBy   User?       @relation("ExerciseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  variations  Variation[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([createdById])
+}
+
+model Variation {
   id               String            @id @default(uuid()) @db.Uuid
+  exerciseId       String            @db.Uuid
   name             String
-  muscleGroup      String
   equipment        String?
-  createdById      String?           @db.Uuid
-  createdBy        User?             @relation("ExerciseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  isDefault        Boolean           @default(false)
+  sortOrder        Int               @default(0)
+  metadata         Json?
+  exercise         Exercise          @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   workoutExercises WorkoutExercise[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  @@index([createdById])
+  @@unique([exerciseId, name])
+  @@index([equipment])
+  @@index([exerciseId, sortOrder])
 }
 
 model Food {
@@ -231,19 +248,19 @@ model Workout {
 }
 
 model WorkoutExercise {
-  id         String       @id @default(uuid()) @db.Uuid
-  workoutId  String       @db.Uuid
-  exerciseId String       @db.Uuid
-  order      Int
-  restTime   Int?
-  notes      String?
-  workout    Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  exercise   Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
-  sets       ExerciseSet[]
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  id          String       @id @default(uuid()) @db.Uuid
+  workoutId   String       @db.Uuid
+  variationId String       @db.Uuid
+  order       Int
+  restTime    Int?
+  notes       String?
+  workout     Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  variation   Variation    @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  sets        ExerciseSet[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  @@index([exerciseId])
+  @@index([variationId])
   @@index([workoutId, order])
 }
 

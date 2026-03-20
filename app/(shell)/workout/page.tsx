@@ -1,14 +1,76 @@
 import Link from "next/link"
+import { Suspense } from "react"
 import { ChevronDown, Clock, Dumbbell, Play } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { EditWorkoutButton } from "@/components/workout/edit-workout-button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { requireAppSession } from "@/lib/auth/server"
+import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import { fetchWorkouts } from "@/lib/fitness/api"
 
-export default async function WorkoutPage() {
+function WorkoutPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-14 w-14 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-48" />
+              <Skeleton className="h-5 w-32" />
+            </div>
+          </div>
+          <Skeleton className="h-11 w-24 rounded-lg" />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {Array.from({ length: 2 }, (_, groupIndex) => (
+          <div key={groupIndex} className="overflow-hidden rounded-2xl border border-border bg-card/40">
+            <div className="flex items-center justify-between gap-4 p-4 md:p-5">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+              <Skeleton className="h-9 w-9 rounded-full" />
+            </div>
+            <div className="border-t border-border p-4 md:p-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }, (_, cardIndex) => (
+                  <div key={cardIndex} className="flex min-h-[19rem] flex-col overflow-hidden rounded-xl border border-border bg-card">
+                    <div className="flex-1 p-5">
+                      <div className="space-y-3">
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                      <div className="mt-6 space-y-3">
+                        <Skeleton className="h-5 w-full" />
+                        <Skeleton className="h-5 w-4/5" />
+                        <Skeleton className="h-5 w-full" />
+                      </div>
+                      <div className="mt-6 flex gap-2">
+                        <Skeleton className="h-7 w-16 rounded-full" />
+                        <Skeleton className="h-7 w-16 rounded-full" />
+                      </div>
+                    </div>
+                    <div className="border-t border-border bg-muted/30 p-3">
+                      <Skeleton className="h-10 w-full rounded-lg" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+async function WorkoutContent() {
   const { accessToken } = await requireAppSession({ role: "trainee" })
   const workoutData = await fetchWorkouts(accessToken)
   const quickStartWorkout = workoutData.todayWorkout ?? workoutData.workouts[0] ?? null
@@ -44,11 +106,15 @@ export default async function WorkoutPage() {
             </div>
 
             <div className="mb-4 min-h-[6.75rem] space-y-2.5">
-              {workout.exercises.slice(0, 3).map((exercise) => (
-                <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-                  <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
-                    {exercise.exercise.name}
-                  </span>
+                {workout.exercises.slice(0, 3).map((exercise) => (
+                  <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+                    <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
+                      {formatExerciseVariationLabel({
+                        exerciseName: exercise.exercise.name,
+                        isDefault: exercise.variation.isDefault,
+                        variationName: exercise.variation.name,
+                      })}
+                    </span>
                   <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
                     {exercise.sets.length} × {exercise.sets[0]?.targetReps ?? "?"}
                   </span>
@@ -129,7 +195,7 @@ export default async function WorkoutPage() {
   )
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+    <>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">Workouts</h1>
@@ -194,6 +260,27 @@ export default async function WorkoutPage() {
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+export default function WorkoutPage() {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+      <Suspense fallback={
+        <div>
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold md:text-3xl">Workouts</h1>
+              <p className="mt-1 text-muted-foreground">Coach-assigned plans and personal workouts you can build yourself</p>
+            </div>
+            <Skeleton className="h-10 w-36 rounded-lg" />
+          </div>
+          <WorkoutPageSkeleton />
+        </div>
+      }>
+        <WorkoutContent />
+      </Suspense>
     </div>
   )
 }

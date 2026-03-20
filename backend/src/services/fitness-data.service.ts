@@ -1,4 +1,5 @@
 import {
+  Prisma,
   type BodyMetricEntry,
   CoachRequestStatus,
   type CoachCheckIn,
@@ -7,41 +8,111 @@ import {
   type Exercise,
   type ExerciseSet,
   type Meal,
-  type Program,
-  type ProgramAssignment,
   type User,
-  type Workout,
-  type WorkoutExercise,
-  type WorkoutLog,
+  type Variation,
 } from "@prisma/client"
 
 import { AuthServiceError, type SerializedProfile } from "./auth.service"
 import { prisma } from "../lib/prisma"
 
-type WorkoutRecord = Workout & {
-  exercises: Array<
-    WorkoutExercise & {
-      exercise: Exercise
-      sets: ExerciseSet[]
+const WORKOUT_EXERCISE_INCLUDE = {
+  sets: {
+    orderBy: {
+      setNumber: "asc",
+    },
+  },
+  variation: {
+    include: {
+      exercise: true,
+    },
+  },
+} satisfies Prisma.WorkoutExerciseInclude
+
+const WORKOUT_INCLUDE = {
+  exercises: {
+    include: WORKOUT_EXERCISE_INCLUDE,
+    orderBy: {
+      order: "asc",
+    },
+  },
+} satisfies Prisma.WorkoutInclude
+
+const WORKOUT_WITH_PROGRAM_INCLUDE = {
+  ...WORKOUT_INCLUDE,
+  program: true,
+} satisfies Prisma.WorkoutInclude
+
+const PROGRAM_INCLUDE = {
+  assignments: {
+    include: {
+      user: true,
+    },
+  },
+  workouts: {
+    include: WORKOUT_INCLUDE,
+    orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+  },
+} satisfies Prisma.ProgramInclude
+
+type WorkoutExerciseRecord = Prisma.WorkoutExerciseGetPayload<{
+  include: typeof WORKOUT_EXERCISE_INCLUDE
+}>
+
+type WorkoutRecord = Prisma.WorkoutGetPayload<{
+  include: typeof WORKOUT_INCLUDE
+}>
+
+type WorkoutWithProgramRecord = Prisma.WorkoutGetPayload<{
+  include: typeof WORKOUT_WITH_PROGRAM_INCLUDE
+}>
+
+type ProgramRecord = Prisma.ProgramGetPayload<{
+  include: typeof PROGRAM_INCLUDE
+}>
+
+type WorkoutLogRecord = Prisma.WorkoutLogGetPayload<{
+  include: {
+    workout: {
+      include: typeof WORKOUT_INCLUDE
     }
-  >
+  }
+}>
+
+type ProgressAnalyticsLogRecord = {
+  exerciseSnapshot: Prisma.JsonValue | null
+  startedAt: Date
+  totalVolume: number | null
 }
 
-type WorkoutWithProgramRecord = WorkoutRecord & {
-  program: Program | null
+type PreviousSetPerformanceSource = "most_recent" | "same_weekday_last_week"
+
+type PreviousExerciseSetPerformance = {
+  completedAt: Date
+  reps?: number
+  source: PreviousSetPerformanceSource
+  weight?: number
 }
 
-type ProgramRecord = Program & {
-  assignments: Array<
-    ProgramAssignment & {
-      user: User
-    }
-  >
-  workouts: WorkoutRecord[]
+type WorkoutLogSnapshotSet = {
+  actualReps?: number | null
+  completed?: boolean
+  setNumber?: number | null
+  targetReps?: number | null
+  weight?: number | null
 }
 
-type WorkoutLogRecord = WorkoutLog & {
-  workout: WorkoutRecord | null
+type WorkoutLogSnapshotExercise = {
+  exercise?: {
+    id?: string | null
+    muscleGroup?: string | null
+    name?: string | null
+  } | null
+  variation?: {
+    id?: string | null
+    isDefault?: boolean | null
+    name?: string | null
+  } | null
+  sets?: WorkoutLogSnapshotSet[] | null
 }
 
 type BodyMetricRecord = BodyMetricEntry & {
@@ -55,10 +126,11 @@ type CoachCheckInRecord = CoachCheckIn & {
 type PersonalWorkoutInput = {
   duration?: number
   exercises: Array<{
-    exerciseId: string
+    variationId: string
     reps: number
     restTime?: number
     sets: number
+    weight?: number
   }>
   name: string
   notes?: string | null
@@ -68,10 +140,11 @@ type PersonalWorkoutInput = {
 type NormalizedPersonalWorkoutInput = {
   duration?: number
   exercises: Array<{
-    exerciseId: string
+    variationId: string
     reps: number
     restTime?: number
     sets: number
+    weight?: number
   }>
   name: string
   notes?: string
@@ -80,6 +153,9 @@ type NormalizedPersonalWorkoutInput = {
 
 const DEFAULT_CALORIE_TARGET = 2500
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const DAY_IN_MS = 24 * 60 * 60 * 1000
+const PROGRESS_SERIES_COLORS = ["#22C55E", "#2563EB", "#F43F5E"]
+const PROGRESS_PIE_COLORS = ["#2563EB", "#22C55E", "#F59E0B", "#F43F5E", "#8B5CF6", "#06B6D4"]
 const DEFAULT_EXERCISES = [
   { equipment: "Barbell", muscleGroup: "Chest", name: "Bench Press" },
   { equipment: "Barbell", muscleGroup: "Legs", name: "Back Squat" },
@@ -135,21 +211,64 @@ function toRecentWindow(days: number) {
   return { end, start }
 }
 
-function serializeExercise(exercise: Exercise) {
+function serializeExerciseBase(exercise: Exercise) {
   return {
-    equipment: exercise.equipment ?? undefined,
     id: exercise.id,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
   }
 }
 
-function serializeExerciseSet(set: ExerciseSet) {
+function serializeVariation(variation: Variation) {
+  return {
+    equipment: variation.equipment ?? undefined,
+    id: variation.id,
+    isDefault: variation.isDefault,
+    metadata:
+      variation.metadata && typeof variation.metadata === "object" && !Array.isArray(variation.metadata)
+        ? (variation.metadata as Record<string, unknown>)
+        : undefined,
+    name: variation.name,
+    sortOrder: variation.sortOrder,
+  }
+}
+
+function serializeVariationOption(variation: Variation & { exercise: Exercise }) {
+  return {
+    equipment: variation.equipment ?? undefined,
+    exerciseId: variation.exerciseId,
+    exerciseName: variation.exercise.name,
+    id: variation.id,
+    isDefault: variation.isDefault,
+    metadata:
+      variation.metadata && typeof variation.metadata === "object" && !Array.isArray(variation.metadata)
+        ? (variation.metadata as Record<string, unknown>)
+        : undefined,
+    muscleGroup: variation.exercise.muscleGroup,
+    name: variation.isDefault ? variation.exercise.name : `${variation.exercise.name} (${variation.name})`,
+    sortOrder: variation.sortOrder,
+    variationName: variation.name,
+  }
+}
+
+function serializePreviousSetPerformance(previousPerformance: PreviousExerciseSetPerformance) {
+  return {
+    completedAt: previousPerformance.completedAt,
+    reps: previousPerformance.reps,
+    source: previousPerformance.source,
+    weight: previousPerformance.weight,
+  }
+}
+
+function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?: Map<number, PreviousExerciseSetPerformance>) {
+  const previousPerformance = previousPerformanceBySetNumber?.get(set.setNumber)
+
   return {
     actualReps: set.actualReps ?? undefined,
     completed: set.completed,
     id: set.id,
     notes: set.notes ?? undefined,
+    previousPerformance: previousPerformance ? serializePreviousSetPerformance(previousPerformance) : undefined,
     rir: set.rir ?? undefined,
     setNumber: set.setNumber,
     targetReps: set.targetReps,
@@ -157,21 +276,28 @@ function serializeExerciseSet(set: ExerciseSet) {
   }
 }
 
-function serializeWorkout(workout: WorkoutRecord, options?: { isPersonal?: boolean }) {
+function serializeWorkout(
+  workout: WorkoutRecord,
+  options?: {
+    isPersonal?: boolean
+    previousPerformanceByWorkoutExerciseId?: Map<string, Map<number, PreviousExerciseSetPerformance>>
+  },
+) {
   return {
     duration: workout.duration ?? undefined,
     exercises: workout.exercises
       .slice()
       .sort((left, right) => left.order - right.order)
-      .map((exercise) => ({
-        exercise: serializeExercise(exercise.exercise),
-        id: exercise.id,
-        notes: exercise.notes ?? undefined,
-        restTime: exercise.restTime ?? undefined,
-        sets: exercise.sets
+      .map((workoutExercise) => ({
+        exercise: serializeExerciseBase(workoutExercise.variation.exercise),
+        id: workoutExercise.id,
+        notes: workoutExercise.notes ?? undefined,
+        restTime: workoutExercise.restTime ?? undefined,
+        sets: workoutExercise.sets
           .slice()
           .sort((left, right) => left.setNumber - right.setNumber)
-          .map(serializeExerciseSet),
+          .map((set) => serializeExerciseSet(set, options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id))),
+        variation: serializeVariation(workoutExercise.variation),
       })),
     id: workout.id,
     isPersonal: options?.isPersonal ?? false,
@@ -343,8 +469,502 @@ function calculateWorkoutVolume(exercises: Array<{ sets?: Array<{ actualReps?: n
       return setTotal + set.weight * reps
     }, 0)
 
-    return volumeTotal + setVolume
+  return volumeTotal + setVolume
   }, 0)
+}
+
+function toUtcDayStart(date: Date) {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+}
+
+function getUtcMonthBounds(offsetMonths = 0) {
+  const now = new Date()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths, 1))
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths + 1, 1))
+  return { end, start }
+}
+
+function startOfUtcWeek(date: Date) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const day = start.getUTCDay()
+  const offset = day === 0 ? -6 : 1 - day
+  start.setUTCDate(start.getUTCDate() + offset)
+  return start
+}
+
+function formatMonthDayLabel(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date)
+}
+
+function formatWeekdayLabel(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(date)
+}
+
+function toFiniteNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function parseWorkoutLogSnapshotExercises(snapshot: Prisma.JsonValue | null) {
+  if (!Array.isArray(snapshot)) {
+    return [] as WorkoutLogSnapshotExercise[]
+  }
+
+  return snapshot
+    .filter((item): item is WorkoutLogSnapshotExercise => typeof item === "object" && item !== null)
+}
+
+function getSnapshotExerciseId(exercise: WorkoutLogSnapshotExercise) {
+  const exerciseId = exercise.exercise?.id?.trim()
+  return exerciseId || undefined
+}
+
+function getSnapshotExerciseName(exercise: WorkoutLogSnapshotExercise) {
+  const baseName = exercise.exercise?.name?.trim()
+
+  if (!baseName) {
+    return undefined
+  }
+
+  const variationName = exercise.variation?.name?.trim()
+  const isDefaultVariation =
+    exercise.variation?.isDefault === true || !variationName || variationName.toLowerCase() === "default"
+
+  if (isDefaultVariation) {
+    return baseName
+  }
+
+  return `${baseName} (${variationName})`
+}
+
+function getSnapshotVariationId(exercise: WorkoutLogSnapshotExercise) {
+  const variationId = exercise.variation?.id?.trim()
+  return variationId || undefined
+}
+
+function getSnapshotMuscleGroup(exercise: WorkoutLogSnapshotExercise) {
+  const muscleGroup = exercise.exercise?.muscleGroup?.trim()
+  return muscleGroup || undefined
+}
+
+function startOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+}
+
+function addUtcDays(date: Date, days: number) {
+  const nextDate = new Date(date)
+  nextDate.setUTCDate(nextDate.getUTCDate() + days)
+  return nextDate
+}
+
+function getSnapshotMaxWeight(exercise: WorkoutLogSnapshotExercise) {
+  let maxWeight: number | undefined
+
+  for (const set of exercise.sets ?? []) {
+    if (set?.completed === false) {
+      continue
+    }
+
+    const weight = toFiniteNumber(set?.weight)
+
+    if (weight == null || weight <= 0) {
+      continue
+    }
+
+    maxWeight = maxWeight == null ? weight : Math.max(maxWeight, weight)
+  }
+
+  return maxWeight
+}
+
+function matchesWorkoutHistoryExercise(snapshotExercise: WorkoutLogSnapshotExercise, workoutExercise: WorkoutExerciseRecord) {
+  const snapshotVariationId = getSnapshotVariationId(snapshotExercise)
+
+  if (snapshotVariationId) {
+    return snapshotVariationId === workoutExercise.variation.id
+  }
+
+  const snapshotExerciseId = getSnapshotExerciseId(snapshotExercise)
+
+  return workoutExercise.variation.isDefault && snapshotExerciseId === workoutExercise.variation.exercise.id
+}
+
+function buildPreviousSetPerformanceMap(
+  snapshotExercise: WorkoutLogSnapshotExercise,
+  log: { completedAt: Date | null; startedAt: Date },
+  source: PreviousSetPerformanceSource,
+) {
+  const previousPerformanceBySetNumber = new Map<number, PreviousExerciseSetPerformance>()
+
+  ;(snapshotExercise.sets ?? []).forEach((snapshotSet, index) => {
+    if (!snapshotSet || snapshotSet.completed === false) {
+      return
+    }
+
+    const parsedSetNumber = toFiniteNumber(snapshotSet.setNumber)
+    const setNumber = parsedSetNumber != null ? Math.max(1, Math.round(parsedSetNumber)) : index + 1
+    const reps = toFiniteNumber(snapshotSet.actualReps) ?? toFiniteNumber(snapshotSet.targetReps)
+    const weight = toFiniteNumber(snapshotSet.weight)
+
+    if (reps == null && weight == null) {
+      return
+    }
+
+    previousPerformanceBySetNumber.set(setNumber, {
+      completedAt: log.completedAt ?? log.startedAt,
+      reps,
+      source,
+      weight,
+    })
+  })
+
+  return previousPerformanceBySetNumber
+}
+
+async function buildPreviousSetPerformanceByWorkoutExercise(
+  profileId: string,
+  workoutExercises: WorkoutExerciseRecord[],
+  referenceDate = new Date(),
+) {
+  if (workoutExercises.length === 0) {
+    return new Map<string, Map<number, PreviousExerciseSetPerformance>>()
+  }
+
+  const db = ensurePrisma()
+  const previousWeekdayStart = startOfUtcDay(addUtcDays(referenceDate, -7))
+  const previousWeekdayEnd = addUtcDays(previousWeekdayStart, 1)
+  const fallbackByWorkoutExerciseId = new Map<string, Map<number, PreviousExerciseSetPerformance>>()
+  const preferredByWorkoutExerciseId = new Map<string, Map<number, PreviousExerciseSetPerformance>>()
+  let skip = 0
+
+  while (true) {
+    const logs = await db.workoutLog.findMany({
+      orderBy: [{ startedAt: "desc" }, { createdAt: "desc" }],
+      select: {
+        completedAt: true,
+        exerciseSnapshot: true,
+        startedAt: true,
+      },
+      skip,
+      take: 50,
+      where: {
+        startedAt: {
+          lt: referenceDate,
+        },
+        userId: profileId,
+      },
+    })
+
+    if (logs.length === 0) {
+      break
+    }
+
+    for (const log of logs) {
+      const snapshotExercises = parseWorkoutLogSnapshotExercises(log.exerciseSnapshot)
+      const isPreviousWeekdayLog = log.startedAt >= previousWeekdayStart && log.startedAt < previousWeekdayEnd
+
+      for (const workoutExercise of workoutExercises) {
+        const workoutExerciseId = workoutExercise.id
+
+        if (preferredByWorkoutExerciseId.has(workoutExerciseId) && fallbackByWorkoutExerciseId.has(workoutExerciseId)) {
+          continue
+        }
+
+        const matchingSnapshotExercise = snapshotExercises.find((snapshotExercise) =>
+          matchesWorkoutHistoryExercise(snapshotExercise, workoutExercise),
+        )
+
+        if (!matchingSnapshotExercise) {
+          continue
+        }
+
+        if (!fallbackByWorkoutExerciseId.has(workoutExerciseId)) {
+          const fallbackPerformance = buildPreviousSetPerformanceMap(matchingSnapshotExercise, log, "most_recent")
+
+          if (fallbackPerformance.size > 0) {
+            fallbackByWorkoutExerciseId.set(workoutExerciseId, fallbackPerformance)
+          }
+        }
+
+        if (isPreviousWeekdayLog && !preferredByWorkoutExerciseId.has(workoutExerciseId)) {
+          const preferredPerformance = buildPreviousSetPerformanceMap(
+            matchingSnapshotExercise,
+            log,
+            "same_weekday_last_week",
+          )
+
+          if (preferredPerformance.size > 0) {
+            preferredByWorkoutExerciseId.set(workoutExerciseId, preferredPerformance)
+          }
+        }
+      }
+    }
+
+    const allWorkoutExercisesResolved = workoutExercises.every(
+      (workoutExercise) =>
+        preferredByWorkoutExerciseId.has(workoutExercise.id) || fallbackByWorkoutExerciseId.has(workoutExercise.id),
+    )
+    const oldestLoadedLog = logs[logs.length - 1]
+
+    if (allWorkoutExercisesResolved && oldestLoadedLog.startedAt < previousWeekdayStart) {
+      break
+    }
+
+    skip += logs.length
+  }
+
+  return workoutExercises.reduce<Map<string, Map<number, PreviousExerciseSetPerformance>>>((accumulator, workoutExercise) => {
+    const preferredPerformance = preferredByWorkoutExerciseId.get(workoutExercise.id)
+    const fallbackPerformance = fallbackByWorkoutExerciseId.get(workoutExercise.id)
+
+    if (preferredPerformance || fallbackPerformance) {
+      const mergedPerformance = new Map<number, PreviousExerciseSetPerformance>()
+
+      fallbackPerformance?.forEach((performance, setNumber) => {
+        mergedPerformance.set(setNumber, performance)
+      })
+
+      preferredPerformance?.forEach((performance, setNumber) => {
+        mergedPerformance.set(setNumber, performance)
+      })
+
+      accumulator.set(workoutExercise.id, mergedPerformance)
+    }
+
+    return accumulator
+  }, new Map<string, Map<number, PreviousExerciseSetPerformance>>())
+}
+
+function calculateWorkoutStreaks(logs: ProgressAnalyticsLogRecord[]) {
+  const workoutDays = Array.from(new Set(logs.map((log) => toUtcDayStart(log.startedAt)))).sort((left, right) => left - right)
+
+  if (workoutDays.length === 0) {
+    return {
+      bestStreakDays: 0,
+      currentStreakDays: 0,
+    }
+  }
+
+  let bestStreakDays = 1
+  let runningStreak = 1
+
+  for (let index = 1; index < workoutDays.length; index += 1) {
+    if (workoutDays[index] - workoutDays[index - 1] === DAY_IN_MS) {
+      runningStreak += 1
+    } else {
+      runningStreak = 1
+    }
+
+    bestStreakDays = Math.max(bestStreakDays, runningStreak)
+  }
+
+  let currentStreakDays = 0
+  const latestWorkoutDay = workoutDays[workoutDays.length - 1]
+  const today = toUtcDayStart(new Date())
+
+  if (today - latestWorkoutDay <= DAY_IN_MS) {
+    currentStreakDays = 1
+
+    for (let index = workoutDays.length - 1; index > 0; index -= 1) {
+      if (workoutDays[index] - workoutDays[index - 1] !== DAY_IN_MS) {
+        break
+      }
+
+      currentStreakDays += 1
+    }
+  }
+
+  return {
+    bestStreakDays,
+    currentStreakDays,
+  }
+}
+
+function buildWeeklyVolume(logs: ProgressAnalyticsLogRecord[]) {
+  const today = toUtcDayStart(new Date())
+  const startDay = today - 6 * DAY_IN_MS
+  const totalsByDay = new Map<number, number>()
+
+  logs.forEach((log) => {
+    const dayStart = toUtcDayStart(log.startedAt)
+
+    if (dayStart < startDay || dayStart > today) {
+      return
+    }
+
+    totalsByDay.set(dayStart, (totalsByDay.get(dayStart) ?? 0) + (log.totalVolume ?? 0))
+  })
+
+  return Array.from({ length: 7 }, (_value, index) => {
+    const dayStart = startDay + index * DAY_IN_MS
+
+    return {
+      day: formatWeekdayLabel(new Date(dayStart)),
+      volume: Math.round((totalsByDay.get(dayStart) ?? 0) * 10) / 10,
+    }
+  })
+}
+
+function buildMuscleGroupDistribution(logs: ProgressAnalyticsLogRecord[]) {
+  const muscleGroupCounts = new Map<string, number>()
+
+  logs.forEach((log) => {
+    parseWorkoutLogSnapshotExercises(log.exerciseSnapshot).forEach((exercise) => {
+      const muscleGroup = getSnapshotMuscleGroup(exercise)
+
+      if (!muscleGroup) {
+        return
+      }
+
+      muscleGroupCounts.set(muscleGroup, (muscleGroupCounts.get(muscleGroup) ?? 0) + 1)
+    })
+  })
+
+  const totalExercises = Array.from(muscleGroupCounts.values()).reduce((sum, count) => sum + count, 0)
+
+  if (totalExercises === 0) {
+    return [] as Array<{ fill: string; name: string; value: number }>
+  }
+
+  return Array.from(muscleGroupCounts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([name, count], index) => ({
+      fill: PROGRESS_PIE_COLORS[index % PROGRESS_PIE_COLORS.length],
+      name,
+      value: Math.round((count / totalExercises) * 100),
+    }))
+}
+
+function buildPersonalRecords(logs: ProgressAnalyticsLogRecord[]) {
+  const recordByExercise = new Map<string, { date: Date; weight: number }>()
+
+  logs.forEach((log) => {
+    parseWorkoutLogSnapshotExercises(log.exerciseSnapshot).forEach((exercise) => {
+      const exerciseName = getSnapshotExerciseName(exercise)
+      const weight = getSnapshotMaxWeight(exercise)
+
+      if (!exerciseName || weight == null) {
+        return
+      }
+
+      const existingRecord = recordByExercise.get(exerciseName)
+
+      if (
+        !existingRecord ||
+        weight > existingRecord.weight ||
+        (weight === existingRecord.weight && log.startedAt.getTime() > existingRecord.date.getTime())
+      ) {
+        recordByExercise.set(exerciseName, {
+          date: log.startedAt,
+          weight,
+        })
+      }
+    })
+  })
+
+  return Array.from(recordByExercise.entries())
+    .map(([exercise, record]) => ({
+      date: record.date,
+      exercise,
+      weight: record.weight,
+    }))
+    .sort((left, right) => right.weight - left.weight || right.date.getTime() - left.date.getTime())
+    .slice(0, 4)
+}
+
+function buildStrengthProgression(logs: ProgressAnalyticsLogRecord[]) {
+  const currentWeekStart = startOfUtcWeek(new Date())
+  const weekStarts = Array.from({ length: 6 }, (_value, index) => {
+    const weekStart = new Date(currentWeekStart)
+    weekStart.setUTCDate(currentWeekStart.getUTCDate() - (5 - index) * 7)
+    return weekStart
+  })
+
+  const firstWeekStart = weekStarts[0]?.getTime() ?? 0
+  const weeklyExerciseMax = new Map<string, Map<string, number>>()
+
+  logs.forEach((log) => {
+    const weekStart = startOfUtcWeek(log.startedAt)
+
+    if (weekStart.getTime() < firstWeekStart) {
+      return
+    }
+
+    const weekKey = weekStart.toISOString().slice(0, 10)
+    const weekBucket = weeklyExerciseMax.get(weekKey) ?? new Map<string, number>()
+
+    parseWorkoutLogSnapshotExercises(log.exerciseSnapshot).forEach((exercise) => {
+      const exerciseName = getSnapshotExerciseName(exercise)
+      const weight = getSnapshotMaxWeight(exercise)
+
+      if (!exerciseName || weight == null) {
+        return
+      }
+
+      weekBucket.set(exerciseName, Math.max(weekBucket.get(exerciseName) ?? 0, weight))
+    })
+
+    weeklyExerciseMax.set(weekKey, weekBucket)
+  })
+
+  const exerciseCandidates = new Map<string, { maxWeight: number; occurrences: number }>()
+
+  weeklyExerciseMax.forEach((weekBucket) => {
+    weekBucket.forEach((weight, exerciseName) => {
+      const current = exerciseCandidates.get(exerciseName)
+
+      if (!current) {
+        exerciseCandidates.set(exerciseName, {
+          maxWeight: weight,
+          occurrences: 1,
+        })
+        return
+      }
+
+      exerciseCandidates.set(exerciseName, {
+        maxWeight: Math.max(current.maxWeight, weight),
+        occurrences: current.occurrences + 1,
+      })
+    })
+  })
+
+  const series = Array.from(exerciseCandidates.entries())
+    .sort((left, right) => {
+      const occurrenceDelta = right[1].occurrences - left[1].occurrences
+
+      if (occurrenceDelta !== 0) {
+        return occurrenceDelta
+      }
+
+      return right[1].maxWeight - left[1].maxWeight
+    })
+    .slice(0, PROGRESS_SERIES_COLORS.length)
+    .map(([exerciseName], index) => ({
+      color: PROGRESS_SERIES_COLORS[index],
+      exerciseName,
+      key: `series${index + 1}`,
+    }))
+
+  const points = weekStarts.map((weekStart) => {
+    const weekKey = weekStart.toISOString().slice(0, 10)
+    const weekBucket = weeklyExerciseMax.get(weekKey) ?? new Map<string, number>()
+
+    return {
+      label: formatMonthDayLabel(weekStart),
+      values: Object.fromEntries(series.map((item) => [item.key, weekBucket.get(item.exerciseName) ?? null])),
+    }
+  })
+
+  return {
+    points,
+    series,
+  }
 }
 
 async function assertCoachOwnsTrainee(coachId: string, traineeId: string) {
@@ -367,31 +987,7 @@ async function assertCoachOwnsTrainee(coachId: string, traineeId: string) {
 async function assertCoachOwnsProgram(coachId: string, programId: string) {
   const db = ensurePrisma()
   const program = await db.program.findFirst({
-    include: {
-      assignments: {
-        include: {
-          user: true,
-        },
-      },
-      workouts: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
-        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
-      },
-    },
+    include: PROGRAM_INCLUDE,
     where: {
       createdById: coachId,
       id: programId,
@@ -427,22 +1023,106 @@ function normalizePhoneNumber(value?: string | null) {
 
 async function ensureDefaultExercises() {
   const db = ensurePrisma()
-  const currentCount = await db.exercise.count()
+  const currentCount = await db.variation.count()
 
   if (currentCount === 0) {
-    await db.exercise.createMany({
-      data: DEFAULT_EXERCISES,
-    })
+    await db.$transaction(
+      DEFAULT_EXERCISES.map((exercise) =>
+        db.exercise.create({
+          data: {
+            muscleGroup: exercise.muscleGroup,
+            name: exercise.name,
+            variations: {
+              create: {
+                equipment: exercise.equipment,
+                isDefault: true,
+                name: "Default",
+                sortOrder: 0,
+              },
+            },
+          },
+        }),
+      ),
+    )
   }
 
-  return db.exercise.findMany({
-    orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
+  return db.variation.findMany({
+    include: {
+      exercise: true,
+    },
+    orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
   })
 }
 
-async function listExercises() {
-  const exercises = await ensureDefaultExercises()
-  return exercises.map(serializeExercise)
+async function listExercises(options?: { equipment?: string; muscleGroup?: string; search?: string }) {
+  const variations = await ensureDefaultExercises()
+  const search = options?.search?.trim().toLowerCase()
+  const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
+  const equipment = options?.equipment?.trim().toLowerCase()
+
+  return variations
+    .filter((variation) => {
+      const matchesSearch =
+        !search ||
+        [
+          variation.exercise.name,
+          variation.exercise.muscleGroup,
+          variation.equipment ?? "",
+          variation.name,
+          variation.isDefault ? "" : `${variation.exercise.name} (${variation.name})`,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search)
+
+      const matchesGroup = !muscleGroup || variation.exercise.muscleGroup.toLowerCase() === muscleGroup
+      const matchesEquipment = !equipment || (variation.equipment ?? "").toLowerCase() === equipment
+
+      return matchesSearch && matchesGroup && matchesEquipment
+    })
+    .map(serializeVariationOption)
+}
+
+async function listExerciseLibrary(options?: { equipment?: string; muscleGroup?: string; search?: string }) {
+  const db = ensurePrisma()
+  await ensureDefaultExercises()
+  const search = options?.search?.trim().toLowerCase()
+  const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
+  const equipment = options?.equipment?.trim().toLowerCase()
+
+  const exercises = await db.exercise.findMany({
+    include: {
+      variations: {
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      },
+    },
+    orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
+  })
+
+  return exercises
+    .map((exercise) => ({
+      id: exercise.id,
+      muscleGroup: exercise.muscleGroup,
+      name: exercise.name,
+      variations: exercise.variations.filter((variation) => {
+        const matchesSearch =
+          !search ||
+          [exercise.name, exercise.muscleGroup, variation.name, variation.equipment ?? ""]
+            .join(" ")
+            .toLowerCase()
+            .includes(search)
+        const matchesEquipment = !equipment || (variation.equipment ?? "").toLowerCase() === equipment
+        return matchesSearch && matchesEquipment
+      }),
+    }))
+    .filter((exercise) => {
+      const matchesGroup = !muscleGroup || exercise.muscleGroup.toLowerCase() === muscleGroup
+      return matchesGroup && exercise.variations.length > 0
+    })
+    .map((exercise) => ({
+      ...exercise,
+      variations: exercise.variations.map(serializeVariation),
+    }))
 }
 
 async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
@@ -610,21 +1290,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       program: {
         include: {
           workouts: {
-            include: {
-              exercises: {
-                include: {
-                  exercise: true,
-                  sets: {
-                    orderBy: {
-                      setNumber: "asc",
-                    },
-                  },
-                },
-                orderBy: {
-                  order: "asc",
-                },
-              },
-            },
+            include: WORKOUT_INCLUDE,
             orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
           },
         },
@@ -657,21 +1323,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   const recentLogs = await db.workoutLog.findMany({
     include: {
       workout: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
+        include: WORKOUT_INCLUDE,
       },
     },
     orderBy: {
@@ -700,22 +1352,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId: string) {
   const db = ensurePrisma()
   const workout = await db.workout.findFirst({
-    include: {
-      exercises: {
-        include: {
-          exercise: true,
-          sets: {
-            orderBy: {
-              setNumber: "asc",
-            },
-          },
-        },
-        orderBy: {
-          order: "asc",
-        },
-      },
-      program: true,
-    },
+    include: WORKOUT_WITH_PROGRAM_INCLUDE,
     where: {
       id: workoutId,
       program: {
@@ -732,8 +1369,14 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
     throw new AuthServiceError("Không tìm thấy workout.", 404)
   }
 
+  const previousPerformanceByWorkoutExerciseId = await buildPreviousSetPerformanceByWorkoutExercise(
+    profile.id,
+    workout.exercises as WorkoutExerciseRecord[],
+  )
+
   return serializeWorkout(workout as WorkoutWithProgramRecord, {
     isPersonal: workout.program?.createdById === profile.id,
+    previousPerformanceByWorkoutExerciseId,
   })
 }
 
@@ -749,21 +1392,7 @@ async function createWorkoutLogForTrainee(
 ) {
   const db = ensurePrisma()
   const workout = await db.workout.findFirst({
-    include: {
-      exercises: {
-        include: {
-          exercise: true,
-          sets: {
-            orderBy: {
-              setNumber: "asc",
-            },
-          },
-        },
-        orderBy: {
-          order: "asc",
-        },
-      },
-    },
+    include: WORKOUT_INCLUDE,
     where: {
       id: workoutId,
       program: {
@@ -786,7 +1415,7 @@ async function createWorkoutLogForTrainee(
   const log = await db.workoutLog.create({
     data: {
       completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
-      exerciseSnapshot: input.exercises,
+      exerciseSnapshot: input.exercises as Prisma.InputJsonValue,
       notes: input.notes?.trim() || undefined,
       startedAt: input.startedAt ? new Date(input.startedAt) : new Date(),
       totalVolume,
@@ -798,25 +1427,11 @@ async function createWorkoutLogForTrainee(
         name: serializedWorkout.name,
         notes: serializedWorkout.notes,
         scheduledDay: serializedWorkout.scheduledDay,
-      },
+      } as Prisma.InputJsonObject,
     },
     include: {
       workout: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
+        include: WORKOUT_INCLUDE,
       },
     },
   })
@@ -840,30 +1455,34 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
     throw new AuthServiceError("Ngày tập không hợp lệ.", 400)
   }
 
-  if (input.exercises.some((exercise) => !exercise.exerciseId)) {
-    throw new AuthServiceError("Mỗi dòng bài tập cần có exercise hợp lệ.", 400)
+  if (input.exercises.some((exercise) => !exercise.variationId)) {
+    throw new AuthServiceError("Mỗi dòng bài tập cần có variation hợp lệ.", 400)
   }
 
-  const exerciseIds = Array.from(new Set(input.exercises.map((exercise) => exercise.exerciseId)))
-  const validExerciseCount = await db.exercise.count({
+  const variationIds = Array.from(new Set(input.exercises.map((exercise) => exercise.variationId)))
+  const validVariationCount = await db.variation.count({
     where: {
       id: {
-        in: exerciseIds,
+        in: variationIds,
       },
     },
   })
 
-  if (validExerciseCount !== exerciseIds.length) {
-    throw new AuthServiceError("Có bài tập không tồn tại trong thư viện.", 400)
+  if (validVariationCount !== variationIds.length) {
+    throw new AuthServiceError("Có biến thể bài tập không tồn tại trong thư viện.", 400)
   }
 
   return {
     duration: input.duration ? Math.max(1, Math.round(input.duration)) : undefined,
     exercises: input.exercises.map((exercise) => ({
-      exerciseId: exercise.exerciseId,
+      variationId: exercise.variationId,
       reps: Math.max(1, Math.round(exercise.reps)),
       restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
       sets: Math.max(1, Math.round(exercise.sets)),
+      weight:
+        exercise.weight != null && Number.isFinite(exercise.weight)
+          ? Math.max(0, exercise.weight)
+          : undefined,
     })),
     name: workoutName,
     notes: input.notes?.trim() || undefined,
@@ -873,15 +1492,16 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
 
 function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWorkoutInput["exercises"]) {
   return exercises.map((exercise, exerciseIndex) => ({
-    exerciseId: exercise.exerciseId,
     order: exerciseIndex + 1,
     restTime: exercise.restTime,
     sets: {
       create: Array.from({ length: exercise.sets }, (_value, setIndex) => ({
         setNumber: setIndex + 1,
         targetReps: exercise.reps,
+        weight: exercise.weight,
       })),
     },
+    variationId: exercise.variationId,
   }))
 }
 
@@ -920,21 +1540,7 @@ async function createPersonalWorkoutForTrainee(
     },
     include: {
       workouts: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
+        include: WORKOUT_INCLUDE,
       },
     },
   })
@@ -999,19 +1605,7 @@ async function updatePersonalWorkoutForTrainee(
         scheduledDay: normalizedInput.scheduledDay ?? null,
       },
       include: {
-        exercises: {
-          include: {
-            exercise: true,
-            sets: {
-              orderBy: {
-                setNumber: "asc",
-              },
-            },
-          },
-          orderBy: {
-            order: "asc",
-          },
-        },
+        ...WORKOUT_INCLUDE,
       },
       where: {
         id: existingWorkout.id,
@@ -1216,31 +1810,7 @@ async function listCoachPrograms(profile: SerializedProfile) {
   assertCoach(profile)
   const db = ensurePrisma()
   const programs = await db.program.findMany({
-    include: {
-      assignments: {
-        include: {
-          user: true,
-        },
-      },
-      workouts: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
-        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
-      },
-    },
+    include: PROGRAM_INCLUDE,
     orderBy: {
       createdAt: "desc",
     },
@@ -1256,31 +1826,7 @@ async function getCoachProgramDetail(profile: SerializedProfile, programId: stri
   assertCoach(profile)
   const db = ensurePrisma()
   const program = await db.program.findFirst({
-    include: {
-      assignments: {
-        include: {
-          user: true,
-        },
-      },
-      workouts: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
-        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
-      },
-    },
+    include: PROGRAM_INCLUDE,
     where: {
       createdById: profile.id,
       id: programId,
@@ -1305,10 +1851,10 @@ async function createCoachProgram(
     workouts: Array<{
       duration?: number
       exercises: Array<{
-        exerciseId: string
+        variationId: string
         reps: number
-        restTime?: number
         sets: number
+        weight?: number
       }>
       name: string
       scheduledDay?: number
@@ -1344,6 +1890,26 @@ async function createCoachProgram(
     }
   }
 
+  const variationIds = Array.from(
+    new Set(input.workouts.flatMap((workout) => workout.exercises.map((exercise) => exercise.variationId)).filter(Boolean)),
+  )
+
+  if (variationIds.length === 0) {
+    throw new AuthServiceError("Mỗi buổi tập cần ít nhất một variation hợp lệ.", 400)
+  }
+
+  const validVariationCount = await db.variation.count({
+    where: {
+      id: {
+        in: variationIds,
+      },
+    },
+  })
+
+  if (validVariationCount !== variationIds.length) {
+    throw new AuthServiceError("Có variation không tồn tại trong thư viện.", 400)
+  }
+
   const program = await db.program.create({
     data: {
       assignments:
@@ -1364,15 +1930,18 @@ async function createCoachProgram(
           duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
           exercises: {
             create: workout.exercises.map((exercise, exerciseIndex) => ({
-              exerciseId: exercise.exerciseId,
               order: exerciseIndex + 1,
-              restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
               sets: {
                 create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
                   setNumber: setIndex + 1,
                   targetReps: Math.max(1, Math.round(exercise.reps)),
+                  weight:
+                    exercise.weight != null && Number.isFinite(exercise.weight)
+                      ? Math.max(0, exercise.weight)
+                      : undefined,
                 })),
               },
+              variationId: exercise.variationId,
             })),
           },
           name: workout.name.trim() || `Day ${workoutIndex + 1}`,
@@ -1381,31 +1950,7 @@ async function createCoachProgram(
       },
       workoutsPerWeek: input.workouts.length,
     },
-    include: {
-      assignments: {
-        include: {
-          user: true,
-        },
-      },
-      workouts: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
-                },
-              },
-            },
-            orderBy: {
-              order: "asc",
-            },
-          },
-        },
-        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
-      },
-    },
+    include: PROGRAM_INCLUDE,
   })
 
   return serializeProgram(program as ProgramRecord)
@@ -1423,10 +1968,10 @@ async function updateCoachProgram(
     workouts: Array<{
       duration?: number
       exercises: Array<{
-        exerciseId: string
+        variationId: string
         reps: number
-        restTime?: number
         sets: number
+        weight?: number
       }>
       name: string
       scheduledDay?: number
@@ -1476,69 +2021,79 @@ async function updateCoachProgram(
     }
   }
 
-  const program = await db.program.update({
-    data: {
-      assignments: {
-        create: assignToUserIds.map((userId) => ({
+  const variationIds = Array.from(
+    new Set(input.workouts.flatMap((workout) => workout.exercises.map((exercise) => exercise.variationId)).filter(Boolean)),
+  )
+
+  if (variationIds.length === 0) {
+    throw new AuthServiceError("Mỗi buổi tập cần ít nhất một variation hợp lệ.", 400)
+  }
+
+  const validVariationCount = await db.variation.count({
+    where: {
+      id: {
+        in: variationIds,
+      },
+    },
+  })
+
+  if (validVariationCount !== variationIds.length) {
+    throw new AuthServiceError("Có variation không tồn tại trong thư viện.", 400)
+  }
+
+  const program = await db.$transaction(async (tx) => {
+    await tx.programAssignment.deleteMany({
+      where: {
+        programId: existingProgram.id,
+      },
+    })
+
+    if (assignToUserIds.length > 0) {
+      await tx.programAssignment.createMany({
+        data: assignToUserIds.map((userId) => ({
+          programId: existingProgram.id,
           userId,
         })),
-        deleteMany: {},
-      },
-      description: input.description?.trim() || undefined,
-      difficulty: input.difficulty,
-      duration: Math.max(1, Math.round(input.duration)),
-      name: input.name.trim(),
-      workouts: {
-        create: input.workouts.map((workout, workoutIndex) => ({
-          duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
-          exercises: {
-            create: workout.exercises.map((exercise, exerciseIndex) => ({
-              exerciseId: exercise.exerciseId,
-              order: exerciseIndex + 1,
-              restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
-              sets: {
-                create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
-                  setNumber: setIndex + 1,
-                  targetReps: Math.max(1, Math.round(exercise.reps)),
-                })),
-              },
-            })),
-          },
-          name: workout.name.trim() || `Day ${workoutIndex + 1}`,
-          scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
-        })),
-        deleteMany: {},
-      },
-      workoutsPerWeek: input.workouts.length,
-    },
-    include: {
-      assignments: {
-        include: {
-          user: true,
-        },
-      },
-      workouts: {
-        include: {
-          exercises: {
-            include: {
-              exercise: true,
-              sets: {
-                orderBy: {
-                  setNumber: "asc",
+      })
+    }
+
+    return tx.program.update({
+      data: {
+        description: input.description?.trim() || undefined,
+        difficulty: input.difficulty,
+        duration: Math.max(1, Math.round(input.duration)),
+        name: input.name.trim(),
+        workouts: {
+          create: input.workouts.map((workout, workoutIndex) => ({
+            duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
+            exercises: {
+              create: workout.exercises.map((exercise, exerciseIndex) => ({
+                order: exerciseIndex + 1,
+                sets: {
+                  create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
+                    setNumber: setIndex + 1,
+                    targetReps: Math.max(1, Math.round(exercise.reps)),
+                    weight:
+                      exercise.weight != null && Number.isFinite(exercise.weight)
+                        ? Math.max(0, exercise.weight)
+                        : undefined,
+                  })),
                 },
-              },
+                variationId: exercise.variationId,
+              })),
             },
-            orderBy: {
-              order: "asc",
-            },
-          },
+            name: workout.name.trim() || `Day ${workoutIndex + 1}`,
+            scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
+          })),
+          deleteMany: {},
         },
-        orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+        workoutsPerWeek: input.workouts.length,
       },
-    },
-    where: {
-      id: existingProgram.id,
-    },
+      include: PROGRAM_INCLUDE,
+      where: {
+        id: existingProgram.id,
+      },
+    })
   })
 
   return serializeProgram(program as ProgramRecord)
@@ -1753,6 +2308,45 @@ async function createBodyMetricForCurrentTrainee(
   })
 
   return serializeBodyMetricEntry(entry as BodyMetricRecord)
+}
+
+async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const workoutLogs = await db.workoutLog.findMany({
+    orderBy: {
+      startedAt: "asc",
+    },
+    select: {
+      exerciseSnapshot: true,
+      startedAt: true,
+      totalVolume: true,
+    },
+    where: {
+      userId: profile.id,
+    },
+  })
+
+  const currentMonth = getUtcMonthBounds()
+  const workoutsThisMonth = workoutLogs.filter(
+    (log) => log.startedAt >= currentMonth.start && log.startedAt < currentMonth.end,
+  )
+  const totalVolumeThisMonth = workoutsThisMonth.reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
+  const { bestStreakDays, currentStreakDays } = calculateWorkoutStreaks(workoutLogs as ProgressAnalyticsLogRecord[])
+
+  return {
+    muscleGroupDistribution: buildMuscleGroupDistribution(workoutLogs as ProgressAnalyticsLogRecord[]),
+    personalRecords: buildPersonalRecords(workoutLogs as ProgressAnalyticsLogRecord[]),
+    strengthProgression: buildStrengthProgression(workoutLogs as ProgressAnalyticsLogRecord[]),
+    summary: {
+      bestStreakDays,
+      currentStreakDays,
+      totalVolumeThisMonth: Math.round(totalVolumeThisMonth * 10) / 10,
+      workoutsThisMonth: workoutsThisMonth.length,
+    },
+    weeklyVolume: buildWeeklyVolume(workoutLogs as ProgressAnalyticsLogRecord[]),
+  }
 }
 
 async function resetCurrentTraineeData(profile: SerializedProfile) {
@@ -1975,52 +2569,14 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       programAssignments: {
         include: {
           program: {
-            include: {
-              assignments: {
-                include: {
-                  user: true,
-                },
-              },
-              workouts: {
-                include: {
-                  exercises: {
-                    include: {
-                      exercise: true,
-                      sets: {
-                        orderBy: {
-                          setNumber: "asc",
-                        },
-                      },
-                    },
-                    orderBy: {
-                      order: "asc",
-                    },
-                  },
-                },
-                orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
-              },
-            },
+            include: PROGRAM_INCLUDE,
           },
         },
       },
       workoutLogs: {
         include: {
           workout: {
-            include: {
-              exercises: {
-                include: {
-                  exercise: true,
-                  sets: {
-                    orderBy: {
-                      setNumber: "asc",
-                    },
-                  },
-                },
-                orderBy: {
-                  order: "asc",
-                },
-              },
-            },
+            include: WORKOUT_INCLUDE,
           },
         },
         orderBy: {
@@ -2242,9 +2798,11 @@ export {
   getCoachDashboard,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  getProgressAnalyticsForCurrentTrainee,
   getWorkoutDetailForTrainee,
   listAvailableCoachesForTrainee,
   listBodyMetricsForCurrentTrainee,
+  listExerciseLibrary,
   listCoachPrograms,
   listCoachTrainees,
   listExercises,

@@ -32,6 +32,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang={defaultLocale}>
+      <head>
+        <link rel="dns-prefetch" href="https://bljmubatdtvuomucqmoj.supabase.co" />
+        <link rel="preconnect" href="https://bljmubatdtvuomucqmoj.supabase.co" crossOrigin="anonymous" />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         {children}
         <Analytics />

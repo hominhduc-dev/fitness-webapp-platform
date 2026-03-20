@@ -1,4 +1,14 @@
-import type { DailyNutrition, Exercise, Meal, Program, Workout, WorkoutLog } from "@/lib/types"
+import type {
+  DailyNutrition,
+  ExerciseBase,
+  ExerciseLibraryExercise,
+  ExerciseVariation,
+  ExerciseVariationOption,
+  Meal,
+  Program,
+  Workout,
+  WorkoutLog,
+} from "@/lib/types"
 
 type AssignedTrainee = {
   avatar?: string | null
@@ -101,6 +111,52 @@ type CoachProgressSummary = {
   workoutsLast7Days: number
 }
 
+type ProgressAnalyticsSummary = {
+  bestStreakDays: number
+  currentStreakDays: number
+  totalVolumeThisMonth: number
+  workoutsThisMonth: number
+}
+
+type ProgressStrengthSeries = {
+  color: string
+  exerciseName: string
+  key: string
+}
+
+type ProgressStrengthPoint = {
+  label: string
+  values: Record<string, number | null>
+}
+
+type ProgressMuscleGroupPoint = {
+  fill: string
+  name: string
+  value: number
+}
+
+type ProgressWeeklyVolumePoint = {
+  day: string
+  volume: number
+}
+
+type ProgressPersonalRecord = {
+  date: Date
+  exercise: string
+  weight: number
+}
+
+type ProgressAnalytics = {
+  muscleGroupDistribution: ProgressMuscleGroupPoint[]
+  personalRecords: ProgressPersonalRecord[]
+  strengthProgression: {
+    points: ProgressStrengthPoint[]
+    series: ProgressStrengthSeries[]
+  }
+  summary: ProgressAnalyticsSummary
+  weeklyVolume: ProgressWeeklyVolumePoint[]
+}
+
 type DiscoverableCoach = {
   activeTrainees: number
   avatar?: string | null
@@ -131,10 +187,10 @@ type CreateCoachProgramInput = {
   workouts: Array<{
     duration?: number
     exercises: Array<{
-      exerciseId: string
+      variationId: string
       reps: number
-      restTime?: number
       sets: number
+      weight?: number
     }>
     name: string
     scheduledDay?: number
@@ -144,10 +200,11 @@ type CreateCoachProgramInput = {
 type CreateWorkoutInput = {
   duration?: number
   exercises: Array<{
-    exerciseId: string
+    variationId: string
     reps: number
     restTime?: number
     sets: number
+    weight?: number
   }>
   name: string
   notes?: string
@@ -175,9 +232,17 @@ export type {
   CreateWorkoutInput,
   DiscoverableCoach,
   MealCollection,
+  ProgressAnalytics,
+  ProgressAnalyticsSummary,
+  ProgressMuscleGroupPoint,
+  ProgressPersonalRecord,
+  ProgressStrengthPoint,
+  ProgressStrengthSeries,
+  ProgressWeeklyVolumePoint,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
 }
 
-export type { Exercise }
+export type Exercise = ExerciseVariationOption
+export type { ExerciseBase, ExerciseLibraryExercise, ExerciseVariation, ExerciseVariationOption }

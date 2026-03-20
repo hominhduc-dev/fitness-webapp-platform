@@ -1,6 +1,17 @@
 import { ApiError } from "@/lib/auth/api"
 import { getApiBaseUrl } from "@/lib/supabase/config"
-import type { DailyNutrition, Exercise, ExerciseSet, Meal, Program, Workout, WorkoutLog } from "@/lib/types"
+import type {
+  DailyNutrition,
+  ExerciseBase,
+  ExerciseLibraryExercise,
+  ExerciseSet,
+  ExerciseVariation,
+  ExerciseVariationOption,
+  Meal,
+  Program,
+  Workout,
+  WorkoutLog,
+} from "@/lib/types"
 
 import type {
   BodyMetricEntry,
@@ -14,33 +25,62 @@ import type {
   CreateWorkoutInput,
   DiscoverableCoach,
   MealCollection,
+  ProgressAnalytics,
+  ProgressAnalyticsSummary,
+  ProgressMuscleGroupPoint,
+  ProgressPersonalRecord,
+  ProgressStrengthPoint,
+  ProgressStrengthSeries,
+  ProgressWeeklyVolumePoint,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
 } from "./types"
 
-type SerializedExercise = Exercise
+type SerializedExerciseBase = ExerciseBase
+
+type SerializedExerciseVariation = {
+  equipment?: string
+  id: string
+  isDefault: boolean
+  metadata?: Record<string, unknown>
+  name: string
+  sortOrder: number
+}
+
+type SerializedExerciseVariationOption = ExerciseVariationOption
 
 type SerializedExerciseSet = {
   actualReps?: number
   completed: boolean
   id: string
   notes?: string
+  previousPerformance?: {
+    completedAt: string
+    reps?: number
+    source: "most_recent" | "same_weekday_last_week"
+    weight?: number
+  }
   rir?: number
   setNumber: number
   targetReps: number
   weight?: number
 }
 
+type SerializedWorkoutExercise = {
+  exercise: SerializedExerciseBase & {
+    equipment?: string
+  }
+  id: string
+  notes?: string
+  restTime?: number
+  sets: SerializedExerciseSet[]
+  variation?: SerializedExerciseVariation | null
+}
+
 type SerializedWorkout = {
   duration?: number
-  exercises: Array<{
-    exercise: SerializedExercise
-    id: string
-    notes?: string
-    restTime?: number
-    sets: SerializedExerciseSet[]
-  }>
+  exercises: SerializedWorkoutExercise[]
   id: string
   isPersonal?: boolean
   name: string
@@ -50,7 +90,7 @@ type SerializedWorkout = {
 
 type SerializedWorkoutLog = {
   completedAt?: string | null
-  exercises: SerializedWorkout["exercises"]
+  exercises: SerializedWorkoutExercise[]
   id: string
   notes?: string
   startedAt: string
@@ -67,6 +107,10 @@ type SerializedMeal = {
   protein?: number
   time: string
   type: Meal["type"]
+}
+
+type SerializedExerciseLibraryExercise = SerializedExerciseBase & {
+  variations: SerializedExerciseVariation[]
 }
 
 type SerializedAssignedTrainee = {
@@ -169,6 +213,17 @@ type SerializedCoachProgressSummary = {
   workoutsLast7Days: number
 }
 
+type SerializedProgressAnalytics = {
+  muscleGroupDistribution: ProgressMuscleGroupPoint[]
+  personalRecords: Array<Omit<ProgressPersonalRecord, "date"> & { date: string }>
+  strengthProgression: {
+    points: ProgressStrengthPoint[]
+    series: ProgressStrengthSeries[]
+  }
+  summary: ProgressAnalyticsSummary
+  weeklyVolume: ProgressWeeklyVolumePoint[]
+}
+
 type SerializedDailyNutrition = Omit<DailyNutrition, "date" | "meals"> & {
   date: string
   meals: SerializedMeal[]
@@ -224,12 +279,38 @@ function toDate(value?: string | null) {
   return value ? new Date(value) : undefined
 }
 
+function buildExerciseQuery(options?: { equipment?: string; muscleGroup?: string; search?: string }) {
+  const searchParams = new URLSearchParams()
+
+  if (options?.equipment?.trim()) {
+    searchParams.set("equipment", options.equipment.trim())
+  }
+
+  if (options?.muscleGroup?.trim()) {
+    searchParams.set("muscleGroup", options.muscleGroup.trim())
+  }
+
+  if (options?.search?.trim()) {
+    searchParams.set("search", options.search.trim())
+  }
+
+  return searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+}
+
 function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
   return {
     actualReps: set.actualReps,
     completed: set.completed,
     id: set.id,
     notes: set.notes,
+    previousPerformance: set.previousPerformance
+      ? {
+          completedAt: new Date(set.previousPerformance.completedAt),
+          reps: set.previousPerformance.reps,
+          source: set.previousPerformance.source,
+          weight: set.previousPerformance.weight,
+        }
+      : undefined,
     rir: set.rir,
     setNumber: set.setNumber,
     targetReps: set.targetReps,
@@ -237,16 +318,47 @@ function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
   }
 }
 
+function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseVariation {
+  return {
+    equipment: variation.equipment,
+    id: variation.id,
+    isDefault: variation.isDefault,
+    metadata: variation.metadata,
+    name: variation.name,
+    sortOrder: variation.sortOrder,
+  }
+}
+
+function synthesizeExerciseVariation(exercise: SerializedWorkoutExercise): ExerciseVariation {
+  return {
+    equipment: exercise.exercise.equipment,
+    id: exercise.exercise.id,
+    isDefault: true,
+    metadata: undefined,
+    name: "Default",
+    sortOrder: 0,
+  }
+}
+
+function mapWorkoutExercise(exercise: SerializedWorkoutExercise): Workout["exercises"][number] {
+  return {
+    exercise: {
+      id: exercise.exercise.id,
+      muscleGroup: exercise.exercise.muscleGroup,
+      name: exercise.exercise.name,
+    },
+    id: exercise.id,
+    notes: exercise.notes,
+    restTime: exercise.restTime,
+    sets: exercise.sets.map(mapExerciseSet),
+    variation: exercise.variation ? mapExerciseVariation(exercise.variation) : synthesizeExerciseVariation(exercise),
+  }
+}
+
 function mapWorkout(workout: SerializedWorkout): Workout {
   return {
     duration: workout.duration,
-    exercises: workout.exercises.map((exercise) => ({
-      exercise: exercise.exercise,
-      id: exercise.id,
-      notes: exercise.notes,
-      restTime: exercise.restTime,
-      sets: exercise.sets.map(mapExerciseSet),
-    })),
+    exercises: workout.exercises.map(mapWorkoutExercise),
     id: workout.id,
     isPersonal: workout.isPersonal,
     name: workout.name,
@@ -258,13 +370,7 @@ function mapWorkout(workout: SerializedWorkout): Workout {
 function mapWorkoutLog(log: SerializedWorkoutLog): WorkoutLog {
   return {
     completedAt: toDate(log.completedAt),
-    exercises: log.exercises.map((exercise) => ({
-      exercise: exercise.exercise,
-      id: exercise.id,
-      notes: exercise.notes,
-      restTime: exercise.restTime,
-      sets: exercise.sets.map(mapExerciseSet),
-    })),
+    exercises: log.exercises.map(mapWorkoutExercise),
     id: log.id,
     notes: log.notes,
     startedAt: new Date(log.startedAt),
@@ -365,6 +471,19 @@ function mapCoachProgressSummary(summary: SerializedCoachProgressSummary): Coach
   }
 }
 
+function mapProgressAnalytics(analytics: SerializedProgressAnalytics): ProgressAnalytics {
+  return {
+    muscleGroupDistribution: analytics.muscleGroupDistribution,
+    personalRecords: analytics.personalRecords.map((record) => ({
+      ...record,
+      date: new Date(record.date),
+    })),
+    strengthProgression: analytics.strengthProgression,
+    summary: analytics.summary,
+    weeklyVolume: analytics.weeklyVolume,
+  }
+}
+
 function mapDiscoverableCoach(coach: SerializedDiscoverableCoach): DiscoverableCoach {
   return {
     activeTrainees: coach.activeTrainees,
@@ -376,6 +495,15 @@ function mapDiscoverableCoach(coach: SerializedDiscoverableCoach): DiscoverableC
     name: coach.name,
     requestId: coach.requestId,
     requestStatus: coach.requestStatus,
+  }
+}
+
+function mapExerciseLibraryExercise(exercise: SerializedExerciseLibraryExercise): ExerciseLibraryExercise {
+  return {
+    id: exercise.id,
+    muscleGroup: exercise.muscleGroup,
+    name: exercise.name,
+    variations: exercise.variations.map(mapExerciseVariation),
   }
 }
 
@@ -420,6 +548,11 @@ async function createWeightEntry(
   })
 
   return mapBodyMetricEntry(response.bodyMetric)
+}
+
+async function fetchProgressAnalytics(accessToken: string): Promise<ProgressAnalytics> {
+  const response = await request<{ analytics: SerializedProgressAnalytics }>("/api/progress/analytics", accessToken)
+  return mapProgressAnalytics(response.analytics)
 }
 
 async function createMeal(
@@ -520,7 +653,10 @@ async function createWorkoutLog(accessToken: string, workoutId: string, input: W
   const response = await request<{ log: SerializedWorkoutLog }>(`/api/workouts/${workoutId}/logs`, accessToken, {
     body: JSON.stringify({
       ...input,
-      exercises: input.exercises,
+      exercises: input.exercises.map((exercise) => ({
+        ...exercise,
+        sets: exercise.sets.map(({ previousPerformance, ...set }) => set),
+      })),
     }),
     method: "POST",
   })
@@ -528,9 +664,26 @@ async function createWorkoutLog(accessToken: string, workoutId: string, input: W
   return mapWorkoutLog(response.log)
 }
 
-async function fetchExercises(accessToken: string): Promise<Exercise[]> {
-  const response = await request<{ exercises: Exercise[] }>("/api/exercises", accessToken)
+async function fetchExercises(
+  accessToken: string,
+  options?: { equipment?: string; muscleGroup?: string; search?: string },
+): Promise<ExerciseVariationOption[]> {
+  const response = await request<{ exercises: SerializedExerciseVariationOption[] }>(
+    `/api/exercises${buildExerciseQuery(options)}`,
+    accessToken,
+  )
   return response.exercises
+}
+
+async function fetchExerciseLibrary(
+  accessToken: string,
+  options?: { equipment?: string; muscleGroup?: string; search?: string },
+): Promise<ExerciseLibraryExercise[]> {
+  const response = await request<{ exercises: SerializedExerciseLibraryExercise[] }>(
+    `/api/exercises/library${buildExerciseQuery(options)}`,
+    accessToken,
+  )
+  return response.exercises.map(mapExerciseLibraryExercise)
 }
 
 async function fetchCoachPrograms(accessToken: string): Promise<CoachProgram[]> {
@@ -751,6 +904,7 @@ export {
   deleteWorkout,
   deleteMeal,
   deleteCoachProgram,
+  fetchProgressAnalytics,
   fetchWeightEntries,
   fetchDiscoverableCoaches,
   fetchCoachDashboard,
@@ -758,6 +912,7 @@ export {
   fetchCoachPrograms,
   fetchCoachTraineeDetail,
   fetchCoachTrainees,
+  fetchExerciseLibrary,
   fetchExercises,
   fetchMeals,
   fetchWorkoutDetail,

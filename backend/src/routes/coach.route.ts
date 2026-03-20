@@ -50,17 +50,17 @@ function parseProgramInput(body: Record<string, unknown>) {
               ? safeRecord.exercises.map((exercise: unknown) => {
                   const exerciseRecord = exercise && typeof exercise === "object" ? exercise : {}
                   const safeExercise = exerciseRecord as {
-                    exerciseId?: unknown
+                    variationId?: unknown
                     reps?: unknown
-                    restTime?: unknown
                     sets?: unknown
+                    weight?: unknown
                   }
 
                   return {
-                    exerciseId: String(safeExercise.exerciseId ?? ""),
+                    variationId: String(safeExercise.variationId ?? ""),
                     reps: Number(safeExercise.reps ?? 0),
-                    restTime: safeExercise.restTime == null ? undefined : Number(safeExercise.restTime),
                     sets: Number(safeExercise.sets ?? 0),
+                    weight: safeExercise.weight == null ? undefined : Number(safeExercise.weight),
                   }
                 })
               : [],

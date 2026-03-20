@@ -2,6 +2,8 @@ import type {
   User,
   Workout,
   Exercise,
+  ExerciseBase,
+  ExerciseVariation,
   WorkoutLog,
   Meal,
   DailyNutrition,
@@ -16,19 +18,51 @@ export const mockCredentials = [
   { email: "sarah@example.com", password: "123456", userId: "3" },
 ]
 
+function makeExerciseOption(id: string, name: string, muscleGroup: string, equipment: string): Exercise {
+  return {
+    equipment,
+    exerciseId: `base-${id}`,
+    exerciseName: name,
+    id,
+    isDefault: true,
+    muscleGroup,
+    name,
+    sortOrder: 0,
+    variationName: "Default",
+  }
+}
+
+function toExerciseBase(exercise: Exercise): ExerciseBase {
+  return {
+    id: exercise.exerciseId,
+    muscleGroup: exercise.muscleGroup,
+    name: exercise.exerciseName,
+  }
+}
+
+function toExerciseVariation(exercise: Exercise): ExerciseVariation {
+  return {
+    equipment: exercise.equipment,
+    id: exercise.id,
+    isDefault: exercise.isDefault,
+    name: exercise.variationName,
+    sortOrder: exercise.sortOrder,
+  }
+}
+
 export const exercises: Exercise[] = [
-  { id: "1", name: "Bench Press", muscleGroup: "Chest", equipment: "Barbell" },
-  { id: "2", name: "Squat", muscleGroup: "Legs", equipment: "Barbell" },
-  { id: "3", name: "Deadlift", muscleGroup: "Back", equipment: "Barbell" },
-  { id: "4", name: "Overhead Press", muscleGroup: "Shoulders", equipment: "Barbell" },
-  { id: "5", name: "Pull-ups", muscleGroup: "Back", equipment: "Bodyweight" },
-  { id: "6", name: "Rows", muscleGroup: "Back", equipment: "Barbell" },
-  { id: "7", name: "Leg Press", muscleGroup: "Legs", equipment: "Machine" },
-  { id: "8", name: "Lat Pulldown", muscleGroup: "Back", equipment: "Cable" },
-  { id: "9", name: "Bicep Curls", muscleGroup: "Arms", equipment: "Dumbbell" },
-  { id: "10", name: "Tricep Pushdown", muscleGroup: "Arms", equipment: "Cable" },
-  { id: "11", name: "Lunges", muscleGroup: "Legs", equipment: "Dumbbell" },
-  { id: "12", name: "Incline Bench Press", muscleGroup: "Chest", equipment: "Dumbbell" },
+  makeExerciseOption("1", "Bench Press", "Chest", "Barbell"),
+  makeExerciseOption("2", "Squat", "Legs", "Barbell"),
+  makeExerciseOption("3", "Deadlift", "Back", "Barbell"),
+  makeExerciseOption("4", "Overhead Press", "Shoulders", "Barbell"),
+  makeExerciseOption("5", "Pull-ups", "Back", "Bodyweight"),
+  makeExerciseOption("6", "Rows", "Back", "Barbell"),
+  makeExerciseOption("7", "Leg Press", "Legs", "Machine"),
+  makeExerciseOption("8", "Lat Pulldown", "Back", "Cable"),
+  makeExerciseOption("9", "Bicep Curls", "Arms", "Dumbbell"),
+  makeExerciseOption("10", "Tricep Pushdown", "Arms", "Cable"),
+  makeExerciseOption("11", "Lunges", "Legs", "Dumbbell"),
+  makeExerciseOption("12", "Incline Bench Press", "Chest", "Dumbbell"),
 ]
 
 export const currentUser: User = {
@@ -59,7 +93,7 @@ export const sampleWorkouts: Workout[] = [
     exercises: [
       {
         id: "1",
-        exercise: exercises[0],
+        exercise: toExerciseBase(exercises[0]),
         sets: [
           { id: "1", setNumber: 1, targetReps: 8, weight: 135, completed: false },
           { id: "2", setNumber: 2, targetReps: 8, weight: 135, completed: false },
@@ -67,26 +101,29 @@ export const sampleWorkouts: Workout[] = [
           { id: "4", setNumber: 4, targetReps: 8, weight: 135, completed: false },
         ],
         restTime: 120,
+        variation: toExerciseVariation(exercises[0]),
       },
       {
         id: "2",
-        exercise: exercises[3],
+        exercise: toExerciseBase(exercises[3]),
         sets: [
           { id: "5", setNumber: 1, targetReps: 10, weight: 95, completed: false },
           { id: "6", setNumber: 2, targetReps: 10, weight: 95, completed: false },
           { id: "7", setNumber: 3, targetReps: 10, weight: 95, completed: false },
         ],
         restTime: 90,
+        variation: toExerciseVariation(exercises[3]),
       },
       {
         id: "3",
-        exercise: exercises[11],
+        exercise: toExerciseBase(exercises[11]),
         sets: [
           { id: "8", setNumber: 1, targetReps: 12, weight: 50, completed: false },
           { id: "9", setNumber: 2, targetReps: 12, weight: 50, completed: false },
           { id: "10", setNumber: 3, targetReps: 12, weight: 50, completed: false },
         ],
         restTime: 60,
+        variation: toExerciseVariation(exercises[11]),
       },
     ],
   },
@@ -98,33 +135,36 @@ export const sampleWorkouts: Workout[] = [
     exercises: [
       {
         id: "4",
-        exercise: exercises[2],
+        exercise: toExerciseBase(exercises[2]),
         sets: [
           { id: "11", setNumber: 1, targetReps: 5, weight: 225, completed: false },
           { id: "12", setNumber: 2, targetReps: 5, weight: 225, completed: false },
           { id: "13", setNumber: 3, targetReps: 5, weight: 225, completed: false },
         ],
         restTime: 180,
+        variation: toExerciseVariation(exercises[2]),
       },
       {
         id: "5",
-        exercise: exercises[4],
+        exercise: toExerciseBase(exercises[4]),
         sets: [
           { id: "14", setNumber: 1, targetReps: 8, completed: false },
           { id: "15", setNumber: 2, targetReps: 8, completed: false },
           { id: "16", setNumber: 3, targetReps: 8, completed: false },
         ],
         restTime: 90,
+        variation: toExerciseVariation(exercises[4]),
       },
       {
         id: "6",
-        exercise: exercises[5],
+        exercise: toExerciseBase(exercises[5]),
         sets: [
           { id: "17", setNumber: 1, targetReps: 10, weight: 135, completed: false },
           { id: "18", setNumber: 2, targetReps: 10, weight: 135, completed: false },
           { id: "19", setNumber: 3, targetReps: 10, weight: 135, completed: false },
         ],
         restTime: 90,
+        variation: toExerciseVariation(exercises[5]),
       },
     ],
   },
@@ -136,7 +176,7 @@ export const sampleWorkouts: Workout[] = [
     exercises: [
       {
         id: "7",
-        exercise: exercises[1],
+        exercise: toExerciseBase(exercises[1]),
         sets: [
           { id: "20", setNumber: 1, targetReps: 6, weight: 185, completed: false },
           { id: "21", setNumber: 2, targetReps: 6, weight: 185, completed: false },
@@ -144,26 +184,29 @@ export const sampleWorkouts: Workout[] = [
           { id: "23", setNumber: 4, targetReps: 6, weight: 185, completed: false },
         ],
         restTime: 180,
+        variation: toExerciseVariation(exercises[1]),
       },
       {
         id: "8",
-        exercise: exercises[6],
+        exercise: toExerciseBase(exercises[6]),
         sets: [
           { id: "24", setNumber: 1, targetReps: 12, weight: 270, completed: false },
           { id: "25", setNumber: 2, targetReps: 12, weight: 270, completed: false },
           { id: "26", setNumber: 3, targetReps: 12, weight: 270, completed: false },
         ],
         restTime: 90,
+        variation: toExerciseVariation(exercises[6]),
       },
       {
         id: "9",
-        exercise: exercises[10],
+        exercise: toExerciseBase(exercises[10]),
         sets: [
           { id: "27", setNumber: 1, targetReps: 10, weight: 40, completed: false },
           { id: "28", setNumber: 2, targetReps: 10, weight: 40, completed: false },
           { id: "29", setNumber: 3, targetReps: 10, weight: 40, completed: false },
         ],
         restTime: 60,
+        variation: toExerciseVariation(exercises[10]),
       },
     ],
   },

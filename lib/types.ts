@@ -17,11 +17,45 @@ export interface User {
   createdAt: Date
 }
 
-export interface Exercise {
+export interface ExerciseBase {
   id: string
   name: string
   muscleGroup: string
+}
+
+export interface ExerciseVariation {
+  id: string
+  name: string
   equipment?: string
+  isDefault: boolean
+  metadata?: Record<string, unknown>
+  sortOrder: number
+}
+
+export interface ExerciseVariationOption {
+  id: string
+  exerciseId: string
+  exerciseName: string
+  variationName: string
+  name: string
+  muscleGroup: string
+  equipment?: string
+  isDefault: boolean
+  metadata?: Record<string, unknown>
+  sortOrder: number
+}
+
+export interface ExerciseLibraryExercise extends ExerciseBase {
+  variations: ExerciseVariation[]
+}
+
+export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday_last_week"
+
+export interface PreviousExerciseSetPerformance {
+  completedAt: Date
+  reps?: number
+  source: PreviousExerciseSetPerformanceSource
+  weight?: number
 }
 
 export interface ExerciseSet {
@@ -32,12 +66,14 @@ export interface ExerciseSet {
   weight?: number
   rir?: number // Reps in Reserve
   notes?: string
+  previousPerformance?: PreviousExerciseSetPerformance
   completed: boolean
 }
 
 export interface WorkoutExercise {
   id: string
-  exercise: Exercise
+  exercise: ExerciseBase
+  variation: ExerciseVariation
   sets: ExerciseSet[]
   restTime?: number // seconds
   notes?: string
@@ -106,3 +142,5 @@ export interface Program {
   createdAt: Date
   createdBy: string // coach ID
 }
+
+export type Exercise = ExerciseVariationOption

@@ -5,6 +5,7 @@ import {
   BarChart3,
   ChevronRight,
   ClipboardList,
+  Download,
   Dumbbell,
   FileSpreadsheet,
   KeyRound,
@@ -26,6 +27,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -44,6 +46,7 @@ import {
   assignAdminCoachConnection,
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
+  deleteAdminExerciseGroupRequest,
   deleteAdminExerciseRequest,
   deleteAdminProgramRequest,
   fetchAdminAuditLogs,
@@ -73,13 +76,20 @@ import type {
   AdminUserDetail,
   AdminUserListItem,
 } from "@/lib/admin/types"
+import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
 import type { UserRole } from "@/lib/types"
 
 type ConfirmState =
   | {
       id: string
-      kind: "connection" | "exercise" | "program" | "request"
+      kind: "connection" | "exercise" | "exercise-group" | "program" | "request"
       label: string
+    }
+  | {
+      id: string
+      kind: "exercise-groups"
+      label: string
+      muscleGroups: string[]
     }
   | null
 
@@ -103,10 +113,57 @@ type ExerciseGroupItem = {
 }
 
 const EXERCISE_IMPORT_HEADERS = {
+  exerciseName: [
+    "exercise name",
+    "exercise_name",
+    "exercise",
+    "name",
+    "ten bai tap",
+    "ten",
+  ],
   equipment: ["equipment", "gear", "device", "dung cu", "thiet bi"],
+  isDefault: ["is default", "is_default", "default", "mac dinh"],
   muscleGroup: ["muscle group", "musclegroup", "muscle_group", "body part", "bodypart", "nhom co"],
-  name: ["name", "exercise", "exercise name", "exercise_name", "ten", "ten bai tap"],
+  sortOrder: ["sort order", "sort_order", "order", "thu tu"],
+  variationName: ["variation name", "variation_name", "variation", "bien the"],
 } as const
+
+const EXERCISE_TEMPLATE_MUSCLE_GROUPS = [
+  "Chest",
+  "Back",
+  "Legs",
+  "Shoulders",
+  "Arms",
+  "Core",
+  "Glutes",
+  "Calves",
+  "Cardio",
+  "Full Body",
+] as const
+
+const EXERCISE_TEMPLATE_EQUIPMENT = [
+  "Barbell",
+  "Dumbbell",
+  "Kettlebell",
+  "Cable",
+  "Machine",
+  "Bodyweight",
+  "Resistance Band",
+  "EZ Bar",
+  "Smith Machine",
+  "Pull-up Bar",
+  "Bench",
+  "Medicine Ball",
+  "TRX",
+  "Other",
+] as const
+
+const EXERCISE_TEMPLATE_EXAMPLES = [
+  ["Bench Press", "Chest", "Default", "Barbell", "TRUE", 0],
+  ["Bench Press", "Chest", "Incline", "Dumbbell", "FALSE", 1],
+  ["Lat Pulldown", "Back", "Wide Grip", "Cable", "TRUE", 0],
+  ["Plank", "Core", "Default", "Bodyweight", "TRUE", 0],
+] as const
 
 function normalizeImportHeader(value: unknown) {
   return String(value ?? "")
@@ -130,6 +187,21 @@ function resolveImportColumn(value: unknown): keyof typeof EXERCISE_IMPORT_HEADE
   }
 
   return null
+}
+
+function parseImportBoolean(value: unknown) {
+  const normalizedValue = normalizeImportHeader(value)
+  return ["1", "true", "yes", "y", "x"].includes(normalizedValue)
+}
+
+function parseImportNumber(value: unknown) {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : undefined
+}
+
+function getExerciseGroupKey(value?: string | null) {
+  const normalizedValue = value?.trim().toLowerCase()
+  return normalizedValue ? normalizedValue : "__other__"
 }
 
 function roleBadgeVariant(role: UserRole) {
@@ -355,6 +427,7 @@ export function AdminConsole() {
   const [programSearch, setProgramSearch] = useState("")
   const [exerciseSearch, setExerciseSearch] = useState("")
   const [openExerciseGroups, setOpenExerciseGroups] = useState<string[]>([])
+  const [selectedExerciseGroupKeys, setSelectedExerciseGroupKeys] = useState<string[]>([])
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
@@ -478,6 +551,83 @@ export function AdminConsole() {
     }
   }
 
+  async function handleDownloadExerciseTemplate() {
+    setActionKey("exercise-template-download")
+    setError(null)
+    setNotice(null)
+
+    try {
+      const XLSX = await import("xlsx")
+      const workbook = XLSX.utils.book_new()
+      const templateHeaders = ["exercise_name", "muscle_group", "variation_name", "equipment", "is_default", "sort_order"]
+      const instructionsSheet = XLSX.utils.aoa_to_sheet([
+        [locale === "en" ? "Exercise import template" : "Mẫu import bài tập"],
+        [
+          locale === "en"
+            ? "Use the Exercises sheet to fill in data before uploading back to the system."
+            : "Dùng sheet Exercises để nhập dữ liệu trước khi tải ngược lên hệ thống.",
+        ],
+        [
+          locale === "en"
+            ? "Each row represents one exercise variation. Required columns: exercise_name, muscle_group, variation_name."
+            : "Mỗi dòng là một variation của bài tập. Cột bắt buộc: exercise_name, muscle_group, variation_name.",
+        ],
+        [
+          locale === "en"
+            ? "Use the same exercise_name + muscle_group on multiple rows when one base exercise has several variations."
+            : "Dùng cùng exercise_name + muscle_group trên nhiều dòng nếu một bài gốc có nhiều variation.",
+        ],
+        [
+          locale === "en"
+            ? "Set exactly one row per exercise as is_default = TRUE. If there is only one variation, use variation_name = Default."
+            : "Mỗi bài nên có đúng một dòng is_default = TRUE. Nếu chỉ có một variation, dùng variation_name = Default.",
+        ],
+        [
+          locale === "en"
+            ? "equipment is optional. sort_order controls display order and defaults to 0 if left blank."
+            : "equipment là tuỳ chọn. sort_order quyết định thứ tự hiển thị và mặc định là 0 nếu bỏ trống.",
+        ],
+      ])
+      const exercisesSheet = XLSX.utils.aoa_to_sheet([templateHeaders])
+      const examplesSheet = XLSX.utils.aoa_to_sheet([
+        templateHeaders,
+        ...EXERCISE_TEMPLATE_EXAMPLES.map((row) => [...row]),
+      ])
+      const referenceRows = [
+        ["muscle_group", "equipment"],
+        ...Array.from(
+          { length: Math.max(EXERCISE_TEMPLATE_MUSCLE_GROUPS.length, EXERCISE_TEMPLATE_EQUIPMENT.length) },
+          (_, index) => [EXERCISE_TEMPLATE_MUSCLE_GROUPS[index] ?? "", EXERCISE_TEMPLATE_EQUIPMENT[index] ?? ""],
+        ),
+      ]
+      const referenceSheet = XLSX.utils.aoa_to_sheet(referenceRows)
+
+      instructionsSheet["!cols"] = [{ wch: 110 }]
+      exercisesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 12 }, { wch: 12 }]
+      examplesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 12 }, { wch: 12 }]
+      referenceSheet["!cols"] = [{ wch: 22 }, { wch: 22 }]
+
+      XLSX.utils.book_append_sheet(workbook, exercisesSheet, "Exercises")
+      XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions")
+      XLSX.utils.book_append_sheet(workbook, examplesSheet, "Examples")
+      XLSX.utils.book_append_sheet(workbook, referenceSheet, "Reference")
+
+      XLSX.writeFile(workbook, locale === "en" ? "exercise-import-template.xlsx" : "mau-import-bai-tap.xlsx")
+
+      setNotice(locale === "en" ? "Exercise import template downloaded." : "Đã tải file mẫu import bài tập.")
+    } catch (templateError) {
+      setError(
+        templateError instanceof Error
+          ? templateError.message
+          : locale === "en"
+            ? "Unable to generate the Excel template."
+            : "Không thể tạo file mẫu Excel.",
+      )
+    } finally {
+      setActionKey(null)
+    }
+  }
+
   async function handleImportFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
 
@@ -495,38 +645,52 @@ export function AdminConsole() {
       const workbook = XLSX.read(buffer, {
         type: "array",
       })
-      const firstSheetName = workbook.SheetNames[0]
 
-      if (!firstSheetName) {
+      if (!workbook.SheetNames.length) {
         throw new Error(locale === "en" ? "The selected file has no worksheets." : "File được chọn không có worksheet nào.")
       }
 
-      const sheet = workbook.Sheets[firstSheetName]
-      const rows = XLSX.utils.sheet_to_json<Array<string | number | null | undefined>>(sheet, {
-        blankrows: false,
-        defval: "",
-        header: 1,
-        raw: false,
+      const worksheets = workbook.SheetNames.map((sheetName) => {
+        const sheet = workbook.Sheets[sheetName]
+        const rows = XLSX.utils.sheet_to_json<Array<string | number | null | undefined>>(sheet, {
+          blankrows: false,
+          defval: "",
+          header: 1,
+          raw: false,
+        })
+
+        const headerRow = rows[0] ?? []
+        const columnMap = headerRow.reduce<Partial<Record<keyof typeof EXERCISE_IMPORT_HEADERS, number>>>((result, cell, index) => {
+          const column = resolveImportColumn(cell)
+
+          if (column && typeof result[column] !== "number") {
+            result[column] = index
+          }
+
+          return result
+        }, {})
+
+        return {
+          columnMap,
+          rows,
+          sheetName,
+        }
       })
 
-      if (!rows.length) {
+      const worksheet =
+        worksheets.find((item) => item.sheetName.trim().toLowerCase() === "exercises") ??
+        worksheets.find(
+          (item) => typeof item.columnMap.exerciseName === "number" && typeof item.columnMap.muscleGroup === "number",
+        )
+
+      if (!worksheet || !worksheet.rows.length) {
         throw new Error(locale === "en" ? "The selected file is empty." : "File được chọn đang trống.")
       }
 
-      const headerRow = rows[0] ?? []
-      const columnMap = headerRow.reduce<Partial<Record<keyof typeof EXERCISE_IMPORT_HEADERS, number>>>((result, cell, index) => {
-        const column = resolveImportColumn(cell)
-
-        if (column && typeof result[column] !== "number") {
-          result[column] = index
-        }
-
-        return result
-      }, {})
-
+      const { columnMap, rows } = worksheet
       const missingColumns = [
-        typeof columnMap.name !== "number" ? (locale === "en" ? "name" : "tên bài tập") : null,
-        typeof columnMap.muscleGroup !== "number" ? (locale === "en" ? "muscle group" : "nhóm cơ") : null,
+        typeof columnMap.exerciseName !== "number" ? (locale === "en" ? "exercise_name" : "exercise_name") : null,
+        typeof columnMap.muscleGroup !== "number" ? (locale === "en" ? "muscle_group" : "muscle_group") : null,
       ].filter(Boolean) as string[]
 
       if (missingColumns.length > 0) {
@@ -542,32 +706,42 @@ export function AdminConsole() {
 
       rows.slice(1).forEach((row, index) => {
         const rowNumber = index + 2
-        const name = String(row[columnMap.name as number] ?? "").trim()
+        const exerciseName = String(row[columnMap.exerciseName as number] ?? "").trim()
         const muscleGroup = String(row[columnMap.muscleGroup as number] ?? "").trim()
+        const variationNameIndex = columnMap.variationName
         const equipmentIndex = columnMap.equipment
+        const isDefaultIndex = columnMap.isDefault
+        const sortOrderIndex = columnMap.sortOrder
+        const rawVariationName = typeof variationNameIndex === "number" ? String(row[variationNameIndex] ?? "").trim() : ""
+        const variationName = rawVariationName || "Default"
         const equipment = typeof equipmentIndex === "number" ? String(row[equipmentIndex] ?? "").trim() : ""
-        const isBlankRow = !name && !muscleGroup && !equipment
+        const isDefault = typeof isDefaultIndex === "number" ? parseImportBoolean(row[isDefaultIndex]) : variationName === "Default"
+        const sortOrder = typeof sortOrderIndex === "number" ? parseImportNumber(row[sortOrderIndex]) : undefined
+        const isBlankRow = !exerciseName && !muscleGroup && !rawVariationName && !equipment
 
         if (isBlankRow) {
           return
         }
 
-        if (!name || !muscleGroup) {
+        if (!exerciseName || !muscleGroup) {
           nextIssues.push({
             message:
               locale === "en"
-                ? "Missing exercise name or muscle group."
-                : "Thiếu tên bài tập hoặc nhóm cơ.",
+                ? "Missing exercise_name or muscle_group."
+                : "Thiếu exercise_name hoặc muscle_group.",
             rowNumber,
           })
           return
         }
 
         nextRows.push({
+          exerciseName,
           equipment: equipment || undefined,
+          isDefault,
           muscleGroup,
-          name,
           rowNumber,
+          sortOrder,
+          variationName,
         })
       })
 
@@ -730,8 +904,8 @@ export function AdminConsole() {
       const result = await importAdminExercisesRequest(session.access_token, importRows)
       setNotice(
         locale === "en"
-          ? `Imported ${result.createdCount} exercises and skipped ${result.skippedCount}.`
-          : `Đã import ${result.createdCount} bài tập và bỏ qua ${result.skippedCount} dòng.`,
+          ? `Imported ${result.createdCount} exercise variations and skipped ${result.skippedCount} rows.`
+          : `Đã import ${result.createdCount} variation bài tập và bỏ qua ${result.skippedCount} dòng.`,
       )
       await refreshAllData(session.access_token, selectedUserId, true)
       setIsImportDialogOpen(false)
@@ -753,6 +927,8 @@ export function AdminConsole() {
     setNotice(null)
 
     try {
+      let nextNotice = locale === "en" ? "Action completed successfully." : "Đã thực hiện thao tác thành công."
+
       if (confirmState.kind === "request") {
         await deleteAdminCoachRequestRequest(session.access_token, confirmState.id)
       }
@@ -766,6 +942,69 @@ export function AdminConsole() {
         if (exerciseForm.id === confirmState.id) {
           resetExerciseForm()
         }
+        nextNotice = locale === "en" ? "Exercise deleted." : "Đã xóa bài tập."
+      }
+
+      if (confirmState.kind === "exercise-group") {
+        const result = await deleteAdminExerciseGroupRequest(session.access_token, confirmState.id)
+
+        if (exerciseForm.id && result.deletedIds.includes(exerciseForm.id)) {
+          resetExerciseForm()
+        }
+
+        setSelectedExerciseGroupKeys((currentKeys) =>
+          currentKeys.filter((groupKey) => groupKey !== getExerciseGroupKey(result.muscleGroup)),
+        )
+
+        if (result.deletedCount === 0 && result.skippedCount > 0) {
+          nextNotice =
+            locale === "en"
+              ? `No exercises were deleted from ${result.muscleGroup} because all of them are already used in workouts.`
+              : `Không xóa được bài tập nào trong nhóm ${result.muscleGroup} vì tất cả đang được dùng trong workout.`
+        } else if (result.skippedCount > 0) {
+          nextNotice =
+            locale === "en"
+              ? `Deleted ${result.deletedCount} exercises from ${result.muscleGroup} and skipped ${result.skippedCount} in-use exercises.`
+              : `Đã xóa ${result.deletedCount} bài tập trong nhóm ${result.muscleGroup} và bỏ qua ${result.skippedCount} bài tập đang được dùng.`
+        } else {
+          nextNotice =
+            locale === "en"
+              ? `Deleted ${result.deletedCount} exercises from ${result.muscleGroup}.`
+              : `Đã xóa ${result.deletedCount} bài tập trong nhóm ${result.muscleGroup}.`
+        }
+      }
+
+      if (confirmState.kind === "exercise-groups") {
+        const results = await Promise.all(
+          confirmState.muscleGroups.map((muscleGroup) =>
+            deleteAdminExerciseGroupRequest(session.access_token as string, muscleGroup),
+          ),
+        )
+        const deletedCount = results.reduce((sum, result) => sum + result.deletedCount, 0)
+        const skippedCount = results.reduce((sum, result) => sum + result.skippedCount, 0)
+
+        if (exerciseForm.id && results.some((result) => result.deletedIds.includes(exerciseForm.id as string))) {
+          resetExerciseForm()
+        }
+
+        setSelectedExerciseGroupKeys([])
+
+        if (deletedCount === 0 && skippedCount > 0) {
+          nextNotice =
+            locale === "en"
+              ? `No exercises were deleted from the ${results.length} selected muscle groups because they are already used in workouts.`
+              : `Không xóa được bài tập nào trong ${results.length} nhóm cơ đã chọn vì các bài tập này đang được dùng trong workout.`
+        } else if (skippedCount > 0) {
+          nextNotice =
+            locale === "en"
+              ? `Deleted ${deletedCount} exercises from ${results.length} selected muscle groups and skipped ${skippedCount} in-use exercises.`
+              : `Đã xóa ${deletedCount} bài tập trong ${results.length} nhóm cơ đã chọn và bỏ qua ${skippedCount} bài tập đang được dùng.`
+        } else {
+          nextNotice =
+            locale === "en"
+              ? `Deleted ${deletedCount} exercises from ${results.length} selected muscle groups.`
+              : `Đã xóa ${deletedCount} bài tập trong ${results.length} nhóm cơ đã chọn.`
+        }
       }
 
       if (confirmState.kind === "connection") {
@@ -774,7 +1013,7 @@ export function AdminConsole() {
 
       setConfirmState(null)
       await refreshAllData(session.access_token, selectedUserId, true)
-      setNotice(locale === "en" ? "Action completed successfully." : "Đã thực hiện thao tác thành công.")
+      setNotice(nextNotice)
     } catch (confirmError) {
       setError(confirmError instanceof Error ? confirmError.message : "Không thể hoàn tất thao tác.")
     } finally {
@@ -810,7 +1049,10 @@ export function AdminConsole() {
   )
 
   const filteredExercises = exercises.filter((exercise) =>
-    matchesSearch([exercise.name, exercise.muscleGroup, exercise.equipment, exercise.createdBy?.name], exerciseSearch),
+    matchesSearch(
+      [exercise.name, exercise.variationName, exercise.muscleGroup, exercise.equipment, exercise.createdBy?.name],
+      exerciseSearch,
+    ),
   )
   const groupedExercisesMap = new Map<string, ExerciseGroupItem>()
   const sortedExercises = [...filteredExercises].sort((left, right) => {
@@ -821,12 +1063,24 @@ export function AdminConsole() {
       return groupComparison
     }
 
-    return left.name.localeCompare(right.name, language, { sensitivity: "base" })
+    const nameComparison = left.name.localeCompare(right.name, language, { sensitivity: "base" })
+
+    if (nameComparison !== 0) {
+      return nameComparison
+    }
+
+    const defaultComparison = Number(right.isDefault) - Number(left.isDefault)
+
+    if (defaultComparison !== 0) {
+      return defaultComparison
+    }
+
+    return left.variationName.localeCompare(right.variationName, language, { sensitivity: "base" })
   })
 
   for (const exercise of sortedExercises) {
     const muscleGroup = exercise.muscleGroup.trim() || (locale === "en" ? "Other" : "Khác")
-    const groupKey = muscleGroup.toLocaleLowerCase(locale === "vi" ? "vi-VN" : "en-US")
+    const groupKey = getExerciseGroupKey(muscleGroup)
     const existingGroup = groupedExercisesMap.get(groupKey)
 
     if (existingGroup) {
@@ -846,15 +1100,76 @@ export function AdminConsole() {
   const groupedExercises = Array.from(groupedExercisesMap.values()).sort((left, right) =>
     left.muscleGroup.localeCompare(right.muscleGroup, locale === "vi" ? "vi" : "en", { sensitivity: "base" }),
   )
+  const visibleExerciseGroupKeys = groupedExercises.map((group) => group.groupKey)
+  const visibleExerciseGroupKeySignature = visibleExerciseGroupKeys.join("|")
   const shouldAutoExpandExerciseGroups = exerciseSearch.trim().length > 0
   const totalExerciseUsageCount = groupedExercises.reduce((sum, group) => sum + group.totalUsageCount, 0)
+  const selectedExerciseGroups = groupedExercises.filter((group) => selectedExerciseGroupKeys.includes(group.groupKey))
+  const selectedExerciseGroupCount = selectedExerciseGroups.length
+  const selectAllExerciseGroupsState =
+    selectedExerciseGroupCount === 0
+      ? false
+      : selectedExerciseGroupCount === groupedExercises.length
+        ? true
+        : "indeterminate"
 
-  const importPreviewRows = importRows.slice(0, 8)
+  useEffect(() => {
+    const visibleGroupKeySet = new Set(visibleExerciseGroupKeys)
+
+    setSelectedExerciseGroupKeys((currentKeys) => {
+      const nextKeys = currentKeys.filter((groupKey) => visibleGroupKeySet.has(groupKey))
+      return nextKeys.length === currentKeys.length ? currentKeys : nextKeys
+    })
+  }, [visibleExerciseGroupKeySignature])
 
   const filteredAuditLogs = auditLogs.filter((log) => {
     const matchesEntityType = auditEntityType === "all" ? true : log.entityType === auditEntityType
     return matchesEntityType && matchesSearch([log.action, log.entityType, log.entityLabel, log.admin.name], auditSearch)
   })
+  const exerciseMuscleGroupOptions = Array.from(
+    new Map(
+      [...EXERCISE_TEMPLATE_MUSCLE_GROUPS, ...exercises.map((exercise) => exercise.muscleGroup), exerciseForm.muscleGroup]
+        .map((muscleGroup) => muscleGroup?.trim())
+        .filter((muscleGroup): muscleGroup is string => Boolean(muscleGroup))
+        .map((muscleGroup) => [muscleGroup.toLowerCase(), muscleGroup]),
+    ).values(),
+  ).sort((left, right) => left.localeCompare(right, locale === "vi" ? "vi" : "en", { sensitivity: "base" }))
+  const isExerciseGroupDelete =
+    confirmState?.kind === "exercise-group" || confirmState?.kind === "exercise-groups"
+  const isBulkExerciseGroupDelete = confirmState?.kind === "exercise-groups"
+  const confirmDialogTitle = isBulkExerciseGroupDelete
+    ? locale === "en"
+      ? "Delete selected muscle groups"
+      : "Xóa các nhóm cơ đã chọn"
+    : isExerciseGroupDelete
+      ? locale === "en"
+        ? "Delete exercise group"
+        : "Xóa nhóm bài tập"
+      : locale === "en"
+        ? "Confirm action"
+        : "Xác nhận thao tác"
+  const confirmDialogDescription = isBulkExerciseGroupDelete
+    ? locale === "en"
+      ? "This will delete all exercises inside the selected muscle groups. Exercises already used in workouts will be skipped."
+      : "Thao tác này sẽ xóa toàn bộ bài tập trong các nhóm cơ đã chọn. Các bài tập đang được dùng trong workout sẽ được bỏ qua."
+    : isExerciseGroupDelete
+      ? locale === "en"
+        ? "This will delete all exercises in this muscle group. Exercises already used in workouts will be skipped."
+        : "Thao tác này sẽ xóa toàn bộ bài tập trong nhóm cơ này. Các bài tập đang được dùng trong workout sẽ được bỏ qua."
+      : locale === "en"
+        ? "You are about to remove or delete this item:"
+        : "Bạn sắp xoá hoặc gỡ mục sau:"
+  const confirmDialogActionLabel = isBulkExerciseGroupDelete
+    ? locale === "en"
+      ? "Delete selected"
+      : "Xóa đã chọn"
+    : isExerciseGroupDelete
+      ? locale === "en"
+        ? "Delete group"
+        : "Xóa nhóm"
+      : locale === "en"
+        ? "Confirm"
+        : "Xác nhận"
   const isConsolePending = !session?.access_token || isLoading
   const topStats = [
     { label: "Admins", value: dashboard?.stats.totalAdmins },
@@ -1535,6 +1850,15 @@ export function AdminConsole() {
                     <p className="text-sm text-muted-foreground">{locale === "en" ? "Manage the shared exercise library." : "Quản lý thư viện bài tập dùng chung."}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleDownloadExerciseTemplate()}
+                      disabled={actionKey === "exercise-template-download"}
+                    >
+                      {actionKey === "exercise-template-download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      {locale === "en" ? "Template" : "File mẫu"}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
                       <FileSpreadsheet className="h-4 w-4" />
                       {locale === "en" ? "Import Excel" : "Import Excel"}
@@ -1554,7 +1878,26 @@ export function AdminConsole() {
                   </div>
                   <div>
                     <Label>{locale === "en" ? "Muscle group" : "Nhóm cơ"}</Label>
-                    <Input className="mt-1.5" value={exerciseForm.muscleGroup} onChange={(event) => setExerciseForm((current) => ({ ...current, muscleGroup: event.target.value }))} />
+                    <Select
+                      value={exerciseForm.muscleGroup || undefined}
+                      onValueChange={(value) =>
+                        setExerciseForm((current) => ({
+                          ...current,
+                          muscleGroup: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1.5 w-full">
+                        <SelectValue placeholder={locale === "en" ? "Select muscle group" : "Chọn nhóm cơ"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exerciseMuscleGroupOptions.map((muscleGroup) => (
+                          <SelectItem key={muscleGroup} value={muscleGroup}>
+                            {muscleGroup}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>{locale === "en" ? "Equipment" : "Thiết bị"}</Label>
@@ -1568,24 +1911,6 @@ export function AdminConsole() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold">{locale === "en" ? "Bulk import" : "Import hàng loạt"}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {locale === "en"
-                          ? "Upload .xlsx, .xls, or .csv with columns: name, muscleGroup, equipment."
-                          : "Tải lên file .xlsx, .xls hoặc .csv với các cột: name, muscleGroup, equipment."}
-                      </p>
-                    </div>
-
-                    <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
-                      <Upload className="h-4 w-4" />
-                      {locale === "en" ? "Open importer" : "Mở trình import"}
-                    </Button>
-                  </div>
-                </div>
-
                 <div className="rounded-2xl border border-border bg-card p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -1602,6 +1927,60 @@ export function AdminConsole() {
                       <Input value={exerciseSearch} onChange={(event) => setExerciseSearch(event.target.value)} placeholder={locale === "en" ? "Search exercises..." : "Tìm bài tập..."} className="pl-9" />
                     </div>
                   </div>
+
+                  <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <label className="flex items-center gap-3 text-sm font-medium">
+                      <Checkbox
+                        checked={selectAllExerciseGroupsState}
+                        disabled={!groupedExercises.length}
+                        onCheckedChange={(checked) =>
+                          setSelectedExerciseGroupKeys(
+                            checked === true ? groupedExercises.map((group) => group.groupKey) : [],
+                          )
+                        }
+                        aria-label={locale === "en" ? "Select all muscle groups" : "Chọn tất cả nhóm cơ"}
+                      />
+                      <span>{locale === "en" ? "Select all muscle groups" : "Chọn tất cả nhóm cơ"}</span>
+                    </label>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {locale === "en"
+                          ? `${formatNumber(selectedExerciseGroupCount, locale)} selected`
+                          : `Đã chọn ${formatNumber(selectedExerciseGroupCount, locale)} nhóm`}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedExerciseGroupKeys([])}
+                        disabled={selectedExerciseGroupCount === 0}
+                      >
+                        {locale === "en" ? "Clear" : "Bỏ chọn"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() =>
+                          setConfirmState({
+                            id: "exercise-groups",
+                            kind: "exercise-groups",
+                            label:
+                              selectedExerciseGroupCount <= 3
+                                ? selectedExerciseGroups.map((group) => group.muscleGroup).join(", ")
+                                : `${selectedExerciseGroups
+                                    .slice(0, 3)
+                                    .map((group) => group.muscleGroup)
+                                    .join(", ")} +${selectedExerciseGroupCount - 3}`,
+                            muscleGroups: selectedExerciseGroups.map((group) => group.muscleGroup),
+                          })
+                        }
+                        disabled={selectedExerciseGroupCount === 0}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {locale === "en" ? "Delete selected" : "Xóa đã chọn"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -1611,39 +1990,73 @@ export function AdminConsole() {
 
                       return (
                         <div key={group.groupKey} className="overflow-hidden rounded-2xl border border-border bg-card">
-                          <button
-                            type="button"
-                            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/20"
-                            onClick={() =>
-                              setOpenExerciseGroups((currentGroups) =>
-                                currentGroups.includes(group.groupKey)
-                                  ? currentGroups.filter((currentGroup) => currentGroup !== group.groupKey)
-                                  : [...currentGroups, group.groupKey],
-                              )
-                            }
-                          >
-                            <div className="flex min-w-0 items-start gap-3">
-                              <div className="mt-0.5 rounded-full border border-border bg-muted/30 p-1">
-                                <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="font-semibold">{group.muscleGroup}</h3>
-                                  <Badge variant="outline">
-                                    {formatNumber(group.exercises.length, locale)} {locale === "en" ? "exercises" : "bài tập"}
-                                  </Badge>
+                          <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 flex-1 items-start gap-3">
+                              <Checkbox
+                                checked={selectedExerciseGroupKeys.includes(group.groupKey)}
+                                onCheckedChange={(checked) =>
+                                  setSelectedExerciseGroupKeys((currentKeys) =>
+                                    checked === true
+                                      ? currentKeys.includes(group.groupKey)
+                                        ? currentKeys
+                                        : [...currentKeys, group.groupKey]
+                                      : currentKeys.filter((groupKey) => groupKey !== group.groupKey),
+                                  )
+                                }
+                                aria-label={`${locale === "en" ? "Select muscle group" : "Chọn nhóm cơ"} ${group.muscleGroup}`}
+                                className="mt-1"
+                              />
+
+                              <button
+                                type="button"
+                                className="flex min-w-0 flex-1 items-start gap-3 text-left transition-colors hover:text-primary"
+                                onClick={() =>
+                                  setOpenExerciseGroups((currentGroups) =>
+                                    currentGroups.includes(group.groupKey)
+                                      ? currentGroups.filter((currentGroup) => currentGroup !== group.groupKey)
+                                      : [...currentGroups, group.groupKey],
+                                  )
+                                }
+                              >
+                                <div className="mt-0.5 rounded-full border border-border bg-muted/30 p-1">
+                                  <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
                                 </div>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                  {formatNumber(group.totalUsageCount, locale)}{" "}
-                                  {locale === "en" ? "total workout references" : "tổng lượt dùng trong workout"}
-                                </p>
-                              </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="font-semibold">{group.muscleGroup}</h3>
+                                    <Badge variant="outline">
+                                      {formatNumber(group.exercises.length, locale)} {locale === "en" ? "exercises" : "bài tập"}
+                                    </Badge>
+                                  </div>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    {formatNumber(group.totalUsageCount, locale)}{" "}
+                                    {locale === "en" ? "total workout references" : "tổng lượt dùng trong workout"}
+                                  </p>
+                                </div>
+                              </button>
                             </div>
 
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {isOpen ? (locale === "en" ? "Collapse" : "Thu gọn") : locale === "en" ? "Expand" : "Mở rộng"}
-                            </span>
-                          </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() =>
+                                  setConfirmState({
+                                    id: group.muscleGroup,
+                                    kind: "exercise-group",
+                                    label: group.muscleGroup,
+                                  })
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                {locale === "en" ? "Delete group" : "Xóa nhóm"}
+                              </Button>
+
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {isOpen ? (locale === "en" ? "Collapse" : "Thu gọn") : locale === "en" ? "Expand" : "Mở rộng"}
+                              </span>
+                            </div>
+                          </div>
 
                           {isOpen ? (
                             <div className="border-t border-border bg-muted/10 p-4">
@@ -1652,9 +2065,23 @@ export function AdminConsole() {
                                   <div key={exercise.id} className="rounded-xl border border-border bg-card p-4">
                                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                       <div>
-                                        <h4 className="font-semibold">{exercise.name}</h4>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <h4 className="font-semibold">{exercise.name}</h4>
+                                          <Badge variant={exercise.isDefault ? "default" : "outline"}>
+                                            {exercise.isDefault
+                                              ? locale === "en"
+                                                ? "Default variation"
+                                                : "Biến thể mặc định"
+                                              : exercise.variationName}
+                                          </Badge>
+                                        </div>
                                         <p className="text-sm text-muted-foreground">
-                                          {exercise.equipment ?? (locale === "en" ? "No equipment" : "Không có thiết bị")}
+                                          {formatExerciseVariationMeta({
+                                            equipment: exercise.equipment,
+                                            isDefault: exercise.isDefault,
+                                            muscleGroup: exercise.muscleGroup,
+                                            variationName: exercise.variationName,
+                                          })}
                                         </p>
                                         <p className="mt-2 text-xs text-muted-foreground">
                                           {formatNumber(exercise.usageCount, locale)}{" "}
@@ -1677,7 +2104,21 @@ export function AdminConsole() {
                                         >
                                           {locale === "en" ? "Edit" : "Sửa"}
                                         </Button>
-                                        <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: exercise.id, kind: "exercise", label: exercise.name })}>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() =>
+                                            setConfirmState({
+                                              id: exercise.id,
+                                              kind: "exercise",
+                                              label: formatExerciseVariationLabel({
+                                                exerciseName: exercise.name,
+                                                isDefault: exercise.isDefault,
+                                                variationName: exercise.variationName,
+                                              }),
+                                            })
+                                          }
+                                        >
                                           <Trash2 className="h-4 w-4" />
                                           {locale === "en" ? "Delete" : "Xoá"}
                                         </Button>
@@ -1757,8 +2198,8 @@ export function AdminConsole() {
             <DialogTitle>{locale === "en" ? "Import exercises from Excel" : "Import bài tập từ Excel"}</DialogTitle>
             <DialogDescription>
               {locale === "en"
-                ? "Supported files: .xlsx, .xls, .csv. Required columns: name and muscle group. Optional: equipment."
-                : "Hỗ trợ file .xlsx, .xls, .csv. Cột bắt buộc: name và muscle group. Cột tuỳ chọn: equipment."}
+                ? "Supported files: .xlsx, .xls, .csv. Each row is one variation. Required: exercise_name, muscle_group, variation_name."
+                : "Hỗ trợ file .xlsx, .xls, .csv. Mỗi dòng là một variation. Bắt buộc: exercise_name, muscle_group, variation_name."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1775,9 +2216,21 @@ export function AdminConsole() {
               />
               <p className="mt-2 text-xs text-muted-foreground">
                 {locale === "en"
-                  ? "Accepted header aliases include: name/exercise, muscleGroup/bodyPart, equipment/gear."
-                  : "Header có thể dùng các tên tương đương như: name/exercise, muscleGroup/bodyPart, equipment/gear."}
+                  ? "Accepted aliases include: exercise_name/name, muscle_group/bodyPart, variation_name/variation, equipment, is_default, sort_order."
+                  : "Header có thể dùng alias như: exercise_name/name, muscle_group/bodyPart, variation_name/variation, equipment, is_default, sort_order."}
               </p>
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleDownloadExerciseTemplate()}
+                  disabled={actionKey === "exercise-template-download"}
+                >
+                  {actionKey === "exercise-template-download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {locale === "en" ? "Download Excel template" : "Tải file mẫu Excel"}
+                </Button>
+              </div>
             </div>
 
             {importFileName ? (
@@ -1821,14 +2274,14 @@ export function AdminConsole() {
               </div>
             ) : null}
 
-            {importPreviewRows.length ? (
+            {importRows.length ? (
               <div className="rounded-2xl border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{locale === "en" ? "Preview" : "Xem trước"}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {locale === "en"
-                      ? "The first rows below will be created as shared exercises."
-                      : "Các dòng đầu tiên dưới đây sẽ được tạo thành bài tập dùng chung."}
+                      ? "The first rows below will be created as shared exercise variations."
+                      : "Các dòng đầu tiên dưới đây sẽ được tạo thành variation bài tập dùng chung."}
                   </p>
                 </div>
                 <div className="max-h-80 overflow-auto">
@@ -1836,28 +2289,32 @@ export function AdminConsole() {
                     <thead className="bg-muted/30 text-left text-muted-foreground">
                       <tr>
                         <th className="px-4 py-2">{locale === "en" ? "Row" : "Dòng"}</th>
-                        <th className="px-4 py-2">{locale === "en" ? "Name" : "Tên bài tập"}</th>
+                        <th className="px-4 py-2">{locale === "en" ? "Exercise" : "Bài tập gốc"}</th>
                         <th className="px-4 py-2">{locale === "en" ? "Muscle group" : "Nhóm cơ"}</th>
+                        <th className="px-4 py-2">{locale === "en" ? "Variation" : "Variation"}</th>
                         <th className="px-4 py-2">{locale === "en" ? "Equipment" : "Thiết bị"}</th>
+                        <th className="px-4 py-2">{locale === "en" ? "Default" : "Mặc định"}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {importPreviewRows.map((row) => (
-                        <tr key={`${row.rowNumber}-${row.name}`} className="border-t border-border">
+                      {importRows.slice(0, 8).map((row) => (
+                        <tr key={`${row.rowNumber}-${row.exerciseName}-${row.variationName}`} className="border-t border-border">
                           <td className="px-4 py-2 text-muted-foreground">{row.rowNumber}</td>
-                          <td className="px-4 py-2 font-medium">{row.name}</td>
+                          <td className="px-4 py-2 font-medium">{row.exerciseName}</td>
                           <td className="px-4 py-2">{row.muscleGroup}</td>
+                          <td className="px-4 py-2">{row.variationName}</td>
                           <td className="px-4 py-2 text-muted-foreground">{row.equipment ?? (locale === "en" ? "No equipment" : "Không có thiết bị")}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{row.isDefault ? "TRUE" : "FALSE"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {importRows.length > importPreviewRows.length ? (
+                {importRows.length > 8 ? (
                   <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
                     {locale === "en"
-                      ? `Showing ${importPreviewRows.length} of ${importRows.length} valid rows.`
-                      : `Đang hiển thị ${importPreviewRows.length}/${importRows.length} dòng hợp lệ.`}
+                      ? `Showing 8 of ${importRows.length} valid rows.`
+                      : `Đang hiển thị 8/${importRows.length} dòng hợp lệ.`}
                   </div>
                 ) : null}
               </div>
@@ -1879,9 +2336,9 @@ export function AdminConsole() {
       <Dialog open={Boolean(confirmState)} onOpenChange={(open) => setConfirmState(open ? confirmState : null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{locale === "en" ? "Confirm action" : "Xác nhận thao tác"}</DialogTitle>
+            <DialogTitle>{confirmDialogTitle}</DialogTitle>
             <DialogDescription>
-              {locale === "en" ? "You are about to remove or delete this item:" : "Bạn sắp xoá hoặc gỡ mục sau:"}
+              {confirmDialogDescription}
               <span className="mt-2 block font-medium text-foreground">{confirmState?.label}</span>
             </DialogDescription>
           </DialogHeader>
@@ -1892,7 +2349,7 @@ export function AdminConsole() {
             </Button>
             <Button variant="destructive" onClick={() => void handleConfirmAction()} disabled={Boolean(actionKey?.startsWith("confirm-"))}>
               {actionKey?.startsWith("confirm-") ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {locale === "en" ? "Confirm" : "Xác nhận"}
+              {confirmDialogActionLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

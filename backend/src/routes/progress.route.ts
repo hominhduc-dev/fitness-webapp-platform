@@ -3,11 +3,25 @@ import { Router } from "express"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   createBodyMetricForCurrentTrainee,
+  getProgressAnalyticsForCurrentTrainee,
   listBodyMetricsForCurrentTrainee,
 } from "../services/fitness-data.service"
 import { getAccessToken, sendError } from "./route.utils"
 
 const progressRouter = Router()
+
+progressRouter.get("/analytics", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const analytics = await getProgressAnalyticsForCurrentTrainee(profile.profile)
+
+    res.json({
+      analytics,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
 
 progressRouter.get("/weight", async (req, res) => {
   try {

@@ -6,6 +6,7 @@ import type {
   AdminCoachRequest,
   AdminConnectionsData,
   AdminDashboardData,
+  AdminExerciseGroupDeleteResult,
   AdminExerciseItem,
   AdminExerciseImportResult,
   AdminExerciseImportRow,
@@ -37,6 +38,7 @@ type SerializedAdminExerciseItem = Omit<AdminExerciseItem, "createdAt" | "update
 }
 
 type SerializedAdminExerciseImportResult = AdminExerciseImportResult
+type SerializedAdminExerciseGroupDeleteResult = AdminExerciseGroupDeleteResult
 
 type SerializedAdminAuditLogItem = Omit<AdminAuditLogItem, "createdAt"> & {
   createdAt: string
@@ -405,6 +407,15 @@ async function deleteAdminExerciseRequest(accessToken: string, exerciseId: strin
   })
 }
 
+async function deleteAdminExerciseGroupRequest(accessToken: string, muscleGroup: string) {
+  return request<SerializedAdminExerciseGroupDeleteResult>(`/api/admin/exercise-groups`, accessToken, {
+    body: JSON.stringify({
+      muscleGroup,
+    }),
+    method: "DELETE",
+  })
+}
+
 async function importAdminExercisesRequest(accessToken: string, rows: AdminExerciseImportRow[]) {
   const response = await request<{ result: SerializedAdminExerciseImportResult }>(
     `/api/admin/exercises/import`,
@@ -434,6 +445,7 @@ export {
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
   deleteAdminExerciseRequest,
+  deleteAdminExerciseGroupRequest,
   deleteAdminProgramRequest,
   fetchAdminAuditLogs,
   fetchAdminCoachRequests,

@@ -2,7 +2,19 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Dumbbell, GripVertical, Plus, Save, Trash2, Users } from "lucide-react"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { ArrowLeft, ChevronDown, ChevronUp, Dumbbell, GripVertical, Plus, Save, Trash2, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
@@ -23,15 +35,14 @@ import {
   fetchExercises,
   updateCoachProgram,
 } from "@/lib/fitness/api"
-import type { CoachProgram, CoachTrainee } from "@/lib/fitness/types"
-import type { Exercise } from "@/lib/types"
+import type { CoachProgram, CoachTrainee, ExerciseVariationOption } from "@/lib/fitness/types"
 
 type WorkoutExerciseForm = {
-  exerciseId: string
+  variationId: string
   id: string
   reps: number
-  restTime: number
   sets: number
+  weight: string
 }
 
 type WorkoutDay = {
@@ -69,20 +80,17 @@ function estimateWorkoutDuration(exercises: WorkoutExerciseForm[]) {
     return 30
   }
 
-  return Math.max(
-    30,
-    Math.round(exercises.reduce((sum, exercise) => sum + exercise.sets * (exercise.restTime / 60 + 2), 0)),
-  )
+  return Math.max(30, Math.round(exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)))
 }
 
 function mapProgramToWorkoutDays(program: CoachProgram): WorkoutDay[] {
   return program.workouts.map((workout, index) => ({
     exercises: workout.exercises.map((exercise) => ({
-      exerciseId: exercise.exercise.id,
+      variationId: exercise.variation.id,
       id: exercise.id,
       reps: exercise.sets[0]?.targetReps ?? 1,
-      restTime: exercise.restTime ?? 90,
       sets: exercise.sets.length,
+      weight: exercise.sets[0]?.weight != null ? String(exercise.sets[0].weight) : "",
     })),
     id: workout.id,
     name: workout.name,
@@ -97,6 +105,126 @@ function getInitials(name: string) {
     .join("")
 }
 
+function getScheduledDayLabel(scheduledDay: string) {
+  return DAY_OPTIONS.find((option) => option.value === scheduledDay)?.label ?? "Unscheduled"
+}
+
+function SortableWorkoutExerciseCard({
+  exercise,
+  exerciseOptions,
+  onRemove,
+  onUpdate,
+}: {
+  exercise: WorkoutExerciseForm
+  exerciseOptions: ExerciseVariationOption[]
+  onRemove: () => void
+  onUpdate: (patch: Partial<WorkoutExerciseForm>) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: exercise.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 2 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm transition-all ${
+        isDragging ? "scale-[1.01] border-primary/40 shadow-md ring-2 ring-primary/15" : ""
+      }`}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          className="flex h-10 w-10 shrink-0 touch-none items-center justify-center rounded-2xl border border-border/70 bg-background/90 text-muted-foreground hover:border-primary/30 hover:text-foreground sm:h-11 sm:w-11"
+          aria-label="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <ExercisePicker
+            selectedVariationId={exercise.variationId}
+            exercises={exerciseOptions}
+            onSelect={(variationId) => onUpdate({ variationId })}
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 pl-[3.25rem] sm:gap-3 sm:pl-[3.5rem]">
+          <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 sm:gap-3">
+          <div className="flex h-10 min-w-0 flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:px-2">
+            <Label htmlFor={`${exercise.id}-sets`} className="sr-only">
+              Sets
+            </Label>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+              Sets
+            </span>
+            <Input
+              id={`${exercise.id}-sets`}
+              type="number"
+              value={exercise.sets}
+              min={1}
+              onChange={(event) => onUpdate({ sets: Number(event.target.value) || 1 })}
+              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="flex h-10 min-w-0 flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:px-2">
+            <Label htmlFor={`${exercise.id}-reps`} className="sr-only">
+              Reps
+            </Label>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+              Reps
+            </span>
+            <Input
+              id={`${exercise.id}-reps`}
+              type="number"
+              value={exercise.reps}
+              min={1}
+              onChange={(event) => onUpdate({ reps: Number(event.target.value) || 1 })}
+              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="flex h-10 min-w-0 flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:px-2">
+            <Label htmlFor={`${exercise.id}-weight`} className="sr-only">
+              Weight
+            </Label>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
+              Weight
+            </span>
+            <Input
+              id={`${exercise.id}-weight`}
+              type="number"
+              value={exercise.weight}
+              min={0}
+              step="0.5"
+              onChange={(event) => onUpdate({ weight: event.target.value })}
+              placeholder="0"
+              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            />
+          </div>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onRemove}
+          className="h-10 w-10 shrink-0 rounded-2xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
+          aria-label="Remove exercise"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function ProgramEditor({ programId }: ProgramEditorProps) {
   const router = useRouter()
   const { isLoading: authLoading, session } = useAuth()
@@ -104,10 +232,11 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
   const [difficulty, setDifficulty] = useState("beginner")
-  const [exerciseOptions, setExerciseOptions] = useState<Exercise[]>([])
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
   const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>([])
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
-  const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>([createWorkoutDay(0)])
+  const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>([])
+  const [expandedWorkoutDayIds, setExpandedWorkoutDayIds] = useState<Record<string, boolean>>({})
   const [currentProgram, setCurrentProgram] = useState<CoachProgram | null>(null)
   const [isLoadingPage, setIsLoadingPage] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -171,14 +300,38 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     }
   }, [authLoading, programId, session?.access_token])
 
+  useEffect(() => {
+    setExpandedWorkoutDayIds((current) => {
+      const next = { ...current }
+      let changed = false
+      const activeDayIds = new Set(workoutDays.map((day) => day.id))
+
+      workoutDays.forEach((day) => {
+        if (!(day.id in next)) {
+          next[day.id] = false
+          changed = true
+        }
+      })
+
+      Object.keys(next).forEach((dayId) => {
+        if (!activeDayIds.has(dayId)) {
+          delete next[dayId]
+          changed = true
+        }
+      })
+
+      return changed ? next : current
+    })
+  }, [workoutDays])
+
   const addWorkoutDay = () => {
     setWorkoutDays((current) => [...current, createWorkoutDay(current.length)])
   }
 
   const addExercise = (dayId: string) => {
-    const defaultExerciseId = exerciseOptions[0]?.id
+    const defaultVariationId = exerciseOptions[0]?.id
 
-    if (!defaultExerciseId) {
+    if (!defaultVariationId) {
       setError("Chưa có bài tập nào trong thư viện để thêm vào program.")
       return
     }
@@ -191,11 +344,11 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
               exercises: [
                 ...day.exercises,
                 {
-                  exerciseId: defaultExerciseId,
+                  variationId: defaultVariationId,
                   id: String(Date.now()),
                   reps: 10,
-                  restTime: 90,
                   sets: 3,
+                  weight: "",
                 },
               ],
             }
@@ -221,6 +374,60 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     setWorkoutDays((current) => current.filter((day) => day.id !== dayId))
   }
 
+  const toggleWorkoutDayExpanded = (dayId: string) => {
+    setExpandedWorkoutDayIds((current) => ({
+      ...current,
+      [dayId]: !(current[dayId] ?? false),
+    }))
+  }
+
+  const updateExerciseInDay = (dayId: string, exerciseId: string, patch: Partial<WorkoutExerciseForm>) => {
+    setWorkoutDays((current) =>
+      current.map((day) =>
+        day.id === dayId
+          ? {
+              ...day,
+              exercises: day.exercises.map((entry) => (entry.id === exerciseId ? { ...entry, ...patch } : entry)),
+            }
+          : day,
+      ),
+    )
+  }
+
+  const handleDayExerciseDragEnd = (dayId: string) => (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    setWorkoutDays((current) =>
+      current.map((day) => {
+        if (day.id !== dayId) {
+          return day
+        }
+
+        const oldIndex = day.exercises.findIndex((exercise) => exercise.id === active.id)
+        const newIndex = day.exercises.findIndex((exercise) => exercise.id === over.id)
+
+        if (oldIndex < 0 || newIndex < 0) {
+          return day
+        }
+
+        return {
+          ...day,
+          exercises: arrayMove(day.exercises, oldIndex, newIndex),
+        }
+      }),
+    )
+  }
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
   const toggleTraineeAssignment = (traineeId: string, checked: boolean) => {
     setSelectedTraineeIds((current) =>
       checked ? Array.from(new Set([...current, traineeId])) : current.filter((id) => id !== traineeId),
@@ -236,12 +443,19 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     workouts: workoutDays
       .map((day, index) => ({
         duration: estimateWorkoutDuration(day.exercises),
-        exercises: day.exercises.map((exercise) => ({
-          exerciseId: exercise.exerciseId,
-          reps: exercise.reps,
-          restTime: exercise.restTime,
-          sets: exercise.sets,
-        })),
+        exercises: day.exercises.map((exercise) => {
+          const parsedWeight = Number(exercise.weight)
+
+          return {
+            variationId: exercise.variationId,
+            reps: exercise.reps,
+            sets: exercise.sets,
+            weight:
+              exercise.weight.trim() && Number.isFinite(parsedWeight)
+                ? Math.max(0, parsedWeight)
+                : undefined,
+          }
+        }),
         name: day.name.trim() || `Day ${index + 1}`,
         scheduledDay: Number(day.scheduledDay),
       }))
@@ -486,36 +700,98 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
               </div>
 
               <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-semibold sm:text-lg">Workout Days</h2>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <h2 className="text-base font-semibold sm:text-lg">Workout Days</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Shape each day with the same clean card layout used in the trainee workout builder.
+                    </p>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={addWorkoutDay}
-                    className="gap-1.5 bg-transparent text-xs sm:text-sm"
+                    className="gap-1.5 rounded-full border-primary/20 bg-background/90 px-4 text-xs sm:text-sm"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add day
                   </Button>
                 </div>
 
-                <div className="space-y-4">
-                  {workoutDays.map((day) => (
-                    <div key={day.id} className="relative rounded-lg border border-border bg-muted/20 overflow-visible">
-                      <div className="flex flex-col gap-3 rounded-t-lg border-b border-border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                          <Input
-                            value={day.name}
-                            onChange={(event) => {
-                              setWorkoutDays((current) =>
-                                current.map((item) => (item.id === day.id ? { ...item, name: event.target.value } : item)),
-                              )
-                            }}
-                            className="h-8 w-32 sm:w-48 bg-transparent border-0 p-0 font-medium focus-visible:ring-0"
-                          />
+                <div className="space-y-5">
+                  {workoutDays.map((day, dayIndex) => {
+                    const isExpanded = expandedWorkoutDayIds[day.id] ?? false
+                    const dayName = day.name.trim() || `Day ${dayIndex + 1}`
+
+                    return (
+                    <div
+                      key={day.id}
+                      className="rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-4 shadow-sm sm:p-5"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleWorkoutDayExpanded(day.id)}
+                        className="flex w-full items-center justify-between gap-3 rounded-[24px] border border-border/70 bg-background/80 px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-background"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-background/90 text-muted-foreground">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Workout name
+                            </p>
+                            <p className="truncate text-base font-semibold sm:text-lg">{dayName}</p>
+                            <p className="truncate text-sm text-muted-foreground">
+                              {getScheduledDayLabel(day.scheduledDay)} • {day.exercises.length}{" "}
+                              {day.exercises.length === 1 ? "move" : "moves"} • {estimateWorkoutDuration(day.exercises)} min
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <span className="hidden rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary sm:inline-flex">
+                            {day.exercises.length} {day.exercises.length === 1 ? "move" : "moves"}
+                          </span>
+                          <span className="hidden rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
+                            {estimateWorkoutDuration(day.exercises)} min
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
+                          )}
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                      <>
+                      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-end">
+                        <div className="space-y-2">
+                          <Label htmlFor={`${day.id}-name`} className="text-sm">
+                            Workout name
+                          </Label>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-background/90 text-muted-foreground">
+                              <GripVertical className="h-4 w-4" />
+                            </div>
+                            <Input
+                              id={`${day.id}-name`}
+                              value={day.name}
+                              onChange={(event) => {
+                                setWorkoutDays((current) =>
+                                  current.map((item) => (item.id === day.id ? { ...item, name: event.target.value } : item)),
+                                )
+                              }}
+                              placeholder={`Day ${dayIndex + 1}`}
+                              className="h-12 rounded-2xl border-border/70 bg-background/90 shadow-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`${day.id}-scheduled-day`} className="text-sm">
+                            Scheduled day
+                          </Label>
                           <Select
                             value={day.scheduledDay}
                             onValueChange={(value) => {
@@ -524,7 +800,10 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                               )
                             }}
                           >
-                            <SelectTrigger className="h-8 w-[140px] bg-card border-border">
+                            <SelectTrigger
+                              id={`${day.id}-scheduled-day`}
+                              className="h-12 rounded-2xl border-border/70 bg-background/90"
+                            >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-card border-border">
@@ -535,174 +814,89 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 lg:justify-end">
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                              {day.exercises.length} {day.exercises.length === 1 ? "move" : "moves"}
+                            </span>
+                            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                              {estimateWorkoutDuration(day.exercises)} min
+                            </span>
+                          </div>
+
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => removeDay(day.id)}
-                            className="h-7 w-7 text-muted-foreground hover:text-accent"
+                            className="h-11 w-11 rounded-2xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
+                            aria-label="Remove day"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
 
-                      <div className="p-3 space-y-2 sm:p-4 sm:space-y-3">
-                        {day.exercises.map((exercise) => (
-                          <div
-                            key={exercise.id}
-                            className="rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm"
-                          >
-                            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                              <div className="min-w-0 flex-1">
-                                <ExercisePicker
-                                  selectedExerciseId={exercise.exerciseId}
-                                  exercises={exerciseOptions}
-                                  onSelect={(exerciseId) => {
-                                    setWorkoutDays((current) =>
-                                      current.map((item) =>
-                                        item.id === day.id
-                                          ? {
-                                              ...item,
-                                              exercises: item.exercises.map((entry) =>
-                                                entry.id === exercise.id ? { ...entry, exerciseId } : entry,
-                                              ),
-                                            }
-                                          : item,
-                                      ),
-                                    )
-                                  }}
-                                />
-                              </div>
-
-                              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                                <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
-                                  <Label htmlFor={`${exercise.id}-sets`} className="sr-only">
-                                    Sets
-                                  </Label>
-                                  <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-                                    Sets
-                                  </span>
-                                  <Input
-                                    id={`${exercise.id}-sets`}
-                                    type="number"
-                                    value={exercise.sets}
-                                    min={1}
-                                    onChange={(event) => {
-                                      setWorkoutDays((current) =>
-                                        current.map((item) =>
-                                          item.id === day.id
-                                            ? {
-                                                ...item,
-                                                exercises: item.exercises.map((entry) =>
-                                                  entry.id === exercise.id
-                                                    ? { ...entry, sets: Number(event.target.value) || 1 }
-                                                    : entry,
-                                                ),
-                                              }
-                                            : item,
-                                        ),
-                                      )
-                                    }}
-                                    className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-                                  />
-                                </div>
-
-                                <div className="flex h-10 w-[3.25rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[3.75rem] sm:px-2">
-                                  <Label htmlFor={`${exercise.id}-reps`} className="sr-only">
-                                    Reps
-                                  </Label>
-                                  <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-                                    Reps
-                                  </span>
-                                  <Input
-                                    id={`${exercise.id}-reps`}
-                                    type="number"
-                                    value={exercise.reps}
-                                    min={1}
-                                    onChange={(event) => {
-                                      setWorkoutDays((current) =>
-                                        current.map((item) =>
-                                          item.id === day.id
-                                            ? {
-                                                ...item,
-                                                exercises: item.exercises.map((entry) =>
-                                                  entry.id === exercise.id
-                                                    ? { ...entry, reps: Number(event.target.value) || 1 }
-                                                    : entry,
-                                                ),
-                                              }
-                                            : item,
-                                        ),
-                                      )
-                                    }}
-                                    className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-                                  />
-                                </div>
-
-                                <div className="flex h-10 w-[3.5rem] flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:w-[4.25rem] sm:px-2">
-                                  <Label htmlFor={`${exercise.id}-rest`} className="sr-only">
-                                    Rest time in seconds
-                                  </Label>
-                                  <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-                                    Rest
-                                  </span>
-                                  <Input
-                                    id={`${exercise.id}-rest`}
-                                    type="number"
-                                    value={exercise.restTime}
-                                    min={0}
-                                    onChange={(event) => {
-                                      setWorkoutDays((current) =>
-                                        current.map((item) =>
-                                          item.id === day.id
-                                            ? {
-                                                ...item,
-                                                exercises: item.exercises.map((entry) =>
-                                                  entry.id === exercise.id
-                                                    ? { ...entry, restTime: Number(event.target.value) || 0 }
-                                                    : entry,
-                                                ),
-                                              }
-                                            : item,
-                                        ),
-                                      )
-                                    }}
-                                    className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-                                  />
-                                </div>
-
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  onClick={() => removeExercise(day.id, exercise.id)}
-                                  className="h-10 w-10 shrink-0 rounded-xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
-                                  aria-label="Remove exercise"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+                      <div className="mt-5 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(248,250,255,0.98)_0%,rgba(255,255,255,0.92)_100%)] px-4 py-3 shadow-sm">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-semibold">Exercises</h3>
+                              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                                {day.exercises.length} {day.exercises.length === 1 ? "move" : "moves"}
+                              </span>
                             </div>
+                            <p className="text-sm text-muted-foreground">
+                              Choose exercises, drag to reorder them, and set the prescription for this workout day.
+                            </p>
                           </div>
-                        ))}
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addExercise(day.id)}
-                          className="w-full gap-1.5 bg-transparent border-dashed text-xs sm:text-sm"
-                          disabled={exerciseOptions.length === 0}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Add exercise
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addExercise(day.id)}
+                            className="gap-2 rounded-full border-primary/20 bg-background/90 px-4"
+                            disabled={exerciseOptions.length === 0}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add exercise
+                          </Button>
+                        </div>
+
+                        {day.exercises.length > 0 ? (
+                          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDayExerciseDragEnd(day.id)}>
+                            <SortableContext items={day.exercises.map((exercise) => exercise.id)} strategy={verticalListSortingStrategy}>
+                              <div className="space-y-3">
+                                {day.exercises.map((exercise) => (
+                                  <SortableWorkoutExerciseCard
+                                    key={exercise.id}
+                                    exercise={exercise}
+                                    exerciseOptions={exerciseOptions}
+                                    onUpdate={(patch) => updateExerciseInDay(day.id, exercise.id, patch)}
+                                    onRemove={() => removeExercise(day.id, exercise.id)}
+                                  />
+                                ))}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        ) : (
+                          <div className="rounded-[24px] border border-dashed border-border/70 px-4 py-8 text-center">
+                            <Dumbbell className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">No exercises in this day yet...</p>
+                          </div>
+                        )}
                       </div>
+                      </>
+                      ) : null}
                     </div>
-                  ))}
+                    )
+                  })}
 
                   {workoutDays.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Dumbbell className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground">No workout days yet. Add the first day to continue.</p>
+                    <div className="rounded-[24px] border border-dashed border-border px-4 py-10 text-center">
+                      <Dumbbell className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">No workout days yet...</p>
                     </div>
                   ) : null}
                 </div>
