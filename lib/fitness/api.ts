@@ -635,6 +635,11 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
     recentLogs: SerializedWorkoutLog[]
     schedule: Record<number, SerializedWorkout | null>
     todayWorkout: SerializedWorkout | null
+    weekStats: {
+      activeDaysThisWeek: number
+      todayVolume: number
+      workoutsThisWeek: number
+    }
     workouts: SerializedWorkout[]
   }>("/api/workouts", accessToken)
 
@@ -644,6 +649,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
       Object.entries(response.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
     ) as Record<number, Workout | null>,
     todayWorkout: response.todayWorkout ? mapWorkout(response.todayWorkout) : null,
+    weekStats: response.weekStats ?? { activeDaysThisWeek: 0, todayVolume: 0, workoutsThisWeek: 0 },
     workouts: response.workouts.map(mapWorkout),
   }
 }

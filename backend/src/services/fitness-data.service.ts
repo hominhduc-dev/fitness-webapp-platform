@@ -1402,20 +1402,35 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
 
-  const recentLogs = await db.workoutLog.findMany({
-    include: {
-      workout: {
-        include: WORKOUT_INCLUDE,
+  const weekStart = startOfUtcWeek(new Date())
+  const todayStart = startOfUtcDay(new Date())
+
+  const [recentLogs, weekLogs] = await Promise.all([
+    db.workoutLog.findMany({
+      include: {
+        workout: {
+          include: WORKOUT_INCLUDE,
+        },
       },
-    },
-    orderBy: {
-      startedAt: "desc",
-    },
-    take: 5,
-    where: {
-      userId: profile.id,
-    },
-  })
+      orderBy: {
+        startedAt: "desc",
+      },
+      take: 5,
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.workoutLog.findMany({
+      select: {
+        startedAt: true,
+        totalVolume: true,
+      },
+      where: {
+        startedAt: { gte: weekStart },
+        userId: profile.id,
+      },
+    }),
+  ])
 
   const schedule = DAY_LABELS.reduce<Record<number, ReturnType<typeof serializeWorkout> | null>>((accumulator, _label, index) => {
     const workout = recurringWorkouts.find((item) => item.scheduledDay === index)
@@ -1423,13 +1438,23 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     return accumulator
   }, {})
 
-  const todayDateKey = formatUtcDateOnly(startOfUtcDay(new Date()))
+  const todayDateKey = formatUtcDateOnly(todayStart)
   const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
+
+  const activeDaysSet = new Set(weekLogs.map((log) => log.startedAt.getUTCDay()))
+  const todayVolume = weekLogs
+    .filter((log) => log.startedAt >= todayStart)
+    .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
 
   return {
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
     todayWorkout: todayOneOffWorkout ?? schedule[new Date().getDay()] ?? null,
+    weekStats: {
+      activeDaysThisWeek: activeDaysSet.size,
+      todayVolume,
+      workoutsThisWeek: weekLogs.length,
+    },
     workouts: serializedWorkouts,
   }
 }
