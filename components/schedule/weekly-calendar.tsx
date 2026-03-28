@@ -204,7 +204,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
     })
   }
 
-  const logsForDisplay = weekOffset === 0 && weekLogs ? weekLogs : recentLogs
+  const logsForDisplay = weekOffset === 0 && weekLogs && weekLogs.length > 0 ? weekLogs : recentLogs
 
   const entries: ScheduleEntry[] = DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
     const date = addDays(weekStart, displayIndex)
@@ -438,7 +438,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                     </div>
                   </Link>
 
-                  <div className="mt-auto flex h-8 items-center gap-1.5 px-0.5 pt-4 opacity-0 transition-opacity duration-150 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+                  <div className="mt-auto flex h-8 items-center gap-1.5 px-0.5 pt-4">
                     {entry.isCompleted && entry.log ? (
                       <DeleteWorkoutLogButton
                         logId={entry.log.id}
@@ -447,6 +447,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                         onDeleted={() => router.refresh()}
                       />
                     ) : null}
+                    <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-150 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
                     {entry.workout.isPersonal ? (
                       <>
                         <CreateWorkoutDialog
@@ -484,6 +485,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                         ) : null}
                       </>
                     ) : null}
+                    </div>
                   </div>
                 </div>
               ) : (
