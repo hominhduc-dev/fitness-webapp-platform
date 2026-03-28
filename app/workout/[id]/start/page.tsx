@@ -189,6 +189,46 @@ function restoreWorkoutSessionStartTime(startedAt: string) {
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
 }
 
+function getWeekDaysUpToToday(): Date[] {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const weekStart = new Date(today)
+  const offset = (today.getDay() + 6) % 7
+  weekStart.setDate(today.getDate() - offset)
+
+  const days: Date[] = []
+
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart)
+    day.setDate(weekStart.getDate() + i)
+
+    if (day <= today) {
+      days.push(day)
+    }
+  }
+
+  return days
+}
+
+function getDayLabel(date: Date): { primary: string; secondary?: string } {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const target = new Date(date)
+  target.setHours(0, 0, 0, 0)
+
+  const diff = Math.round((today.getTime() - target.getTime()) / (24 * 60 * 60 * 1000))
+
+  const dayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
+  const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`
+
+  if (diff === 0) return { primary: "Hôm nay", secondary: dateStr }
+  if (diff === 1) return { primary: "Hôm qua", secondary: dateStr }
+
+  return { primary: dayNames[date.getDay()], secondary: dateStr }
+}
+
 export default function WorkoutStartPage() {
   const params = useParams()
   const router = useRouter()
@@ -201,7 +241,12 @@ export default function WorkoutStartPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDateDialog, setShowDateDialog] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<"today" | "yesterday">("yesterday")
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(0, 0, 0, 0)
+    return yesterday
+  })
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -298,7 +343,7 @@ export default function WorkoutStartPage() {
     )
   }
 
-  const performSave = async (dateOption: "today" | "yesterday" = "today") => {
+  const performSave = async (logDate: Date = new Date()) => {
     if (!session?.access_token || !workout) {
       return
     }
@@ -306,8 +351,14 @@ export default function WorkoutStartPage() {
     setIsSaving(true)
     setError(null)
 
-    const msOffset = dateOption === "yesterday" ? 24 * 60 * 60 * 1000 : 0
-    const loggedStartedAt = new Date(startTime.getTime() - msOffset)
+    const todayMidnight = new Date()
+    todayMidnight.setHours(0, 0, 0, 0)
+
+    const selectedMidnight = new Date(logDate)
+    selectedMidnight.setHours(0, 0, 0, 0)
+
+    const dayDiff = Math.round((todayMidnight.getTime() - selectedMidnight.getTime()) / (24 * 60 * 60 * 1000))
+    const loggedStartedAt = new Date(startTime.getTime() - dayDiff * 24 * 60 * 60 * 1000)
 
     try {
       await createWorkoutLog(session.access_token, workout.id, {
@@ -337,11 +388,14 @@ export default function WorkoutStartPage() {
         workout.scheduledDate.getDate() === today.getDate())
 
     if (isToday) {
-      void performSave("today")
+      void performSave(new Date())
       return
     }
 
-    setSelectedDate("yesterday")
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(0, 0, 0, 0)
+    setSelectedDate(yesterday)
     setShowDateDialog(true)
   }
 
@@ -431,31 +485,40 @@ export default function WorkoutStartPage() {
             <DialogTitle>Bạn thực sự tập lúc nào?</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3 py-1">
-            {(["yesterday", "today"] as const).map((option) => {
-              const label = option === "yesterday" ? "Hôm qua" : "Hôm nay"
-              const isSelected = selectedDate === option
+          <div className="space-y-2 py-1">
+            {getWeekDaysUpToToday()
+              .slice()
+              .reverse()
+              .map((day) => {
+                const { primary, secondary } = getDayLabel(day)
+                const isSelected =
+                  selectedDate.getFullYear() === day.getFullYear() &&
+                  selectedDate.getMonth() === day.getMonth() &&
+                  selectedDate.getDate() === day.getDate()
 
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setSelectedDate(option)}
-                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-                    isSelected ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/50"
-                  }`}
-                >
-                  <span
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                      isSelected ? "border-primary" : "border-muted-foreground"
+                return (
+                  <button
+                    key={day.toDateString()}
+                    type="button"
+                    onClick={() => setSelectedDate(day)}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                      isSelected
+                        ? "border-primary bg-primary/5 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/50"
                     }`}
                   >
-                    {isSelected && <span className="h-2 w-2 rounded-full bg-primary" />}
-                  </span>
-                  <span className="font-medium">{label}</span>
-                </button>
-              )
-            })}
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                        isSelected ? "border-primary" : "border-muted-foreground"
+                      }`}
+                    >
+                      {isSelected && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="font-medium">{primary}</span>
+                    {secondary && <span className="ml-auto text-sm text-muted-foreground">{secondary}</span>}
+                  </button>
+                )
+              })}
           </div>
 
           <DialogFooter>
