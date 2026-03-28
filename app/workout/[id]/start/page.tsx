@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress"
 import { ExerciseCard } from "@/components/workout/exercise-card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createWorkoutLog, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import type { ExerciseSet, Workout } from "@/lib/types"
 
 const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
@@ -366,6 +367,7 @@ export default function WorkoutStartPage() {
         exercises,
         startedAt: loggedStartedAt.toISOString(),
       })
+      markDashboardForRefresh()
       window.localStorage.removeItem(getWorkoutSessionStorageKey(workout.id))
       router.push("/dashboard")
       router.refresh()

@@ -4,6 +4,9 @@ backend/node_modules/
 backend/dist/
 .env
 .env.local
+.claude/
+.codex/
+.idea/
 .env.development.local
 .env.test.local
 .env.production.local
