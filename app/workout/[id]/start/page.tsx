@@ -8,8 +8,8 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ExerciseCard } from "@/components/workout/exercise-card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { createWorkoutLog, fetchWorkoutDetail, fetchWorkouts } from "@/lib/fitness/api"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { createWorkoutLog, fetchWorkoutDetail } from "@/lib/fitness/api"
 import type { ExerciseSet, Workout } from "@/lib/types"
 
 const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
@@ -200,8 +200,8 @@ export default function WorkoutStartPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasLoggedToday, setHasLoggedToday] = useState(false)
-  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [showDateDialog, setShowDateDialog] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<"today" | "yesterday">("yesterday")
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -222,30 +222,15 @@ export default function WorkoutStartPage() {
       setError(null)
 
       try {
-        const [nextWorkout, workoutCollection] = await Promise.all([
-          fetchWorkoutDetail(session.access_token, workoutId),
-          fetchWorkouts(session.access_token),
-        ])
+        const nextWorkout = await fetchWorkoutDetail(session.access_token, workoutId)
 
         if (cancelled) {
           return
         }
 
-        const today = new Date()
-        const alreadyLoggedToday = workoutCollection.recentLogs.some((log) => {
-          const logDate = log.startedAt
-          return (
-            log.workout.id === workoutId &&
-            logDate.getFullYear() === today.getFullYear() &&
-            logDate.getMonth() === today.getMonth() &&
-            logDate.getDate() === today.getDate()
-          )
-        })
-
         const storedSession = readStoredWorkoutSession(workoutId)
 
         setWorkout(nextWorkout)
-        setHasLoggedToday(alreadyLoggedToday)
         setExercises(
           storedSession ? restoreWorkoutSessionExercises(nextWorkout.exercises, storedSession.exercises) : nextWorkout.exercises,
         )
@@ -313,7 +298,7 @@ export default function WorkoutStartPage() {
     )
   }
 
-  const performSave = async () => {
+  const performSave = async (dateOption: "today" | "yesterday" = "today") => {
     if (!session?.access_token || !workout) {
       return
     }
@@ -321,11 +306,14 @@ export default function WorkoutStartPage() {
     setIsSaving(true)
     setError(null)
 
+    const msOffset = dateOption === "yesterday" ? 24 * 60 * 60 * 1000 : 0
+    const loggedStartedAt = new Date(startTime.getTime() - msOffset)
+
     try {
       await createWorkoutLog(session.access_token, workout.id, {
         completedAt: new Date().toISOString(),
         exercises,
-        startedAt: startTime.toISOString(),
+        startedAt: loggedStartedAt.toISOString(),
       })
       window.localStorage.removeItem(getWorkoutSessionStorageKey(workout.id))
       router.push("/dashboard")
@@ -338,12 +326,23 @@ export default function WorkoutStartPage() {
   }
 
   const handleFinishWorkout = () => {
-    if (hasLoggedToday) {
-      setShowDuplicateDialog(true)
+    if (!workout) return
+
+    const today = new Date()
+    const isToday =
+      (workout.scheduledDay !== undefined && workout.scheduledDay === today.getDay()) ||
+      (workout.scheduledDate !== undefined &&
+        workout.scheduledDate.getFullYear() === today.getFullYear() &&
+        workout.scheduledDate.getMonth() === today.getMonth() &&
+        workout.scheduledDate.getDate() === today.getDate())
+
+    if (isToday) {
+      void performSave("today")
       return
     }
 
-    void performSave()
+    setSelectedDate("yesterday")
+    setShowDateDialog(true)
   }
 
   const elapsedMinutes = Math.max(1, Math.round((Date.now() - startTime.getTime()) / 60000))
@@ -426,26 +425,51 @@ export default function WorkoutStartPage() {
         </div>
       </div>
 
-      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+      <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Workout đã được log hôm nay</DialogTitle>
-            <DialogDescription>
-              Bạn đã log workout này hôm nay rồi. Bạn có muốn lưu thêm một lần nữa với số liệu mới không?
-            </DialogDescription>
+            <DialogTitle>Bạn thực sự tập lúc nào?</DialogTitle>
           </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {(["yesterday", "today"] as const).map((option) => {
+              const label = option === "yesterday" ? "Hôm qua" : "Hôm nay"
+              const isSelected = selectedDate === option
+
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setSelectedDate(option)}
+                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                    isSelected ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  <span
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                      isSelected ? "border-primary" : "border-muted-foreground"
+                    }`}
+                  >
+                    {isSelected && <span className="h-2 w-2 rounded-full bg-primary" />}
+                  </span>
+                  <span className="font-medium">{label}</span>
+                </button>
+              )
+            })}
+          </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDuplicateDialog(false)} disabled={isSaving}>
+            <Button variant="outline" onClick={() => setShowDateDialog(false)} disabled={isSaving}>
               Hủy
             </Button>
             <Button
               onClick={() => {
-                setShowDuplicateDialog(false)
-                void performSave()
+                setShowDateDialog(false)
+                void performSave(selectedDate)
               }}
               disabled={isSaving}
             >
-              {isSaving ? "Đang lưu..." : "Lưu thêm"}
+              {isSaving ? "Đang lưu..." : "Lưu"}
             </Button>
           </DialogFooter>
         </DialogContent>
