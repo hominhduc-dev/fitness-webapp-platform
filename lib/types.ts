@@ -23,6 +23,8 @@ export interface ExerciseBase {
   muscleGroup: string
 }
 
+export type ExerciseSource = "system" | "coach"
+
 export interface ExerciseVariation {
   id: string
   name: string
@@ -30,6 +32,9 @@ export interface ExerciseVariation {
   isDefault: boolean
   metadata?: Record<string, unknown>
   sortOrder: number
+  canManage?: boolean
+  createdById?: string
+  source?: ExerciseSource
 }
 
 export interface ExerciseVariationOption {
@@ -43,9 +48,16 @@ export interface ExerciseVariationOption {
   isDefault: boolean
   metadata?: Record<string, unknown>
   sortOrder: number
+  canManage?: boolean
+  createdById?: string
+  source?: ExerciseSource
 }
 
 export interface ExerciseLibraryExercise extends ExerciseBase {
+  canManage?: boolean
+  createdById?: string
+  createdByName?: string
+  source?: ExerciseSource
   variations: ExerciseVariation[]
 }
 
@@ -92,12 +104,23 @@ export interface Workout {
   notes?: string
 }
 
+export interface WorkoutLogComment {
+  id: string
+  authorId: string
+  authorName: string
+  authorAvatar?: string
+  content: string
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface WorkoutLog {
   id: string
   workout: Workout
   startedAt: Date
   completedAt?: Date
   exercises: WorkoutExercise[]
+  comments: WorkoutLogComment[]
   totalVolume?: number
   notes?: string
 }

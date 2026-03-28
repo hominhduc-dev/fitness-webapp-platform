@@ -16,8 +16,8 @@ function parseExerciseQuery(query: Record<string, unknown>) {
 
 exerciseRouter.get("/library", async (req, res) => {
   try {
-    await requireCurrentProfile(getAccessToken(req))
-    const exercises = await listExerciseLibrary(parseExerciseQuery(req.query as Record<string, unknown>))
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const exercises = await listExerciseLibrary(profile.profile, parseExerciseQuery(req.query as Record<string, unknown>))
 
     res.json({
       exercises,
@@ -29,8 +29,8 @@ exerciseRouter.get("/library", async (req, res) => {
 
 exerciseRouter.get("/", async (req, res) => {
   try {
-    await requireCurrentProfile(getAccessToken(req))
-    const exercises = await listExercises(parseExerciseQuery(req.query as Record<string, unknown>))
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const exercises = await listExercises(profile.profile, parseExerciseQuery(req.query as Record<string, unknown>))
 
     res.json({
       exercises,

@@ -265,6 +265,12 @@ async function WorkoutContent() {
           </div>
         )}
       </div>
+
+      <RecentActivity
+        logs={workoutData.historyLogs}
+        title="Workout History"
+        emptyMessage="Complete a session to build your workout history and receive coach feedback here."
+      />
     </>
   )
 }
