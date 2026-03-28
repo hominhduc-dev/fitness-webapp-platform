@@ -50,6 +50,7 @@ enum NotificationType {
   check_in_reminder
   program_assigned
   coach_request
+  workout_logged
   general
 }
 
@@ -92,6 +93,7 @@ model User {
   programsCreated        Program[]           @relation("ProgramCreator")
   programAssignments     ProgramAssignment[]
   workoutLogs            WorkoutLog[]
+  workoutLogComments     WorkoutLogComment[]   @relation("WorkoutLogCommentAuthor")
   bodyMetricsAsTrainee   BodyMetricEntry[]   @relation("BodyMetricTrainee")
   bodyMetricsAsCoach     BodyMetricEntry[]   @relation("BodyMetricCoach")
   checkInsAsTrainee      CoachCheckIn[]      @relation("CoachCheckInTrainee")
@@ -294,11 +296,26 @@ model WorkoutLog {
   notes            String?
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workout          Workout?  @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  comments         WorkoutLogComment[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   @@index([userId])
   @@index([workoutId])
+}
+
+model WorkoutLogComment {
+  id           String     @id @default(uuid()) @db.Uuid
+  workoutLogId String     @db.Uuid
+  authorId     String     @db.Uuid
+  content      String
+  workoutLog   WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+  author       User       @relation("WorkoutLogCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([workoutLogId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model BodyMetricEntry {

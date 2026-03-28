@@ -3,20 +3,29 @@ import { Router } from "express"
 
 import { requireCurrentProfile } from "../services/auth.service"
 import {
+  adjustCoachProgramForTrainee,
   assignCoachProgramToTrainee,
+  createCoachExercise,
   createBodyMetricForTrainee,
   createCoachRequestForTrainee,
   createCoachCheckInForTrainee,
   createCoachProgram,
+  createWorkoutLogCommentForCoach,
+  deleteCoachExercise,
   deleteCoachProgram,
+  deleteWorkoutLogCommentForCoach,
   getCoachDashboard,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  listCoachExercises,
   listAvailableCoachesForTrainee,
   listCoachPrograms,
+  listCoachWorkoutLogsForTrainee,
   listCoachTrainees,
   unassignCoachProgramFromTrainee,
+  updateCoachExercise,
   updateCoachProgram,
+  updateWorkoutLogCommentForCoach,
   updateCoachRequestStatus,
 } from "../services/fitness-data.service"
 import { getAccessToken, sendError } from "./route.utils"
@@ -42,6 +51,7 @@ function parseProgramInput(body: Record<string, unknown>) {
             exercises?: unknown
             name?: unknown
             scheduledDay?: unknown
+            scheduledDate?: unknown
           }
 
           return {
@@ -67,6 +77,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                 })
               : [],
             name: String(safeRecord.name ?? ""),
+            scheduledDate: typeof safeRecord.scheduledDate === "string" ? safeRecord.scheduledDate : undefined,
             scheduledDay: typeof safeRecord.scheduledDay === "number" ? safeRecord.scheduledDay : undefined,
           }
         })
@@ -161,10 +172,89 @@ coachRouter.patch("/programs/:programId", async (req, res) => {
   }
 })
 
+coachRouter.post("/programs/:programId/adjustments", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const program = await adjustCoachProgramForTrainee(
+      profile.profile,
+      String(req.params.programId),
+      String(req.body.traineeId ?? ""),
+      parseProgramInput(req.body),
+    )
+
+    res.status(201).json({
+      program,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
 coachRouter.delete("/programs/:programId", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
     const result = await deleteCoachProgram(profile.profile, String(req.params.programId))
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.get("/exercises", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const search = typeof req.query.search === "string" ? req.query.search : undefined
+    const exercises = await listCoachExercises(profile.profile, {
+      search,
+    })
+
+    res.json({
+      exercises,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/exercises", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const exercise = await createCoachExercise(profile.profile, {
+      equipment: typeof req.body.equipment === "string" ? req.body.equipment : undefined,
+      muscleGroup: String(req.body.muscleGroup ?? ""),
+      name: String(req.body.name ?? ""),
+    })
+
+    res.status(201).json({
+      exercise,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.patch("/exercises/:exerciseId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const exercise = await updateCoachExercise(profile.profile, String(req.params.exerciseId), {
+      equipment: typeof req.body.equipment === "string" ? req.body.equipment : undefined,
+      muscleGroup: String(req.body.muscleGroup ?? ""),
+      name: String(req.body.name ?? ""),
+    })
+
+    res.json({
+      exercise,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.delete("/exercises/:exerciseId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await deleteCoachExercise(profile.profile, String(req.params.exerciseId))
 
     res.json(result)
   } catch (error) {
@@ -202,6 +292,22 @@ coachRouter.delete("/programs/:programId/assignments/:traineeId", async (req, re
   }
 })
 
+coachRouter.get("/trainees/:traineeId/workout-logs", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined
+    const result = await listCoachWorkoutLogsForTrainee(profile.profile, String(req.params.traineeId), {
+      cursor,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    })
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
 coachRouter.get("/trainees", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
@@ -213,6 +319,47 @@ coachRouter.get("/trainees", async (req, res) => {
     res.json({
       trainees,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/workout-logs/:workoutLogId/comments", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const comment = await createWorkoutLogCommentForCoach(profile.profile, String(req.params.workoutLogId), {
+      content: String(req.body.content ?? ""),
+    })
+
+    res.status(201).json({
+      comment,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.patch("/workout-log-comments/:commentId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const comment = await updateWorkoutLogCommentForCoach(profile.profile, String(req.params.commentId), {
+      content: String(req.body.content ?? ""),
+    })
+
+    res.json({
+      comment,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.delete("/workout-log-comments/:commentId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await deleteWorkoutLogCommentForCoach(profile.profile, String(req.params.commentId))
+
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }

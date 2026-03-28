@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   closestCenter,
   DndContext,
@@ -42,6 +42,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  adjustCoachProgram,
   createCoachProgram,
   deleteCoachProgram,
   fetchCoachProgram,
@@ -277,6 +278,7 @@ function SortableWorkoutExerciseCard({
 
 export function ProgramEditor({ programId }: ProgramEditorProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isLoading: authLoading, session } = useAuth()
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [programName, setProgramName] = useState("")
@@ -299,6 +301,8 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
   const [importInputKey, setImportInputKey] = useState(0)
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
   const [isImportingWorkbook, setIsImportingWorkbook] = useState(false)
+  const adjustForTraineeId = programId ? searchParams.get("adjustTrainee") ?? undefined : undefined
+  const isAdjustMode = Boolean(programId && adjustForTraineeId)
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -335,7 +339,11 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
           setDescription(program.description ?? "")
           setDuration(String(program.duration))
           setDifficulty(program.difficulty)
-          setSelectedTraineeIds(program.assignedTo ?? program.assignedTrainees.map((trainee) => trainee.id))
+          setSelectedTraineeIds(
+            adjustForTraineeId
+              ? [adjustForTraineeId]
+              : (program.assignedTo ?? program.assignedTrainees.map((trainee) => trainee.id)),
+          )
           setWorkoutDays(mapProgramToWorkoutDays(program))
         }
       } catch (loadError) {
@@ -354,7 +362,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     return () => {
       cancelled = true
     }
-  }, [authLoading, programId, session?.access_token])
+  }, [adjustForTraineeId, authLoading, programId, session?.access_token])
 
   useEffect(() => {
     setExpandedWorkoutDayIds((current) => {
@@ -485,6 +493,11 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
   )
 
   const toggleTraineeAssignment = (traineeId: string, checked: boolean) => {
+    if (isAdjustMode && adjustForTraineeId) {
+      setSelectedTraineeIds(checked ? [adjustForTraineeId] : [])
+      return
+    }
+
     setSelectedTraineeIds((current) =>
       checked ? Array.from(new Set([...current, traineeId])) : current.filter((id) => id !== traineeId),
     )
@@ -554,14 +567,17 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     setError(null)
 
     try {
-      const savedProgram = programId
-        ? await updateCoachProgram(session.access_token, programId, payload)
-        : await createCoachProgram(session.access_token, payload)
+      const savedProgram =
+        programId && adjustForTraineeId
+          ? await adjustCoachProgram(session.access_token, programId, adjustForTraineeId, payload)
+          : programId
+            ? await updateCoachProgram(session.access_token, programId, payload)
+            : await createCoachProgram(session.access_token, payload)
 
       setCurrentProgram(savedProgram)
       setSelectedTraineeIds(savedProgram.assignedTo ?? savedProgram.assignedTrainees.map((trainee) => trainee.id))
 
-      router.push(`/coach/programs/${savedProgram.id}`)
+      router.push(adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : `/coach/programs/${savedProgram.id}`)
       router.refresh()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Không thể lưu program.")
@@ -636,7 +652,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
         setDifficulty(importedProgram.difficulty)
       }
 
-      if (importedProgram.assignToUserIds) {
+      if (importedProgram.assignToUserIds && !isAdjustMode) {
         setSelectedTraineeIds(importedProgram.assignToUserIds)
       }
 
@@ -659,6 +675,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
   }
 
   const selectedTrainees = traineeOptions.filter((trainee) => selectedTraineeIds.includes(trainee.id))
+  const adjustTrainee = adjustForTraineeId ? traineeOptions.find((trainee) => trainee.id === adjustForTraineeId) : undefined
 
   return (
     <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 md:px-6" aria-busy={isSaving}>
@@ -705,20 +722,34 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
       ) : null}
 
       <div className="mb-4 flex items-center gap-3 sm:mb-6">
-        <Link href="/coach/programs">
+        <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>
           <Button variant="ghost" size="icon" className="shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold sm:text-2xl">
-            {programId ? currentProgram?.name || "Program Details" : "Create new program"}
+            {isAdjustMode ? "Adjust plan for trainee" : programId ? currentProgram?.name || "Program Details" : "Create new program"}
           </h1>
           <p className="truncate text-sm text-muted-foreground">
-            {programId ? "Update or remove this saved program" : "Save directly to Prisma/Postgres"}
+            {isAdjustMode
+              ? "Create a trainee-specific copy without changing the original shared program."
+              : programId
+                ? "Update or remove this saved program"
+                : "Save directly to Prisma/Postgres"}
           </p>
         </div>
       </div>
+
+      {isAdjustMode && adjustTrainee ? (
+        <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-primary">Adjust mode</p>
+          <p className="mt-2 text-sm text-foreground">
+            You are creating a dedicated plan copy for <span className="font-semibold">{adjustTrainee.name}</span>.
+            Other trainees assigned to the original program will stay unchanged.
+          </p>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -876,9 +907,13 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
               <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-base font-semibold sm:text-lg">Assign To Trainees</h2>
+                    <h2 className="text-base font-semibold sm:text-lg">
+                      {isAdjustMode ? "Assigned trainee" : "Assign To Trainees"}
+                    </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Select who should receive this program right after saving.
+                      {isAdjustMode
+                        ? "This adjustment will only be assigned to the selected trainee below."
+                        : "Select who should receive this program right after saving."}
                     </p>
                   </div>
                   <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
@@ -908,6 +943,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                             checked={isChecked}
                             onCheckedChange={(checked) => toggleTraineeAssignment(trainee.id, Boolean(checked))}
                             className="mt-0.5"
+                            disabled={isAdjustMode}
                           />
                           <Avatar className="h-10 w-10 border border-primary/20">
                             <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
@@ -1134,7 +1170,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                {programId ? (
+                {programId && !isAdjustMode ? (
                   <Button
                     variant="outline"
                     className="w-full sm:w-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -1144,14 +1180,14 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                     {isDeleting ? "Deleting..." : "Delete Program"}
                   </Button>
                 ) : null}
-                <Link href="/coach/programs" className="w-full sm:w-auto">
+                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} className="w-full sm:w-auto">
                   <Button variant="outline" className="w-full bg-transparent">
                     Cancel
                   </Button>
                 </Link>
                 <Button className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90" onClick={() => void handleSaveProgram()} disabled={isSaving}>
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {isSaving ? "Saving..." : programId ? "Update Program" : "Save Program"}
+                  {isSaving ? "Saving..." : isAdjustMode ? "Save Adjusted Plan" : programId ? "Update Program" : "Save Program"}
                 </Button>
               </div>
       </div>
