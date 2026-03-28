@@ -1421,9 +1421,13 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       },
     }),
     db.workoutLog.findMany({
-      select: {
-        startedAt: true,
-        totalVolume: true,
+      include: {
+        workout: {
+          include: WORKOUT_INCLUDE,
+        },
+      },
+      orderBy: {
+        startedAt: "desc",
       },
       where: {
         startedAt: { gte: weekStart },
@@ -1450,6 +1454,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
     todayWorkout: todayOneOffWorkout ?? schedule[new Date().getDay()] ?? null,
+    weekLogs: weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     weekStats: {
       activeDaysThisWeek: activeDaysSet.size,
       todayVolume,
@@ -1457,6 +1462,29 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     },
     workouts: serializedWorkouts,
   }
+}
+
+async function deleteWorkoutLogForTrainee(profile: SerializedProfile, workoutId: string, logId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const log = await db.workoutLog.findFirst({
+    where: {
+      id: logId,
+      workoutId,
+      userId: profile.id,
+    },
+  })
+
+  if (!log) {
+    throw new AuthServiceError("Không tìm thấy log workout.", 404)
+  }
+
+  await db.workoutLog.delete({
+    where: { id: logId },
+  })
+
+  return { deleted: true, id: logId }
 }
 
 async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId: string) {
@@ -2945,6 +2973,7 @@ export {
   deleteCoachProgram,
   deleteMealForUser,
   deletePersonalWorkoutForTrainee,
+  deleteWorkoutLogForTrainee,
   getCoachDashboard,
   getCoachProgramDetail,
   getCoachTraineeDetail,

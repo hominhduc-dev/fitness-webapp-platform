@@ -635,6 +635,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
     recentLogs: SerializedWorkoutLog[]
     schedule: Record<number, SerializedWorkout | null>
     todayWorkout: SerializedWorkout | null
+    weekLogs: SerializedWorkoutLog[]
     weekStats: {
       activeDaysThisWeek: number
       todayVolume: number
@@ -649,6 +650,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
       Object.entries(response.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
     ) as Record<number, Workout | null>,
     todayWorkout: response.todayWorkout ? mapWorkout(response.todayWorkout) : null,
+    weekLogs: (response.weekLogs ?? []).map(mapWorkoutLog),
     weekStats: response.weekStats ?? { activeDaysThisWeek: 0, todayVolume: 0, workoutsThisWeek: 0 },
     workouts: response.workouts.map(mapWorkout),
   }
@@ -696,6 +698,12 @@ async function createWorkoutLog(accessToken: string, workoutId: string, input: W
   })
 
   return mapWorkoutLog(response.log)
+}
+
+async function deleteWorkoutLog(accessToken: string, workoutId: string, logId: string) {
+  await request<{ deleted: boolean; id: string }>(`/api/workouts/${workoutId}/logs/${logId}`, accessToken, {
+    method: "DELETE",
+  })
 }
 
 async function fetchExercises(
@@ -936,6 +944,7 @@ export {
   createWorkout,
   createWorkoutLog,
   deleteWorkout,
+  deleteWorkoutLog,
   deleteMeal,
   deleteCoachProgram,
   fetchProgressAnalytics,

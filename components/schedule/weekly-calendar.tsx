@@ -2,12 +2,14 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { addDays, differenceInMinutes, format, isSameDay, isToday, startOfWeek } from "date-fns"
 import { CheckCircle2, ChevronLeft, ChevronRight, Copy, PencilLine, Play, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
+import { DeleteWorkoutLogButton } from "@/components/workout/delete-workout-log-button"
 import { cn } from "@/lib/utils"
 import type { Workout, WorkoutLog, WeeklySchedule } from "@/lib/types"
 
@@ -15,6 +17,7 @@ type WeeklyCalendarProps = {
   recentLogs: WorkoutLog[]
   schedule: WeeklySchedule
   showHero?: boolean
+  weekLogs?: WorkoutLog[]
   workouts: Workout[]
 }
 
@@ -112,7 +115,8 @@ function getScheduledWorkoutForDate(workouts: Workout[], schedule: WeeklySchedul
   return recurringWorkout ?? schedule[date.getDay()] ?? null
 }
 
-export function WeeklyCalendar({ recentLogs, schedule, showHero = true, workouts }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs, workouts }: WeeklyCalendarProps) {
+  const router = useRouter()
   const [weekOffset, setWeekOffset] = useState(0)
   const [copied, setCopied] = useState(false)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
@@ -200,6 +204,8 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, workouts
     })
   }
 
+  const logsForDisplay = weekOffset === 0 && weekLogs ? weekLogs : recentLogs
+
   const entries: ScheduleEntry[] = DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
     const date = addDays(weekStart, displayIndex)
     const dateKey = getDateKey(date)
@@ -207,7 +213,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, workouts
     const workout = Object.hasOwn(optimisticScheduleByDate, dateKey)
       ? optimisticScheduleByDate[dateKey] ?? null
       : baseWorkout
-    const log = getLogForDate(recentLogs, date, workout)
+    const log = getLogForDate(logsForDisplay, date, workout)
 
     return {
       date,
@@ -354,16 +360,26 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, workouts
               </div>
 
               {entry.workout ? (
-                <Link
-                  href={`/workout/${entry.workout.id}/start`}
-                  className={cn(
-                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-background transition-all hover:border-primary/30",
-                    entry.isCompleted ? "border-primary/30 text-primary" : "border-border text-foreground",
-                  )}
-                  aria-label={entry.isCompleted ? `Review ${entry.workout.name}` : `Open ${entry.workout.name}`}
-                >
-                  {entry.isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
-                </Link>
+                <div className="flex shrink-0 items-center gap-1">
+                  {entry.isCompleted && entry.log ? (
+                    <DeleteWorkoutLogButton
+                      logId={entry.log.id}
+                      workoutId={entry.workout.id}
+                      refreshOnSuccess={false}
+                      onDeleted={() => router.refresh()}
+                    />
+                  ) : null}
+                  <Link
+                    href={`/workout/${entry.workout.id}/start`}
+                    className={cn(
+                      "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-background transition-all hover:border-primary/30",
+                      entry.isCompleted ? "border-primary/30 text-primary" : "border-border text-foreground",
+                    )}
+                    aria-label={entry.isCompleted ? `Review ${entry.workout.name}` : `Open ${entry.workout.name}`}
+                  >
+                    {entry.isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+                  </Link>
+                </div>
               ) : (
                 <CreateWorkoutDialog
                   defaultScheduledDate={entry.date}
@@ -423,6 +439,14 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, workouts
                   </Link>
 
                   <div className="mt-auto flex h-8 items-center gap-1.5 px-0.5 pt-4 opacity-0 transition-opacity duration-150 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+                    {entry.isCompleted && entry.log ? (
+                      <DeleteWorkoutLogButton
+                        logId={entry.log.id}
+                        workoutId={entry.workout.id}
+                        refreshOnSuccess={false}
+                        onDeleted={() => router.refresh()}
+                      />
+                    ) : null}
                     {entry.workout.isPersonal ? (
                       <>
                         <CreateWorkoutDialog

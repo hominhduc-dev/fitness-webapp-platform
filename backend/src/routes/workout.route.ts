@@ -5,6 +5,7 @@ import {
   createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
+  deleteWorkoutLogForTrainee,
   getWorkoutDetailForTrainee,
   listWorkoutsForTrainee,
   updatePersonalWorkoutForTrainee,
@@ -117,6 +118,21 @@ workoutRouter.post("/:workoutId/logs", async (req, res) => {
     res.status(201).json({
       log,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+workoutRouter.delete("/:workoutId/logs/:logId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await deleteWorkoutLogForTrainee(
+      profile.profile,
+      String(req.params.workoutId),
+      String(req.params.logId),
+    )
+
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }
