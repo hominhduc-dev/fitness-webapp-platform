@@ -2,12 +2,14 @@ import type {
   DailyNutrition,
   ExerciseBase,
   ExerciseLibraryExercise,
+  ExerciseSource,
   ExerciseVariation,
   ExerciseVariationOption,
   Meal,
   Program,
   Workout,
   WorkoutLog,
+  WorkoutLogComment,
 } from "@/lib/types"
 
 type AssignedTrainee = {
@@ -24,7 +26,9 @@ type CoachProgram = Program & {
 }
 
 type CoachTrainee = {
+  assignedProgramIds?: string[]
   avatar?: string | null
+  completionRate?: number
   createdAt: Date
   email: string
   fitnessGoals: string[]
@@ -32,6 +36,7 @@ type CoachTrainee = {
   lastCheckInAt?: Date
   latestWeightKg?: number
   name: string
+  plannedSessionsPerWeek?: number
   phone?: string
   programCount: number
   thisWeekWorkouts: number
@@ -54,6 +59,7 @@ type WeeklyCaloriesPoint = {
 }
 
 type WorkoutCollection = {
+  historyLogs: WorkoutLog[]
   recentLogs: WorkoutLog[]
   schedule: Record<number, Workout | null>
   todayWorkout: Workout | null
@@ -72,8 +78,41 @@ type MealCollection = {
   weeklyCalories: WeeklyCaloriesPoint[]
 }
 
+type CoachDashboardSummary = {
+  atRiskTraineeCount: number
+  averageCompletionRate: number
+  totalPlannedSessions: number
+  totalTrainees: number
+  unreadNotificationCount: number
+  workoutsThisWeek: number
+}
+
+type CoachDashboardActivityPoint = {
+  date: Date
+  label: string
+  totalVolume: number
+  workouts: number
+}
+
+type CoachDashboardRecentWorkoutLog = {
+  commentCount: number
+  completedAt?: Date
+  id: string
+  startedAt: Date
+  totalVolume?: number
+  trainee: AssignedTrainee
+  workout: {
+    id: string
+    name: string
+  }
+}
+
 type CoachDashboardData = {
+  activityByDay: CoachDashboardActivityPoint[]
+  atRiskTrainees: CoachTrainee[]
   pendingRequests: CoachRequestSummary[]
+  recentWorkoutLogs: CoachDashboardRecentWorkoutLog[]
+  summary: CoachDashboardSummary
   trainees: CoachTrainee[]
 }
 
@@ -228,20 +267,87 @@ type WorkoutLogInput = {
   startedAt?: string
 }
 
+type CoachWorkoutLogPage = {
+  logs: WorkoutLog[]
+  nextCursor?: string
+}
+
+type CoachExercise = {
+  canManage: boolean
+  createdAt: Date
+  createdById?: string
+  createdByName?: string
+  equipment?: string
+  id: string
+  muscleGroup: string
+  name: string
+  source: ExerciseSource
+  updatedAt: Date
+  usageCount: number
+  variationId?: string
+  variationName: string
+}
+
+type CoachExerciseInput = {
+  equipment?: string
+  muscleGroup: string
+  name: string
+}
+
+type AppNotificationType =
+  | "check_in_reminder"
+  | "coach_request"
+  | "general"
+  | "meal_reminder"
+  | "program_assigned"
+  | "workout_logged"
+  | "workout_reminder"
+
+type AppNotificationStatus = "cancelled" | "failed" | "pending" | "sent"
+
+type AppNotification = {
+  createdAt: Date
+  id: string
+  message: string
+  metadata?: Record<string, unknown>
+  readAt?: Date
+  relatedEntityId?: string
+  relatedEntityType?: string
+  scheduledFor: Date
+  status: AppNotificationStatus
+  title: string
+  type: AppNotificationType
+}
+
+type NotificationList = {
+  notifications: AppNotification[]
+  unreadCount: number
+}
+
 export type {
+  AppNotification,
+  AppNotificationStatus,
+  AppNotificationType,
   AssignedTrainee,
   BodyMetricEntry,
   CoachCheckIn,
+  CoachDashboardActivityPoint,
   CoachDashboardData,
+  CoachDashboardRecentWorkoutLog,
+  CoachDashboardSummary,
+  CoachExercise,
+  CoachExerciseInput,
   CoachProgressSummary,
   CoachProgram,
   CoachRequestSummary,
   CoachTrainee,
   CoachTraineeDetail,
+  CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
   MealCollection,
+  NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
   ProgressMuscleGroupPoint,
@@ -255,4 +361,4 @@ export type {
 }
 
 export type Exercise = ExerciseVariationOption
-export type { ExerciseBase, ExerciseLibraryExercise, ExerciseVariation, ExerciseVariationOption }
+export type { ExerciseBase, ExerciseLibraryExercise, ExerciseSource, ExerciseVariation, ExerciseVariationOption, WorkoutLogComment }

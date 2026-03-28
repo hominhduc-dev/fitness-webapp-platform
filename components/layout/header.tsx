@@ -5,7 +5,7 @@ import type React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Bell, Settings, Menu } from "lucide-react"
+import { Settings, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { NotificationInbox } from "@/components/layout/notification-inbox"
 import { LocaleToggle } from "@/components/locale/locale-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -29,7 +30,7 @@ interface HeaderProps {
 export function Header({ showMenu, onMenuClick }: HeaderProps) {
   const router = useRouter()
   const { isLoading, profile, signOut } = useAuth()
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const dashboardHref = getRoleLandingPath(profile?.role)
@@ -79,10 +80,7 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
           <div className="hidden md:block">
             <LocaleToggle compact />
           </div>
-          <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full">
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-primary" />
-          </Button>
+          <NotificationInbox locale={locale} />
 
           {isMounted ? (
             <DropdownMenu>

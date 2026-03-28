@@ -6,6 +6,7 @@ import { BarChart3, ClipboardCheck, Loader2, Scale, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 import { RecentActivity } from "@/components/dashboard/recent-activity"
+import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -263,11 +264,12 @@ export function CoachTraineeDetailClient({
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-4 bg-card">
+      <TabsList className="grid w-full grid-cols-5 bg-card">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="progress">Progress</TabsTrigger>
         <TabsTrigger value="metrics">Body Metrics</TabsTrigger>
         <TabsTrigger value="checkins">Check-ins</TabsTrigger>
+        <TabsTrigger value="logs">Workout Logs</TabsTrigger>
       </TabsList>
 
       <TabsContent value="overview" className="space-y-6">
@@ -348,22 +350,32 @@ export function CoachTraineeDetailClient({
                   className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 flex-1">
-                    <Link href={`/coach/programs/${program.id}`} className="font-semibold text-primary hover:underline">
-                      {program.name}
-                    </Link>
+                    <p className="font-semibold">{program.name}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {program.workoutsPerWeek} workouts/week • {program.duration} weeks • {program.difficulty}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => void handleUnassignProgram(program.id)}
-                    disabled={removingProgramId === program.id}
-                  >
-                    {removingProgramId === program.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                    Gỡ gán
-                  </Button>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Link href={`/coach/programs/${program.id}`} className="w-full sm:w-auto">
+                      <Button variant="outline" className="w-full bg-transparent">
+                        Open plan
+                      </Button>
+                    </Link>
+                    <Link href={`/coach/programs/${program.id}?adjustTrainee=${detail.trainee.id}`} className="w-full sm:w-auto">
+                      <Button className="w-full bg-primary hover:bg-primary/90">
+                        Adjust plan
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => void handleUnassignProgram(program.id)}
+                      disabled={removingProgramId === program.id}
+                    >
+                      {removingProgramId === program.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                      Gỡ gán
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -768,6 +780,21 @@ export function CoachTraineeDetailClient({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="logs" className="space-y-6">
+        <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <div>
+            <h2 className="text-lg font-semibold">Workout Log History</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review the full session timeline, inspect logged work, and leave feedback on each completed workout.
+            </p>
+          </div>
+
+          <div className="mt-6">
+            <TraineeWorkoutLogsPanel traineeId={detail.trainee.id} initialLogs={detail.recentLogs} />
           </div>
         </div>
       </TabsContent>
