@@ -8,7 +8,8 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ExerciseCard } from "@/components/workout/exercise-card"
-import { createWorkoutLog, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { createWorkoutLog, fetchWorkoutDetail, fetchWorkouts } from "@/lib/fitness/api"
 import type { ExerciseSet, Workout } from "@/lib/types"
 
 const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
@@ -199,6 +200,8 @@ export default function WorkoutStartPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasLoggedToday, setHasLoggedToday] = useState(false)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -219,15 +222,30 @@ export default function WorkoutStartPage() {
       setError(null)
 
       try {
-        const nextWorkout = await fetchWorkoutDetail(session.access_token, workoutId)
+        const [nextWorkout, workoutCollection] = await Promise.all([
+          fetchWorkoutDetail(session.access_token, workoutId),
+          fetchWorkouts(session.access_token),
+        ])
 
         if (cancelled) {
           return
         }
 
+        const today = new Date()
+        const alreadyLoggedToday = workoutCollection.recentLogs.some((log) => {
+          const logDate = log.startedAt
+          return (
+            log.workout.id === workoutId &&
+            logDate.getFullYear() === today.getFullYear() &&
+            logDate.getMonth() === today.getMonth() &&
+            logDate.getDate() === today.getDate()
+          )
+        })
+
         const storedSession = readStoredWorkoutSession(workoutId)
 
         setWorkout(nextWorkout)
+        setHasLoggedToday(alreadyLoggedToday)
         setExercises(
           storedSession ? restoreWorkoutSessionExercises(nextWorkout.exercises, storedSession.exercises) : nextWorkout.exercises,
         )
@@ -295,7 +313,7 @@ export default function WorkoutStartPage() {
     )
   }
 
-  const handleFinishWorkout = async () => {
+  const performSave = async () => {
     if (!session?.access_token || !workout) {
       return
     }
@@ -317,6 +335,15 @@ export default function WorkoutStartPage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleFinishWorkout = () => {
+    if (hasLoggedToday) {
+      setShowDuplicateDialog(true)
+      return
+    }
+
+    void performSave()
   }
 
   const elapsedMinutes = Math.max(1, Math.round((Date.now() - startTime.getTime()) / 60000))
@@ -390,7 +417,7 @@ export default function WorkoutStartPage() {
           <Button
             size="lg"
             className="flex-1 bg-success hover:bg-success/90 text-white font-semibold gap-2"
-            onClick={() => void handleFinishWorkout()}
+            onClick={handleFinishWorkout}
             disabled={completedSets === 0 || isSaving}
           >
             <Check className="h-5 w-5" />
@@ -398,6 +425,31 @@ export default function WorkoutStartPage() {
           </Button>
         </div>
       </div>
+
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Workout đã được log hôm nay</DialogTitle>
+            <DialogDescription>
+              Bạn đã log workout này hôm nay rồi. Bạn có muốn lưu thêm một lần nữa với số liệu mới không?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDuplicateDialog(false)} disabled={isSaving}>
+              Hủy
+            </Button>
+            <Button
+              onClick={() => {
+                setShowDuplicateDialog(false)
+                void performSave()
+              }}
+              disabled={isSaving}
+            >
+              {isSaving ? "Đang lưu..." : "Lưu thêm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

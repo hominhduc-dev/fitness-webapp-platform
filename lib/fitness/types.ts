@@ -57,6 +57,11 @@ type WorkoutCollection = {
   recentLogs: WorkoutLog[]
   schedule: Record<number, Workout | null>
   todayWorkout: Workout | null
+  weekStats: {
+    activeDaysThisWeek: number
+    todayVolume: number
+    workoutsThisWeek: number
+  }
   workouts: Workout[]
 }
 

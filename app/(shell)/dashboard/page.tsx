@@ -122,16 +122,9 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
   const { workoutData, mealData } = await getDashboardData(accessToken)
 
   const isVietnamese = locale === "vi"
+  const { activeDaysThisWeek, workoutsThisWeek, todayVolume } = workoutData.weekStats
   const weekStart = startOfCurrentWeek(new Date())
-  const workoutsThisWeek = workoutData.recentLogs.filter((log) => log.startedAt >= weekStart).length
   const scheduledThisWeek = countScheduledWorkoutsInWeek(workoutData.workouts, workoutData.schedule, weekStart)
-  const completedDays = new Set(
-    workoutData.recentLogs.filter((log) => log.startedAt >= weekStart).map((log) => log.startedAt.getDay()),
-  )
-  const activeDaysThisWeek = completedDays.size
-  const totalVolume = workoutData.recentLogs
-    .filter((log) => log.startedAt >= weekStart)
-    .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
   const nextWorkout = resolveNextWorkoutLabel(workoutData.workouts, workoutData.schedule, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
   const statCards = [
@@ -156,7 +149,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
       icon: TrendingUp,
       label: messages.dashboard.totalVolume,
       tone: "neutral",
-      value: totalVolume.toLocaleString(),
+      value: todayVolume.toLocaleString(),
     },
     {
       helper: nextWorkout.subtitle,
