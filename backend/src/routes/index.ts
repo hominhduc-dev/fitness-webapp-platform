@@ -6,6 +6,7 @@ import { coachRouter } from "./coach.route"
 import { exerciseRouter } from "./exercise.route"
 import { healthRouter } from "./health.route"
 import { mealRouter } from "./meal.route"
+import { notificationRouter } from "./notification.route"
 import { progressRouter } from "./progress.route"
 import { workoutRouter } from "./workout.route"
 
@@ -24,6 +25,7 @@ apiRouter.use("/admin", adminRouter)
 apiRouter.use("/coach", coachRouter)
 apiRouter.use("/exercises", exerciseRouter)
 apiRouter.use("/meals", mealRouter)
+apiRouter.use("/notifications", notificationRouter)
 apiRouter.use("/progress", progressRouter)
 apiRouter.use("/workouts", workoutRouter)
 

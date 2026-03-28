@@ -16,15 +16,22 @@ import type {
 import type {
   BodyMetricEntry,
   CoachCheckIn,
+  CoachDashboardActivityPoint,
   CoachDashboardData,
+  CoachDashboardRecentWorkoutLog,
+  CoachDashboardSummary,
+  CoachExercise,
+  CoachExerciseInput,
   CoachProgressSummary,
   CoachProgram,
   CoachTrainee,
   CoachTraineeDetail,
+  CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
   MealCollection,
+  NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
   ProgressMuscleGroupPoint,
@@ -35,16 +42,20 @@ import type {
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
+  AppNotification,
 } from "./types"
 
 type SerializedExerciseBase = ExerciseBase
 
 type SerializedExerciseVariation = {
+  canManage?: boolean
+  createdById?: string
   equipment?: string
   id: string
   isDefault: boolean
   metadata?: Record<string, unknown>
   name: string
+  source?: "coach" | "system"
   sortOrder: number
 }
 
@@ -90,7 +101,18 @@ type SerializedWorkout = {
   scheduledDate?: string
 }
 
+type SerializedWorkoutLogComment = {
+  authorAvatar?: string
+  authorId: string
+  authorName: string
+  content: string
+  createdAt: string
+  id: string
+  updatedAt: string
+}
+
 type SerializedWorkoutLog = {
+  comments: SerializedWorkoutLogComment[]
   completedAt?: string | null
   exercises: SerializedWorkoutExercise[]
   id: string
@@ -112,6 +134,10 @@ type SerializedMeal = {
 }
 
 type SerializedExerciseLibraryExercise = SerializedExerciseBase & {
+  canManage?: boolean
+  createdById?: string
+  createdByName?: string
+  source?: "coach" | "system"
   variations: SerializedExerciseVariation[]
 }
 
@@ -130,7 +156,9 @@ type SerializedCoachProgram = Omit<Program, "createdAt" | "workouts"> & {
 }
 
 type SerializedCoachTrainee = {
+  assignedProgramIds?: string[]
   avatar?: string | null
+  completionRate?: number
   createdAt: string
   email: string
   fitnessGoals: string[]
@@ -138,6 +166,7 @@ type SerializedCoachTrainee = {
   lastCheckInAt?: string | null
   latestWeightKg?: number | null
   name: string
+  plannedSessionsPerWeek?: number
   phone?: string | null
   programCount: number
   thisWeekWorkouts: number
@@ -213,6 +242,65 @@ type SerializedCoachProgressSummary = {
   totalVolumeLast30Days: number
   workoutsLast30Days: number
   workoutsLast7Days: number
+}
+
+type SerializedCoachDashboardSummary = {
+  atRiskTraineeCount: number
+  averageCompletionRate: number
+  totalPlannedSessions: number
+  totalTrainees: number
+  unreadNotificationCount: number
+  workoutsThisWeek: number
+}
+
+type SerializedCoachDashboardActivityPoint = {
+  date: string
+  label: string
+  totalVolume: number
+  workouts: number
+}
+
+type SerializedCoachDashboardRecentWorkoutLog = {
+  commentCount: number
+  completedAt?: string | null
+  id: string
+  startedAt: string
+  totalVolume?: number
+  trainee: SerializedAssignedTrainee
+  workout: {
+    id: string
+    name: string
+  }
+}
+
+type SerializedCoachExercise = {
+  canManage: boolean
+  createdAt: string
+  createdById?: string
+  createdByName?: string
+  equipment?: string
+  id: string
+  muscleGroup: string
+  name: string
+  source: "coach" | "system"
+  updatedAt: string
+  usageCount: number
+  variationId?: string
+  variationName: string
+}
+
+type SerializedNotification = {
+  createdAt: string
+  id: string
+  message: string
+  metadata?: Record<string, unknown>
+  readAt?: string | null
+  relatedEntityId?: string | null
+  relatedEntityType?: string | null
+  scheduledFor: string
+  status: AppNotification["status"]
+  title: string
+  type: AppNotification["type"]
 }
 
 type SerializedProgressAnalytics = {
@@ -299,6 +387,18 @@ function buildExerciseQuery(options?: { equipment?: string; muscleGroup?: string
   return searchParams.size > 0 ? `?${searchParams.toString()}` : ""
 }
 
+function buildSearchQuery(search?: string) {
+  const normalizedSearch = search?.trim()
+
+  if (!normalizedSearch) {
+    return ""
+  }
+
+  const searchParams = new URLSearchParams()
+  searchParams.set("search", normalizedSearch)
+  return `?${searchParams.toString()}`
+}
+
 function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
   return {
     actualReps: set.actualReps,
@@ -323,11 +423,14 @@ function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
 
 function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseVariation {
   return {
+    canManage: variation.canManage,
+    createdById: variation.createdById,
     equipment: variation.equipment,
     id: variation.id,
     isDefault: variation.isDefault,
     metadata: variation.metadata,
     name: variation.name,
+    source: variation.source,
     sortOrder: variation.sortOrder,
   }
 }
@@ -397,6 +500,15 @@ function mapWorkout(workout: SerializedWorkout): Workout {
 
 function mapWorkoutLog(log: SerializedWorkoutLog): WorkoutLog {
   return {
+    comments: (log.comments ?? []).map((comment) => ({
+      authorAvatar: comment.authorAvatar,
+      authorId: comment.authorId,
+      authorName: comment.authorName,
+      content: comment.content,
+      createdAt: new Date(comment.createdAt),
+      id: comment.id,
+      updatedAt: new Date(comment.updatedAt),
+    })),
     completedAt: toDate(log.completedAt),
     exercises: log.exercises.map(mapWorkoutExercise),
     id: log.id,
@@ -438,7 +550,9 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
 
 function mapCoachTrainee(trainee: SerializedCoachTrainee): CoachTrainee {
   return {
+    assignedProgramIds: trainee.assignedProgramIds,
     avatar: trainee.avatar,
+    completionRate: trainee.completionRate ?? undefined,
     createdAt: new Date(trainee.createdAt),
     email: trainee.email,
     fitnessGoals: trainee.fitnessGoals,
@@ -446,6 +560,7 @@ function mapCoachTrainee(trainee: SerializedCoachTrainee): CoachTrainee {
     lastCheckInAt: toDate(trainee.lastCheckInAt),
     latestWeightKg: trainee.latestWeightKg ?? undefined,
     name: trainee.name,
+    plannedSessionsPerWeek: trainee.plannedSessionsPerWeek ?? undefined,
     phone: trainee.phone ?? undefined,
     programCount: trainee.programCount,
     thisWeekWorkouts: trainee.thisWeekWorkouts,
@@ -528,10 +643,82 @@ function mapDiscoverableCoach(coach: SerializedDiscoverableCoach): DiscoverableC
 
 function mapExerciseLibraryExercise(exercise: SerializedExerciseLibraryExercise): ExerciseLibraryExercise {
   return {
+    canManage: exercise.canManage,
+    createdById: exercise.createdById,
+    createdByName: exercise.createdByName,
     id: exercise.id,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
+    source: exercise.source,
     variations: exercise.variations.map(mapExerciseVariation),
+  }
+}
+
+function mapCoachDashboardSummary(summary: SerializedCoachDashboardSummary): CoachDashboardSummary {
+  return {
+    atRiskTraineeCount: summary.atRiskTraineeCount,
+    averageCompletionRate: summary.averageCompletionRate,
+    totalPlannedSessions: summary.totalPlannedSessions,
+    totalTrainees: summary.totalTrainees,
+    unreadNotificationCount: summary.unreadNotificationCount,
+    workoutsThisWeek: summary.workoutsThisWeek,
+  }
+}
+
+function mapCoachDashboardActivityPoint(point: SerializedCoachDashboardActivityPoint): CoachDashboardActivityPoint {
+  return {
+    date: new Date(point.date),
+    label: point.label,
+    totalVolume: point.totalVolume,
+    workouts: point.workouts,
+  }
+}
+
+function mapCoachDashboardRecentWorkoutLog(
+  log: SerializedCoachDashboardRecentWorkoutLog,
+): CoachDashboardRecentWorkoutLog {
+  return {
+    commentCount: log.commentCount,
+    completedAt: toDate(log.completedAt),
+    id: log.id,
+    startedAt: new Date(log.startedAt),
+    totalVolume: log.totalVolume,
+    trainee: log.trainee,
+    workout: log.workout,
+  }
+}
+
+function mapCoachExercise(exercise: SerializedCoachExercise): CoachExercise {
+  return {
+    canManage: exercise.canManage,
+    createdAt: new Date(exercise.createdAt),
+    createdById: exercise.createdById,
+    createdByName: exercise.createdByName,
+    equipment: exercise.equipment,
+    id: exercise.id,
+    muscleGroup: exercise.muscleGroup,
+    name: exercise.name,
+    source: exercise.source,
+    updatedAt: new Date(exercise.updatedAt),
+    usageCount: exercise.usageCount,
+    variationId: exercise.variationId,
+    variationName: exercise.variationName,
+  }
+}
+
+function mapNotification(notification: SerializedNotification): AppNotification {
+  return {
+    createdAt: new Date(notification.createdAt),
+    id: notification.id,
+    message: notification.message,
+    metadata: notification.metadata,
+    readAt: toDate(notification.readAt),
+    relatedEntityId: notification.relatedEntityId ?? undefined,
+    relatedEntityType: notification.relatedEntityType ?? undefined,
+    scheduledFor: new Date(notification.scheduledFor),
+    status: notification.status,
+    title: notification.title,
+    type: notification.type,
   }
 }
 
@@ -632,18 +819,28 @@ async function deleteMeal(accessToken: string, mealId: string) {
 
 async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
   const response = await request<{
+    historyLogs: SerializedWorkoutLog[]
     recentLogs: SerializedWorkoutLog[]
     schedule: Record<number, SerializedWorkout | null>
     todayWorkout: SerializedWorkout | null
+    weekLogs: SerializedWorkoutLog[]
+    weekStats: {
+      activeDaysThisWeek: number
+      todayVolume: number
+      workoutsThisWeek: number
+    }
     workouts: SerializedWorkout[]
-  }>("/api/workouts", accessToken)
+  }>("/api/workouts", accessToken, { cache: "no-store" })
 
   return {
+    historyLogs: (response.historyLogs ?? []).map(mapWorkoutLog),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
     schedule: Object.fromEntries(
       Object.entries(response.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
     ) as Record<number, Workout | null>,
     todayWorkout: response.todayWorkout ? mapWorkout(response.todayWorkout) : null,
+    weekLogs: (response.weekLogs ?? []).map(mapWorkoutLog),
+    weekStats: response.weekStats ?? { activeDaysThisWeek: 0, todayVolume: 0, workoutsThisWeek: 0 },
     workouts: response.workouts.map(mapWorkout),
   }
 }
@@ -690,6 +887,12 @@ async function createWorkoutLog(accessToken: string, workoutId: string, input: W
   })
 
   return mapWorkoutLog(response.log)
+}
+
+async function deleteWorkoutLog(accessToken: string, workoutId: string, logId: string) {
+  await request<{ deleted: boolean; id: string }>(`/api/workouts/${workoutId}/logs/${logId}`, accessToken, {
+    method: "DELETE",
+  })
 }
 
 async function fetchExercises(
@@ -782,11 +985,17 @@ async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): 
 
 async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardData> {
   const response = await request<{
+    activityByDay: SerializedCoachDashboardActivityPoint[]
+    atRiskTrainees: SerializedCoachTrainee[]
     pendingRequests: SerializedCoachRequest[]
+    recentWorkoutLogs: SerializedCoachDashboardRecentWorkoutLog[]
+    summary: SerializedCoachDashboardSummary
     trainees: SerializedCoachTrainee[]
   }>("/api/coach/dashboard", accessToken)
 
   return {
+    activityByDay: (response.activityByDay ?? []).map(mapCoachDashboardActivityPoint),
+    atRiskTrainees: (response.atRiskTrainees ?? []).map(mapCoachTrainee),
     pendingRequests: response.pendingRequests.map((requestItem) => ({
       coachId: requestItem.coachId,
       createdAt: new Date(requestItem.createdAt),
@@ -795,6 +1004,8 @@ async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardD
       trainee: requestItem.trainee,
       traineeId: requestItem.traineeId,
     })),
+    recentWorkoutLogs: (response.recentWorkoutLogs ?? []).map(mapCoachDashboardRecentWorkoutLog),
+    summary: mapCoachDashboardSummary(response.summary),
     trainees: response.trainees.map(mapCoachTrainee),
   }
 }
@@ -854,6 +1065,27 @@ async function assignCoachProgram(accessToken: string, programId: string, traine
       method: "POST",
     },
   )
+}
+
+async function adjustCoachProgram(
+  accessToken: string,
+  programId: string,
+  traineeId: string,
+  input: CreateCoachProgramInput,
+) {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/programs/${programId}/adjustments`,
+    accessToken,
+    {
+      body: JSON.stringify({
+        ...input,
+        traineeId,
+      }),
+      method: "POST",
+    },
+  )
+
+  return mapCoachProgram(response.program)
 }
 
 async function unassignCoachProgram(accessToken: string, programId: string, traineeId: string) {
@@ -919,19 +1151,170 @@ async function createCoachCheckIn(
   return mapCoachCheckIn(response.checkIn)
 }
 
+async function fetchCoachWorkoutLogs(
+  accessToken: string,
+  traineeId: string,
+  options?: { cursor?: string; limit?: number },
+): Promise<CoachWorkoutLogPage> {
+  const searchParams = new URLSearchParams()
+
+  if (options?.cursor) {
+    searchParams.set("cursor", options.cursor)
+  }
+
+  if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
+    searchParams.set("limit", String(options.limit))
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+  const response = await request<{ logs: SerializedWorkoutLog[]; nextCursor?: string }>(
+    `/api/coach/trainees/${traineeId}/workout-logs${query}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+
+  return {
+    logs: (response.logs ?? []).map(mapWorkoutLog),
+    nextCursor: response.nextCursor,
+  }
+}
+
+async function createCoachWorkoutLogComment(accessToken: string, workoutLogId: string, content: string) {
+  const response = await request<{ comment: SerializedWorkoutLogComment }>(
+    `/api/coach/workout-logs/${workoutLogId}/comments`,
+    accessToken,
+    {
+      body: JSON.stringify({ content }),
+      method: "POST",
+    },
+  )
+
+  return {
+    authorAvatar: response.comment.authorAvatar,
+    authorId: response.comment.authorId,
+    authorName: response.comment.authorName,
+    content: response.comment.content,
+    createdAt: new Date(response.comment.createdAt),
+    id: response.comment.id,
+    updatedAt: new Date(response.comment.updatedAt),
+  }
+}
+
+async function updateCoachWorkoutLogComment(accessToken: string, commentId: string, content: string) {
+  const response = await request<{ comment: SerializedWorkoutLogComment }>(
+    `/api/coach/workout-log-comments/${commentId}`,
+    accessToken,
+    {
+      body: JSON.stringify({ content }),
+      method: "PATCH",
+    },
+  )
+
+  return {
+    authorAvatar: response.comment.authorAvatar,
+    authorId: response.comment.authorId,
+    authorName: response.comment.authorName,
+    content: response.comment.content,
+    createdAt: new Date(response.comment.createdAt),
+    id: response.comment.id,
+    updatedAt: new Date(response.comment.updatedAt),
+  }
+}
+
+async function deleteCoachWorkoutLogComment(accessToken: string, commentId: string) {
+  return request<{ deleted: boolean; id: string }>(`/api/coach/workout-log-comments/${commentId}`, accessToken, {
+    method: "DELETE",
+  })
+}
+
+async function fetchCoachExercises(accessToken: string, search?: string): Promise<CoachExercise[]> {
+  const response = await request<{ exercises: SerializedCoachExercise[] }>(
+    `/api/coach/exercises${buildSearchQuery(search)}`,
+    accessToken,
+  )
+
+  return (response.exercises ?? []).map(mapCoachExercise)
+}
+
+async function createCoachExerciseRequest(accessToken: string, input: CoachExerciseInput) {
+  const response = await request<{ exercise: SerializedCoachExercise }>("/api/coach/exercises", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return mapCoachExercise(response.exercise)
+}
+
+async function updateCoachExerciseRequest(accessToken: string, exerciseId: string, input: CoachExerciseInput) {
+  const response = await request<{ exercise: SerializedCoachExercise }>(
+    `/api/coach/exercises/${exerciseId}`,
+    accessToken,
+    {
+      body: JSON.stringify(input),
+      method: "PATCH",
+    },
+  )
+
+  return mapCoachExercise(response.exercise)
+}
+
+async function deleteCoachExerciseRequest(accessToken: string, exerciseId: string) {
+  return request<{ deleted: boolean; id: string }>(`/api/coach/exercises/${exerciseId}`, accessToken, {
+    method: "DELETE",
+  })
+}
+
+async function fetchNotifications(accessToken: string, limit = 20): Promise<NotificationList> {
+  const response = await request<{ notifications: SerializedNotification[]; unreadCount: number }>(
+    `/api/notifications?limit=${encodeURIComponent(String(limit))}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+
+  return {
+    notifications: (response.notifications ?? []).map(mapNotification),
+    unreadCount: response.unreadCount ?? 0,
+  }
+}
+
+async function markNotificationRead(accessToken: string, notificationId: string) {
+  const response = await request<{ notification: SerializedNotification }>(
+    `/api/notifications/${notificationId}/read`,
+    accessToken,
+    {
+      method: "PATCH",
+    },
+  )
+
+  return mapNotification(response.notification)
+}
+
+async function markAllNotificationsRead(accessToken: string) {
+  return request<{ updatedCount: number }>("/api/notifications/read-all", accessToken, {
+    method: "POST",
+  })
+}
+
 export {
+  adjustCoachProgram,
   assignCoachProgram,
+  createCoachExerciseRequest,
   createCoachBodyMetric,
   createCoachCheckIn,
   createCoachRequest,
   createCoachProgram,
+  createCoachWorkoutLogComment,
   createMeal,
   createWeightEntry,
   createWorkout,
   createWorkoutLog,
+  deleteCoachExerciseRequest,
+  deleteCoachWorkoutLogComment,
   deleteWorkout,
+  deleteWorkoutLog,
   deleteMeal,
   deleteCoachProgram,
+  fetchCoachExercises,
   fetchProgressAnalytics,
   fetchWeightEntries,
   fetchDiscoverableCoaches,
@@ -939,15 +1322,21 @@ export {
   fetchCoachProgram,
   fetchCoachPrograms,
   fetchCoachTraineeDetail,
+  fetchCoachWorkoutLogs,
   fetchCoachTrainees,
   fetchExerciseLibrary,
   fetchExercises,
   fetchMeals,
+  fetchNotifications,
   fetchWorkoutDetail,
   fetchWorkouts,
+  markAllNotificationsRead,
+  markNotificationRead,
   unassignCoachProgram,
+  updateCoachExerciseRequest,
   updateCoachProgram,
   updateCoachRequestStatus,
+  updateCoachWorkoutLogComment,
   updateMeal,
   updateWorkout,
 }

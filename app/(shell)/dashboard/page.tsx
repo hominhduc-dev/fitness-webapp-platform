@@ -1,6 +1,7 @@
 import { Activity, CalendarDays, Flame, TrendingUp } from "lucide-react"
-import { Suspense, cache } from "react"
+import { Suspense } from "react"
 
+import { DashboardRefreshOnStale } from "@/components/dashboard/dashboard-refresh-on-stale"
 import { NutritionSummary } from "@/components/dashboard/nutrition-summary"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
@@ -21,14 +22,7 @@ type DashboardOverviewProps = {
   preferredWeightUnit?: "kg" | "lbs"
 }
 
-const getDashboardData = cache(async (accessToken: string) => {
-  const [workoutData, mealData] = await Promise.all([fetchWorkouts(accessToken), fetchMeals(accessToken)])
-
-  return {
-    mealData,
-    workoutData,
-  }
-})
+export const dynamic = "force-dynamic"
 
 function startOfCurrentWeek(date: Date) {
   const value = new Date(date)
@@ -119,19 +113,12 @@ function countScheduledWorkoutsInWeek(
 }
 
 async function DashboardOverview({ accessToken, locale, messages, preferredWeightUnit }: DashboardOverviewProps) {
-  const { workoutData, mealData } = await getDashboardData(accessToken)
+  const [workoutData, mealData] = await Promise.all([fetchWorkouts(accessToken), fetchMeals(accessToken)])
 
   const isVietnamese = locale === "vi"
+  const { activeDaysThisWeek, workoutsThisWeek, todayVolume } = workoutData.weekStats
   const weekStart = startOfCurrentWeek(new Date())
-  const workoutsThisWeek = workoutData.recentLogs.filter((log) => log.startedAt >= weekStart).length
   const scheduledThisWeek = countScheduledWorkoutsInWeek(workoutData.workouts, workoutData.schedule, weekStart)
-  const completedDays = new Set(
-    workoutData.recentLogs.filter((log) => log.startedAt >= weekStart).map((log) => log.startedAt.getDay()),
-  )
-  const activeDaysThisWeek = completedDays.size
-  const totalVolume = workoutData.recentLogs
-    .filter((log) => log.startedAt >= weekStart)
-    .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
   const nextWorkout = resolveNextWorkoutLabel(workoutData.workouts, workoutData.schedule, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
   const statCards = [
@@ -156,7 +143,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
       icon: TrendingUp,
       label: messages.dashboard.totalVolume,
       tone: "neutral",
-      value: totalVolume.toLocaleString(),
+      value: todayVolume.toLocaleString(),
     },
     {
       helper: nextWorkout.subtitle,
@@ -296,6 +283,8 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6 md:py-8">
       <div className="space-y-6 md:space-y-7">
+        <DashboardRefreshOnStale />
+
         <section className="space-y-2.5">
           <h1 className="text-2xl font-black leading-tight tracking-tight text-foreground md:text-3xl">
             {messages.dashboard.welcomeBack},{" "}

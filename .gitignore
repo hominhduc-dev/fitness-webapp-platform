@@ -5,6 +5,9 @@ backend/dist/
 .env
 .env.docker
 .env.local
+.claude/
+.codex/
+.idea/
 .env.development.local
 .env.test.local
 .env.production.local
