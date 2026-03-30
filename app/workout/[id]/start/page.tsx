@@ -190,23 +190,16 @@ function restoreWorkoutSessionStartTime(startedAt: string) {
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
 }
 
-function getWeekDaysUpToToday(): Date[] {
+function getRecentDays(): Date[] {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const weekStart = new Date(today)
-  const offset = (today.getDay() + 6) % 7
-  weekStart.setDate(today.getDate() - offset)
-
   const days: Date[] = []
 
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(weekStart)
-    day.setDate(weekStart.getDate() + i)
-
-    if (day <= today) {
-      days.push(day)
-    }
+  for (let i = 6; i >= 0; i--) {
+    const day = new Date(today)
+    day.setDate(today.getDate() - i)
+    days.push(day)
   }
 
   return days
@@ -488,7 +481,7 @@ export default function WorkoutStartPage() {
           </DialogHeader>
 
           <div className="space-y-2 py-1">
-            {getWeekDaysUpToToday()
+            {getRecentDays()
               .slice()
               .reverse()
               .map((day) => {
