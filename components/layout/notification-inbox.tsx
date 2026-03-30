@@ -42,12 +42,17 @@ function getNotificationHref(notification: AppNotification, role?: "admin" | "co
 export function NotificationInbox({ locale = "vi" }: NotificationInboxProps) {
   const router = useRouter()
   const { profile, session } = useAuth()
+  const [isMounted, setIsMounted] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isMarkingAll, setIsMarkingAll] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -159,6 +164,14 @@ export function NotificationInbox({ locale = "vi" }: NotificationInboxProps) {
     } finally {
       setIsMarkingAll(false)
     }
+  }
+
+  if (!isMounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full" disabled>
+        <Bell className="h-5 w-5" />
+      </Button>
+    )
   }
 
   return (
