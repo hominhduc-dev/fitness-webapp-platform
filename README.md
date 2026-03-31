@@ -192,6 +192,45 @@ Default local URLs:
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:4000`
 
+## Docker
+
+This repo can run with Docker Compose using two containers:
+
+- `frontend`: Next.js app on port `3000`
+- `backend`: Express + Prisma API on port `4000`
+
+### 1. Prepare Docker env
+
+Copy the example file and fill in the real values:
+
+```bash
+cp .env.docker.example .env.docker
+```
+
+Important notes:
+
+- Keep `NEXT_PUBLIC_APP_URL=http://localhost:3000` for local Docker usage.
+- Keep `NEXT_PUBLIC_API_URL=http://backend:4000` so the frontend container can reach the backend container.
+- Keep `API_URL_INTERNAL=http://backend:4000` for server-side requests from Next.js.
+- Set `DATABASE_URL`, `DIRECT_URL`, and the Supabase keys to real values before starting.
+
+### 2. Build and start
+
+```bash
+docker compose --env-file .env.docker up --build
+```
+
+### 3. Open the app
+
+- Frontend: `http://localhost:3000`
+- Backend health: `http://localhost:4000/api/health`
+
+### 4. Stop the stack
+
+```bash
+docker compose down
+```
+
 ## Scripts
 
 ### Root scripts

@@ -167,7 +167,7 @@ export function NotificationInbox({ locale = "vi" }: NotificationInboxProps) {
   }
 
   const triggerButton = (
-    <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full">
+    <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full" disabled={!isMounted}>
       <Bell className="h-5 w-5" />
       {unreadCount > 0 ? (
         <>
