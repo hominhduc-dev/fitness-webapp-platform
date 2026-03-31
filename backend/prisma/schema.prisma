@@ -44,6 +44,16 @@ enum FoodSource {
   imported
 }
 
+enum FoodNutrientKey {
+  calories
+  protein
+  carbs
+  fat
+  fiber
+  sugar
+  sodium
+}
+
 enum NotificationType {
   workout_reminder
   meal_reminder
@@ -142,8 +152,11 @@ model Variation {
 
 model Food {
   id            String           @id @default(uuid()) @db.Uuid
+  fdcId         String?          @unique
   name          String
   brand         String?
+  brandOwner    String?
+  dataType      String?
   barcode       String?          @unique
   servingAmount Float            @default(1)
   servingUnit   String           @default("serving")
@@ -156,15 +169,33 @@ model Food {
   sodium        Float?
   source        FoodSource       @default(system)
   isVerified    Boolean          @default(false)
+  rawJson       Json?
   createdById   String?          @db.Uuid
   createdBy     User?            @relation("FoodCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  nutrients     FoodNutrient[]
   recipeItems   RecipeFoodItem[]
   mealItems     MealFoodItem[]
+  mealLogs      Meal[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   @@index([createdById])
   @@index([name])
+}
+
+model FoodNutrient {
+  id            String          @id @default(uuid()) @db.Uuid
+  foodId        String          @db.Uuid
+  nutrientKey   FoodNutrientKey
+  nutrientName  String
+  unit          String
+  amountPer100g Float
+  food          Food            @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([foodId, nutrientKey])
+  @@index([nutrientKey])
 }
 
 model Recipe {
@@ -362,21 +393,29 @@ model CoachCheckIn {
 }
 
 model Meal {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @db.Uuid
-  type       MealType
-  name       String
-  calories   Int
-  protein    Int?
-  carbs      Int?
-  fat        Int?
-  recordedAt DateTime
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items      MealFoodItem[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  foodId           String?  @db.Uuid
+  type             MealType
+  name             String
+  foodNameSnapshot String?
+  weightGrams      Float?
+  calories         Float
+  protein          Float?
+  carbs            Float?
+  fat              Float?
+  fiber            Float?
+  sugar            Float?
+  sodium           Float?
+  recordedAt       DateTime
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  food             Food?    @relation(fields: [foodId], references: [id], onDelete: SetNull)
+  items            MealFoodItem[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([userId, recordedAt])
+  @@index([foodId])
 }
 
 model MealFoodItem {

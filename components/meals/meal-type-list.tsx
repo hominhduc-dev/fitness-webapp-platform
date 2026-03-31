@@ -44,6 +44,8 @@ export function MealTypeList({
 }: MealTypeListProps) {
   const { locale, messages } = useLocale()
 
+  const formatMetric = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
+
   const labelByType: Record<Meal["type"], string> = {
     breakfast: messages.meals.breakfast,
     dinner: messages.meals.dinner,
@@ -59,7 +61,7 @@ export function MealTypeList({
           .sort((left, right) => left.time.getTime() - right.time.getTime())
         const totalCalories = mealsOfType.reduce((sum, meal) => sum + meal.calories, 0)
         const subtitle =
-          mealsOfType.length === 0 ? messages.meals.notLoggedYet : messages.meals.loggedMeals(mealsOfType.length, totalCalories)
+          mealsOfType.length === 0 ? messages.meals.notLoggedYet : messages.meals.loggedMeals(mealsOfType.length, Math.round(totalCalories))
 
         return (
           <section
@@ -103,14 +105,15 @@ export function MealTypeList({
                           <Clock3 className="h-3.5 w-3.5" />
                           {format(meal.time, locale === "en" ? "h:mm a" : "HH:mm")}
                         </span>
+                        {meal.weightGrams ? <span>{`${formatMetric(meal.weightGrams)}g`}</span> : null}
                         {meal.protein || meal.carbs || meal.fat ? (
-                          <span>{`${meal.protein || 0}P / ${meal.carbs || 0}C / ${meal.fat || 0}F`}</span>
+                          <span>{`${formatMetric(meal.protein || 0)}P / ${formatMetric(meal.carbs || 0)}C / ${formatMetric(meal.fat || 0)}F`}</span>
                         ) : null}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-2 sm:justify-end">
-                      <span className="text-sm font-semibold text-foreground">{meal.calories} kcal</span>
+                      <span className="text-sm font-semibold text-foreground">{Math.round(meal.calories)} kcal</span>
                       <div className="flex items-center gap-1">
                         {onEditMeal ? (
                           <Button

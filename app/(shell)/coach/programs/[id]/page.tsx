@@ -1,12 +1,25 @@
-"use client"
-
-import { useParams } from "next/navigation"
-
 import { ProgramEditor } from "@/components/coach/program-editor"
+import { requireAppSession } from "@/lib/auth/server"
+import { fetchCoachTrainees, fetchExerciseLibrary, fetchExercises } from "@/lib/fitness/api"
+import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
 
-export default function ProgramDetailPage() {
-  const params = useParams()
-  const programId = Array.isArray(params.id) ? params.id[0] : params.id
+export default async function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { accessToken } = await requireAppSession({ role: "coach" })
+  const [exerciseOptions, exerciseLibrary, traineeOptions] = await Promise.all([
+    fetchExercises(accessToken),
+    fetchExerciseLibrary(accessToken),
+    fetchCoachTrainees(accessToken),
+  ])
 
-  return <ProgramEditor programId={programId} />
+  const fallbackExerciseOptions = flattenExerciseLibraryToVariationOptions(exerciseLibrary)
+  const resolvedExerciseOptions = mergeExerciseOptions(exerciseOptions, fallbackExerciseOptions)
+
+  return (
+    <ProgramEditor
+      programId={id}
+      initialExerciseOptions={resolvedExerciseOptions}
+      initialTraineeOptions={traineeOptions}
+    />
+  )
 }

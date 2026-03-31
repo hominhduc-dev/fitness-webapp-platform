@@ -1392,6 +1392,7 @@ async function createAdminExercise(
     equipment?: string
     muscleGroup: string
     name: string
+    variationName?: string
   },
 ) {
   assertAdmin(profile)
@@ -1399,26 +1400,36 @@ async function createAdminExercise(
   const name = sanitizeText(input.name)
   const muscleGroup = sanitizeText(input.muscleGroup)
   const equipment = sanitizeText(input.equipment)
+  const variationName = sanitizeText(input.variationName)
 
-  if (!name || !muscleGroup) {
-    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
+  if (!name || !muscleGroup || !variationName) {
+    throw new AuthServiceError("Tên bài tập, nhóm cơ và variation không được để trống.", 400)
   }
 
-  const exercise = await db.exercise.create({
-    data: {
-      createdById: profile.id,
-      muscleGroup,
-      name,
-      variations: {
-        create: {
-          equipment,
-          isDefault: true,
-          name: "Default",
-          sortOrder: 0,
+  let exercise
+
+  try {
+    exercise = await db.exercise.create({
+      data: {
+        createdById: profile.id,
+        muscleGroup,
+        name,
+        variations: {
+          create: {
+            equipment,
+            isDefault: true,
+            name: variationName,
+            sortOrder: 0,
+          },
         },
       },
-    },
-  })
+    })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new AuthServiceError("Variation này đã tồn tại trong bài tập hiện tại.", 400)
+    }
+    throw error
+  }
 
   const variation = await db.variation.findFirst({
     include: ADMIN_VARIATION_INCLUDE,
@@ -1805,6 +1816,7 @@ async function updateAdminExercise(
     equipment?: string
     muscleGroup: string
     name: string
+    variationName?: string
   },
 ) {
   assertAdmin(profile)
@@ -1812,9 +1824,10 @@ async function updateAdminExercise(
   const name = sanitizeText(input.name)
   const muscleGroup = sanitizeText(input.muscleGroup)
   const equipment = sanitizeText(input.equipment)
+  const variationName = sanitizeText(input.variationName)
 
-  if (!name || !muscleGroup) {
-    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
+  if (!name || !muscleGroup || !variationName) {
+    throw new AuthServiceError("Tên bài tập, nhóm cơ và variation không được để trống.", 400)
   }
 
   const existingExercise = await db.variation.findUnique({
@@ -1828,27 +1841,37 @@ async function updateAdminExercise(
     throw new AuthServiceError("Không tìm thấy bài tập.", 404)
   }
 
-  const exercise = await db.$transaction(async (transaction) => {
-    await transaction.exercise.update({
-      data: {
-        muscleGroup,
-        name,
-      },
-      where: {
-        id: existingExercise.exerciseId,
-      },
-    })
+  let exercise
 
-    return transaction.variation.update({
-      data: {
-        equipment,
-      },
-      include: ADMIN_VARIATION_INCLUDE,
-      where: {
-        id: existingExercise.id,
-      },
+  try {
+    exercise = await db.$transaction(async (transaction) => {
+      await transaction.exercise.update({
+        data: {
+          muscleGroup,
+          name,
+        },
+        where: {
+          id: existingExercise.exerciseId,
+        },
+      })
+
+      return transaction.variation.update({
+        data: {
+          equipment,
+          name: variationName,
+        },
+        include: ADMIN_VARIATION_INCLUDE,
+        where: {
+          id: existingExercise.id,
+        },
+      })
     })
-  })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new AuthServiceError("Variation này đã tồn tại trong bài tập hiện tại.", 400)
+    }
+    throw error
+  }
 
   await logAdminAudit(db, profile.id, {
     action: "exercise.updated",
@@ -1859,6 +1882,7 @@ async function updateAdminExercise(
       previousEquipment: existingExercise.equipment,
       previousMuscleGroup: existingExercise.exercise.muscleGroup,
       previousName: existingExercise.exercise.name,
+      previousVariationName: existingExercise.name,
     },
   })
 

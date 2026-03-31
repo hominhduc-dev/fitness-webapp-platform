@@ -6,6 +6,7 @@
     "build": "tsc -p tsconfig.json",
     "create:admin": "tsx src/scripts/create-admin.ts",
     "dev": "tsx watch src/index.ts",
+    "prisma:resolve:baseline": "prisma migrate resolve --applied 20260319_initial_schema_baseline",
     "seed:exercises": "tsx src/scripts/seed-exercise-library.ts",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",

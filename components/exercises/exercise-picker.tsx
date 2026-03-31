@@ -11,6 +11,13 @@ import { cn } from "@/lib/utils"
 type ExercisePickerProps = {
   disabled?: boolean
   exercises: ExerciseVariationOption[]
+  fallbackSelection?: {
+    equipment?: string
+    exerciseName?: string
+    isDefault?: boolean
+    muscleGroup?: string
+    variationName?: string
+  }
   onSelect: (variationId: string) => void
   selectedVariationId: string
 }
@@ -18,6 +25,7 @@ type ExercisePickerProps = {
 export function ExercisePicker({
   disabled,
   exercises,
+  fallbackSelection,
   onSelect,
   selectedVariationId,
 }: ExercisePickerProps) {
@@ -282,23 +290,41 @@ export function ExercisePicker({
         disabled={disabled}
       >
         <span className="min-w-0 flex-1">
-          <span className={cn("block truncate text-sm sm:text-base", selectedExercise ? "text-foreground" : "text-muted-foreground")}>
+          <span
+            className={cn(
+              "block truncate text-sm sm:text-base",
+              selectedExercise || fallbackSelection ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
             {selectedExercise
               ? formatExerciseVariationLabel({
                   exerciseName: selectedExercise.exerciseName,
                   isDefault: selectedExercise.isDefault,
                   variationName: selectedExercise.variationName,
                 })
+              : fallbackSelection
+                ? formatExerciseVariationLabel({
+                    exerciseName: fallbackSelection.exerciseName,
+                    isDefault: fallbackSelection.isDefault,
+                    variationName: fallbackSelection.variationName,
+                  })
               : "Choose an exercise"}
           </span>
-          {selectedExercise ? (
+          {selectedExercise || fallbackSelection ? (
             <span className="block truncate text-xs text-muted-foreground">
-              {formatExerciseVariationMeta({
-                equipment: selectedExercise.equipment,
-                isDefault: selectedExercise.isDefault,
-                muscleGroup: selectedExercise.muscleGroup,
-                variationName: selectedExercise.variationName,
-              })}
+              {selectedExercise
+                ? formatExerciseVariationMeta({
+                    equipment: selectedExercise.equipment,
+                    isDefault: selectedExercise.isDefault,
+                    muscleGroup: selectedExercise.muscleGroup,
+                    variationName: selectedExercise.variationName,
+                  })
+                : formatExerciseVariationMeta({
+                    equipment: fallbackSelection?.equipment,
+                    isDefault: fallbackSelection?.isDefault,
+                    muscleGroup: fallbackSelection?.muscleGroup,
+                    variationName: fallbackSelection?.variationName,
+                  })}
             </span>
           ) : null}
         </span>

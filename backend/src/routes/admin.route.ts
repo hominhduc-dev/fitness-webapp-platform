@@ -243,6 +243,7 @@ adminRouter.post("/exercises", async (req, res) => {
       equipment: getOptionalString(req.body.equipment),
       muscleGroup: String(req.body.muscleGroup ?? ""),
       name: String(req.body.name ?? ""),
+      variationName: getOptionalString(req.body.variationName),
     })
 
     res.status(201).json({
@@ -288,6 +289,7 @@ adminRouter.patch("/exercises/:exerciseId", async (req, res) => {
       equipment: getOptionalString(req.body.equipment),
       muscleGroup: String(req.body.muscleGroup ?? ""),
       name: String(req.body.name ?? ""),
+      variationName: getOptionalString(req.body.variationName),
     })
 
     res.json({

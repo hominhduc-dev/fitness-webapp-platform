@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { AlertTriangle, ArrowRight, BellRing, CalendarPlus, Dumbbell, TrendingUp, Users } from "lucide-react"
+import { AlertTriangle, ArrowRight, CalendarPlus, Dumbbell, Users } from "lucide-react"
 
 import { PendingRequestsPanel } from "@/components/coach/pending-requests-panel"
 import { StatsCard } from "@/components/dashboard/stats-card"
@@ -76,27 +76,27 @@ export default async function CoachDashboardPage() {
             title="Total trainees"
             value={dashboard.summary.totalTrainees}
             subtitle={`${dashboard.summary.totalPlannedSessions} planned sessions this week`}
-            icon={Users}
+            iconName="users"
             variant="primary"
           />
           <StatsCard
             title="Workouts logged"
             value={dashboard.summary.workoutsThisWeek}
             subtitle="Across all trainees in the last 7 days"
-            icon={Dumbbell}
+            iconName="dumbbell"
           />
           <StatsCard
             title="Average completion"
             value={formatPercent(dashboard.summary.averageCompletionRate)}
             subtitle="Based on assigned weekly workload"
-            icon={TrendingUp}
+            iconName="trending-up"
             variant="accent"
           />
           <StatsCard
             title="Need attention"
             value={dashboard.summary.atRiskTraineeCount}
             subtitle={`${dashboard.summary.unreadNotificationCount} unread notifications`}
-            icon={BellRing}
+            iconName="bell-ring"
           />
         </section>
 

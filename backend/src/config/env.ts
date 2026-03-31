@@ -3,9 +3,14 @@ import dotenv from "dotenv"
 dotenv.config()
 
 const rawPort = Number(process.env.PORT ?? 4000)
+const rawUsdaTimeoutMs = Number(process.env.USDA_TIMEOUT_MS ?? 8000)
 
 if (!Number.isInteger(rawPort) || rawPort <= 0) {
   throw new Error("PORT must be a positive integer")
+}
+
+if (!Number.isFinite(rawUsdaTimeoutMs) || rawUsdaTimeoutMs <= 0) {
+  throw new Error("USDA_TIMEOUT_MS must be a positive number")
 }
 
 function hasValue(value?: string) {
@@ -78,6 +83,9 @@ export const env = {
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: rawPort,
+  usdaApiBaseUrl: process.env.USDA_API_BASE_URL ?? "https://api.nal.usda.gov/fdc/v1",
+  usdaApiKey: process.env.USDA_API_KEY,
+  usdaTimeoutMs: rawUsdaTimeoutMs,
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   supabaseUrl: inferSupabaseUrl(),

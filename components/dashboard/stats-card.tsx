@@ -1,8 +1,10 @@
 "use client"
 
 import {
+  BellRing,
   Calendar,
   ClipboardList,
+  Dumbbell,
   Flame,
   ShieldCheck,
   Target,
@@ -15,8 +17,10 @@ import type { LucideIcon } from "lucide-react"
 import { useLocale } from "@/components/providers/locale-provider"
 
 const iconMap = {
+  "bell-ring": BellRing,
   calendar: Calendar,
   "clipboard-list": ClipboardList,
+  dumbbell: Dumbbell,
   flame: Flame,
   "shield-check": ShieldCheck,
   target: Target,

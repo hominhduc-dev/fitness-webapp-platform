@@ -21,10 +21,6 @@ function getVariationDisplayName(input: ExerciseVariationLabelInput) {
     return "Default"
   }
 
-  if (input.isDefault || variationName.toLowerCase() === "default") {
-    return "Default"
-  }
-
   return variationName
 }
 
