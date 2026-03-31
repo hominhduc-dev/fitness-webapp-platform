@@ -47,9 +47,11 @@ import {
   deleteCoachProgram,
   fetchCoachProgram,
   fetchCoachTrainees,
+  fetchExerciseLibrary,
   fetchExercises,
   updateCoachProgram,
 } from "@/lib/fitness/api"
+import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import type {
   CoachProgram,
@@ -59,6 +61,11 @@ import type {
 } from "@/lib/fitness/types"
 
 type WorkoutExerciseForm = {
+  fallbackEquipment?: string
+  fallbackExerciseName?: string
+  fallbackIsDefault?: boolean
+  fallbackMuscleGroup?: string
+  fallbackVariationName?: string
   variationId: string
   id: string
   reps: string
@@ -74,6 +81,8 @@ type WorkoutDay = {
 }
 
 type ProgramEditorProps = {
+  initialExerciseOptions?: ExerciseVariationOption[]
+  initialTraineeOptions?: CoachTrainee[]
   programId?: string
 }
 
@@ -86,6 +95,8 @@ const DAY_OPTIONS = [
   { label: "Saturday", value: "6" },
   { label: "Sunday", value: "0" },
 ]
+
+const EXERCISE_LIBRARY_EMPTY_ERROR = "Chưa có bài tập nào trong thư viện để thêm vào program."
 
 function createFormId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -104,6 +115,16 @@ function createWorkoutDay(index: number): WorkoutDay {
   }
 }
 
+function createWorkoutExerciseForm(): WorkoutExerciseForm {
+  return {
+    variationId: "",
+    id: createFormId(),
+    reps: "8-12",
+    sets: 3,
+    weight: "",
+  }
+}
+
 function estimateWorkoutDuration(exercises: WorkoutExerciseForm[]) {
   if (exercises.length === 0) {
     return 30
@@ -112,18 +133,79 @@ function estimateWorkoutDuration(exercises: WorkoutExerciseForm[]) {
   return Math.max(30, Math.round(exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)))
 }
 
-function mapProgramToWorkoutDays(program: CoachProgram): WorkoutDay[] {
+function resolveExerciseOptionForEditor(
+  workoutExercise: CoachProgram["workouts"][number]["exercises"][number],
+  exerciseOptions: ExerciseVariationOption[],
+) {
+  const exactMatch = exerciseOptions.find((option) => option.id === workoutExercise.variation.id)
+
+  if (exactMatch) {
+    return exactMatch
+  }
+
+  const variationName = workoutExercise.variation.name.trim()
+  const isDefaultVariation =
+    workoutExercise.variation.isDefault || !variationName || variationName.toLowerCase() === "default"
+
+  if (isDefaultVariation) {
+    const defaultByExerciseId = exerciseOptions.find(
+      (option) => option.exerciseId === workoutExercise.exercise.id && option.isDefault,
+    )
+
+    if (defaultByExerciseId) {
+      return defaultByExerciseId
+    }
+  }
+
+  const matchByNames = exerciseOptions.find(
+    (option) =>
+      option.exerciseName === workoutExercise.exercise.name &&
+      option.variationName === workoutExercise.variation.name,
+  )
+
+  if (matchByNames) {
+    return matchByNames
+  }
+
+  if (isDefaultVariation) {
+    return exerciseOptions.find(
+      (option) => option.exerciseName === workoutExercise.exercise.name && option.isDefault,
+    )
+  }
+
+  return undefined
+}
+
+function buildExerciseFallbackSelection(
+  workoutExercise: CoachProgram["workouts"][number]["exercises"][number],
+  resolvedOption?: ExerciseVariationOption,
+) {
+  return {
+    fallbackEquipment: resolvedOption?.equipment ?? workoutExercise.variation.equipment,
+    fallbackExerciseName: workoutExercise.exercise.name,
+    fallbackIsDefault: workoutExercise.variation.isDefault,
+    fallbackMuscleGroup: resolvedOption?.muscleGroup ?? workoutExercise.exercise.muscleGroup,
+    fallbackVariationName: workoutExercise.variation.name,
+  }
+}
+
+function mapProgramToWorkoutDays(program: CoachProgram, exerciseOptions: ExerciseVariationOption[]): WorkoutDay[] {
   return program.workouts.map((workout, index) => ({
-    exercises: workout.exercises.map((exercise) => ({
-      variationId: exercise.variation.id,
-      id: exercise.id,
-      reps: formatRepTarget({
-        reps: exercise.sets[0]?.targetReps ?? 1,
-        repsMin: exercise.sets[0]?.targetRepsMin,
-      }),
-      sets: exercise.sets.length,
-      weight: exercise.sets[0]?.weight != null ? String(exercise.sets[0].weight) : "",
-    })),
+    exercises: workout.exercises.map((exercise) => {
+      const resolvedOption = resolveExerciseOptionForEditor(exercise, exerciseOptions)
+
+      return {
+        ...buildExerciseFallbackSelection(exercise, resolvedOption),
+        variationId: resolvedOption?.id ?? exercise.variation.id,
+        id: exercise.id,
+        reps: formatRepTarget({
+          reps: exercise.sets[0]?.targetReps ?? 1,
+          repsMin: exercise.sets[0]?.targetRepsMin,
+        }),
+        sets: exercise.sets.length,
+        weight: exercise.sets[0]?.weight != null ? String(exercise.sets[0].weight) : "",
+      }
+    }),
     id: workout.id,
     name: workout.name,
     scheduledDay: String(workout.scheduledDay ?? ((index + 1) % 7)),
@@ -200,7 +282,25 @@ function SortableWorkoutExerciseCard({
           <ExercisePicker
             selectedVariationId={exercise.variationId}
             exercises={exerciseOptions}
-            onSelect={(variationId) => onUpdate({ variationId })}
+            fallbackSelection={{
+              equipment: exercise.fallbackEquipment,
+              exerciseName: exercise.fallbackExerciseName,
+              isDefault: exercise.fallbackIsDefault,
+              muscleGroup: exercise.fallbackMuscleGroup,
+              variationName: exercise.fallbackVariationName,
+            }}
+            onSelect={(variationId) => {
+              const selectedOption = exerciseOptions.find((option) => option.id === variationId)
+
+              onUpdate({
+                fallbackEquipment: selectedOption?.equipment,
+                fallbackExerciseName: selectedOption?.exerciseName,
+                fallbackIsDefault: selectedOption?.isDefault,
+                fallbackMuscleGroup: selectedOption?.muscleGroup,
+                fallbackVariationName: selectedOption?.variationName,
+                variationId,
+              })
+            }}
           />
         </div>
       </div>
@@ -276,22 +376,27 @@ function SortableWorkoutExerciseCard({
   )
 }
 
-export function ProgramEditor({ programId }: ProgramEditorProps) {
+export function ProgramEditor({
+  initialExerciseOptions = [],
+  initialTraineeOptions = [],
+  programId,
+}: ProgramEditorProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoading: authLoading, session } = useAuth()
+  const hasInitialEditorData = initialExerciseOptions.length > 0 || initialTraineeOptions.length > 0
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [programName, setProgramName] = useState("")
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
   const [difficulty, setDifficulty] = useState("beginner")
-  const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
-  const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>([])
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
+  const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>(initialTraineeOptions)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
   const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>([])
   const [expandedWorkoutDayIds, setExpandedWorkoutDayIds] = useState<Record<string, boolean>>({})
   const [currentProgram, setCurrentProgram] = useState<CoachProgram | null>(null)
-  const [isLoadingPage, setIsLoadingPage] = useState(true)
+  const [isLoadingPage, setIsLoadingPage] = useState(programId ? true : !hasInitialEditorData)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -316,12 +421,13 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     let cancelled = false
 
     const loadPage = async () => {
-      setIsLoadingPage(true)
+      setIsLoadingPage(programId ? true : !hasInitialEditorData)
       setError(null)
 
       try {
-        const [exercises, program, trainees] = await Promise.all([
+        const [exercises, exerciseLibrary, program, trainees] = await Promise.all([
           fetchExercises(session.access_token),
+          fetchExerciseLibrary(session.access_token),
           programId ? fetchCoachProgram(session.access_token, programId) : Promise.resolve(null),
           fetchCoachTrainees(session.access_token),
         ])
@@ -330,8 +436,16 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
           return
         }
 
-        setExerciseOptions(exercises)
-        setTraineeOptions(trainees)
+        const fallbackExerciseOptions = flattenExerciseLibraryToVariationOptions(exerciseLibrary)
+        const resolvedExerciseOptions = mergeExerciseOptions(exercises, fallbackExerciseOptions)
+        const nextExerciseOptions =
+          resolvedExerciseOptions.length > 0
+            ? mergeExerciseOptions(initialExerciseOptions, resolvedExerciseOptions)
+            : initialExerciseOptions
+        const nextTraineeOptions = trainees.length > 0 ? trainees : initialTraineeOptions
+
+        setExerciseOptions(nextExerciseOptions)
+        setTraineeOptions(nextTraineeOptions)
 
         if (program) {
           setCurrentProgram(program)
@@ -344,7 +458,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
               ? [adjustForTraineeId]
               : (program.assignedTo ?? program.assignedTrainees.map((trainee) => trainee.id)),
           )
-          setWorkoutDays(mapProgramToWorkoutDays(program))
+          setWorkoutDays(mapProgramToWorkoutDays(program, nextExerciseOptions))
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -362,7 +476,17 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
     return () => {
       cancelled = true
     }
-  }, [adjustForTraineeId, authLoading, programId, session?.access_token])
+  }, [adjustForTraineeId, authLoading, initialExerciseOptions, initialTraineeOptions, programId, session?.access_token])
+
+  useEffect(() => {
+    if (programId || workoutDays.length > 0 || exerciseOptions.length === 0 || isLoadingPage) {
+      return
+    }
+
+    const initialDay = createWorkoutDay(0)
+    setWorkoutDays([initialDay])
+    setExpandedWorkoutDayIds({ [initialDay.id]: true })
+  }, [exerciseOptions, isLoadingPage, programId, workoutDays.length])
 
   useEffect(() => {
     setExpandedWorkoutDayIds((current) => {
@@ -389,14 +513,23 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
   }, [workoutDays])
 
   const addWorkoutDay = () => {
-    setWorkoutDays((current) => [...current, createWorkoutDay(current.length)])
+    setWorkoutDays((current) => {
+      const nextDay = createWorkoutDay(current.length)
+
+      setExpandedWorkoutDayIds((expanded) => ({
+        ...expanded,
+        [nextDay.id]: true,
+      }))
+
+      return [...current, nextDay]
+    })
   }
 
   const addExercise = (dayId: string) => {
-    const defaultVariationId = exerciseOptions[0]?.id
-
-    if (!defaultVariationId) {
-      setError("Chưa có bài tập nào trong thư viện để thêm vào program.")
+    setError((current) => (current === EXERCISE_LIBRARY_EMPTY_ERROR ? null : current))
+    
+    if (exerciseOptions.length === 0) {
+      setError(EXERCISE_LIBRARY_EMPTY_ERROR)
       return
     }
 
@@ -406,14 +539,8 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
           ? {
               ...day,
               exercises: [
-                ...day.exercises,
-                {
-                  variationId: defaultVariationId,
-                  id: createFormId(),
-                  reps: "8-12",
-                  sets: 3,
-                  weight: "",
-                },
+              ...day.exercises,
+                createWorkoutExerciseForm(),
               ],
             }
           : day,
@@ -513,6 +640,12 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
       .map((day, index) => ({
         duration: estimateWorkoutDuration(day.exercises),
         exercises: day.exercises.map((exercise, exerciseIndex) => {
+          if (!exercise.variationId.trim()) {
+            throw new Error(
+              `Hãy chọn bài tập cho ${day.name.trim() || `Day ${index + 1}`} / bài tập ${exerciseIndex + 1}.`,
+            )
+          }
+
           const parsedWeight = Number(exercise.weight)
           const repTarget = parseRepTargetText(exercise.reps)
 
@@ -975,6 +1108,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                     </p>
                   </div>
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     onClick={addWorkoutDay}
@@ -1094,6 +1228,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                           </div>
 
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
                             onClick={() => removeDay(day.id)}
@@ -1120,16 +1255,22 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                           </div>
 
                           <Button
+                            type="button"
                             variant="outline"
                             size="sm"
                             onClick={() => addExercise(day.id)}
                             className="gap-2 rounded-full border-primary/20 bg-background/90 px-4"
-                            disabled={exerciseOptions.length === 0}
                           >
                             <Plus className="h-4 w-4" />
                             Add exercise
                           </Button>
                         </div>
+
+                        {exerciseOptions.length === 0 ? (
+                          <div className="rounded-2xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            Thư viện bài tập chưa tải được. Vui lòng tải lại trang hoặc kiểm tra lại dữ liệu exercise của coach.
+                          </div>
+                        ) : null}
 
                         {day.exercises.length > 0 ? (
                           <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDayExerciseDragEnd(day.id)}>
@@ -1172,6 +1313,7 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 {programId && !isAdjustMode ? (
                   <Button
+                    type="button"
                     variant="outline"
                     className="w-full sm:w-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => setIsDeleteDialogOpen(true)}
@@ -1181,11 +1323,11 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
                   </Button>
                 ) : null}
                 <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} className="w-full sm:w-auto">
-                  <Button variant="outline" className="w-full bg-transparent">
+                  <Button type="button" variant="outline" className="w-full bg-transparent">
                     Cancel
                   </Button>
                 </Link>
-                <Button className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90" onClick={() => void handleSaveProgram()} disabled={isSaving}>
+                <Button type="button" className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90" onClick={() => void handleSaveProgram()} disabled={isSaving}>
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {isSaving ? "Saving..." : isAdjustMode ? "Save Adjusted Plan" : programId ? "Update Program" : "Save Program"}
                 </Button>
@@ -1202,10 +1344,11 @@ export function ProgramEditor({ programId }: ProgramEditorProps) {
           </DialogHeader>
 
           <DialogFooter>
-            <Button variant="outline" className="bg-transparent" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+            <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
               Cancel
             </Button>
             <Button
+              type="button"
               variant="destructive"
               onClick={() => void handleDeleteProgram()}
               disabled={isDeleting}

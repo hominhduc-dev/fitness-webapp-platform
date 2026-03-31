@@ -794,7 +794,11 @@ export function CoachTraineeDetailClient({
           </div>
 
           <div className="mt-6">
-            <TraineeWorkoutLogsPanel traineeId={detail.trainee.id} initialLogs={detail.recentLogs} />
+            <TraineeWorkoutLogsPanel
+              traineeId={detail.trainee.id}
+              traineeName={detail.trainee.name}
+              initialLogs={detail.recentLogs}
+            />
           </div>
         </div>
       </TabsContent>

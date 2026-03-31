@@ -98,6 +98,7 @@ type ExerciseFormState = {
   id?: string
   muscleGroup: string
   name: string
+  variationName: string
 }
 
 type ExerciseImportIssue = {
@@ -418,6 +419,7 @@ export function AdminConsole() {
     equipment: "",
     muscleGroup: "",
     name: "",
+    variationName: "",
   })
   const [userSearch, setUserSearch] = useState("")
   const [userRoleFilter, setUserRoleFilter] = useState<UserRole | "all">("all")
@@ -533,6 +535,7 @@ export function AdminConsole() {
       equipment: "",
       muscleGroup: "",
       name: "",
+      variationName: "",
     })
   }
 
@@ -1903,6 +1906,15 @@ export function AdminConsole() {
                     <Label>{locale === "en" ? "Equipment" : "Thiết bị"}</Label>
                     <Input className="mt-1.5" value={exerciseForm.equipment} onChange={(event) => setExerciseForm((current) => ({ ...current, equipment: event.target.value }))} />
                   </div>
+                  <div>
+                    <Label>{locale === "en" ? "Variation name" : "Tên variation"}</Label>
+                    <Input
+                      className="mt-1.5"
+                      value={exerciseForm.variationName}
+                      onChange={(event) => setExerciseForm((current) => ({ ...current, variationName: event.target.value }))}
+                      placeholder={locale === "en" ? "e.g. Wide Grip" : "Ví dụ: Wide Grip"}
+                    />
+                  </div>
                   <Button className="w-full" onClick={() => void handleSaveExercise()} disabled={actionKey === (exerciseForm.id ? `exercise-update-${exerciseForm.id}` : "exercise-create")}>
                     {actionKey === (exerciseForm.id ? `exercise-update-${exerciseForm.id}` : "exercise-create") ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     {exerciseForm.id ? (locale === "en" ? "Update exercise" : "Cập nhật bài tập") : locale === "en" ? "Create exercise" : "Tạo bài tập"}
@@ -2067,13 +2079,7 @@ export function AdminConsole() {
                                       <div>
                                         <div className="flex flex-wrap items-center gap-2">
                                           <h4 className="font-semibold">{exercise.name}</h4>
-                                          <Badge variant={exercise.isDefault ? "default" : "outline"}>
-                                            {exercise.isDefault
-                                              ? locale === "en"
-                                                ? "Default variation"
-                                                : "Biến thể mặc định"
-                                              : exercise.variationName}
-                                          </Badge>
+                                          <Badge variant={exercise.isDefault ? "default" : "outline"}>{exercise.variationName}</Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground">
                                           {formatExerciseVariationMeta({
@@ -2099,6 +2105,7 @@ export function AdminConsole() {
                                               id: exercise.id,
                                               muscleGroup: exercise.muscleGroup,
                                               name: exercise.name,
+                                              variationName: exercise.variationName,
                                             })
                                           }
                                         >
