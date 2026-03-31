@@ -297,9 +297,11 @@ coachRouter.get("/trainees/:traineeId/workout-logs", async (req, res) => {
     const profile = await requireCurrentProfile(getAccessToken(req))
     const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined
     const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined
+    const weekStart = typeof req.query.weekStart === "string" ? req.query.weekStart : undefined
     const result = await listCoachWorkoutLogsForTrainee(profile.profile, String(req.params.traineeId), {
       cursor,
       limit: Number.isFinite(limit) ? limit : undefined,
+      weekStart,
     })
 
     res.json(result)

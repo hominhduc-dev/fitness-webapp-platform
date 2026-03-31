@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Suspense } from "react"
 import { ChevronDown, Clock, Dumbbell, Play } from "lucide-react"
 
+import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { Button } from "@/components/ui/button"
 import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
