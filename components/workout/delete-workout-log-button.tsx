@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, RotateCcw } from "lucide-react"
 
@@ -16,10 +16,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { deleteWorkoutLog } from "@/lib/fitness/api"
-import { cn } from "@/lib/utils"
+import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 
 type DeleteWorkoutLogButtonProps = {
-  className?: string
   logId: string
   onDeleted?: () => void
   refreshOnSuccess?: boolean
@@ -27,38 +26,16 @@ type DeleteWorkoutLogButtonProps = {
 }
 
 export function DeleteWorkoutLogButton({
-  className,
   logId,
   onDeleted,
   refreshOnSuccess = true,
   workoutId,
 }: DeleteWorkoutLogButtonProps) {
   const router = useRouter()
-  const { isLoading: authLoading, session } = useAuth()
-  const [isMounted, setIsMounted] = useState(false)
+  const { session } = useAuth()
   const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  const triggerButton = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className={cn(
-        "h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
-        className,
-      )}
-      disabled={authLoading || isDeleting}
-      aria-label="Reset log"
-    >
-      {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-    </Button>
-  )
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -73,6 +50,7 @@ export function DeleteWorkoutLogButton({
 
     try {
       await deleteWorkoutLog(session.access_token, workoutId, logId)
+      markDashboardForRefresh()
       onDeleted?.()
       handleOpenChange(false)
       if (refreshOnSuccess) {
@@ -85,13 +63,21 @@ export function DeleteWorkoutLogButton({
     }
   }
 
-  if (!isMounted) {
-    return triggerButton
-  }
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>{triggerButton}</DialogTrigger>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          aria-label="Reset log"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
+        >
+          {isDeleting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </DialogTrigger>
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -111,7 +97,13 @@ export function DeleteWorkoutLogButton({
           <Button type="button" variant="outline" className="bg-transparent" onClick={() => handleOpenChange(false)}>
             Hủy
           </Button>
-          <Button type="button" variant="destructive" className="gap-2" onClick={() => void handleDelete()} disabled={isDeleting}>
+          <Button
+            type="button"
+            variant="destructive"
+            className="gap-2"
+            onClick={() => void handleDelete()}
+            disabled={isDeleting}
+          >
             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
             {isDeleting ? "Đang xóa..." : "Reset"}
           </Button>

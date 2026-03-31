@@ -1,14 +1,14 @@
-import { Suspense, cache } from "react"
+import { Suspense } from "react"
 
 import { WeeklyCalendar } from "@/components/schedule/weekly-calendar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchWorkouts } from "@/lib/fitness/api"
 
-const getScheduleData = cache(async (accessToken: string) => fetchWorkouts(accessToken))
+export const dynamic = "force-dynamic"
 
 async function ScheduleCalendar({ accessToken }: { accessToken: string }) {
-  const workoutData = await getScheduleData(accessToken)
+  const workoutData = await fetchWorkouts(accessToken)
 
   return (
     <WeeklyCalendar

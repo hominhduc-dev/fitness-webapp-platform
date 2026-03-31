@@ -120,12 +120,19 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
   const [weekOffset, setWeekOffset] = useState(0)
   const [copied, setCopied] = useState(false)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
+  const [visibleRecentLogs, setVisibleRecentLogs] = useState(recentLogs)
+  const [visibleWeekLogs, setVisibleWeekLogs] = useState(weekLogs ?? [])
   const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
 
   useEffect(() => {
     setOptimisticScheduleByDate({})
     setVisibleWorkouts(workouts)
   }, [schedule, workouts])
+
+  useEffect(() => {
+    setVisibleRecentLogs(recentLogs)
+    setVisibleWeekLogs(weekLogs ?? [])
+  }, [recentLogs, weekLogs])
 
   const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 1 })
 
@@ -204,7 +211,13 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
     })
   }
 
-  const logsForDisplay = weekOffset === 0 && weekLogs && weekLogs.length > 0 ? weekLogs : recentLogs
+  const handleLogDeleted = (logId: string) => {
+    setVisibleRecentLogs((currentLogs) => currentLogs.filter((log) => log.id !== logId))
+    setVisibleWeekLogs((currentLogs) => currentLogs.filter((log) => log.id !== logId))
+    router.refresh()
+  }
+
+  const logsForDisplay = weekOffset === 0 && visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
 
   const entries: ScheduleEntry[] = DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
     const date = addDays(weekStart, displayIndex)
@@ -364,9 +377,9 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                   {entry.isCompleted && entry.log ? (
                     <DeleteWorkoutLogButton
                       logId={entry.log.id}
-                      workoutId={entry.workout.id}
+                      workoutId={entry.log.workout.id}
                       refreshOnSuccess={false}
-                      onDeleted={() => router.refresh()}
+                      onDeleted={() => handleLogDeleted(entry.log!.id)}
                     />
                   ) : null}
                   <Link
@@ -442,9 +455,9 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                     {entry.isCompleted && entry.log ? (
                       <DeleteWorkoutLogButton
                         logId={entry.log.id}
-                        workoutId={entry.workout.id}
+                        workoutId={entry.log.workout.id}
                         refreshOnSuccess={false}
-                        onDeleted={() => router.refresh()}
+                        onDeleted={() => handleLogDeleted(entry.log!.id)}
                       />
                     ) : null}
                     <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-150 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
