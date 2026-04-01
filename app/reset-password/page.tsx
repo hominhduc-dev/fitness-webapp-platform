@@ -9,12 +9,12 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createBrowserSupabaseClient } from "@/lib/supabase/client"
-
-const supabase = createBrowserSupabaseClient()
+import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
+import { hasSupabasePublicConfig } from "@/lib/supabase/config"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
+  const isSupabaseConfigured = hasSupabasePublicConfig()
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -35,6 +35,13 @@ export default function ResetPasswordPage() {
 
     if (password !== confirmPassword) {
       setError("Mật khẩu xác nhận không khớp.")
+      return
+    }
+
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      setError("Tính năng đặt lại mật khẩu chưa được cấu hình trên môi trường này.")
       return
     }
 
@@ -66,6 +73,11 @@ export default function ResetPasswordPage() {
           <p className="mt-1 text-sm text-muted-foreground">Nhập mật khẩu mới cho tài khoản YeahBuddy của bạn.</p>
         </div>
 
+        {!isSupabaseConfigured && (
+          <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700">
+            Chức năng đặt lại mật khẩu hiện chưa sẵn sàng vì thiếu cấu hình Supabase public.
+          </div>
+        )}
         {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {success && <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3 text-sm text-primary">{success}</div>}
 
@@ -116,7 +128,7 @@ export default function ResetPasswordPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" className="w-full" disabled={isSubmitting || !isSupabaseConfigured}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

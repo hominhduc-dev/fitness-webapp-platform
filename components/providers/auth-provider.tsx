@@ -6,7 +6,7 @@ import { createContext, startTransition, useContext, useEffect, useState } from 
 
 import { fetchCurrentProfile, updateProfileRequest, uploadAvatarRequest } from "@/lib/auth/api"
 import type { AppProfile, UpdateProfileInput, UploadAvatarInput } from "@/lib/auth/types"
-import { createBrowserSupabaseClient } from "@/lib/supabase/client"
+import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 
 type AuthContextValue = {
   isLoading: boolean
@@ -19,7 +19,6 @@ type AuthContextValue = {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
-const supabase = createBrowserSupabaseClient()
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -60,6 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      startTransition(() => {
+        setSession(null)
+        setProfile(null)
+        setIsLoading(false)
+      })
+
+      return
+    }
 
     const bootstrap = async () => {
       const {
@@ -92,6 +102,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   async function refreshProfile() {
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      return null
+    }
+
     const {
       data: { session: currentSession },
     } = await supabase.auth.getSession()
@@ -100,6 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function updateProfile(input: UpdateProfileInput) {
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      throw new Error("Supabase chưa được cấu hình.")
+    }
+
     const {
       data: { session: currentSession },
     } = await supabase.auth.getSession()
@@ -118,6 +140,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function uploadAvatar(input: UploadAvatarInput) {
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      throw new Error("Supabase chưa được cấu hình.")
+    }
+
     const {
       data: { session: currentSession },
     } = await supabase.auth.getSession()
@@ -136,7 +164,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut({ scope: "local" })
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (supabase) {
+      await supabase.auth.signOut({ scope: "local" })
+    }
 
     startTransition(() => {
       setSession(null)
