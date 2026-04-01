@@ -20,8 +20,8 @@ import {
 } from "@/lib/auth/api"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
-import { createBrowserSupabaseClient } from "@/lib/supabase/client"
-import { getAppBaseUrl } from "@/lib/supabase/config"
+import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
+import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
 
 interface AuthModalProps {
   defaultTab?: "login" | "register"
@@ -31,7 +31,6 @@ interface AuthModalProps {
 }
 
 const REMEMBERED_IDENTIFIER_KEY = "yeahbuddy:remembered-identifier"
-const supabase = createBrowserSupabaseClient()
 
 function sanitizeRedirectPath(path?: string | null) {
   if (!path || !path.startsWith("/")) {
@@ -54,6 +53,8 @@ function createCallbackRedirect(nextPath?: string | null) {
 
 export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectToPath }: AuthModalProps) {
   const { messages } = useLocale()
+  const supabaseConfigError = getSupabasePublicConfigError()
+  const isSupabaseConfigured = supabaseConfigError === null
   const [activeTab, setActiveTab] = useState<"login" | "register">(defaultTab)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
@@ -93,6 +94,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     })
   }, [])
 
+  function getSupabaseClientOrThrow() {
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      throw new Error(supabaseConfigError ?? "Supabase browser client is unavailable.")
+    }
+
+    return supabase
+  }
+
   async function applyBrowserSession(session?: {
     accessToken: string
     refreshToken: string
@@ -101,6 +112,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       return
     }
 
+    const supabase = getSupabaseClientOrThrow()
     const { error: sessionError } = await supabase.auth.setSession({
       access_token: session.accessToken,
       refresh_token: session.refreshToken,
@@ -140,6 +152,12 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     event.preventDefault()
     setError(null)
     setSuccess(null)
+
+    if (!isSupabaseConfigured) {
+      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -171,6 +189,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     event.preventDefault()
     setError(null)
     setSuccess(null)
+
+    if (!isSupabaseConfigured) {
+      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      return
+    }
 
     if (registerPassword !== confirmPassword) {
       setError(messages.auth.passwordMismatch)
@@ -222,6 +245,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setError(null)
     setSuccess(null)
 
+    if (!isSupabaseConfigured) {
+      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      return
+    }
+
     const targetIdentifier = loginIdentifier.trim()
 
     if (!targetIdentifier) {
@@ -254,6 +282,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const handleOAuthLogin = async (provider: "google" | "apple") => {
     setError(null)
     setSuccess(null)
+
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      return
+    }
+
     setOauthLoadingProvider(provider)
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -280,7 +316,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       variant="outline"
       type="button"
       onClick={() => void handleOAuthLogin(provider)}
-      disabled={isLoading || oauthLoadingProvider !== null}
+      disabled={isLoading || oauthLoadingProvider !== null || !isSupabaseConfigured}
       className="bg-card border-border hover:bg-card/80 h-11 sm:h-10 text-sm"
     >
       {oauthLoadingProvider === provider ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : icon}
@@ -290,6 +326,12 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
   const renderAuthContent = () => (
     <>
+      {!isSupabaseConfigured && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
+          <p className="text-sm text-amber-700">Tính năng đăng nhập đang bị tắt vì thiếu cấu hình Supabase public.</p>
+        </div>
+      )}
       {error && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3">
           <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
@@ -374,6 +416,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               <button
                 type="button"
                 onClick={() => void handleForgotPassword()}
+                disabled={!isSupabaseConfigured}
                 className="text-xs sm:text-sm text-primary hover:text-primary/80 transition-colors"
               >
                 {messages.auth.forgotPassword}
@@ -383,7 +426,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 sm:h-11 text-base sm:text-sm"
-              disabled={isLoading || oauthLoadingProvider !== null}
+              disabled={isLoading || oauthLoadingProvider !== null || !isSupabaseConfigured}
             >
               {isLoading ? (
                 <>
@@ -560,7 +603,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 sm:h-11 text-base sm:text-sm"
-              disabled={isLoading || oauthLoadingProvider !== null || !acceptTerms}
+              disabled={isLoading || oauthLoadingProvider !== null || !acceptTerms || !isSupabaseConfigured}
             >
               {isLoading ? (
                 <>
