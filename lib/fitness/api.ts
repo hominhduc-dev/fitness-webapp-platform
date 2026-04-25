@@ -654,14 +654,14 @@ function mapExerciseLibraryExercise(exercise: SerializedExerciseLibraryExercise)
   }
 }
 
-function mapCoachDashboardSummary(summary: SerializedCoachDashboardSummary): CoachDashboardSummary {
+function mapCoachDashboardSummary(summary?: Partial<SerializedCoachDashboardSummary> | null): CoachDashboardSummary {
   return {
-    atRiskTraineeCount: summary.atRiskTraineeCount,
-    averageCompletionRate: summary.averageCompletionRate,
-    totalPlannedSessions: summary.totalPlannedSessions,
-    totalTrainees: summary.totalTrainees,
-    unreadNotificationCount: summary.unreadNotificationCount,
-    workoutsThisWeek: summary.workoutsThisWeek,
+    atRiskTraineeCount: summary?.atRiskTraineeCount ?? 0,
+    averageCompletionRate: summary?.averageCompletionRate ?? 0,
+    totalPlannedSessions: summary?.totalPlannedSessions ?? 0,
+    totalTrainees: summary?.totalTrainees ?? 0,
+    unreadNotificationCount: summary?.unreadNotificationCount ?? 0,
+    workoutsThisWeek: summary?.workoutsThisWeek ?? 0,
   }
 }
 
@@ -830,7 +830,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
       workoutsThisWeek: number
     }
     workouts: SerializedWorkout[]
-  }>("/api/workouts", accessToken, { cache: "no-store" })
+  }>("/api/workouts", accessToken)
 
   return {
     historyLogs: (response.historyLogs ?? []).map(mapWorkoutLog),
@@ -996,7 +996,7 @@ async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardD
   return {
     activityByDay: (response.activityByDay ?? []).map(mapCoachDashboardActivityPoint),
     atRiskTrainees: (response.atRiskTrainees ?? []).map(mapCoachTrainee),
-    pendingRequests: response.pendingRequests.map((requestItem) => ({
+    pendingRequests: (response.pendingRequests ?? []).map((requestItem) => ({
       coachId: requestItem.coachId,
       createdAt: new Date(requestItem.createdAt),
       id: requestItem.id,
@@ -1006,7 +1006,7 @@ async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardD
     })),
     recentWorkoutLogs: (response.recentWorkoutLogs ?? []).map(mapCoachDashboardRecentWorkoutLog),
     summary: mapCoachDashboardSummary(response.summary),
-    trainees: response.trainees.map(mapCoachTrainee),
+    trainees: (response.trainees ?? []).map(mapCoachTrainee),
   }
 }
 
@@ -1170,7 +1170,7 @@ async function fetchCoachWorkoutLogs(
   const response = await request<{ logs: SerializedWorkoutLog[]; nextCursor?: string }>(
     `/api/coach/trainees/${traineeId}/workout-logs${query}`,
     accessToken,
-    { cache: "no-store" },
+    { next: { revalidate: 10 } },
   )
 
   return {
@@ -1265,11 +1265,25 @@ async function deleteCoachExerciseRequest(accessToken: string, exerciseId: strin
 }
 
 async function fetchNotifications(accessToken: string, limit = 20): Promise<NotificationList> {
-  const response = await request<{ notifications: SerializedNotification[]; unreadCount: number }>(
-    `/api/notifications?limit=${encodeURIComponent(String(limit))}`,
-    accessToken,
-    { cache: "no-store" },
-  )
+  let response: { notifications: SerializedNotification[]; unreadCount: number }
+
+  try {
+    response = await request<{ notifications: SerializedNotification[]; unreadCount: number }>(
+      `/api/notifications?limit=${encodeURIComponent(String(limit))}`,
+      accessToken,
+      { next: { revalidate: 5 } },
+    )
+  } catch (error) {
+    // Older backend deployments may not expose notifications yet.
+    if (error instanceof ApiError && error.status === 404) {
+      return {
+        notifications: [],
+        unreadCount: 0,
+      }
+    }
+
+    throw error
+  }
 
   return {
     notifications: (response.notifications ?? []).map(mapNotification),

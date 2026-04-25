@@ -1,8 +1,10 @@
 "use client"
 
 import {
+  BellRing,
   Calendar,
   ClipboardList,
+  Dumbbell,
   Flame,
   ShieldCheck,
   Target,
@@ -17,12 +19,14 @@ import { useLocale } from "@/components/providers/locale-provider"
 const iconMap = {
   calendar: Calendar,
   "clipboard-list": ClipboardList,
+  dumbbell: Dumbbell,
   flame: Flame,
   "shield-check": ShieldCheck,
   target: Target,
   "trending-up": TrendingUp,
   "user-plus": UserPlus,
   users: Users,
+  "bell-ring": BellRing,
 } satisfies Record<string, LucideIcon>
 
 type StatsCardIconName = keyof typeof iconMap

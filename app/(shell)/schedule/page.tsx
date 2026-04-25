@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchWorkouts } from "@/lib/fitness/api"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 30
 
 async function ScheduleCalendar({ accessToken }: { accessToken: string }) {
   const workoutData = await fetchWorkouts(accessToken)

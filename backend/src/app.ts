@@ -1,3 +1,4 @@
+import compression from "compression"
 import cors from "cors"
 import express from "express"
 
@@ -6,6 +7,7 @@ import { apiRouter } from "./routes"
 
 const app = express()
 
+app.use(compression())
 app.use(
   cors({
     credentials: true,

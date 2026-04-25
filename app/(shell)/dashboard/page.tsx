@@ -22,7 +22,7 @@ type DashboardOverviewProps = {
   preferredWeightUnit?: "kg" | "lbs"
 }
 
-export const dynamic = "force-dynamic"
+export const revalidate = 30
 
 function startOfCurrentWeek(date: Date) {
   const value = new Date(date)
