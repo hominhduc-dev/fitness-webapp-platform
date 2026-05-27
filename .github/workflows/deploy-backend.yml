@@ -23,6 +23,8 @@ jobs:
           port: 22
           script: |
             set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /home/yeahbuddy/htdocs/backend.hominhduc.me/fitness-app
 
             echo "==> Pulling latest code..."
