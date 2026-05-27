@@ -36,7 +36,7 @@ jobs:
             npm ci --omit=dev
 
             echo "==> Building..."
-            npm run build:backend
+            npm run build
 
             echo "==> Running migrations..."
             npx prisma migrate deploy
