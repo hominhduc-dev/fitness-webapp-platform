@@ -18,7 +18,7 @@ import {
 
 import { AuthServiceError, type SerializedProfile } from "./auth.service"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "./meal-log.service"
-import { prisma } from "../lib/prisma"
+import { prisma, retryTransaction } from "../lib/prisma"
 
 const WORKOUT_EXERCISE_INCLUDE = {
   sets: {
@@ -2112,7 +2112,7 @@ async function createWorkoutLogForTrainee(
   const serializedWorkout = serializeWorkout(workout as WorkoutRecord)
   const totalVolume = calculateWorkoutVolume(input.exercises)
 
-  const log = await db.$transaction(async (transaction) => {
+  const log = await retryTransaction(() => db.$transaction(async (transaction) => {
     const createdLog = await transaction.workoutLog.create({
       data: {
         completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
@@ -2159,7 +2159,7 @@ async function createWorkoutLogForTrainee(
     }
 
     return createdLog
-  })
+  }))
 
   return serializeWorkoutLog(log as WorkoutLogRecord)
 }

@@ -1,0 +1,44 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd /home/yeahbuddy/htdocs/backend.hominhduc.me/fitness-app
+
+            echo "==> Pulling latest code..."
+            git pull origin main
+
+            echo "==> Installing dependencies..."
+            cd backend
+            npm ci --omit=dev
+
+            echo "==> Building..."
+            npm run build:backend
+
+            echo "==> Running migrations..."
+            npx prisma migrate deploy
+
+            echo "==> Restarting PM2..."
+            pm2 restart yeahbuddy
+
+            echo "==> Done!"
