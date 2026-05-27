@@ -27,7 +27,6 @@ const iconMap = {
   "trending-up": TrendingUp,
   "user-plus": UserPlus,
   users: Users,
-  "bell-ring": BellRing,
 } satisfies Record<string, LucideIcon>
 
 type StatsCardIconName = keyof typeof iconMap

@@ -344,9 +344,11 @@ function MetricCard({
 
 type LiftTooltipProps = {
   active?: boolean
-  payload?: Array<{ value?: number | null }>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: Array<any>
   label?: string
   unit?: string
+  [key: string]: unknown
 }
 
 function LiftTooltip({ active, payload, label, unit = "kg" }: LiftTooltipProps) {

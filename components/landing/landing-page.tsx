@@ -17,16 +17,13 @@ import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AppLocale } from "@/lib/i18n/config"
-import type { AppMessages } from "@/lib/i18n/messages"
-
 /* ============================================================
    LandingPage — Lift warm-minimal design (Step 3a)
    All sections are named exports for clarity; the root export
    is `LandingPage` which the page.tsx consumes.
    ============================================================ */
 
-// Props are kept for backward-compat with app/page.tsx
-export function LandingPage(_props: { locale: AppLocale; messages: AppMessages }) {
+export function LandingPage(_props: { locale: AppLocale }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <TopBar />
