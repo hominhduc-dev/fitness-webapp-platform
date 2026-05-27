@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client"
+import { Prisma, PrismaClient } from "@prisma/client"
 
 import { env } from "../config/env"
 
@@ -48,4 +48,24 @@ if (env.nodeEnv !== "production" && prisma) {
   globalForPrisma.prisma = prisma
 }
 
-export { prisma }
+const RETRYABLE_CODES = new Set(["P2028", "P1001", "P1008", "P1017"])
+
+async function retryTransaction<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : null
+      if (code && RETRYABLE_CODES.has(code) && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 200 * attempt))
+        continue
+      }
+      throw error
+    }
+  }
+  throw lastError
+}
+
+export { prisma, retryTransaction }
