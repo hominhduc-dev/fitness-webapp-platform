@@ -192,3 +192,64 @@
   background: var(--secondary);   /* accent-soft */
   color: var(--accent-foreground);
 }
+
+/* ============================================================
+   Dark mode — approximate Lift dark palette
+   Apply by adding class="dark" to <html> (next-themes)
+   ============================================================ */
+.dark {
+  color-scheme: dark;
+
+  --primary: #5a7fff;
+  --primary-hover: #6a8fff;
+  --primary-pressed: #4a6fff;
+  --primary-foreground: #ffffff;
+
+  --secondary: #1a2340;
+  --secondary-hover: #222d4f;
+  --secondary-foreground: #c9c9c2;
+
+  --accent: #1a2340;
+  --accent-foreground: #a0b0ff;
+
+  --background: #0d0d0b;
+  --foreground: #f5f5f1;
+
+  --card: #1a1a17;
+  --card-foreground: #f5f5f1;
+  --surface: #222220;
+
+  --popover: #1a1a17;
+  --popover-foreground: #f5f5f1;
+
+  --muted: #1a1a17;
+  --muted-foreground: #8a8a82;
+
+  --text-primary: #f5f5f1;
+  --text-secondary: #8a8a82;
+
+  --success: #3aaa77;
+  --warning: #d48a35;
+  --info: #5a7fff;
+  --destructive: #e04a30;
+  --destructive-foreground: #ffffff;
+
+  --border: #2a2a25;
+  --input: #333330;
+  --ring: #5a7fff;
+
+  --chart-1: #5a7fff;
+  --chart-2: #8a8a82;
+  --chart-3: #3aaa77;
+  --chart-4: #d48a35;
+  --chart-5: #3a3a35;
+
+  --sidebar: #111110;
+  --sidebar-foreground: #f5f5f1;
+  --sidebar-primary: #5a7fff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a25;
+  --sidebar-accent-foreground: #f5f5f1;
+  --sidebar-border: #2a2a25;
+  --sidebar-ring: #5a7fff;
+}
