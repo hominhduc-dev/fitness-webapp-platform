@@ -51,7 +51,7 @@ healthRouter.get("/", async (_req, res) => {
   res.json({
     database,
     service: "fitness-app-backend",
-    status: database.connected || !database.configured ? "ok" : "degraded",
+    status: database.connected && database.configured ? "ok" : "degraded",
     supabase,
     timestamp: new Date().toISOString(),
   })
@@ -60,7 +60,7 @@ healthRouter.get("/", async (_req, res) => {
 healthRouter.get("/database", async (_req, res) => {
   const database = await getDatabaseHealth()
 
-  res.status(database.connected || !database.configured ? 200 : 503).json(database)
+  res.status(database.connected && database.configured ? 200 : 503).json(database)
 })
 
 healthRouter.get("/supabase", (_req, res) => {

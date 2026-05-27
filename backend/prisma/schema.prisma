@@ -98,7 +98,6 @@ model User {
   meals                  Meal[]
   exercisesCreated       Exercise[]          @relation("ExerciseCreator")
   foodsCreated           Food[]              @relation("FoodCreator")
-  recipesCreated         Recipe[]            @relation("RecipeCreator")
   notifications          Notification[]
   programsCreated        Program[]           @relation("ProgramCreator")
   programAssignments     ProgramAssignment[]
@@ -173,7 +172,6 @@ model Food {
   createdById   String?          @db.Uuid
   createdBy     User?            @relation("FoodCreator", fields: [createdById], references: [id], onDelete: SetNull)
   nutrients     FoodNutrient[]
-  recipeItems   RecipeFoodItem[]
   mealItems     MealFoodItem[]
   mealLogs      Meal[]
   createdAt     DateTime         @default(now())
@@ -196,43 +194,6 @@ model FoodNutrient {
 
   @@unique([foodId, nutrientKey])
   @@index([nutrientKey])
-}
-
-model Recipe {
-  id              String           @id @default(uuid()) @db.Uuid
-  createdById     String           @db.Uuid
-  name            String
-  description     String?
-  servings        Float            @default(1)
-  prepTimeMinutes Int?
-  cookTimeMinutes Int?
-  instructions    Json?
-  mealType        MealType?
-  isPublic        Boolean          @default(false)
-  createdBy       User             @relation("RecipeCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  items           RecipeFoodItem[]
-  mealItems       MealFoodItem[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  @@index([createdById])
-  @@index([name])
-}
-
-model RecipeFoodItem {
-  id         String   @id @default(uuid()) @db.Uuid
-  recipeId   String   @db.Uuid
-  foodId     String   @db.Uuid
-  quantity   Float    @default(1)
-  notes      String?
-  order      Int
-  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  food       Food     @relation(fields: [foodId], references: [id], onDelete: Restrict)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([recipeId, order])
-  @@index([foodId])
 }
 
 model Program {
@@ -422,7 +383,6 @@ model MealFoodItem {
   id               String    @id @default(uuid()) @db.Uuid
   mealId           String    @db.Uuid
   foodId           String    @db.Uuid
-  sourceRecipeId   String?   @db.Uuid
   quantity         Float     @default(1)
   notes            String?
   foodNameSnapshot String?
@@ -435,13 +395,11 @@ model MealFoodItem {
   sodium           Float?
   meal             Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
   food             Food      @relation(fields: [foodId], references: [id], onDelete: Restrict)
-  sourceRecipe     Recipe?   @relation(fields: [sourceRecipeId], references: [id], onDelete: SetNull)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   @@index([foodId])
   @@index([mealId])
-  @@index([sourceRecipeId])
 }
 
 model CoachRequest {
