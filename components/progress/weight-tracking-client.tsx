@@ -3,12 +3,15 @@
 import type React from "react"
 import { startTransition, useEffect, useMemo, useState } from "react"
 import {
-  CalendarDays,
-  Loader2,
-  Minus,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react"
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import { Loader2, Minus, Plus, TrendingDown, TrendingUp } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -20,6 +23,10 @@ import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
 
+// ---------------------------------------------------------------------------
+// Constants & pure utilities (unchanged from original)
+// ---------------------------------------------------------------------------
+
 const KG_TO_LBS = 2.20462
 const RANGE_OPTIONS = [30, 90, 365] as const
 
@@ -28,10 +35,9 @@ type GoalDirection = "down" | "steady" | "up"
 type DeltaTone = "danger" | "neutral" | "success"
 type TrendDirection = "down" | "stable" | "up"
 type BmiCategory = "healthy" | "obese" | "overweight" | "underweight"
-type ChartBar = {
-  entry?: BodyMetricEntry
-  heightPct: number
-  id: string
+type ChartPoint = {
+  label: string
+  value: number | null
 }
 
 function startOfDay(value: Date) {
@@ -53,105 +59,55 @@ function convertWeightToKg(weight: number, unit: "kg" | "lbs") {
 }
 
 function formatWeight(weightKg: number | null | undefined, unit: "kg" | "lbs", fractionDigits = 1) {
-  if (!isFiniteNumber(weightKg)) {
-    return "--"
-  }
-
+  if (!isFiniteNumber(weightKg)) return "--"
   return convertWeightFromKg(weightKg, unit).toFixed(fractionDigits)
 }
 
 function formatSignedWeight(weightKg: number | null | undefined, unit: "kg" | "lbs", fractionDigits = 1) {
-  if (!isFiniteNumber(weightKg)) {
-    return null
-  }
-
+  if (!isFiniteNumber(weightKg)) return null
   const converted = convertWeightFromKg(weightKg, unit)
   const prefix = converted > 0 ? "+" : ""
   return `${prefix}${converted.toFixed(fractionDigits)}`
 }
 
 function calculateBmi(weightKg?: number, heightCm?: number) {
-  if (!isFiniteNumber(weightKg) || !isFiniteNumber(heightCm) || heightCm <= 0) {
-    return undefined
-  }
-
+  if (!isFiniteNumber(weightKg) || !isFiniteNumber(heightCm) || heightCm <= 0) return undefined
   const heightMeters = heightCm / 100
   return weightKg / (heightMeters * heightMeters)
 }
 
 function getBmiCategory(bmi?: number): BmiCategory | null {
-  if (!isFiniteNumber(bmi)) {
-    return null
-  }
-
-  if (bmi < 18.5) {
-    return "underweight"
-  }
-
-  if (bmi < 25) {
-    return "healthy"
-  }
-
-  if (bmi < 30) {
-    return "overweight"
-  }
-
+  if (!isFiniteNumber(bmi)) return null
+  if (bmi < 18.5) return "underweight"
+  if (bmi < 25) return "healthy"
+  if (bmi < 30) return "overweight"
   return "obese"
 }
 
 function getGoalDirection(currentWeightKg?: number, targetWeightKg?: number): GoalDirection {
-  if (!isFiniteNumber(currentWeightKg) || !isFiniteNumber(targetWeightKg)) {
-    return "steady" satisfies GoalDirection
-  }
-
-  const deltaToTargetKg = currentWeightKg - targetWeightKg
-
-  if (Math.abs(deltaToTargetKg) <= 0.15) {
-    return "steady" satisfies GoalDirection
-  }
-
-  return deltaToTargetKg > 0 ? ("down" satisfies GoalDirection) : ("up" satisfies GoalDirection)
+  if (!isFiniteNumber(currentWeightKg) || !isFiniteNumber(targetWeightKg)) return "steady"
+  const delta = currentWeightKg - targetWeightKg
+  if (Math.abs(delta) <= 0.15) return "steady"
+  return delta > 0 ? "down" : "up"
 }
 
 function getDeltaTone(deltaKg: number | undefined, direction: GoalDirection): DeltaTone {
-  if (!isFiniteNumber(deltaKg)) {
-    return "neutral"
-  }
-
-  if (direction === "down") {
-    return deltaKg <= 0 ? "success" : "danger"
-  }
-
-  if (direction === "up") {
-    return deltaKg >= 0 ? "success" : "danger"
-  }
-
+  if (!isFiniteNumber(deltaKg)) return "neutral"
+  if (direction === "down") return deltaKg <= 0 ? "success" : "danger"
+  if (direction === "up") return deltaKg >= 0 ? "success" : "danger"
   return Math.abs(deltaKg) <= 0.2 ? "success" : "neutral"
 }
 
 function getTrendDirection(currentWeightKg?: number, weeklyAverageKg?: number): TrendDirection {
-  if (!isFiniteNumber(currentWeightKg) || !isFiniteNumber(weeklyAverageKg)) {
-    return "stable"
-  }
-
+  if (!isFiniteNumber(currentWeightKg) || !isFiniteNumber(weeklyAverageKg)) return "stable"
   const delta = currentWeightKg - weeklyAverageKg
-
-  if (Math.abs(delta) <= 0.15) {
-    return "stable"
-  }
-
+  if (Math.abs(delta) <= 0.15) return "stable"
   return delta > 0 ? "up" : "down"
 }
 
 function getWeeklyTargetKg(direction: GoalDirection) {
-  if (direction === "down") {
-    return 0.4
-  }
-
-  if (direction === "up") {
-    return 0.25
-  }
-
+  if (direction === "down") return 0.4
+  if (direction === "up") return 0.25
   return 0.2
 }
 
@@ -161,29 +117,29 @@ function getDayKey(date: Date) {
 
 function collapseEntriesByDay(entries: BodyMetricEntry[]) {
   const byDay = new Map<string, BodyMetricEntry>()
-
   entries
     .slice()
-    .sort((left, right) => left.recordedAt.getTime() - right.recordedAt.getTime())
+    .sort((l, r) => l.recordedAt.getTime() - r.recordedAt.getTime())
     .forEach((entry) => {
-      if (!isFiniteNumber(entry.weightKg)) {
-        return
-      }
-
+      if (!isFiniteNumber(entry.weightKg)) return
       byDay.set(getDayKey(entry.recordedAt), entry)
     })
-
-  return Array.from(byDay.values()).sort((left, right) => left.recordedAt.getTime() - right.recordedAt.getTime())
+  return Array.from(byDay.values()).sort((l, r) => l.recordedAt.getTime() - r.recordedAt.getTime())
 }
 
-function buildChartBars(entries: BodyMetricEntry[], days: RangeValue): ChartBar[] {
+function buildChartPoints(entries: BodyMetricEntry[], days: RangeValue, unit: "kg" | "lbs", localeCode: string): ChartPoint[] {
   const bucketCount = days === 365 ? 12 : 10
   const today = startOfDay(new Date())
   const start = startOfDay(new Date(today))
   start.setDate(today.getDate() - (days - 1))
 
   const dailyEntries = collapseEntriesByDay(entries)
-  const buckets = Array.from({ length: bucketCount }, (_value, index) => {
+  const shortFmt = new Intl.DateTimeFormat(
+    localeCode,
+    days === 365 ? { month: "short" } : { month: "short", day: "numeric" },
+  )
+
+  return Array.from({ length: bucketCount }, (_, index) => {
     const bucketStart = startOfDay(new Date(start))
     bucketStart.setDate(start.getDate() + Math.floor((index * days) / bucketCount))
 
@@ -192,74 +148,36 @@ function buildChartBars(entries: BodyMetricEntry[], days: RangeValue): ChartBar[
 
     const entry = dailyEntries
       .filter((item) => {
-        const entryDate = startOfDay(item.recordedAt)
-        return entryDate >= bucketStart && entryDate <= bucketEnd
+        const d = startOfDay(item.recordedAt)
+        return d >= bucketStart && d <= bucketEnd
       })
       .at(-1)
 
-    return {
-      entry,
-      id: `${bucketStart.toISOString()}-${index}`,
-    }
-  })
-
-  const weights = buckets.flatMap((bucket) => (isFiniteNumber(bucket.entry?.weightKg) ? [bucket.entry.weightKg] : []))
-  const minWeight = weights.length > 0 ? Math.min(...weights) : 0
-  const maxWeight = weights.length > 0 ? Math.max(...weights) : 0
-
-  return buckets.map((bucket) => {
-    if (!isFiniteNumber(bucket.entry?.weightKg)) {
-      return {
-        ...bucket,
-        heightPct: 28,
-      }
-    }
-
-    if (Math.abs(maxWeight - minWeight) < 0.05) {
-      return {
-        ...bucket,
-        heightPct: 78,
-      }
-    }
+    const value =
+      isFiniteNumber(entry?.weightKg)
+        ? Number(convertWeightFromKg(entry.weightKg!, unit).toFixed(1))
+        : null
 
     return {
-      ...bucket,
-      heightPct: 34 + ((bucket.entry.weightKg - minWeight) / (maxWeight - minWeight)) * 48,
+      label: shortFmt.format(bucketStart).toUpperCase(),
+      value,
     }
   })
-}
-
-function buildAxisLabels(days: RangeValue, localeCode: string) {
-  const today = startOfDay(new Date())
-  const start = startOfDay(new Date(today))
-  start.setDate(today.getDate() - (days - 1))
-
-  const middle = startOfDay(new Date(start))
-  middle.setDate(start.getDate() + Math.floor(days / 2))
-
-  const formatter = new Intl.DateTimeFormat(
-    localeCode,
-    days === 365 ? { month: "short", year: "2-digit" } : { month: "short", day: "2-digit" },
-  )
-
-  return [start, middle, today].map((value) => formatter.format(value).toUpperCase())
 }
 
 function buildWeightSummary(entries: BodyMetricEntry[], targetWeightKg?: number | null) {
-  const weightedEntries = entries.filter((entry) => isFiniteNumber(entry.weightKg))
+  const weightedEntries = entries.filter((e) => isFiniteNumber(e.weightKg))
   const currentWeightKg = weightedEntries[0]?.weightKg
   const previousWeightKg = weightedEntries[1]?.weightKg
   const currentDeltaKg =
-    isFiniteNumber(currentWeightKg) && isFiniteNumber(previousWeightKg) ? currentWeightKg - previousWeightKg : undefined
+    isFiniteNumber(currentWeightKg) && isFiniteNumber(previousWeightKg)
+      ? currentWeightKg - previousWeightKg
+      : undefined
 
-  const weeklyEntries = entries.filter((entry) => {
-    const differenceMs = Date.now() - entry.recordedAt.getTime()
-    return differenceMs <= 7 * 24 * 60 * 60 * 1000
-  })
-
+  const weeklyEntries = entries.filter((e) => Date.now() - e.recordedAt.getTime() <= 7 * 86400000)
   const weeklyAverageKg =
     weeklyEntries.length > 0
-      ? weeklyEntries.reduce((total, entry) => total + (entry.weightKg ?? 0), 0) / weeklyEntries.length
+      ? weeklyEntries.reduce((t, e) => t + (e.weightKg ?? 0), 0) / weeklyEntries.length
       : undefined
 
   const oldestWeeklyWeightKg = weeklyEntries.at(-1)?.weightKg
@@ -282,7 +200,9 @@ function buildWeightSummary(entries: BodyMetricEntry[], targetWeightKg?: number 
       ? getGoalDirection(goalStartWeightKg, targetWeightKg ?? undefined)
       : ("steady" satisfies GoalDirection)
   const totalGoalDistanceKg =
-    canTrackGoal && isFiniteNumber(goalStartWeightKg) ? Math.abs(goalStartWeightKg - (targetWeightKg as number)) : undefined
+    canTrackGoal && isFiniteNumber(goalStartWeightKg)
+      ? Math.abs(goalStartWeightKg - (targetWeightKg as number))
+      : undefined
   const weeklyTargetKg =
     canTrackGoal && !isTargetMet
       ? Math.min(getWeeklyTargetKg(goalDirection), Math.abs(targetDeltaKg as number))
@@ -301,19 +221,13 @@ function buildWeightSummary(entries: BodyMetricEntry[], targetWeightKg?: number 
       goalProgressPct = 0
       goalRemainingKg = Math.abs(targetDeltaKg as number)
     } else if (totalGoalDirection === "down") {
-      const remainingToTargetKg = Math.max(resolvedCurrentWeightKg - (targetWeightKg as number), 0)
-      goalProgressPct = Math.max(
-        0,
-        Math.min(100, Math.round(((totalGoalDistanceKg - remainingToTargetKg) / totalGoalDistanceKg) * 100)),
-      )
-      goalRemainingKg = remainingToTargetKg
+      const remaining = Math.max(resolvedCurrentWeightKg - (targetWeightKg as number), 0)
+      goalProgressPct = Math.max(0, Math.min(100, Math.round(((totalGoalDistanceKg - remaining) / totalGoalDistanceKg) * 100)))
+      goalRemainingKg = remaining
     } else if (totalGoalDirection === "up") {
-      const remainingToTargetKg = Math.max((targetWeightKg as number) - resolvedCurrentWeightKg, 0)
-      goalProgressPct = Math.max(
-        0,
-        Math.min(100, Math.round(((totalGoalDistanceKg - remainingToTargetKg) / totalGoalDistanceKg) * 100)),
-      )
-      goalRemainingKg = remainingToTargetKg
+      const remaining = Math.max((targetWeightKg as number) - resolvedCurrentWeightKg, 0)
+      goalProgressPct = Math.max(0, Math.min(100, Math.round(((totalGoalDistanceKg - remaining) / totalGoalDistanceKg) * 100)))
+      goalRemainingKg = remaining
     } else {
       goalProgressPct = 0
       goalRemainingKg = Math.abs(targetDeltaKg as number)
@@ -323,13 +237,13 @@ function buildWeightSummary(entries: BodyMetricEntry[], targetWeightKg?: number 
       weeklyGoalProgressPct = 100
       weeklyGoalRemainingKg = 0
     } else if (goalDirection === "down") {
-      const progressWeightKg = isFiniteNumber(weeklyChangeKg) ? Math.max(-weeklyChangeKg, 0) : 0
-      weeklyGoalProgressPct = Math.min(100, Math.round((progressWeightKg / weeklyTargetKg) * 100))
-      weeklyGoalRemainingKg = Math.max(0, weeklyTargetKg - progressWeightKg)
+      const prog = isFiniteNumber(weeklyChangeKg) ? Math.max(-weeklyChangeKg, 0) : 0
+      weeklyGoalProgressPct = Math.min(100, Math.round((prog / weeklyTargetKg) * 100))
+      weeklyGoalRemainingKg = Math.max(0, weeklyTargetKg - prog)
     } else if (goalDirection === "up") {
-      const progressWeightKg = isFiniteNumber(weeklyChangeKg) ? Math.max(weeklyChangeKg, 0) : 0
-      weeklyGoalProgressPct = Math.min(100, Math.round((progressWeightKg / weeklyTargetKg) * 100))
-      weeklyGoalRemainingKg = Math.max(0, weeklyTargetKg - progressWeightKg)
+      const prog = isFiniteNumber(weeklyChangeKg) ? Math.max(weeklyChangeKg, 0) : 0
+      weeklyGoalProgressPct = Math.min(100, Math.round((prog / weeklyTargetKg) * 100))
+      weeklyGoalRemainingKg = Math.max(0, weeklyTargetKg - prog)
     }
   }
 
@@ -371,92 +285,85 @@ function buildCsv(entries: BodyMetricEntry[], unit: "kg" | "lbs") {
     unit,
     `"${(entry.note ?? "").replace(/"/g, '""')}"`,
   ])
-
-  return [header.join(","), ...rows.map((row) => row.join(","))].join("\n")
+  return [header.join(","), ...rows.map((r) => r.join(","))].join("\n")
 }
+
+// ---------------------------------------------------------------------------
+// Skeleton
+// ---------------------------------------------------------------------------
 
 function WeightTrackingSkeleton() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3">
-            <Skeleton className="h-12 w-72 rounded-2xl" />
-            <Skeleton className="h-5 w-80 max-w-full rounded-xl" />
-          </div>
-          <div className="flex gap-3">
-            <Skeleton className="h-12 w-36 rounded-full" />
-            <Skeleton className="h-12 w-40 rounded-full" />
-          </div>
-        </div>
-
-        <div className="rounded-[32px] border border-border/70 bg-card p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:justify-end">
-            <Skeleton className="h-20 w-full rounded-[28px] lg:max-w-[420px]" />
-            <Skeleton className="h-20 w-full rounded-[24px] lg:w-44" />
-          </div>
-        </div>
-
-        <div className="grid gap-4 rounded-[32px] border border-border/70 bg-card p-4 shadow-sm md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }, (_value, index) => (
-            <div key={index} className="space-y-3 rounded-[24px] border border-border/50 bg-white/70 p-5">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-11 w-28" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-          ))}
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_360px]">
-          <div className="rounded-[32px] border border-border/70 bg-card p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-8 w-44" />
-              <Skeleton className="h-10 w-52 rounded-full" />
-            </div>
-            <div className="mt-8 grid h-72 grid-cols-10 items-end gap-4">
-              {Array.from({ length: 10 }, (_value, index) => (
-                <Skeleton
-                  key={index}
-                  className="w-full rounded-full"
-                  style={{ height: `${index % 2 === 0 ? 72 : 84}%` }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-[32px] border border-border/70 bg-card p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-8 w-28" />
-                <Skeleton className="h-6 w-16" />
-              </div>
-              <div className="mt-6 space-y-4">
-                {Array.from({ length: 3 }, (_value, index) => (
-                  <div key={index} className="flex items-center justify-between rounded-[22px] border border-border/60 p-4">
-                    <div className="space-y-2">
-                      <Skeleton className="h-6 w-24" />
-                      <Skeleton className="h-4 w-20" />
-                    </div>
-                    <div className="space-y-2 text-right">
-                      <Skeleton className="ml-auto h-6 w-20" />
-                      <Skeleton className="ml-auto h-4 w-12" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[32px] border border-border/70 bg-card p-5 shadow-sm">
-              <Skeleton className="h-6 w-28" />
-              <Skeleton className="mt-4 h-20 w-full" />
-              <Skeleton className="mt-6 h-3 w-full rounded-full" />
-            </div>
-          </div>
-        </div>
+    <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+      <div className="mb-7 space-y-2">
+        <Skeleton className="h-4 w-20 rounded" />
+        <Skeleton className="h-16 w-48 rounded" />
+      </div>
+      <div className="mb-6">
+        <Skeleton className="h-[280px] w-full rounded-[10px]" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-28 rounded-[10px]" />
+        ))}
       </div>
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Metric card
+// ---------------------------------------------------------------------------
+
+function MetricCard({
+  footer,
+  label,
+  unit,
+  value,
+}: {
+  footer?: React.ReactNode
+  label: string
+  unit?: string
+  value: string
+}) {
+  return (
+    <div className="rounded-[10px] border border-border bg-card p-4">
+      <span className="label-micro block">{label}</span>
+      <div className="mt-2 flex items-end gap-1.5">
+        <span className="font-mono text-[2rem] font-semibold leading-none tnum text-foreground">{value}</span>
+        {unit ? <span className="mb-0.5 text-sm text-muted-foreground">{unit}</span> : null}
+      </div>
+      {footer ? <div className="mt-2 min-h-5 text-sm">{footer}</div> : null}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Custom tooltip (no shadow, Lift style)
+// ---------------------------------------------------------------------------
+
+type LiftTooltipProps = {
+  active?: boolean
+  payload?: Array<{ value?: number | null }>
+  label?: string
+  unit?: string
+}
+
+function LiftTooltip({ active, payload, label, unit = "kg" }: LiftTooltipProps) {
+  if (!active || !payload?.length || payload[0].value == null) return null
+  return (
+    <div className="rounded-[6px] border border-border bg-card px-3 py-2 shadow-none">
+      <p className="label-micro mb-1">{label}</p>
+      <p className="font-mono text-sm font-medium tnum text-foreground">
+        {payload[0].value} <span className="text-muted-foreground">{unit}</span>
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main client component
+// ---------------------------------------------------------------------------
 
 export function WeightTrackingClient() {
   const { isLoading: authLoading, profile, session } = useAuth()
@@ -468,9 +375,8 @@ export function WeightTrackingClient() {
 
   const [entries, setEntries] = useState<BodyMetricEntry[]>([])
   const [selectedRange, setSelectedRange] = useState<RangeValue>(30)
-  const [selectedBarId, setSelectedBarId] = useState<string | null>(null)
-  const [inputValue, setInputValue] = useState("")
   const [showAllHistory, setShowAllHistory] = useState(false)
+  const [inputValue, setInputValue] = useState("")
   const [isLoadingPage, setIsLoadingPage] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -480,16 +386,12 @@ export function WeightTrackingClient() {
     let cancelled = false
 
     async function loadEntries() {
-      if (authLoading) {
-        return
-      }
-
+      if (authLoading) return
       if (!session?.access_token) {
         startTransition(() => {
           setEntries([])
           setIsLoadingPage(false)
         })
-
         return
       }
 
@@ -498,77 +400,46 @@ export function WeightTrackingClient() {
 
       try {
         const nextEntries = await fetchWeightEntries(session.access_token, selectedRange)
-
-        if (cancelled) {
-          return
-        }
-
+        if (cancelled) return
         startTransition(() => {
-          setEntries(nextEntries.sort((left, right) => right.recordedAt.getTime() - left.recordedAt.getTime()))
+          setEntries(nextEntries.sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()))
           setShowAllHistory(false)
         })
-      } catch (nextError) {
-        if (cancelled) {
-          return
-        }
-
-        setError(nextError instanceof Error ? nextError.message : messages.progressPage.loadFailed)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : messages.progressPage.loadFailed)
       } finally {
-        if (!cancelled) {
-          setIsLoadingPage(false)
-        }
+        if (!cancelled) setIsLoadingPage(false)
       }
     }
 
     void loadEntries()
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [authLoading, messages.progressPage.loadFailed, selectedRange, session?.access_token])
 
   const summary = useMemo(() => buildWeightSummary(entries, targetWeightKg), [entries, targetWeightKg])
-  const chartBars = useMemo(() => buildChartBars(entries, selectedRange), [entries, selectedRange])
-  const axisLabels = useMemo(() => buildAxisLabels(selectedRange, localeCode), [localeCode, selectedRange])
+  const chartPoints = useMemo(
+    () => buildChartPoints(entries, selectedRange, weightUnit, localeCode),
+    [entries, selectedRange, weightUnit, localeCode],
+  )
 
-  useEffect(() => {
-    const fallbackBarId = chartBars.filter((bar) => bar.entry).at(-1)?.id ?? chartBars.at(-1)?.id ?? null
-    setSelectedBarId((current) => (current && chartBars.some((bar) => bar.id === current) ? current : fallbackBarId))
-  }, [chartBars])
-
-  const selectedBar = chartBars.find((bar) => bar.id === selectedBarId) ?? chartBars.at(-1)
-  const selectedWeightKg = selectedBar?.entry?.weightKg
-  const selectedDate = selectedBar?.entry?.recordedAt
   const currentDeltaTone = getDeltaTone(summary.currentDeltaKg, summary.goalDirection)
   const weeklyTrendDirection = getTrendDirection(summary.currentWeightKg, summary.weeklyAverageKg)
   const bmi = useMemo(() => calculateBmi(summary.currentWeightKg, heightCm), [heightCm, summary.currentWeightKg])
   const bmiCategory = getBmiCategory(bmi)
-  const historyEntries = showAllHistory ? entries : entries.slice(0, 3)
+  const historyEntries = showAllHistory ? entries : entries.slice(0, 5)
 
   const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(localeCode, {
-        day: "2-digit",
-        month: "short",
-      }),
+    () => new Intl.DateTimeFormat(localeCode, { day: "2-digit", month: "short" }),
     [localeCode],
   )
   const timeFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(localeCode, {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+    () => new Intl.DateTimeFormat(localeCode, { hour: "2-digit", minute: "2-digit" }),
     [localeCode],
   )
 
   async function handleSaveEntry() {
-    if (!session?.access_token) {
-      return
-    }
-
+    if (!session?.access_token) return
     const parsedValue = Number(inputValue)
-
     if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
       setError(messages.progressPage.genericSaveError)
       return
@@ -583,19 +454,17 @@ export function WeightTrackingClient() {
         recordedAt: new Date().toISOString(),
         weightKg: Number(convertWeightToKg(parsedValue, weightUnit).toFixed(2)),
       })
-
       startTransition(() => {
-        setEntries((current) =>
-          [bodyMetric, ...current]
-            .filter((entry, index, list) => list.findIndex((item) => item.id === entry.id) === index)
-            .sort((left, right) => right.recordedAt.getTime() - left.recordedAt.getTime()),
+        setEntries((curr) =>
+          [bodyMetric, ...curr]
+            .filter((e, i, arr) => arr.findIndex((x) => x.id === e.id) === i)
+            .sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()),
         )
         setInputValue("")
       })
-
       setInfoMessage(messages.progressPage.saveSuccess)
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : messages.progressPage.genericSaveError)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : messages.progressPage.genericSaveError)
     } finally {
       setIsSaving(false)
     }
@@ -606,85 +475,58 @@ export function WeightTrackingClient() {
       setInfoMessage(messages.progressPage.exportEmpty)
       return
     }
-
     downloadCsv(buildCsv(entries, weightUnit), `weight-tracking-${selectedRange}d.csv`)
     setInfoMessage(null)
   }
 
-  function handleConnectScale() {
-    setInfoMessage(messages.progressPage.connectScaleNote)
-  }
+  if (authLoading || isLoadingPage) return <WeightTrackingSkeleton />
 
-  if (authLoading || isLoadingPage) {
-    return <WeightTrackingSkeleton />
-  }
+  const currentWeightDisplay = formatWeight(summary.currentWeightKg, weightUnit)
+
+  // Absolute change from oldest to current in range
+  const rangeChangeKg =
+    entries.length >= 2 && isFiniteNumber(entries[0]?.weightKg) && isFiniteNumber(entries.at(-1)?.weightKg)
+      ? entries[0].weightKg! - entries.at(-1)!.weightKg!
+      : undefined
+
+  const rangeChangeDisplay = formatSignedWeight(rangeChangeKg, weightUnit)
+  const rangeChangeTone = getDeltaTone(rangeChangeKg, summary.goalDirection)
+
+  // Only show chart points that have data (or all, Recharts handles nulls)
+  const hasChartData = chartPoints.some((p) => p.value !== null)
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 lg:px-8">
-      <div className="flex flex-col gap-5">
+    <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+      <div className="flex flex-col gap-8">
+
+        {/* ---- Header ---- */}
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{messages.progressPage.title}</h1>
-            <p className="mt-1 text-sm text-slate-500 sm:text-base">{messages.progressPage.subtitle}</p>
+            <span className="label-micro mb-2 block">Body</span>
+            <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+              Body weight
+            </h1>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={handleExportCsv}
-              className="h-10 rounded-full border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-none hover:bg-slate-50"
+              className="h-9 rounded-full border-border bg-card px-4 text-sm font-medium shadow-none hover:bg-muted"
             >
               {messages.progressPage.exportCsv}
             </Button>
-            <Button
-              type="button"
-              onClick={handleConnectScale}
-              variant="outline"
-              className="h-10 rounded-full border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-none hover:bg-slate-50"
-            >
-              {messages.progressPage.connectScale}
-            </Button>
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-end">
-            <div className="relative w-full lg:max-w-[420px]">
-              <Input
-                aria-label={messages.progressPage.logTitle}
-                value={inputValue}
-                onChange={(event) => setInputValue(event.target.value)}
-                inputMode="decimal"
-                type="number"
-                step="0.1"
-                min="0"
-                placeholder={messages.progressPage.entryPlaceholder}
-                className="h-18 rounded-[20px] border-slate-200 bg-slate-50 px-6 pr-22 text-center text-4xl font-black tracking-[-0.05em] text-slate-700 shadow-none placeholder:text-slate-300 sm:h-20 sm:text-5xl"
-              />
-              <span className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 text-xl font-semibold text-slate-400">
-                {weightUnit}
-              </span>
-            </div>
-
-            <Button
-              type="button"
-              onClick={() => void handleSaveEntry()}
-              disabled={isSaving}
-              className="h-18 rounded-[20px] px-7 text-lg font-semibold shadow-none sm:h-20 sm:min-w-40 sm:text-xl"
-            >
-              {isSaving ? <Loader2 className="h-6 w-6 animate-spin" /> : null}
-              {isSaving ? messages.progressPage.savingEntry : messages.progressPage.saveEntry}
-            </Button>
-          </div>
-        </section>
-
+        {/* ---- Feedback messages ---- */}
         {(error || infoMessage) && (
           <div
             className={cn(
-              "rounded-[18px] border px-4 py-3 text-sm",
+              "rounded-[8px] border px-4 py-3 text-sm",
               error
-                ? "border-rose-200 bg-rose-50 text-rose-700"
+                ? "border-destructive/20 bg-destructive/5 text-destructive"
                 : "border-primary/15 bg-primary/5 text-primary",
             )}
           >
@@ -692,29 +534,162 @@ export function WeightTrackingClient() {
           </div>
         )}
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
+        {/* ---- Weight hero + chart card ---- */}
+        <section className="rounded-[10px] border border-border bg-card p-5 sm:p-6">
+          {/* Hero row */}
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <span className="label-micro mb-1 block">Body weight</span>
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-[4rem] font-semibold leading-none tnum text-foreground">
+                  {currentWeightDisplay}
+                </span>
+                <span className="text-base text-muted-foreground">{weightUnit}</span>
+                {rangeChangeDisplay ? (
+                  <span
+                    className={cn(
+                      "font-mono text-sm tnum",
+                      rangeChangeTone === "success" && "text-[var(--success)]",
+                      rangeChangeTone === "danger" && "text-destructive",
+                      rangeChangeTone === "neutral" && "text-muted-foreground",
+                    )}
+                  >
+                    {Number(rangeChangeKg ?? 0) < 0 ? "↓" : "↑"} {Math.abs(Number(rangeChangeKg ?? 0)).toFixed(1)} {weightUnit}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Range chips */}
+            <div className="flex gap-1.5">
+              {RANGE_OPTIONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setSelectedRange(r)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 font-mono text-xs tnum transition-colors",
+                    selectedRange === r
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {r === 30 ? messages.progressPage.days30
+                    : r === 90 ? messages.progressPage.days90
+                    : messages.progressPage.year1}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Line chart */}
+          {!hasChartData ? (
+            <div className="flex min-h-[14rem] items-center justify-center rounded-[8px] border border-dashed border-border text-sm text-muted-foreground">
+              {messages.progressPage.emptyTrend}
+            </div>
+          ) : (
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartPoints} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                  <CartesianGrid
+                    strokeDasharray="0"
+                    stroke="var(--border)"
+                    strokeWidth={1}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                    domain={["auto", "auto"]}
+                  />
+                  <Tooltip
+                    content={(props) => <LiftTooltip {...props} unit={weightUnit} />}
+                    cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--chart-1)"
+                    strokeWidth={1.75}
+                    dot={false}
+                    activeDot={{ r: 4, fill: "var(--chart-1)", strokeWidth: 0 }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
+
+        {/* ---- Log weight input ---- */}
+        <section className="rounded-[10px] border border-border bg-card p-4 sm:p-5">
+          <span className="label-micro mb-4 block">Log weight</span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Input
+                aria-label={messages.progressPage.logTitle}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                inputMode="decimal"
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="0.0"
+                className="h-14 rounded-[8px] border-input bg-background pr-14 text-center font-mono text-2xl font-semibold tnum shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-primary"
+              />
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+                {weightUnit}
+              </span>
+            </div>
+            <Button
+              type="button"
+              onClick={() => void handleSaveEntry()}
+              disabled={isSaving}
+              className="h-14 min-w-[9rem] gap-2 rounded-[8px] font-medium shadow-none"
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              )}
+              {isSaving ? messages.progressPage.savingEntry : "Log weight"}
+            </Button>
+          </div>
+        </section>
+
+        {/* ---- Summary metric cards ---- */}
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Current weight */}
+          <MetricCard
             label={messages.progressPage.currentWeight}
             value={formatWeight(summary.currentWeightKg, weightUnit)}
             unit={weightUnit}
             footer={
               summary.currentDeltaKg == null ? (
-                <span className="text-slate-400">{messages.progressPage.unavailable}</span>
+                <span className="text-muted-foreground">{messages.progressPage.unavailable}</span>
               ) : (
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 font-semibold",
-                    currentDeltaTone === "success" && "text-emerald-500",
-                    currentDeltaTone === "danger" && "text-rose-500",
-                    currentDeltaTone === "neutral" && "text-slate-500",
+                    "inline-flex items-center gap-1 font-mono text-xs tnum font-medium",
+                    currentDeltaTone === "success" && "text-[var(--success)]",
+                    currentDeltaTone === "danger" && "text-destructive",
+                    currentDeltaTone === "neutral" && "text-muted-foreground",
                   )}
                 >
                   {currentDeltaTone === "success" ? (
-                    <TrendingDown className="h-4 w-4" />
+                    <TrendingDown className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : currentDeltaTone === "danger" ? (
-                    <TrendingUp className="h-4 w-4" />
+                    <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : (
-                    <Minus className="h-4 w-4" />
+                    <Minus className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
                   {formatSignedWeight(summary.currentDeltaKg, weightUnit)}
                   <span>{weightUnit}</span>
@@ -723,12 +698,13 @@ export function WeightTrackingClient() {
             }
           />
 
-          <SummaryCard
+          {/* Weekly average */}
+          <MetricCard
             label={messages.progressPage.weeklyAverage}
             value={formatWeight(summary.weeklyAverageKg, weightUnit)}
             unit={weightUnit}
             footer={
-              <span className="text-slate-400">
+              <span className="font-mono text-xs tnum text-muted-foreground">
                 {weeklyTrendDirection === "stable"
                   ? messages.progressPage.stable
                   : weeklyTrendDirection === "up"
@@ -738,14 +714,15 @@ export function WeightTrackingClient() {
             }
           />
 
-          <SummaryCard
+          {/* Goal progress */}
+          <MetricCard
             label={messages.progressPage.goalProgress}
             value={summary.hasTargetWeight ? String(summary.goalProgressPct) : "--"}
             unit={summary.hasTargetWeight ? "%" : undefined}
             footer={
               summary.hasTargetWeight ? (
-                <div className="space-y-2 pt-1">
-                  <span className="text-slate-400">
+                <div className="space-y-2">
+                  <span className="font-mono text-xs tnum text-muted-foreground">
                     {messages.progressPage.goalTarget(
                       formatWeight(summary.targetWeightKg, weightUnit),
                       weightUnit,
@@ -753,33 +730,29 @@ export function WeightTrackingClient() {
                   </span>
                   <Progress
                     value={summary.goalProgressPct}
-                    className="h-2.5 bg-slate-100 [&_[data-slot=progress-indicator]]:bg-primary"
+                    className="h-1.5 bg-muted [&_[data-slot=progress-indicator]]:bg-primary"
                   />
                 </div>
-                ) : (
-                  <div className="space-y-2">
-                    <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold tracking-[0.18em] text-slate-500">
-                      {messages.progressPage.profileNeeded}
-                    </span>
-                    <p className="text-sm text-slate-400">{messages.progressPage.targetWeightNeeded}</p>
-                  </div>
-                )
-              }
-            />
+              ) : (
+                <span className="label-micro text-muted-foreground">{messages.progressPage.targetWeightNeeded}</span>
+              )
+            }
+          />
 
-          <SummaryCard
+          {/* BMI */}
+          <MetricCard
             label={messages.progressPage.bodyMassIndex}
             value={bmi != null ? bmi.toFixed(1) : "--"}
             footer={
               bmi != null && bmiCategory ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <span
                     className={cn(
-                      "inline-flex rounded-full px-3 py-1 text-xs font-bold tracking-[0.18em]",
-                      bmiCategory === "healthy" && "bg-emerald-50 text-emerald-600",
-                      bmiCategory === "underweight" && "bg-amber-50 text-amber-600",
-                      bmiCategory === "overweight" && "bg-orange-50 text-orange-600",
-                      bmiCategory === "obese" && "bg-rose-50 text-rose-600",
+                      "inline-flex rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.08em] uppercase",
+                      bmiCategory === "healthy" && "bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-[var(--success)]",
+                      bmiCategory === "underweight" && "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]",
+                      bmiCategory === "overweight" && "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]",
+                      bmiCategory === "obese" && "bg-destructive/10 text-destructive",
                     )}
                   >
                     {bmiCategory === "healthy"
@@ -790,225 +763,135 @@ export function WeightTrackingClient() {
                           ? messages.progressPage.bmiOverweight
                           : messages.progressPage.bmiObese}
                   </span>
-                  <p className="text-sm text-slate-400">{messages.progressPage.bmiBasedOnHeight(String(Math.round(heightCm ?? 0)))}</p>
+                  <p className="font-mono text-xs tnum text-muted-foreground">
+                    {messages.progressPage.bmiBasedOnHeight(String(Math.round(heightCm ?? 0)))}
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold tracking-[0.18em] text-slate-500">
-                    {messages.progressPage.profileNeeded}
-                  </span>
-                  <p className="text-sm text-slate-400">{messages.progressPage.bmiNeedsHeight}</p>
-                </div>
+                <span className="label-micro text-muted-foreground">{messages.progressPage.bmiNeedsHeight}</span>
               )
             }
           />
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_360px]">
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-slate-950">{messages.progressPage.trendTitle}</h2>
-              </div>
+        {/* ---- History + weekly goal row ---- */}
+        <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
 
-              <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
-                {RANGE_OPTIONS.map((rangeOption) => (
-                  <button
-                    key={rangeOption}
-                    type="button"
-                    onClick={() => setSelectedRange(rangeOption)}
-                    className={cn(
-                      "rounded-full px-4 py-2 text-sm font-medium transition-colors",
-                      selectedRange === rangeOption ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600",
-                    )}
-                  >
-                    {rangeOption === 30
-                      ? messages.progressPage.days30
-                      : rangeOption === 90
-                        ? messages.progressPage.days90
-                        : messages.progressPage.year1}
-                  </button>
-                ))}
-              </div>
+          {/* Recent entries list */}
+          <section className="rounded-[10px] border border-border bg-card p-5 sm:p-6">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <span className="label-micro">{messages.progressPage.history}</span>
+              {entries.length > 5 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllHistory((v) => !v)}
+                  className="label-micro text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {showAllHistory ? messages.progressPage.showLess : messages.progressPage.viewAll}
+                </button>
+              ) : null}
             </div>
 
-            {entries.length === 0 ? (
-              <div className="mt-10 flex min-h-[22rem] items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50/60 px-6 text-center text-slate-400">
-                {messages.progressPage.emptyTrend}
+            {historyEntries.length === 0 ? (
+              <div className="flex min-h-[8rem] items-center justify-center rounded-[8px] border border-dashed border-border text-sm text-muted-foreground">
+                {messages.progressPage.emptyHistory}
               </div>
             ) : (
-              <div className="mt-8">
-                <div className="mb-5 h-8 text-center text-slate-900">
-                  {selectedWeightKg != null ? (
-                    <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold">
-                      {formatWeight(selectedWeightKg, weightUnit)} {weightUnit}
-                    </span>
-                  ) : null}
-                </div>
+              <div>
+                {historyEntries.map((entry) => {
+                  const olderEntry = entries[entries.findIndex((x) => x.id === entry.id) + 1]
+                  const deltaKg =
+                    isFiniteNumber(entry.weightKg) && isFiniteNumber(olderEntry?.weightKg)
+                      ? entry.weightKg - olderEntry.weightKg
+                      : undefined
+                  const deltaTone = getDeltaTone(deltaKg, summary.goalDirection)
+                  const deltaDisplay = formatSignedWeight(deltaKg, weightUnit)
 
-                <div className="grid min-h-[18rem] grid-cols-10 items-end gap-3 sm:gap-4">
-                  {chartBars.map((bar) => {
-                    const isActive = bar.id === selectedBarId
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between border-b border-border py-3.5 last:border-b-0"
+                    >
+                      <div>
+                        <p className="font-mono text-sm font-medium tnum text-foreground">
+                          {dateFormatter.format(entry.recordedAt)}
+                        </p>
+                        <p className="mt-0.5 font-mono text-[11px] tnum text-muted-foreground">
+                          {timeFormatter.format(entry.recordedAt)}
+                        </p>
+                      </div>
 
-                    return (
-                      <button
-                        key={bar.id}
-                        type="button"
-                        onClick={() => setSelectedBarId(bar.id)}
-                        className="group flex h-full items-end justify-center"
-                      >
-                        <span
-                          className={cn(
-                            "w-full max-w-4 rounded-full transition-all duration-200 sm:max-w-3",
-                            isActive
-                              ? "bg-slate-900"
-                              : bar.entry
-                                ? "bg-slate-200 group-hover:bg-slate-300"
-                                : "bg-slate-100/70",
-                          )}
-                          style={{ height: `${bar.heightPct}%` }}
-                        />
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <div className="mt-6 flex items-center justify-between text-xs font-bold tracking-[0.24em] text-slate-400">
-                  {axisLabels.map((label) => (
-                    <span key={label}>{label}</span>
-                  ))}
-                </div>
-
-                {selectedDate ? (
-                  <p className="mt-4 text-center text-sm text-slate-400">
-                    {messages.progressPage.latestEntry}: {dateFormatter.format(selectedDate)}
-                  </p>
-                ) : null}
+                      <div className="text-right">
+                        <p className="font-mono text-base font-semibold tnum text-foreground">
+                          {formatWeight(entry.weightKg, weightUnit)}{" "}
+                          <span className="text-sm font-normal text-muted-foreground">{weightUnit}</span>
+                        </p>
+                        {deltaDisplay ? (
+                          <p
+                            className={cn(
+                              "mt-0.5 font-mono text-xs tnum font-medium",
+                              deltaTone === "success" && "text-[var(--success)]",
+                              deltaTone === "danger" && "text-destructive",
+                              deltaTone === "neutral" && "text-muted-foreground",
+                            )}
+                          >
+                            {deltaDisplay} {weightUnit}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </section>
 
-          <div className="space-y-6">
-            <section className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-bold tracking-tight text-slate-950">{messages.progressPage.history}</h2>
-                {entries.length > 3 ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllHistory((current) => !current)}
-                    className="text-sm font-medium text-slate-500 hover:text-slate-900"
-                  >
-                    {showAllHistory ? messages.progressPage.showLess : messages.progressPage.viewAll}
-                  </button>
-                ) : null}
+          {/* Weekly goal card */}
+          <section className="rounded-[10px] border border-border bg-card p-5 sm:p-6">
+            <span className="label-micro mb-4 block">{messages.progressPage.weeklyGoal}</span>
+
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {!summary.hasTargetWeight
+                ? messages.progressPage.targetWeightNeeded
+                : !summary.canTrackGoal
+                  ? messages.progressPage.emptyTrend
+                  : summary.isTargetMet
+                    ? messages.progressPage.targetWeightReached(
+                        formatWeight(summary.targetWeightKg, weightUnit),
+                        weightUnit,
+                      )
+                    : (summary.weeklyGoalRemainingKg ?? 0) <= 0
+                      ? messages.progressPage.goalAchieved
+                      : messages.progressPage.goalAway(
+                          formatWeight(summary.weeklyGoalRemainingKg, weightUnit),
+                          weightUnit,
+                        )}
+            </p>
+
+            {summary.hasTargetWeight ? (
+              <p className="mt-2 font-mono text-xs tnum text-muted-foreground">
+                {messages.progressPage.goalTarget(
+                  formatWeight(summary.targetWeightKg, weightUnit),
+                  weightUnit,
+                )}
+              </p>
+            ) : null}
+
+            <Progress
+              value={summary.hasTargetWeight ? summary.weeklyGoalProgressPct : 0}
+              className="mt-6 h-1.5 bg-muted [&_[data-slot=progress-indicator]]:bg-primary"
+            />
+
+            {summary.hasTargetWeight && (
+              <div className="mt-2 flex justify-between font-mono text-[10px] tnum text-muted-foreground">
+                <span>0%</span>
+                <span>{summary.weeklyGoalProgressPct}%</span>
               </div>
-
-              {historyEntries.length === 0 ? (
-                <div className="mt-6 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-slate-400">
-                  {messages.progressPage.emptyHistory}
-                </div>
-              ) : (
-                <div className="mt-6 space-y-4">
-                  {historyEntries.map((entry) => {
-                    const olderEntry = entries[entries.findIndex((item) => item.id === entry.id) + 1]
-                    const deltaKg =
-                      isFiniteNumber(entry.weightKg) && isFiniteNumber(olderEntry?.weightKg)
-                        ? entry.weightKg - olderEntry.weightKg
-                        : undefined
-                    const deltaTone = getDeltaTone(deltaKg, summary.goalDirection)
-
-                    return (
-                      <div
-                        key={entry.id}
-                        className="flex items-center justify-between border-b border-slate-100 py-4 last:border-b-0"
-                      >
-                        <div>
-                          <p className="text-lg font-semibold tracking-tight text-slate-900">
-                            {dateFormatter.format(entry.recordedAt)}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-400">{timeFormatter.format(entry.recordedAt)}</p>
-                        </div>
-
-                        <div className="text-right">
-                          <p className="text-xl font-semibold tracking-tight text-slate-950">
-                            {formatWeight(entry.weightKg, weightUnit)} <span className="text-sm text-slate-400">{weightUnit}</span>
-                          </p>
-                          <p
-                            className={cn(
-                              "mt-1 text-sm font-semibold",
-                              deltaTone === "success" && "text-emerald-500",
-                              deltaTone === "danger" && "text-rose-500",
-                              deltaTone === "neutral" && "text-slate-400",
-                            )}
-                          >
-                            {formatSignedWeight(deltaKg, weightUnit) ?? " "}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
-              <div className="text-xl font-bold tracking-tight text-slate-950">{messages.progressPage.weeklyGoal}</div>
-
-                <p className="mt-4 text-base leading-7 text-slate-500">
-                  {!summary.hasTargetWeight
-                    ? messages.progressPage.targetWeightNeeded
-                    : !summary.canTrackGoal
-                      ? messages.progressPage.emptyTrend
-                      : summary.isTargetMet
-                        ? messages.progressPage.targetWeightReached(
-                            formatWeight(summary.targetWeightKg, weightUnit),
-                            weightUnit,
-                          )
-                        : (summary.weeklyGoalRemainingKg ?? 0) <= 0
-                          ? messages.progressPage.goalAchieved
-                          : messages.progressPage.goalAway(
-                              formatWeight(summary.weeklyGoalRemainingKg, weightUnit),
-                              weightUnit,
-                            )}
-                </p>
-
-                {summary.hasTargetWeight ? (
-                  <p className="mt-3 text-sm text-slate-400">
-                    {messages.progressPage.goalTarget(formatWeight(summary.targetWeightKg, weightUnit), weightUnit)}
-                  </p>
-                ) : null}
-
-                <Progress
-                  value={summary.hasTargetWeight ? summary.weeklyGoalProgressPct : 0}
-                  className="mt-8 h-2.5 bg-slate-100 [&_[data-slot=progress-indicator]]:bg-primary"
-                />
-            </section>
-          </div>
+            )}
+          </section>
         </div>
-      </div>
-    </div>
-  )
-}
 
-function SummaryCard({
-  footer,
-  label,
-  unit,
-  value,
-}: {
-  footer: React.ReactNode
-  label: string
-  unit?: string
-  value: string
-}) {
-  return (
-    <div className="rounded-[20px] border border-slate-200 bg-white p-4">
-      <p className="text-sm font-medium text-slate-400">{label}</p>
-      <div className="mt-2 flex items-end gap-2">
-        <p className="text-4xl font-semibold tracking-tight text-slate-950">{value}</p>
-        {unit ? <span className="pb-1 text-lg font-medium text-slate-400">{unit}</span> : null}
       </div>
-      <div className="mt-3 min-h-8 text-sm">{footer}</div>
     </div>
   )
 }
