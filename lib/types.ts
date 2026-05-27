@@ -130,9 +130,15 @@ export interface Meal {
   type: "breakfast" | "lunch" | "dinner" | "snack"
   name: string
   calories: number
+  foodId?: string
+  fdcId?: number
   protein?: number
   carbs?: number
   fat?: number
+  fiber?: number
+  sugar?: number
+  sodium?: number
+  weightGrams?: number
   time: Date
 }
 

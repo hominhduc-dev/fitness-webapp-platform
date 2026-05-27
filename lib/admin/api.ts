@@ -372,6 +372,7 @@ async function createAdminExerciseRequest(
     equipment?: string
     muscleGroup: string
     name: string
+    variationName?: string
   },
 ) {
   const response = await request<{ exercise: SerializedAdminExerciseItem }>(`/api/admin/exercises`, accessToken, {
@@ -388,6 +389,7 @@ async function updateAdminExerciseRequest(
     equipment?: string
     muscleGroup: string
     name: string
+    variationName?: string
   },
 ) {
   const response = await request<{ exercise: SerializedAdminExerciseItem }>(

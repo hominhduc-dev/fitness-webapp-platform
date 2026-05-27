@@ -166,29 +166,27 @@ export function NotificationInbox({ locale = "vi" }: NotificationInboxProps) {
     }
   }
 
+  const triggerButton = (
+    <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full" disabled={!isMounted}>
+      <Bell className="h-5 w-5" />
+      {unreadCount > 0 ? (
+        <>
+          <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+          <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-primary" />
+        </>
+      ) : null}
+    </Button>
+  )
+
   if (!isMounted) {
-    return (
-      <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full" disabled>
-        <Bell className="h-5 w-5" />
-      </Button>
-    )
+    return triggerButton
   }
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 ? (
-            <>
-              <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-primary" />
-            </>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-[360px] max-w-[calc(100vw-2rem)] p-0">
         <div className="p-2">

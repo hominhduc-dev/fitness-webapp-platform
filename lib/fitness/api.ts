@@ -30,6 +30,8 @@ import type {
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
+  FoodSearchResponse,
+  MealHistoryPage,
   MealCollection,
   NotificationList,
   ProgressAnalytics,
@@ -126,11 +128,17 @@ type SerializedMeal = {
   calories: number
   carbs?: number
   fat?: number
+  fdcId?: number
+  fiber?: number
+  foodId?: string
   id: string
   name: string
   protein?: number
+  sodium?: number
+  sugar?: number
   time: string
   type: Meal["type"]
+  weightGrams?: number
 }
 
 type SerializedExerciseLibraryExercise = SerializedExerciseBase & {
@@ -524,11 +532,17 @@ function mapMeal(meal: SerializedMeal): Meal {
     calories: meal.calories,
     carbs: meal.carbs,
     fat: meal.fat,
+    fdcId: meal.fdcId,
+    fiber: meal.fiber,
+    foodId: meal.foodId,
     id: meal.id,
     name: meal.name,
     protein: meal.protein,
+    sodium: meal.sodium,
+    sugar: meal.sugar,
     time: new Date(meal.time),
     type: meal.type,
+    weightGrams: meal.weightGrams,
   }
 }
 
@@ -654,6 +668,28 @@ function mapExerciseLibraryExercise(exercise: SerializedExerciseLibraryExercise)
   }
 }
 
+function flattenExerciseLibraryToVariationOptions(
+  exercises: ExerciseLibraryExercise[],
+): ExerciseVariationOption[] {
+  return exercises.flatMap((exercise) =>
+    exercise.variations.map((variation) => ({
+      canManage: variation.canManage ?? exercise.canManage,
+      createdById: variation.createdById ?? exercise.createdById,
+      equipment: variation.equipment,
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      id: variation.id,
+      isDefault: variation.isDefault,
+      metadata: variation.metadata,
+      muscleGroup: exercise.muscleGroup,
+      name: variation.isDefault ? exercise.name : `${exercise.name} (${variation.name})`,
+      source: variation.source ?? exercise.source,
+      sortOrder: variation.sortOrder,
+      variationName: variation.name,
+    })),
+  )
+}
+
 function mapCoachDashboardSummary(summary?: Partial<SerializedCoachDashboardSummary> | null): CoachDashboardSummary {
   return {
     atRiskTraineeCount: summary?.atRiskTraineeCount ?? 0,
@@ -743,6 +779,33 @@ async function fetchMeals(accessToken: string, date?: string): Promise<MealColle
   }
 }
 
+async function fetchMealHistory(
+  accessToken: string,
+  options?: { cursor?: string; limit?: number },
+): Promise<MealHistoryPage> {
+  const searchParams = new URLSearchParams()
+
+  if (options?.cursor) {
+    searchParams.set("cursor", options.cursor)
+  }
+
+  if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
+    searchParams.set("limit", String(options.limit))
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+  const response = await request<{ meals: SerializedMeal[]; nextCursor?: string }>(
+    `/api/meals/history${query}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+
+  return {
+    meals: (response.meals ?? []).map(mapMeal),
+    nextCursor: response.nextCursor,
+  }
+}
+
 async function fetchWeightEntries(accessToken: string, days = 30): Promise<BodyMetricEntry[]> {
   const query = Number.isFinite(days) ? `?days=${encodeURIComponent(String(days))}` : ""
   const response = await request<{ bodyMetrics: SerializedBodyMetricEntry[] }>(`/api/progress/weight${query}`, accessToken)
@@ -783,6 +846,30 @@ async function createMeal(
   },
 ) {
   const response = await request<{ meal: SerializedMeal }>("/api/meals", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return mapMeal(response.meal)
+}
+
+async function searchFoods(accessToken: string, query: string): Promise<FoodSearchResponse> {
+  const trimmedQuery = query.trim()
+  return request<FoodSearchResponse>(`/api/foods/search?q=${encodeURIComponent(trimmedQuery)}`, accessToken, {
+    cache: "no-store",
+  })
+}
+
+async function logMeal(
+  accessToken: string,
+  input: {
+    eatenAt?: string
+    fdcId: number
+    mealType?: Meal["type"]
+    weightGrams: number
+  },
+) {
+  const response = await request<{ meal: SerializedMeal }>("/api/meals/log", accessToken, {
     body: JSON.stringify(input),
     method: "POST",
   })
@@ -902,8 +989,17 @@ async function fetchExercises(
   const response = await request<{ exercises: SerializedExerciseVariationOption[] }>(
     `/api/exercises${buildExerciseQuery(options)}`,
     accessToken,
+    {
+      cache: "no-store",
+    },
   )
-  return response.exercises
+
+  if (response.exercises.length > 0) {
+    return response.exercises
+  }
+
+  const libraryExercises = await fetchExerciseLibrary(accessToken, options)
+  return flattenExerciseLibraryToVariationOptions(libraryExercises)
 }
 
 async function fetchExerciseLibrary(
@@ -913,6 +1009,9 @@ async function fetchExerciseLibrary(
   const response = await request<{ exercises: SerializedExerciseLibraryExercise[] }>(
     `/api/exercises/library${buildExerciseQuery(options)}`,
     accessToken,
+    {
+      cache: "no-store",
+    },
   )
   return response.exercises.map(mapExerciseLibraryExercise)
 }
@@ -1154,7 +1253,7 @@ async function createCoachCheckIn(
 async function fetchCoachWorkoutLogs(
   accessToken: string,
   traineeId: string,
-  options?: { cursor?: string; limit?: number },
+  options?: { cursor?: string; limit?: number; weekStart?: string },
 ): Promise<CoachWorkoutLogPage> {
   const searchParams = new URLSearchParams()
 
@@ -1164,6 +1263,10 @@ async function fetchCoachWorkoutLogs(
 
   if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
     searchParams.set("limit", String(options.limit))
+  }
+
+  if (options?.weekStart) {
+    searchParams.set("weekStart", options.weekStart)
   }
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
@@ -1231,6 +1334,9 @@ async function fetchCoachExercises(accessToken: string, search?: string): Promis
   const response = await request<{ exercises: SerializedCoachExercise[] }>(
     `/api/coach/exercises${buildSearchQuery(search)}`,
     accessToken,
+    {
+      cache: "no-store",
+    },
   )
 
   return (response.exercises ?? []).map(mapCoachExercise)
@@ -1340,10 +1446,13 @@ export {
   fetchCoachTrainees,
   fetchExerciseLibrary,
   fetchExercises,
+  fetchMealHistory,
   fetchMeals,
   fetchNotifications,
+  searchFoods,
   fetchWorkoutDetail,
   fetchWorkouts,
+  logMeal,
   markAllNotificationsRead,
   markNotificationRead,
   unassignCoachProgram,

@@ -17,6 +17,7 @@ import {
 } from "@prisma/client"
 
 import { AuthServiceError, type SerializedProfile } from "./auth.service"
+import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "./meal-log.service"
 import { prisma } from "../lib/prisma"
 
 const WORKOUT_EXERCISE_INCLUDE = {
@@ -294,6 +295,14 @@ function getExerciseSourceForProfile(createdById: string | null | undefined, pro
   } as const
 }
 
+function canProfileAccessExercise(createdById: string | null | undefined, profile?: SerializedProfile) {
+  if (!createdById) {
+    return true
+  }
+
+  return profile?.role === UserRole.coach
+}
+
 function serializeVariationOption(
   variation: Variation & { exercise: Exercise & { createdById?: string | null } },
   profile?: SerializedProfile,
@@ -378,17 +387,9 @@ function serializeWorkout(
   }
 }
 
-function serializeMeal(meal: Meal) {
-  return {
-    calories: meal.calories,
-    carbs: meal.carbs ?? undefined,
-    fat: meal.fat ?? undefined,
-    id: meal.id,
-    name: meal.name,
-    protein: meal.protein ?? undefined,
-    time: meal.recordedAt,
-    type: meal.type,
-  }
+function roundMealValue(value: number, fractionDigits = 1) {
+  const factor = 10 ** fractionDigits
+  return Math.round(value * factor) / factor
 }
 
 function serializeProgram(program: ProgramRecord) {
@@ -744,9 +745,40 @@ function parseScheduledDateInput(value: string) {
   return parsedDate
 }
 
+function parseLocalDateInput(value: string) {
+  const trimmedValue = value.trim()
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)) {
+    return undefined
+  }
+
+  const [yearText, monthText, dayText] = trimmedValue.split("-")
+  const year = Number(yearText)
+  const month = Number(monthText)
+  const day = Number(dayText)
+  const parsedDate = new Date(year, month - 1, day, 0, 0, 0, 0)
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    return undefined
+  }
+
+  return parsedDate
+}
+
 function addUtcDays(date: Date, days: number) {
   const nextDate = new Date(date)
   nextDate.setUTCDate(nextDate.getUTCDate() + days)
+  return nextDate
+}
+
+function addLocalDays(date: Date, days: number) {
+  const nextDate = new Date(date)
+  nextDate.setDate(nextDate.getDate() + days)
   return nextDate
 }
 
@@ -1250,18 +1282,35 @@ function normalizePhoneNumber(value?: string | null) {
 
 async function ensureDefaultExercises() {
   const db = ensurePrisma()
-  const currentCount = await db.variation.count()
+  const systemExercises = await db.exercise.findMany({
+    include: {
+      variations: {
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      },
+    },
+    where: {
+      createdById: null,
+    },
+  })
 
-  if (currentCount === 0) {
-    await db.$transaction(
-      DEFAULT_EXERCISES.map((exercise) =>
+  const exerciseKey = (exercise: { muscleGroup: string; name: string }) =>
+    `${exercise.muscleGroup.trim().toLowerCase()}::${exercise.name.trim().toLowerCase()}`
+
+  const systemExerciseByKey = new Map(systemExercises.map((exercise) => [exerciseKey(exercise), exercise]))
+  const operations: Prisma.PrismaPromise<unknown>[] = []
+
+  for (const defaultExercise of DEFAULT_EXERCISES) {
+    const existingExercise = systemExerciseByKey.get(exerciseKey(defaultExercise))
+
+    if (!existingExercise) {
+      operations.push(
         db.exercise.create({
           data: {
-            muscleGroup: exercise.muscleGroup,
-            name: exercise.name,
+            muscleGroup: defaultExercise.muscleGroup,
+            name: defaultExercise.name,
             variations: {
               create: {
-                equipment: exercise.equipment,
+                equipment: defaultExercise.equipment,
                 isDefault: true,
                 name: "Default",
                 sortOrder: 0,
@@ -1269,8 +1318,29 @@ async function ensureDefaultExercises() {
             },
           },
         }),
-      ),
-    )
+      )
+      continue
+    }
+
+    const defaultVariation = existingExercise.variations.find((variation) => variation.isDefault)
+
+    if (!defaultVariation) {
+      operations.push(
+        db.variation.create({
+          data: {
+            equipment: defaultExercise.equipment,
+            exerciseId: existingExercise.id,
+            isDefault: true,
+            name: "Default",
+            sortOrder: 0,
+          },
+        }),
+      )
+    }
+  }
+
+  if (operations.length > 0) {
+    await db.$transaction(operations)
   }
 
   return db.variation.findMany({
@@ -1289,11 +1359,10 @@ async function listExercises(
   const search = options?.search?.trim().toLowerCase()
   const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
   const equipment = options?.equipment?.trim().toLowerCase()
-  const allowCoachOwned = profile.role === UserRole.coach
 
   return variations
     .filter((variation) => {
-      const isVisible = variation.exercise.createdById == null || (allowCoachOwned && variation.exercise.createdById === profile.id)
+      const isVisible = canProfileAccessExercise(variation.exercise.createdById, profile)
 
       if (!isVisible) {
         return false
@@ -1329,7 +1398,6 @@ async function listExerciseLibrary(
   const search = options?.search?.trim().toLowerCase()
   const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
   const equipment = options?.equipment?.trim().toLowerCase()
-  const allowCoachOwned = profile.role === UserRole.coach
 
   const exercises = await db.exercise.findMany({
     include: {
@@ -1342,7 +1410,7 @@ async function listExerciseLibrary(
   })
 
   return exercises
-    .filter((exercise) => exercise.createdById == null || (allowCoachOwned && exercise.createdById === profile.id))
+    .filter((exercise) => canProfileAccessExercise(exercise.createdById, profile))
     .map((exercise) => ({
       canManage: exercise.createdById === profile.id,
       createdById: exercise.createdById ?? undefined,
@@ -1646,6 +1714,7 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
 
   const [meals, weeklyMeals] = await Promise.all([
     db.meal.findMany({
+      include: MEAL_WITH_FOOD_INCLUDE,
       orderBy: {
         recordedAt: "asc",
       },
@@ -1675,7 +1744,7 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
     }),
   ])
 
-  const serializedMeals = meals.map(serializeMeal)
+  const serializedMeals = meals.map(serializeMealRecord)
   const totalCalories = serializedMeals.reduce((total, meal) => total + meal.calories, 0)
 
   return {
@@ -1687,6 +1756,36 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
     },
     meals: serializedMeals,
     weeklyCalories: buildWeeklyCaloriesChart(weeklyMeals, targetCalories),
+  }
+}
+
+async function listMealHistoryForUser(
+  profile: SerializedProfile,
+  options?: { cursor?: string; limit?: number },
+) {
+  const db = ensurePrisma()
+  const take = Math.min(Math.max(options?.limit ?? 12, 1), 50)
+  const meals = await db.meal.findMany({
+    cursor: options?.cursor
+      ? {
+          id: options.cursor,
+        }
+      : undefined,
+    include: MEAL_WITH_FOOD_INCLUDE,
+    orderBy: [{ recordedAt: "desc" }, { id: "desc" }],
+    skip: options?.cursor ? 1 : 0,
+    take: take + 1,
+    where: {
+      userId: profile.id,
+    },
+  })
+
+  const hasMore = meals.length > take
+  const visibleMeals = hasMore ? meals.slice(0, take) : meals
+
+  return {
+    meals: visibleMeals.map(serializeMealRecord),
+    nextCursor: hasMore ? visibleMeals[visibleMeals.length - 1]?.id : undefined,
   }
 }
 
@@ -1710,18 +1809,20 @@ async function createMealForUser(
 
   const meal = await db.meal.create({
     data: {
-      calories: Math.max(0, Math.round(input.calories)),
-      carbs: input.carbs != null ? Math.round(input.carbs) : undefined,
-      fat: input.fat != null ? Math.round(input.fat) : undefined,
+      calories: Math.max(0, roundMealValue(input.calories)),
+      carbs: input.carbs != null ? roundMealValue(input.carbs) : undefined,
+      fat: input.fat != null ? roundMealValue(input.fat) : undefined,
+      foodNameSnapshot: input.name.trim(),
       name: input.name.trim(),
-      protein: input.protein != null ? Math.round(input.protein) : undefined,
+      protein: input.protein != null ? roundMealValue(input.protein) : undefined,
       recordedAt: input.recordedAt ? new Date(input.recordedAt) : new Date(),
       type: input.type,
       userId: profile.id,
     },
+    include: MEAL_WITH_FOOD_INCLUDE,
   })
 
-  return serializeMeal(meal)
+  return serializeMealRecord(meal)
 }
 
 async function updateMealForUser(
@@ -1755,20 +1856,22 @@ async function updateMealForUser(
 
   const updatedMeal = await db.meal.update({
     data: {
-      calories: Math.max(0, Math.round(input.calories)),
-      carbs: input.carbs != null ? Math.round(input.carbs) : undefined,
-      fat: input.fat != null ? Math.round(input.fat) : undefined,
+      calories: Math.max(0, roundMealValue(input.calories)),
+      carbs: input.carbs != null ? roundMealValue(input.carbs) : undefined,
+      fat: input.fat != null ? roundMealValue(input.fat) : undefined,
+      foodNameSnapshot: input.name.trim(),
       name: input.name.trim(),
-      protein: input.protein != null ? Math.round(input.protein) : undefined,
+      protein: input.protein != null ? roundMealValue(input.protein) : undefined,
       recordedAt: input.recordedAt ? new Date(input.recordedAt) : meal.recordedAt,
       type: input.type,
     },
+    include: MEAL_WITH_FOOD_INCLUDE,
     where: {
       id: mealId,
     },
   })
 
-  return serializeMeal(updatedMeal)
+  return serializeMealRecord(updatedMeal)
 }
 
 async function deleteMealForUser(profile: SerializedProfile, mealId: string) {
@@ -2549,7 +2652,7 @@ async function createCoachProgram(
   })
 
   if (validVariationCount !== variationIds.length) {
-    throw new AuthServiceError("Có variation không tồn tại trong thư viện.", 400)
+    throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
   const program = await db.program.create({
@@ -2690,7 +2793,7 @@ async function updateCoachProgram(
   })
 
   if (validVariationCount !== variationIds.length) {
-    throw new AuthServiceError("Có variation không tồn tại trong thư viện.", 400)
+    throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
   const program = await db.$transaction(async (tx) => {
@@ -2822,7 +2925,6 @@ async function adjustCoachProgramForTrainee(
 
   const validVariationCount = await db.variation.count({
     where: {
-      OR: [{ exercise: { createdById: null } }, { exercise: { createdById: profile.id } }],
       id: {
         in: variationIds,
       },
@@ -2830,7 +2932,7 @@ async function adjustCoachProgramForTrainee(
   })
 
   if (validVariationCount !== variationIds.length) {
-    throw new AuthServiceError("Có variation không hợp lệ cho thư viện của coach này.", 400)
+    throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
   const adjustedProgram = await db.$transaction(async (transaction) => {
@@ -3262,13 +3364,20 @@ async function createCoachCheckInForTrainee(
 async function listCoachWorkoutLogsForTrainee(
   profile: SerializedProfile,
   traineeId: string,
-  options?: { cursor?: string; limit?: number },
+  options?: { cursor?: string; limit?: number; weekStart?: string },
 ) {
   const db = ensurePrisma()
   assertCoach(profile)
   await assertCoachOwnsTrainee(profile.id, traineeId)
 
   const take = Math.min(Math.max(options?.limit ?? 20, 1), 50)
+  const parsedWeekStart = options?.weekStart ? parseLocalDateInput(options.weekStart) : undefined
+
+  if (options?.weekStart && !parsedWeekStart) {
+    throw new AuthServiceError("weekStart không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
+  const weekEnd = parsedWeekStart ? addLocalDays(parsedWeekStart, 7) : undefined
   const workoutLogs = await db.workoutLog.findMany({
     cursor: options?.cursor ? { id: options.cursor } : undefined,
     include: WORKOUT_LOG_INCLUDE,
@@ -3276,6 +3385,14 @@ async function listCoachWorkoutLogsForTrainee(
     skip: options?.cursor ? 1 : 0,
     take: take + 1,
     where: {
+      ...(parsedWeekStart && weekEnd
+        ? {
+            startedAt: {
+              gte: parsedWeekStart,
+              lt: weekEnd,
+            },
+          }
+        : {}),
       userId: traineeId,
     },
   })
@@ -3953,6 +4070,7 @@ export {
   listCoachWorkoutLogsForTrainee,
   listCoachTrainees,
   listExercises,
+  listMealHistoryForUser,
   listMealsForUser,
   listNotificationsForUser,
   listWorkoutsForTrainee,
