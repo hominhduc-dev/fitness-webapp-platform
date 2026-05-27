@@ -33,7 +33,7 @@ jobs:
 
             echo "==> Installing dependencies..."
             cd backend
-            npm ci --omit=dev
+            npm ci
 
             echo "==> Building..."
             npm run build
