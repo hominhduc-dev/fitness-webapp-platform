@@ -3,69 +3,84 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   Lift design tokens — mapped into the existing shadcn variable
+   names so every component picks up the new look automatically.
+
+   Source: /colors_and_type.css in the Lift design system.
+   ============================================================ */
+
 :root {
   color-scheme: light;
 
-  /* FitDash - Modern SaaS Dashboard */
-  --primary: #1349ec;
-  --primary-hover: #0f3dd1;
-  --primary-pressed: #0d35b5;
+  /* -- Brand / interactive ---------------------------------- */
+  --primary: #3a5fff;            /* electric blue accent */
+  --primary-hover: #2a4ff0;
+  --primary-pressed: #1f3fd9;
   --primary-foreground: #ffffff;
 
-  --secondary: #eff3ff;
-  --secondary-hover: #dfe8ff;
-  --secondary-foreground: #1e293b;
+  --secondary: #eaeeff;          /* accent-soft */
+  --secondary-hover: #dde3ff;
+  --secondary-foreground: #1a1a17;
 
-  --accent: #eff3ff;
-  --accent-foreground: #1349ec;
+  --accent: #eaeeff;
+  --accent-foreground: #0a1a8a;  /* accent-ink */
 
-  --background: #f8fafc;
-  --foreground: #1e293b;
+  /* -- Surfaces (warm neutrals) ----------------------------- */
+  --background: #fcfcfa;         /* ink-0 — warm paper white */
+  --foreground: #1a1a17;         /* ink-800 */
 
-  --card: #ffffff;
-  --card-foreground: #1e293b;
-  --surface: #ffffff;
+  --card: #fcfcfa;
+  --card-foreground: #1a1a17;
+  --surface: #f5f5f1;            /* ink-50 — raised */
 
-  --popover: #ffffff;
-  --popover-foreground: #1e293b;
+  --popover: #fcfcfa;
+  --popover-foreground: #1a1a17;
 
-  --muted: #eff3ff;
-  --muted-foreground: #64748b;
+  --muted: #f5f5f1;              /* ink-50 */
+  --muted-foreground: #4a4a44;   /* ink-600 */
 
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
+  --text-primary: #1a1a17;
+  --text-secondary: #4a4a44;
 
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --info: #3b82f6;
-  --destructive: #ef4444;
+  /* -- Semantic (desaturated; data is the focus, not chrome) - */
+  --success: #2a8a5f;
+  --warning: #b56a1a;
+  --info: #3a5fff;
+  --destructive: #c0341a;
   --destructive-foreground: #ffffff;
 
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #1349ec;
+  /* -- Borders & inputs ------------------------------------- */
+  --border: #ebebe6;             /* ink-100 — hairlines do the work of shadows */
+  --input: #e0e0db;              /* ink-150 */
+  --ring: #3a5fff;
 
-  --chart-1: #1349ec;
-  --chart-2: #3b82f6;
-  --chart-3: #22c55e;
-  --chart-4: #f59e0b;
-  --chart-5: #cbd5e1;
+  /* -- Charts (sparingly colored — accent + ink ramp) ------- */
+  --chart-1: #3a5fff;            /* accent */
+  --chart-2: #8a8a82;            /* ink-400 */
+  --chart-3: #2a8a5f;            /* ok */
+  --chart-4: #b56a1a;            /* warn */
+  --chart-5: #c9c9c2;            /* ink-200 */
 
-  --radius: 0.75rem;
+  /* -- Radius (tighter than the previous 0.75rem) ----------- */
+  --radius: 0.625rem;            /* 10px → sm 6, md 8, lg 10, xl 14 */
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1e293b;
-  --sidebar-primary: #1349ec;
+  /* -- Sidebar --------------------------------------------- */
+  --sidebar: #fcfcfa;
+  --sidebar-foreground: #1a1a17;
+  --sidebar-primary: #3a5fff;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eff3ff;
-  --sidebar-accent-foreground: #1349ec;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #1349ec;
+  --sidebar-accent: #ebebe6;     /* ink-100 — active item bg */
+  --sidebar-accent-foreground: #1a1a17;
+  --sidebar-border: #ebebe6;
+  --sidebar-ring: #3a5fff;
 }
 
 @theme inline {
-  --font-sans: "Inter", "Inter Fallback", system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Geist + Geist Mono — wired via next/font in app/layout.tsx */
+  --font-sans: var(--font-geist), "Inter Fallback", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -117,33 +132,39 @@
     @apply bg-background;
   }
 
-body {
-  @apply bg-background text-foreground antialiased;
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01" 1, "cv11" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numbers always tabular — Lift's signature */
+  .tnum,
+  [class*="font-mono"],
+  .text-mono {
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* Micro labels — UPPERCASE mono tags ("SET 1", "WORKING", "PR") */
+  .label-micro {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;        /* 11px */
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
   }
 }
 
 @keyframes skeleton-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-
-  100% {
-    background-position: -200% 0;
-  }
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @keyframes page-loading-bar {
-  0% {
-    transform: translateX(-120%);
-  }
-
-  50% {
-    transform: translateX(120%);
-  }
-
-  100% {
-    transform: translateX(360%);
-  }
+  0%   { transform: translateX(-120%); }
+  50%  { transform: translateX(120%); }
+  100% { transform: translateX(360%); }
 }
 
 .page-loading-bar {
@@ -151,21 +172,23 @@ body {
   will-change: transform;
 }
 
-/* Custom scrollbar for light theme */
+/* Quiet scrollbars — match the warm neutral palette */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--background);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #c9c9c2;            /* ink-200 */
+}
+
+::selection {
+  background: var(--secondary);   /* accent-soft */
+  color: var(--accent-foreground);
 }
