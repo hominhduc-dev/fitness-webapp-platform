@@ -1,244 +1,40 @@
-import { Suspense } from "react"
-import type React from "react"
+"use client"
 
+import { Suspense } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import {
-  Apple,
-  ArrowRight,
+  BarChart3,
+  Calendar,
   Dumbbell,
-  HeartPulse,
-  Sparkles,
-  Target,
-  Users,
+  Flame,
+  Play,
+  Ruler,
+  Timer,
 } from "lucide-react"
 
 import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
-import { LocaleToggle } from "@/components/locale/locale-toggle"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import type { AppLocale } from "@/lib/i18n/config"
-import type { AppMessages } from "@/lib/i18n/messages"
+/* ============================================================
+   LandingPage — Lift warm-minimal design (Step 3a)
+   All sections are named exports for clarity; the root export
+   is `LandingPage` which the page.tsx consumes.
+   ============================================================ */
 
-export function LandingPage({
-  locale,
-  messages,
-}: {
-  locale: AppLocale
-  messages: AppMessages
-}) {
-  const featureItems = [
-    {
-      icon: Dumbbell,
-      title: locale === "en" ? "Workout tracking with depth" : "Workout tracking có chiều sâu",
-      copy:
-        locale === "en"
-          ? "Log sets, reps, volume, and progression so you always know what is actually moving forward."
-          : "Log sets, reps, volume và progression để bạn biết mình đang tiến lên ở đâu.",
-      tone: "bg-primary/10 text-primary",
-    },
-    {
-      icon: Apple,
-      title: locale === "en" ? "Nutrition tied to performance" : "Nutrition gắn với hiệu suất",
-      copy:
-        locale === "en"
-          ? "Track calories, macros, and meal logging around your goal of gaining, cutting, or maintaining."
-          : "Theo dõi calories, macros và meal logging theo mục tiêu tăng cơ, siết mỡ hoặc duy trì.",
-      tone: "bg-warning/10 text-warning",
-    },
-    {
-      icon: Users,
-      title: locale === "en" ? "Coach connection without fragmentation" : "Coach connection không rời rạc",
-      copy:
-        locale === "en"
-          ? "Get training plans, feedback, and progress updates in a single flow instead of scattered tools."
-          : "Nhận lịch tập, feedback và cập nhật tiến độ ngay trong cùng một flow sử dụng.",
-      tone: "bg-info/10 text-info",
-    },
-  ]
-  const statItems = [
-    { label: messages.landing.metricUsers, value: "50K+", tone: "text-primary" },
-    { label: messages.landing.metricWorkouts, value: "1M+", tone: "text-slate-950" },
-    { label: messages.landing.metricCoaches, value: "500+", tone: "text-info" },
-    { label: messages.landing.metricReviews, value: "4.9★", tone: "text-success" },
-  ]
-
+export function LandingPage(_props: { locale: AppLocale }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="relative isolate overflow-hidden">
-        <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_top,rgba(19,73,236,0.12),transparent_34%),linear-gradient(180deg,#ffffff_0%,#f8fafc_58%,#eef4ff_100%)]" />
-        <div className="absolute inset-x-0 top-0 -z-10 h-[360px] bg-[linear-gradient(180deg,rgba(19,73,236,0.06),rgba(19,73,236,0))]" />
+      <TopBar />
 
-        <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground sm:h-12 sm:w-12">
-              <DumbbellIcon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-lg font-black tracking-tight sm:text-2xl">YeahBuddy</div>
-              <div className="hidden text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground sm:block">
-                Performance OS
-              </div>
-            </div>
-          </div>
+      <main>
+        <Hero />
+        <FeaturesSection />
+        <TrainerCallout />
+      </main>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <LocaleToggle compact />
-            <Button
-              asChild
-              variant="ghost"
-              className="h-10 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950 sm:px-5"
-            >
-              <Link href="/?auth=login" scroll={false}>
-                {messages.auth.login}
-              </Link>
-            </Button>
-          </div>
-        </header>
-
-        <main>
-          <section className="mx-auto max-w-6xl px-4 pb-14 pt-6 sm:px-6 lg:px-8 lg:pb-18 lg:pt-10">
-            <div className="max-w-4xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/12 bg-white px-3 py-2 text-xs font-semibold text-primary shadow-sm sm:px-4 sm:text-sm">
-                <Sparkles className="h-4 w-4" />
-                {messages.landing.badge}
-              </div>
-
-              <h1 className="mt-6 max-w-[8.8ch] text-[clamp(3rem,13vw,5.8rem)] font-black leading-[0.92] tracking-[-0.06em] text-slate-950 sm:mt-7">
-                <span className="block">{messages.landing.heroLine1}</span>
-                <span className="block text-primary">{messages.landing.heroLine2}</span>
-                <span className="block">{messages.landing.heroLine3}</span>
-                <span className="block">{messages.landing.heroLine4}</span>
-              </h1>
-
-              <p className="mt-6 max-w-[36rem] text-base leading-7 text-slate-600 sm:text-[1.18rem] sm:leading-8">
-                {messages.landing.description}
-              </p>
-
-              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <Button asChild size="lg" className="h-13 w-full rounded-2xl px-7 text-base font-semibold shadow-sm sm:w-auto">
-                  <Link href="/?auth=register" scroll={false}>
-                    {messages.landing.primaryCta}
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="h-13 w-full rounded-2xl border-slate-200 bg-white px-7 text-base font-semibold shadow-sm hover:bg-slate-50 sm:w-auto"
-                >
-                  <Link href="/?auth=login" scroll={false}>
-                    {messages.landing.secondaryCta}
-                  </Link>
-                </Button>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3 text-sm text-slate-600">
-                {featureItems.map((item) => (
-                  <div key={item.title} className="rounded-full border border-slate-200 bg-white px-4 py-2 shadow-sm">
-                    {item.title}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="mx-auto max-w-6xl px-4 pb-10 sm:px-6 lg:px-8">
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-              {statItems.map((item) => (
-                <div key={item.label} className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">{item.label}</div>
-                  <div className={`mt-4 text-4xl font-black tracking-tight ${item.tone}`}>{item.value}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-            <div className="mb-8 max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-4 py-2 text-sm font-semibold text-primary">
-                <Target className="h-4 w-4" />
-                {messages.landing.sectionBadge}
-              </div>
-              <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                {messages.landing.sectionTitle}
-              </h2>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[2rem] border border-primary/10 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-[0_26px_65px_-36px_rgba(19,73,236,0.35)] sm:rounded-[2.2rem] sm:p-7">
-                <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-primary">
-                  <Dumbbell className="h-4 w-4" />
-                  {messages.landing.featureSection}
-                </div>
-                <div className="mt-7 grid gap-4 sm:grid-cols-3">
-                  {featureItems.map((item, index) => {
-                    const Icon = item.icon
-                    return (
-                      <div
-                        key={item.title}
-                        className={`group rounded-[1.7rem] border border-slate-200/70 bg-white/92 p-5 transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/15 hover:shadow-[0_24px_55px_-34px_rgba(15,23,42,0.3)] ${
-                          index === 1 ? "sm:translate-y-3" : index === 2 ? "sm:translate-y-1" : ""
-                        }`}
-                      >
-                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-105 ${item.tone}`}>
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="mt-4 text-lg font-bold text-slate-950">{item.title}</div>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">{item.copy}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="relative overflow-hidden rounded-[2rem] border border-white/75 bg-[linear-gradient(160deg,#1349ec_0%,#1a53fb_62%,#3b82f6_100%)] p-5 text-primary-foreground shadow-[0_24px_60px_-30px_rgba(19,73,236,0.9)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_70px_-30px_rgba(19,73,236,0.88)] sm:rounded-[2.2rem] sm:p-6">
-                <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
-                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-white/75">
-                  <HeartPulse className="h-4 w-4" />
-                  {messages.landing.momentumSection}
-                </div>
-                <h3 className="mt-5 text-3xl font-black tracking-tight">{messages.landing.momentumTitle}</h3>
-                <p className="mt-4 text-sm leading-7 text-white/80">{messages.landing.momentumDescription}</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="mx-auto max-w-7xl px-4 pb-20 pt-4 sm:px-6 lg:px-8">
-            <div className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_45%,#eff3ff_100%)] p-6 shadow-[0_28px_75px_-40px_rgba(15,23,42,0.34)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_80px_-40px_rgba(15,23,42,0.32)] sm:rounded-[2.25rem] sm:p-10 lg:p-12">
-              <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-primary/10 blur-[90px]" />
-              <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-                <div className="max-w-3xl">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-primary shadow-sm">
-                    <Sparkles className="h-4 w-4" />
-                    {messages.landing.finalBadge}
-                  </div>
-                  <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                    {messages.landing.finalTitle}
-                  </h2>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                  <Button asChild size="lg" className="h-14 w-full rounded-2xl px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 sm:w-auto">
-                    <Link href="/?auth=register" scroll={false}>
-                      {messages.landing.finalPrimaryCta}
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    size="lg"
-                    variant="outline"
-                    className="h-14 w-full rounded-2xl border-white bg-white/90 px-8 text-base font-semibold transition-all duration-300 hover:-translate-y-1 hover:bg-white sm:w-auto"
-                  >
-                    <Link href="/?auth=login" scroll={false}>
-                      {messages.landing.finalSecondaryCta}
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
+      <FooterSection />
 
       <Suspense fallback={null}>
         <AuthModalLauncher />
@@ -247,25 +43,419 @@ export function LandingPage({
   )
 }
 
-function DumbbellIcon(props: React.SVGProps<SVGSVGElement>) {
+/* ─────────────────────────────────────────────────────────────
+   TopBar
+───────────────────────────────────────────────────────────── */
+function TopBar() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
+    <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3.5 md:px-10 md:py-[18px]">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <Image
+            src="/lift-mark.svg"
+            alt=""
+            width={26}
+            height={26}
+            className="shrink-0"
+          />
+          <span className="text-[20px] font-semibold tracking-[-0.04em] text-foreground">
+            YeahBuddy Fitness
+          </span>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex items-center gap-2 md:gap-7">
+          <Link
+            href="#features"
+            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
+          >
+            Features
+          </Link>
+          <Link
+            href="#trainers"
+            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
+          >
+            For trainers
+          </Link>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-sm font-medium"
+          >
+            <Link href="/?auth=login" scroll={false}>
+              Sign in
+            </Link>
+          </Button>
+
+          <Button
+            size="sm"
+            asChild
+            className="bg-foreground text-background text-sm font-medium hover:bg-foreground/90"
+          >
+            <Link href="/?auth=register" scroll={false}>
+              Get started
+            </Link>
+          </Button>
+        </nav>
+      </div>
+    </header>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Hero
+───────────────────────────────────────────────────────────── */
+function Hero() {
+  return (
+    <section className="mx-auto max-w-[1200px] px-5 pb-16 pt-10 md:px-10 md:pb-16 md:pt-20">
+      {/* Headline block */}
+      <div className="max-w-[760px]">
+        <p className="label-micro mb-3.5">v1.0 · may 2026</p>
+
+        <h1
+          className="m-0 text-[44px] font-semibold leading-[0.96] tracking-[-0.035em] text-foreground md:text-[84px]"
+        >
+          Log the set.{" "}
+          <br />
+          <span className="text-muted-foreground">Move on.</span>
+        </h1>
+
+        <p className="mt-6 max-w-[540px] text-base leading-[1.55] text-muted-foreground md:text-[19px]">
+          A quiet gym log for lifters who know what they&apos;re doing. No streaks to
+          maintain. No coach pinging you. Just your numbers, where you left them.
+        </p>
+
+        {/* CTAs */}
+        <div className="mt-8 flex flex-wrap gap-2.5">
+          <Button
+            size="lg"
+            asChild
+            className="bg-foreground text-background font-medium hover:bg-foreground/90"
+          >
+            <Link href="/?auth=register" scroll={false}>
+              Start logging — it&apos;s free
+            </Link>
+          </Button>
+
+          <Button variant="ghost" size="lg" className="gap-2 font-medium" asChild>
+            <Link href="#demo">
+              <Play className="h-4 w-4" />
+              Watch 30s demo
+            </Link>
+          </Button>
+        </div>
+
+        {/* Micro trust line */}
+        <p className="mt-[22px] font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
+          No credit card · iOS &amp; web · export your data anytime
+        </p>
+      </div>
+
+      {/* Product preview tile */}
+      <div className="mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.12)] md:mt-[72px] md:p-7">
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[1.4fr_1fr] md:gap-6">
+          {/* Mock set-log card */}
+          <MockSetLog />
+          {/* Mock sparkline chart */}
+          <MockChart />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MockSetLog() {
+  const sets = [
+    { n: 1, kind: "warm", kg: 60, reps: 10, done: true, pr: false },
+    { n: 2, kind: "work", kg: 80, reps: 8, done: true, pr: false },
+    { n: 3, kind: "work", kg: 82.5, reps: 8, done: true, pr: true },
+    { n: 4, kind: "work", kg: 85, reps: null, done: false, pr: false },
+  ]
+
+  return (
+    <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+      {/* Header */}
+      <div className="border-b border-border px-[18px] py-3.5">
+        <div className="text-base font-semibold text-foreground">Bench press</div>
+        <div className="mt-0.5 text-xs text-muted-foreground/70">3 working sets · last 82.5 × 8</div>
+      </div>
+
+      {/* Rows */}
+      {sets.map((s) => (
+        <div
+          key={s.n}
+          className={cn(
+            "grid items-center gap-2.5 border-b border-border px-[18px] py-2.5 font-mono text-[13px] last:border-b-0",
+            "grid-cols-[40px_1fr_60px_60px_28px]",
+            s.done && "bg-muted/60"
+          )}
+        >
+          <span className="font-semibold text-foreground">{s.n}</span>
+
+          <span
+            className={cn(
+              "text-[10px] uppercase tracking-[0.08em]",
+              s.kind === "warm" ? "text-muted-foreground/60" : "text-muted-foreground"
+            )}
+          >
+            {s.kind}
+            {s.pr ? " · pr" : ""}
+          </span>
+
+          <span
+            className={cn("text-center", s.done ? "text-muted-foreground/60" : "text-foreground")}
+          >
+            {s.kg}
+          </span>
+
+          <span
+            className={cn("text-center", s.done ? "text-muted-foreground/60" : "text-foreground")}
+          >
+            {s.reps ?? "—"}
+          </span>
+
+          <div
+            className={cn(
+              "flex h-5 w-5 items-center justify-center rounded-[4px]",
+              s.done
+                ? "bg-[#2a8a5f] text-white"
+                : "border-[1.5px] border-border bg-transparent"
+            )}
+          >
+            {s.done && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MockChart() {
+  return (
+    <div className="rounded-[10px] border border-border bg-card p-[18px]">
+      <p className="label-micro mb-1.5">Bench press · 1RM est.</p>
+
+      <div className="flex items-baseline gap-2">
+        <span className="font-sans text-[36px] font-semibold leading-none tracking-[-0.03em] text-foreground [font-feature-settings:'tnum'_1]">
+          112.5
+        </span>
+        <span className="text-[13px] text-muted-foreground">kg</span>
+        <span className="ml-1 font-mono text-[12px] text-[#2a8a5f]">↑ 5.0 · 12 w</span>
+      </div>
+
+      <svg
+        viewBox="0 0 240 100"
+        className="mt-4 block w-full"
+        aria-hidden="true"
+      >
+        <line x1="0" y1="25" x2="240" y2="25" stroke="var(--border)" strokeWidth="1" />
+        <line x1="0" y1="60" x2="240" y2="60" stroke="var(--border)" strokeWidth="1" />
+        <polyline
+          fill="none"
+          stroke="var(--primary)"
+          strokeWidth="1.75"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points="0,80 24,75 48,68 72,70 96,55 120,50 144,52 168,38 192,28 216,22 240,12"
+        />
+        <circle cx="240" cy="12" r="3" fill="var(--primary)" />
+      </svg>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Features grid
+───────────────────────────────────────────────────────────── */
+const FEATURE_ITEMS = [
+  {
+    Icon: Dumbbell,
+    title: "Log a set in 3 taps",
+    copy: "Previous numbers pre-filled. Tap kg, tap reps, tap check. Move on.",
+  },
+  {
+    Icon: Flame,
+    title: "PRs that find themselves",
+    copy: "Hit a new best? YeahBuddy notices. No celebrating, no confetti — just a small tag.",
+  },
+  {
+    Icon: BarChart3,
+    title: "Charts that mean something",
+    copy: "Volume, frequency, 1RM estimate. No vanity numbers.",
+  },
+  {
+    Icon: Ruler,
+    title: "Body weight + measurements",
+    copy: "Weekly weigh-ins. Track waist, arms, body fat. Skip what you do not care about.",
+  },
+  {
+    Icon: Timer,
+    title: "Rest timer that knows",
+    copy: "Auto-starts after each set. Tap to add 30 seconds. Auto-dismisses when done.",
+  },
+  {
+    Icon: Calendar,
+    title: "History without the noise",
+    copy: "A clean monthly calendar. Click any day to see the session.",
+  },
+] as const
+
+function FeaturesSection() {
+  return (
+    <section
+      id="features"
+      className="mx-auto max-w-[1200px] border-t border-border px-5 py-10 md:px-10 md:py-20"
     >
-      <path d="M14.4 14.4 9.6 9.6" />
-      <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.828-2.829l6.364-6.364a2 2 0 1 1 2.829 2.828l-1.768 1.767a2 2 0 1 1 2.828 2.829z" />
-      <path d="m21.5 21.5-1.4-1.4" />
-      <path d="M3.9 3.9 2.5 2.5" />
-      <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.828 2.829z" />
-    </svg>
+      {/* Section header */}
+      <div className="mb-7 max-w-[640px] md:mb-12">
+        <p className="label-micro mb-3">What&apos;s inside</p>
+        <h2 className="m-0 text-[32px] font-semibold leading-[1.05] tracking-[-0.025em] text-foreground md:text-[48px]">
+          Everything you need.{" "}
+          <span className="text-muted-foreground">Nothing you don&apos;t.</span>
+        </h2>
+      </div>
+
+      {/* 3×2 grid with hairline dividers */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="grid grid-cols-1 md:grid-cols-3">
+          {FEATURE_ITEMS.map((item, i) => {
+            const col = i % 3
+            const row = Math.floor(i / 3)
+            const totalRows = Math.ceil(FEATURE_ITEMS.length / 3)
+            return (
+              <div
+                key={item.title}
+                className={cn(
+                  "px-5 py-[22px] md:px-7 md:py-8",
+                  // Mobile: bottom border on all but the last item
+                  i < FEATURE_ITEMS.length - 1 && "border-b border-border",
+                  // Desktop overrides: right border on cols 0 and 1
+                  col < 2 && "md:border-r md:border-border",
+                  // Desktop overrides: bottom border on all but last row
+                  row < totalRows - 1 ? "md:border-b md:border-border" : "md:border-b-0"
+                )}
+              >
+                <item.Icon className="h-[22px] w-[22px] text-foreground/80" />
+                <h3 className="mb-1.5 mt-3.5 text-[17px] font-semibold text-foreground">
+                  {item.title}
+                </h3>
+                <p className="m-0 text-sm leading-[1.5] text-muted-foreground">
+                  {item.copy}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Trainer callout
+───────────────────────────────────────────────────────────── */
+const CLIENT_ROWS = [
+  { name: "Maya R.", activity: "pulled", status: "pr · deadlift 142.5", tone: "ok" as const },
+  { name: "Theo S.", activity: "pushed", status: "−2 sets vs plan", tone: "warn" as const },
+  { name: "Hana K.", activity: "rested", status: "4 days off", tone: "neutral" as const },
+  { name: "Devon L.", activity: "pulled", status: "on track", tone: "neutral" as const },
+] as const
+
+function TrainerCallout() {
+  return (
+    <section
+      id="trainers"
+      className="mx-auto max-w-[1200px] px-5 pb-10 pt-5 md:px-10 md:pb-20 md:pt-10"
+    >
+      <div className="grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
+        {/* Left: copy */}
+        <div>
+          <p className="label-micro mb-3 text-[#9a9a92]">For coaches &amp; trainers</p>
+          <h2 className="m-0 text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-[#fcfcfa] md:text-[42px]">
+            One dashboard for every lifter you coach.
+          </h2>
+          <p className="mb-6 mt-[18px] max-w-[440px] text-[15px] leading-[1.55] text-[#c9c9c2]">
+            Assign programs, watch real sets land in real time, flag form check
+            videos, and message clients between sessions — without a third app.
+          </p>
+
+          <div className="flex flex-wrap gap-2.5">
+            <Button
+              size="default"
+              asChild
+              className="bg-primary font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Link href="/coach">Open trainer view →</Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="default"
+              className="font-medium text-[#fcfcfa] hover:bg-white/10 hover:text-[#fcfcfa]"
+            >
+              Request invite
+            </Button>
+          </div>
+        </div>
+
+        {/* Right: mock client table */}
+        <div className="rounded-[10px] border border-white/8 bg-white/4 p-5 font-mono text-[13px] leading-[1.7] text-[#c9c9c2]">
+          <div className="mb-2.5 text-[#fcfcfa]">This week · 12 clients</div>
+          {CLIENT_ROWS.map((row, i) => (
+            <div
+              key={row.name}
+              className={cn(
+                "flex items-center justify-between py-1.5",
+                i > 0 && "border-t border-white/6"
+              )}
+            >
+              <span className="text-[#fcfcfa]">{row.name}</span>
+              <span>{row.activity}</span>
+              <span
+                className={cn(
+                  row.tone === "ok" && "text-[#2a8a5f]",
+                  row.tone === "warn" && "text-[#b56a1a]",
+                  row.tone === "neutral" && "text-[#8a8a82]"
+                )}
+              >
+                {row.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Footer
+───────────────────────────────────────────────────────────── */
+function FooterSection() {
+  return (
+    <footer className="border-t border-border">
+      <div className="mx-auto flex max-w-[1200px] flex-col items-start justify-between gap-3 px-5 py-6 md:flex-row md:items-center md:px-10 md:py-8">
+        <p className="font-mono text-xs tracking-[0.04em] text-muted-foreground/70">
+          © 2026 YeahBuddy Fitness · log the set, move on.
+        </p>
+        <div className="flex gap-[18px]">
+          {["Privacy", "Terms", "Changelog", "Contact"].map((label) => (
+            <Link
+              key={label}
+              href="#"
+              className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </footer>
   )
 }

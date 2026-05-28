@@ -36,11 +36,13 @@ import type {
   NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
+  ProgressCalendar,
   ProgressMuscleGroupPoint,
   ProgressPersonalRecord,
   ProgressStrengthPoint,
   ProgressStrengthSeries,
   ProgressWeeklyVolumePoint,
+  ProgressYearView,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
@@ -97,6 +99,7 @@ type SerializedWorkout = {
   exercises: SerializedWorkoutExercise[]
   id: string
   isPersonal?: boolean
+  kind?: string
   name: string
   notes?: string
   scheduledDay?: number
@@ -499,6 +502,7 @@ function mapWorkout(workout: SerializedWorkout): Workout {
     exercises: workout.exercises.map(mapWorkoutExercise),
     id: workout.id,
     isPersonal: workout.isPersonal,
+    kind: workout.kind as Workout["kind"],
     name: workout.name,
     notes: workout.notes,
     scheduledDay: workout.scheduledDay,
@@ -831,6 +835,35 @@ async function createWeightEntry(
 async function fetchProgressAnalytics(accessToken: string): Promise<ProgressAnalytics> {
   const response = await request<{ analytics: SerializedProgressAnalytics }>("/api/progress/analytics", accessToken)
   return mapProgressAnalytics(response.analytics)
+}
+
+async function fetchProgressCalendar(
+  accessToken: string,
+  year: number,
+  month: number,
+): Promise<ProgressCalendar> {
+  return request<ProgressCalendar>(
+    `/api/progress/calendar?year=${year}&month=${month}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+}
+
+async function fetchProgressYearView(accessToken: string, year: number): Promise<ProgressYearView> {
+  return request<ProgressYearView>(
+    `/api/progress/year-view?year=${year}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+}
+
+async function fetchWorkoutLogDetail(accessToken: string, logId: string): Promise<WorkoutLog> {
+  const response = await request<{ log: SerializedWorkoutLog }>(
+    `/api/progress/workout-log/${logId}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+  return mapWorkoutLog(response.log)
 }
 
 async function createMeal(
@@ -1436,7 +1469,10 @@ export {
   deleteCoachProgram,
   fetchCoachExercises,
   fetchProgressAnalytics,
+  fetchProgressCalendar,
+  fetchProgressYearView,
   fetchWeightEntries,
+  fetchWorkoutLogDetail,
   fetchDiscoverableCoaches,
   fetchCoachDashboard,
   fetchCoachProgram,

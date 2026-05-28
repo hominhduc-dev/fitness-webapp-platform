@@ -2,11 +2,122 @@
 
 import { formatDistanceToNow } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { CheckCircle2, Clock, Dumbbell } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import type { WorkoutLog } from "@/lib/types"
+
+// ---------------------------------------------------------------------------
+// Kind color map — matches workout page / progress page
+// ---------------------------------------------------------------------------
+
+const KIND_COLORS: Record<string, string> = {
+  push:      "var(--chart-1)",
+  pull:      "var(--chart-3)",
+  legs:      "var(--chart-4)",
+  full_body: "var(--chart-2)",
+  cardio:    "var(--chart-5, var(--chart-2))",
+}
+
+function kindColor(kind?: string | null) {
+  return kind ? (KIND_COLORS[kind] ?? "var(--border)") : "var(--border)"
+}
+
+// ---------------------------------------------------------------------------
+// Single activity row
+// ---------------------------------------------------------------------------
+
+function ActivityRow({
+  log,
+  weightUnitLabel,
+  locale,
+  messages,
+}: {
+  log: WorkoutLog
+  weightUnitLabel: string
+  locale: string
+  messages: ReturnType<typeof useLocale>["messages"]
+}) {
+  const kColor = kindColor(log.workout.kind)
+  const startedAt = log.startedAt
+  const completedAt = log.completedAt
+
+  const durationMins =
+    completedAt
+      ? Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000))
+      : null
+
+  const ago = formatDistanceToNow(completedAt ?? startedAt, {
+    addSuffix: true,
+    locale: locale === "vi" ? vi : enUS,
+  })
+
+  const dayNum = startedAt.getDate()
+  const monthShort = startedAt.toLocaleDateString("en-US", { month: "short" })
+
+  return (
+    <div className="rounded-[10px] border border-border bg-card px-4 py-3">
+      <div className="flex items-center gap-3.5">
+        {/* Date column */}
+        <div className="w-8 shrink-0 text-center">
+          <div className="label-micro leading-tight">{monthShort}</div>
+          <div className="font-mono text-[17px] font-semibold leading-tight tnum text-foreground">
+            {dayNum}
+          </div>
+        </div>
+
+        {/* Kind bar */}
+        <div className="h-8 w-0.5 shrink-0 rounded-sm" style={{ background: kColor }} />
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{log.workout.name}</p>
+          <div className="mt-0.5 flex items-center gap-3 font-mono text-[11px] tnum text-muted-foreground">
+            {durationMins && (
+              <span>{durationMins} {messages.dashboard.min}</span>
+            )}
+            <span>{log.exercises.length} {messages.dashboard.exercises}</span>
+            {log.totalVolume ? (
+              <span>
+                {log.totalVolume >= 1000
+                  ? `${(log.totalVolume / 1000).toFixed(1)}k`
+                  : Math.round(log.totalVolume)}{" "}
+                {weightUnitLabel}
+              </span>
+            ) : null}
+            <span className="ml-auto">{ago}</span>
+          </div>
+        </div>
+
+        {/* Coach comments badge */}
+        {log.comments.length > 0 && (
+          <div className="shrink-0 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-[10px] text-primary">
+            {log.comments.length} note{log.comments.length > 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
+
+      {/* Inline coach comments */}
+      {log.comments.length > 0 && (
+        <div className="mt-3 space-y-2 pl-[3.25rem]">
+          {log.comments.slice(-2).map((comment) => (
+            <div
+              key={comment.id}
+              className="rounded-[8px] border border-border bg-muted px-3 py-2.5"
+            >
+              <p className="label-micro text-primary">{comment.authorName}</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">{comment.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Section
+// ---------------------------------------------------------------------------
 
 interface RecentActivityProps {
   emptyMessage?: string
@@ -20,67 +131,31 @@ export function RecentActivity({ emptyMessage, logs, title }: RecentActivityProp
   const weightUnitLabel = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
   return (
-    <section className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-      <h3 className="text-2xl font-black tracking-tight text-foreground">
-        {title ?? messages.dashboard.recentActivity}
-      </h3>
+    <section>
+      <div className="mb-4 flex items-baseline gap-3">
+        <span className="label-micro">{title ?? messages.dashboard.recentActivity}</span>
+        <span className="font-mono text-[11px] tnum text-muted-foreground">{logs.length}</span>
+      </div>
 
-      <div className="mt-6 space-y-4">
-        {logs.length === 0 ? (
-          <p className="py-8 text-center text-muted-foreground">
+      {logs.length === 0 ? (
+        <div className="rounded-[10px] border border-dashed border-border px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
             {emptyMessage ?? messages.dashboard.noRecentWorkouts}
           </p>
-        ) : (
-          logs.map((log) => (
-            <div key={log.id} className="rounded-[24px] bg-muted p-4 sm:p-5">
-              <div className="flex items-start gap-4 sm:items-center">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/10">
-                  <CheckCircle2 className="h-5 w-5 text-success" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate text-2xl font-bold tracking-tight text-foreground">{log.workout.name}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {Math.max(1, Math.round(((log.completedAt?.getTime() || log.startedAt.getTime()) - log.startedAt.getTime()) / 60000))} {messages.dashboard.min}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Dumbbell className="h-3.5 w-3.5" />
-                          {log.exercises.length} {messages.dashboard.exercises}
-                        </span>
-                        {log.totalVolume ? <span>{log.totalVolume.toLocaleString()} {weightUnitLabel}</span> : null}
-                      </div>
-                    </div>
-
-                    <span className="shrink-0 text-sm text-muted-foreground">
-                      {formatDistanceToNow(log.completedAt || log.startedAt, {
-                        addSuffix: true,
-                        locale: locale === "vi" ? vi : enUS,
-                      })}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {log.comments.length > 0 ? (
-                <div className="mt-4 space-y-2 pl-[3.75rem]">
-                  {log.comments.slice(-2).map((comment) => (
-                    <div key={comment.id} className="rounded-2xl border border-border/60 bg-card/80 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                        {comment.authorName}
-                      </p>
-                      <p className="mt-2 text-sm text-muted-foreground">{comment.content}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ))
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {logs.map((log) => (
+            <ActivityRow
+              key={log.id}
+              log={log}
+              locale={locale}
+              messages={messages}
+              weightUnitLabel={weightUnitLabel}
+            />
+          ))}
+        </div>
+      )}
     </section>
   )
 }

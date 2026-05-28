@@ -156,7 +156,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
   return (
     <>
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {statCards.map((card) => {
           const isHelperAccent = "helperTone" in card && card.helperTone === "accent"
 
@@ -164,26 +164,24 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "rounded-[24px] border p-4 shadow-sm md:rounded-[28px] md:p-5",
-                card.tone === "primary" && "border-primary/18 bg-primary/5",
-                card.tone === "blue" && "border-primary/18 bg-primary/6",
+                "rounded-[10px] border p-4 transition-colors md:p-5",
+                card.tone === "primary" && "border-primary/20 bg-primary/5",
+                card.tone === "blue"    && "border-primary/20 bg-primary/5",
                 card.tone === "neutral" && "border-border bg-card",
               )}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
-                  <p className="mt-2 text-2xl font-black leading-none tracking-tight text-foreground md:mt-3 md:text-3xl">
+                  <p className="label-micro mb-2">{card.label}</p>
+                  <p className="font-mono text-2xl font-semibold leading-none tracking-tight tnum text-foreground md:text-[1.75rem]">
                     {card.value}
                   </p>
                   <p
                     className={cn(
-                      "mt-2 text-sm leading-snug md:leading-7",
+                      "mt-2 text-[13px] leading-snug",
                       isHelperAccent
-                        ? "font-semibold text-emerald-600"
-                        : card.tone === "primary"
-                          ? "text-accent"
-                          : "text-muted-foreground",
+                        ? "font-medium text-success"
+                        : "text-muted-foreground",
                     )}
                   >
                     {card.helper}
@@ -192,13 +190,13 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
                 <div
                   className={cn(
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl md:h-10 md:w-10",
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
                     card.tone === "primary" && "bg-primary/10 text-primary",
-                    card.tone === "blue" && "bg-primary/10 text-primary",
+                    card.tone === "blue"    && "bg-primary/10 text-primary",
                     card.tone === "neutral" && "bg-muted text-muted-foreground",
                   )}
                 >
-                  <card.icon className="h-5 w-5 md:h-5 md:w-5" />
+                  <card.icon className="h-4 w-4" />
                 </div>
               </div>
             </div>
@@ -206,7 +204,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
         })}
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-2">
         <TodayWorkout workout={workoutData.todayWorkout} />
         <NutritionSummary nutrition={mealData.dailyNutrition} />
       </section>
@@ -219,47 +217,49 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 function DashboardOverviewSkeleton() {
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="rounded-[24px] border border-border bg-card p-4 shadow-sm md:rounded-[28px] md:p-5">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="mt-2 h-8 w-24 md:mt-3 md:h-9 md:w-28" />
-            <Skeleton className="mt-2 h-4 w-32" />
+          <div key={index} className="rounded-[10px] border border-border bg-card p-4 md:p-5">
+            <Skeleton className="h-2.5 w-16 rounded" />
+            <Skeleton className="mt-3 h-7 w-24" />
+            <Skeleton className="mt-2 h-3 w-28" />
           </div>
         ))}
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-          <Skeleton className="h-8 w-40" />
-          <div className="mt-8 flex min-h-[290px] flex-col items-center justify-center">
-            <Skeleton className="h-20 w-20 rounded-full" />
-            <Skeleton className="mt-6 h-8 w-56" />
-            <Skeleton className="mt-3 h-4 w-48" />
-            <Skeleton className="mt-6 h-12 w-full rounded-2xl" />
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-[10px] border border-border bg-card p-5">
+          <Skeleton className="h-2.5 w-28 rounded" />
+          <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center gap-4">
+            <Skeleton className="h-14 w-14 rounded-[10px]" />
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="mt-2 h-9 w-full rounded-[8px]" />
           </div>
         </div>
 
-        <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-          <Skeleton className="h-8 w-48" />
-          <div className="mt-8 space-y-4">
-            <Skeleton className="h-28 w-28 rounded-full" />
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-8 w-28" />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {Array.from({ length: 4 }, (_, index) => (
-                <Skeleton key={index} className="h-12 rounded-2xl" />
-              ))}
+        <div className="rounded-[10px] border border-border bg-card p-5">
+          <Skeleton className="h-2.5 w-32 rounded" />
+          <div className="mt-6 flex items-center gap-6">
+            <Skeleton className="h-24 w-24 shrink-0 rounded-full" />
+            <div className="space-y-3">
+              <div><Skeleton className="h-2.5 w-16 rounded" /><Skeleton className="mt-1.5 h-7 w-24" /></div>
+              <div><Skeleton className="h-2.5 w-16 rounded" /><Skeleton className="mt-1.5 h-6 w-20" /></div>
             </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            {Array.from({ length: 4 }, (_, index) => (
+              <Skeleton key={index} className="h-9 rounded-[8px]" />
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-        <Skeleton className="h-8 w-44" />
-        <div className="mt-6 space-y-4">
+      <section>
+        <Skeleton className="mb-4 h-2.5 w-28 rounded" />
+        <div className="flex flex-col gap-2">
           {Array.from({ length: 3 }, (_, index) => (
-            <Skeleton key={index} className="h-24 rounded-[24px]" />
+            <Skeleton key={index} className="h-[60px] rounded-[10px]" />
           ))}
         </div>
       </section>
@@ -281,16 +281,17 @@ export default async function DashboardPage() {
       : "Track today's training, nutrition, and progress from one dashboard."
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6 md:py-8">
-      <div className="space-y-6 md:space-y-7">
+    <div className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-10">
+      <div className="space-y-6">
         <DashboardRefreshOnStale />
 
-        <section className="space-y-2.5">
-          <h1 className="text-2xl font-black leading-tight tracking-tight text-foreground md:text-3xl">
+        <section>
+          <span className="label-micro mb-2 block">Dashboard</span>
+          <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
             {messages.dashboard.welcomeBack},{" "}
             <span className="text-primary">{firstName}</span>
           </h1>
-          <p className="text-base text-muted-foreground md:text-lg">{dashboardSubtitle}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{dashboardSubtitle}</p>
         </section>
 
         <QuickActions />

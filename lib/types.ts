@@ -92,9 +92,12 @@ export interface WorkoutExercise {
   notes?: string
 }
 
+export type WorkoutKind = "push" | "pull" | "legs" | "full_body" | "cardio" | "other"
+
 export interface Workout {
   id: string
   isPersonal?: boolean
+  kind?: WorkoutKind
   name: string
   exercises: WorkoutExercise[]
   scheduledDay?: number // 0-6 for days of week
