@@ -1,5 +1,5 @@
-import { WeightTrackingClient } from "@/components/progress/weight-tracking-client"
+import { WeightTrackingLazy } from "@/components/progress/weight-tracking-lazy"
 
 export default function TrackWeightPage() {
-  return <WeightTrackingClient />
+  return <WeightTrackingLazy />
 }

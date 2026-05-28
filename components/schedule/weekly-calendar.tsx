@@ -7,7 +7,7 @@ import { addDays, differenceInMinutes, format, isSameDay, isToday, startOfWeek }
 import { CheckCircle2, ChevronLeft, ChevronRight, Copy, PencilLine, Play, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
+import { CreateWorkoutDialogLazy } from "@/components/workout/create-workout-dialog-lazy"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { DeleteWorkoutLogButton } from "@/components/workout/delete-workout-log-button"
 import { cn } from "@/lib/utils"
@@ -277,7 +277,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
         <Copy className="h-4 w-4" />
         {copied ? "Copied" : "Copy Week"}
       </Button>
-      <CreateWorkoutDialog
+      <CreateWorkoutDialogLazy
         onWorkoutSaved={(workout, previousWorkout) => handleWorkoutSaved(workout, previousWorkout)}
         refreshOnSuccess={false}
         workoutTemplates={visibleWorkouts}
@@ -394,7 +394,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                   </Link>
                 </div>
               ) : (
-                <CreateWorkoutDialog
+                <CreateWorkoutDialogLazy
                   defaultScheduledDate={entry.date}
                   onWorkoutSaved={(workout, previousWorkout) => handleWorkoutSaved(workout, previousWorkout, entry.date)}
                   refreshOnSuccess={false}
@@ -463,7 +463,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                     <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-150 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
                     {entry.workout.isPersonal ? (
                       <>
-                        <CreateWorkoutDialog
+                        <CreateWorkoutDialogLazy
                           defaultScheduledDate={entry.date}
                           onWorkoutSaved={(workout, previousWorkout) =>
                             handleWorkoutSaved(workout, previousWorkout, entry.date)
@@ -503,7 +503,7 @@ export function WeeklyCalendar({ recentLogs, schedule, showHero = true, weekLogs
                 </div>
               ) : (
                 <div className="mt-5 flex flex-1 flex-col">
-                  <CreateWorkoutDialog
+                  <CreateWorkoutDialogLazy
                     defaultScheduledDate={entry.date}
                     onWorkoutSaved={(workout, previousWorkout) => handleWorkoutSaved(workout, previousWorkout, entry.date)}
                     refreshOnSuccess={false}

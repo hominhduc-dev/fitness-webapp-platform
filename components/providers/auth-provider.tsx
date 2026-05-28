@@ -20,10 +20,16 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  initialProfile = null,
+}: {
+  children: React.ReactNode
+  initialProfile?: AppProfile | null
+}) {
   const [session, setSession] = useState<Session | null>(null)
-  const [profile, setProfile] = useState<AppProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [profile, setProfile] = useState<AppProfile | null>(initialProfile)
+  const [isLoading, setIsLoading] = useState(!initialProfile)
 
   async function syncProfile(nextSession: Session | null) {
     if (!nextSession?.access_token) {
@@ -80,6 +86,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
+      if (initialSession?.access_token && initialProfile) {
+        startTransition(() => {
+          setSession(initialSession)
+          setProfile(initialProfile)
+          setIsLoading(false)
+        })
+
+        return
+      }
+
       await syncProfile(initialSession)
     }
 
@@ -87,8 +103,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, nextSession: Session | null) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, nextSession: Session | null) => {
       if (cancelled) {
+        return
+      }
+
+      if (event === "INITIAL_SESSION" && nextSession?.access_token && initialProfile) {
+        startTransition(() => {
+          setSession(nextSession)
+          setProfile(initialProfile)
+          setIsLoading(false)
+        })
+
         return
       }
 
@@ -99,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [])
+  }, [initialProfile])
 
   async function refreshProfile() {
     const supabase = getOptionalBrowserSupabaseClient()

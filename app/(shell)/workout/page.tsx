@@ -5,7 +5,7 @@ import { Play } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
+import { CreateWorkoutDialogLazy } from "@/components/workout/create-workout-dialog-lazy"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { EditWorkoutButton } from "@/components/workout/edit-workout-button"
 import { requireAppSession } from "@/lib/auth/server"
@@ -357,7 +357,7 @@ async function WorkoutContent() {
           </h1>
         </div>
         <div className="mt-1 shrink-0">
-          <CreateWorkoutDialog workoutTemplates={reusableWorkouts} />
+          <CreateWorkoutDialogLazy workoutTemplates={reusableWorkouts} />
         </div>
       </div>
 
@@ -378,7 +378,7 @@ async function WorkoutContent() {
               Create a personal workout or ask your coach to assign a program.
             </p>
             <div className="mt-5 flex justify-center">
-              <CreateWorkoutDialog workoutTemplates={[]} />
+              <CreateWorkoutDialogLazy workoutTemplates={[]} />
             </div>
           </div>
         )}

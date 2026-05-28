@@ -2023,6 +2023,138 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   }
 }
 
+async function getDashboardForTrainee(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const now = new Date()
+  const weekStart = startOfUtcWeek(now)
+  const todayStart = startOfUtcDay(now)
+  const todayEnd = new Date(todayStart)
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
+  todayEnd.setMilliseconds(-1)
+
+  const [assignments, recentLogs, weekLogs, meals] = await Promise.all([
+    db.programAssignment.findMany({
+      include: {
+        program: {
+          include: {
+            workouts: {
+              include: WORKOUT_INCLUDE,
+              orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+            },
+          },
+        },
+      },
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.workoutLog.findMany({
+      include: WORKOUT_LOG_INCLUDE,
+      orderBy: {
+        startedAt: "desc",
+      },
+      take: 5,
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.workoutLog.findMany({
+      orderBy: {
+        startedAt: "desc",
+      },
+      select: {
+        startedAt: true,
+        totalVolume: true,
+      },
+      where: {
+        startedAt: { gte: weekStart },
+        userId: profile.id,
+      },
+    }),
+    db.meal.findMany({
+      include: MEAL_WITH_FOOD_INCLUDE,
+      orderBy: {
+        recordedAt: "asc",
+      },
+      where: {
+        recordedAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+        userId: profile.id,
+      },
+    }),
+  ])
+
+  const workoutMap = new Map<string, WorkoutRecord>()
+  const personalWorkoutIds = new Set<string>()
+
+  assignments.forEach((assignment) => {
+    const isPersonalProgram = assignment.program.createdById === profile.id
+
+    ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
+      workoutMap.set(workout.id, workout)
+
+      if (isPersonalProgram) {
+        personalWorkoutIds.add(workout.id)
+      }
+    })
+  })
+
+  const serializedWorkouts = Array.from(workoutMap.values())
+    .sort((left, right) => {
+      if (left.scheduledDate && right.scheduledDate) {
+        return left.scheduledDate.getTime() - right.scheduledDate.getTime()
+      }
+
+      if (left.scheduledDate) {
+        return -1
+      }
+
+      if (right.scheduledDate) {
+        return 1
+      }
+
+      return (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
+    })
+    .map((workout) => serializeWorkout(workout, { isPersonal: personalWorkoutIds.has(workout.id) }))
+
+  const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
+  const schedule = DAY_LABELS.reduce<Record<number, ReturnType<typeof serializeWorkout> | null>>((accumulator, _label, index) => {
+    const workout = recurringWorkouts.find((item) => item.scheduledDay === index)
+    accumulator[index] = workout ?? null
+    return accumulator
+  }, {})
+
+  const todayDateKey = formatUtcDateOnly(todayStart)
+  const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
+  const serializedMeals = meals.map(serializeMealRecord)
+  const activeDaysSet = new Set(weekLogs.map((log) => log.startedAt.getUTCDay()))
+  const todayVolume = weekLogs
+    .filter((log) => log.startedAt >= todayStart)
+    .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
+
+  return {
+    dailyNutrition: {
+      date: todayStart,
+      meals: serializedMeals,
+      targetCalories: profile.dailyCalorieGoal ?? DEFAULT_CALORIE_TARGET,
+      totalCalories: serializedMeals.reduce((total, meal) => total + meal.calories, 0),
+    },
+    recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    schedule,
+    todayWorkout: todayOneOffWorkout ?? schedule[now.getDay()] ?? null,
+    weekStats: {
+      activeDaysThisWeek: activeDaysSet.size,
+      todayVolume,
+      workoutsThisWeek: weekLogs.length,
+    },
+    workouts: serializedWorkouts,
+  }
+}
+
 async function deleteWorkoutLogForTrainee(profile: SerializedProfile, _workoutId: string, logId: string) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -4185,6 +4317,7 @@ export {
   deleteWorkoutLogCommentForCoach,
   deleteWorkoutLogForTrainee,
   getCoachDashboard,
+  getDashboardForTrainee,
   getCoachProgramDetail,
   getCoachTraineeDetail,
   getCalendarForTrainee,

@@ -8,7 +8,7 @@ import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { TodayWorkout } from "@/components/dashboard/today-workout"
 import { Skeleton } from "@/components/ui/skeleton"
 import { requireAppSession } from "@/lib/auth/server"
-import { fetchMeals, fetchWorkouts } from "@/lib/fitness/api"
+import { fetchDashboard } from "@/lib/fitness/api"
 import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +21,8 @@ type DashboardOverviewProps = {
   messages: DashboardMessages
   preferredWeightUnit?: "kg" | "lbs"
 }
+
+type DashboardData = Awaited<ReturnType<typeof fetchDashboard>>
 
 export const revalidate = 30
 
@@ -49,8 +51,8 @@ function isSameCalendarDate(left: Date, right: Date) {
 }
 
 function getWorkoutForDate(
-  workouts: Awaited<ReturnType<typeof fetchWorkouts>>["workouts"],
-  schedule: Awaited<ReturnType<typeof fetchWorkouts>>["schedule"],
+  workouts: DashboardData["workouts"],
+  schedule: DashboardData["schedule"],
   date: Date,
 ) {
   const oneOffWorkout = workouts.find((workout) => workout.scheduledDate && isSameCalendarDate(workout.scheduledDate, date))
@@ -63,8 +65,8 @@ function getWorkoutForDate(
 }
 
 function resolveNextWorkoutLabel(
-  workouts: Awaited<ReturnType<typeof fetchWorkouts>>["workouts"],
-  schedule: Awaited<ReturnType<typeof fetchWorkouts>>["schedule"],
+  workouts: DashboardData["workouts"],
+  schedule: DashboardData["schedule"],
   messages: DashboardMessages,
 ) {
   const today = new Date()
@@ -104,8 +106,8 @@ function resolveNextWorkoutLabel(
 }
 
 function countScheduledWorkoutsInWeek(
-  workouts: Awaited<ReturnType<typeof fetchWorkouts>>["workouts"],
-  schedule: Awaited<ReturnType<typeof fetchWorkouts>>["schedule"],
+  workouts: DashboardData["workouts"],
+  schedule: DashboardData["schedule"],
   weekStart: Date,
 ) {
   return Array.from({ length: 7 }, (_value, index) => getWorkoutForDate(workouts, schedule, addLocalDays(weekStart, index))).filter(Boolean)
@@ -113,13 +115,13 @@ function countScheduledWorkoutsInWeek(
 }
 
 async function DashboardOverview({ accessToken, locale, messages, preferredWeightUnit }: DashboardOverviewProps) {
-  const [workoutData, mealData] = await Promise.all([fetchWorkouts(accessToken), fetchMeals(accessToken)])
+  const dashboard = await fetchDashboard(accessToken)
 
   const isVietnamese = locale === "vi"
-  const { activeDaysThisWeek, workoutsThisWeek, todayVolume } = workoutData.weekStats
+  const { activeDaysThisWeek, workoutsThisWeek, todayVolume } = dashboard.weekStats
   const weekStart = startOfCurrentWeek(new Date())
-  const scheduledThisWeek = countScheduledWorkoutsInWeek(workoutData.workouts, workoutData.schedule, weekStart)
-  const nextWorkout = resolveNextWorkoutLabel(workoutData.workouts, workoutData.schedule, messages)
+  const scheduledThisWeek = countScheduledWorkoutsInWeek(dashboard.workouts, dashboard.schedule, weekStart)
+  const nextWorkout = resolveNextWorkoutLabel(dashboard.workouts, dashboard.schedule, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
   const statCards = [
     {
@@ -205,11 +207,11 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <TodayWorkout workout={workoutData.todayWorkout} />
-        <NutritionSummary nutrition={mealData.dailyNutrition} />
+        <TodayWorkout workout={dashboard.todayWorkout} />
+        <NutritionSummary nutrition={dashboard.dailyNutrition} />
       </section>
 
-      <RecentActivity logs={workoutData.recentLogs} />
+      <RecentActivity logs={dashboard.recentLogs} />
     </>
   )
 }

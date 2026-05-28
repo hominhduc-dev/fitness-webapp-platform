@@ -55,52 +55,6 @@ export function NotificationInbox({ locale = "vi" }: NotificationInboxProps) {
   }, [])
 
   useEffect(() => {
-    if (!session?.access_token) {
-      setNotifications([])
-      setUnreadCount(0)
-      return
-    }
-
-    let cancelled = false
-
-    const loadNotifications = async (showLoading = false) => {
-      if (showLoading) {
-        setIsLoading(true)
-      }
-
-      try {
-        const response = await fetchNotifications(session.access_token, 12)
-
-        if (cancelled) {
-          return
-        }
-
-        setNotifications(response.notifications)
-        setUnreadCount(response.unreadCount)
-        setError(null)
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : locale === "en" ? "Unable to load notifications." : "Không thể tải notification.")
-        }
-      } finally {
-        if (!cancelled && showLoading) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void loadNotifications(true)
-    const intervalId = window.setInterval(() => {
-      void loadNotifications(false)
-    }, 60_000)
-
-    return () => {
-      cancelled = true
-      window.clearInterval(intervalId)
-    }
-  }, [locale, session?.access_token])
-
-  useEffect(() => {
     if (!isOpen || !session?.access_token) {
       return
     }

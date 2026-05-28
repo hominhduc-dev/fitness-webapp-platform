@@ -13,7 +13,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
 
   return (
     <LocaleProvider initialLocale={locale}>
-      <AuthProvider>
+      <AuthProvider initialProfile={profile}>
         <div className="flex min-h-screen bg-background">
           <Sidebar role={profile.role} />
 
