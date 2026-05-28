@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Clock, Dumbbell, Play } from "lucide-react"
+import { Dumbbell, Play } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -18,79 +18,77 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
   if (!workout) {
     return (
-      <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-        <h3 className="text-2xl font-black tracking-tight text-foreground">{messages.dashboard.todaysWorkout}</h3>
-
-        <div className="flex min-h-[290px] flex-col items-center justify-center text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-            <Dumbbell className="h-9 w-9 text-muted-foreground" />
+      <div className="flex flex-col rounded-[10px] border border-border bg-card p-5">
+        <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
+        <div className="flex flex-1 min-h-[220px] flex-col items-center justify-center text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[10px] bg-muted">
+            <Dumbbell className="h-7 w-7 text-muted-foreground" />
           </div>
-          <p className="mt-6 text-3xl font-bold tracking-tight text-foreground">{messages.dashboard.restDay}</p>
-          <p className="mt-3 max-w-md text-base text-muted-foreground">{messages.dashboard.restDayCopy}</p>
+          <p className="mt-4 text-base font-semibold text-foreground">{messages.dashboard.restDay}</p>
+          <p className="mt-1.5 max-w-xs text-sm text-muted-foreground">{messages.dashboard.restDayCopy}</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
-      <h3 className="text-2xl font-black tracking-tight text-foreground">{messages.dashboard.todaysWorkout}</h3>
+    <div className="flex flex-col rounded-[10px] border border-border bg-card p-5">
+      <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
 
-      <div className="mt-5 flex min-h-[290px] flex-col justify-between">
-        <div className="space-y-5">
-          <div>
-            <p className="text-3xl font-bold tracking-tight text-foreground">{workout.name}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-4 text-base text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <Clock className="h-4 w-4" />
-                {workout.duration ?? "?"} {messages.dashboard.min}
-              </span>
-              <span>
-                {workout.exercises.length} {messages.dashboard.exercises}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            {workout.exercises.slice(0, 3).map((exercise) => (
-              <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-                <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
-                  {formatExerciseVariationLabel({
-                    exerciseName: exercise.exercise.name,
-                    isDefault: exercise.variation.isDefault,
-                    variationName: exercise.variation.name,
-                  })}
-                </span>
-                <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
-                  {exercise.sets.length} × {formatRepTarget({
-                    reps: exercise.sets[0]?.targetReps,
-                    repsMin: exercise.sets[0]?.targetRepsMin,
-                  })}
-                </span>
-              </div>
-            ))}
-            {workout.exercises.length > 3 ? (
-              <p className="pt-0.5 text-xs font-medium text-muted-foreground">
-                {messages.dashboard.moreExercises(workout.exercises.length - 3)}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {[...new Set(workout.exercises.map((exercise) => exercise.exercise.muscleGroup))].map((group) => (
-              <span
-                key={group}
-                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
-              >
-                {group}
-              </span>
-            ))}
-          </div>
+      <div className="flex flex-1 flex-col justify-between gap-5">
+        {/* Workout header */}
+        <div>
+          <h3 className="text-[1.35rem] font-semibold leading-snug tracking-[-0.02em] text-foreground">
+            {workout.name}
+          </h3>
+          <p className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
+            {workout.exercises.length} {messages.dashboard.exercises}
+            {workout.duration ? ` · ${workout.duration} ${messages.dashboard.min}` : ""}
+          </p>
         </div>
 
-        <Link href={`/workout/${workout.id}/start`} className="mt-6">
-          <Button className="h-12 w-full rounded-2xl text-base font-semibold">
-            <Play className="h-4 w-4" />
+        {/* Exercise list */}
+        <div className="space-y-2">
+          {workout.exercises.slice(0, 4).map((exercise) => (
+            <div key={exercise.id} className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-[13px] text-foreground">
+                {formatExerciseVariationLabel({
+                  exerciseName: exercise.exercise.name,
+                  isDefault: exercise.variation.isDefault,
+                  variationName: exercise.variation.name,
+                })}
+              </span>
+              <span className="shrink-0 font-mono text-[12px] font-medium tnum text-muted-foreground">
+                {exercise.sets.length}×{formatRepTarget({
+                  reps: exercise.sets[0]?.targetReps,
+                  repsMin: exercise.sets[0]?.targetRepsMin,
+                })}
+              </span>
+            </div>
+          ))}
+          {workout.exercises.length > 4 && (
+            <p className="label-micro pt-1">
+              +{workout.exercises.length - 4} more
+            </p>
+          )}
+        </div>
+
+        {/* Muscle tags */}
+        <div className="flex flex-wrap gap-1.5">
+          {[...new Set(workout.exercises.map((ex) => ex.exercise.muscleGroup))].slice(0, 4).map((group) => (
+            <span
+              key={group}
+              className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground"
+            >
+              {group}
+            </span>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <Link href={`/workout/${workout.id}/start`}>
+          <Button className="w-full gap-1.5">
+            <Play className="h-3.5 w-3.5" />
             {messages.dashboard.start}
           </Button>
         </Link>

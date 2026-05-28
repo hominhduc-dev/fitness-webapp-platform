@@ -4,10 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   Lift design tokens — mapped into the existing shadcn variable
-   names so every component picks up the new look automatically.
-
-   Source: /colors_and_type.css in the Lift design system.
+   Lift design tokens — warm neutrals, electric blue accent,
+   Geist + Geist Mono, hairline borders.
    ============================================================ */
 
 :root {

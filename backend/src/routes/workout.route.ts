@@ -26,6 +26,7 @@ function parsePersonalWorkoutInput(body: unknown) {
       sets?: unknown
       weight?: unknown
     }>
+    kind?: unknown
     name?: unknown
     notes?: unknown
     scheduledDay?: unknown
@@ -44,6 +45,7 @@ function parsePersonalWorkoutInput(body: unknown) {
           weight: typeof exercise?.weight === "number" ? exercise.weight : undefined,
         }))
       : [],
+    kind: typeof requestBody.kind === "string" ? requestBody.kind : undefined,
     name: typeof requestBody.name === "string" ? requestBody.name : "",
     notes: typeof requestBody.notes === "string" ? requestBody.notes : undefined,
     scheduledDay: typeof requestBody.scheduledDay === "number" ? requestBody.scheduledDay : undefined,

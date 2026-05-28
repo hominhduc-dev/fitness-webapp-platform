@@ -1,5 +1,6 @@
 "use client"
 
+import type { LucideIcon } from "lucide-react"
 import {
   BellRing,
   Calendar,
@@ -12,9 +13,8 @@ import {
   UserPlus,
   Users,
 } from "lucide-react"
+
 import { cn } from "@/lib/utils"
-import type { LucideIcon } from "lucide-react"
-import { useLocale } from "@/components/providers/locale-provider"
 
 const iconMap = {
   "bell-ring": BellRing,
@@ -45,69 +45,60 @@ interface StatsCardProps {
 }
 
 export function StatsCard({ title, value, subtitle, icon, iconName, trend, variant = "default" }: StatsCardProps) {
-  const { locale } = useLocale()
   const Icon = icon ?? (iconName ? iconMap[iconName] : undefined)
 
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-[24px] border p-4 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_24px_55px_-34px_rgba(15,23,42,0.24)] sm:p-5",
-        variant === "default" && "border-slate-200/70 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]",
-        variant === "primary" && "border-primary/15 bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)]",
-        variant === "accent" && "border-accent/15 bg-[linear-gradient(180deg,rgba(34,197,94,0.05)_0%,#ffffff_100%)]",
+        "rounded-[10px] border bg-card p-4 transition-colors hover:border-primary/25 md:p-5",
+        variant === "default" && "border-border",
+        variant === "primary" && "border-primary/20 bg-primary/5",
+        variant === "accent"  && "border-success/20 bg-success/5",
       )}
     >
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="label-micro">{title}</p>
           <p
             className={cn(
-              "text-2xl font-black tracking-tight sm:text-3xl",
-              variant === "default" && "text-slate-950",
+              "font-mono text-2xl font-semibold leading-none tracking-tight tnum",
+              variant === "default" && "text-foreground",
               variant === "primary" && "text-primary",
-              variant === "accent" && "text-accent",
+              variant === "accent"  && "text-success",
             )}
           >
             {value}
           </p>
-          {subtitle && <p className="max-w-[15rem] text-xs leading-5 text-slate-500">{subtitle}</p>}
+          {subtitle && (
+            <p className="text-xs leading-snug text-muted-foreground">{subtitle}</p>
+          )}
           {trend && (
-            <p className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold", trend.positive ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
-              {trend.positive ? "+" : ""}
-              {trend.value}% {locale === "en" ? "from last week" : "so với tuần trước"}
-            </p>
+            <span
+              className={cn(
+                "inline-flex rounded-sm px-1.5 py-0.5 font-mono text-[10px] tnum",
+                trend.positive
+                  ? "bg-success/10 text-success"
+                  : "bg-warning/10 text-warning",
+              )}
+            >
+              {trend.positive ? "+" : ""}{trend.value}%
+            </span>
           )}
         </div>
-        {Icon ? (
+
+        {Icon && (
           <div
             className={cn(
-              "flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm transition-transform group-hover:scale-105",
-              variant === "default" && "bg-slate-100",
-              variant === "primary" && "bg-primary/10",
-              variant === "accent" && "bg-accent/10",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
+              variant === "default" && "bg-muted text-muted-foreground",
+              variant === "primary" && "bg-primary/10 text-primary",
+              variant === "accent"  && "bg-success/10 text-success",
             )}
           >
-            <Icon
-              className={cn(
-                "h-5 w-5",
-                variant === "default" && "text-slate-500",
-                variant === "primary" && "text-primary",
-                variant === "accent" && "text-accent",
-              )}
-            />
+            <Icon className="h-4 w-4" />
           </div>
-        ) : null}
-      </div>
-
-      {/* Decorative gradient */}
-      <div
-        className={cn(
-          "absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-20 blur-3xl",
-          variant === "default" && "bg-slate-300",
-          variant === "primary" && "bg-primary",
-          variant === "accent" && "bg-accent",
         )}
-      />
+      </div>
     </div>
   )
 }

@@ -27,6 +27,15 @@ enum MealType {
   snack
 }
 
+enum WorkoutKind {
+  push
+  pull
+  legs
+  full_body
+  cardio
+  other
+}
+
 enum CoachRequestStatus {
   pending
   approved
@@ -226,18 +235,19 @@ model ProgramAssignment {
 }
 
 model Workout {
-  id           String            @id @default(uuid()) @db.Uuid
-  programId    String?           @db.Uuid
-  name         String
-  scheduledDay Int?
-  scheduledDate DateTime?        @db.Date
-  duration     Int?
-  notes        String?
-  program      Program?          @relation(fields: [programId], references: [id], onDelete: Cascade)
-  exercises    WorkoutExercise[]
-  logs         WorkoutLog[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id            String            @id @default(uuid()) @db.Uuid
+  programId     String?           @db.Uuid
+  name          String
+  kind          WorkoutKind?
+  scheduledDay  Int?
+  scheduledDate DateTime?         @db.Date
+  duration      Int?
+  notes         String?
+  program       Program?          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  exercises     WorkoutExercise[]
+  logs          WorkoutLog[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([programId])
   @@index([scheduledDate])

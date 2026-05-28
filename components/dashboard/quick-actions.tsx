@@ -20,7 +20,7 @@ export function QuickActions() {
       href: "/meals",
       icon: Utensils,
       label: messages.dashboard.logMeal,
-      tone: "accent",
+      tone: "success",
     },
     {
       href: "/schedule",
@@ -37,30 +37,29 @@ export function QuickActions() {
   ] as const
 
   return (
-    <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
           className={cn(
-            "group flex min-h-[132px] flex-col items-center justify-center rounded-[24px] border px-3 py-4 text-center shadow-sm transition-all hover:-translate-y-0.5 md:min-h-[166px] md:rounded-[28px] md:px-4 md:py-6",
-            action.tone === "accent" &&
-              "border-emerald-200 bg-[linear-gradient(180deg,#f4fcf7_0%,#ffffff_100%)] hover:border-emerald-300",
-            action.tone === "primary" && "border-border bg-card hover:border-primary/20",
+            "group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-colors md:min-h-[132px]",
+            action.tone === "success" && "border-success/20 bg-success/5 hover:border-success/30",
+            action.tone === "primary" && "border-border bg-card hover:border-primary/25",
             action.tone === "neutral" && "border-border bg-card hover:border-border/80",
           )}
         >
           <div
             className={cn(
-              "flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-105 md:h-16 md:w-16 md:rounded-3xl",
+              "flex h-10 w-10 items-center justify-center rounded-[8px] md:h-12 md:w-12",
               action.tone === "primary" && "bg-primary/10 text-primary",
-              action.tone === "accent" && "bg-emerald-100 text-emerald-600",
+              action.tone === "success" && "bg-success/10 text-success",
               action.tone === "neutral" && "bg-muted text-muted-foreground",
             )}
           >
-            <action.icon className="h-5 w-5 md:h-7 md:w-7" />
+            <action.icon className="h-5 w-5" />
           </div>
-          <p className="mt-3 text-sm font-semibold tracking-tight text-foreground md:mt-5 md:text-lg md:leading-none">
+          <p className="mt-3 text-[13px] font-medium tracking-tight text-foreground md:mt-4 md:text-sm">
             {action.label}
           </p>
         </Link>
