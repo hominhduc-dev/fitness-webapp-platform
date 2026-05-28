@@ -241,6 +241,41 @@ type ProgressAnalytics = {
   weeklyVolume: ProgressWeeklyVolumePoint[]
 }
 
+type ProgressCalendarLogStub = {
+  completedAt: string | null
+  id: string
+  startedAt: string
+  totalVolume: number
+  workoutId: string
+  workoutKind: string | null
+  workoutName: string
+}
+
+type ProgressCalendarDay = {
+  date: string // "YYYY-MM-DD"
+  logs: ProgressCalendarLogStub[]
+}
+
+type ProgressCalendar = {
+  days: ProgressCalendarDay[]
+  summary: {
+    avgDurationMins: number
+    totalVolume: number
+    totalWorkouts: number
+  }
+}
+
+type ProgressYearViewDay = {
+  count: number
+  date: string // "YYYY-MM-DD"
+  volume: number
+}
+
+type ProgressYearView = {
+  days: ProgressYearViewDay[]
+  year: number
+}
+
 type DiscoverableCoach = {
   activeTrainees: number
   avatar?: string | null
@@ -293,6 +328,7 @@ type CreateWorkoutInput = {
     sets: number
     weight?: number
   }>
+  kind?: string
   name: string
   notes?: string
   scheduledDay?: number
@@ -394,11 +430,16 @@ export type {
   NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
+  ProgressCalendar,
+  ProgressCalendarDay,
+  ProgressCalendarLogStub,
   ProgressMuscleGroupPoint,
   ProgressPersonalRecord,
   ProgressStrengthPoint,
   ProgressStrengthSeries,
   ProgressWeeklyVolumePoint,
+  ProgressYearView,
+  ProgressYearViewDay,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,

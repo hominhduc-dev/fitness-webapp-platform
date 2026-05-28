@@ -301,6 +301,7 @@ export function CreateWorkoutDialog({
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
   const [mode, setMode] = useState<DialogMode>("create")
   const [name, setName] = useState("")
+  const [kind, setKind] = useState<string>("")
   const [scheduledDay, setScheduledDay] = useState(String(defaultScheduledDay ?? new Date().getDay()))
   const [duration, setDuration] = useState("45")
   const [notes, setNotes] = useState("")
@@ -349,6 +350,7 @@ export function CreateWorkoutDialog({
           workoutToEdit.exercises.length > 0
             ? workoutToEdit.exercises.map(createExerciseDraftFromWorkout)
             : [createExerciseDraft(defaultVariationId)],
+        kind: workoutToEdit.kind ?? "",
         name: workoutToEdit.name,
         notes: workoutToEdit.notes ?? "",
         scheduledDay: String(workoutToEdit.scheduledDay ?? defaultScheduledDay ?? lockedScheduledDate?.getDay() ?? new Date().getDay()),
@@ -358,6 +360,7 @@ export function CreateWorkoutDialog({
     return {
       duration: "45",
       exerciseRows: [createExerciseDraft(defaultVariationId)],
+      kind: "",
       name: "",
       notes: "",
       scheduledDay: String(defaultScheduledDay ?? lockedScheduledDate?.getDay() ?? new Date().getDay()),
@@ -386,6 +389,7 @@ export function CreateWorkoutDialog({
     const initialState = createInitialFormState(exerciseOptions[0]?.id ?? "")
 
     setName(initialState.name)
+    setKind(initialState.kind)
     setScheduledDay(initialState.scheduledDay)
     setDuration(initialState.duration)
     setNotes(initialState.notes)
@@ -597,6 +601,7 @@ export function CreateWorkoutDialog({
       const payload = {
         duration: duration ? Math.max(1, Number(duration) || 1) : undefined,
         exercises: normalizedExercises,
+        kind: kind || undefined,
         name: name.trim(),
         notes: notes.trim() || undefined,
         scheduledDate: lockedScheduledDate ? format(lockedScheduledDate, "yyyy-MM-dd") : undefined,
@@ -656,6 +661,7 @@ export function CreateWorkoutDialog({
           sets: Math.max(1, exercise.sets.length),
           weight: exercise.sets[0]?.weight,
         })),
+        kind: template.kind,
         name: template.name,
         notes: template.notes,
         scheduledDate: lockedScheduledDate ? format(lockedScheduledDate, "yyyy-MM-dd") : undefined,
@@ -697,6 +703,23 @@ export function CreateWorkoutDialog({
             placeholder="e.g. Saturday Push Session"
             required
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="workout-kind">Type</Label>
+          <Select value={kind} onValueChange={setKind}>
+            <SelectTrigger id="workout-kind">
+              <SelectValue placeholder="Select type (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="push">🔵 Push</SelectItem>
+              <SelectItem value="pull">🟢 Pull</SelectItem>
+              <SelectItem value="legs">🟠 Legs</SelectItem>
+              <SelectItem value="full_body">⚪ Full body</SelectItem>
+              <SelectItem value="cardio">🔴 Cardio</SelectItem>
+              <SelectItem value="other">⬜ Other</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">

@@ -5,7 +5,7 @@ import { LandingPage } from "@/components/landing/landing-page"
 import { getServerAuthState } from "@/lib/auth/server"
 import { getRoleLandingPath } from "@/lib/auth/roles"
 import { LocaleProvider } from "@/components/providers/locale-provider"
-import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
+import { getServerLocale } from "@/lib/i18n/server"
 
 export const metadata: Metadata = {
   title: "YeahBuddy Fitness - Your Fitness Companion",
@@ -68,7 +68,7 @@ const jsonLd = {
 }
 
 export default async function Home() {
-  const [{ profile }, locale, messages] = await Promise.all([getServerAuthState(), getServerLocale(), getServerMessages()])
+  const [{ profile }, locale] = await Promise.all([getServerAuthState(), getServerLocale()])
 
   if (profile) {
     redirect(getRoleLandingPath(profile.role))
@@ -81,7 +81,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <LocaleProvider initialLocale={locale}>
-        <LandingPage locale={locale} messages={messages} />
+        <LandingPage locale={locale} />
       </LocaleProvider>
     </>
   )

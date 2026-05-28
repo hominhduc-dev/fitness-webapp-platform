@@ -3,7 +3,10 @@ import { Router } from "express"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   createBodyMetricForCurrentTrainee,
+  getCalendarForTrainee,
   getProgressAnalyticsForCurrentTrainee,
+  getWorkoutLogDetailForTrainee,
+  getYearViewForTrainee,
   listBodyMetricsForCurrentTrainee,
 } from "../services/fitness-data.service"
 import { getAccessToken, sendError } from "./route.utils"
@@ -51,6 +54,57 @@ progressRouter.post("/weight", async (req, res) => {
     res.status(201).json({
       bodyMetric,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+progressRouter.get("/calendar", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const now = new Date()
+    const year =
+      typeof req.query.year === "string" ? parseInt(req.query.year, 10) : now.getUTCFullYear()
+    const month =
+      typeof req.query.month === "string" ? parseInt(req.query.month, 10) : now.getUTCMonth() + 1
+
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+      res.status(400).json({ error: "year và month không hợp lệ." })
+      return
+    }
+
+    const result = await getCalendarForTrainee(profile.profile, year, month)
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+progressRouter.get("/year-view", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const year =
+      typeof req.query.year === "string"
+        ? parseInt(req.query.year, 10)
+        : new Date().getUTCFullYear()
+
+    if (!Number.isFinite(year)) {
+      res.status(400).json({ error: "year không hợp lệ." })
+      return
+    }
+
+    const result = await getYearViewForTrainee(profile.profile, year)
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+progressRouter.get("/workout-log/:logId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const log = await getWorkoutLogDetailForTrainee(profile.profile, String(req.params.logId))
+    res.json({ log })
   } catch (error) {
     sendError(res, error)
   }

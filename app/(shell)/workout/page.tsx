@@ -1,296 +1,439 @@
 import Link from "next/link"
 import { Suspense } from "react"
-import { ChevronDown, Clock, Dumbbell, Play } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
+import { Play } from "lucide-react"
 
-import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { EditWorkoutButton } from "@/components/workout/edit-workout-button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { requireAppSession } from "@/lib/auth/server"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import { fetchWorkouts } from "@/lib/fitness/api"
+import type { Workout, WorkoutLog } from "@/lib/types"
+import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
 
-function WorkoutPageSkeleton() {
+// ---------------------------------------------------------------------------
+// Kind config
+// ---------------------------------------------------------------------------
+
+const KIND_CONFIG: Record<string, { label: string; color: string }> = {
+  push:      { label: "Push",      color: "var(--chart-1)" },
+  pull:      { label: "Pull",      color: "var(--chart-3)" },
+  legs:      { label: "Legs",      color: "var(--chart-4)" },
+  full_body: { label: "Full body", color: "var(--chart-2)" },
+  cardio:    { label: "Cardio",    color: "var(--chart-5, var(--chart-2))" },
+  other:     { label: "Other",     color: "var(--muted-foreground)" },
+}
+
+function kindColor(kind?: string | null) {
+  return kind ? (KIND_CONFIG[kind]?.color ?? "var(--border)") : "var(--border)"
+}
+
+function kindLabel(kind?: string | null) {
+  return kind ? (KIND_CONFIG[kind]?.label ?? null) : null
+}
+
+// ---------------------------------------------------------------------------
+// Quick-start card
+// ---------------------------------------------------------------------------
+
+function QuickStartCard({ workout }: { workout: Workout }) {
+  const kLabel = kindLabel(workout.kind)
+  const kColor = kindColor(workout.kind)
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-14 w-14 rounded-xl" />
-            <div className="space-y-2">
-              <Skeleton className="h-7 w-48" />
-              <Skeleton className="h-5 w-32" />
-            </div>
+    <Link href={`/workout/${workout.id}/start`} className="group block">
+      <div className="relative overflow-hidden rounded-[10px] border border-border bg-card transition-colors hover:border-primary/30">
+        {/* Kind colour strip */}
+        <div className="absolute inset-y-0 left-0 w-1 rounded-l-[10px]" style={{ background: kColor }} />
+
+        <div className="flex items-center gap-4 px-6 py-5 pl-7">
+          {/* Text */}
+          <div className="min-w-0 flex-1">
+            {kLabel && (
+              <span className="label-micro mb-1 block" style={{ color: kColor }}>
+                {kLabel}
+              </span>
+            )}
+            <h2 className="truncate text-[1.35rem] font-semibold leading-snug tracking-[-0.02em] text-foreground group-hover:text-primary">
+              {workout.name}
+            </h2>
+            <p className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
+              {workout.exercises.length} exercises
+              {workout.duration ? ` · ${workout.duration} min` : ""}
+            </p>
           </div>
-          <Skeleton className="h-11 w-24 rounded-lg" />
+
+          {/* CTA */}
+          <Button
+            size="sm"
+            className="shrink-0 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+            tabIndex={-1}
+          >
+            <Play className="h-3.5 w-3.5" />
+            Start
+          </Button>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Workout card
+// ---------------------------------------------------------------------------
+
+function WorkoutCard({ workout }: { workout: Workout }) {
+  const kColor = kindColor(workout.kind)
+  const kLabel = kindLabel(workout.kind)
+
+  return (
+    <div className="group flex flex-col rounded-[10px] border border-border bg-card transition-colors hover:border-primary/25">
+      {/* Kind colour bar at top */}
+      <div className="h-[3px] w-full rounded-t-[10px]" style={{ background: kColor }} />
+
+      <div className="flex flex-1 flex-col p-5">
+        {/* Header */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="line-clamp-1 text-base font-semibold leading-snug tracking-tight text-foreground group-hover:text-primary transition-colors">
+              {workout.name}
+            </h3>
+            {kLabel && (
+              <span
+                className="label-micro shrink-0 rounded-sm px-1.5 py-0.5"
+                style={{ color: kColor, background: `color-mix(in srgb, ${kColor} 10%, transparent)` }}
+              >
+                {kLabel}
+              </span>
+            )}
+          </div>
+
+          <p className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
+            {workout.exercises.length} exercises
+            {workout.duration ? ` · ${workout.duration} min` : ""}
+          </p>
+        </div>
+
+        {/* Exercise preview */}
+        <div className="flex-1 space-y-2">
+          {workout.exercises.slice(0, 3).map((ex) => (
+            <div key={ex.id} className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-[13px] text-foreground">
+                {formatExerciseVariationLabel({
+                  exerciseName: ex.exercise.name,
+                  isDefault: ex.variation.isDefault,
+                  variationName: ex.variation.name,
+                })}
+              </span>
+              <span className="shrink-0 font-mono text-[12px] font-medium tnum text-muted-foreground">
+                {ex.sets.length}×{formatRepTarget({
+                  reps: ex.sets[0]?.targetReps,
+                  repsMin: ex.sets[0]?.targetRepsMin,
+                })}
+              </span>
+            </div>
+          ))}
+          {workout.exercises.length > 3 && (
+            <p className="label-micro pt-1">
+              +{workout.exercises.length - 3} more
+            </p>
+          )}
+        </div>
+
+        {/* Muscle group micro tags */}
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {[...new Set(workout.exercises.map((ex) => ex.exercise.muscleGroup))].slice(0, 4).map((group) => (
+            <span
+              key={group}
+              className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground"
+            >
+              {group}
+            </span>
+          ))}
         </div>
       </div>
 
-      <div className="space-y-4">
-        {Array.from({ length: 2 }, (_, groupIndex) => (
-          <div key={groupIndex} className="overflow-hidden rounded-2xl border border-border bg-card/40">
-            <div className="flex items-center justify-between gap-4 p-4 md:p-5">
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-64" />
-              </div>
-              <Skeleton className="h-9 w-9 rounded-full" />
-            </div>
-            <div className="border-t border-border p-4 md:p-5">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 3 }, (_, cardIndex) => (
-                  <div key={cardIndex} className="flex min-h-[19rem] flex-col overflow-hidden rounded-xl border border-border bg-card">
-                    <div className="flex-1 p-5">
-                      <div className="space-y-3">
-                        <Skeleton className="h-6 w-3/4" />
-                        <Skeleton className="h-4 w-1/2" />
-                      </div>
-                      <div className="mt-6 space-y-3">
-                        <Skeleton className="h-5 w-full" />
-                        <Skeleton className="h-5 w-4/5" />
-                        <Skeleton className="h-5 w-full" />
-                      </div>
-                      <div className="mt-6 flex gap-2">
-                        <Skeleton className="h-7 w-16 rounded-full" />
-                        <Skeleton className="h-7 w-16 rounded-full" />
-                      </div>
-                    </div>
-                    <div className="border-t border-border bg-muted/30 p-3">
-                      <Skeleton className="h-10 w-full rounded-lg" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ))}
+      {/* Footer */}
+      <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+        <Link href={`/workout/${workout.id}/start`} className="flex-1">
+          <Button
+            size="sm"
+            className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Play className="h-3.5 w-3.5" />
+            Start
+          </Button>
+        </Link>
+        {workout.isPersonal && <EditWorkoutButton workout={workout} />}
+        {workout.isPersonal && <DeleteWorkoutButton workoutId={workout.id} />}
       </div>
     </div>
   )
 }
 
-async function WorkoutContent() {
-  const { accessToken } = await requireAppSession({ role: "trainee" })
-  const workoutData = await fetchWorkouts(accessToken)
-  const reusableWorkouts = workoutData.workouts.filter((workout) => !workout.scheduledDate)
-  const quickStartWorkout = workoutData.todayWorkout ?? reusableWorkouts[0] ?? workoutData.workouts[0] ?? null
-  const personalWorkouts = reusableWorkouts.filter((workout) => workout.isPersonal)
-  const coachWorkouts = reusableWorkouts.filter((workout) => !workout.isPersonal)
+// ---------------------------------------------------------------------------
+// Section wrapper
+// ---------------------------------------------------------------------------
 
-  const renderWorkoutGrid = (workouts: typeof workoutData.workouts) => (
-    <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {workouts.map((workout) => (
-        <div
-          key={workout.id}
-          className="group flex h-full min-h-[19rem] flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/30"
-        >
-          <div className="flex flex-1 flex-col p-5">
-            <div className="mb-4 min-h-[3.75rem]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="line-clamp-1 text-lg font-semibold transition-colors group-hover:text-primary">
-                    {workout.name}
-                  </h3>
-                  {workout.isPersonal ? (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Personal</span>
-                  ) : null}
-                </div>
-                <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    {workout.duration ?? "?"} min
-                  </span>
-                  <span>{workout.exercises.length} exercises</span>
-                </div>
-              </div>
-            </div>
+function WorkoutSection({
+  label,
+  count,
+  workouts,
+  emptyMessage,
+}: {
+  label: string
+  count: number
+  workouts: Workout[]
+  emptyMessage: string
+}) {
+  return (
+    <section>
+      <div className="mb-4 flex items-baseline gap-3">
+        <span className="label-micro">{label}</span>
+        <span className="font-mono text-[11px] tnum text-muted-foreground">{count}</span>
+      </div>
 
-            <div className="mb-4 min-h-[6.75rem] space-y-2.5">
-                {workout.exercises.slice(0, 3).map((exercise) => (
-                  <div key={exercise.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-                    <span className="line-clamp-1 text-[1.08rem] font-medium text-slate-600">
-                      {formatExerciseVariationLabel({
-                        exerciseName: exercise.exercise.name,
-                        isDefault: exercise.variation.isDefault,
-                        variationName: exercise.variation.name,
-                      })}
-                    </span>
-                  <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
-                    {exercise.sets.length} × {formatRepTarget({
-                      reps: exercise.sets[0]?.targetReps,
-                      repsMin: exercise.sets[0]?.targetRepsMin,
-                    })}
-                  </span>
-                </div>
-              ))}
-              {workout.exercises.length > 3 ? (
-                <p className="pt-0.5 text-xs font-medium text-muted-foreground">
-                  +{workout.exercises.length - 3} more exercises
-                </p>
-              ) : null}
-            </div>
+      {workouts.length === 0 ? (
+        <div className="rounded-[10px] border border-dashed border-border px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {workouts.map((w) => (
+            <WorkoutCard key={w.id} workout={w} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
 
-            <div className="mt-auto flex min-h-[2rem] flex-wrap content-start gap-2">
-              {[...new Set(workout.exercises.map((exercise) => exercise.exercise.muscleGroup))].map((group) => (
-                <span
-                  key={group}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
-                >
-                  {group}
-                </span>
-              ))}
-            </div>
-          </div>
+// ---------------------------------------------------------------------------
+// History section (inline, Lift-styled)
+// ---------------------------------------------------------------------------
 
-          <div className="flex items-center gap-2 border-t border-border bg-muted/30 p-3">
-            <Link href={`/workout/${workout.id}/start`} className="flex-1">
-              <Button className="w-full gap-2 bg-primary hover:bg-primary/90">
-                <Play className="h-4 w-4" />
-                Start Workout
-              </Button>
-            </Link>
-            {workout.isPersonal ? <EditWorkoutButton workout={workout} /> : null}
-            {workout.isPersonal ? <DeleteWorkoutButton workoutId={workout.id} /> : null}
+function HistoryRow({
+  log,
+  weightUnitLabel,
+}: {
+  log: WorkoutLog
+  weightUnitLabel: string
+}) {
+  const kColor = kindColor(log.workout.kind)
+  const startedAt = log.startedAt
+  const completedAt = log.completedAt
+
+  const durationMins =
+    completedAt
+      ? Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000))
+      : null
+
+  const ago = formatDistanceToNow(completedAt ?? startedAt, { addSuffix: true })
+
+  const dayNum = startedAt.getDate()
+  const monthShort = startedAt.toLocaleDateString("en-US", { month: "short" })
+
+  return (
+    <div className="flex items-center gap-3.5 rounded-[8px] border border-border bg-card px-4 py-3">
+      {/* Date column */}
+      <div className="w-8 shrink-0 text-center">
+        <div className="label-micro leading-tight">{monthShort}</div>
+        <div className="font-mono text-[17px] font-semibold leading-tight tnum text-foreground">
+          {dayNum}
+        </div>
+      </div>
+
+      {/* Kind bar */}
+      <div className="h-8 w-0.5 shrink-0 rounded-sm" style={{ background: kColor }} />
+
+      {/* Content */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{log.workout.name}</p>
+        <div className="mt-0.5 flex items-center gap-3 font-mono text-[11px] tnum text-muted-foreground">
+          {durationMins && <span>{durationMins} min</span>}
+          {log.totalVolume ? (
+            <span>
+              {log.totalVolume >= 1000
+                ? `${(log.totalVolume / 1000).toFixed(1)}k`
+                : Math.round(log.totalVolume)}{" "}
+              {weightUnitLabel}
+            </span>
+          ) : null}
+          <span className="ml-auto">{ago}</span>
+        </div>
+      </div>
+
+      {/* Coach comments */}
+      {log.comments.length > 0 && (
+        <div className="shrink-0 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-[10px] text-primary">
+          {log.comments.length} note{log.comments.length > 1 ? "s" : ""}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HistorySection({
+  logs,
+  weightUnitLabel,
+}: {
+  logs: WorkoutLog[]
+  weightUnitLabel: string
+}) {
+  if (logs.length === 0) return null
+
+  return (
+    <section>
+      <div className="mb-4 flex items-baseline gap-3">
+        <span className="label-micro">Recent sessions</span>
+        <span className="font-mono text-[11px] tnum text-muted-foreground">{logs.length}</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {logs.map((log) => (
+          <HistoryRow key={log.id} log={log} weightUnitLabel={weightUnitLabel} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton
+// ---------------------------------------------------------------------------
+
+function WorkoutPageSkeleton() {
+  return (
+    <div className="space-y-10">
+      {/* Quick start */}
+      <Skeleton className="h-[72px] w-full rounded-[10px]" />
+
+      {/* Section */}
+      {[0, 1].map((i) => (
+        <div key={i} className="space-y-4">
+          <Skeleton className="h-3 w-24 rounded" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((j) => (
+              <Skeleton key={j} className="h-52 rounded-[10px]" />
+            ))}
           </div>
         </div>
       ))}
     </div>
   )
+}
 
-  const renderWorkoutGroup = ({
-    title,
-    description,
-    workouts,
-    emptyMessage,
-  }: {
-    title: string
-    description: string
-    workouts: typeof workoutData.workouts
-    emptyMessage: string
-  }) => (
-    <details open className="group overflow-hidden rounded-2xl border border-border bg-card/40">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 md:p-5 [&::-webkit-details-marker]:hidden">
-        <div>
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
+// ---------------------------------------------------------------------------
+// Main content (SSR)
+// ---------------------------------------------------------------------------
 
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            {workouts.length} workout{workouts.length === 1 ? "" : "s"}
-          </span>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-transform duration-200 group-open:rotate-180">
-            <ChevronDown className="h-4 w-4" />
-          </span>
-        </div>
-      </summary>
+async function WorkoutContent() {
+  const { accessToken, profile } = await requireAppSession({ role: "trainee" })
+  const workoutData = await fetchWorkouts(accessToken)
+  const weightUnitLabel = profile.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
-      <div className="border-t border-border p-4 md:p-5">
-        {workouts.length > 0 ? (
-          renderWorkoutGrid(workouts)
-        ) : (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center">
-            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-          </div>
-        )}
-      </div>
-    </details>
-  )
+  const reusableWorkouts = workoutData.workouts.filter((w) => !w.scheduledDate)
+  const personalWorkouts = reusableWorkouts.filter((w) => w.isPersonal)
+  const coachWorkouts = reusableWorkouts.filter((w) => !w.isPersonal)
+
+  const quickStart =
+    workoutData.todayWorkout ?? reusableWorkouts[0] ?? workoutData.workouts[0] ?? null
+
+  const totalCount = reusableWorkouts.length
 
   return (
     <>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* ---- Header ---- */}
+      <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold md:text-3xl">Workouts</h1>
-          <p className="mt-1 text-muted-foreground">Coach-assigned plans and personal workouts you can build yourself</p>
+          <span className="label-micro mb-2 block">Your library</span>
+          <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+            {totalCount === 0
+              ? "No workouts yet"
+              : `${totalCount} ${totalCount === 1 ? "workout" : "workouts"}`}
+          </h1>
         </div>
-        <CreateWorkoutDialog workoutTemplates={reusableWorkouts} />
+        <div className="mt-1 shrink-0">
+          <CreateWorkoutDialog workoutTemplates={reusableWorkouts} />
+        </div>
       </div>
 
-      {quickStartWorkout ? (
-        <div className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold">Quick Start</h2>
-          <Link href={`/workout/${quickStartWorkout.id}/start`}>
-            <div className="group rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/20">
-                    <Dumbbell className="h-7 w-7 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold">{quickStartWorkout.name}</h3>
-                    <p className="text-muted-foreground">
-                      {quickStartWorkout.exercises.length} exercises · {quickStartWorkout.duration ?? "?"} min
-                    </p>
-                  </div>
-                </div>
-                <Button size="lg" className="gap-2 bg-primary hover:bg-primary/90">
-                  <Play className="h-5 w-5" />
-                  Start
-                </Button>
-              </div>
-            </div>
-          </Link>
-        </div>
-      ) : null}
+      <div className="space-y-10">
+        {/* ---- Quick start ---- */}
+        {quickStart && (
+          <section>
+            <span className="label-micro mb-3 block">Quick start</span>
+            <QuickStartCard workout={quickStart} />
+          </section>
+        )}
 
-      <div>
-        <h2 className="mb-4 text-lg font-semibold">Your Workouts</h2>
-        {workoutData.workouts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center">
-            <p className="text-lg font-semibold">No workouts yet</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Create your own workout now or wait for a coach to assign a program.
+        {/* ---- No workouts at all ---- */}
+        {workoutData.workouts.length === 0 && (
+          <div className="rounded-[10px] border border-dashed border-border px-8 py-14 text-center">
+            <p className="text-base font-medium text-foreground">Start your first workout</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Create a personal workout or ask your coach to assign a program.
             </p>
-            <div className="mt-4 flex justify-center">
-              <CreateWorkoutDialog workoutTemplates={reusableWorkouts} />
+            <div className="mt-5 flex justify-center">
+              <CreateWorkoutDialog workoutTemplates={[]} />
             </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {renderWorkoutGroup({
-              title: "My Workouts",
-              description: "Workouts you created yourself. You can expand, collapse, and delete them anytime.",
-              workouts: personalWorkouts,
-              emptyMessage: "You have not created any personal workouts yet.",
-            })}
-            {renderWorkoutGroup({
-              title: "Coach Workouts",
-              description: "Programs assigned by your coach, grouped separately for easier tracking.",
-              workouts: coachWorkouts,
-              emptyMessage: "No workouts from your coach have been assigned yet.",
-            })}
           </div>
         )}
-      </div>
 
-      <RecentActivity
-        logs={workoutData.historyLogs}
-        title="Workout History"
-        emptyMessage="Complete a session to build your workout history and receive coach feedback here."
-      />
+        {/* ---- Personal workouts ---- */}
+        {(personalWorkouts.length > 0 || coachWorkouts.length > 0) && (
+          <WorkoutSection
+            label="My workouts"
+            count={personalWorkouts.length}
+            workouts={personalWorkouts}
+            emptyMessage="You haven't created any personal workouts yet."
+          />
+        )}
+
+        {/* ---- Coach workouts ---- */}
+        {coachWorkouts.length > 0 && (
+          <WorkoutSection
+            label="From coach"
+            count={coachWorkouts.length}
+            workouts={coachWorkouts}
+            emptyMessage="No workouts assigned by your coach yet."
+          />
+        )}
+
+        {/* ---- History ---- */}
+        <HistorySection
+          logs={workoutData.historyLogs}
+          weightUnitLabel={weightUnitLabel}
+        />
+      </div>
     </>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function WorkoutPage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
-      <Suspense fallback={
-        <div>
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold md:text-3xl">Workouts</h1>
-              <p className="mt-1 text-muted-foreground">Coach-assigned plans and personal workouts you can build yourself</p>
+    <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+      <Suspense
+        fallback={
+          <>
+            <div className="mb-8 flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20 rounded" />
+                <Skeleton className="h-9 w-40 rounded" />
+              </div>
+              <Skeleton className="mt-1 h-9 w-32 rounded-[8px]" />
             </div>
-            <Skeleton className="h-10 w-36 rounded-lg" />
-          </div>
-          <WorkoutPageSkeleton />
-        </div>
-      }>
+            <WorkoutPageSkeleton />
+          </>
+        }
+      >
         <WorkoutContent />
       </Suspense>
     </div>

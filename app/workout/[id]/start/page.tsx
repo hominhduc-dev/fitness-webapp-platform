@@ -1,17 +1,24 @@
 "use client"
 
-import { ArrowLeft, Check, Clock, X } from "lucide-react"
+import {
+  Check,
+  MoreHorizontal,
+  Plus,
+} from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { ExerciseCard } from "@/components/workout/exercise-card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
 import { createWorkoutLog, fetchWorkoutDetail } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
-import type { ExerciseSet, Workout } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import type { ExerciseSet, WorkoutExercise, Workout } from "@/lib/types"
+import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+
+// ─── Session storage helpers (unchanged) ──────────────────────────────────────
 
 const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
 
@@ -44,31 +51,18 @@ function hasSessionProgress(exercises: Workout["exercises"]) {
 }
 
 function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSession["exercises"] {
-  if (!Array.isArray(rawExercises)) {
-    return []
-  }
+  if (!Array.isArray(rawExercises)) return []
 
   return rawExercises.flatMap((exercise: unknown) => {
-    if (typeof exercise !== "object" || exercise === null) {
-      return []
-    }
-
+    if (typeof exercise !== "object" || exercise === null) return []
     const exerciseRecord = exercise as { id?: unknown; sets?: unknown }
-
-    if (typeof exerciseRecord.id !== "string") {
-      return []
-    }
-
+    if (typeof exerciseRecord.id !== "string") return []
     const rawSets = Array.isArray(exerciseRecord.sets) ? exerciseRecord.sets : []
-
     return [
       {
         id: exerciseRecord.id,
         sets: rawSets.flatMap((set: unknown) => {
-          if (typeof set !== "object" || set === null) {
-            return []
-          }
-
+          if (typeof set !== "object" || set === null) return []
           const setRecord = set as {
             actualReps?: unknown
             completed?: unknown
@@ -77,11 +71,7 @@ function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSes
             rir?: unknown
             weight?: unknown
           }
-
-          if (typeof setRecord.id !== "string") {
-            return []
-          }
-
+          if (typeof setRecord.id !== "string") return []
           return [
             {
               actualReps: isFiniteNumber(setRecord.actualReps) ? setRecord.actualReps : undefined,
@@ -100,28 +90,17 @@ function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSes
 
 function readStoredWorkoutSession(workoutId: string) {
   const rawValue = window.localStorage.getItem(getWorkoutSessionStorageKey(workoutId))
-
-  if (!rawValue) {
-    return null
-  }
-
+  if (!rawValue) return null
   try {
     const parsed = JSON.parse(rawValue)
-
     if (typeof parsed !== "object" || parsed === null) {
       window.localStorage.removeItem(getWorkoutSessionStorageKey(workoutId))
       return null
     }
-
     const currentExerciseIndex = isFiniteNumber(parsed.currentExerciseIndex) ? parsed.currentExerciseIndex : 0
     const startedAt = typeof parsed.startedAt === "string" ? parsed.startedAt : new Date().toISOString()
     const exercises = sanitizeStoredWorkoutExercises(parsed.exercises)
-
-    return {
-      currentExerciseIndex,
-      exercises,
-      startedAt,
-    } satisfies StoredWorkoutSession
+    return { currentExerciseIndex, exercises, startedAt } satisfies StoredWorkoutSession
   } catch {
     window.localStorage.removeItem(getWorkoutSessionStorageKey(workoutId))
     return null
@@ -150,27 +129,20 @@ function createStoredWorkoutSession(
   }
 }
 
-function restoreWorkoutSessionExercises(baseExercises: Workout["exercises"], storedExercises: StoredWorkoutSession["exercises"]) {
+function restoreWorkoutSessionExercises(
+  baseExercises: Workout["exercises"],
+  storedExercises: StoredWorkoutSession["exercises"],
+) {
   const storedExercisesById = new Map(storedExercises.map((exercise) => [exercise.id, exercise]))
-
   return baseExercises.map((exercise) => {
     const storedExercise = storedExercisesById.get(exercise.id)
-
-    if (!storedExercise) {
-      return exercise
-    }
-
+    if (!storedExercise) return exercise
     const storedSetsById = new Map(storedExercise.sets.map((set) => [set.id, set]))
-
     return {
       ...exercise,
       sets: exercise.sets.map((set) => {
         const storedSet = storedSetsById.get(set.id)
-
-        if (!storedSet) {
-          return set
-        }
-
+        if (!storedSet) return set
         return {
           ...set,
           actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
@@ -186,47 +158,309 @@ function restoreWorkoutSessionExercises(baseExercises: Workout["exercises"], sto
 
 function restoreWorkoutSessionStartTime(startedAt: string) {
   const parsedTime = new Date(startedAt)
-
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
 }
 
 function getRecentDays(): Date[] {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
   const days: Date[] = []
-
   for (let i = 6; i >= 0; i--) {
     const day = new Date(today)
     day.setDate(today.getDate() - i)
     days.push(day)
   }
-
   return days
 }
 
 function getDayLabel(date: Date): { primary: string; secondary?: string } {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-
   const target = new Date(date)
   target.setHours(0, 0, 0, 0)
-
   const diff = Math.round((today.getTime() - target.getTime()) / (24 * 60 * 60 * 1000))
-
   const dayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
   const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`
-
   if (diff === 0) return { primary: "Hôm nay", secondary: dateStr }
   if (diff === 1) return { primary: "Hôm qua", secondary: dateStr }
-
   return { primary: dayNames[date.getDay()], secondary: dateStr }
 }
+
+// ─── Set row (Lift spec) ───────────────────────────────────────────────────────
+
+interface LiftSetRowProps {
+  set: ExerciseSet
+  setIndex: number
+  weightUnit: "kg" | "lbs"
+  onToggle: (data: Partial<ExerciseSet>) => void
+  onChange: (patch: Partial<ExerciseSet>) => void
+}
+
+function LiftSetRow({ set, setIndex, weightUnit, onToggle, onChange }: LiftSetRowProps) {
+  const [weight, setWeight] = useState(set.weight?.toString() ?? "")
+  const [reps, setReps] = useState(set.actualReps?.toString() ?? set.targetReps.toString())
+  const [completed, setCompleted] = useState(set.completed)
+
+  useEffect(() => {
+    setWeight(set.weight?.toString() ?? "")
+  }, [set.id, set.weight])
+
+  const handleToggle = () => {
+    const next = !completed
+    setCompleted(next)
+    onToggle({
+      completed: next,
+      weight: Number.parseFloat(weight) || undefined,
+      actualReps: Number.parseInt(reps) || set.targetReps,
+    })
+  }
+
+  const prevLabel = set.previousPerformance
+    ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
+    : "— · —"
+
+  // Desktop: Set | Type | Previous | kg | Reps | ✓  (6 cols)
+  // Mobile:  Set | Type | kg | Reps | ✓            (5 cols, no Previous)
+  return (
+    <div
+      className={cn(
+        "grid items-center border-b border-border last:border-0",
+        // desktop 6-col, mobile 5-col
+        "grid-cols-[36px_50px_1fr_1fr_32px] gap-2",
+        "md:grid-cols-[56px_70px_1fr_92px_92px_32px] md:gap-3",
+        "px-3 py-[10px] md:px-4",
+        "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
+        completed ? "bg-muted" : "bg-transparent",
+      )}
+    >
+      {/* Set number */}
+      <span
+        className={cn(
+          "font-mono text-[15px] font-semibold",
+          completed ? "text-muted-foreground" : "text-foreground",
+        )}
+        style={{ fontFeatureSettings: '"tnum" 1' }}
+      >
+        {setIndex + 1}
+      </span>
+
+      {/* Type tag */}
+      <span
+        className={cn(
+          "font-mono text-[10px] uppercase tracking-[0.08em]",
+          set.setNumber === 0 || (set as ExerciseSet & { kind?: string }).kind === "warm"
+            ? "text-muted-foreground"
+            : completed
+              ? "text-muted-foreground"
+              : "text-foreground/70",
+        )}
+      >
+        {setIndex === 0 ? "warm" : "work"}
+      </span>
+
+      {/* Previous (desktop only) */}
+      <span className="hidden md:block text-[13px] text-muted-foreground font-mono" style={{ fontFeatureSettings: '"tnum" 1' }}>
+        {prevLabel}
+      </span>
+
+      {/* Weight input */}
+      <input
+        type="number"
+        inputMode="decimal"
+        value={weight}
+        onChange={(e) => {
+          setWeight(e.target.value)
+          onChange({ weight: Number.parseFloat(e.target.value) || undefined })
+        }}
+        placeholder="—"
+        aria-label={`Weight in ${weightUnit}`}
+        className={cn(
+          "w-full font-mono text-[14px] text-center rounded-md",
+          "border transition-colors duration-[180ms]",
+          "focus:outline-none focus:ring-1 focus:ring-primary",
+          "h-8 px-1",
+          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          completed
+            ? "border-transparent bg-transparent text-muted-foreground"
+            : "border-border bg-background text-foreground",
+        )}
+        style={{ fontFeatureSettings: '"tnum" 1' }}
+      />
+
+      {/* Reps input */}
+      <input
+        type="number"
+        inputMode="numeric"
+        value={reps}
+        onChange={(e) => setReps(e.target.value)}
+        placeholder="—"
+        aria-label="Reps"
+        className={cn(
+          "w-full font-mono text-[14px] text-center rounded-md",
+          "border transition-colors duration-[180ms]",
+          "focus:outline-none focus:ring-1 focus:ring-primary",
+          "h-8 px-1",
+          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          completed
+            ? "border-transparent bg-transparent text-muted-foreground"
+            : "border-border bg-background text-foreground",
+        )}
+        style={{ fontFeatureSettings: '"tnum" 1' }}
+      />
+
+      {/* Complete checkbox */}
+      <button
+        type="button"
+        onClick={handleToggle}
+        aria-label={completed ? "Mark incomplete" : "Complete set"}
+        className={cn(
+          "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
+          "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
+          completed
+            ? "bg-[var(--success)] border-0"
+            : "border-[1.5px] border-border bg-transparent",
+        )}
+      >
+        {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+      </button>
+    </div>
+  )
+}
+
+// ─── Exercise block (Lift spec) ────────────────────────────────────────────────
+
+interface LiftExerciseBlockProps {
+  exercise: WorkoutExercise
+  weightUnit: "kg" | "lbs"
+  onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
+  onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
+  onAddSet: (exerciseId: string) => void
+}
+
+function LiftExerciseBlock({
+  exercise,
+  weightUnit,
+  onSetUpdate,
+  onSetComplete,
+  onAddSet,
+}: LiftExerciseBlockProps) {
+  const completedCount = exercise.sets.filter((s) => s.completed).length
+  const exerciseLabel = formatExerciseVariationLabel({
+    exerciseName: exercise.exercise.name,
+    isDefault: exercise.variation.isDefault,
+    variationName: exercise.variation.name,
+  })
+
+  return (
+    <div className="border border-border rounded-[10px] bg-card overflow-hidden mb-4">
+      {/* Block header */}
+      <div className="flex items-center justify-between border-b border-border px-4 py-4 md:px-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-semibold leading-tight truncate">{exerciseLabel}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {exercise.sets.length} set{exercise.sets.length !== 1 ? "s" : ""}
+            {completedCount > 0 && ` · ${completedCount} completed`}
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="More options"
+          className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <MoreHorizontal className="h-[18px] w-[18px]" />
+        </button>
+      </div>
+
+      {/* Column headers */}
+      <div
+        className={cn(
+          "grid items-center border-b border-border",
+          "grid-cols-[36px_50px_1fr_1fr_32px] gap-2",
+          "md:grid-cols-[56px_70px_1fr_92px_92px_32px] md:gap-3",
+          "px-3 py-2 md:px-4",
+          "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
+        )}
+      >
+        <span>Set</span>
+        <span>Type</span>
+        <span className="hidden md:block">Previous</span>
+        <span>{weightUnit}</span>
+        <span>Reps</span>
+        <span />
+      </div>
+
+      {/* Set rows */}
+      {exercise.sets.map((set, idx) => (
+        <LiftSetRow
+          key={set.id}
+          set={set}
+          setIndex={idx}
+          weightUnit={weightUnit}
+          onToggle={(data) => {
+            onSetUpdate(set.id, data)
+            if (data.completed) {
+              onSetComplete(exercise, set, data)
+            }
+          }}
+          onChange={(patch) => onSetUpdate(set.id, patch)}
+        />
+      ))}
+
+      {/* Add set */}
+      <button
+        type="button"
+        onClick={() => onAddSet(exercise.id)}
+        className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add set
+      </button>
+    </div>
+  )
+}
+
+// ─── Session stats card (Lift spec) ───────────────────────────────────────────
+
+interface StatCellProps {
+  label: string
+  value: string | number
+  sub: string
+  /** Hide right border on last cell */
+  last?: boolean
+  /** In mobile 2×2, bottom row cells don't need bottom border */
+  lastRow?: boolean
+}
+
+function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
+  return (
+    <div
+      className={cn(
+        "p-4",
+        !last && "border-r border-border",
+        !lastRow && "border-b border-border md:border-b-0",
+      )}
+    >
+      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-1.5">
+        {label}
+      </p>
+      <p
+        className="font-mono text-[22px] font-medium leading-none text-foreground"
+        style={{ fontFeatureSettings: '"tnum" 1' }}
+      >
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
+    </div>
+  )
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function WorkoutStartPage() {
   const params = useParams()
   const router = useRouter()
   const { isLoading: authLoading, profile, session } = useAuth()
+
   const [workout, setWorkout] = useState<Workout | null>(null)
   const [exercises, setExercises] = useState<Workout["exercises"]>([])
   const [startTime, setStartTime] = useState(new Date())
@@ -241,37 +475,31 @@ export default function WorkoutStartPage() {
     yesterday.setHours(0, 0, 0, 0)
     return yesterday
   })
+  const [restEvent, setRestEvent] = useState<RestEvent>(null)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
+  // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!session?.access_token || !workoutId) {
-      if (!authLoading) {
-        setIsLoading(false)
-      }
-
+      if (!authLoading) setIsLoading(false)
       return
     }
 
     let cancelled = false
-
     const loadWorkout = async () => {
       setIsLoading(true)
       setError(null)
-
       try {
         const nextWorkout = await fetchWorkoutDetail(session.access_token, workoutId)
-
-        if (cancelled) {
-          return
-        }
-
+        if (cancelled) return
         const storedSession = readStoredWorkoutSession(workoutId)
-
         setWorkout(nextWorkout)
         setExercises(
-          storedSession ? restoreWorkoutSessionExercises(nextWorkout.exercises, storedSession.exercises) : nextWorkout.exercises,
+          storedSession
+            ? restoreWorkoutSessionExercises(nextWorkout.exercises, storedSession.exercises)
+            : nextWorkout.exercises,
         )
         setCurrentExerciseIndex(
           storedSession
@@ -280,80 +508,128 @@ export default function WorkoutStartPage() {
         )
         setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
       } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Không thể tải workout.")
-        }
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Không thể tải workout.")
       } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
+        if (!cancelled) setIsLoading(false)
       }
     }
-
     void loadWorkout()
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [authLoading, session?.access_token, workoutId])
 
+  // ── Persist session to localStorage ────────────────────────────────────────
   useEffect(() => {
-    if (!workout || !workoutId) {
-      return
-    }
-
+    if (!workout || !workoutId) return
     const storageKey = getWorkoutSessionStorageKey(workoutId)
-
     if (!hasSessionProgress(exercises)) {
       window.localStorage.removeItem(storageKey)
       return
     }
-
     window.localStorage.setItem(
       storageKey,
       JSON.stringify(createStoredWorkoutSession(exercises, startTime, currentExerciseIndex)),
     )
   }, [currentExerciseIndex, exercises, startTime, workout, workoutId])
 
-  const totalSets = exercises.reduce((accumulator, exercise) => accumulator + exercise.sets.length, 0)
+  // ── Derived stats ───────────────────────────────────────────────────────────
+  const totalSets = exercises.reduce((acc, ex) => acc + ex.sets.length, 0)
   const completedSets = exercises.reduce(
-    (accumulator, exercise) => accumulator + exercise.sets.filter((set) => set.completed).length,
+    (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
     0,
   )
-  const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0
+  const volume = exercises.reduce(
+    (acc, ex) =>
+      acc +
+      ex.sets
+        .filter((s) => s.completed)
+        .reduce((a, s) => a + (s.weight ?? 0) * (s.actualReps ?? s.targetReps), 0),
+    0,
+  )
+  const elapsedMinutes = Math.max(1, Math.round((Date.now() - startTime.getTime()) / 60000))
 
-  const handleSetComplete = (exerciseId: string, setId: string, data: Partial<ExerciseSet>) => {
-    setExercises((currentExercises) =>
-      currentExercises.map((exercise) => {
-        if (exercise.id !== exerciseId) {
-          return exercise
-        }
+  const startedLabel = (() => {
+    const h = startTime.getHours()
+    const m = startTime.getMinutes()
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+  })()
 
-        return {
-          ...exercise,
-          sets: exercise.sets.map((set) => (set.id === setId ? { ...set, ...data } : set)),
+  const dateLabel = (() => {
+    const now = new Date()
+    const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ]
+    return `${weekdays[now.getDay()]} · ${months[now.getMonth()]} ${now.getDate()}`
+  })()
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const handleSetUpdate = (exerciseId: string, setId: string, patch: Partial<ExerciseSet>) => {
+    setExercises((prev) =>
+      prev.map((ex) => {
+        if (ex.id !== exerciseId) return ex
+        return { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) }
+      }),
+    )
+  }
+
+  const handleSetComplete = (
+    exercise: WorkoutExercise,
+    set: ExerciseSet,
+    data: Partial<ExerciseSet>,
+  ) => {
+    if (data.completed) {
+      setRestEvent({
+        exercise: formatExerciseVariationLabel({
+          exerciseName: exercise.exercise.name,
+          isDefault: exercise.variation.isDefault,
+          variationName: exercise.variation.name,
+        }),
+        set: {
+          id: set.id,
+          kg: data.weight ?? set.weight ?? 0,
+          reps: data.actualReps ?? set.actualReps ?? null,
+        },
+      })
+      // Advance current exercise index if all sets on this exercise are done
+      const updatedSets = exercise.sets.map((s) => (s.id === set.id ? { ...s, ...data } : s))
+      if (updatedSets.every((s) => s.completed)) {
+        const exIdx = exercises.findIndex((e) => e.id === exercise.id)
+        if (exIdx >= 0 && exIdx < exercises.length - 1) {
+          setCurrentExerciseIndex(exIdx + 1)
         }
+      }
+    }
+  }
+
+  const handleAddSet = (exerciseId: string) => {
+    setExercises((prev) =>
+      prev.map((ex) => {
+        if (ex.id !== exerciseId) return ex
+        const last = ex.sets[ex.sets.length - 1]
+        const newSet: ExerciseSet = {
+          id: Math.random().toString(36).slice(2),
+          setNumber: ex.sets.length + 1,
+          targetReps: last?.targetReps ?? 10,
+          actualReps: undefined,
+          weight: last?.weight,
+          completed: false,
+        }
+        return { ...ex, sets: [...ex.sets, newSet] }
       }),
     )
   }
 
   const performSave = async (logDate: Date = new Date()) => {
-    if (!session?.access_token || !workout) {
-      return
-    }
-
+    if (!session?.access_token || !workout) return
     setIsSaving(true)
     setError(null)
-
     const todayMidnight = new Date()
     todayMidnight.setHours(0, 0, 0, 0)
-
     const selectedMidnight = new Date(logDate)
     selectedMidnight.setHours(0, 0, 0, 0)
-
     const dayDiff = Math.round((todayMidnight.getTime() - selectedMidnight.getTime()) / (24 * 60 * 60 * 1000))
     const loggedStartedAt = new Date(startTime.getTime() - dayDiff * 24 * 60 * 60 * 1000)
-
     try {
       await createWorkoutLog(session.access_token, workout.id, {
         completedAt: new Date().toISOString(),
@@ -373,7 +649,6 @@ export default function WorkoutStartPage() {
 
   const handleFinishWorkout = () => {
     if (!workout) return
-
     const today = new Date()
     const isToday =
       (workout.scheduledDay !== undefined && workout.scheduledDay === today.getDay()) ||
@@ -381,12 +656,10 @@ export default function WorkoutStartPage() {
         workout.scheduledDate.getFullYear() === today.getFullYear() &&
         workout.scheduledDate.getMonth() === today.getMonth() &&
         workout.scheduledDate.getDate() === today.getDate())
-
     if (isToday) {
       void performSave(new Date())
       return
     }
-
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     yesterday.setHours(0, 0, 0, 0)
@@ -394,10 +667,13 @@ export default function WorkoutStartPage() {
     setShowDateDialog(true)
   }
 
-  const elapsedMinutes = Math.max(1, Math.round((Date.now() - startTime.getTime()) / 60000))
-
+  // ── Loading / error states ──────────────────────────────────────────────────
   if (isLoading) {
-    return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">Loading workout...</div>
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        Loading workout...
+      </div>
+    )
   }
 
   if (!workout) {
@@ -405,7 +681,9 @@ export default function WorkoutStartPage() {
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
           <p className="text-lg font-semibold">Workout not found</p>
-          <p className="mt-2 text-sm text-muted-foreground">{error || "This workout is unavailable or not assigned to you."}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {error || "This workout is unavailable or not assigned to you."}
+          </p>
           <Button className="mt-4" onClick={() => router.push("/workout")}>
             Back to workouts
           </Button>
@@ -414,66 +692,110 @@ export default function WorkoutStartPage() {
     )
   }
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur-lg">
-        <div className="flex h-16 items-center justify-between px-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="text-center">
-            <p className="font-semibold">{workout.name}</p>
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              <span>{elapsedMinutes} min</span>
-            </div>
-          </div>
-          <Button variant="destructive" size="icon" onClick={() => router.back()}>
-            <X className="h-5 w-5" />
-          </Button>
+      {/* ── Main content ─────────────────────────────────────────────────── */}
+      <main className="mx-auto max-w-[880px] px-4 pt-5 pb-30 md:px-10 md:pt-8">
+        {/* Header */}
+        <div className="mb-7">
+          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-2">
+            {dateLabel}
+          </p>
+          <h1 className="text-[28px] md:text-[40px] font-semibold tracking-[-0.02em] text-foreground m-0 leading-tight">
+            {workout.name}
+          </h1>
         </div>
 
-        <div className="px-4 pb-3">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-muted-foreground">Progress</span>
-            <span className="font-medium">
-              {completedSets}/{totalSets} sets
-            </span>
-          </div>
-          <Progress value={progress} className="h-2" />
-          {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+        {/* Session stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-[10px] bg-card overflow-hidden mb-7">
+          <StatCell
+            label="Started"
+            value={startedLabel}
+            sub={`${elapsedMinutes} min ago`}
+            lastRow={false}
+          />
+          <StatCell
+            label="Sets"
+            value={`${completedSets} / ${totalSets}`}
+            sub="completed"
+            last
+            lastRow={false}
+          />
+          <StatCell
+            label="Volume"
+            value={volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : String(Math.round(volume))}
+            sub="kg lifted"
+            lastRow
+          />
+          <StatCell
+            label="Exercises"
+            value={exercises.length}
+            sub="planned"
+            last
+            lastRow
+          />
         </div>
-      </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-6 pb-32">
-        <div className="space-y-4">
-          {exercises.map((exercise, index) => (
-            <ExerciseCard
-              key={exercise.id}
-              exercise={exercise}
-              exerciseIndex={index}
-              isActive={index === currentExerciseIndex}
-              weightUnit={weightUnit}
-              onSetComplete={(setId, data) => handleSetComplete(exercise.id, setId, data)}
-            />
-          ))}
-        </div>
-      </main>
+        {/* Error */}
+        {error && (
+          <p className="mb-4 text-sm text-destructive">{error}</p>
+        )}
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 backdrop-blur-lg p-4">
-        <div className="mx-auto flex max-w-2xl items-center">
+        {/* Exercise blocks */}
+        {exercises.map((exercise) => (
+          <LiftExerciseBlock
+            key={exercise.id}
+            exercise={exercise}
+            weightUnit={weightUnit}
+            onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
+            onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
+            onAddSet={handleAddSet}
+          />
+        ))}
+
+        {/* Bottom action bar */}
+        <div className="mt-6 flex flex-col gap-2 md:flex-row md:gap-3">
+          {/* Add exercise */}
           <Button
-            size="lg"
-            className="flex-1 bg-success hover:bg-success/90 text-white font-semibold gap-2"
+            variant="outline"
+            className="w-full md:w-auto gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Add exercise
+          </Button>
+
+          {/* Spacer (desktop) */}
+          <div className="hidden md:flex flex-1" />
+
+          {/* Cancel (desktop only) */}
+          <Button
+            variant="ghost"
+            className="hidden md:flex"
+            onClick={() => router.back()}
+          >
+            Cancel
+          </Button>
+
+          {/* Finish workout */}
+          <Button
+            className="w-full md:w-auto bg-foreground text-background hover:bg-foreground/90 font-semibold"
             onClick={handleFinishWorkout}
             disabled={completedSets === 0 || isSaving}
           >
-            <Check className="h-5 w-5" />
-            {isSaving ? "Saving..." : "Finish Workout"}
+            {isSaving ? "Saving..." : "Finish workout"}
           </Button>
         </div>
-      </div>
+      </main>
 
+      {/* ── Rest Timer overlay ────────────────────────────────────────────── */}
+      <RestTimer
+        event={restEvent}
+        onDismiss={() => setRestEvent(null)}
+        defaultDuration={90}
+      />
+
+      {/* ── Date selection dialog ─────────────────────────────────────────── */}
       <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -496,21 +818,25 @@ export default function WorkoutStartPage() {
                     key={day.toDateString()}
                     type="button"
                     onClick={() => setSelectedDate(day)}
-                    className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors",
                       isSelected
                         ? "border-primary bg-primary/5 text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/50"
-                    }`}
+                        : "border-border bg-card text-muted-foreground hover:border-primary/50",
+                    )}
                   >
                     <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                        isSelected ? "border-primary" : "border-muted-foreground"
-                      }`}
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                        isSelected ? "border-primary" : "border-muted-foreground",
+                      )}
                     >
                       {isSelected && <span className="h-2 w-2 rounded-full bg-primary" />}
                     </span>
                     <span className="font-medium">{primary}</span>
-                    {secondary && <span className="ml-auto text-sm text-muted-foreground">{secondary}</span>}
+                    {secondary && (
+                      <span className="ml-auto text-sm text-muted-foreground">{secondary}</span>
+                    )}
                   </button>
                 )
               })}
