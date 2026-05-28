@@ -3,7 +3,7 @@
 import { Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { CreateWorkoutDialog } from "@/components/workout/create-workout-dialog"
+import { CreateWorkoutDialogLazy } from "@/components/workout/create-workout-dialog-lazy"
 import type { Workout } from "@/lib/types"
 
 type EditWorkoutButtonProps = {
@@ -12,7 +12,7 @@ type EditWorkoutButtonProps = {
 
 export function EditWorkoutButton({ workout }: EditWorkoutButtonProps) {
   return (
-    <CreateWorkoutDialog
+    <CreateWorkoutDialogLazy
       workoutToEdit={workout}
       trigger={
         <Button
