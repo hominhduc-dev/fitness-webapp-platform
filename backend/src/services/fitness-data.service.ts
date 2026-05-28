@@ -1,4 +1,5 @@
 import {
+  $Enums,
   Prisma,
   type BodyMetricEntry,
   CoachRequestStatus,
@@ -7,6 +8,7 @@ import {
   NotificationType,
   ProgramDifficulty,
   UserRole,
+  WorkoutKind,
   type Exercise,
   type ExerciseSet,
   type Meal,
@@ -173,6 +175,7 @@ type PersonalWorkoutInput = {
     sets: number
     weight?: number
   }>
+  kind?: string | null
   name: string
   notes?: string | null
   scheduledDay?: number
@@ -189,6 +192,7 @@ type NormalizedPersonalWorkoutInput = {
     sets: number
     weight?: number
   }>
+  kind?: $Enums.WorkoutKind
   name: string
   notes?: string
   scheduledDay?: number
@@ -380,6 +384,7 @@ function serializeWorkout(
       })),
     id: workout.id,
     isPersonal: options?.isPersonal ?? false,
+    kind: workout.kind ?? undefined,
     name: workout.name,
     notes: workout.notes ?? undefined,
     scheduledDay: workout.scheduledDay ?? undefined,
@@ -2207,6 +2212,12 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
     throw new AuthServiceError("Có biến thể bài tập không tồn tại trong thư viện.", 400)
   }
 
+  const validKinds = Object.values(WorkoutKind) as string[]
+  const kind =
+    input.kind && validKinds.includes(input.kind)
+      ? (input.kind as $Enums.WorkoutKind)
+      : undefined
+
   return {
     duration: input.duration ? Math.max(1, Math.round(input.duration)) : undefined,
     exercises: input.exercises.map((exercise, exerciseIndex) => {
@@ -2224,6 +2235,7 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
             : undefined,
       }
     }),
+    kind,
     name: workoutName,
     notes: input.notes?.trim() || undefined,
     scheduledDate,
@@ -2273,6 +2285,7 @@ async function createPersonalWorkoutForTrainee(
             exercises: {
               create: buildPersonalWorkoutExerciseCreateData(normalizedInput.exercises),
             },
+            kind: normalizedInput.kind,
             name: normalizedInput.name,
             notes: normalizedInput.notes,
             scheduledDate: normalizedInput.scheduledDate,
@@ -2343,6 +2356,7 @@ async function updatePersonalWorkoutForTrainee(
         exercises: {
           create: buildPersonalWorkoutExerciseCreateData(normalizedInput.exercises),
         },
+        kind: normalizedInput.kind ?? null,
         name: normalizedInput.name,
         notes: normalizedInput.notes ?? null,
         scheduledDate: normalizedInput.scheduledDate ?? null,
@@ -3271,6 +3285,119 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
   }
 }
 
+async function getCalendarForTrainee(profile: SerializedProfile, year: number, month: number) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const start = new Date(Date.UTC(year, month - 1, 1))
+  const end = new Date(Date.UTC(year, month, 1))
+
+  const logs = await db.workoutLog.findMany({
+    orderBy: { startedAt: "asc" },
+    select: {
+      completedAt: true,
+      id: true,
+      startedAt: true,
+      totalVolume: true,
+      workout: { select: { id: true, kind: true, name: true } },
+    },
+    where: {
+      startedAt: { gte: start, lt: end },
+      userId: profile.id,
+    },
+  })
+
+  const dayMap = new Map<string, typeof logs>()
+  for (const log of logs) {
+    const dateKey = formatUtcDateOnly(log.startedAt)
+    if (!dayMap.has(dateKey)) dayMap.set(dateKey, [])
+    dayMap.get(dateKey)!.push(log)
+  }
+
+  const days = Array.from(dayMap.entries()).map(([date, dayLogs]) => ({
+    date,
+    logs: dayLogs.map((log) => ({
+      completedAt: log.completedAt ? log.completedAt.toISOString() : null,
+      id: log.id,
+      startedAt: log.startedAt.toISOString(),
+      totalVolume: log.totalVolume ?? 0,
+      workoutId: log.workout?.id ?? "",
+      workoutKind: log.workout?.kind ?? null,
+      workoutName: log.workout?.name ?? "Workout",
+    })),
+  }))
+
+  const totalWorkouts = logs.length
+  const totalVolume = logs.reduce((s, l) => s + (l.totalVolume ?? 0), 0)
+  const completedLogs = logs.filter((l) => l.completedAt)
+  const totalDurationMs = completedLogs.reduce((s, l) => {
+    if (!l.completedAt) return s
+    return s + (l.completedAt.getTime() - l.startedAt.getTime())
+  }, 0)
+  const avgDurationMins =
+    completedLogs.length > 0 ? Math.round(totalDurationMs / completedLogs.length / 60_000) : 0
+
+  return {
+    days,
+    summary: {
+      avgDurationMins,
+      totalVolume: Math.round(totalVolume * 10) / 10,
+      totalWorkouts,
+    },
+  }
+}
+
+async function getYearViewForTrainee(profile: SerializedProfile, year: number) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const start = new Date(Date.UTC(year, 0, 1))
+  const end = new Date(Date.UTC(year + 1, 0, 1))
+
+  const logs = await db.workoutLog.findMany({
+    orderBy: { startedAt: "asc" },
+    select: { startedAt: true, totalVolume: true },
+    where: {
+      startedAt: { gte: start, lt: end },
+      userId: profile.id,
+    },
+  })
+
+  const dayMap = new Map<string, { count: number; volume: number }>()
+  for (const log of logs) {
+    const dateKey = formatUtcDateOnly(log.startedAt)
+    const existing = dayMap.get(dateKey) ?? { count: 0, volume: 0 }
+    dayMap.set(dateKey, {
+      count: existing.count + 1,
+      volume: existing.volume + (log.totalVolume ?? 0),
+    })
+  }
+
+  const days = Array.from(dayMap.entries()).map(([date, data]) => ({
+    count: data.count,
+    date,
+    volume: Math.round(data.volume * 10) / 10,
+  }))
+
+  return { days, year }
+}
+
+async function getWorkoutLogDetailForTrainee(profile: SerializedProfile, logId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const log = await db.workoutLog.findUnique({
+    include: WORKOUT_LOG_INCLUDE,
+    where: { id: logId, userId: profile.id },
+  })
+
+  if (!log) {
+    throw new AuthServiceError("Workout log không tồn tại.", 404)
+  }
+
+  return serializeWorkoutLog(log as WorkoutLogRecord)
+}
+
 async function resetCurrentTraineeData(profile: SerializedProfile) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -4060,8 +4187,11 @@ export {
   getCoachDashboard,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  getCalendarForTrainee,
   getProgressAnalyticsForCurrentTrainee,
   getWorkoutDetailForTrainee,
+  getWorkoutLogDetailForTrainee,
+  getYearViewForTrainee,
   listAvailableCoachesForTrainee,
   listBodyMetricsForCurrentTrainee,
   listExerciseLibrary,
