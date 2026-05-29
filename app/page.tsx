@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { LandingPage } from "@/components/landing/landing-page"
 import { getServerAuthState } from "@/lib/auth/server"
 import { getRoleLandingPath } from "@/lib/auth/roles"
-import { LocaleProvider } from "@/components/providers/locale-provider"
+import { AppProviders } from "@/components/providers/app-providers"
 import { getServerLocale } from "@/lib/i18n/server"
 
 export const metadata: Metadata = {
@@ -80,9 +80,9 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <LocaleProvider initialLocale={locale}>
+      <AppProviders initialLocale={locale} withAuth={false}>
         <LandingPage locale={locale} />
-      </LocaleProvider>
+      </AppProviders>
     </>
   )
 }
