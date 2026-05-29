@@ -400,8 +400,8 @@ function RoutinePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[80] max-h-[72svh] overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[400px]">
-        <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
+      <DialogContent className="z-[80] flex max-h-[calc(100svh-1.5rem)] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-h-[72svh] sm:max-w-[400px]">
+        <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5 text-left">
           <DialogTitle className="text-[15px] font-semibold">Pick a routine</DialogTitle>
           <p className="font-mono text-[11px] text-muted-foreground tnum">
             {date ? format(date, "EEE, MMM d") : "Rest day"}
@@ -418,7 +418,7 @@ function RoutinePickerDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 max-h-[42svh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {error ? (
             <div className="border-b border-destructive/20 bg-destructive/5 px-5 py-3 text-sm text-destructive">{error}</div>
           ) : null}
@@ -451,7 +451,7 @@ function RoutinePickerDialog({
           )}
         </div>
 
-        <DialogFooter className="border-t border-border px-5 py-3 sm:justify-center">
+        <DialogFooter className="shrink-0 border-t border-border px-5 py-3 sm:justify-center">
           <Button type="button" variant="ghost" size="sm" className="text-primary" onClick={onCreateNew} disabled={isSaving}>
             <Plus className="h-3.5 w-3.5" />
             Create new routine
@@ -806,8 +806,18 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
   }
 
   const openRoutineBuilder = () => {
-    setIsRoutineBuilderOpen(true)
     void ensureExerciseOptions()
+    setSelectedRestDate((currentDate) => {
+      if (!currentDate) {
+        return currentDate
+      }
+
+      window.requestAnimationFrame(() => {
+        setIsRoutineBuilderOpen(true)
+      })
+
+      return currentDate
+    })
   }
 
   const saveTemplateToRestDate = async (template: Workout) => {
