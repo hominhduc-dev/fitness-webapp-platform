@@ -3,6 +3,7 @@ import { Router } from "express"
 import { adminRouter } from "./admin.route"
 import { authRouter } from "./auth.route"
 import { coachRouter } from "./coach.route"
+import { dashboardRouter } from "./dashboard.route"
 import { exerciseRouter } from "./exercise.route"
 import { foodRouter } from "./food.route"
 import { healthRouter } from "./health.route"
@@ -24,6 +25,7 @@ apiRouter.use("/health", healthRouter)
 apiRouter.use("/auth", authRouter)
 apiRouter.use("/admin", adminRouter)
 apiRouter.use("/coach", coachRouter)
+apiRouter.use("/dashboard", dashboardRouter)
 apiRouter.use("/exercises", exerciseRouter)
 apiRouter.use("/foods", foodRouter)
 apiRouter.use("/meals", mealRouter)

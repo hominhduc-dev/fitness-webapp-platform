@@ -19,6 +19,18 @@ interface MobileNavProps {
   role?: AppRole
 }
 
+function isNavItemActive(pathname: string, href: string) {
+  if (pathname === href) {
+    return true
+  }
+
+  if (href === "/coach" || href === "/admin" || href === "/dashboard") {
+    return false
+  }
+
+  return pathname.startsWith(`${href}/`)
+}
+
 export function MobileNav({ role = "trainee" }: MobileNavProps) {
   const pathname = usePathname()
   const { messages } = useLocale()
@@ -45,7 +57,7 @@ export function MobileNav({ role = "trainee" }: MobileNavProps) {
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 backdrop-blur-lg md:hidden">
       <div className="flex items-center justify-around py-2">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+          const isActive = isNavItemActive(pathname, item.href)
           return (
             <Link
               key={item.href}

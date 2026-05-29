@@ -3,48 +3,32 @@
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  Dumbbell,
-  GripVertical,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Copy,
   Loader2,
   Plus,
-  Save,
+  Search,
   Trash2,
-  Upload,
-  Users,
+  UserPlus,
+  X,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
-import { downloadCoachProgramTemplate, importCoachProgramTemplate } from "@/components/coach/program-excel"
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import {
   adjustCoachProgram,
   createCoachProgram,
-  deleteCoachProgram,
   fetchCoachProgram,
   fetchCoachTrainees,
   fetchExerciseLibrary,
@@ -59,44 +43,79 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
+import { cn } from "@/lib/utils"
 
-type WorkoutExerciseForm = {
+type ProgramEditorProps = {
+  initialExerciseOptions?: ExerciseVariationOption[]
+  initialTraineeOptions?: CoachTrainee[]
+  onClose?: () => void
+  onSaved?: (program: CoachProgram) => void
+  programId?: string
+}
+
+type RoutineTag = "push" | "pull" | "legs" | "upper" | "lower" | "full"
+
+type RoutineExercise = {
   fallbackEquipment?: string
   fallbackExerciseName?: string
   fallbackIsDefault?: boolean
   fallbackMuscleGroup?: string
   fallbackVariationName?: string
-  variationId: string
   id: string
   reps: string
   sets: number
+  variationId: string
   weight: string
 }
 
-type WorkoutDay = {
-  exercises: WorkoutExerciseForm[]
+type Routine = {
+  exercises: RoutineExercise[]
   id: string
   name: string
-  scheduledDay: string
+  tag: RoutineTag
 }
 
-type ProgramEditorProps = {
-  initialExerciseOptions?: ExerciseVariationOption[]
-  initialTraineeOptions?: CoachTrainee[]
-  programId?: string
+type ScheduleSlot = {
+  routine: Routine | null
+} | null
+
+type Schedule = ScheduleSlot[][]
+
+type PickerSlot = {
+  dayIndex: number
+  weekIndex: number
 }
+
+const WEEK_OPTIONS = [4, 6, 8, 10, 12, 16]
+const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
+const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
+const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
 
 const DAY_OPTIONS = [
-  { label: "Monday", value: "1" },
-  { label: "Tuesday", value: "2" },
-  { label: "Wednesday", value: "3" },
-  { label: "Thursday", value: "4" },
-  { label: "Friday", value: "5" },
-  { label: "Saturday", value: "6" },
-  { label: "Sunday", value: "0" },
+  { label: "Mon", scheduledDay: 1 },
+  { label: "Tue", scheduledDay: 2 },
+  { label: "Wed", scheduledDay: 3 },
+  { label: "Thu", scheduledDay: 4 },
+  { label: "Fri", scheduledDay: 5 },
+  { label: "Sat", scheduledDay: 6 },
+  { label: "Sun", scheduledDay: 0 },
 ]
 
-const EXERCISE_LIBRARY_EMPTY_ERROR = "Chưa có bài tập nào trong thư viện để thêm vào program."
+const DAY_PATTERN_BY_DAYS_PER_WEEK: Record<number, number[]> = {
+  3: [0, 2, 4],
+  4: [0, 1, 3, 5],
+  5: [0, 1, 3, 4, 6],
+  6: [0, 1, 2, 4, 5, 6],
+}
+
+const TAG_DOT_COLOR: Record<RoutineTag, string> = {
+  full: "var(--muted-foreground)",
+  legs: "var(--warning)",
+  lower: "var(--chart-5)",
+  pull: "var(--success)",
+  push: "var(--primary)",
+  upper: "var(--chart-4)",
+}
 
 function createFormId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -106,31 +125,56 @@ function createFormId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function createWorkoutDay(index: number): WorkoutDay {
-  return {
-    exercises: [],
-    id: createFormId(),
-    name: `Day ${index + 1}`,
-    scheduledDay: String((index + 1) % 7),
+function clampWeeks(value: number) {
+  if (WEEK_OPTIONS.includes(value)) {
+    return value
   }
+
+  return WEEK_OPTIONS.reduce((nearest, option) =>
+    Math.abs(option - value) < Math.abs(nearest - value) ? option : nearest,
+  )
 }
 
-function createWorkoutExerciseForm(): WorkoutExerciseForm {
-  return {
-    variationId: "",
-    id: createFormId(),
-    reps: "8-12",
-    sets: 3,
-    weight: "",
+function clampDaysPerWeek(value: number) {
+  if (DAYS_PER_WEEK_OPTIONS.includes(value)) {
+    return value
   }
+
+  return Math.min(6, Math.max(3, value || 4))
 }
 
-function estimateWorkoutDuration(exercises: WorkoutExerciseForm[]) {
-  if (exercises.length === 0) {
-    return 30
+function makeEmptySchedule(weeks: number, daysPerWeek: number): Schedule {
+  const activeDays = new Set(DAY_PATTERN_BY_DAYS_PER_WEEK[clampDaysPerWeek(daysPerWeek)] ?? DAY_PATTERN_BY_DAYS_PER_WEEK[4])
+
+  return Array.from({ length: weeks }, () =>
+    DAY_OPTIONS.map((_day, dayIndex) => (activeDays.has(dayIndex) ? { routine: null } : null)),
+  )
+}
+
+function resizeSchedule(current: Schedule, weeks: number, daysPerWeek: number) {
+  const next = makeEmptySchedule(weeks, daysPerWeek)
+
+  for (let weekIndex = 0; weekIndex < Math.min(current.length, weeks); weekIndex += 1) {
+    for (let dayIndex = 0; dayIndex < DAY_OPTIONS.length; dayIndex += 1) {
+      const existingSlot = current[weekIndex]?.[dayIndex]
+
+      if (existingSlot?.routine && next[weekIndex]?.[dayIndex]) {
+        next[weekIndex][dayIndex] = existingSlot
+      }
+    }
   }
 
-  return Math.max(30, Math.round(exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)))
+  return next
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((value) => value[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
 }
 
 function resolveExerciseOptionForEditor(
@@ -176,202 +220,710 @@ function resolveExerciseOptionForEditor(
   return undefined
 }
 
-function buildExerciseFallbackSelection(
+function mapWorkoutExerciseToRoutineExercise(
   workoutExercise: CoachProgram["workouts"][number]["exercises"][number],
-  resolvedOption?: ExerciseVariationOption,
-) {
+  exerciseOptions: ExerciseVariationOption[],
+): RoutineExercise {
+  const resolvedOption = resolveExerciseOptionForEditor(workoutExercise, exerciseOptions)
+
   return {
     fallbackEquipment: resolvedOption?.equipment ?? workoutExercise.variation.equipment,
     fallbackExerciseName: workoutExercise.exercise.name,
     fallbackIsDefault: workoutExercise.variation.isDefault,
     fallbackMuscleGroup: resolvedOption?.muscleGroup ?? workoutExercise.exercise.muscleGroup,
     fallbackVariationName: workoutExercise.variation.name,
+    id: workoutExercise.id || createFormId(),
+    reps: formatRepTarget({
+      reps: workoutExercise.sets[0]?.targetReps ?? 1,
+      repsMin: workoutExercise.sets[0]?.targetRepsMin,
+    }),
+    sets: workoutExercise.sets.length || 1,
+    variationId: resolvedOption?.id ?? workoutExercise.variation.id,
+    weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
   }
 }
 
-function mapProgramToWorkoutDays(program: CoachProgram, exerciseOptions: ExerciseVariationOption[]): WorkoutDay[] {
-  return program.workouts.map((workout, index) => ({
-    exercises: workout.exercises.map((exercise) => {
-      const resolvedOption = resolveExerciseOptionForEditor(exercise, exerciseOptions)
+function inferTag(name: string, index: number): RoutineTag {
+  const normalized = name.toLowerCase()
 
-      return {
-        ...buildExerciseFallbackSelection(exercise, resolvedOption),
-        variationId: resolvedOption?.id ?? exercise.variation.id,
-        id: exercise.id,
-        reps: formatRepTarget({
-          reps: exercise.sets[0]?.targetReps ?? 1,
-          repsMin: exercise.sets[0]?.targetRepsMin,
-        }),
-        sets: exercise.sets.length,
-        weight: exercise.sets[0]?.weight != null ? String(exercise.sets[0].weight) : "",
-      }
-    }),
-    id: workout.id,
-    name: workout.name,
-    scheduledDay: String(workout.scheduledDay ?? ((index + 1) % 7)),
-  }))
+  if (normalized.includes("push")) return "push"
+  if (normalized.includes("pull")) return "pull"
+  if (normalized.includes("leg")) return "legs"
+  if (normalized.includes("upper")) return "upper"
+  if (normalized.includes("lower")) return "lower"
+  if (normalized.includes("full")) return "full"
+
+  return ROUTINE_TAGS[index % ROUTINE_TAGS.length]
 }
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((value) => value[0])
-    .join("")
-}
-
-function getScheduledDayLabel(scheduledDay: string) {
-  return DAY_OPTIONS.find((option) => option.value === scheduledDay)?.label ?? "Unscheduled"
-}
-
-function mapImportedWorkoutsToWorkoutDays(workouts: CreateCoachProgramInput["workouts"]): WorkoutDay[] {
-  return workouts.map((workout, index) => ({
-    exercises: workout.exercises.map((exercise) => ({
-      variationId: exercise.variationId,
-      id: createFormId(),
-      reps: formatRepTarget({
-        reps: exercise.reps,
-        repsMin: exercise.repsMin,
-      }),
-      sets: exercise.sets,
-      weight: exercise.weight != null ? String(exercise.weight) : "",
-    })),
-    id: createFormId(),
+function mapWorkoutToRoutine(
+  workout: CoachProgram["workouts"][number],
+  index: number,
+  exerciseOptions: ExerciseVariationOption[],
+): Routine {
+  return {
+    exercises: workout.exercises.map((exercise) => mapWorkoutExerciseToRoutineExercise(exercise, exerciseOptions)),
+    id: workout.id || createFormId(),
     name: workout.name || `Day ${index + 1}`,
-    scheduledDay: String(workout.scheduledDay ?? ((index + 1) % 7)),
-  }))
+    tag: inferTag(workout.name, index),
+  }
 }
 
-function SortableWorkoutExerciseCard({
-  exercise,
-  exerciseOptions,
-  onRemove,
-  onUpdate,
-}: {
-  exercise: WorkoutExerciseForm
-  exerciseOptions: ExerciseVariationOption[]
-  onRemove: () => void
-  onUpdate: (patch: Partial<WorkoutExerciseForm>) => void
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: exercise.id })
+function getDayIndexFromScheduledDay(scheduledDay?: number) {
+  if (typeof scheduledDay !== "number") {
+    return 0
+  }
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 2 : 1,
+  const index = DAY_OPTIONS.findIndex((day) => day.scheduledDay === scheduledDay)
+  return index >= 0 ? index : 0
+}
+
+function mapProgramToSchedule(
+  program: CoachProgram,
+  weeks: number,
+  daysPerWeek: number,
+  exerciseOptions: ExerciseVariationOption[],
+) {
+  const schedule = makeEmptySchedule(weeks, daysPerWeek)
+  const occurrenceByDay = new Map<number, number>()
+  const routines = program.workouts.map((workout, index) => mapWorkoutToRoutine(workout, index, exerciseOptions))
+
+  program.workouts.forEach((workout, index) => {
+    const dayIndex = getDayIndexFromScheduledDay(workout.scheduledDay)
+    const nextOccurrence = occurrenceByDay.get(dayIndex) ?? 0
+    const weekIndex = Math.min(nextOccurrence, weeks - 1)
+
+    occurrenceByDay.set(dayIndex, nextOccurrence + 1)
+    schedule[weekIndex][dayIndex] = { routine: routines[index] }
+  })
+
+  return {
+    routines,
+    schedule,
+  }
+}
+
+function createEmptyRoutineExercise(): RoutineExercise {
+  return {
+    id: createFormId(),
+    reps: "8-12",
+    sets: 3,
+    variationId: "",
+    weight: "",
+  }
+}
+
+function estimateWorkoutDuration(exercises: RoutineExercise[]) {
+  if (exercises.length === 0) {
+    return 30
+  }
+
+  return Math.max(30, Math.round(exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)))
+}
+
+function cloneRoutineForSlot(routine: Routine): Routine {
+  return {
+    ...routine,
+    id: createFormId(),
+    exercises: routine.exercises.map((exercise) => ({
+      ...exercise,
+      id: createFormId(),
+    })),
+  }
+}
+
+function RoutineDot({ tag }: { tag: RoutineTag }) {
+  return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: TAG_DOT_COLOR[tag] }} />
+}
+
+function RoutineTagBadge({ tag }: { tag: RoutineTag }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+      <RoutineDot tag={tag} />
+      {tag}
+    </span>
+  )
+}
+
+function SessionSlot({
+  dayLabel,
+  onClick,
+  onToggleRest,
+  slot,
+}: {
+  dayLabel: string
+  onClick: () => void
+  onToggleRest: () => void
+  slot: ScheduleSlot
+}) {
+  const isRest = slot === null
+  const routine = slot?.routine ?? null
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group relative flex min-h-[100px] flex-col rounded-[8px] border p-3 text-left transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+        isRest
+          ? "border-dashed border-border bg-transparent hover:border-input"
+          : "border-border bg-muted/50 hover:border-input hover:bg-muted",
+      )}
+    >
+      <span className="flex items-center justify-between">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          {dayLabel}
+        </span>
+        {!isRest ? (
+          <span
+            role="button"
+            tabIndex={0}
+            title="Mark as rest day"
+            className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleRest()
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                event.stopPropagation()
+                onToggleRest()
+              }
+            }}
+          >
+            <X className="h-3 w-3" />
+          </span>
+        ) : null}
+      </span>
+
+      {routine ? (
+        <span className="mt-5 min-w-0">
+          <RoutineTagBadge tag={routine.tag} />
+          <span className="mt-2 block truncate text-[13px] font-medium text-foreground">{routine.name}</span>
+          <span className="mt-1 block font-mono text-[10px] text-muted-foreground tnum">
+            {routine.exercises.length} move{routine.exercises.length === 1 ? "" : "s"}
+          </span>
+        </span>
+      ) : isRest ? (
+        <span className="flex flex-1 items-center justify-center text-xs text-muted-foreground/50">Rest</span>
+      ) : (
+        <span className="flex flex-1 items-center justify-center text-muted-foreground">
+          <Plus className="h-4 w-4" />
+        </span>
+      )}
+    </button>
+  )
+}
+
+function RoutinePickerDialog({
+  library,
+  onClose,
+  onCreateNew,
+  onPick,
+  open,
+}: {
+  library: Routine[]
+  onClose: () => void
+  onCreateNew: () => void
+  onPick: (routine: Routine) => void
+  open: boolean
+}) {
+  const [query, setQuery] = useState("")
+  const visibleRoutines = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+
+    return library.filter((routine) => {
+      if (!normalized) {
+        return true
+      }
+
+      return [routine.name, routine.tag].join(" ").toLowerCase().includes(normalized)
+    })
+  }, [library, query])
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
+      <DialogContent className="z-[90] max-h-[72svh] overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[400px]">
+        <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-[15px] font-semibold">Pick a routine</DialogTitle>
+          </div>
+          <div className="relative pt-2">
+            <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search routines..."
+              className="h-9 bg-background pl-8 text-sm"
+            />
+          </div>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {visibleRoutines.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground">No routines match this search.</div>
+          ) : (
+            visibleRoutines.map((routine, index) => (
+              <button
+                key={routine.id}
+                type="button"
+                onClick={() => onPick(routine)}
+                className={cn(
+                  "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted",
+                  index < visibleRoutines.length - 1 && "border-b border-border",
+                )}
+              >
+                <RoutineDot tag={routine.tag} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-foreground">{routine.name}</span>
+                  <span className="label-micro mt-0.5 block">
+                    {routine.tag} · {routine.exercises.length} exercise{routine.exercises.length === 1 ? "" : "s"}
+                  </span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+
+        <DialogFooter className="border-t border-border px-5 py-3 sm:justify-center">
+          <Button type="button" variant="ghost" size="sm" className="text-primary" onClick={onCreateNew}>
+            <Plus className="h-3.5 w-3.5" />
+            Create new routine
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RoutineBuilderDialog({
+  exerciseOptions,
+  onClose,
+  onSave,
+  open,
+}: {
+  exerciseOptions: ExerciseVariationOption[]
+  onClose: () => void
+  onSave: (routine: Routine) => void
+  open: boolean
+}) {
+  const [name, setName] = useState("")
+  const [tag, setTag] = useState<RoutineTag>("push")
+  const [exercises, setExercises] = useState<RoutineExercise[]>([])
+  const [isExerciseSearchOpen, setIsExerciseSearchOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      setName("")
+      setTag("push")
+      setExercises([])
+      setIsExerciseSearchOpen(false)
+    }
+  }, [open])
+
+  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
+  const canSave = name.trim().length > 0 && exercises.length > 0 && exercises.every((exercise) => exercise.variationId)
+
+  const updateExercise = (exerciseId: string, patch: Partial<RoutineExercise>) => {
+    setExercises((current) =>
+      current.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...patch } : exercise)),
+    )
+  }
+
+  const moveExercise = (index: number, direction: -1 | 1) => {
+    setExercises((current) => {
+      const target = index + direction
+
+      if (target < 0 || target >= current.length) {
+        return current
+      }
+
+      const next = current.slice()
+      const moving = next[index]
+      next[index] = next[target]
+      next[target] = moving
+      return next
+    })
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-3 shadow-sm transition-all ${
-        isDragging ? "scale-[1.01] border-primary/40 shadow-md ring-2 ring-primary/15" : ""
-      }`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          className="flex h-10 w-10 shrink-0 touch-none items-center justify-center rounded-2xl border border-border/70 bg-background/90 text-muted-foreground hover:border-primary/30 hover:text-foreground sm:h-11 sm:w-11"
-          aria-label="Drag to reorder"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <ExercisePicker
-            selectedVariationId={exercise.variationId}
-            exercises={exerciseOptions}
-            fallbackSelection={{
-              equipment: exercise.fallbackEquipment,
-              exerciseName: exercise.fallbackExerciseName,
-              isDefault: exercise.fallbackIsDefault,
-              muscleGroup: exercise.fallbackMuscleGroup,
-              variationName: exercise.fallbackVariationName,
-            }}
-            onSelect={(variationId) => {
-              const selectedOption = exerciseOptions.find((option) => option.id === variationId)
+    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
+      <DialogContent className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[680px]">
+        <DialogHeader className="border-b border-border px-7 pb-4 pt-6 text-left">
+          <p className="label-micro">New routine</p>
+          <DialogTitle className="text-[23px] font-semibold tracking-[-0.02em]">
+            {name.trim() || "Untitled routine"}
+          </DialogTitle>
+          <p className="font-mono text-xs text-muted-foreground tnum">
+            {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
+          </p>
 
-              onUpdate({
-                fallbackEquipment: selectedOption?.equipment,
-                fallbackExerciseName: selectedOption?.exerciseName,
-                fallbackIsDefault: selectedOption?.isDefault,
-                fallbackMuscleGroup: selectedOption?.muscleGroup,
-                fallbackVariationName: selectedOption?.variationName,
-                variationId,
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Push day A"
+              className="h-10 flex-1 bg-background"
+            />
+            <div className="flex gap-1.5 overflow-x-auto">
+              {ROUTINE_TAGS.map((tagOption) => (
+                <button
+                  key={tagOption}
+                  type="button"
+                  onClick={() => setTag(tagOption)}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium capitalize transition-colors",
+                    tag === tagOption
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background hover:bg-muted",
+                  )}
+                >
+                  <RoutineDot tag={tagOption} />
+                  {tagOption}
+                </button>
+              ))}
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 py-5">
+          {exercises.length === 0 ? (
+            <div className="rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
+              No exercises yet. Add your first one.
+            </div>
+          ) : null}
+
+          <div className="space-y-2.5">
+            {exercises.map((exercise, index) => (
+              <div key={exercise.id} className="rounded-[10px] border border-border bg-card p-3">
+                <div className="flex items-center gap-3">
+                  <span className="w-5 text-right font-mono text-xs font-semibold text-muted-foreground tnum">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <ExercisePicker
+                      exercises={exerciseOptions}
+                      fallbackSelection={{
+                        equipment: exercise.fallbackEquipment,
+                        exerciseName: exercise.fallbackExerciseName,
+                        isDefault: exercise.fallbackIsDefault,
+                        muscleGroup: exercise.fallbackMuscleGroup,
+                        variationName: exercise.fallbackVariationName,
+                      }}
+                      selectedVariationId={exercise.variationId}
+                      onSelect={(variationId) => {
+                        const option = exerciseOptions.find((item) => item.id === variationId)
+
+                        updateExercise(exercise.id, {
+                          fallbackEquipment: option?.equipment,
+                          fallbackExerciseName: option?.exerciseName,
+                          fallbackIsDefault: option?.isDefault,
+                          fallbackMuscleGroup: option?.muscleGroup,
+                          fallbackVariationName: option?.variationName,
+                          variationId,
+                        })
+                      }}
+                    />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => moveExercise(index, -1)}
+                      disabled={index === 0}
+                      aria-label="Move exercise up"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => moveExercise(index, 1)}
+                      disabled={index === exercises.length - 1}
+                      aria-label="Move exercise down"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
+                      aria-label="Remove exercise"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2 pl-8">
+                  <NumberField
+                    label="Sets"
+                    value={exercise.sets}
+                    min={1}
+                    onChange={(value) => updateExercise(exercise.id, { sets: Math.max(1, Math.round(value)) })}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor={`${exercise.id}-reps`} className="label-micro">
+                      Reps range
+                    </Label>
+                    <Input
+                      id={`${exercise.id}-reps`}
+                      value={exercise.reps}
+                      onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })}
+                      className="h-9 bg-background text-center font-mono text-sm tnum"
+                      placeholder="8-12"
+                    />
+                  </div>
+                  <NumberField
+                    label="Kg"
+                    value={exercise.weight}
+                    min={0}
+                    step={0.5}
+                    onChange={(value) => updateExercise(exercise.id, { weight: value ? String(value) : "" })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-full border-dashed bg-transparent text-primary hover:bg-muted hover:text-primary"
+            onClick={() => setIsExerciseSearchOpen(true)}
+            disabled={exerciseOptions.length === 0}
+          >
+            <Plus className="h-4 w-4" />
+            Add exercise
+          </Button>
+        </div>
+
+        <DialogFooter className="border-t border-border px-7 py-4">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={!canSave}
+            onClick={() => {
+              if (!canSave) {
+                return
+              }
+
+              onSave({
+                exercises,
+                id: createFormId(),
+                name: name.trim(),
+                tag,
               })
             }}
-          />
+          >
+            Save routine
+          </Button>
+        </DialogFooter>
+
+        <ExerciseSearchDialog
+          existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
+          exerciseOptions={exerciseOptions}
+          open={isExerciseSearchOpen}
+          onClose={() => setIsExerciseSearchOpen(false)}
+          onPick={(option) => {
+            setExercises((current) => [
+              ...current,
+              {
+                ...createEmptyRoutineExercise(),
+                fallbackEquipment: option.equipment,
+                fallbackExerciseName: option.exerciseName,
+                fallbackIsDefault: option.isDefault,
+                fallbackMuscleGroup: option.muscleGroup,
+                fallbackVariationName: option.variationName,
+                variationId: option.id,
+              },
+            ])
+            setIsExerciseSearchOpen(false)
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ExerciseSearchDialog({
+  existingVariationIds,
+  exerciseOptions,
+  onClose,
+  onPick,
+  open,
+}: {
+  existingVariationIds: string[]
+  exerciseOptions: ExerciseVariationOption[]
+  onClose: () => void
+  onPick: (option: ExerciseVariationOption) => void
+  open: boolean
+}) {
+  const [query, setQuery] = useState("")
+  const [muscleGroup, setMuscleGroup] = useState("all")
+  const existingSet = useMemo(() => new Set(existingVariationIds), [existingVariationIds])
+  const muscleGroups = useMemo(
+    () => ["all", ...Array.from(new Set(exerciseOptions.map((option) => option.muscleGroup))).sort((left, right) => left.localeCompare(right))],
+    [exerciseOptions],
+  )
+  const visibleExercises = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+
+    return exerciseOptions
+      .slice()
+      .sort((left, right) => {
+        const nameComparison = left.exerciseName.localeCompare(right.exerciseName)
+
+        if (nameComparison !== 0) {
+          return nameComparison
+        }
+
+        return left.variationName.localeCompare(right.variationName)
+      })
+      .filter((option) => {
+        if (muscleGroup !== "all" && option.muscleGroup !== muscleGroup) {
+          return false
+        }
+
+        if (!normalizedQuery) {
+          return true
+        }
+
+        return [
+          option.exerciseName,
+          option.variationName,
+          option.name,
+          option.muscleGroup,
+          option.equipment ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery)
+      })
+  }, [exerciseOptions, muscleGroup, query])
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("")
+      setMuscleGroup("all")
+    }
+  }, [open])
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
+      <DialogContent className="z-[110] flex h-[82svh] max-h-[82svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[480px]">
+        <DialogHeader className="border-b border-border px-6 pb-3 pt-5 text-left">
+          <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">Add exercise</DialogTitle>
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search..."
+              className="h-10 rounded-[4px] bg-background pl-9 text-sm focus-visible:ring-primary/30"
+              autoFocus
+            />
+          </div>
+          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
+            {muscleGroups.map((group) => {
+              const active = muscleGroup === group
+
+              return (
+                <button
+                  key={group}
+                  type="button"
+                  onClick={() => setMuscleGroup(group)}
+                  className={cn(
+                    "h-8 shrink-0 rounded-full border px-3 text-sm font-medium capitalize transition-colors",
+                    active
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  {group === "all" ? "All" : group}
+                </button>
+              )
+            })}
+          </div>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {visibleExercises.length === 0 ? (
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">No exercises match this search.</div>
+          ) : (
+            visibleExercises.map((option) => {
+              const added = existingSet.has(option.id)
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={added}
+                  onClick={() => onPick(option)}
+                  className={cn(
+                    "flex w-full items-center gap-4 border-b border-border px-6 py-3 text-left transition-colors",
+                    added ? "cursor-default opacity-55" : "hover:bg-muted",
+                  )}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">{option.exerciseName}</span>
+                    <span className="label-micro mt-0.5 block truncate">
+                      {option.muscleGroup} · {option.equipment || "Bodyweight"}
+                    </span>
+                  </span>
+                  {added ? (
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-success">Added</span>
+                  ) : (
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+              )
+            })
+          )}
         </div>
-      </div>
 
-      <div className="mt-3 flex items-center gap-2 pl-[3.25rem] sm:gap-3 sm:pl-[3.5rem]">
-          <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 sm:gap-3">
-          <div className="flex h-10 min-w-0 flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:px-2">
-            <Label htmlFor={`${exercise.id}-sets`} className="sr-only">
-              Sets
-            </Label>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-              Sets
-            </span>
-            <Input
-              id={`${exercise.id}-sets`}
-              type="number"
-              value={exercise.sets}
-              min={1}
-              onChange={(event) => onUpdate({ sets: Number(event.target.value) || 1 })}
-              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            />
-          </div>
+        <DialogFooter className="border-t border-border px-6 py-3 sm:justify-center">
+          <Button type="button" variant="ghost" size="sm" className="text-primary hover:text-primary" disabled>
+            <Plus className="h-3.5 w-3.5" />
+            Create custom exercise
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
-          <div className="flex h-10 min-w-0 flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:px-2">
-            <Label htmlFor={`${exercise.id}-reps`} className="sr-only">
-              Reps
-            </Label>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-              Reps
-            </span>
-            <Input
-              id={`${exercise.id}-reps`}
-              type="text"
-              value={exercise.reps}
-              inputMode="numeric"
-              onChange={(event) => onUpdate({ reps: event.target.value })}
-              placeholder="8-12"
-              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            />
-          </div>
-
-          <div className="flex h-10 min-w-0 flex-col items-center justify-center rounded-xl border border-border/70 bg-background/90 px-1.5 sm:h-11 sm:px-2">
-            <Label htmlFor={`${exercise.id}-weight`} className="sr-only">
-              Weight
-            </Label>
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:text-[10px]">
-              Weight
-            </span>
-            <Input
-              id={`${exercise.id}-weight`}
-              type="number"
-              value={exercise.weight}
-              min={0}
-              step="0.5"
-              onChange={(event) => onUpdate({ weight: event.target.value })}
-              placeholder="0"
-              className="h-5 w-full border-0 bg-transparent px-0 text-center text-sm font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0"
-            />
-          </div>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onRemove}
-          className="h-10 w-10 shrink-0 rounded-2xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive sm:h-11 sm:w-11"
-          aria-label="Remove exercise"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+function NumberField({
+  label,
+  min,
+  onChange,
+  step = 1,
+  value,
+}: {
+  label: string
+  min?: number
+  onChange: (value: number) => void
+  step?: number
+  value: number | string
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label className="label-micro">{label}</Label>
+      <Input
+        type="number"
+        value={value}
+        min={min}
+        step={step}
+        onChange={(event) => onChange(event.target.value === "" ? 0 : Number(event.target.value))}
+        className="h-9 bg-background text-center font-mono text-sm tnum"
+      />
     </div>
   )
 }
@@ -379,35 +931,36 @@ function SortableWorkoutExerciseCard({
 export function ProgramEditor({
   initialExerciseOptions = [],
   initialTraineeOptions = [],
+  onClose,
+  onSaved,
   programId,
 }: ProgramEditorProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoading: authLoading, session } = useAuth()
   const hasInitialEditorData = initialExerciseOptions.length > 0 || initialTraineeOptions.length > 0
-  const importInputRef = useRef<HTMLInputElement | null>(null)
+  const adjustForTraineeId = programId ? searchParams.get("adjustTrainee") ?? undefined : undefined
+  const isAdjustMode = Boolean(programId && adjustForTraineeId)
+
   const [programName, setProgramName] = useState("")
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
-  const [difficulty, setDifficulty] = useState("beginner")
+  const [daysPerWeek, setDaysPerWeek] = useState("4")
+  const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
   const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>(initialTraineeOptions)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
-  const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>([])
-  const [expandedWorkoutDayIds, setExpandedWorkoutDayIds] = useState<Record<string, boolean>>({})
-  const [currentProgram, setCurrentProgram] = useState<CoachProgram | null>(null)
+  const [routineLibrary, setRoutineLibrary] = useState<Routine[]>([])
+  const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8, 4))
+  const [activeWeek, setActiveWeek] = useState(0)
+  const [pickerSlot, setPickerSlot] = useState<PickerSlot | null>(null)
+  const [isCreatingRoutine, setIsCreatingRoutine] = useState(false)
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
+  const [clientQuery, setClientQuery] = useState("")
   const [isLoadingPage, setIsLoadingPage] = useState(programId ? true : !hasInitialEditorData)
   const [isSaving, setIsSaving] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [importFileName, setImportFileName] = useState<string | null>(null)
-  const [importInputKey, setImportInputKey] = useState(0)
-  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
-  const [isImportingWorkbook, setIsImportingWorkbook] = useState(false)
-  const adjustForTraineeId = programId ? searchParams.get("adjustTrainee") ?? undefined : undefined
-  const isAdjustMode = Boolean(programId && adjustForTraineeId)
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -448,17 +1001,23 @@ export function ProgramEditor({
         setTraineeOptions(nextTraineeOptions)
 
         if (program) {
-          setCurrentProgram(program)
+          const nextWeeks = clampWeeks(program.duration || 8)
+          const nextDaysPerWeek = clampDaysPerWeek(program.workoutsPerWeek || program.workouts.length || 4)
+          const mapped = mapProgramToSchedule(program, nextWeeks, nextDaysPerWeek, nextExerciseOptions)
+
           setProgramName(program.name)
           setDescription(program.description ?? "")
-          setDuration(String(program.duration))
+          setDuration(String(nextWeeks))
+          setDaysPerWeek(String(nextDaysPerWeek))
           setDifficulty(program.difficulty)
           setSelectedTraineeIds(
             adjustForTraineeId
               ? [adjustForTraineeId]
               : (program.assignedTo ?? program.assignedTrainees.map((trainee) => trainee.id)),
           )
-          setWorkoutDays(mapProgramToWorkoutDays(program, nextExerciseOptions))
+          setRoutineLibrary(mapped.routines)
+          setSchedule(mapped.schedule)
+          setActiveWeek(0)
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -476,148 +1035,91 @@ export function ProgramEditor({
     return () => {
       cancelled = true
     }
-  }, [adjustForTraineeId, authLoading, initialExerciseOptions, initialTraineeOptions, programId, session?.access_token])
+  }, [adjustForTraineeId, authLoading, initialExerciseOptions, initialTraineeOptions, programId, session?.access_token, hasInitialEditorData])
 
-  useEffect(() => {
-    if (programId || workoutDays.length > 0 || exerciseOptions.length === 0 || isLoadingPage) {
-      return
-    }
-
-    const initialDay = createWorkoutDay(0)
-    setWorkoutDays([initialDay])
-    setExpandedWorkoutDayIds({ [initialDay.id]: true })
-  }, [exerciseOptions, isLoadingPage, programId, workoutDays.length])
-
-  useEffect(() => {
-    setExpandedWorkoutDayIds((current) => {
-      const next = { ...current }
-      let changed = false
-      const activeDayIds = new Set(workoutDays.map((day) => day.id))
-
-      workoutDays.forEach((day) => {
-        if (!(day.id in next)) {
-          next[day.id] = false
-          changed = true
-        }
-      })
-
-      Object.keys(next).forEach((dayId) => {
-        if (!activeDayIds.has(dayId)) {
-          delete next[dayId]
-          changed = true
-        }
-      })
-
-      return changed ? next : current
-    })
-  }, [workoutDays])
-
-  const addWorkoutDay = () => {
-    setWorkoutDays((current) => {
-      const nextDay = createWorkoutDay(current.length)
-
-      setExpandedWorkoutDayIds((expanded) => ({
-        ...expanded,
-        [nextDay.id]: true,
-      }))
-
-      return [...current, nextDay]
-    })
-  }
-
-  const addExercise = (dayId: string) => {
-    setError((current) => (current === EXERCISE_LIBRARY_EMPTY_ERROR ? null : current))
-    
-    if (exerciseOptions.length === 0) {
-      setError(EXERCISE_LIBRARY_EMPTY_ERROR)
-      return
-    }
-
-    setWorkoutDays((current) =>
-      current.map((day) =>
-        day.id === dayId
-          ? {
-              ...day,
-              exercises: [
-              ...day.exercises,
-                createWorkoutExerciseForm(),
-              ],
-            }
-          : day,
-      ),
-    )
-  }
-
-  const removeExercise = (dayId: string, exerciseId: string) => {
-    setWorkoutDays((current) =>
-      current.map((day) =>
-        day.id === dayId
-          ? {
-              ...day,
-              exercises: day.exercises.filter((exercise) => exercise.id !== exerciseId),
-            }
-          : day,
-      ),
-    )
-  }
-
-  const removeDay = (dayId: string) => {
-    setWorkoutDays((current) => current.filter((day) => day.id !== dayId))
-  }
-
-  const toggleWorkoutDayExpanded = (dayId: string) => {
-    setExpandedWorkoutDayIds((current) => ({
-      ...current,
-      [dayId]: !(current[dayId] ?? false),
-    }))
-  }
-
-  const updateExerciseInDay = (dayId: string, exerciseId: string, patch: Partial<WorkoutExerciseForm>) => {
-    setWorkoutDays((current) =>
-      current.map((day) =>
-        day.id === dayId
-          ? {
-              ...day,
-              exercises: day.exercises.map((entry) => (entry.id === exerciseId ? { ...entry, ...patch } : entry)),
-            }
-          : day,
-      ),
-    )
-  }
-
-  const handleDayExerciseDragEnd = (dayId: string) => (event: DragEndEvent) => {
-    const { active, over } = event
-
-    if (!over || active.id === over.id) {
-      return
-    }
-
-    setWorkoutDays((current) =>
-      current.map((day) => {
-        if (day.id !== dayId) {
-          return day
-        }
-
-        const oldIndex = day.exercises.findIndex((exercise) => exercise.id === active.id)
-        const newIndex = day.exercises.findIndex((exercise) => exercise.id === over.id)
-
-        if (oldIndex < 0 || newIndex < 0) {
-          return day
-        }
-
-        return {
-          ...day,
-          exercises: arrayMove(day.exercises, oldIndex, newIndex),
-        }
-      }),
-    )
-  }
-
-  const dndSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-    useSensor(KeyboardSensor),
+  const totalWeeks = Number(duration) || 8
+  const totalDaysPerWeek = Number(daysPerWeek) || 4
+  const filledSessions = schedule.reduce(
+    (sum, week) => sum + week.filter((slot) => Boolean(slot?.routine?.exercises.length)).length,
+    0,
   )
+  const totalProgramSlots = schedule.reduce((sum, week) => sum + week.filter((slot) => slot !== null).length, 0)
+  const completion = totalProgramSlots > 0 ? Math.min(100, Math.round((filledSessions / totalProgramSlots) * 100)) : 0
+  const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving
+  const activeWeekSlots = schedule[activeWeek] ?? schedule[0] ?? []
+
+  const filteredTrainees = useMemo(() => {
+    const normalized = clientQuery.trim().toLowerCase()
+
+    if (!normalized) {
+      return traineeOptions
+    }
+
+    return traineeOptions.filter((trainee) =>
+      [trainee.name, trainee.email, trainee.phone ?? ""].join(" ").toLowerCase().includes(normalized),
+    )
+  }, [clientQuery, traineeOptions])
+
+  const handleDurationChange = (nextValue: string) => {
+    const nextWeeks = Number(nextValue)
+
+    setDuration(nextValue)
+    setSchedule((current) => resizeSchedule(current, nextWeeks, totalDaysPerWeek))
+    setActiveWeek((current) => Math.min(current, nextWeeks - 1))
+  }
+
+  const handleDaysPerWeekChange = (nextValue: string) => {
+    const nextDaysPerWeek = Number(nextValue)
+
+    setDaysPerWeek(nextValue)
+    setSchedule((current) => resizeSchedule(current, totalWeeks, nextDaysPerWeek))
+  }
+
+  const assignRoutineToPickerSlot = (routine: Routine) => {
+    if (!pickerSlot) {
+      return
+    }
+
+    setSchedule((current) =>
+      current.map((week, weekIndex) =>
+        weekIndex === pickerSlot.weekIndex
+          ? week.map((slot, dayIndex) =>
+              dayIndex === pickerSlot.dayIndex ? { routine: cloneRoutineForSlot(routine) } : slot,
+            )
+          : week,
+      ),
+    )
+    setPickerSlot(null)
+  }
+
+  const toggleRestDay = (weekIndex: number, dayIndex: number) => {
+    setSchedule((current) =>
+      current.map((week, currentWeekIndex) =>
+        currentWeekIndex === weekIndex
+          ? week.map((slot, currentDayIndex) =>
+              currentDayIndex === dayIndex ? (slot === null ? { routine: null } : null) : slot,
+            )
+          : week,
+      ),
+    )
+  }
+
+  const copyActiveWeekToAll = () => {
+    const sourceWeek = schedule[activeWeek]
+
+    if (!sourceWeek) {
+      return
+    }
+
+    setSchedule((current) =>
+      current.map((week, weekIndex) =>
+        weekIndex === activeWeek
+          ? week
+          : sourceWeek.map((slot) => (slot?.routine ? { routine: cloneRoutineForSlot(slot.routine) } : slot === null ? null : { routine: null })),
+      ),
+    )
+    setNotice(`Copied week ${activeWeek + 1} to all weeks.`)
+  }
 
   const toggleTraineeAssignment = (traineeId: string, checked: boolean) => {
     if (isAdjustMode && adjustForTraineeId) {
@@ -630,50 +1132,65 @@ export function ProgramEditor({
     )
   }
 
-  const buildProgramPayload = (): CreateCoachProgramInput => ({
-    assignToUserIds: selectedTraineeIds,
-    description: description.trim() || undefined,
-    difficulty: difficulty as "beginner" | "intermediate" | "advanced",
-    duration: Number(duration),
-    name: programName.trim(),
-    workouts: workoutDays
-      .map((day, index) => ({
-        duration: estimateWorkoutDuration(day.exercises),
-        exercises: day.exercises.map((exercise, exerciseIndex) => {
-          if (!exercise.variationId.trim()) {
-            throw new Error(
-              `Hãy chọn bài tập cho ${day.name.trim() || `Day ${index + 1}`} / bài tập ${exerciseIndex + 1}.`,
-            )
-          }
+  const buildProgramPayload = (): CreateCoachProgramInput => {
+    const workouts = schedule.flatMap((week, weekIndex) =>
+      week.flatMap((slot, dayIndex) => {
+        const routine = slot?.routine
 
-          const parsedWeight = Number(exercise.weight)
-          const repTarget = parseRepTargetText(exercise.reps)
+        if (!routine || routine.exercises.length === 0) {
+          return []
+        }
 
-          if (!repTarget) {
-            throw new Error(
-              `Reps range không hợp lệ ở ${day.name.trim() || `Day ${index + 1}`} / bài tập ${exerciseIndex + 1}. Dùng dạng 8-12 hoặc 10.`,
-            )
-          }
+        return [
+          {
+            duration: estimateWorkoutDuration(routine.exercises),
+            exercises: routine.exercises.map((exercise, exerciseIndex) => {
+              if (!exercise.variationId.trim()) {
+                throw new Error(
+                  `Hãy chọn bài tập cho ${routine.name.trim() || `Week ${weekIndex + 1} day ${dayIndex + 1}`} / bài tập ${exerciseIndex + 1}.`,
+                )
+              }
 
-          return {
-            reps: repTarget.reps,
-            repsMin: repTarget.repsMin,
-            variationId: exercise.variationId,
-            sets: exercise.sets,
-            weight:
-              exercise.weight.trim() && Number.isFinite(parsedWeight)
-                ? Math.max(0, parsedWeight)
-                : undefined,
-          }
-        }),
-        name: day.name.trim() || `Day ${index + 1}`,
-        scheduledDay: Number(day.scheduledDay),
-      }))
-      .filter((day) => day.exercises.length > 0),
-  })
+              const repTarget = parseRepTargetText(exercise.reps)
+
+              if (!repTarget) {
+                throw new Error(
+                  `Reps range không hợp lệ ở ${routine.name.trim() || `Week ${weekIndex + 1} day ${dayIndex + 1}`} / bài tập ${exerciseIndex + 1}. Dùng dạng 8-12 hoặc 10.`,
+                )
+              }
+
+              const parsedWeight = Number(exercise.weight)
+
+              return {
+                reps: repTarget.reps,
+                repsMin: repTarget.repsMin,
+                sets: exercise.sets,
+                variationId: exercise.variationId,
+                weight:
+                  exercise.weight.trim() && Number.isFinite(parsedWeight)
+                    ? Math.max(0, parsedWeight)
+                    : undefined,
+              }
+            }),
+            name: routine.name.trim() || `Week ${weekIndex + 1} ${DAY_OPTIONS[dayIndex].label}`,
+            scheduledDay: DAY_OPTIONS[dayIndex].scheduledDay,
+          },
+        ]
+      }),
+    )
+
+    return {
+      assignToUserIds: selectedTraineeIds,
+      description: description.trim() || undefined,
+      difficulty,
+      duration: totalWeeks,
+      name: programName.trim(),
+      workouts,
+    }
+  }
 
   const handleSaveProgram = async () => {
-    if (!session?.access_token) {
+    if (!session?.access_token || !canSave) {
       return
     }
 
@@ -682,22 +1199,13 @@ export function ProgramEditor({
     try {
       payload = buildProgramPayload()
     } catch (buildError) {
-      setError(buildError instanceof Error ? buildError.message : "Không thể chuẩn hóa rep range cho program.")
-      return
-    }
-
-    if (!payload.name) {
-      setError("Tên chương trình không được để trống.")
-      return
-    }
-
-    if (payload.workouts.length === 0) {
-      setError("Program cần ít nhất một buổi tập có bài tập.")
+      setError(buildError instanceof Error ? buildError.message : "Không thể chuẩn hóa dữ liệu program.")
       return
     }
 
     setIsSaving(true)
     setError(null)
+    setNotice(null)
 
     try {
       const savedProgram =
@@ -707,11 +1215,17 @@ export function ProgramEditor({
             ? await updateCoachProgram(session.access_token, programId, payload)
             : await createCoachProgram(session.access_token, payload)
 
-      setCurrentProgram(savedProgram)
-      setSelectedTraineeIds(savedProgram.assignedTo ?? savedProgram.assignedTrainees.map((trainee) => trainee.id))
+      if (onSaved || onClose) {
+        onSaved?.(savedProgram)
+        onClose?.()
+        router.refresh()
+        return savedProgram
+      }
 
-      router.push(adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : `/coach/programs/${savedProgram.id}`)
+      router.push(adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs")
       router.refresh()
+
+      return savedProgram
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Không thể lưu program.")
     } finally {
@@ -719,641 +1233,291 @@ export function ProgramEditor({
     }
   }
 
-  const handleDeleteProgram = async () => {
-    if (!session?.access_token || !programId) {
-      return
-    }
-
-    setIsDeleting(true)
-    setError(null)
-
-    try {
-      await deleteCoachProgram(session.access_token, programId)
-      setIsDeleteDialogOpen(false)
-      router.push("/coach/programs")
-      router.refresh()
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Không thể xóa program.")
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-  const handleDownloadTemplate = async () => {
-    setIsDownloadingTemplate(true)
-    setError(null)
-    setNotice(null)
-
-    try {
-      await downloadCoachProgramTemplate(exerciseOptions, traineeOptions)
-      setNotice("Downloaded Excel template for coach programs.")
-    } catch (templateError) {
-      setError(templateError instanceof Error ? templateError.message : "Không thể tạo file mẫu program.")
-    } finally {
-      setIsDownloadingTemplate(false)
-    }
-  }
-
-  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-
-    if (!file) {
-      return
-    }
-
-    setIsImportingWorkbook(true)
-    setError(null)
-    setNotice(null)
-
-    try {
-      const importedProgram = await importCoachProgramTemplate(file, exerciseOptions, traineeOptions)
-      const importedWorkoutDays = mapImportedWorkoutsToWorkoutDays(importedProgram.workouts)
-
-      if (typeof importedProgram.name === "string") {
-        setProgramName(importedProgram.name)
-      }
-
-      if (typeof importedProgram.description === "string") {
-        setDescription(importedProgram.description)
-      }
-
-      if (typeof importedProgram.duration === "number") {
-        setDuration(String(importedProgram.duration))
-      }
-
-      if (importedProgram.difficulty) {
-        setDifficulty(importedProgram.difficulty)
-      }
-
-      if (importedProgram.assignToUserIds && !isAdjustMode) {
-        setSelectedTraineeIds(importedProgram.assignToUserIds)
-      }
-
-      setWorkoutDays(importedWorkoutDays)
-      setExpandedWorkoutDayIds(
-        Object.fromEntries(importedWorkoutDays.map((day) => [day.id, true])),
-      )
-      setImportFileName(file.name)
-      setNotice(`Imported ${importedWorkoutDays.length} workout day${importedWorkoutDays.length === 1 ? "" : "s"} from ${file.name}. Review the form, then save the program.`)
-    } catch (importError) {
-      setError(importError instanceof Error ? importError.message : "Không thể import program từ Excel.")
-    } finally {
-      setImportInputKey((current) => current + 1)
-      setIsImportingWorkbook(false)
-    }
-  }
-
   if (isLoadingPage) {
     return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">Loading program...</div>
   }
 
-  const selectedTrainees = traineeOptions.filter((trainee) => selectedTraineeIds.includes(trainee.id))
-  const adjustTrainee = adjustForTraineeId ? traineeOptions.find((trainee) => trainee.id === adjustForTraineeId) : undefined
-
   return (
-    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 md:px-6" aria-busy={isSaving}>
+    <div className="fixed inset-0 z-[60] flex min-h-screen items-start justify-center overflow-y-auto bg-foreground/45 px-0 py-0 backdrop-blur-sm md:px-1 md:py-1" aria-busy={isSaving}>
       {isSaving ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.94)_100%)] p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
+          <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)]">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
             <h2 className="mt-5 text-xl font-semibold">Saving program...</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Updating workouts, rep ranges, and trainee assignments. Please keep this tab open.
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground">Updating workouts, rep targets, and assignments.</p>
+          </div>
+        </div>
+      ) : null}
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-border/70 bg-background/80 px-4 py-3">
-                <div className="flex items-center justify-center gap-2 text-primary">
-                  <Dumbbell className="h-4 w-4" />
-                  <span className="text-sm font-semibold">{workoutDays.length}</span>
-                </div>
-                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  {workoutDays.length === 1 ? "Workout Day" : "Workout Days"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-background/80 px-4 py-3">
-                <div className="flex items-center justify-center gap-2 text-primary">
-                  <Users className="h-4 w-4" />
-                  <span className="text-sm font-semibold">{selectedTraineeIds.length}</span>
-                </div>
-                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  {selectedTraineeIds.length === 1 ? "Trainee" : "Trainees"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-border/70 bg-background/80 px-4 py-3 text-left">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Program</p>
-              <p className="mt-1 truncate text-sm font-medium text-foreground">
-                {programName.trim() || (programId ? "Current Program" : "New Program")}
+      <div className="flex w-full max-w-[880px] flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_24px_60px_-12px_rgba(13,13,11,0.18)]">
+        <div className="border-b border-border px-7 pb-[18px] pt-6">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="label-micro mb-1.5">{isAdjustMode ? "Adjust program" : programId ? "Edit program" : "New program"}</p>
+              <h1 className="truncate text-[23px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+                {programName.trim() || "Untitled program"}
+              </h1>
+              <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
+                {totalWeeks} weeks · {totalDaysPerWeek} days/week · {filledSessions}/{totalProgramSlots} sessions filled
               </p>
             </div>
+            {onClose ? (
+              <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close editor">
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon-sm" asChild>
+                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} aria-label="Close editor">
+                  <X className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+          </div>
+
+          <div className="grid gap-2.5 md:grid-cols-[1.35fr_0.82fr_0.9fr_1fr]">
+            <Input
+              value={programName}
+              onChange={(event) => setProgramName(event.target.value)}
+              placeholder="e.g. Strength block - 12w"
+              className="bg-background"
+            />
+            <Select value={duration} onValueChange={handleDurationChange}>
+              <SelectTrigger className="bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card">
+                {WEEK_OPTIONS.map((weekCount) => (
+                  <SelectItem key={weekCount} value={String(weekCount)}>
+                    {weekCount} weeks
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
+              <SelectTrigger className="bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card">
+                {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
+                  <SelectItem key={dayCount} value={String(dayCount)}>
+                    {dayCount} days/week
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
+              <SelectTrigger className="bg-background capitalize">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card">
+                {DIFFICULTY_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option} className="capitalize">
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="mt-3 grid gap-2.5 md:grid-cols-[1fr_auto]">
+            <Input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Short description (e.g. Heavy compounds Mon/Thu, accessory volume Tue/Sat)"
+              className="h-9 bg-background text-[13px]"
+            />
+            <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsAssignDialogOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+              Assign clients
+              {selectedTraineeIds.length > 0 ? (
+                <Badge variant="micro" className="ml-1 bg-muted">
+                  {selectedTraineeIds.length}
+                </Badge>
+              ) : null}
+            </Button>
           </div>
         </div>
-      ) : null}
 
-      <div className="mb-4 flex items-center gap-3 sm:mb-6">
-        <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>
-          <Button variant="ghost" size="icon" className="shrink-0">
-            <ArrowLeft className="h-5 w-5" />
+        <div className="flex min-h-[66px] flex-wrap items-center gap-3 border-b border-border bg-muted px-7 py-3">
+          <p className="label-micro">Week</p>
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
+            {Array.from({ length: totalWeeks }).map((_, index) => {
+              const week = schedule[index] ?? []
+              const weekTotal = week.filter((slot) => slot !== null).length
+              const weekFilled = week.filter((slot) => Boolean(slot?.routine?.exercises.length)).length
+              const isActive = activeWeek === index
+              const isComplete = weekTotal > 0 && weekFilled === weekTotal
+
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setActiveWeek(index)}
+                  className={cn(
+                    "flex min-w-[38px] flex-col items-center rounded border px-2.5 py-1 font-mono text-xs transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+                    isActive
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  w{index + 1}
+                  <span
+                    className={cn(
+                      "mt-1 h-1 w-1 rounded-full",
+                      isComplete ? "bg-success" : isActive ? "bg-muted-foreground" : "bg-muted-foreground/30",
+                    )}
+                  />
+                </button>
+              )
+            })}
+          </div>
+          <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={copyActiveWeekToAll}>
+            <Copy className="h-3.5 w-3.5" />
+            Copy w{activeWeek + 1} to all
           </Button>
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold sm:text-2xl">
-            {isAdjustMode ? "Adjust plan for trainee" : programId ? currentProgram?.name || "Program Details" : "Create new program"}
-          </h1>
-          <p className="truncate text-sm text-muted-foreground">
-            {isAdjustMode
-              ? "Create a trainee-specific copy without changing the original shared program."
-              : programId
-                ? "Update or remove this saved program"
-                : "Save directly to Prisma/Postgres"}
-          </p>
         </div>
-      </div>
 
-      {isAdjustMode && adjustTrainee ? (
-        <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-primary">Adjust mode</p>
-          <p className="mt-2 text-sm text-foreground">
-            You are creating a dedicated plan copy for <span className="font-semibold">{adjustTrainee.name}</span>.
-            Other trainees assigned to the original program will stay unchanged.
-          </p>
-        </div>
-      ) : null}
+        <div className="px-7 py-5">
+          {error ? (
+            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+          {notice ? (
+            <div className="mb-4 rounded-[10px] border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+              {notice}
+            </div>
+          ) : null}
 
-      {error ? (
-        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
+          <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-7">
+            {DAY_OPTIONS.map((day, dayIndex) => (
+              <SessionSlot
+                key={day.scheduledDay}
+                dayLabel={day.label}
+                slot={activeWeekSlots[dayIndex] ?? null}
+                onClick={() => {
+                  if (activeWeekSlots[dayIndex] === null) {
+                    toggleRestDay(activeWeek, dayIndex)
+                    return
+                  }
 
-      {notice ? (
-        <div className="mb-4 rounded-xl border border-emerald-300/40 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {notice}
-        </div>
-      ) : null}
-
-      {selectedTrainees.length ? (
-        <div className="mb-4 rounded-xl border border-border bg-card p-4 sm:p-6">
-          <div className="mb-3 flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-base font-semibold sm:text-lg">Selected Trainees</h2>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {selectedTrainees.map((trainee) => (
-              <Link
-                key={trainee.id}
-                href={`/coach/trainees/${trainee.id}`}
-                className="flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-2 text-sm transition-colors hover:border-primary/30"
-              >
-                <Avatar className="h-7 w-7">
-                  <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                  <AvatarFallback className="text-xs">{getInitials(trainee.name)}</AvatarFallback>
-                </Avatar>
-                <span>{trainee.name}</span>
-              </Link>
+                  setPickerSlot({ dayIndex, weekIndex: activeWeek })
+                }}
+                onToggleRest={() => toggleRestDay(activeWeek, dayIndex)}
+              />
             ))}
           </div>
+
+          <div className="mt-5 border-t border-border pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="label-micro">Program completion</p>
+              <span className="font-mono text-[11px] text-muted-foreground tnum">{completion}%</span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-border">
+              <div
+                className={cn("h-full transition-[width] duration-200", completion === 100 ? "bg-success" : "bg-primary")}
+                style={{ width: `${completion}%` }}
+              />
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              Tap a session to swap routine · tap a rest day to add a session · use "Copy w{activeWeek + 1} to all" if every week is identical.
+            </p>
+          </div>
         </div>
-      ) : null}
 
-      <div className="space-y-4 sm:space-y-6">
-              <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-                <h2 className="text-base font-semibold mb-4 sm:text-lg">Basic Information</h2>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name" className="text-sm">
-                      Program name
-                    </Label>
-                    <Input
-                      id="name"
-                      value={programName}
-                      onChange={(event) => setProgramName(event.target.value)}
-                      placeholder="e.g. Beginner Strength Builder"
-                      className="mt-1.5 bg-muted/30 border-border"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description" className="text-sm">
-                      Description
-                    </Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Short summary of the program..."
-                      className="mt-1.5 bg-muted/30 border-border min-h-[80px]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div>
-                      <Label htmlFor="duration" className="text-sm">
-                        Duration (weeks)
-                      </Label>
-                      <Select value={duration} onValueChange={setDuration}>
-                        <SelectTrigger className="mt-1.5 bg-muted/30 border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          {[4, 6, 8, 10, 12, 16].map((weekCount) => (
-                            <SelectItem key={weekCount} value={String(weekCount)}>
-                              {weekCount} weeks
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="difficulty" className="text-sm">
-                        Difficulty
-                      </Label>
-                      <Select value={difficulty} onValueChange={setDifficulty}>
-                        <SelectTrigger className="mt-1.5 bg-muted/30 border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          <SelectItem value="beginner">Beginner</SelectItem>
-                          <SelectItem value="intermediate">Intermediate</SelectItem>
-                          <SelectItem value="advanced">Advanced</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-base font-semibold sm:text-lg">Excel Import</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Download the template, fill it offline, then import it to replace the current form values before saving.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Supported files: .xlsx, .xls, .csv. Use <span className="font-medium">reps_range</span> like <span className="font-medium">8-12</span> or <span className="font-medium">10</span>. Variation matching prefers <span className="font-medium">variation_id</span>, then falls back to <span className="font-medium">exercise_name + variation_name</span>.
-                  </p>
-                  {importFileName ? (
-                    <p className="text-xs font-medium text-foreground">Last imported file: {importFileName}</p>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    key={importInputKey}
-                    ref={importInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    className="hidden"
-                    onChange={(event) => void handleImportFile(event)}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2 bg-transparent"
-                    onClick={() => void handleDownloadTemplate()}
-                    disabled={isDownloadingTemplate || isImportingWorkbook || exerciseOptions.length === 0}
-                  >
-                    {isDownloadingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    Download Template
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2 bg-transparent"
-                    onClick={() => importInputRef.current?.click()}
-                    disabled={isImportingWorkbook || isDownloadingTemplate || exerciseOptions.length === 0}
-                  >
-                    {isImportingWorkbook ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    Import Excel
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-              <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold sm:text-lg">
-                      {isAdjustMode ? "Assigned trainee" : "Assign To Trainees"}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {isAdjustMode
-                        ? "This adjustment will only be assigned to the selected trainee below."
-                        : "Select who should receive this program right after saving."}
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                    {selectedTraineeIds.length} selected
-                  </div>
-                </div>
-
-                {traineeOptions.length === 0 ? (
-                  <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-                    Chưa có trainee nào được kết nối với coach này.
-                  </div>
-                ) : (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {traineeOptions.map((trainee) => {
-                      const isChecked = selectedTraineeIds.includes(trainee.id)
-
-                      return (
-                        <label
-                          key={trainee.id}
-                          className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors ${
-                            isChecked
-                              ? "border-primary/40 bg-primary/5"
-                              : "border-border bg-muted/20 hover:border-primary/20"
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isChecked}
-                            onCheckedChange={(checked) => toggleTraineeAssignment(trainee.id, Boolean(checked))}
-                            className="mt-0.5"
-                            disabled={isAdjustMode}
-                          />
-                          <Avatar className="h-10 w-10 border border-primary/20">
-                            <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                              {getInitials(trainee.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold">{trainee.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{trainee.email}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {trainee.thisWeekWorkouts} workouts this week
-                              {trainee.latestWeightKg != null ? ` • ${trainee.latestWeightKg} kg` : ""}
-                            </p>
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <h2 className="text-base font-semibold sm:text-lg">Workout Days</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Shape each day with the same clean card layout used in the trainee workout builder.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addWorkoutDay}
-                    className="gap-1.5 rounded-full border-primary/20 bg-background/90 px-4 text-xs sm:text-sm"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add day
-                  </Button>
-                </div>
-
-                <div className="space-y-5">
-                  {workoutDays.map((day, dayIndex) => {
-                    const isExpanded = expandedWorkoutDayIds[day.id] ?? false
-                    const dayName = day.name.trim() || `Day ${dayIndex + 1}`
-
-                    return (
-                    <div
-                      key={day.id}
-                      className="rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,255,0.92)_100%)] p-4 shadow-sm sm:p-5"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleWorkoutDayExpanded(day.id)}
-                        className="flex w-full items-center justify-between gap-3 rounded-[24px] border border-border/70 bg-background/80 px-4 py-3 text-left transition-colors hover:border-primary/30 hover:bg-background"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-background/90 text-muted-foreground">
-                            <GripVertical className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                              Workout name
-                            </p>
-                            <p className="truncate text-base font-semibold sm:text-lg">{dayName}</p>
-                            <p className="truncate text-sm text-muted-foreground">
-                              {getScheduledDayLabel(day.scheduledDay)} • {day.exercises.length}{" "}
-                              {day.exercises.length === 1 ? "move" : "moves"} • {estimateWorkoutDuration(day.exercises)} min
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="hidden rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary sm:inline-flex">
-                            {day.exercises.length} {day.exercises.length === 1 ? "move" : "moves"}
-                          </span>
-                          <span className="hidden rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
-                            {estimateWorkoutDuration(day.exercises)} min
-                          </span>
-                          {isExpanded ? (
-                            <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
-                          )}
-                        </div>
-                      </button>
-
-                      {isExpanded ? (
-                      <>
-                      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-end">
-                        <div className="space-y-2">
-                          <Label htmlFor={`${day.id}-name`} className="text-sm">
-                            Workout name
-                          </Label>
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-background/90 text-muted-foreground">
-                              <GripVertical className="h-4 w-4" />
-                            </div>
-                            <Input
-                              id={`${day.id}-name`}
-                              value={day.name}
-                              onChange={(event) => {
-                                setWorkoutDays((current) =>
-                                  current.map((item) => (item.id === day.id ? { ...item, name: event.target.value } : item)),
-                                )
-                              }}
-                              placeholder={`Day ${dayIndex + 1}`}
-                              className="h-12 rounded-2xl border-border/70 bg-background/90 shadow-none"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor={`${day.id}-scheduled-day`} className="text-sm">
-                            Scheduled day
-                          </Label>
-                          <Select
-                            value={day.scheduledDay}
-                            onValueChange={(value) => {
-                              setWorkoutDays((current) =>
-                                current.map((item) => (item.id === day.id ? { ...item, scheduledDay: value } : item)),
-                              )
-                            }}
-                          >
-                            <SelectTrigger
-                              id={`${day.id}-scheduled-day`}
-                              className="h-12 rounded-2xl border-border/70 bg-background/90"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border">
-                              {DAY_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 lg:justify-end">
-                          <div className="flex flex-wrap gap-2">
-                            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                              {day.exercises.length} {day.exercises.length === 1 ? "move" : "moves"}
-                            </span>
-                            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                              {estimateWorkoutDuration(day.exercises)} min
-                            </span>
-                          </div>
-
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeDay(day.id)}
-                            className="h-11 w-11 rounded-2xl border border-transparent text-muted-foreground hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
-                            aria-label="Remove day"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="mt-5 space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(248,250,255,0.98)_0%,rgba(255,255,255,0.92)_100%)] px-4 py-3 shadow-sm">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-base font-semibold">Exercises</h3>
-                              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                                {day.exercises.length} {day.exercises.length === 1 ? "move" : "moves"}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              Choose exercises, drag to reorder them, and set the prescription for this workout day.
-                            </p>
-                          </div>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addExercise(day.id)}
-                            className="gap-2 rounded-full border-primary/20 bg-background/90 px-4"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Add exercise
-                          </Button>
-                        </div>
-
-                        {exerciseOptions.length === 0 ? (
-                          <div className="rounded-2xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                            Thư viện bài tập chưa tải được. Vui lòng tải lại trang hoặc kiểm tra lại dữ liệu exercise của coach.
-                          </div>
-                        ) : null}
-
-                        {day.exercises.length > 0 ? (
-                          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDayExerciseDragEnd(day.id)}>
-                            <SortableContext items={day.exercises.map((exercise) => exercise.id)} strategy={verticalListSortingStrategy}>
-                              <div className="space-y-3">
-                                {day.exercises.map((exercise) => (
-                                  <SortableWorkoutExerciseCard
-                                    key={exercise.id}
-                                    exercise={exercise}
-                                    exerciseOptions={exerciseOptions}
-                                    onUpdate={(patch) => updateExerciseInDay(day.id, exercise.id, patch)}
-                                    onRemove={() => removeExercise(day.id, exercise.id)}
-                                  />
-                                ))}
-                              </div>
-                            </SortableContext>
-                          </DndContext>
-                        ) : (
-                          <div className="rounded-[24px] border border-dashed border-border/70 px-4 py-8 text-center">
-                            <Dumbbell className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground">No exercises in this day yet...</p>
-                          </div>
-                        )}
-                      </div>
-                      </>
-                      ) : null}
-                    </div>
-                    )
-                  })}
-
-                  {workoutDays.length === 0 ? (
-                    <div className="rounded-[24px] border border-dashed border-border px-4 py-10 text-center">
-                      <Dumbbell className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">No workout days yet...</p>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                {programId && !isAdjustMode ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full sm:w-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    disabled={isDeleting || isSaving}
-                  >
-                    {isDeleting ? "Deleting..." : "Delete Program"}
-                  </Button>
-                ) : null}
-                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} className="w-full sm:w-auto">
-                  <Button type="button" variant="outline" className="w-full bg-transparent">
-                    Cancel
-                  </Button>
-                </Link>
-                <Button type="button" className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90" onClick={() => void handleSaveProgram()} disabled={isSaving}>
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {isSaving ? "Saving..." : isAdjustMode ? "Save Adjusted Plan" : programId ? "Update Program" : "Save Program"}
-                </Button>
-              </div>
-      </div>
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete this program?</DialogTitle>
-            <DialogDescription>
-              This will permanently remove the program and all workout days inside it. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-7 py-4 sm:flex-row sm:justify-end">
+          {onClose ? (
+            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => void handleDeleteProgram()}
-              disabled={isDeleting}
-            >
-              {isDeleting ? "Deleting..." : "Delete Program"}
+          ) : (
+            <Button variant="ghost" asChild className="w-full sm:w-auto">
+              <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>Cancel</Link>
+            </Button>
+          )}
+          <Button type="button" className="w-full sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isSaving ? "Saving..." : programId ? "Save changes" : "Save program"}
+          </Button>
+        </div>
+      </div>
+
+      <RoutinePickerDialog
+        open={Boolean(pickerSlot) && !isCreatingRoutine}
+        library={routineLibrary}
+        onClose={() => setPickerSlot(null)}
+        onPick={assignRoutineToPickerSlot}
+        onCreateNew={() => setIsCreatingRoutine(true)}
+      />
+
+      <RoutineBuilderDialog
+        open={isCreatingRoutine}
+        exerciseOptions={exerciseOptions}
+        onClose={() => setIsCreatingRoutine(false)}
+        onSave={(routine) => {
+          setRoutineLibrary((current) => [routine, ...current])
+          assignRoutineToPickerSlot(routine)
+          setIsCreatingRoutine(false)
+        }}
+      />
+
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="z-[90] max-h-[80svh] overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[520px]">
+          <DialogHeader className="border-b border-border px-6 pb-4 pt-6 text-left">
+            <DialogTitle className="text-xl font-semibold">Assign clients</DialogTitle>
+            <div className="relative pt-2">
+              <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-4 w-4 text-muted-foreground" />
+              <Input
+                value={clientQuery}
+                onChange={(event) => setClientQuery(event.target.value)}
+                placeholder="Search clients..."
+                className="bg-background pl-9"
+              />
+            </div>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3">
+            {filteredTrainees.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No clients found.</div>
+            ) : (
+              <div className="space-y-2">
+                {filteredTrainees.map((trainee) => {
+                  const checked = selectedTraineeIds.includes(trainee.id)
+
+                  return (
+                    <label
+                      key={trainee.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border px-3 py-2.5 transition-colors hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) => toggleTraineeAssignment(trainee.id, Boolean(value))}
+                      />
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={trainee.avatar ?? undefined} alt={trainee.name} />
+                        <AvatarFallback className="bg-foreground text-[11px] text-background">
+                          {getInitials(trainee.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{trainee.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{trainee.email}</span>
+                      </span>
+                      {checked ? <Check className="h-4 w-4 text-primary" /> : null}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="border-t border-border px-6 py-4">
+            <span className="mr-auto self-center font-mono text-xs text-muted-foreground tnum">
+              {selectedTraineeIds.length} selected
+            </span>
+            <Button type="button" variant="ghost" onClick={() => setIsAssignDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => setIsAssignDialogOpen(false)}>
+              Assign {selectedTraineeIds.length}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2023,6 +2023,138 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   }
 }
 
+async function getDashboardForTrainee(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const now = new Date()
+  const weekStart = startOfUtcWeek(now)
+  const todayStart = startOfUtcDay(now)
+  const todayEnd = new Date(todayStart)
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
+  todayEnd.setMilliseconds(-1)
+
+  const [assignments, recentLogs, weekLogs, meals] = await Promise.all([
+    db.programAssignment.findMany({
+      include: {
+        program: {
+          include: {
+            workouts: {
+              include: WORKOUT_INCLUDE,
+              orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+            },
+          },
+        },
+      },
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.workoutLog.findMany({
+      include: WORKOUT_LOG_INCLUDE,
+      orderBy: {
+        startedAt: "desc",
+      },
+      take: 5,
+      where: {
+        userId: profile.id,
+      },
+    }),
+    db.workoutLog.findMany({
+      orderBy: {
+        startedAt: "desc",
+      },
+      select: {
+        startedAt: true,
+        totalVolume: true,
+      },
+      where: {
+        startedAt: { gte: weekStart },
+        userId: profile.id,
+      },
+    }),
+    db.meal.findMany({
+      include: MEAL_WITH_FOOD_INCLUDE,
+      orderBy: {
+        recordedAt: "asc",
+      },
+      where: {
+        recordedAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+        userId: profile.id,
+      },
+    }),
+  ])
+
+  const workoutMap = new Map<string, WorkoutRecord>()
+  const personalWorkoutIds = new Set<string>()
+
+  assignments.forEach((assignment) => {
+    const isPersonalProgram = assignment.program.createdById === profile.id
+
+    ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
+      workoutMap.set(workout.id, workout)
+
+      if (isPersonalProgram) {
+        personalWorkoutIds.add(workout.id)
+      }
+    })
+  })
+
+  const serializedWorkouts = Array.from(workoutMap.values())
+    .sort((left, right) => {
+      if (left.scheduledDate && right.scheduledDate) {
+        return left.scheduledDate.getTime() - right.scheduledDate.getTime()
+      }
+
+      if (left.scheduledDate) {
+        return -1
+      }
+
+      if (right.scheduledDate) {
+        return 1
+      }
+
+      return (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
+    })
+    .map((workout) => serializeWorkout(workout, { isPersonal: personalWorkoutIds.has(workout.id) }))
+
+  const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
+  const schedule = DAY_LABELS.reduce<Record<number, ReturnType<typeof serializeWorkout> | null>>((accumulator, _label, index) => {
+    const workout = recurringWorkouts.find((item) => item.scheduledDay === index)
+    accumulator[index] = workout ?? null
+    return accumulator
+  }, {})
+
+  const todayDateKey = formatUtcDateOnly(todayStart)
+  const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
+  const serializedMeals = meals.map(serializeMealRecord)
+  const activeDaysSet = new Set(weekLogs.map((log) => log.startedAt.getUTCDay()))
+  const todayVolume = weekLogs
+    .filter((log) => log.startedAt >= todayStart)
+    .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
+
+  return {
+    dailyNutrition: {
+      date: todayStart,
+      meals: serializedMeals,
+      targetCalories: profile.dailyCalorieGoal ?? DEFAULT_CALORIE_TARGET,
+      totalCalories: serializedMeals.reduce((total, meal) => total + meal.calories, 0),
+    },
+    recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    schedule,
+    todayWorkout: todayOneOffWorkout ?? schedule[now.getDay()] ?? null,
+    weekStats: {
+      activeDaysThisWeek: activeDaysSet.size,
+      todayVolume,
+      workoutsThisWeek: weekLogs.length,
+    },
+    workouts: serializedWorkouts,
+  }
+}
+
 async function deleteWorkoutLogForTrainee(profile: SerializedProfile, _workoutId: string, logId: string) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -2598,6 +2730,16 @@ async function getCoachProgramDetail(profile: SerializedProfile, programId: stri
   return serializeProgram(program as ProgramRecord)
 }
 
+function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>) {
+  const scheduledDays = new Set(
+    workouts
+      .map((workout) => workout.scheduledDay)
+      .filter((scheduledDay): scheduledDay is number => typeof scheduledDay === "number"),
+  )
+
+  return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
+}
+
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
@@ -2716,7 +2858,7 @@ async function createCoachProgram(
           scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
         })),
       },
-      workoutsPerWeek: input.workouts.length,
+      workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
     },
     include: PROGRAM_INCLUDE,
   })
@@ -2865,7 +3007,7 @@ async function updateCoachProgram(
           })),
           deleteMany: {},
         },
-        workoutsPerWeek: input.workouts.length,
+        workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
       include: PROGRAM_INCLUDE,
       where: {
@@ -2994,7 +3136,7 @@ async function adjustCoachProgramForTrainee(
             scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
           })),
         },
-        workoutsPerWeek: input.workouts.length,
+        workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
       include: PROGRAM_INCLUDE,
     })
@@ -3285,7 +3427,12 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
   }
 }
 
-async function getCalendarForTrainee(profile: SerializedProfile, year: number, month: number) {
+async function getCalendarForTrainee(
+  profile: SerializedProfile,
+  year: number,
+  month: number,
+  options?: { summaryOnly?: boolean },
+) {
   const db = ensurePrisma()
   assertTrainee(profile)
 
@@ -3294,38 +3441,24 @@ async function getCalendarForTrainee(profile: SerializedProfile, year: number, m
 
   const logs = await db.workoutLog.findMany({
     orderBy: { startedAt: "asc" },
-    select: {
-      completedAt: true,
-      id: true,
-      startedAt: true,
-      totalVolume: true,
-      workout: { select: { id: true, kind: true, name: true } },
-    },
+    select: options?.summaryOnly
+      ? {
+          completedAt: true,
+          startedAt: true,
+          totalVolume: true,
+        }
+      : {
+          completedAt: true,
+          id: true,
+          startedAt: true,
+          totalVolume: true,
+          workout: { select: { id: true, kind: true, name: true } },
+        },
     where: {
       startedAt: { gte: start, lt: end },
       userId: profile.id,
     },
   })
-
-  const dayMap = new Map<string, typeof logs>()
-  for (const log of logs) {
-    const dateKey = formatUtcDateOnly(log.startedAt)
-    if (!dayMap.has(dateKey)) dayMap.set(dateKey, [])
-    dayMap.get(dateKey)!.push(log)
-  }
-
-  const days = Array.from(dayMap.entries()).map(([date, dayLogs]) => ({
-    date,
-    logs: dayLogs.map((log) => ({
-      completedAt: log.completedAt ? log.completedAt.toISOString() : null,
-      id: log.id,
-      startedAt: log.startedAt.toISOString(),
-      totalVolume: log.totalVolume ?? 0,
-      workoutId: log.workout?.id ?? "",
-      workoutKind: log.workout?.kind ?? null,
-      workoutName: log.workout?.name ?? "Workout",
-    })),
-  }))
 
   const totalWorkouts = logs.length
   const totalVolume = logs.reduce((s, l) => s + (l.totalVolume ?? 0), 0)
@@ -3337,8 +3470,44 @@ async function getCalendarForTrainee(profile: SerializedProfile, year: number, m
   const avgDurationMins =
     completedLogs.length > 0 ? Math.round(totalDurationMs / completedLogs.length / 60_000) : 0
 
+  if (options?.summaryOnly) {
+    return {
+      days: [],
+      summary: {
+        avgDurationMins,
+        totalVolume: Math.round(totalVolume * 10) / 10,
+        totalWorkouts,
+      },
+    }
+  }
+
+  const detailedLogs = logs as Array<{
+    completedAt: Date | null
+    id: string
+    startedAt: Date
+    totalVolume: number | null
+    workout: { id: string; kind: string | null; name: string } | null
+  }>
+  const dayMap = new Map<string, typeof detailedLogs>()
+  for (const log of detailedLogs) {
+    const dateKey = formatUtcDateOnly(log.startedAt)
+    if (!dayMap.has(dateKey)) dayMap.set(dateKey, [])
+    dayMap.get(dateKey)!.push(log)
+  }
+
   return {
-    days,
+    days: Array.from(dayMap.entries()).map(([date, dayLogs]) => ({
+      date,
+      logs: dayLogs.map((log) => ({
+        completedAt: log.completedAt ? log.completedAt.toISOString() : null,
+        id: log.id,
+        startedAt: log.startedAt.toISOString(),
+        totalVolume: log.totalVolume ?? 0,
+        workoutId: log.workout?.id ?? "",
+        workoutKind: log.workout?.kind ?? null,
+        workoutName: log.workout?.name ?? "Workout",
+      })),
+    })),
     summary: {
       avgDurationMins,
       totalVolume: Math.round(totalVolume * 10) / 10,
@@ -4185,6 +4354,7 @@ export {
   deleteWorkoutLogCommentForCoach,
   deleteWorkoutLogForTrainee,
   getCoachDashboard,
+  getDashboardForTrainee,
   getCoachProgramDetail,
   getCoachTraineeDetail,
   getCalendarForTrainee,

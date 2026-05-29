@@ -3,13 +3,7 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  YAxis,
-} from "recharts"
+import dynamic from "next/dynamic"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -27,6 +21,14 @@ import type {
 } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
+
+const StrengthChart = dynamic(
+  () => import("@/components/progress/strength-chart").then((mod) => mod.StrengthChart),
+  {
+    loading: () => <div className="min-h-[14rem] rounded-[10px] border border-border bg-card" />,
+    ssr: false,
+  },
+)
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -163,19 +165,19 @@ function StatsSummary({
   const volumeDelta = delta(cur.totalVolume, prev.totalVolume)
 
   return (
-    <div className="grid grid-cols-3 gap-3 sm:gap-4">
+    <div className="grid grid-cols-3 gap-2 sm:gap-4">
       {/* Workouts */}
-      <div className="rounded-[10px] border border-border bg-card p-4">
+      <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">Sessions</LabelMicro>
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-[2rem] font-semibold leading-none tnum text-foreground">
+          <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
             {cur.totalWorkouts}
           </span>
         </div>
         {workoutDelta !== null && (
           <div
             className={cn(
-              "mt-2 font-mono text-[11px] tnum",
+              "mt-2 font-mono text-[10px] leading-tight tnum sm:text-[11px]",
               workoutDelta >= 0 ? "text-[var(--success)]" : "text-[var(--warning)]",
             )}
           >
@@ -186,18 +188,18 @@ function StatsSummary({
       </div>
 
       {/* Volume */}
-      <div className="rounded-[10px] border border-border bg-card p-4">
+      <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">Volume</LabelMicro>
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-[2rem] font-semibold leading-none tnum text-foreground">
+        <div className="flex min-w-0 items-baseline gap-1">
+          <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
             {formatVolume(cur.totalVolume)}
           </span>
-          <span className="text-xs text-muted-foreground">kg</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground sm:text-xs">kg</span>
         </div>
         {volumeDelta !== null && (
           <div
             className={cn(
-              "mt-2 font-mono text-[11px] tnum",
+              "mt-2 font-mono text-[10px] leading-tight tnum sm:text-[11px]",
               volumeDelta >= 0 ? "text-[var(--success)]" : "text-[var(--warning)]",
             )}
           >
@@ -208,13 +210,13 @@ function StatsSummary({
       </div>
 
       {/* Avg duration */}
-      <div className="rounded-[10px] border border-border bg-card p-4">
+      <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">Avg duration</LabelMicro>
-        <div className="font-mono text-[2rem] font-semibold leading-none tnum text-foreground">
+        <div className="whitespace-nowrap font-mono text-[1.55rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
           {formatDuration(cur.avgDurationMins)}
         </div>
         {prev.avgDurationMins > 0 && (
-          <div className="mt-2 font-mono text-[11px] tnum text-muted-foreground">
+          <div className="mt-2 font-mono text-[10px] leading-tight tnum text-muted-foreground sm:text-[11px]">
             prev {formatDuration(prev.avgDurationMins)}
           </div>
         )}
@@ -271,11 +273,11 @@ function WorkoutLogModal({
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/20 backdrop-blur-[2px] sm:items-center"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-foreground/20 backdrop-blur-[2px] sm:items-center"
     >
-      <div className="relative w-full max-w-lg rounded-t-[16px] border border-border bg-background shadow-2xl sm:rounded-[16px]">
+      <div className="relative flex max-h-[calc(100svh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-[16px] border border-border bg-background shadow-2xl sm:max-h-[82svh] sm:rounded-[16px]">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-border p-5">
+        <div className="shrink-0 flex items-start justify-between border-b border-border p-5">
           <div>
             {loading ? (
               <Skeleton className="h-6 w-40 rounded" />
@@ -303,7 +305,7 @@ function WorkoutLogModal({
         </div>
 
         {/* Body */}
-        <div className="max-h-[60vh] overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-[8px]" />)}
@@ -813,61 +815,6 @@ function PrCard({
   )
 }
 
-function StrengthChart({
-  analytics,
-  weightUnitLabel,
-}: {
-  analytics: ProgressAnalytics
-  weightUnitLabel: string
-}) {
-  const { series, points } = analytics.strengthProgression
-  if (series.length === 0) {
-    return (
-      <div className="flex min-h-[14rem] items-center justify-center rounded-[10px] border border-dashed border-border text-sm text-muted-foreground">
-        Complete weighted sets across a few weeks to unlock strength progression.
-      </div>
-    )
-  }
-  const chartData = points.map((pt) => ({ label: pt.label, ...pt.values }))
-  return (
-    <div className="rounded-[10px] border border-border bg-card p-5">
-      <LabelMicro className="mb-4 block">Strength progression</LabelMicro>
-      <div className="h-56">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
-            <CartesianGrid strokeDasharray="0" stroke="var(--border)" strokeWidth={1} vertical={false} />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-            />
-            {series.map((s) => (
-              <Line
-                key={s.key}
-                type="monotone"
-                dataKey={s.key}
-                stroke="var(--chart-1)"
-                strokeWidth={1.75}
-                dot={false}
-                activeDot={{ r: 4, fill: "var(--chart-1)", strokeWidth: 0 }}
-                name={s.exerciseName}
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-4">
-        {series.map((s) => (
-          <div key={s.key} className="label-micro inline-flex items-center gap-1.5">
-            <span className="rounded-full" style={{ width: 6, height: 6, background: "var(--chart-1)", display: "inline-block" }} />
-            {s.exerciseName}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Skeleton
 // ---------------------------------------------------------------------------
@@ -888,6 +835,23 @@ function ProgressPageSkeleton() {
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-[8px]" />)}
         </div>
       </div>
+    </div>
+  )
+}
+
+function ProgressPrsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-36 rounded" />
+        <Skeleton className="h-8 w-48 rounded" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-44 rounded-[10px]" />
+        ))}
+      </div>
+      <Skeleton className="h-64 rounded-[10px]" />
     </div>
   )
 }
@@ -929,34 +893,30 @@ export default function ProgressPage() {
   const weightUnitLabel = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
   const token = session?.access_token
 
-  // Load analytics (once)
+  // Load analytics only when the PR tab needs it. This query parses workout
+  // snapshots across history, so keeping it out of the initial History view
+  // makes first paint depend only on the month calendar.
   useEffect(() => {
-    if (authLoading || !token) return
+    if (authLoading || !token || tab !== "prs" || analytics) return
     let cancelled = false
     setAnalyticsLoading(true)
     fetchProgressAnalytics(token)
       .then((d) => { if (!cancelled) { setAnalytics(d); setAnalyticsLoading(false) } })
       .catch((err) => { if (!cancelled) { setError(err.message); setAnalyticsLoading(false) } })
     return () => { cancelled = true }
-  }, [authLoading, token])
+  }, [analytics, authLoading, tab, token])
 
   // Load calendar when month changes
   useEffect(() => {
     if (authLoading || !token) return
     let cancelled = false
     setCalendarLoading(true)
+    setPrevCalendar(null)
 
-    const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1
-    const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear
-
-    Promise.all([
-      fetchProgressCalendar(token, viewYear, viewMonth),
-      fetchProgressCalendar(token, prevYear, prevMonth),
-    ])
-      .then(([cur, prev]) => {
+    fetchProgressCalendar(token, viewYear, viewMonth)
+      .then((cur) => {
         if (!cancelled) {
           setCalendar(cur)
-          setPrevCalendar(prev)
           setCalendarLoading(false)
         }
       })
@@ -966,6 +926,25 @@ export default function ProgressPage() {
 
     return () => { cancelled = true }
   }, [authLoading, token, viewYear, viewMonth])
+
+  // Load previous month summary in the background for "vs prev" metrics.
+  useEffect(() => {
+    if (authLoading || !token || calendarLoading) return
+    let cancelled = false
+
+    const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1
+    const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear
+
+    fetchProgressCalendar(token, prevYear, prevMonth, { summaryOnly: true })
+      .then((prev) => {
+        if (!cancelled) setPrevCalendar(prev)
+      })
+      .catch(() => {
+        if (!cancelled) setPrevCalendar(null)
+      })
+
+    return () => { cancelled = true }
+  }, [authLoading, calendarLoading, token, viewMonth, viewYear])
 
   // Load year view when year tab is active
   useEffect(() => {
@@ -1011,7 +990,7 @@ export default function ProgressPage() {
 
   const data = analytics ?? EMPTY_ANALYTICS
 
-  if (authLoading || (analyticsLoading && analytics == null && calendarLoading)) {
+  if (authLoading || (calendarLoading && calendar == null)) {
     return <ProgressPageSkeleton />
   }
 
@@ -1159,6 +1138,9 @@ export default function ProgressPage() {
             PRs TAB
             ================================================================ */}
         {tab === "prs" && (
+          analyticsLoading ? (
+            <ProgressPrsSkeleton />
+          ) : (
           <div className="space-y-6">
             <div>
               <LabelMicro className="mb-2 block">Personal records</LabelMicro>
@@ -1187,6 +1169,7 @@ export default function ProgressPage() {
 
             <StrengthChart analytics={data} weightUnitLabel={weightUnitLabel} />
           </div>
+          )
         )}
       </div>
 

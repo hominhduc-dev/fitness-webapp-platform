@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280" />
+<title>Lift — Web UI kit</title>
+<link rel="stylesheet" href="../../colors_and_type.css" />
+<style>
+  html, body { height: 100%; }
+  body { overflow-x: hidden; }
+  *, *::before, *::after { box-sizing: border-box; }
+  button { font-family: inherit; }
+  #root { display: flex; min-height: 100vh; background: var(--ink-0); }
+  main { flex: 1; min-width: 0; }
+  @media (max-width: 767px) {
+    #root { flex-direction: column; }
+    main { padding-bottom: 72px; } /* clear bottom nav */
+  }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="Sidebar.jsx"></script>
+<script type="text/babel" src="TodayScreen.jsx"></script>
+<script type="text/babel" src="HistoryScreen.jsx"></script>
+<script type="text/babel" src="LibraryScreen.jsx"></script>
+<script type="text/babel" src="PRsScreen.jsx"></script>
+<script type="text/babel" src="BodyScreen.jsx"></script>
+<script type="text/babel" src="RestTimer.jsx"></script>
+<script type="text/babel" src="RoutineBuilder.jsx"></script>
+<script type="text/babel" src="RoutinesScreen.jsx"></script>
+<script type="text/babel" src="ScheduleScreen.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function StatsPlaceholder() {
+  return (
+    <div style={{ padding: '32px 40px', maxWidth: 1100, margin: '0 auto' }}>
+      <Label style={{ marginBottom: 8 }}>Stats</Label>
+      <h1 style={{ fontSize: 36, fontWeight: 600, letterSpacing: '-0.02em', margin: 0 }}>Volume, frequency, intensity.</h1>
+      <div style={{
+        marginTop: 32,
+        padding: 60,
+        textAlign: 'center',
+        border: '1px dashed var(--ink-150)',
+        borderRadius: 10,
+        color: 'var(--ink-400)',
+        fontSize: 14,
+      }}>
+        Weekly volume + frequency charts live here. Out of scope for the kit demo.
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [screen, setScreen] = useState('schedule');
+  const [restEvent, setRestEvent] = useState(null);
+  const [startedRoutine, setStartedRoutine] = useState(null);
+
+  const handleSetCompleted = (event) => {
+    setRestEvent({ ...event, _t: Date.now() });
+  };
+
+  const handleStartRoutine = (routine) => {
+    setStartedRoutine(routine);
+    setScreen('today');
+  };
+
+  const ScreenComp = {
+    today:    <TodayScreen onSetCompleted={handleSetCompleted} startedRoutine={startedRoutine} />,
+    schedule: <ScheduleScreen onStartRoutine={handleStartRoutine} />,
+    routines: <RoutinesScreen onStartRoutine={handleStartRoutine} />,
+    history:  <HistoryScreen />,
+    library:  <LibraryScreen />,
+    prs:      <PRsScreen />,
+    body:     <BodyScreen />,
+  }[screen];
+
+  return (
+    <>
+      <Sidebar active={screen} onNavigate={setScreen} />
+      <main>
+        {ScreenComp}
+      </main>
+      {restEvent && screen === 'today' && (
+        <RestTimer event={restEvent} onDismiss={() => setRestEvent(null)} />
+      )}
+    </>
+  );
+}
+
+window.lucide && window.lucide.createIcons();
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+</body>
+</html>

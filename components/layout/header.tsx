@@ -3,9 +3,10 @@
 import type React from "react"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Settings, Menu } from "lucide-react"
+import { Bell, Settings, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -16,11 +17,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { NotificationInbox } from "@/components/layout/notification-inbox"
 import { LocaleToggle } from "@/components/locale/locale-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { getRoleLandingPath } from "@/lib/auth/roles"
+
+const NotificationInbox = dynamic(
+  () => import("@/components/layout/notification-inbox").then((mod) => mod.NotificationInbox),
+  {
+    loading: () => (
+      <Button variant="ghost" size="icon" className="relative inline-flex h-10 w-10 rounded-full" disabled>
+        <Bell className="h-5 w-5" />
+      </Button>
+    ),
+    ssr: false,
+  },
+)
 
 interface HeaderProps {
   showMenu?: boolean
@@ -29,6 +41,7 @@ interface HeaderProps {
 
 export function Header({ showMenu, onMenuClick }: HeaderProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const { isLoading, profile, signOut } = useAuth()
   const { locale, messages } = useLocale()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -46,6 +59,10 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  if (pathname === "/schedule") {
+    return null
+  }
 
   const handleSignOut = async () => {
     setIsSigningOut(true)

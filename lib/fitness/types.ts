@@ -78,6 +78,15 @@ type MealCollection = {
   weeklyCalories: WeeklyCaloriesPoint[]
 }
 
+type TraineeDashboardData = {
+  dailyNutrition: DailyNutrition
+  recentLogs: WorkoutLog[]
+  schedule: Record<number, Workout | null>
+  todayWorkout: Workout | null
+  weekStats: WorkoutCollection["weekStats"]
+  workouts: Workout[]
+}
+
 type MealHistoryPage = {
   meals: Meal[]
   nextCursor?: string
@@ -440,6 +449,7 @@ export type {
   ProgressWeeklyVolumePoint,
   ProgressYearView,
   ProgressYearViewDay,
+  TraineeDashboardData,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,

@@ -43,6 +43,7 @@ import type {
   ProgressStrengthSeries,
   ProgressWeeklyVolumePoint,
   ProgressYearView,
+  TraineeDashboardData,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
@@ -762,6 +763,15 @@ function mapNotification(notification: SerializedNotification): AppNotification 
   }
 }
 
+function mapDailyNutrition(nutrition: SerializedDailyNutrition): DailyNutrition {
+  return {
+    date: new Date(nutrition.date),
+    meals: nutrition.meals.map(mapMeal),
+    targetCalories: nutrition.targetCalories,
+    totalCalories: nutrition.totalCalories,
+  }
+}
+
 async function fetchMeals(accessToken: string, date?: string): Promise<MealCollection> {
   const query = date ? `?date=${encodeURIComponent(date)}` : ""
   const response = await request<{
@@ -769,17 +779,35 @@ async function fetchMeals(accessToken: string, date?: string): Promise<MealColle
     meals: SerializedMeal[]
     weeklyCalories: WeeklyCaloriesPoint[]
   }>(`/api/meals${query}`, accessToken)
-  const meals = response.meals.map(mapMeal)
 
   return {
-    dailyNutrition: {
-      date: new Date(response.dailyNutrition.date),
-      meals,
-      targetCalories: response.dailyNutrition.targetCalories,
-      totalCalories: response.dailyNutrition.totalCalories,
-    },
-    meals,
+    dailyNutrition: mapDailyNutrition(response.dailyNutrition),
+    meals: response.meals.map(mapMeal),
     weeklyCalories: response.weeklyCalories,
+  }
+}
+
+async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData> {
+  const response = await request<{
+    dashboard: {
+      dailyNutrition: SerializedDailyNutrition
+      recentLogs: SerializedWorkoutLog[]
+      schedule: Record<number, SerializedWorkout | null>
+      todayWorkout: SerializedWorkout | null
+      weekStats: TraineeDashboardData["weekStats"]
+      workouts: SerializedWorkout[]
+    }
+  }>("/api/dashboard", accessToken)
+
+  return {
+    dailyNutrition: mapDailyNutrition(response.dashboard.dailyNutrition),
+    recentLogs: response.dashboard.recentLogs.map(mapWorkoutLog),
+    schedule: Object.fromEntries(
+      Object.entries(response.dashboard.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
+    ) as Record<number, Workout | null>,
+    todayWorkout: response.dashboard.todayWorkout ? mapWorkout(response.dashboard.todayWorkout) : null,
+    weekStats: response.dashboard.weekStats,
+    workouts: response.dashboard.workouts.map(mapWorkout),
   }
 }
 
@@ -841,9 +869,18 @@ async function fetchProgressCalendar(
   accessToken: string,
   year: number,
   month: number,
+  options?: { summaryOnly?: boolean },
 ): Promise<ProgressCalendar> {
+  const searchParams = new URLSearchParams({
+    month: String(month),
+    year: String(year),
+  })
+  if (options?.summaryOnly) {
+    searchParams.set("summaryOnly", "true")
+  }
+
   return request<ProgressCalendar>(
-    `/api/progress/calendar?year=${year}&month=${month}`,
+    `/api/progress/calendar?${searchParams.toString()}`,
     accessToken,
     { cache: "no-store" },
   )
@@ -1482,6 +1519,7 @@ export {
   fetchCoachTrainees,
   fetchExerciseLibrary,
   fetchExercises,
+  fetchDashboard,
   fetchMealHistory,
   fetchMeals,
   fetchNotifications,

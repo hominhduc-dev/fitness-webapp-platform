@@ -1,0 +1,194 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   Lift design tokens — mapped into the existing shadcn variable
+   names so every component picks up the new look automatically.
+
+   Source: /colors_and_type.css in the Lift design system.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* -- Brand / interactive ---------------------------------- */
+  --primary: #3a5fff;            /* electric blue accent */
+  --primary-hover: #2a4ff0;
+  --primary-pressed: #1f3fd9;
+  --primary-foreground: #ffffff;
+
+  --secondary: #eaeeff;          /* accent-soft */
+  --secondary-hover: #dde3ff;
+  --secondary-foreground: #1a1a17;
+
+  --accent: #eaeeff;
+  --accent-foreground: #0a1a8a;  /* accent-ink */
+
+  /* -- Surfaces (warm neutrals) ----------------------------- */
+  --background: #fcfcfa;         /* ink-0 — warm paper white */
+  --foreground: #1a1a17;         /* ink-800 */
+
+  --card: #fcfcfa;
+  --card-foreground: #1a1a17;
+  --surface: #f5f5f1;            /* ink-50 — raised */
+
+  --popover: #fcfcfa;
+  --popover-foreground: #1a1a17;
+
+  --muted: #f5f5f1;              /* ink-50 */
+  --muted-foreground: #4a4a44;   /* ink-600 */
+
+  --text-primary: #1a1a17;
+  --text-secondary: #4a4a44;
+
+  /* -- Semantic (desaturated; data is the focus, not chrome) - */
+  --success: #2a8a5f;
+  --warning: #b56a1a;
+  --info: #3a5fff;
+  --destructive: #c0341a;
+  --destructive-foreground: #ffffff;
+
+  /* -- Borders & inputs ------------------------------------- */
+  --border: #ebebe6;             /* ink-100 — hairlines do the work of shadows */
+  --input: #e0e0db;              /* ink-150 */
+  --ring: #3a5fff;
+
+  /* -- Charts (sparingly colored — accent + ink ramp) ------- */
+  --chart-1: #3a5fff;            /* accent */
+  --chart-2: #8a8a82;            /* ink-400 */
+  --chart-3: #2a8a5f;            /* ok */
+  --chart-4: #b56a1a;            /* warn */
+  --chart-5: #c9c9c2;            /* ink-200 */
+
+  /* -- Radius (tighter than the previous 0.75rem) ----------- */
+  --radius: 0.625rem;            /* 10px → sm 6, md 8, lg 10, xl 14 */
+
+  /* -- Sidebar --------------------------------------------- */
+  --sidebar: #fcfcfa;
+  --sidebar-foreground: #1a1a17;
+  --sidebar-primary: #3a5fff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ebebe6;     /* ink-100 — active item bg */
+  --sidebar-accent-foreground: #1a1a17;
+  --sidebar-border: #ebebe6;
+  --sidebar-ring: #3a5fff;
+}
+
+@theme inline {
+  /* Geist + Geist Mono — wired via next/font in app/layout.tsx */
+  --font-sans: var(--font-geist), "Inter Fallback", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-surface: var(--surface);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply bg-background;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01" 1, "cv11" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numbers always tabular — Lift's signature */
+  .tnum,
+  [class*="font-mono"],
+  .text-mono {
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* Micro labels — UPPERCASE mono tags ("SET 1", "WORKING", "PR") */
+  .label-micro {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;        /* 11px */
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes page-loading-bar {
+  0%   { transform: translateX(-120%); }
+  50%  { transform: translateX(120%); }
+  100% { transform: translateX(360%); }
+}
+
+.page-loading-bar {
+  animation: page-loading-bar 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+/* Quiet scrollbars — match the warm neutral palette */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c9c9c2;            /* ink-200 */
+}
+
+::selection {
+  background: var(--secondary);   /* accent-soft */
+  color: var(--accent-foreground);
+}
