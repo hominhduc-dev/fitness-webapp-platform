@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, isBefore, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns"
-import { CalendarDays, CheckCircle2, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createWorkout, fetchExercises } from "@/lib/fitness/api"
-import { parseRepTargetText } from "@/lib/workout-reps"
+import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WeeklySchedule } from "@/lib/types"
 
@@ -26,8 +26,14 @@ type WeeklyCalendarProps = {
 
 type SourceFilter = "all" | "coach" | "self"
 type RoutineKind = "push" | "pull" | "legs" | "full_body" | "cardio" | "other"
+type RoutineTag = "push" | "pull" | "legs" | "upper" | "lower" | "full"
 
-type RoutineExerciseDraft = {
+type RoutineExercise = {
+  fallbackEquipment?: string
+  fallbackExerciseName?: string
+  fallbackIsDefault?: boolean
+  fallbackMuscleGroup?: string
+  fallbackVariationName?: string
   id: string
   reps: string
   sets: number
@@ -35,10 +41,11 @@ type RoutineExerciseDraft = {
   weight: string
 }
 
-type RoutineDraft = {
-  exercises: RoutineExerciseDraft[]
-  kind: RoutineKind
+type Routine = {
+  exercises: RoutineExercise[]
+  id: string
   name: string
+  tag: RoutineTag
 }
 
 type ScheduleEntry = {
@@ -54,7 +61,15 @@ type ScheduleEntry = {
 }
 
 const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
-const ROUTINE_KIND_OPTIONS: RoutineKind[] = ["push", "pull", "legs", "full_body", "cardio", "other"]
+const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
+const TAG_DOT_COLOR: Record<RoutineTag, string> = {
+  full: "var(--muted-foreground)",
+  legs: "var(--warning)",
+  lower: "var(--chart-5)",
+  pull: "var(--success)",
+  push: "var(--primary)",
+  upper: "var(--chart-4)",
+}
 
 function createDraftId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -64,7 +79,7 @@ function createDraftId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function createRoutineExerciseDraft(defaultVariationId = ""): RoutineExerciseDraft {
+function createEmptyRoutineExercise(defaultVariationId = ""): RoutineExercise {
   return {
     id: createDraftId(),
     reps: "8-12",
@@ -74,20 +89,10 @@ function createRoutineExerciseDraft(defaultVariationId = ""): RoutineExerciseDra
   }
 }
 
-function formatRoutineKind(kind?: string) {
-  if (!kind || kind === "full_body") {
-    return kind === "full_body" ? "full" : "other"
-  }
-
-  return kind
-}
-
-function normalizeRoutineKind(kind?: string): RoutineKind {
-  if (kind === "push" || kind === "pull" || kind === "legs" || kind === "full_body" || kind === "cardio" || kind === "other") {
-    return kind
-  }
-
-  return "other"
+function mapRoutineTagToWorkoutKind(tag: RoutineTag): RoutineKind {
+  if (tag === "full" || tag === "upper") return "full_body"
+  if (tag === "lower") return "legs"
+  return tag
 }
 
 function getDateKey(date: Date) {
@@ -149,7 +154,7 @@ function formatWeekRangeLabel(weekStart: Date) {
 
 function getRoutineTag(workout: Workout | null) {
   if (!workout) {
-    return "rest"
+    return "full"
   }
 
   if (workout.kind === "full_body") {
@@ -167,6 +172,52 @@ function getRoutineTag(workout: Workout | null) {
   if (muscleGroups.some((group) => group.includes("chest") || group.includes("shoulder"))) return "push"
 
   return workout.kind === "cardio" ? "cardio" : "full"
+}
+
+function getRoutineTagForLibrary(workout: Workout, index: number): RoutineTag {
+  const tag = getRoutineTag(workout)
+
+  if (tag === "push" || tag === "pull" || tag === "legs" || tag === "full") {
+    return tag
+  }
+
+  const normalizedName = workout.name.toLowerCase()
+
+  if (normalizedName.includes("push")) return "push"
+  if (normalizedName.includes("pull")) return "pull"
+  if (normalizedName.includes("leg")) return "legs"
+  if (normalizedName.includes("upper")) return "upper"
+  if (normalizedName.includes("lower")) return "lower"
+  if (normalizedName.includes("full")) return "full"
+
+  return ROUTINE_TAGS[index % ROUTINE_TAGS.length]
+}
+
+function mapWorkoutExerciseToRoutineExercise(workoutExercise: Workout["exercises"][number]): RoutineExercise {
+  return {
+    fallbackEquipment: workoutExercise.variation.equipment,
+    fallbackExerciseName: workoutExercise.exercise.name,
+    fallbackIsDefault: workoutExercise.variation.isDefault,
+    fallbackMuscleGroup: workoutExercise.exercise.muscleGroup,
+    fallbackVariationName: workoutExercise.variation.name,
+    id: workoutExercise.id || createDraftId(),
+    reps: formatRepTarget({
+      reps: workoutExercise.sets[0]?.targetReps ?? 1,
+      repsMin: workoutExercise.sets[0]?.targetRepsMin,
+    }),
+    sets: workoutExercise.sets.length || 1,
+    variationId: workoutExercise.variation.id,
+    weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
+  }
+}
+
+function mapWorkoutToRoutine(workout: Workout, index: number): Routine {
+  return {
+    exercises: workout.exercises.map(mapWorkoutExerciseToRoutineExercise),
+    id: workout.id || createDraftId(),
+    name: workout.name || `Routine ${index + 1}`,
+    tag: getRoutineTagForLibrary(workout, index),
+  }
 }
 
 function getTagColor(tag: string) {
@@ -351,46 +402,43 @@ function DayCard({
   )
 }
 
-function RoutineDot({ kind }: { kind?: string }) {
-  return <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: getTagColor(formatRoutineKind(kind)) }} />
+function RoutineDot({ tag }: { tag: RoutineTag }) {
+  return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: TAG_DOT_COLOR[tag] }} />
 }
 
 function RoutinePickerDialog({
   date,
   error,
   isSaving,
+  library,
   onClose,
   onCreateNew,
-  onPickTemplate,
+  onPick,
   open,
-  templates,
 }: {
   date: Date | null
   error: string | null
   isSaving: boolean
+  library: Routine[]
   onClose: () => void
   onCreateNew: () => void
-  onPickTemplate: (template: Workout) => void
+  onPick: (routine: Routine) => void
   open: boolean
-  templates: Workout[]
 }) {
   const [query, setQuery] = useState("")
-  const visibleTemplates = useMemo(() => {
+  const visibleRoutines = useMemo(() => {
     const normalized = query.trim().toLowerCase()
 
-    return templates
-      .filter((template) => template.exercises.length > 0)
-      .filter((template) => {
+    return library
+      .filter((routine) => routine.exercises.length > 0)
+      .filter((routine) => {
         if (!normalized) {
           return true
         }
 
-        return [template.name, template.kind ?? "", ...template.exercises.map((exercise) => exercise.exercise.name)]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalized)
+        return [routine.name, routine.tag].join(" ").toLowerCase().includes(normalized)
       })
-  }, [query, templates])
+  }, [library, query])
 
   useEffect(() => {
     if (!open) {
@@ -422,27 +470,27 @@ function RoutinePickerDialog({
           {error ? (
             <div className="border-b border-destructive/20 bg-destructive/5 px-5 py-3 text-sm text-destructive">{error}</div>
           ) : null}
-          {visibleTemplates.length === 0 ? (
+          {visibleRoutines.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-              No saved routines yet. Create a new routine for this rest day.
+              No routines match this search. Create a new routine for this rest day.
             </div>
           ) : (
-            visibleTemplates.map((template, index) => (
+            visibleRoutines.map((routine, index) => (
               <button
-                key={template.id}
+                key={routine.id}
                 type="button"
                 disabled={isSaving}
-                onClick={() => onPickTemplate(template)}
+                onClick={() => onPick(routine)}
                 className={cn(
                   "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60",
-                  index < visibleTemplates.length - 1 && "border-b border-border",
+                  index < visibleRoutines.length - 1 && "border-b border-border",
                 )}
               >
-                <RoutineDot kind={template.kind} />
+                <RoutineDot tag={routine.tag} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-foreground">{template.name}</span>
+                  <span className="block truncate text-sm font-medium text-foreground">{routine.name}</span>
                   <span className="label-micro mt-0.5 block">
-                    {formatRoutineKind(template.kind)} · {template.exercises.length} exercise{template.exercises.length === 1 ? "" : "s"}
+                    {routine.tag} · {routine.exercises.length} exercise{routine.exercises.length === 1 ? "" : "s"}
                   </span>
                 </span>
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
@@ -478,32 +526,46 @@ function RoutineBuilderDialog({
   isLoadingExercises: boolean
   isSaving: boolean
   onClose: () => void
-  onSave: (routine: RoutineDraft) => void
+  onSave: (routine: Routine) => void
   open: boolean
 }) {
   const [name, setName] = useState("")
-  const [kind, setKind] = useState<RoutineKind>("push")
-  const [exercises, setExercises] = useState<RoutineExerciseDraft[]>([])
+  const [tag, setTag] = useState<RoutineTag>("push")
+  const [exercises, setExercises] = useState<RoutineExercise[]>([])
+  const [isExerciseSearchOpen, setIsExerciseSearchOpen] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setName("")
-      setKind("push")
+      setTag("push")
       setExercises([])
+      setIsExerciseSearchOpen(false)
     }
   }, [open])
 
   const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
   const canSave = name.trim().length > 0 && exercises.length > 0 && exercises.every((exercise) => exercise.variationId) && !isSaving
 
-  const addExercise = () => {
-    setExercises((current) => [...current, createRoutineExerciseDraft(exerciseOptions[0]?.id ?? "")])
-  }
-
-  const updateExercise = (exerciseId: string, patch: Partial<RoutineExerciseDraft>) => {
+  const updateExercise = (exerciseId: string, patch: Partial<RoutineExercise>) => {
     setExercises((current) =>
       current.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...patch } : exercise)),
     )
+  }
+
+  const moveExercise = (index: number, direction: -1 | 1) => {
+    setExercises((current) => {
+      const target = index + direction
+
+      if (target < 0 || target >= current.length) {
+        return current
+      }
+
+      const next = current.slice()
+      const moving = next[index]
+      next[index] = next[target]
+      next[target] = moving
+      return next
+    })
   }
 
   return (
@@ -526,20 +588,20 @@ function RoutineBuilderDialog({
               className="h-10 flex-1 bg-background"
             />
             <div className="flex gap-1.5 overflow-x-auto">
-              {ROUTINE_KIND_OPTIONS.map((kindOption) => (
+              {ROUTINE_TAGS.map((tagOption) => (
                 <button
-                  key={kindOption}
+                  key={tagOption}
                   type="button"
-                  onClick={() => setKind(kindOption)}
+                  onClick={() => setTag(tagOption)}
                   className={cn(
                     "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium capitalize transition-colors",
-                    kind === kindOption
+                    tag === tagOption
                       ? "border-foreground bg-foreground text-background"
                       : "border-border bg-background hover:bg-muted",
                   )}
                 >
-                  <RoutineDot kind={kindOption} />
-                  {formatRoutineKind(kindOption)}
+                  <RoutineDot tag={tagOption} />
+                  {tagOption}
                 </button>
               ))}
             </div>
@@ -566,22 +628,62 @@ function RoutineBuilderDialog({
                   <div className="min-w-0 flex-1">
                     <ExercisePicker
                       exercises={exerciseOptions}
+                      fallbackSelection={{
+                        equipment: exercise.fallbackEquipment,
+                        exerciseName: exercise.fallbackExerciseName,
+                        isDefault: exercise.fallbackIsDefault,
+                        muscleGroup: exercise.fallbackMuscleGroup,
+                        variationName: exercise.fallbackVariationName,
+                      }}
                       selectedVariationId={exercise.variationId}
                       disabled={isLoadingExercises || isSaving}
-                      onSelect={(variationId) => updateExercise(exercise.id, { variationId })}
+                      onSelect={(variationId) => {
+                        const option = exerciseOptions.find((item) => item.id === variationId)
+
+                        updateExercise(exercise.id, {
+                          fallbackEquipment: option?.equipment,
+                          fallbackExerciseName: option?.exerciseName,
+                          fallbackIsDefault: option?.isDefault,
+                          fallbackMuscleGroup: option?.muscleGroup,
+                          fallbackVariationName: option?.variationName,
+                          variationId,
+                        })
+                      }}
                     />
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
-                    aria-label="Remove exercise"
-                    disabled={isSaving}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => moveExercise(index, -1)}
+                      disabled={index === 0 || isSaving}
+                      aria-label="Move exercise up"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => moveExercise(index, 1)}
+                      disabled={index === exercises.length - 1 || isSaving}
+                      aria-label="Move exercise down"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
+                      aria-label="Remove exercise"
+                      disabled={isSaving}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2 pl-8">
@@ -624,7 +726,7 @@ function RoutineBuilderDialog({
             type="button"
             variant="outline"
             className="mt-3 w-full border-dashed bg-transparent text-primary hover:bg-muted hover:text-primary"
-            onClick={addExercise}
+            onClick={() => setIsExerciseSearchOpen(true)}
             disabled={isLoadingExercises || isSaving || exerciseOptions.length === 0}
           >
             {isLoadingExercises ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -636,9 +738,182 @@ function RoutineBuilderDialog({
           <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button type="button" disabled={!canSave} onClick={() => onSave({ exercises, kind, name: name.trim() })}>
+          <Button
+            type="button"
+            disabled={!canSave}
+            onClick={() => onSave({ exercises, id: createDraftId(), name: name.trim(), tag })}
+          >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Save routine
+          </Button>
+        </DialogFooter>
+
+        <ExerciseSearchDialog
+          existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
+          exerciseOptions={exerciseOptions}
+          open={isExerciseSearchOpen}
+          onClose={() => setIsExerciseSearchOpen(false)}
+          onPick={(option) => {
+            setExercises((current) => [
+              ...current,
+              {
+                ...createEmptyRoutineExercise(),
+                fallbackEquipment: option.equipment,
+                fallbackExerciseName: option.exerciseName,
+                fallbackIsDefault: option.isDefault,
+                fallbackMuscleGroup: option.muscleGroup,
+                fallbackVariationName: option.variationName,
+                variationId: option.id,
+              },
+            ])
+            setIsExerciseSearchOpen(false)
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ExerciseSearchDialog({
+  existingVariationIds,
+  exerciseOptions,
+  onClose,
+  onPick,
+  open,
+}: {
+  existingVariationIds: string[]
+  exerciseOptions: ExerciseVariationOption[]
+  onClose: () => void
+  onPick: (option: ExerciseVariationOption) => void
+  open: boolean
+}) {
+  const [query, setQuery] = useState("")
+  const [muscleGroup, setMuscleGroup] = useState("all")
+  const existingSet = useMemo(() => new Set(existingVariationIds), [existingVariationIds])
+  const muscleGroups = useMemo(
+    () => ["all", ...Array.from(new Set(exerciseOptions.map((option) => option.muscleGroup))).sort((left, right) => left.localeCompare(right))],
+    [exerciseOptions],
+  )
+  const visibleExercises = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+
+    return exerciseOptions
+      .slice()
+      .sort((left, right) => {
+        const nameComparison = left.exerciseName.localeCompare(right.exerciseName)
+
+        if (nameComparison !== 0) {
+          return nameComparison
+        }
+
+        return left.variationName.localeCompare(right.variationName)
+      })
+      .filter((option) => {
+        if (muscleGroup !== "all" && option.muscleGroup !== muscleGroup) {
+          return false
+        }
+
+        if (!normalizedQuery) {
+          return true
+        }
+
+        return [
+          option.exerciseName,
+          option.variationName,
+          option.name,
+          option.muscleGroup,
+          option.equipment ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery)
+      })
+  }, [exerciseOptions, muscleGroup, query])
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("")
+      setMuscleGroup("all")
+    }
+  }, [open])
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
+      <DialogContent className="z-[110] flex h-[82svh] max-h-[82svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[480px]">
+        <DialogHeader className="border-b border-border px-6 pb-3 pt-5 text-left">
+          <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">Add exercise</DialogTitle>
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search..."
+              className="h-10 rounded-[4px] bg-background pl-9 text-sm focus-visible:ring-primary/30"
+              autoFocus
+            />
+          </div>
+          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
+            {muscleGroups.map((group) => {
+              const active = muscleGroup === group
+
+              return (
+                <button
+                  key={group}
+                  type="button"
+                  onClick={() => setMuscleGroup(group)}
+                  className={cn(
+                    "h-8 shrink-0 rounded-full border px-3 text-sm font-medium capitalize transition-colors",
+                    active
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  {group === "all" ? "All" : group}
+                </button>
+              )
+            })}
+          </div>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {visibleExercises.length === 0 ? (
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">No exercises match this search.</div>
+          ) : (
+            visibleExercises.map((option) => {
+              const added = existingSet.has(option.id)
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={added}
+                  onClick={() => onPick(option)}
+                  className={cn(
+                    "flex w-full items-center gap-4 border-b border-border px-6 py-3 text-left transition-colors",
+                    added ? "cursor-default opacity-55" : "hover:bg-muted",
+                  )}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">{option.exerciseName}</span>
+                    <span className="label-micro mt-0.5 block truncate">
+                      {option.muscleGroup} · {option.equipment || "Bodyweight"}
+                    </span>
+                  </span>
+                  {added ? (
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-success">Added</span>
+                  ) : (
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        <DialogFooter className="border-t border-border px-6 py-3 sm:justify-center">
+          <Button type="button" variant="ghost" size="sm" className="text-primary hover:text-primary" disabled>
+            <Plus className="h-3.5 w-3.5" />
+            Create custom exercise
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -710,6 +985,7 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
   const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
   const [visibleRecentLogs, setVisibleRecentLogs] = useState(recentLogs)
   const [visibleWeekLogs, setVisibleWeekLogs] = useState(weekLogs ?? [])
+  const [extraRoutineLibrary, setExtraRoutineLibrary] = useState<Routine[]>([])
   const [selectedRestDate, setSelectedRestDate] = useState<Date | null>(null)
   const [isRoutineBuilderOpen, setIsRoutineBuilderOpen] = useState(false)
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
@@ -745,10 +1021,14 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
     workouts: visibleWorkouts,
   })
 
-  const templateWorkouts = visibleWorkouts
-    .filter((workout) => !workout.scheduledDate)
-    .slice()
-    .sort((left, right) => Number(Boolean(right.isPersonal)) - Number(Boolean(left.isPersonal)))
+  const routineLibrary = [
+    ...extraRoutineLibrary,
+    ...visibleWorkouts
+      .filter((workout) => !workout.scheduledDate)
+      .slice()
+      .sort((left, right) => Number(Boolean(right.isPersonal)) - Number(Boolean(left.isPersonal)))
+      .map((workout, index) => mapWorkoutToRoutine(workout, index)),
+  ]
 
   const coachWorkouts = visibleWorkouts.filter((workout) => !workout.isPersonal)
   const plannedCount = thisWeekEntries.filter((entry) => entry.workout).length
@@ -820,12 +1100,12 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
     })
   }
 
-  const saveTemplateToRestDate = async (template: Workout) => {
+  const saveTemplateToRestDate = async (routine: Routine) => {
     if (!selectedRestDate || !session?.access_token || isSavingRoutine) {
       return
     }
 
-    if (template.exercises.length === 0) {
+    if (routine.exercises.length === 0) {
       setRoutineError("This routine has no exercises yet.")
       return
     }
@@ -835,20 +1115,28 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
 
     try {
       const createdWorkout = await createWorkout(session.access_token, {
-        duration: template.duration,
-        exercises: template.exercises.map((exercise) => ({
-          reps: Math.max(1, exercise.sets[0]?.targetReps ?? 1),
-          repsMin: exercise.sets[0]?.targetRepsMin,
-          sets: Math.max(1, exercise.sets.length),
-          variationId: exercise.variation.id,
-          weight: exercise.sets[0]?.weight,
-        })),
-        kind: template.kind,
-        name: template.name,
-        notes: template.notes,
+        duration: Math.max(30, routine.exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)),
+        exercises: routine.exercises.map((exercise) => {
+          const repTarget = parseRepTargetText(exercise.reps) ?? { reps: 1, repsMin: undefined }
+          const parsedWeight = Number(exercise.weight)
+
+          return {
+            reps: repTarget.reps,
+            repsMin: repTarget.repsMin,
+            sets: Math.max(1, exercise.sets),
+            variationId: exercise.variationId,
+            weight:
+              exercise.weight.trim() && Number.isFinite(parsedWeight)
+                ? Math.max(0, parsedWeight)
+                : undefined,
+          }
+        }),
+        kind: mapRoutineTagToWorkoutKind(routine.tag),
+        name: routine.name,
         scheduledDate: format(selectedRestDate, "yyyy-MM-dd"),
       })
 
+      setExtraRoutineLibrary((current) => [routine, ...current.filter((item) => item.id !== routine.id)])
       handleWorkoutSaved(createdWorkout, undefined, selectedRestDate)
       closeRoutineFlow()
     } catch (saveError) {
@@ -858,7 +1146,7 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
     }
   }
 
-  const saveDraftToRestDate = async (routine: RoutineDraft) => {
+  const saveDraftToRestDate = async (routine: Routine) => {
     if (!selectedRestDate || !session?.access_token || isSavingRoutine) {
       return
     }
@@ -904,11 +1192,12 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
       const createdWorkout = await createWorkout(session.access_token, {
         duration: Math.max(30, normalizedExercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)),
         exercises: normalizedExercises,
-        kind: routine.kind,
+        kind: mapRoutineTagToWorkoutKind(routine.tag),
         name: routine.name,
         scheduledDate: format(selectedRestDate, "yyyy-MM-dd"),
       })
 
+      setExtraRoutineLibrary((current) => [routine, ...current.filter((item) => item.id !== routine.id)])
       handleWorkoutSaved(createdWorkout, undefined, selectedRestDate)
       closeRoutineFlow()
     } catch (saveError) {
@@ -988,11 +1277,11 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
         date={selectedRestDate}
         error={routineError}
         isSaving={isSavingRoutine}
+        library={routineLibrary}
         open={Boolean(selectedRestDate) && !isRoutineBuilderOpen}
-        templates={templateWorkouts}
         onClose={closeRoutineFlow}
         onCreateNew={openRoutineBuilder}
-        onPickTemplate={(template) => void saveTemplateToRestDate(template)}
+        onPick={(routine) => void saveTemplateToRestDate(routine)}
       />
 
       <RoutineBuilderDialog
