@@ -47,7 +47,16 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function hasSessionProgress(exercises: Workout["exercises"]) {
-  return exercises.some((exercise) => exercise.sets.some((set) => set.completed))
+  return exercises.some((exercise) =>
+    exercise.sets.some(
+      (set) =>
+        set.completed ||
+        set.weight != null ||
+        set.actualReps != null ||
+        set.notes?.trim() ||
+        set.rir != null,
+    ),
+  )
 }
 
 function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSession["exercises"] {
@@ -292,7 +301,10 @@ function LiftSetRow({ set, setIndex, weightUnit, onToggle, onChange }: LiftSetRo
         type="number"
         inputMode="numeric"
         value={reps}
-        onChange={(e) => setReps(e.target.value)}
+        onChange={(e) => {
+          setReps(e.target.value)
+          onChange({ actualReps: Number.parseInt(e.target.value) || undefined })
+        }}
         placeholder="—"
         aria-label="Reps"
         className={cn(
@@ -568,7 +580,30 @@ export default function WorkoutStartPage() {
     setExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex
-        return { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) }
+        const updatedSetIndex = ex.sets.findIndex((set) => set.id === setId)
+        const shouldSyncWeightToFollowingSets =
+          updatedSetIndex === 0 &&
+          Object.prototype.hasOwnProperty.call(patch, "weight")
+
+        return {
+          ...ex,
+          sets: ex.sets.map((set, index) => {
+            if (set.id === setId) {
+              return { ...set, ...patch }
+            }
+
+            if (
+              shouldSyncWeightToFollowingSets &&
+              index > updatedSetIndex &&
+              !set.completed &&
+              set.weight == null
+            ) {
+              return { ...set, weight: patch.weight }
+            }
+
+            return set
+          }),
+        }
       }),
     )
   }
@@ -665,6 +700,14 @@ export default function WorkoutStartPage() {
     yesterday.setHours(0, 0, 0, 0)
     setSelectedDate(yesterday)
     setShowDateDialog(true)
+  }
+
+  const handleCancelWorkout = () => {
+    if (workout?.id) {
+      window.localStorage.removeItem(getWorkoutSessionStorageKey(workout.id))
+    }
+
+    router.back()
   }
 
   // ── Loading / error states ──────────────────────────────────────────────────
@@ -772,7 +815,7 @@ export default function WorkoutStartPage() {
           <Button
             variant="ghost"
             className="hidden md:flex"
-            onClick={() => router.back()}
+            onClick={handleCancelWorkout}
           >
             Cancel
           </Button>

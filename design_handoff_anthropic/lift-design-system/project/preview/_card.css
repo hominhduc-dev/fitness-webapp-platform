@@ -1,0 +1,35 @@
+/* Shared card base for design system preview cards */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  background: var(--ink-0);
+  color: var(--ink-800);
+  padding: 20px;
+}
+.card-row { display: flex; align-items: stretch; gap: 0; }
+.card-grid { display: grid; gap: 12px; }
+.swatch {
+  border-radius: var(--r-3);
+  border: 1px solid var(--ink-100);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 10px;
+  min-height: 80px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.swatch .name { color: inherit; font-weight: 500; }
+.swatch .hex { opacity: 0.6; }
+.token-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ink-100);
+  font-size: 13px;
+}
+.token-row:last-child { border-bottom: none; }
+.token-row .key { font-family: var(--font-mono); color: var(--ink-600); font-size: 12px; }
+.token-row .val { font-family: var(--font-mono); color: var(--ink-800); font-weight: 500; font-size: 12px; }

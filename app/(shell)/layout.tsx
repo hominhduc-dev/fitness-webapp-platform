@@ -18,7 +18,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
           <Sidebar role={profile.role} />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <Header />
+            {profile.role === "admin" ? <Header /> : null}
             <main className="flex-1 overflow-auto pb-20 md:pb-6">{children}</main>
             <MobileNav role={profile.role} />
           </div>

@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- @dsCard group="Components" -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><link rel="stylesheet" href="_card.css">
+<style>
+.btn { font-family:var(--font-sans); font-size:14px; font-weight:500; padding:8px 14px; border-radius:6px; border:1px solid transparent; cursor:pointer; line-height:1.2; transition: background var(--d-fast) var(--ease-out), color var(--d-fast) var(--ease-out); }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-secondary { background:#fcfcfa; color:var(--ink-800); border-color:var(--ink-150); }
+.btn-secondary:hover { background:var(--ink-50); }
+.btn-ghost { background:transparent; color:var(--ink-800); }
+.btn-ghost:hover { background:var(--ink-50); }
+.btn-danger { background:transparent; color:var(--danger); border-color:transparent; }
+.btn-danger:hover { background:var(--danger-soft); }
+.btn-disabled { background:var(--accent); color:#fff; opacity:0.4; cursor:not-allowed; }
+.btn-sm { font-size:13px; padding:6px 10px; }
+.btn-lg { font-size:15px; padding:11px 18px; }
+.row { display:flex; gap:10px; align-items:center; margin-bottom:14px; }
+.row .label { font-family:var(--font-mono); font-size:10px; color:#8a8a82; min-width:60px; text-transform:uppercase; letter-spacing:0.08em; }
+</style>
+</head>
+<body>
+<div class="row"><span class="label">Primary</span>
+  <button class="btn btn-primary">Start workout</button>
+  <button class="btn btn-secondary">Add exercise</button>
+  <button class="btn btn-ghost">Cancel</button>
+  <button class="btn btn-danger">Delete</button>
+  <button class="btn btn-disabled">Saving…</button>
+</div>
+<div class="row"><span class="label">Sizes</span>
+  <button class="btn btn-primary btn-sm">Small</button>
+  <button class="btn btn-primary">Default</button>
+  <button class="btn btn-primary btn-lg">Large</button>
+</div>
+</body></html>

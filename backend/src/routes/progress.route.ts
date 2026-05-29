@@ -73,7 +73,8 @@ progressRouter.get("/calendar", async (req, res) => {
       return
     }
 
-    const result = await getCalendarForTrainee(profile.profile, year, month)
+    const summaryOnly = req.query.summaryOnly === "true"
+    const result = await getCalendarForTrainee(profile.profile, year, month, { summaryOnly })
     res.json(result)
   } catch (error) {
     sendError(res, error)

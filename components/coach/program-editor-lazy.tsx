@@ -2,12 +2,14 @@
 
 import dynamic from "next/dynamic"
 
-import type { CoachTrainee } from "@/lib/fitness/types"
+import type { CoachProgram, CoachTrainee } from "@/lib/fitness/types"
 import type { ExerciseVariationOption } from "@/lib/types"
 
 type ProgramEditorLazyProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
+  onClose?: () => void
+  onSaved?: (program: CoachProgram) => void
   programId?: string
 }
 

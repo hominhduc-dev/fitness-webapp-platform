@@ -4,7 +4,7 @@ import type React from "react"
 
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Bell, Settings, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,7 @@ interface HeaderProps {
 
 export function Header({ showMenu, onMenuClick }: HeaderProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const { isLoading, profile, signOut } = useAuth()
   const { locale, messages } = useLocale()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -58,6 +59,10 @@ export function Header({ showMenu, onMenuClick }: HeaderProps) {
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  if (pathname === "/schedule") {
+    return null
+  }
 
   const handleSignOut = async () => {
     setIsSigningOut(true)

@@ -2730,6 +2730,16 @@ async function getCoachProgramDetail(profile: SerializedProfile, programId: stri
   return serializeProgram(program as ProgramRecord)
 }
 
+function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>) {
+  const scheduledDays = new Set(
+    workouts
+      .map((workout) => workout.scheduledDay)
+      .filter((scheduledDay): scheduledDay is number => typeof scheduledDay === "number"),
+  )
+
+  return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
+}
+
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
@@ -2848,7 +2858,7 @@ async function createCoachProgram(
           scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
         })),
       },
-      workoutsPerWeek: input.workouts.length,
+      workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
     },
     include: PROGRAM_INCLUDE,
   })
@@ -2997,7 +3007,7 @@ async function updateCoachProgram(
           })),
           deleteMany: {},
         },
-        workoutsPerWeek: input.workouts.length,
+        workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
       include: PROGRAM_INCLUDE,
       where: {
@@ -3126,7 +3136,7 @@ async function adjustCoachProgramForTrainee(
             scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
           })),
         },
-        workoutsPerWeek: input.workouts.length,
+        workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
       include: PROGRAM_INCLUDE,
     })
@@ -3417,7 +3427,12 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
   }
 }
 
-async function getCalendarForTrainee(profile: SerializedProfile, year: number, month: number) {
+async function getCalendarForTrainee(
+  profile: SerializedProfile,
+  year: number,
+  month: number,
+  options?: { summaryOnly?: boolean },
+) {
   const db = ensurePrisma()
   assertTrainee(profile)
 
@@ -3426,38 +3441,24 @@ async function getCalendarForTrainee(profile: SerializedProfile, year: number, m
 
   const logs = await db.workoutLog.findMany({
     orderBy: { startedAt: "asc" },
-    select: {
-      completedAt: true,
-      id: true,
-      startedAt: true,
-      totalVolume: true,
-      workout: { select: { id: true, kind: true, name: true } },
-    },
+    select: options?.summaryOnly
+      ? {
+          completedAt: true,
+          startedAt: true,
+          totalVolume: true,
+        }
+      : {
+          completedAt: true,
+          id: true,
+          startedAt: true,
+          totalVolume: true,
+          workout: { select: { id: true, kind: true, name: true } },
+        },
     where: {
       startedAt: { gte: start, lt: end },
       userId: profile.id,
     },
   })
-
-  const dayMap = new Map<string, typeof logs>()
-  for (const log of logs) {
-    const dateKey = formatUtcDateOnly(log.startedAt)
-    if (!dayMap.has(dateKey)) dayMap.set(dateKey, [])
-    dayMap.get(dateKey)!.push(log)
-  }
-
-  const days = Array.from(dayMap.entries()).map(([date, dayLogs]) => ({
-    date,
-    logs: dayLogs.map((log) => ({
-      completedAt: log.completedAt ? log.completedAt.toISOString() : null,
-      id: log.id,
-      startedAt: log.startedAt.toISOString(),
-      totalVolume: log.totalVolume ?? 0,
-      workoutId: log.workout?.id ?? "",
-      workoutKind: log.workout?.kind ?? null,
-      workoutName: log.workout?.name ?? "Workout",
-    })),
-  }))
 
   const totalWorkouts = logs.length
   const totalVolume = logs.reduce((s, l) => s + (l.totalVolume ?? 0), 0)
@@ -3469,8 +3470,44 @@ async function getCalendarForTrainee(profile: SerializedProfile, year: number, m
   const avgDurationMins =
     completedLogs.length > 0 ? Math.round(totalDurationMs / completedLogs.length / 60_000) : 0
 
+  if (options?.summaryOnly) {
+    return {
+      days: [],
+      summary: {
+        avgDurationMins,
+        totalVolume: Math.round(totalVolume * 10) / 10,
+        totalWorkouts,
+      },
+    }
+  }
+
+  const detailedLogs = logs as Array<{
+    completedAt: Date | null
+    id: string
+    startedAt: Date
+    totalVolume: number | null
+    workout: { id: string; kind: string | null; name: string } | null
+  }>
+  const dayMap = new Map<string, typeof detailedLogs>()
+  for (const log of detailedLogs) {
+    const dateKey = formatUtcDateOnly(log.startedAt)
+    if (!dayMap.has(dateKey)) dayMap.set(dateKey, [])
+    dayMap.get(dateKey)!.push(log)
+  }
+
   return {
-    days,
+    days: Array.from(dayMap.entries()).map(([date, dayLogs]) => ({
+      date,
+      logs: dayLogs.map((log) => ({
+        completedAt: log.completedAt ? log.completedAt.toISOString() : null,
+        id: log.id,
+        startedAt: log.startedAt.toISOString(),
+        totalVolume: log.totalVolume ?? 0,
+        workoutId: log.workout?.id ?? "",
+        workoutKind: log.workout?.kind ?? null,
+        workoutName: log.workout?.name ?? "Workout",
+      })),
+    })),
     summary: {
       avgDurationMins,
       totalVolume: Math.round(totalVolume * 10) / 10,

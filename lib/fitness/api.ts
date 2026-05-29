@@ -869,9 +869,18 @@ async function fetchProgressCalendar(
   accessToken: string,
   year: number,
   month: number,
+  options?: { summaryOnly?: boolean },
 ): Promise<ProgressCalendar> {
+  const searchParams = new URLSearchParams({
+    month: String(month),
+    year: String(year),
+  })
+  if (options?.summaryOnly) {
+    searchParams.set("summaryOnly", "true")
+  }
+
   return request<ProgressCalendar>(
-    `/api/progress/calendar?year=${year}&month=${month}`,
+    `/api/progress/calendar?${searchParams.toString()}`,
     accessToken,
     { cache: "no-store" },
   )

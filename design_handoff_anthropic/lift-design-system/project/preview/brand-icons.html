@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- @dsCard group="Brand" -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><link rel="stylesheet" href="_card.css">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+.icon-cell { display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 8px; border:1px solid var(--ink-100); border-radius:6px; }
+.icon-cell svg { width:20px; height:20px; stroke-width:1.5; color:var(--ink-800); }
+.icon-cell .nm { font-family:var(--font-mono); font-size:10px; color:var(--ink-400); }
+</style>
+</head>
+<body>
+<div style="display:grid; grid-template-columns: repeat(8, 1fr); gap:8px;">
+  <div class="icon-cell"><i data-lucide="dumbbell"></i><span class="nm">dumbbell</span></div>
+  <div class="icon-cell"><i data-lucide="calendar"></i><span class="nm">calendar</span></div>
+  <div class="icon-cell"><i data-lucide="flame"></i><span class="nm">flame</span></div>
+  <div class="icon-cell"><i data-lucide="ruler"></i><span class="nm">ruler</span></div>
+  <div class="icon-cell"><i data-lucide="timer"></i><span class="nm">timer</span></div>
+  <div class="icon-cell"><i data-lucide="bar-chart-3"></i><span class="nm">chart</span></div>
+  <div class="icon-cell"><i data-lucide="plus"></i><span class="nm">plus</span></div>
+  <div class="icon-cell"><i data-lucide="check"></i><span class="nm">check</span></div>
+</div>
+<div style="margin-top:14px; font-size:12px; color:var(--ink-600);">Lucide · stroke 1.5 · currentColor · 16/20/24 px sizes</div>
+<script>lucide.createIcons();</script>
+</body></html>

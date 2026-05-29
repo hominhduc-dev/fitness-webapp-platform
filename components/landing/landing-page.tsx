@@ -405,14 +405,14 @@ function TrainerCallout() {
         </div>
 
         {/* Right: mock client table */}
-        <div className="rounded-[10px] border border-white/8 bg-white/4 p-5 font-mono text-[13px] leading-[1.7] text-[#c9c9c2]">
+        <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.04] p-5 font-mono text-[13px] leading-[1.7] text-[#c9c9c2]">
           <div className="mb-2.5 text-[#fcfcfa]">This week · 12 clients</div>
           {CLIENT_ROWS.map((row, i) => (
             <div
               key={row.name}
               className={cn(
                 "flex items-center justify-between py-1.5",
-                i > 0 && "border-t border-white/6"
+                i > 0 && "border-t border-white/[0.06]"
               )}
             >
               <span className="text-[#fcfcfa]">{row.name}</span>
