@@ -118,8 +118,8 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         {/* Brand */}
         <div className="mb-4 flex items-center gap-2.5 px-1">
-          <img src="/lift-mark.svg" alt="" className="h-5 w-7 text-foreground" />
-          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">lift</span>
+          <img src="/lift-mark.svg" alt="" className="h-5 w-[22px] text-foreground" />
+          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">yeahbuddy</span>
           <span className="ml-auto rounded-[3px] bg-foreground px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-background">
             Admin
           </span>
@@ -243,8 +243,8 @@ function CoachSidebar({ pathname }: { pathname: string }) {
     <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         <div className="mb-4 flex items-center gap-2.5 px-1">
-          <img src="/lift-mark.svg" alt="" className="h-5 w-7 text-foreground" />
-          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">lift</span>
+          <img src="/lift-mark.svg" alt="" className="h-5 w-[22px] text-foreground" />
+          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">yeahbuddy</span>
           <span className="ml-auto rounded-[3px] bg-foreground px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-background">
             Coach
           </span>

@@ -8,6 +8,7 @@ import {
   Check,
   Copy,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -85,6 +86,11 @@ type PickerSlot = {
   dayIndex: number
   weekIndex: number
 }
+
+type BuilderMode =
+  | { kind: "create" }
+  | { kind: "edit-slot"; slot: PickerSlot }
+  | { kind: "edit-library"; routineId: string }
 
 const WEEK_OPTIONS = [4, 6, 8, 10, 12, 16]
 const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
@@ -347,11 +353,13 @@ function RoutineTagBadge({ tag }: { tag: RoutineTag }) {
 
 function SessionSlot({
   dayLabel,
+  onEdit,
   onClick,
   onToggleRest,
   slot,
 }: {
   dayLabel: string
+  onEdit?: () => void
   onClick: () => void
   onToggleRest: () => void
   slot: ScheduleSlot
@@ -374,27 +382,50 @@ function SessionSlot({
         <span className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           {dayLabel}
         </span>
-        {!isRest ? (
-          <span
-            role="button"
-            tabIndex={0}
-            title="Mark as rest day"
-            className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggleRest()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
+        <span className="flex items-center gap-0.5">
+          {routine && onEdit ? (
+            <span
+              role="button"
+              tabIndex={0}
+              title="Edit routine exercises"
+              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
+              onClick={(event) => {
+                event.stopPropagation()
+                onEdit()
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onEdit()
+                }
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+            </span>
+          ) : null}
+          {!isRest ? (
+            <span
+              role="button"
+              tabIndex={0}
+              title="Mark as rest day"
+              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
+              onClick={(event) => {
                 event.stopPropagation()
                 onToggleRest()
-              }
-            }}
-          >
-            <X className="h-3 w-3" />
-          </span>
-        ) : null}
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onToggleRest()
+                }
+              }}
+            >
+              <X className="h-3 w-3" />
+            </span>
+          ) : null}
+        </span>
       </span>
 
       {routine ? (
@@ -420,12 +451,14 @@ function RoutinePickerDialog({
   library,
   onClose,
   onCreateNew,
+  onEditLibraryRoutine,
   onPick,
   open,
 }: {
   library: Routine[]
   onClose: () => void
   onCreateNew: () => void
+  onEditLibraryRoutine: (routine: Routine) => void
   onPick: (routine: Routine) => void
   open: boolean
 }) {
@@ -444,7 +477,7 @@ function RoutinePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[90] max-h-[72svh] overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[400px]">
+      <DialogContent className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[400px]">
         <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="text-[15px] font-semibold">Pick a routine</DialogTitle>
@@ -456,6 +489,7 @@ function RoutinePickerDialog({
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search routines..."
               className="h-9 bg-background pl-8 text-sm"
+              autoFocus
             />
           </div>
         </DialogHeader>
@@ -465,23 +499,35 @@ function RoutinePickerDialog({
             <div className="px-5 py-8 text-center text-sm text-muted-foreground">No routines match this search.</div>
           ) : (
             visibleRoutines.map((routine, index) => (
-              <button
+              <div
                 key={routine.id}
-                type="button"
-                onClick={() => onPick(routine)}
                 className={cn(
-                  "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted",
+                  "group flex w-full items-center gap-3 px-5 py-3",
                   index < visibleRoutines.length - 1 && "border-b border-border",
                 )}
               >
-                <RoutineDot tag={routine.tag} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-foreground">{routine.name}</span>
-                  <span className="label-micro mt-0.5 block">
-                    {routine.tag} · {routine.exercises.length} exercise{routine.exercises.length === 1 ? "" : "s"}
+                <button
+                  type="button"
+                  onClick={() => onPick(routine)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:text-foreground"
+                >
+                  <RoutineDot tag={routine.tag} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">{routine.name}</span>
+                    <span className="label-micro mt-0.5 block uppercase">
+                      {routine.tag} · {routine.exercises.length} exercise{routine.exercises.length === 1 ? "" : "s"}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  title="Edit routine"
+                  onClick={() => onEditLibraryRoutine(routine)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -499,27 +545,33 @@ function RoutinePickerDialog({
 
 function RoutineBuilderDialog({
   exerciseOptions,
+  initialRoutine,
   onClose,
   onSave,
   open,
 }: {
   exerciseOptions: ExerciseVariationOption[]
+  initialRoutine?: Routine
   onClose: () => void
   onSave: (routine: Routine) => void
   open: boolean
 }) {
-  const [name, setName] = useState("")
-  const [tag, setTag] = useState<RoutineTag>("push")
-  const [exercises, setExercises] = useState<RoutineExercise[]>([])
+  const isEditMode = Boolean(initialRoutine)
+  const [name, setName] = useState(initialRoutine?.name ?? "")
+  const [tag, setTag] = useState<RoutineTag>(initialRoutine?.tag ?? "push")
+  const [exercises, setExercises] = useState<RoutineExercise[]>(
+    initialRoutine?.exercises.map((e) => ({ ...e, id: e.id || createFormId() })) ?? [],
+  )
   const [isExerciseSearchOpen, setIsExerciseSearchOpen] = useState(false)
 
   useEffect(() => {
-    if (!open) {
-      setName("")
-      setTag("push")
-      setExercises([])
+    if (open) {
+      setName(initialRoutine?.name ?? "")
+      setTag(initialRoutine?.tag ?? "push")
+      setExercises(initialRoutine?.exercises.map((e) => ({ ...e, id: e.id || createFormId() })) ?? [])
       setIsExerciseSearchOpen(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
@@ -551,9 +603,9 @@ function RoutineBuilderDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
       <DialogContent className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[680px]">
         <DialogHeader className="border-b border-border px-7 pb-4 pt-6 text-left">
-          <p className="label-micro">New routine</p>
+          <p className="label-micro">{isEditMode ? "Edit routine" : "New routine"}</p>
           <DialogTitle className="text-[23px] font-semibold tracking-[-0.02em]">
-            {name.trim() || "Untitled routine"}
+            {name.trim() || (isEditMode ? "Untitled routine" : "Untitled routine")}
           </DialogTitle>
           <p className="font-mono text-xs text-muted-foreground tnum">
             {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
@@ -717,13 +769,14 @@ function RoutineBuilderDialog({
 
               onSave({
                 exercises,
-                id: createFormId(),
+                // Preserve ID when editing so schedule slots stay linked
+                id: initialRoutine?.id ?? createFormId(),
                 name: name.trim(),
                 tag,
               })
             }}
           >
-            Save routine
+            {isEditMode ? "Save changes" : "Save routine"}
           </Button>
         </DialogFooter>
 
@@ -954,8 +1007,20 @@ export function ProgramEditor({
   const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8, 4))
   const [activeWeek, setActiveWeek] = useState(0)
   const [pickerSlot, setPickerSlot] = useState<PickerSlot | null>(null)
-  const [isCreatingRoutine, setIsCreatingRoutine] = useState(false)
+  const [builderMode, setBuilderMode] = useState<BuilderMode | null>(null)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
+
+  // Derive the routine being edited (slot or library)
+  const builderRoutine = useMemo(() => {
+    if (!builderMode) return undefined
+    if (builderMode.kind === "edit-slot") {
+      return schedule[builderMode.slot.weekIndex]?.[builderMode.slot.dayIndex]?.routine ?? undefined
+    }
+    if (builderMode.kind === "edit-library") {
+      return routineLibrary.find((r) => r.id === builderMode.routineId)
+    }
+    return undefined
+  }, [builderMode, schedule, routineLibrary])
   const [clientQuery, setClientQuery] = useState("")
   const [isLoadingPage, setIsLoadingPage] = useState(programId ? true : !hasInitialEditorData)
   const [isSaving, setIsSaving] = useState(false)
@@ -1090,6 +1155,46 @@ export function ProgramEditor({
       ),
     )
     setPickerSlot(null)
+  }
+
+  /** Central handler for RoutineBuilderDialog save — handles all 3 modes */
+  const handleBuilderSave = (routine: Routine) => {
+    if (!builderMode) return
+
+    if (builderMode.kind === "create") {
+      // New routine: add to library and assign to the pending picker slot
+      setRoutineLibrary((current) => [routine, ...current])
+      assignRoutineToPickerSlot(routine)
+    } else if (builderMode.kind === "edit-slot") {
+      // Edit a routine in-place for a specific slot
+      const { slot } = builderMode
+      setSchedule((current) =>
+        current.map((week, weekIndex) =>
+          weekIndex === slot.weekIndex
+            ? week.map((s, dayIndex) => (dayIndex === slot.dayIndex ? { routine } : s))
+            : week,
+        ),
+      )
+      // Also sync to library if the same routine exists there
+      setRoutineLibrary((current) => current.map((r) => (r.id === routine.id ? routine : r)))
+    } else if (builderMode.kind === "edit-library") {
+      // Edit a routine from the library — update library and all schedule slots using it
+      setRoutineLibrary((current) => current.map((r) => (r.id === routine.id ? routine : r)))
+      setSchedule((current) =>
+        current.map((week) =>
+          week.map((slot) =>
+            slot?.routine?.id === routine.id ? { routine } : slot,
+          ),
+        ),
+      )
+    }
+
+    setBuilderMode(null)
+    setNotice(
+      builderMode.kind === "create"
+        ? `Routine "${routine.name}" created and assigned.`
+        : `Routine "${routine.name}" updated.`,
+    )
   }
 
   const toggleRestDay = (weekIndex: number, dayIndex: number) => {
@@ -1403,6 +1508,11 @@ export function ProgramEditor({
 
                   setPickerSlot({ dayIndex, weekIndex: activeWeek })
                 }}
+                onEdit={
+                  activeWeekSlots[dayIndex]?.routine
+                    ? () => setBuilderMode({ kind: "edit-slot", slot: { dayIndex, weekIndex: activeWeek } })
+                    : undefined
+                }
                 onToggleRest={() => toggleRestDay(activeWeek, dayIndex)}
               />
             ))}
@@ -1443,22 +1553,20 @@ export function ProgramEditor({
       </div>
 
       <RoutinePickerDialog
-        open={Boolean(pickerSlot) && !isCreatingRoutine}
+        open={Boolean(pickerSlot) && !builderMode}
         library={routineLibrary}
         onClose={() => setPickerSlot(null)}
         onPick={assignRoutineToPickerSlot}
-        onCreateNew={() => setIsCreatingRoutine(true)}
+        onCreateNew={() => setBuilderMode({ kind: "create" })}
+        onEditLibraryRoutine={(routine) => setBuilderMode({ kind: "edit-library", routineId: routine.id })}
       />
 
       <RoutineBuilderDialog
-        open={isCreatingRoutine}
+        open={Boolean(builderMode)}
+        initialRoutine={builderRoutine}
         exerciseOptions={exerciseOptions}
-        onClose={() => setIsCreatingRoutine(false)}
-        onSave={(routine) => {
-          setRoutineLibrary((current) => [routine, ...current])
-          assignRoutineToPickerSlot(routine)
-          setIsCreatingRoutine(false)
-        }}
+        onClose={() => setBuilderMode(null)}
+        onSave={handleBuilderSave}
       />
 
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
