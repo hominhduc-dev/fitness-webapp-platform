@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useAuth } from "@/components/providers/auth-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
@@ -27,9 +28,12 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
     return <CoachSidebar pathname={pathname} />
   }
 
+  if (role === "admin") {
+    return <AdminSidebar pathname={pathname} />
+  }
+
   const traineeNavItems = getTraineeNavItems(messages)
-  const adminNavItems = getAdminNavItems(messages).filter((item) => item.href === "/admin")
-  const navItems = role === "admin" ? adminNavItems : traineeNavItems
+  const navItems = traineeNavItems
 
   return (
     <aside
@@ -84,6 +88,108 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
           collapsed={collapsed}
           extraActions={role === "trainee" ? [{ href: "/coach/find", icon: UserPlus, label: messages.common.addCoach }] : []}
         />
+      </div>
+    </aside>
+  )
+}
+
+function AdminSidebar({ pathname }: { pathname: string }) {
+  const { messages } = useLocale()
+  const searchParams = useSearchParams()
+  const currentSection = searchParams.get("s")
+  const adminNavItems = getAdminNavItems(messages)
+
+  function isAdminItemActive(item: (typeof adminNavItems)[number]): boolean {
+    // "/profile" — pure pathname match
+    if (item.href === "/profile") return pathname === "/profile"
+    // "/admin" (no ?s=) — active only when no section param
+    if (item.href === "/admin") return pathname === "/admin" && !currentSection
+    // "/admin?s=xxx" — active when pathname is /admin and ?s matches
+    const itemSection = item.href.split("?s=")[1]
+    return pathname === "/admin" && currentSection === itemSection
+  }
+
+  // Separate admin section items from settings
+  const sectionItems = adminNavItems.filter((i) => !i.href.startsWith("/profile"))
+  const settingsItems = adminNavItems.filter((i) => i.href.startsWith("/profile"))
+
+  return (
+    <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+      <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
+        {/* Brand */}
+        <div className="mb-4 flex items-center gap-2.5 px-1">
+          <img src="/lift-mark.svg" alt="" className="h-5 w-7 text-foreground" />
+          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">lift</span>
+          <span className="ml-auto rounded-[3px] bg-foreground px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-background">
+            Admin
+          </span>
+        </div>
+
+        <Link
+          href="/dashboard"
+          className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          ← Back to athlete view
+        </Link>
+
+        {/* Nav sections */}
+        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+          <p className="label-micro mb-2 px-1 text-muted-foreground">Control center</p>
+          <nav className="flex flex-col gap-1">
+            {sectionItems.map((item) => {
+              const isActive = isAdminItemActive(item)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
+                    isActive
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                  )}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                </Link>
+              )
+            })}
+          </nav>
+
+          {settingsItems.length > 0 && (
+            <>
+              <p className="label-micro mb-2 mt-5 px-1 text-muted-foreground">Account</p>
+              <nav className="flex flex-col gap-1">
+                {settingsItems.map((item) => {
+                  const isActive = isAdminItemActive(item)
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
+                        isActive
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                      )}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </nav>
+            </>
+          )}
+        </div>
+
+        {/* Account */}
+        <div className="shrink-0 border-t border-border pt-4">
+          <SidebarAccountMenu
+            avatarClassName="h-7 w-7"
+            buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
+          />
+        </div>
       </div>
     </aside>
   )

@@ -14,11 +14,16 @@ function getPrismaDatasourceUrl() {
   try {
     const url = new URL(env.databaseUrl)
 
-    // Supabase pooled connections can run out quickly in local dev if Prisma opens
-    // its default connection count. Keep the pool intentionally tiny unless the
-    // URL already sets an explicit limit.
-    if (/pooler\.supabase\.com$/i.test(url.hostname) && !url.searchParams.has("connection_limit")) {
+    // Supabase PgBouncer (transaction mode) — enforce a sensible connection pool.
+    // connection_limit=1 is the default when using PgBouncer but causes P2024 timeouts
+    // under concurrent load (e.g. admin page fires 6+ queries in Promise.all).
+    // We force it to 10 regardless of what the URL already has, and bump pool_timeout
+    // to 30 s so queued requests don't fail while waiting for a free slot.
+    if (/pooler\.supabase\.com$/i.test(url.hostname)) {
       url.searchParams.set("connection_limit", "10")
+      if (!url.searchParams.has("pool_timeout")) {
+        url.searchParams.set("pool_timeout", "30")
+      }
     }
 
     return url.toString()

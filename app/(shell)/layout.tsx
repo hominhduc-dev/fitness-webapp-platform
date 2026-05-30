@@ -9,14 +9,6 @@ import { getServerLocale } from "@/lib/i18n/server"
 export default async function AppShellLayout({ children }: { children: ReactNode }) {
   const [locale, profile] = await Promise.all([getServerLocale(), requireAppUser()])
 
-  if (profile.role === "admin") {
-    return (
-      <AppProviders initialLocale={locale} initialProfile={profile}>
-        <div className="min-h-screen bg-background">{children}</div>
-      </AppProviders>
-    )
-  }
-
   return (
     <AppProviders initialLocale={locale} initialProfile={profile}>
       <div className="flex min-h-screen bg-background">

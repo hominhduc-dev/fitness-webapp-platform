@@ -1,5 +1,5 @@
 import type { ElementType } from "react"
-import { Activity, BarChart3, Calendar, Dumbbell, Home, ListChecks, Settings, ShieldCheck, UserPlus, Users, Utensils } from "lucide-react"
+import { Activity, BarChart3, Calendar, ClipboardList, Dumbbell, Home, LayoutDashboard, Link2, ListChecks, ScrollText, Settings, ShieldCheck, UserPlus, UserRoundCheck, Users, Utensils } from "lucide-react"
 
 import type { AppMessages } from "@/lib/i18n/messages"
 
@@ -51,7 +51,13 @@ export function getCoachNavItems(messages: AppMessages, counts?: CoachCounts): S
 
 export function getAdminNavItems(messages: AppMessages): ShellNavItem[] {
   return [
-    { exact: true, href: "/admin", icon: ShieldCheck, label: messages.shell.adminDashboard },
+    { exact: true, href: "/admin", icon: LayoutDashboard, label: "Overview" },
+    { href: "/admin?s=users", icon: Users, label: "Users" },
+    { href: "/admin?s=requests", icon: UserRoundCheck, label: "Coach Requests" },
+    { href: "/admin?s=connections", icon: Link2, label: "Connections" },
+    { href: "/admin?s=programs", icon: ClipboardList, label: "Programs" },
+    { href: "/admin?s=exercises", icon: Dumbbell, label: "Exercises" },
+    { href: "/admin?s=audit", icon: ScrollText, label: "Audit" },
     { href: "/profile", icon: Settings, label: messages.common.settings },
   ]
 }

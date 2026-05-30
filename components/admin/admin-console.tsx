@@ -23,7 +23,9 @@ import {
   Users,
 } from "lucide-react"
 import { useEffect, useState, type ChangeEvent } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 
+import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { StatsCard } from "@/components/dashboard/stats-card"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -567,7 +569,27 @@ export function AdminConsole() {
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
-  const [activeSection, setActiveSection] = useState<AdminSectionId>("dashboard")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
+  const VALID_SECTIONS: AdminSectionId[] = ["dashboard", "users", "requests", "connections", "programs", "exercises", "audit"]
+  const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
+    VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard"
+  )
+
+  // Sync URL → state when user navigates via sidebar
+  useEffect(() => {
+    const next = VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard"
+    if (next !== activeSection) setActiveSectionState(next)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionFromUrl])
+
+  // State setter that also pushes URL
+  function setActiveSection(section: AdminSectionId) {
+    setActiveSectionState(section)
+    const url = section === "dashboard" ? "/admin" : `/admin?s=${section}`
+    router.replace(url, { scroll: false })
+  }
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -1029,6 +1051,43 @@ export function AdminConsole() {
     }
   }
 
+  // Panel-facing handlers (accept data directly, no internal exerciseForm state needed)
+  async function handleSaveExerciseData(data: ExerciseSaveData) {
+    if (!session?.access_token) return
+    setActionKey(data.id ? `exercise-update-${data.id}` : "exercise-create")
+    setError(null)
+    setNotice(null)
+    try {
+      if (data.id) {
+        await updateAdminExerciseRequest(session.access_token, data.id, data)
+        setNotice(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
+      } else {
+        await createAdminExerciseRequest(session.access_token, data)
+        setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
+      }
+      await refreshAllData(session.access_token, selectedUserId, true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể lưu bài tập.")
+      throw err
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  async function handleDeleteExerciseDirect(exercise: AdminExerciseItem) {
+    if (!session?.access_token) return
+    setError(null)
+    setNotice(null)
+    try {
+      await deleteAdminExerciseRequest(session.access_token, exercise.id)
+      setNotice(locale === "en" ? "Exercise deleted." : "Đã xóa bài tập.")
+      await refreshAllData(session.access_token, selectedUserId, true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
+      throw err
+    }
+  }
+
   async function handleImportExercises() {
     if (!session?.access_token || !importRows.length || importIssues.length > 0) {
       return
@@ -1322,15 +1381,37 @@ export function AdminConsole() {
 
   return (
     <>
-      <div className="min-h-screen bg-background md:grid md:grid-cols-[240px_minmax(0,1fr)]">
-        <AdminSidebar
-          activeSection={activeSection}
-          items={adminNavItems}
-          locale={locale}
-          onNavigate={setActiveSection}
-        />
+      {/* Mobile-only horizontal nav (shared sidebar is desktop-only) */}
+      <div className="border-b border-border bg-background md:hidden">
+        <nav className="flex gap-1 overflow-x-auto p-2">
+          {adminNavItems.map((item) => {
+            const Icon = item.icon
+            const isActive = item.id === activeSection
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`flex min-w-fit items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                  isActive
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                }`}
+                onClick={() => setActiveSection(item.id)}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="whitespace-nowrap font-medium">{item.label}</span>
+                {item.badge ? (
+                  <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] font-semibold text-primary-foreground">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </nav>
+      </div>
 
-        <main className="min-w-0">
+      <main className="min-w-0">
           <div className="space-y-6 px-4 py-6 md:px-9 md:py-8">
             <AdminShellHeader
               activeSection={activeSection}
@@ -1966,307 +2047,16 @@ export function AdminConsole() {
             </div>
           </TabsContent>
 
-          <TabsContent value="exercises" className="space-y-5">
-            <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-              <div className="rounded-[10px] border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">{exerciseForm.id ? (locale === "en" ? "Edit exercise" : "Sửa bài tập") : locale === "en" ? "Create exercise" : "Tạo bài tập"}</h3>
-                    <p className="text-sm text-muted-foreground">{locale === "en" ? "Manage the shared exercise library." : "Quản lý thư viện bài tập dùng chung."}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleDownloadExerciseTemplate()}
-                      disabled={actionKey === "exercise-template-download"}
-                    >
-                      {actionKey === "exercise-template-download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      {locale === "en" ? "Template" : "File mẫu"}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
-                      <FileSpreadsheet className="h-4 w-4" />
-                      {locale === "en" ? "Import Excel" : "Import Excel"}
-                    </Button>
-                    {exerciseForm.id ? (
-                      <Button variant="ghost" size="sm" onClick={resetExerciseForm}>
-                        {locale === "en" ? "New" : "Mới"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <Label>{locale === "en" ? "Exercise name" : "Tên bài tập"}</Label>
-                    <Input className="mt-1.5" value={exerciseForm.name} onChange={(event) => setExerciseForm((current) => ({ ...current, name: event.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>{locale === "en" ? "Muscle group" : "Nhóm cơ"}</Label>
-                    <Select
-                      value={exerciseForm.muscleGroup || undefined}
-                      onValueChange={(value) =>
-                        setExerciseForm((current) => ({
-                          ...current,
-                          muscleGroup: value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger className="mt-1.5 w-full">
-                        <SelectValue placeholder={locale === "en" ? "Select muscle group" : "Chọn nhóm cơ"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {exerciseMuscleGroupOptions.map((muscleGroup) => (
-                          <SelectItem key={muscleGroup} value={muscleGroup}>
-                            {muscleGroup}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>{locale === "en" ? "Equipment" : "Thiết bị"}</Label>
-                    <Input className="mt-1.5" value={exerciseForm.equipment} onChange={(event) => setExerciseForm((current) => ({ ...current, equipment: event.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>{locale === "en" ? "Variation name" : "Tên variation"}</Label>
-                    <Input
-                      className="mt-1.5"
-                      value={exerciseForm.variationName}
-                      onChange={(event) => setExerciseForm((current) => ({ ...current, variationName: event.target.value }))}
-                      placeholder={locale === "en" ? "e.g. Wide Grip" : "Ví dụ: Wide Grip"}
-                    />
-                  </div>
-                  <Button className="w-full" onClick={() => void handleSaveExercise()} disabled={actionKey === (exerciseForm.id ? `exercise-update-${exerciseForm.id}` : "exercise-create")}>
-                    {actionKey === (exerciseForm.id ? `exercise-update-${exerciseForm.id}` : "exercise-create") ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    {exerciseForm.id ? (locale === "en" ? "Update exercise" : "Cập nhật bài tập") : locale === "en" ? "Create exercise" : "Tạo bài tập"}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-[10px] border border-border bg-card p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold">{locale === "en" ? "Exercise groups" : "Nhóm bài tập"}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {locale === "en"
-                          ? `${formatNumber(groupedExercises.length, locale)} muscle groups • ${formatNumber(filteredExercises.length, locale)} exercises • ${formatNumber(totalExerciseUsageCount, locale)} workout references`
-                          : `${formatNumber(groupedExercises.length, locale)} nhóm cơ • ${formatNumber(filteredExercises.length, locale)} bài tập • ${formatNumber(totalExerciseUsageCount, locale)} lượt dùng trong workout`}
-                      </p>
-                    </div>
-
-                    <div className="relative w-full sm:max-w-sm">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input value={exerciseSearch} onChange={(event) => setExerciseSearch(event.target.value)} placeholder={locale === "en" ? "Search exercises..." : "Tìm bài tập..."} className="pl-9" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-col gap-3 rounded-[10px] border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <label className="flex items-center gap-3 text-sm font-medium">
-                      <Checkbox
-                        checked={selectAllExerciseGroupsState}
-                        disabled={!groupedExercises.length}
-                        onCheckedChange={(checked) =>
-                          setSelectedExerciseGroupKeys(
-                            checked === true ? groupedExercises.map((group) => group.groupKey) : [],
-                          )
-                        }
-                        aria-label={locale === "en" ? "Select all muscle groups" : "Chọn tất cả nhóm cơ"}
-                      />
-                      <span>{locale === "en" ? "Select all muscle groups" : "Chọn tất cả nhóm cơ"}</span>
-                    </label>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {locale === "en"
-                          ? `${formatNumber(selectedExerciseGroupCount, locale)} selected`
-                          : `Đã chọn ${formatNumber(selectedExerciseGroupCount, locale)} nhóm`}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedExerciseGroupKeys([])}
-                        disabled={selectedExerciseGroupCount === 0}
-                      >
-                        {locale === "en" ? "Clear" : "Bỏ chọn"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() =>
-                          setConfirmState({
-                            id: "exercise-groups",
-                            kind: "exercise-groups",
-                            label:
-                              selectedExerciseGroupCount <= 3
-                                ? selectedExerciseGroups.map((group) => group.muscleGroup).join(", ")
-                                : `${selectedExerciseGroups
-                                    .slice(0, 3)
-                                    .map((group) => group.muscleGroup)
-                                    .join(", ")} +${selectedExerciseGroupCount - 3}`,
-                            muscleGroups: selectedExerciseGroups.map((group) => group.muscleGroup),
-                          })
-                        }
-                        disabled={selectedExerciseGroupCount === 0}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        {locale === "en" ? "Delete selected" : "Xóa đã chọn"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {groupedExercises.length ? (
-                    groupedExercises.map((group) => {
-                      const isOpen = shouldAutoExpandExerciseGroups || openExerciseGroups.includes(group.groupKey)
-
-                      return (
-                        <div key={group.groupKey} className="overflow-hidden rounded-[10px] border border-border bg-card">
-                          <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex min-w-0 flex-1 items-start gap-3">
-                              <Checkbox
-                                checked={selectedExerciseGroupKeys.includes(group.groupKey)}
-                                onCheckedChange={(checked) =>
-                                  setSelectedExerciseGroupKeys((currentKeys) =>
-                                    checked === true
-                                      ? currentKeys.includes(group.groupKey)
-                                        ? currentKeys
-                                        : [...currentKeys, group.groupKey]
-                                      : currentKeys.filter((groupKey) => groupKey !== group.groupKey),
-                                  )
-                                }
-                                aria-label={`${locale === "en" ? "Select muscle group" : "Chọn nhóm cơ"} ${group.muscleGroup}`}
-                                className="mt-1"
-                              />
-
-                              <button
-                                type="button"
-                                className="flex min-w-0 flex-1 items-start gap-3 text-left transition-colors hover:text-primary"
-                                onClick={() =>
-                                  setOpenExerciseGroups((currentGroups) =>
-                                    currentGroups.includes(group.groupKey)
-                                      ? currentGroups.filter((currentGroup) => currentGroup !== group.groupKey)
-                                      : [...currentGroups, group.groupKey],
-                                  )
-                                }
-                              >
-                                <div className="mt-0.5 rounded-full border border-border bg-muted/30 p-1">
-                                  <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="font-semibold">{group.muscleGroup}</h3>
-                                    <Badge variant="outline">
-                                      {formatNumber(group.exercises.length, locale)} {locale === "en" ? "exercises" : "bài tập"}
-                                    </Badge>
-                                  </div>
-                                  <p className="mt-1 text-sm text-muted-foreground">
-                                    {formatNumber(group.totalUsageCount, locale)}{" "}
-                                    {locale === "en" ? "total workout references" : "tổng lượt dùng trong workout"}
-                                  </p>
-                                </div>
-                              </button>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() =>
-                                  setConfirmState({
-                                    id: group.muscleGroup,
-                                    kind: "exercise-group",
-                                    label: group.muscleGroup,
-                                  })
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                {locale === "en" ? "Delete group" : "Xóa nhóm"}
-                              </Button>
-
-                              <span className="shrink-0 text-xs text-muted-foreground">
-                                {isOpen ? (locale === "en" ? "Collapse" : "Thu gọn") : locale === "en" ? "Expand" : "Mở rộng"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {isOpen ? (
-                            <div className="border-t border-border bg-muted/10 p-4">
-                              <div className="space-y-3">
-                                {group.exercises.map((exercise) => (
-                                  <div key={exercise.id} className="rounded-[8px] border border-border bg-card p-4">
-                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                      <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <h4 className="font-semibold">{exercise.name}</h4>
-                                          <Badge variant={exercise.isDefault ? "default" : "outline"}>{exercise.variationName}</Badge>
-                                        </div>
-                                        <p className="text-sm text-muted-foreground">
-                                          {formatExerciseVariationMeta({
-                                            equipment: exercise.equipment,
-                                            isDefault: exercise.isDefault,
-                                            muscleGroup: exercise.muscleGroup,
-                                            variationName: exercise.variationName,
-                                          })}
-                                        </p>
-                                        <p className="mt-2 text-xs text-muted-foreground">
-                                          {formatNumber(exercise.usageCount, locale)}{" "}
-                                          {locale === "en" ? "workout references" : "lần được dùng trong workout"}
-                                        </p>
-                                      </div>
-
-                                      <div className="flex items-center gap-2">
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() =>
-                                            setExerciseForm({
-                                              equipment: exercise.equipment ?? "",
-                                              id: exercise.id,
-                                              muscleGroup: exercise.muscleGroup,
-                                              name: exercise.name,
-                                              variationName: exercise.variationName,
-                                            })
-                                          }
-                                        >
-                                          {locale === "en" ? "Edit" : "Sửa"}
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          onClick={() =>
-                                            setConfirmState({
-                                              id: exercise.id,
-                                              kind: "exercise",
-                                              label: formatExerciseVariationLabel({
-                                                exerciseName: exercise.name,
-                                                isDefault: exercise.isDefault,
-                                                variationName: exercise.variationName,
-                                              }),
-                                            })
-                                          }
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                          {locale === "en" ? "Delete" : "Xoá"}
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <EmptyState copy={locale === "en" ? "No exercises match the current search." : "Không có bài tập nào khớp tìm kiếm hiện tại."} />
-                  )}
-                </div>
-              </div>
-            </div>
+          <TabsContent value="exercises">
+            <AdminExercisesPanel
+              exercises={exercises}
+              actionKey={actionKey}
+              locale={locale}
+              onSave={handleSaveExerciseData}
+              onDelete={handleDeleteExerciseDirect}
+              onImport={() => setIsImportDialogOpen(true)}
+              onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
+            />
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-5">
@@ -2320,8 +2110,7 @@ export function AdminConsole() {
               </Tabs>
             )}
           </div>
-        </main>
-      </div>
+      </main>
 
       <Dialog open={isImportDialogOpen} onOpenChange={handleImportDialogChange}>
         <DialogContent className="sm:max-w-3xl">
