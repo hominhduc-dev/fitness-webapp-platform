@@ -14,7 +14,10 @@
       "Bash(taskkill /PID 19688 /F)",
       "Bash(npx prisma *)",
       "Bash(cmd /c \"icacls \\\\\"G:\\\\fitness-app\\\\backend\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node\\\\\" /grant Everyone:F\")",
-      "Bash(cmd /c \"netstat -ano | findstr :4000 | findstr LISTENING\")"
+      "Bash(cmd /c \"netstat -ano | findstr :4000 | findstr LISTENING\")",
+      "Bash(Get-Content \"G:\\\\fitness-app\\\\components\\\\admin\\\\admin-console.tsx\")",
+      "Bash(Measure-Object -Line)",
+      "PowerShell(\\(Get-Content \"G:\\\\fitness-app\\\\components\\\\admin\\\\admin-console.tsx\"\\).Count)"
     ]
   }
 }

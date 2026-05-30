@@ -2,23 +2,18 @@
 
 import {
   Activity,
-  BarChart3,
-  ChevronRight,
   ClipboardList,
   Download,
   Dumbbell,
-  FileSpreadsheet,
   KeyRound,
   LayoutDashboard,
   Link2,
   Loader2,
   Save,
   Search,
-  ShieldCheck,
   ScrollText,
   Trash2,
   Upload,
-  UserCog,
   UserRoundCheck,
   Users,
 } from "lucide-react"
@@ -26,12 +21,10 @@ import { useEffect, useState, type ChangeEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
-import { StatsCard } from "@/components/dashboard/stats-card"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -288,29 +281,25 @@ function ChartPanel({
   const maxValue = Math.max(...points.map((point) => point.value), 1)
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-4 transition-colors duration-150 hover:border-primary/30">
-      <div className="mb-4">
-        <h3 className="text-base font-semibold">{title}</h3>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
-      </div>
+    <div className="rounded-[10px] border border-border bg-card p-[18px] transition-colors duration-150 hover:border-primary/30">
+      <p className="text-[15px] font-semibold text-foreground">{title}</p>
+      <p className="mb-4 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
 
-      <div className="flex h-44 items-end gap-2">
+      <div className="flex h-[132px] items-end gap-2">
         {points.map((point, index) => {
-          const height = point.value === 0 ? 10 : Math.max((point.value / maxValue) * 100, 14)
+          const height = point.value === 0 ? 3 : Math.max((point.value / maxValue) * 110, 8)
           const isCurrent = index === points.length - 1
 
           return (
-            <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-2">
-              <span className="font-mono text-[11px] font-medium text-muted-foreground tnum">{point.value}</span>
-              <div className="flex h-32 w-full items-end">
-                <div
-                  className={`w-full rounded-[4px] ${isCurrent ? "bg-primary" : "bg-muted"}`}
-                  style={{
-                    height: `${height}%`,
-                  }}
-                />
-              </div>
-              <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+            <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-1.5">
+              <span className="font-mono text-[10px] text-muted-foreground tnum">
+                {point.value >= 1000 ? `${(point.value / 1000).toFixed(1)}k` : point.value}
+              </span>
+              <div
+                className={`w-full rounded-[4px] ${isCurrent ? "bg-primary" : "bg-muted"}`}
+                style={{ height: `${height}px` }}
+              />
+              <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
                 {point.label}
               </span>
             </div>
@@ -437,62 +426,6 @@ function AdminShellHeader({
   )
 }
 
-function AdminSidebar({
-  activeSection,
-  items,
-  locale,
-  onNavigate,
-}: {
-  activeSection: AdminSectionId
-  items: AdminSectionItem[]
-  locale: "en" | "vi"
-  onNavigate: (section: AdminSectionId) => void
-}) {
-  return (
-    <aside className="flex shrink-0 flex-col border-b border-border bg-background p-4 md:min-h-[calc(100vh-1px)] md:w-60 md:border-b-0 md:border-r">
-      <div className="flex items-center gap-3 px-2 py-1">
-        <div className="flex h-7 w-7 items-center justify-center text-foreground">
-          <Dumbbell className="h-5 w-5" />
-        </div>
-        <span className="text-xl font-semibold tracking-[-0.04em] text-foreground">lift</span>
-      </div>
-
-      <div className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-[5px] bg-foreground px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-background">
-        <ShieldCheck className="h-3 w-3" />
-        Admin
-      </div>
-
-      <p className="label-micro mt-7 px-2">{locale === "en" ? "Control center" : "Trung tâm điều khiển"}</p>
-      <nav className="mt-2 flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
-        {items.map((item) => {
-          const Icon = item.icon
-          const isActive = item.id === activeSection
-
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`flex min-w-fit items-center gap-3 rounded-[6px] px-3 py-2 text-left text-sm transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)] md:w-full ${
-                isActive
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              }`}
-              onClick={() => onNavigate(item.id)}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="flex-1 whitespace-nowrap font-medium">{item.label}</span>
-              {item.badge ? (
-                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] font-semibold text-primary-foreground tnum">
-                  {item.badge}
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
-      </nav>
-    </aside>
-  )
-}
 
 function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
   return (
@@ -1444,429 +1377,280 @@ export function AdminConsole() {
             ) : (
               <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as AdminSectionId)}>
 
-          <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <StatsCard title="Total Users" value={dashboard?.stats.totalUsers ?? 0} subtitle={locale === "en" ? "all roles" : "mọi vai trò"} iconName="users" variant="primary" />
-              <StatsCard title="Coaches" value={dashboard?.stats.totalCoaches ?? 0} subtitle={locale === "en" ? "coach accounts" : "tài khoản coach"} iconName="shield-check" />
-              <StatsCard title="Trainees" value={dashboard?.stats.totalTrainees ?? 0} subtitle={locale === "en" ? "fitness users" : "người dùng fitness"} iconName="users" />
-              <StatsCard title="Active 7d" value={dashboard?.stats.activeUsersLast7Days ?? 0} subtitle={locale === "en" ? "users with activity in 7 days" : "user có hoạt động trong 7 ngày"} iconName="target" />
-              <StatsCard title="Active 30d" value={dashboard?.stats.activeUsersLast30Days ?? 0} subtitle={locale === "en" ? "users with activity in 30 days" : "user có hoạt động trong 30 ngày"} iconName="trending-up" variant="accent" />
-            </div>
-
-            <div className="flex items-center justify-between rounded-[10px] border border-border bg-card p-4">
-              <div>
-                <h2 className="text-lg font-semibold">{locale === "en" ? "Platform charts" : "Biểu đồ nền tảng"}</h2>
-                <p className="text-sm text-muted-foreground">
-                  {locale === "en" ? "Track growth, active users, and workout logs by week or month." : "Theo dõi tăng trưởng, active users và workout logs theo tuần hoặc tháng."}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant={chartView === "weekly" ? "default" : "outline"} size="sm" onClick={() => setChartView("weekly")}>
-                  {locale === "en" ? "Weekly" : "Theo tuần"}
-                </Button>
-                <Button variant={chartView === "monthly" ? "default" : "outline"} size="sm" onClick={() => setChartView("monthly")}>
-                  {locale === "en" ? "Monthly" : "Theo tháng"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-3">
-              <ChartPanel
-                title={locale === "en" ? "User growth" : "Tăng trưởng user"}
-                subtitle={locale === "en" ? "New accounts created" : "Số tài khoản mới được tạo"}
-                points={dashboard?.charts.userGrowth[chartView] ?? []}
-              />
-              <ChartPanel
-                title={locale === "en" ? "Active users" : "Người dùng hoạt động"}
-                subtitle={locale === "en" ? "Users with meal or workout activity" : "User có meal hoặc workout activity"}
-                points={dashboard?.charts.activeUsers[chartView] ?? []}
-              />
-              <ChartPanel
-                title={locale === "en" ? "Workout logs" : "Workout logs"}
-                subtitle={locale === "en" ? "Completed or started sessions" : "Số phiên tập đã bắt đầu hoặc hoàn thành"}
-                points={dashboard?.charts.workoutLogs[chartView] ?? []}
-              />
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-[10px] border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">{locale === "en" ? "Recent users" : "Người dùng gần đây"}</h3>
-                    <p className="text-sm text-muted-foreground">{locale === "en" ? "Newest accounts in the system." : "Các tài khoản mới nhất trong hệ thống."}</p>
+          <TabsContent value="dashboard" className="space-y-5">
+            {/* Stat cards */}
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+              {([
+                { label: locale === "en" ? "Total users" : "Tổng user", value: dashboard?.stats.totalUsers ?? 0, sub: locale === "en" ? "all roles" : "mọi vai trò" },
+                { label: locale === "en" ? "Coaches" : "Coaches", value: dashboard?.stats.totalCoaches ?? 0, sub: locale === "en" ? "coach accounts" : "tài khoản coach" },
+                { label: locale === "en" ? "Trainees" : "Trainees", value: dashboard?.stats.totalTrainees ?? 0, sub: locale === "en" ? "fitness users" : "người dùng fitness" },
+                { label: locale === "en" ? "Active 7d" : "Active 7d", value: dashboard?.stats.activeUsersLast7Days ?? 0, sub: locale === "en" ? "activity in 7 days" : "hoạt động 7 ngày" },
+                { label: locale === "en" ? "Active 30d" : "Active 30d", value: dashboard?.stats.activeUsersLast30Days ?? 0, sub: locale === "en" ? "activity in 30 days" : "hoạt động 30 ngày", accent: true },
+              ] as const).map((card) => (
+                <div key={card.label} className="rounded-[10px] border border-border bg-card p-[18px]">
+                  <p className="label-micro text-muted-foreground">{card.label}</p>
+                  <div className={`mt-2 font-mono text-[30px] font-semibold leading-none tracking-[-0.02em] tnum ${"accent" in card && card.accent ? "text-primary" : "text-foreground"}`}>
+                    {card.value.toLocaleString()}
                   </div>
-                  <Badge variant="outline">{dashboard?.recentUsers.length ?? 0}</Badge>
+                  <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
                 </div>
+              ))}
+            </div>
 
-                <div className="space-y-3">
-                  {dashboard?.recentUsers.length ? (
-                    dashboard.recentUsers.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        className="w-full rounded-[8px] border border-border/70 bg-muted/20 p-4 text-left transition-colors hover:border-primary/30"
-                        onClick={() => {
-                          setSelectedUserId(user.id)
-                          setActiveSection("users")
-                          void refreshAllData(session.access_token, user.id, true)
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate font-medium">{user.name}</p>
-                              <Badge variant={roleBadgeVariant(user.role)}>{user.role}</Badge>
-                              {!user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
-                            </div>
-                            <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{formatDateTime(user.createdAt, locale)}</span>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <EmptyState copy={locale === "en" ? "No users found." : "Chưa có user nào."} />
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-[10px] border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">{locale === "en" ? "Pending coach requests" : "Coach requests chờ duyệt"}</h3>
-                    <p className="text-sm text-muted-foreground">{locale === "en" ? "Waiting for admin review." : "Đang chờ admin xử lý."}</p>
-                  </div>
-                  <Badge>{dashboard?.pendingCoachRequests.length ?? 0}</Badge>
-                </div>
-
-                <div className="space-y-3">
-                  {dashboard?.pendingCoachRequests.length ? (
-                    dashboard.pendingCoachRequests.map((request) => (
-                      <div key={request.id} className="rounded-[8px] border border-border/70 bg-muted/20 p-4">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <Badge variant={requestBadgeVariant(request.status)}>{request.status}</Badge>
-                          <span className="text-xs text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
-                        </div>
-                        <p className="text-sm font-medium">{request.trainee.name}</p>
-                        <p className="text-xs text-muted-foreground">{request.trainee.email}</p>
-                        <div className="my-3 h-px bg-border" />
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "Coach" : "Coach"}</p>
-                        <p className="text-sm font-medium">{request.coach.name}</p>
-                        <p className="text-xs text-muted-foreground">{request.coach.email}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <EmptyState copy={locale === "en" ? "No pending coach requests." : "Hiện không có coach request nào chờ duyệt."} />
-                  )}
-                </div>
+            {/* Chart toggle + label */}
+            <div className="flex items-center justify-between">
+              <p className="label-micro text-muted-foreground">{locale === "en" ? "Platform charts" : "Biểu đồ nền tảng"}</p>
+              <div className="flex gap-1.5">
+                {(["weekly", "monthly"] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => setChartView(view)}
+                    className={`rounded-[5px] px-3 py-1 font-mono text-[11px] transition-colors ${
+                      chartView === view
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {view === "weekly" ? (locale === "en" ? "Weekly" : "Theo tuần") : (locale === "en" ? "Monthly" : "Theo tháng")}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-[10px] border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{locale === "en" ? "Top coaches" : "Coach nổi bật"}</h3>
-                  <Badge variant="secondary">{dashboard?.topCoaches.length ?? 0}</Badge>
-                </div>
+            {/* 3 bar charts */}
+            <div className="grid gap-3 xl:grid-cols-3">
+              <ChartPanel title={locale === "en" ? "User growth" : "Tăng trưởng user"} subtitle={locale === "en" ? "New accounts" : "Tài khoản mới"} points={dashboard?.charts.userGrowth[chartView] ?? []} />
+              <ChartPanel title={locale === "en" ? "Active users" : "Người dùng hoạt động"} subtitle={locale === "en" ? "With workout/meal activity" : "Có workout/meal activity"} points={dashboard?.charts.activeUsers[chartView] ?? []} />
+              <ChartPanel title={locale === "en" ? "Workout logs" : "Workout logs"} subtitle={locale === "en" ? "Sessions started" : "Số phiên tập bắt đầu"} points={dashboard?.charts.workoutLogs[chartView] ?? []} />
+            </div>
 
-                <div className="space-y-3">
-                  {dashboard?.topCoaches.length ? (
-                    dashboard.topCoaches.map((coach, index) => (
-                      <div key={coach.id} className="flex items-center justify-between rounded-[8px] border border-border/70 bg-muted/20 p-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-muted font-mono text-xs font-semibold text-primary tnum">{index + 1}</span>
-                            <p className="font-medium">{coach.name}</p>
-                            {!coach.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{coach.email}</p>
-                        </div>
-                        <div className="text-right text-sm">
-                          <p className="font-medium">{coach.traineeCount} trainees</p>
-                          <p className="text-muted-foreground">{coach.programCount} programs</p>
-                        </div>
+            {/* Bottom 2-col: recent users + pending requests */}
+            <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+              <div className="rounded-[10px] border border-border bg-card p-[18px]">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-[15px] font-semibold text-foreground">{locale === "en" ? "Recent users" : "Người dùng mới nhất"}</p>
+                  <p className="label-micro text-muted-foreground">{locale === "en" ? "Newest accounts" : "Tài khoản mới nhất"}</p>
+                </div>
+                <div className="flex flex-col">
+                  {dashboard?.recentUsers.length ? dashboard.recentUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => { setSelectedUserId(user.id); setActiveSection("users"); void refreshAllData(session.access_token, user.id, true) }}
+                      className="flex items-center gap-3 border-t border-border/50 py-2.5 text-left transition-colors first:border-t-0 hover:bg-muted/30"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
+                        {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
                       </div>
-                    ))
-                  ) : (
-                    <EmptyState copy={locale === "en" ? "No coaches yet." : "Chưa có coach nào."} />
-                  )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
+                          <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-[10px]">{user.role}</Badge>
+                          {!user.isActive ? <Badge variant="destructive" className="shrink-0 text-[10px]">{locale === "en" ? "Locked" : "Khoá"}</Badge> : null}
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{formatDateTime(user.createdAt, locale)}</span>
+                    </button>
+                  )) : <EmptyState copy={locale === "en" ? "No recent users." : "Chưa có user mới."} />}
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{locale === "en" ? "Recent programs" : "Giáo án gần đây"}</h3>
-                  <Badge variant="outline">{dashboard?.recentPrograms.length ?? 0}</Badge>
+              <div className="rounded-[10px] border border-border bg-card p-[18px]">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-[15px] font-semibold text-foreground">{locale === "en" ? "Pending requests" : "Yêu cầu chờ duyệt"}</p>
+                  <Badge variant={pendingRequestCount > 0 ? "default" : "outline"} className="font-mono text-[10px]">
+                    {pendingRequestCount} {locale === "en" ? "pending" : "chờ"}
+                  </Badge>
                 </div>
-
-                <div className="space-y-3">
-                  {dashboard?.recentPrograms.length ? (
-                    dashboard.recentPrograms.map((program) => (
-                      <div key={program.id} className="rounded-[8px] border border-border/70 bg-muted/20 p-4">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <p className="font-medium">{program.name}</p>
-                          <Badge variant="outline">{program.difficulty}</Badge>
+                <div className="flex flex-col">
+                  {dashboard?.pendingCoachRequests.length ? dashboard.pendingCoachRequests.map((request) => (
+                    <div key={request.id} className="flex items-center justify-between border-t border-border/50 py-2.5 first:border-t-0">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <span className="font-medium text-foreground">{request.trainee.name}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="text-muted-foreground">{request.coach.name}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{program.createdBy.name}</p>
-                        <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                          <p>{program.duration} {locale === "en" ? "weeks" : "tuần"}</p>
-                          <p>{program.workoutsPerWeek} {locale === "en" ? "workouts/week" : "buổi/tuần"}</p>
-                          <p>{program.assignmentCount} {locale === "en" ? "assignments" : "gán"}</p>
-                        </div>
+                        <p className="truncate text-xs text-muted-foreground">{request.trainee.email}</p>
                       </div>
-                    ))
-                  ) : (
-                    <EmptyState copy={locale === "en" ? "No programs found." : "Chưa có giáo án nào."} />
-                  )}
+                      <span className="ml-3 shrink-0 font-mono text-[11px] text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
+                    </div>
+                  )) : <EmptyState copy={locale === "en" ? "No pending coach requests." : "Không có yêu cầu chờ duyệt."} />}
                 </div>
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="users" className="space-y-5">
-            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="relative">
+          <TabsContent value="users" className="space-y-4">
+            {/* Search + role filter chips */}
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 basis-[220px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search by name, email, username, phone..." : "Tìm theo tên, email, username, số điện thoại..."} className="pl-9" />
+                <Input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search name, email, phone…" : "Tìm tên, email, số điện thoại…"} className="pl-9" />
               </div>
-              <Select value={userRoleFilter} onValueChange={(value) => setUserRoleFilter(value as UserRole | "all")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{locale === "en" ? "All roles" : "Tất cả vai trò"}</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="coach">Coach</SelectItem>
-                  <SelectItem value="trainee">Trainee</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-1.5">
+                {(["all", "trainee", "coach", "admin"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setUserRoleFilter(r)}
+                    className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                      userRoleFilter === r
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.45fr)]">
-              <div className="rounded-[10px] border border-border bg-card p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{locale === "en" ? "All users" : "Toàn bộ user"}</h3>
-                  <Badge variant="outline">{filteredUsers.length}</Badge>
-                </div>
-
-                <div className="space-y-3">
-                  {filteredUsers.length ? (
-                    filteredUsers.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        className={`w-full rounded-[8px] border p-4 text-left transition-colors ${
-                          selectedUserId === user.id
-                            ? "border-primary/40 bg-primary/5"
-                            : "border-border/70 bg-muted/20 hover:border-primary/25"
-                        }`}
-                        onClick={() => void loadUserDetail(user.id)}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate font-medium">{user.name}</p>
-                              <Badge variant={roleBadgeVariant(user.role)}>{user.role}</Badge>
-                              {!user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
-                            </div>
-                            <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              {user.phone ?? (locale === "en" ? "No phone" : "Chưa có số điện thoại")}
-                            </p>
-                          </div>
-
-                          <div className="text-right text-xs text-muted-foreground">
-                            <p>{formatDateTime(user.createdAt, locale)}</p>
-                            <p className="mt-2">{user.stats.workoutLogs} logs</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <EmptyState copy={locale === "en" ? "No users match the current filters." : "Không có user nào khớp bộ lọc hiện tại."} />
-                  )}
-                </div>
+            {/* Master-detail */}
+            <div className="grid items-start gap-4 xl:grid-cols-[360px_1fr]">
+              {/* User list — rows with left border indicator */}
+              <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+                {filteredUsers.length ? filteredUsers.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => void loadUserDetail(user.id)}
+                    className={`flex w-full items-center gap-3 border-b border-border/50 px-4 py-[11px] text-left transition-colors last:border-b-0 ${
+                      selectedUserId === user.id
+                        ? "border-l-[3px] border-l-primary bg-muted/50"
+                        : "border-l-[3px] border-l-transparent hover:bg-muted/30"
+                    }`}
+                  >
+                    <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
+                      {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
+                        {!user.isActive ? <span className="shrink-0 text-xs text-destructive">🔒</span> : null}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                    </div>
+                    <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-[10px]">{user.role}</Badge>
+                  </button>
+                )) : (
+                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                    {locale === "en" ? "No users match." : "Không có user nào khớp."}
+                  </div>
+                )}
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card p-5">
+              {/* User detail panel */}
+              <div className="rounded-[10px] border border-border bg-card p-[22px]">
                 {userDetail ? (
                   <div className="space-y-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
+                    {/* Header */}
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold uppercase text-muted-foreground">
+                        {userDetail.user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
+                      </div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold">{userDetail.user.name}</h3>
+                          <h3 className="text-[19px] font-semibold tracking-[-0.01em] text-foreground">{userDetail.user.name}</h3>
                           <Badge variant={roleBadgeVariant(userDetail.user.role)}>{userDetail.user.role}</Badge>
                           {!userDetail.user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
                         </div>
                         <p className="text-sm text-muted-foreground">{userDetail.user.email}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {userDetail.user.phone ?? (locale === "en" ? "No phone number" : "Chưa có số điện thoại")}
-                        </p>
-                      </div>
-
-                      <div className="grid min-w-[220px] grid-cols-2 gap-3 rounded-[8px] border border-border bg-muted/20 p-3 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">{locale === "en" ? "Created" : "Tạo lúc"}</p>
-                          <p className="font-medium">{formatDateTime(userDetail.user.createdAt, locale)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">{locale === "en" ? "Updated" : "Cập nhật"}</p>
-                          <p className="font-medium">{formatDateTime(userDetail.user.updatedAt, locale)}</p>
-                        </div>
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
-                        <div className="mb-3 flex items-center gap-2">
-                          <UserCog className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="font-medium">{locale === "en" ? "Account controls" : "Quản lý tài khoản"}</h4>
-                        </div>
-                        <div className="space-y-3">
-                          <div>
-                            <Label>{locale === "en" ? "Role" : "Vai trò"}</Label>
-                            <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as UserRole)}>
-                              <SelectTrigger className="mt-1.5 w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="coach">Coach</SelectItem>
-                                <SelectItem value="trainee">Trainee</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                              {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                              {locale === "en" ? "Save role" : "Lưu vai trò"}
-                            </Button>
-                            <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                              {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : locale === "en" ? "Unlock account" : "Mở khoá tài khoản"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
-                        <div className="mb-3 flex items-center gap-2">
-                          <KeyRound className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="font-medium">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</h4>
-                        </div>
-
-                        <div className="space-y-3">
-                          <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "Enter a new password" : "Nhập mật khẩu mới"} />
-                          <Button onClick={() => void handleResetPassword()} disabled={actionKey === `password-${userDetail.user.id}`}>
-                            {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                            {locale === "en" ? "Reset password" : "Reset mật khẩu"}
-                          </Button>
-                        </div>
+                    {/* Role chips */}
+                    <div>
+                      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
+                      <div className="flex gap-1.5">
+                        {(["trainee", "coach", "admin"] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setSelectedRole(r)}
+                            className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                              selectedRole === r
+                                ? "bg-foreground text-background"
+                                : "bg-muted text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {r}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <StatsCard title="Programs Created" value={userDetail.user.stats.createdPrograms} iconName="clipboard-list" />
-                      <StatsCard title="Programs Assigned" value={userDetail.user.stats.assignedPrograms} iconName="target" />
-                      <StatsCard title="Workout Logs" value={userDetail.user.stats.workoutLogs} iconName="trending-up" />
-                      <StatsCard title="Trainees" value={userDetail.user.stats.trainees} iconName="users" />
+                    {/* Info rows */}
+                    <div className="divide-y divide-border/50">
+                      {([
+                        { k: locale === "en" ? "Username" : "Username", v: userDetail.user.username ?? "—" },
+                        { k: locale === "en" ? "Phone" : "Số điện thoại", v: userDetail.user.phone ?? "—", mono: true },
+                        { k: locale === "en" ? "Coach" : "Coach", v: userDetail.assignedCoach?.name ?? "—" },
+                        { k: locale === "en" ? "Joined" : "Ngày tạo", v: formatDateTime(userDetail.user.createdAt, locale), mono: true },
+                        { k: locale === "en" ? "Workouts" : "Workouts", v: String(userDetail.user.stats.workoutLogs), mono: true },
+                        ...(userDetail.user.role === "coach" ? [{ k: locale === "en" ? "Clients" : "Clients", v: String(userDetail.user.stats.trainees), mono: true }] : []),
+                      ] as Array<{ k: string; v: string; mono?: boolean }>).map((row) => (
+                        <div key={row.k} className="flex items-center justify-between py-2.5">
+                          <p className="label-micro text-muted-foreground">{row.k}</p>
+                          <p className={`text-sm text-foreground ${row.mono ? "font-mono" : ""}`}>{row.v}</p>
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 font-medium">{locale === "en" ? "Connections" : "Kết nối"}</h4>
-                        {userDetail.assignedCoach ? (
-                          <div className="mb-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                            <p className="font-medium">{locale === "en" ? "Assigned coach" : "Coach hiện tại"}</p>
-                            <p>{userDetail.assignedCoach.name}</p>
-                            <p className="text-muted-foreground">{userDetail.assignedCoach.email}</p>
-                          </div>
-                        ) : null}
-
-                        {userDetail.connectedTrainees.length ? (
-                          <div className="space-y-2">
-                            {userDetail.connectedTrainees.map((trainee) => (
-                              <div key={trainee.id} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                <p className="font-medium">{trainee.name}</p>
-                                <p className="text-muted-foreground">{trainee.email}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <EmptyState copy={locale === "en" ? "No direct trainee connections for this user." : "Người dùng này chưa có trainee connection trực tiếp."} />
-                        )}
-                      </div>
-
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
-                        {userDetail.recentWorkoutLogs.length ? (
-                          <div className="space-y-2">
-                            {userDetail.recentWorkoutLogs.map((log) => (
-                              <div key={log.id} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="font-medium">{log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Workout snapshot")}</p>
-                                  <span className="text-xs text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
-                                </div>
-                                <p className="text-muted-foreground">{log.totalVolume ? `${formatNumber(log.totalVolume, locale)} total volume` : locale === "en" ? "No volume recorded" : "Chưa có volume"}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <EmptyState copy={locale === "en" ? "No workout logs yet." : "Chưa có workout log nào."} />
-                        )}
+                    {/* Password reset */}
+                    <div className="rounded-[8px] border border-border bg-muted/20 p-4">
+                      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
+                      <div className="flex gap-2">
+                        <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} className="flex-1" />
+                        <Button variant="outline" size="sm" onClick={() => void handleResetPassword()} disabled={!resetPassword || actionKey === `password-${userDetail.user.id}`}>
+                          {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                          {locale === "en" ? "Reset" : "Reset"}
+                        </Button>
                       </div>
                     </div>
 
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 font-medium">{locale === "en" ? "Programs" : "Giáo án"}</h4>
-                        {userDetail.createdPrograms.length || userDetail.assignedPrograms.length ? (
-                          <div className="space-y-2">
-                            {userDetail.createdPrograms.map((program) => (
-                              <div key={`created-${program.id}`} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                <p className="font-medium">{program.name}</p>
-                                <p className="text-muted-foreground">{locale === "en" ? "Created program" : "Giáo án đã tạo"}</p>
-                              </div>
-                            ))}
-                            {userDetail.assignedPrograms.map((program) => (
-                              <div key={`assigned-${program.id}`} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                <p className="font-medium">{program.name}</p>
-                                <p className="text-muted-foreground">{locale === "en" ? "Assigned program" : "Giáo án được gán"}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <EmptyState copy={locale === "en" ? "No related programs." : "Chưa có giáo án liên quan."} />
-                        )}
-                      </div>
-
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 font-medium">{locale === "en" ? "Coach requests & audit" : "Coach requests & audit"}</h4>
-                        {userDetail.coachRequests.length || userDetail.recentAuditLogs.length ? (
-                          <div className="space-y-2">
-                            {userDetail.coachRequests.slice(0, 4).map((request) => (
-                              <div key={request.id} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="font-medium">
-                                    {request.trainee.name} {"->"} {request.coach.name}
-                                  </p>
-                                  <Badge variant={requestBadgeVariant(request.status)}>{request.status}</Badge>
-                                </div>
-                              </div>
-                            ))}
-                            {userDetail.recentAuditLogs.slice(0, 4).map((log) => (
-                              <div key={log.id} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                <p className="font-medium">{log.action}</p>
-                                <p className="text-muted-foreground">{formatDateTime(log.createdAt, locale)}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <EmptyState copy={locale === "en" ? "No requests or audit records." : "Chưa có request hoặc audit log."} />
-                        )}
-                      </div>
+                    {/* Account actions */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
+                        {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        {locale === "en" ? "Save role" : "Lưu vai trò"}
+                      </Button>
+                      <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
+                        {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : (locale === "en" ? "Unlock account" : "Mở khoá tài khoản")}
+                      </Button>
                     </div>
+
+                    {/* Connected trainees (coach view) */}
+                    {userDetail.connectedTrainees.length > 0 ? (
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
+                        <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Connected trainees" : "Trainee đang kết nối"}</h4>
+                        <div className="space-y-2">
+                          {userDetail.connectedTrainees.map((trainee) => (
+                            <div key={trainee.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
+                              <span className="font-medium text-foreground">{trainee.name}</span>
+                              <span className="text-muted-foreground">{trainee.email}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Recent workout logs */}
+                    {userDetail.recentWorkoutLogs.length > 0 ? (
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
+                        <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
+                        <div className="space-y-0">
+                          {userDetail.recentWorkoutLogs.map((log) => (
+                            <div key={log.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
+                              <span className="font-medium text-foreground">{log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Snapshot")}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <EmptyState copy={locale === "en" ? "Select a user to view details." : "Chọn một user để xem chi tiết."} />
@@ -1875,174 +1659,161 @@ export function AdminConsole() {
             </div>
           </TabsContent>
 
-          <TabsContent value="requests" className="space-y-5">
-            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="relative">
+
+          <TabsContent value="requests" className="space-y-4">
+            {/* Search + status filter chips */}
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 basis-[220px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search coach requests..." : "Tìm coach requests..."} className="pl-9" />
+                <Input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search requests…" : "Tìm yêu cầu…"} className="pl-9" />
               </div>
-              <Select value={requestStatusFilter} onValueChange={(value) => setRequestStatusFilter(value as AdminCoachRequest["status"] | "all")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{locale === "en" ? "All statuses" : "Tất cả trạng thái"}</SelectItem>
-                  <SelectItem value="pending">pending</SelectItem>
-                  <SelectItem value="approved">approved</SelectItem>
-                  <SelectItem value="rejected">rejected</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-1.5">
+                {(["all", "pending", "approved", "rejected"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setRequestStatusFilter(s)}
+                    className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                      requestStatusFilter === s
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              {filteredRequests.length ? (
-                filteredRequests.map((request) => (
-                  <div key={request.id} className="rounded-[10px] border border-border bg-card p-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <Badge variant={requestBadgeVariant(request.status)}>{request.status}</Badge>
-                      <span className="text-xs text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "Trainee" : "Trainee"}</p>
-                        <p className="font-medium">{request.trainee.name}</p>
-                        <p className="text-sm text-muted-foreground">{request.trainee.email}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "Coach" : "Coach"}</p>
-                        <p className="font-medium">{request.coach.name}</p>
-                        <p className="text-sm text-muted-foreground">{request.coach.email}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {request.status === "pending" ? (
-                        <>
-                          <Button size="sm" onClick={() => void handleCoachRequestAction(request.id, "approved")} disabled={actionKey === `request-${request.id}-approved`}>
-                            {actionKey === `request-${request.id}-approved` ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRoundCheck className="h-4 w-4" />}
-                            {locale === "en" ? "Approve" : "Duyệt"}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => void handleCoachRequestAction(request.id, "rejected")} disabled={actionKey === `request-${request.id}-rejected`}>
-                            {locale === "en" ? "Reject" : "Từ chối"}
-                          </Button>
-                        </>
-                      ) : null}
-                      <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: request.id, kind: "request", label: `${request.trainee.name} -> ${request.coach.name}` })}>
-                        <Trash2 className="h-4 w-4" />
-                        {locale === "en" ? "Cancel / delete" : "Huỷ / xoá"}
-                      </Button>
-                    </div>
+            {/* Request list */}
+            <div className="flex flex-col gap-2.5">
+              {filteredRequests.length ? filteredRequests.map((request) => (
+                <div key={request.id} className="rounded-[10px] border border-border bg-card p-4">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span className="text-sm font-semibold text-foreground">{request.trainee.name}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="text-sm font-medium text-muted-foreground">{request.coach.name}</span>
+                    <Badge variant={requestBadgeVariant(request.status)} className="text-[10px]">{request.status}</Badge>
                   </div>
-                ))
-              ) : (
-                <EmptyState copy={locale === "en" ? "No coach requests match the current filters." : "Không có coach request nào khớp bộ lọc hiện tại."} />
-              )}
+                  <p className="mt-1 text-xs text-muted-foreground">{request.trainee.email} · {formatDateTime(request.createdAt, locale)}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {request.status === "pending" ? (
+                      <>
+                        <Button size="sm" onClick={() => void handleCoachRequestAction(request.id, "approved")} disabled={actionKey === `request-${request.id}-approved`}>
+                          {actionKey === `request-${request.id}-approved` ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRoundCheck className="h-4 w-4" />}
+                          {locale === "en" ? "Approve" : "Duyệt"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => void handleCoachRequestAction(request.id, "rejected")} disabled={actionKey === `request-${request.id}-rejected`}>
+                          {locale === "en" ? "Reject" : "Từ chối"}
+                        </Button>
+                      </>
+                    ) : null}
+                    <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: request.id, kind: "request", label: `${request.trainee.name} → ${request.coach.name}` })}>
+                      <Trash2 className="h-4 w-4" />
+                      {locale === "en" ? "Delete" : "Xoá"}
+                    </Button>
+                  </div>
+                </div>
+              )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} />}
             </div>
           </TabsContent>
 
-          <TabsContent value="connections" className="space-y-5">
-            <div className="rounded-[10px] border border-border bg-card p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <Link2 className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold">{locale === "en" ? "Assign coach to trainee" : "Gán coach cho trainee"}</h3>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <TabsContent value="connections" className="space-y-4">
+            {/* Assign panel */}
+            <div className="rounded-[10px] border border-border bg-card p-[18px]">
+              <p className="label-micro mb-3 text-muted-foreground">{locale === "en" ? "Assign coach to trainee" : "Gán coach cho trainee"}</p>
+              <div className="flex flex-wrap gap-2">
                 <Select value={assignTraineeId} onValueChange={setAssignTraineeId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={locale === "en" ? "Choose trainee" : "Chọn trainee"} />
+                  <SelectTrigger className="flex-1 basis-[180px]">
+                    <SelectValue placeholder={locale === "en" ? "Unassigned trainee" : "Trainee chưa có coach"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {connections?.unassignedTrainees.map((trainee) => (
-                      <SelectItem key={trainee.id} value={trainee.id}>{trainee.name}</SelectItem>
-                    ))}
+                    {connections?.unassignedTrainees.length
+                      ? connections.unassignedTrainees.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)
+                      : <SelectItem value="__none__" disabled>{locale === "en" ? "— none —" : "— trống —"}</SelectItem>}
                   </SelectContent>
                 </Select>
-
                 <Select value={assignCoachId} onValueChange={setAssignCoachId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="flex-1 basis-[180px]">
                     <SelectValue placeholder={locale === "en" ? "Choose coach" : "Chọn coach"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {connections?.coaches.map((coach) => (
-                      <SelectItem key={coach.id} value={coach.id}>{coach.name}</SelectItem>
-                    ))}
+                    {connections?.coaches.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone ?? "coach"})</SelectItem>)}
                   </SelectContent>
                 </Select>
-
                 <Button onClick={() => void handleAssignConnection()} disabled={actionKey === "connection-assign" || !assignCoachId || !assignTraineeId}>
                   {actionKey === "connection-assign" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-                  {locale === "en" ? "Assign" : "Gán"}
+                  {locale === "en" ? "Assign coach" : "Gán coach"}
                 </Button>
               </div>
             </div>
 
-            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4">
-              <div className="relative">
+            {/* Search + connection table */}
+            <div className="flex gap-2">
+              <div className="relative flex-1 max-w-xs">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search current connections..." : "Tìm connection hiện tại..."} className="pl-9" />
+                <Input value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search connections…" : "Tìm connection…"} className="pl-9" />
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              {filteredConnections.length ? (
-                filteredConnections.map((connection) => (
-                  <div key={connection.trainee.id} className="rounded-[10px] border border-border bg-card p-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <Badge variant="outline">{locale === "en" ? "Connected" : "Đang kết nối"}</Badge>
-                      <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: connection.trainee.id, kind: "connection", label: `${connection.trainee.name} - ${connection.coach.name}` })}>
-                        <Trash2 className="h-4 w-4" />
-                        {locale === "en" ? "Remove" : "Gỡ kết nối"}
-                      </Button>
+            <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+              {filteredConnections.length ? filteredConnections.map((connection) => (
+                <div key={connection.trainee.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium text-foreground">{connection.trainee.name}</span>
+                      <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="text-muted-foreground">{connection.coach.name}</span>
                     </div>
-                    <p className="font-medium">{connection.trainee.name}</p>
-                    <p className="text-sm text-muted-foreground">{connection.trainee.email}</p>
-                    <div className="my-3 h-px bg-border" />
-                    <p className="font-medium">{connection.coach.name}</p>
-                    <p className="text-sm text-muted-foreground">{connection.coach.email}</p>
+                    <p className="text-xs text-muted-foreground">{connection.trainee.email}</p>
                   </div>
-                ))
-              ) : (
-                <EmptyState copy={locale === "en" ? "No coach-trainee connections found." : "Chưa có connection coach-trainee nào."} />
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: connection.trainee.id, kind: "connection", label: `${connection.trainee.name} – ${connection.coach.name}` })}>
+                    <Trash2 className="h-4 w-4" />
+                    {locale === "en" ? "Unlink" : "Gỡ"}
+                  </Button>
+                </div>
+              )) : (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  {locale === "en" ? "No connections found." : "Chưa có connection nào."}
+                </div>
               )}
             </div>
           </TabsContent>
 
-          <TabsContent value="programs" className="space-y-5">
-            <div className="rounded-[10px] border border-border bg-card p-4">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs..." : "Tìm giáo án..."} className="pl-9" />
-              </div>
+          <TabsContent value="programs" className="space-y-4">
+            {/* Search */}
+            <div className="relative max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs or coach…" : "Tìm giáo án hoặc coach…"} className="pl-9" />
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              {filteredPrograms.length ? (
-                filteredPrograms.map((program) => (
-                  <div key={program.id} className="rounded-[10px] border border-border bg-card p-5">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">{program.name}</h3>
-                          <Badge variant="outline">{program.difficulty}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{program.createdBy.name}</p>
-                      </div>
-                      <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: program.id, kind: "program", label: program.name })}>
-                        <Trash2 className="h-4 w-4" />
-                        {locale === "en" ? "Delete" : "Xoá"}
-                      </Button>
+            {/* Program rows */}
+            <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+              {filteredPrograms.length ? filteredPrograms.map((program) => (
+                <div
+                  key={program.id}
+                  className="grid items-center border-t border-border/50 px-4 py-3 first:border-t-0 gap-2"
+                  style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 80px auto" }}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-foreground">{program.name}</span>
+                      <Badge variant="outline" className="shrink-0 text-[10px]">{program.difficulty}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{program.description ?? (locale === "en" ? "No description." : "Chưa có mô tả.")}</p>
-                    <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                      <p>{program.duration} {locale === "en" ? "weeks" : "tuần"}</p>
-                      <p>{program.workoutsPerWeek} {locale === "en" ? "workouts/week" : "buổi/tuần"}</p>
-                      <p>{program.assignmentCount} {locale === "en" ? "assignments" : "gán"}</p>
-                    </div>
+                    <p className="text-xs text-muted-foreground">{locale === "en" ? "by" : "bởi"} {program.createdBy.name}</p>
                   </div>
-                ))
-              ) : (
-                <EmptyState copy={locale === "en" ? "No programs match the current search." : "Không có giáo án nào khớp tìm kiếm hiện tại."} />
+                  <span className="hidden font-mono text-xs text-muted-foreground sm:block">{program.duration} {locale === "en" ? "wks" : "tuần"}</span>
+                  <span className="hidden font-mono text-xs text-muted-foreground sm:block">{program.assignmentCount} {locale === "en" ? "clients" : "người"}</span>
+                  <span className="hidden font-mono text-[11px] text-muted-foreground sm:block">{formatDateTime(program.createdAt, locale)}</span>
+                  <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: program.id, kind: "program", label: program.name })}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">{locale === "en" ? "Delete" : "Xoá"}</span>
+                  </Button>
+                </div>
+              )) : (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  {locale === "en" ? "No programs found." : "Chưa có giáo án nào."}
+                </div>
               )}
             </div>
           </TabsContent>
@@ -2059,51 +1830,54 @@ export function AdminConsole() {
             />
           </TabsContent>
 
-          <TabsContent value="audit" className="space-y-5">
-            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="relative">
+          <TabsContent value="audit" className="space-y-4">
+            {/* Search + type filter chips */}
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 basis-[220px] max-w-xs">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search audit logs..." : "Tìm audit log..."} className="pl-9" />
+                <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search actions…" : "Tìm hành động…"} className="pl-9" />
               </div>
-              <Select value={auditEntityType} onValueChange={setAuditEntityType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{locale === "en" ? "All entities" : "Tất cả entity"}</SelectItem>
-                  <SelectItem value="user">user</SelectItem>
-                  <SelectItem value="coach_request">coach_request</SelectItem>
-                  <SelectItem value="connection">connection</SelectItem>
-                  <SelectItem value="program">program</SelectItem>
-                  <SelectItem value="exercise">exercise</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-1.5">
+                {(["all", "user", "request", "exercise", "program", "connection"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setAuditEntityType(t)}
+                    className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                      auditEntityType === t
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {filteredAuditLogs.length ? (
-                filteredAuditLogs.map((log) => (
-                  <div key={log.id} className="rounded-[10px] border border-border bg-card p-5">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{log.entityType}</Badge>
-                          <p className="font-medium">{log.action}</p>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{log.entityLabel ?? (locale === "en" ? "No label" : "Không có nhãn")}</p>
-                        <p className="text-sm text-muted-foreground">{log.admin.name} • {log.admin.email}</p>
-                      </div>
-                      <div className="text-right text-sm text-muted-foreground">
-                        <p>{formatDateTime(log.createdAt, locale)}</p>
-                      </div>
-                    </div>
-                    {log.metadata ? (
-                      <Textarea readOnly value={JSON.stringify(log.metadata, null, 2)} className="mt-4 min-h-[96px] font-mono text-xs" />
-                    ) : null}
+            {/* Audit rows */}
+            <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+              {filteredAuditLogs.length ? filteredAuditLogs.map((log) => (
+                <div key={log.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-muted">
+                    <Activity className="h-[15px] w-[15px] text-muted-foreground" />
                   </div>
-                ))
-              ) : (
-                <EmptyState copy={locale === "en" ? "No audit logs match the current filters." : "Không có audit log nào khớp bộ lọc hiện tại."} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">{log.action}</span>
+                      <Badge variant="outline" className="text-[10px]">{log.entityType}</Badge>
+                    </div>
+                    <p className="text-sm text-foreground">{log.entityLabel ?? (locale === "en" ? "—" : "—")}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-muted-foreground">{log.admin.name}</p>
+                    <p className="font-mono text-[11px] text-muted-foreground">{formatDateTime(log.createdAt, locale)}</p>
+                  </div>
+                </div>
+              )) : (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  {locale === "en" ? "No audit logs match the current filters." : "Không có audit log nào khớp bộ lọc."}
+                </div>
               )}
             </div>
           </TabsContent>
