@@ -93,7 +93,7 @@ function formatRelativeCompact(date: Date) {
 }
 
 function RoutineDot({ tag }: { tag: Exclude<RoutineTag, "all"> }) {
-  return <span className="h-2.5 w-2.5 rounded-full" style={{ background: TAG_DOT_COLOR[tag] }} />
+  return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TAG_DOT_COLOR[tag] }} />
 }
 
 function FilterChip({
@@ -109,7 +109,7 @@ function FilterChip({
     <button
       type="button"
       className={cn(
-        "inline-flex h-12 shrink-0 items-center gap-2 rounded-full border px-5 text-base font-semibold transition-colors sm:h-10 sm:px-4 sm:text-sm",
+        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-border bg-card text-foreground hover:border-foreground/25",
@@ -126,8 +126,8 @@ function CreateRoutineButton({ workoutTemplates }: { workoutTemplates: Workout[]
     <CreateWorkoutDialogLazy
       workoutTemplates={workoutTemplates}
       trigger={
-        <Button className="h-12 w-full gap-3 rounded-[10px] bg-foreground px-6 text-base font-semibold text-background hover:bg-foreground/90 sm:h-10 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm">
-          <Plus className="h-5 w-5 sm:h-4 sm:w-4" />
+        <Button className="h-10 w-full gap-2 rounded-[8px] bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
+          <Plus className="h-4 w-4" />
           Create routine
         </Button>
       }
@@ -141,27 +141,27 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
   const lastUsed = getLastUsed(workout, historyLogs)
 
   return (
-    <article className="group flex min-h-[420px] flex-col gap-6 rounded-[18px] border border-border bg-card p-8 transition-colors hover:border-foreground/20 sm:min-h-[360px] sm:p-6 xl:p-8">
+    <article className="group flex min-h-[286px] flex-col gap-3.5 rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5">
               <RoutineDot tag={tag} />
-              <span className="font-mono text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground sm:text-xs">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {tag}
               </span>
             </span>
             {!workout.isPersonal ? (
-              <span className="inline-flex items-center gap-1.5 rounded-[4px] bg-muted px-2 py-1 font-mono text-sm font-semibold uppercase tracking-[0.08em] text-foreground/80 sm:text-[11px]">
-                <User className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="inline-flex items-center gap-1 rounded-[3px] bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-foreground/80">
+                <User className="h-2.5 w-2.5" />
                 from coach
               </span>
             ) : null}
           </div>
-          <h2 className="line-clamp-2 text-3xl font-semibold leading-tight tracking-normal text-foreground sm:text-xl">
+          <h2 className="line-clamp-2 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
             {workout.name}
           </h2>
-          <p className="mt-3 max-w-[22ch] font-mono text-2xl leading-snug text-muted-foreground tnum sm:max-w-none sm:text-sm">
+          <p className="mt-1 font-mono text-xs leading-snug text-muted-foreground tnum">
             {workout.exercises.length} exercises · {totalSets} sets · last {lastUsed}
           </p>
         </div>
@@ -177,16 +177,16 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
                 className="shrink-0 text-muted-foreground hover:text-foreground"
                 aria-label="Edit routine"
               >
-                <MoreHorizontal className="h-5 w-5" />
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
             }
           />
         ) : (
-          <MoreHorizontal className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+          <MoreHorizontal className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
         )}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-[10px] bg-muted/45 px-6 py-5 font-mono text-[22px] leading-tight sm:gap-2 sm:px-4 sm:py-3 sm:text-sm">
+      <div className="flex flex-col gap-1.5 rounded-[8px] bg-muted/45 px-3 py-2.5 font-mono text-xs leading-tight">
         {workout.exercises.slice(0, 4).map((exercise) => {
           const firstSet = exercise.sets[0]
           const reps = formatRepTarget({
@@ -210,15 +210,13 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             </div>
           )
         })}
-        {workout.exercises.length > 4 ? (
-          <p className="text-[22px] text-muted-foreground sm:text-xs">+ {workout.exercises.length - 4} more</p>
-        ) : null}
+        {workout.exercises.length > 4 ? <p className="text-[11px] text-muted-foreground">+ {workout.exercises.length - 4} more</p> : null}
       </div>
 
-      <div className="mt-auto flex gap-4 sm:gap-2">
+      <div className="mt-auto flex gap-2">
         <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
-          <Button className="h-14 w-full gap-3 rounded-[10px] bg-foreground text-lg font-semibold text-background hover:bg-foreground/90 sm:h-10 sm:text-sm" size="sm">
-            <Play className="h-6 w-6 sm:h-4 sm:w-4" />
+          <Button className="h-10 w-full justify-center gap-2 rounded-[8px] bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
+            <Play className="h-4 w-4" />
             Start
           </Button>
         </Link>
@@ -227,8 +225,8 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             <CreateWorkoutDialogLazy
               workoutToEdit={workout}
               trigger={
-                <Button variant="outline" size="sm" className="h-14 gap-3 rounded-[10px] bg-transparent px-5 text-lg font-semibold sm:h-10 sm:gap-2 sm:px-3 sm:text-sm">
-                  <Pencil className="h-6 w-6 sm:h-4 sm:w-4" />
+                <Button variant="outline" size="sm" className="h-10 gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium">
+                  <Pencil className="h-4 w-4" />
                   Edit
                 </Button>
               }
@@ -237,7 +235,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
               workoutId={workout.id}
               size="sm"
               variant="outline"
-              className="h-14 rounded-[10px] bg-transparent sm:h-10"
+              className="h-10 rounded-[8px] bg-transparent"
               confirmTitle="Delete routine?"
               confirmDescription="This will remove the personal routine. Coach-assigned routines are not affected."
             />
@@ -247,10 +245,10 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             type="button"
             variant="outline"
             size="sm"
-            className="h-14 gap-3 rounded-[10px] bg-transparent px-5 text-lg font-semibold sm:h-10 sm:gap-2 sm:px-3 sm:text-sm"
+            className="h-10 gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium"
             aria-disabled="true"
           >
-            <Pencil className="h-6 w-6 sm:h-4 sm:w-4" />
+            <Pencil className="h-4 w-4" />
             Edit
           </Button>
         )}
@@ -269,17 +267,17 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
 
   return (
     <>
-      <div className="mb-8 flex flex-col items-start justify-between gap-5 sm:mb-7 sm:flex-row sm:items-end">
+      <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end">
         <div>
-          <span className="label-micro mb-5 block text-base sm:mb-2 sm:text-xs">Routines</span>
-          <h1 className="text-5xl font-semibold leading-none tracking-normal text-foreground sm:text-[2.25rem]">
+          <span className="label-micro mb-2 block">Routines</span>
+          <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-[36px]">
             {reusableWorkouts.length} saved.
           </h1>
         </div>
         <CreateRoutineButton workoutTemplates={reusableWorkouts} />
       </div>
 
-      <div className="-mx-4 mb-10 flex gap-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mb-6 sm:flex-wrap sm:gap-2 sm:overflow-visible sm:px-0 sm:pb-0">
+      <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
         {FILTERS.map((tag) => (
           <FilterChip key={tag} active={filter === tag} onClick={() => setFilter(tag)}>
             {tag !== "all" ? <RoutineDot tag={tag} /> : null}
@@ -289,7 +287,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
       </div>
 
       {visibleWorkouts.length > 0 ? (
-        <div className="grid gap-7 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
           {visibleWorkouts.map((workout) => (
             <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
           ))}
