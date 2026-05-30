@@ -8,8 +8,6 @@ import { Home, Calendar, Dumbbell, Utensils, BarChart3, Users, Settings, ShieldC
 import { cn } from "@/lib/utils"
 import type { AppRole } from "@/lib/auth/types"
 import { useLocale } from "@/components/providers/locale-provider"
-import { useAuth } from "@/components/providers/auth-provider"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface NavItem {
   href: string
@@ -33,22 +31,9 @@ function isNavItemActive(pathname: string, href: string) {
   return pathname.startsWith(`${href}/`)
 }
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((segment) => segment[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
-}
-
 export function MobileNav({ role = "trainee" }: MobileNavProps) {
   const pathname = usePathname()
   const { messages } = useLocale()
-  const { profile } = useAuth()
-  const displayName = profile?.name ?? messages.shell.yeahBuddyUser
-  const initials = getInitials(displayName) || "YB"
   const traineeNavItems: NavItem[] = [
     { href: "/dashboard", icon: Home, label: messages.shell.home },
     { href: "/schedule", icon: Calendar, label: messages.shell.schedule },
@@ -67,8 +52,6 @@ export function MobileNav({ role = "trainee" }: MobileNavProps) {
     { href: "/profile", icon: Settings, label: messages.common.settings },
   ]
   const navItems = role === "coach" ? coachNavItems : role === "admin" ? adminNavItems : traineeNavItems
-  const showAvatarItem = role === "coach" || role === "trainee"
-  const profileActive = pathname === "/profile"
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/95 backdrop-blur-lg md:hidden">
@@ -89,23 +72,6 @@ export function MobileNav({ role = "trainee" }: MobileNavProps) {
             </Link>
           )
         })}
-        {showAvatarItem ? (
-          <Link
-            href="/profile"
-            className={cn(
-              "flex flex-col items-center gap-1 px-3 py-2 text-xs transition-colors",
-              profileActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Avatar className={cn("h-5 w-5 border", profileActive ? "border-primary" : "border-border")}>
-              <AvatarImage src={profile?.avatar ?? undefined} alt={displayName} />
-              <AvatarFallback className="bg-foreground font-mono text-[8px] font-semibold text-background">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <span className="font-medium">{messages.common.settings}</span>
-          </Link>
-        ) : null}
       </div>
     </nav>
   )

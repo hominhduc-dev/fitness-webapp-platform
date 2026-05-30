@@ -5,6 +5,7 @@ import { useState } from "react"
 import { ProgramEditorLazy } from "@/components/coach/program-editor-lazy"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
+import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,7 +20,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
-import { Plus } from "lucide-react"
+import { Plus, Upload } from "lucide-react"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -64,6 +65,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
   const [programs, setPrograms] = useState(initialPrograms)
   const [assignTarget, setAssignTarget] = useState<CoachProgram | null>(null)
   const [editorTarget, setEditorTarget] = useState<"new" | string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -125,6 +127,10 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
     })
   }
 
+  const handleImported = (program: CoachProgram) => {
+    setPrograms((prev) => [program, ...prev])
+  }
+
   const editor =
     editorTarget === null ? null : (
       <ProgramEditorLazy
@@ -145,14 +151,25 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
           {totalAssignments} clients training on a program · {unassigned} unassigned
         </p>
       </div>
-      <Button
-        type="button"
-        className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90 sm:w-auto"
-        onClick={() => setEditorTarget("new")}
-      >
-        <Plus className="h-4 w-4" />
-        New program
-      </Button>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full gap-2 bg-transparent sm:w-auto"
+          onClick={() => setImportOpen(true)}
+        >
+          <Upload className="h-4 w-4" />
+          Import Excel
+        </Button>
+        <Button
+          type="button"
+          className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90 sm:w-auto"
+          onClick={() => setEditorTarget("new")}
+        >
+          <Plus className="h-4 w-4" />
+          New program
+        </Button>
+      </div>
     </div>
   )
 
@@ -170,6 +187,14 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
           </Button>
         </div>
         {editor}
+        <ImportProgramDialog
+          exerciseOptions={exerciseOptions}
+          onClose={() => setImportOpen(false)}
+          onImported={handleImported}
+          open={importOpen}
+          token={token}
+          trainees={trainees}
+        />
       </>
     )
   }
@@ -207,6 +232,15 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
       />
 
       {editor}
+
+      <ImportProgramDialog
+        exerciseOptions={exerciseOptions}
+        onClose={() => setImportOpen(false)}
+        onImported={handleImported}
+        open={importOpen}
+        token={token}
+        trainees={trainees}
+      />
     </>
   )
 }

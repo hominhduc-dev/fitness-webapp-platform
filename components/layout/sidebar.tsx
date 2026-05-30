@@ -149,6 +149,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
+              suppressHydrationWarning
               className={cn(
                 "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 collapsed && "justify-center px-2",
