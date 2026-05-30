@@ -374,38 +374,27 @@ export function AdminExercisesPanel({
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="label-micro text-muted-foreground">Library</p>
-          <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.02em] text-foreground">
-            {exercises.length} exercises.
-          </h1>
-          <p className="mt-1 font-mono text-sm text-muted-foreground tnum">
-            {grouped.length} muscle groups
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={onDownloadTemplate}
-            disabled={actionKey === "exercise-template-download"}
-          >
-            {actionKey === "exercise-template-download"
-              ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              : <Download className="mr-1.5 h-4 w-4" />
-            }
-            Template
-          </Button>
-          <Button variant="outline" onClick={onImport}>
-            <FileSpreadsheet className="mr-1.5 h-4 w-4" />
-            Import Excel
-          </Button>
-          <Button onClick={() => setModal("new")}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New exercise
-          </Button>
-        </div>
+      {/* Actions toolbar */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          onClick={onDownloadTemplate}
+          disabled={actionKey === "exercise-template-download"}
+        >
+          {actionKey === "exercise-template-download"
+            ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            : <Download className="mr-1.5 h-4 w-4" />
+          }
+          Template
+        </Button>
+        <Button variant="outline" onClick={onImport}>
+          <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+          Import Excel
+        </Button>
+        <Button onClick={() => setModal("new")}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          New exercise
+        </Button>
       </div>
 
       {/* Search */}
