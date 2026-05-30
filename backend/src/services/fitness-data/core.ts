@@ -3013,6 +3013,9 @@ async function updateCoachProgram(
         id: existingProgram.id,
       },
     })
+  }, {
+    maxWait: 15000,
+    timeout: 30000,
   })
 
   return serializeProgram(program as ProgramRecord)
@@ -3171,6 +3174,9 @@ async function adjustCoachProgramForTrainee(
     })
 
     return createdProgram
+  }, {
+    maxWait: 15000,
+    timeout: 30000,
   })
 
   return serializeProgram(adjustedProgram as ProgramRecord)
