@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Menu, X } from "lucide-react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -115,7 +115,9 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
       {/* Dropdown nav */}
       {open ? (
         <nav className="border-b border-border bg-background p-2.5">
-          <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />
+          <Suspense fallback={null}>
+            <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />
+          </Suspense>
         </nav>
       ) : null}
     </div>

@@ -1314,36 +1314,6 @@ export function AdminConsole() {
 
   return (
     <>
-      {/* Mobile-only horizontal nav (shared sidebar is desktop-only) */}
-      <div className="border-b border-border bg-background md:hidden">
-        <nav className="flex gap-1 overflow-x-auto p-2">
-          {adminNavItems.map((item) => {
-            const Icon = item.icon
-            const isActive = item.id === activeSection
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`flex min-w-fit items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                  isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                }`}
-                onClick={() => setActiveSection(item.id)}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="whitespace-nowrap font-medium">{item.label}</span>
-                {item.badge ? (
-                  <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] font-semibold text-primary-foreground">
-                    {item.badge}
-                  </span>
-                ) : null}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
-
       <main className="min-w-0">
           <div className="space-y-6 px-4 py-6 md:px-9 md:py-8">
             <AdminShellHeader
