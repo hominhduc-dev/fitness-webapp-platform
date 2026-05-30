@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 
 import { Header } from "@/components/layout/header"
 import { MobileNav } from "@/components/layout/mobile-nav"
-import { MobileHeader } from "@/components/layout/mobile-header"
 import { SidebarClient } from "@/components/layout/sidebar-client"
 import { AppProviders } from "@/components/providers/app-providers"
 import { requireAppUser } from "@/lib/auth/server"
@@ -17,7 +16,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
         <SidebarClient role={profile.role} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {profile.role === "admin" ? <Header /> : <MobileHeader role={profile.role} />}
+          {profile.role === "admin" ? <Header /> : null}
           <main className="flex-1 overflow-auto pb-20 md:pb-6">{children}</main>
           <MobileNav role={profile.role} />
         </div>

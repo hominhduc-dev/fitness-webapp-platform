@@ -109,7 +109,7 @@ function FilterChip({
     <button
       type="button"
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors",
+        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-border bg-card text-foreground hover:border-foreground/25",
@@ -141,7 +141,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
   const lastUsed = getLastUsed(workout, historyLogs)
 
   return (
-    <article className="group flex min-h-[286px] flex-col gap-3.5 rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20">
+    <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
@@ -161,9 +161,11 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           <h2 className="line-clamp-2 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
             {workout.name}
           </h2>
-          <p className="mt-1 font-mono text-xs leading-snug text-muted-foreground tnum">
-            {workout.exercises.length} exercises · {totalSets} sets · last {lastUsed}
-          </p>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs leading-snug text-muted-foreground tnum">
+            <span>{workout.exercises.length} exercises</span>
+            <span>{totalSets} sets</span>
+            <span>last {lastUsed}</span>
+          </div>
         </div>
 
         {workout.isPersonal ? (
@@ -181,12 +183,10 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
               </Button>
             }
           />
-        ) : (
-          <MoreHorizontal className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
+        ) : null}
       </div>
 
-      <div className="flex flex-col gap-1.5 rounded-[8px] bg-muted/45 px-3 py-2.5 font-mono text-xs leading-tight">
+      <div className="flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-[8px] bg-muted/45 px-3 py-2.5 font-mono text-xs leading-tight">
         {workout.exercises.slice(0, 4).map((exercise) => {
           const firstSet = exercise.sets[0]
           const reps = formatRepTarget({
@@ -195,7 +195,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           })
 
           return (
-            <div key={exercise.id} className="flex items-baseline justify-between gap-2">
+            <div key={exercise.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
               <span className="min-w-0 truncate text-foreground">
                 {formatExerciseVariationLabel({
                   exerciseName: exercise.exercise.name,
@@ -240,18 +240,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
               confirmDescription="This will remove the personal routine. Coach-assigned routines are not affected."
             />
           </>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-10 gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium"
-            aria-disabled="true"
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-        )}
+        ) : null}
       </div>
     </article>
   )
@@ -277,7 +266,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
         <CreateRoutineButton workoutTemplates={reusableWorkouts} />
       </div>
 
-      <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+      <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((tag) => (
           <FilterChip key={tag} active={filter === tag} onClick={() => setFilter(tag)}>
             {tag !== "all" ? <RoutineDot tag={tag} /> : null}
