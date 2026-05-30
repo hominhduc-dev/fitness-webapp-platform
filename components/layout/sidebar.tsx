@@ -1,100 +1,35 @@
 "use client"
 
-import type React from "react"
-
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import {
-  Home,
-  Calendar,
-  Dumbbell,
-  Utensils,
-  BarChart3,
-  Users,
-  ListChecks,
-  UserPlus,
-  Settings,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  ShieldCheck,
-} from "lucide-react"
+import { usePathname } from "next/navigation"
+import { ChevronLeft, ChevronRight, Dumbbell, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useAuth } from "@/components/providers/auth-provider"
-
-interface NavItem {
-  href: string
-  icon: React.ElementType
-  label: string
-}
+import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
+import { fetchCoachDashboard, fetchCoachPrograms } from "@/lib/fitness/api"
+import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
 
 interface SidebarProps {
   role?: AppRole
 }
 
-function isNavItemActive(pathname: string, href: string) {
-  if (pathname === href) {
-    return true
-  }
-
-  if (href === "/coach" || href === "/admin" || href === "/dashboard") {
-    return false
-  }
-
-  return pathname.startsWith(`${href}/`)
-}
-
 export function Sidebar({ role = "trainee" }: SidebarProps) {
-  const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const { messages } = useLocale()
-  const { profile, signOut } = useAuth()
-  const [isSigningOut, setIsSigningOut] = useState(false)
 
   if (role === "coach") {
     return <CoachSidebar pathname={pathname} />
   }
 
-  const traineeNavItems: NavItem[] = [
-    { href: "/dashboard", icon: Home, label: messages.shell.dashboard },
-    { href: "/schedule", icon: Calendar, label: messages.shell.weeklySchedule },
-    { href: "/workout", icon: Dumbbell, label: messages.shell.workout },
-    { href: "/meals", icon: Utensils, label: messages.shell.mealTracking },
-    { href: "/progress", icon: BarChart3, label: messages.shell.progress },
-    { href: "/coach/find", icon: UserPlus, label: messages.common.addCoach },
-  ]
-  const adminNavItems: NavItem[] = [{ href: "/admin", icon: ShieldCheck, label: messages.shell.adminDashboard }]
+  const traineeNavItems = getTraineeNavItems(messages)
+  const adminNavItems = getAdminNavItems(messages).filter((item) => item.href === "/admin")
   const navItems = role === "admin" ? adminNavItems : traineeNavItems
-  const displayName = profile?.name ?? messages.shell.yeahBuddyUser
-  const displayEmail = profile?.email ?? messages.shell.loadingEmail
-  const initials = getInitials(displayName) || "YB"
-
-  const handleSignOut = async () => {
-    setIsSigningOut(true)
-
-    try {
-      await signOut()
-      router.push("/")
-      router.refresh()
-    } finally {
-      setIsSigningOut(false)
-    }
-  }
 
   return (
     <aside
@@ -124,7 +59,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
         {navItems.map((item) => {
-          const isActive = isNavItemActive(pathname, item.href)
+          const isActive = isNavItemActive(pathname, item)
           return (
             <Link
               key={item.href}
@@ -145,99 +80,58 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 border-t border-sidebar-border p-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              suppressHydrationWarning
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                collapsed && "justify-center px-2",
-              )}
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={profile?.avatar ?? undefined} alt={displayName} />
-                <AvatarFallback className="bg-foreground font-mono text-[11px] font-semibold text-background">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              {!collapsed ? (
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-foreground">{displayName}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{displayEmail}</span>
-                </span>
-              ) : null}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="top" className="w-56">
-            <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="truncate text-sm font-medium">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/profile">
-                <Settings className="mr-2 h-4 w-4" />
-                {messages.common.settings}
-              </Link>
-            </DropdownMenuItem>
-            {role === "trainee" ? (
-              <DropdownMenuItem asChild>
-                <Link href="/coach/find">
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  {messages.common.addCoach}
-                </Link>
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => void handleSignOut()} disabled={isSigningOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              {isSigningOut ? messages.common.signingOut : messages.common.signOut}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SidebarAccountMenu
+          collapsed={collapsed}
+          extraActions={role === "trainee" ? [{ href: "/coach/find", icon: UserPlus, label: messages.common.addCoach }] : []}
+        />
       </div>
     </aside>
   )
 }
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((segment) => segment[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
-}
-
 function CoachSidebar({ pathname }: { pathname: string }) {
-  const router = useRouter()
-  const { profile, signOut } = useAuth()
+  const { session } = useAuth()
   const { messages } = useLocale()
-  const [isSigningOut, setIsSigningOut] = useState(false)
-  const displayName = profile?.name ?? "Coach Eli K."
-  const displayEmail = profile?.email ?? "coach@example.com"
-  const initials = getInitials(displayName) || "EK"
-  const coachNavItems = [
-    { href: "/coach/trainees", icon: Users, label: "Clients", count: 12 },
-    { href: "/coach/programs", icon: ListChecks, label: "Programs", count: 6 },
-    { href: "/progress", icon: BarChart3, label: "Stats" },
-  ]
+  const [counts, setCounts] = useState<{ programs?: number; trainees?: number }>({})
 
-  const handleSignOut = async () => {
-    setIsSigningOut(true)
+  useEffect(() => {
+    let cancelled = false
 
-    try {
-      await signOut()
-      router.push("/")
-      router.refresh()
-    } finally {
-      setIsSigningOut(false)
+    async function loadCounts() {
+      if (!session?.access_token) {
+        setCounts({})
+        return
+      }
+
+      try {
+        const [dashboard, programs] = await Promise.all([
+          fetchCoachDashboard(session.access_token),
+          fetchCoachPrograms(session.access_token),
+        ])
+
+        if (!cancelled) {
+          setCounts({
+            programs: programs.length,
+            trainees: dashboard.summary.totalTrainees,
+          })
+        }
+      } catch {
+        if (!cancelled) {
+          setCounts({})
+        }
+      }
     }
-  }
+
+    void loadCounts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [session?.access_token])
+
+  const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
+    ["/coach/trainees", "/coach/programs", "/progress"].includes(item.href),
+  )
 
   return (
     <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
@@ -265,7 +159,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
           <p className="label-micro mb-2 px-1 text-muted-foreground">Coach</p>
           <nav className="flex flex-col gap-1">
             {coachNavItems.map((item) => {
-              const isActive = isNavItemActive(pathname, item.href)
+              const isActive = isNavItemActive(pathname, item)
               return (
                 <Link
                   key={item.label}
@@ -291,45 +185,14 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         </div>
 
         <div className="shrink-0 border-t border-border pt-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 rounded-md px-0 py-2 text-left text-sm transition-colors hover:bg-muted/70"
-              >
-                <Avatar className="h-7 w-7">
-                  <AvatarImage src={profile?.avatar ?? undefined} alt={displayName} />
-                  <AvatarFallback className="bg-foreground font-mono text-[11px] font-semibold text-background">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-foreground">{displayName}</span>
-                  <span className="block font-mono text-[11px] text-muted-foreground">12 active clients</span>
-                </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="truncate text-sm font-medium">{displayName}</p>
-                  <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/profile">
-                  <Settings className="mr-2 h-4 w-4" />
-                  {messages.common.settings}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void handleSignOut()} disabled={isSigningOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                {isSigningOut ? messages.common.signingOut : messages.common.signOut}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <SidebarAccountMenu
+            avatarClassName="h-7 w-7"
+            buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
+            fallbackEmail="coach@example.com"
+            fallbackInitials="EK"
+            fallbackName="Coach Eli K."
+            subtitle={<span className="font-mono text-[11px]">12 active clients</span>}
+          />
         </div>
       </div>
     </aside>

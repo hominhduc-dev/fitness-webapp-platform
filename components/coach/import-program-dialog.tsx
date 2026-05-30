@@ -7,11 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  downloadCoachProgramTemplate,
-  importCoachProgramTemplate,
-  type ImportedProgramDraft,
-} from "@/components/coach/program-excel"
+import type { ImportedProgramDraft } from "@/components/coach/program-excel"
 import { createCoachProgram } from "@/lib/fitness/api"
 import type {
   CoachProgram,
@@ -156,6 +152,7 @@ export function ImportProgramDialog({
     setFileName(file.name)
 
     try {
+      const { importCoachProgramTemplate } = await import("@/components/coach/program-excel")
       const importedDraft = await importCoachProgramTemplate(file, exerciseOptions, trainees)
       setDraft(importedDraft)
       setProgramName(importedDraft.name?.trim() || file.name.replace(/\.[^.]+$/, ""))
@@ -175,6 +172,7 @@ export function ImportProgramDialog({
     setError(null)
 
     try {
+      const { downloadCoachProgramTemplate } = await import("@/components/coach/program-excel")
       await downloadCoachProgramTemplate(exerciseOptions, trainees)
     } catch (templateError) {
       setError(templateError instanceof Error ? templateError.message : "Không tạo được template Excel.")

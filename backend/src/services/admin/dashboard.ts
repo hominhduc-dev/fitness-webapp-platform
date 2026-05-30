@@ -1,0 +1,1 @@
+export { getAdminDashboard } from "./core"

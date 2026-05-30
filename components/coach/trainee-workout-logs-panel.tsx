@@ -3,14 +3,8 @@
 import { useEffect, useState } from "react"
 import { ChevronDown, Clock3, Download, FileSpreadsheet, Loader2, MessageSquare, Pencil, Save, Trash2 } from "lucide-react"
 
-import {
-  createCoachWorkoutLogsWorkbookPreview,
-  downloadCoachWorkoutLogsWorkbook,
-  downloadCoachWorkoutLogsWorkbookFile,
-  formatDateInputValue,
-  startOfLocalWeek,
-  type CoachWorkoutLogsWorkbookPreview,
-} from "@/components/coach/trainee-workout-logs-excel"
+import { formatDateInputValue, startOfLocalWeek } from "@/components/coach/trainee-workout-log-dates"
+import type { CoachWorkoutLogsWorkbookPreview } from "@/components/coach/trainee-workout-logs-excel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -358,6 +352,7 @@ export function TraineeWorkoutLogsPanel({
         throw new Error("Không có workout log nào để xuất.")
       }
 
+      const { downloadCoachWorkoutLogsWorkbook } = await import("@/components/coach/trainee-workout-logs-excel")
       await downloadCoachWorkoutLogsWorkbook(exportLogs, {
         traineeId,
         traineeName,
@@ -387,6 +382,7 @@ export function TraineeWorkoutLogsPanel({
         throw new Error("Không có workout log nào để preview.")
       }
 
+      const { createCoachWorkoutLogsWorkbookPreview } = await import("@/components/coach/trainee-workout-logs-excel")
       const preview = await createCoachWorkoutLogsWorkbookPreview(exportLogs, {
         traineeId,
         traineeName,
@@ -930,7 +926,9 @@ export function TraineeWorkoutLogsPanel({
               className="bg-primary hover:bg-primary/90"
               onClick={() => {
                 if (previewWorkbook) {
-                  downloadCoachWorkoutLogsWorkbookFile(previewWorkbook)
+                  void import("@/components/coach/trainee-workout-logs-excel").then(({ downloadCoachWorkoutLogsWorkbookFile }) => {
+                    downloadCoachWorkoutLogsWorkbookFile(previewWorkbook)
+                  })
                 }
               }}
               disabled={!previewWorkbook}

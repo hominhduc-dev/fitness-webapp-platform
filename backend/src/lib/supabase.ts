@@ -27,7 +27,6 @@ const supabaseUrlConfigured = hasValidSupabaseUrl(env.supabaseUrl)
 const hasAnonKey = hasConfiguredValue(env.supabaseAnonKey)
 const hasServiceRoleKey = hasConfiguredValue(env.supabaseServiceRoleKey)
 const supabaseUrl = supabaseUrlConfigured ? env.supabaseUrl : undefined
-const supabaseKeyConfigured = hasServiceRoleKey || hasAnonKey
 
 function createConfiguredClient(key?: string) {
   if (!supabaseUrl || !key) {

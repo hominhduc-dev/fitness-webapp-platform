@@ -9,11 +9,13 @@ import {
   Dumbbell,
   FileSpreadsheet,
   KeyRound,
+  LayoutDashboard,
   Link2,
   Loader2,
   Save,
   Search,
   ShieldCheck,
+  ScrollText,
   Trash2,
   Upload,
   UserCog,
@@ -40,7 +42,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   assignAdminCoachConnection,
@@ -284,28 +286,31 @@ function ChartPanel({
   const maxValue = Math.max(...points.map((point) => point.value), 1)
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-[10px] border border-border bg-card p-4 transition-colors duration-150 hover:border-primary/30">
       <div className="mb-4">
         <h3 className="text-base font-semibold">{title}</h3>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       </div>
 
       <div className="flex h-44 items-end gap-2">
-        {points.map((point) => {
+        {points.map((point, index) => {
           const height = point.value === 0 ? 10 : Math.max((point.value / maxValue) * 100, 14)
+          const isCurrent = index === points.length - 1
 
           return (
             <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-2">
-              <span className="text-[11px] font-medium text-muted-foreground">{point.value}</span>
-              <div className="flex h-32 w-full items-end rounded-xl bg-muted/40 p-1.5">
+              <span className="font-mono text-[11px] font-medium text-muted-foreground tnum">{point.value}</span>
+              <div className="flex h-32 w-full items-end">
                 <div
-                  className="w-full rounded-lg bg-primary/85"
+                  className={`w-full rounded-[4px] ${isCurrent ? "bg-primary" : "bg-muted"}`}
                   style={{
                     height: `${height}%`,
                   }}
                 />
               </div>
-              <span className="text-[11px] text-muted-foreground">{point.label}</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                {point.label}
+              </span>
             </div>
           )
         })}
@@ -315,87 +320,216 @@ function ChartPanel({
 }
 
 function EmptyState({ copy }: { copy: string }) {
-  return <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
+  return <div className="rounded-[10px] border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
+}
+
+type AdminSectionId = "dashboard" | "users" | "requests" | "connections" | "programs" | "exercises" | "audit"
+
+type AdminSectionItem = {
+  badge?: number
+  icon: typeof LayoutDashboard
+  id: AdminSectionId
+  label: string
+}
+
+function AdminShellHeader({
+  activeSection,
+  auditCount,
+  connectionCount,
+  exerciseCount,
+  locale,
+  pendingRequestCount,
+  programCount,
+  stats,
+  userCount,
+}: {
+  activeSection: AdminSectionId
+  auditCount: number
+  connectionCount: number
+  exerciseCount: number
+  locale: "en" | "vi"
+  pendingRequestCount: number
+  programCount: number
+  stats?: AdminDashboardData["stats"]
+  userCount: number
+}) {
+  const totalUsers = stats?.totalUsers ?? userCount
+
+  const copy: Record<AdminSectionId, { label: string; title: string; sub: string }> = {
+    audit: {
+      label: locale === "en" ? "Audit" : "Audit",
+      title: locale === "en" ? "Activity log." : "Nhật ký hoạt động.",
+      sub:
+        locale === "en"
+          ? `${formatNumber(auditCount, locale)} recent admin actions`
+          : `${formatNumber(auditCount, locale)} thao tác admin gần đây`,
+    },
+    connections: {
+      label: locale === "en" ? "Connections" : "Kết nối",
+      title:
+        locale === "en"
+          ? `${formatNumber(connectionCount, locale)} active.`
+          : `${formatNumber(connectionCount, locale)} kết nối.`,
+      sub:
+        locale === "en"
+          ? `${formatNumber(pendingRequestCount, locale)} pending coach requests`
+          : `${formatNumber(pendingRequestCount, locale)} yêu cầu coach chờ duyệt`,
+    },
+    dashboard: {
+      label: locale === "en" ? "Overview" : "Tổng quan",
+      title: locale === "en" ? "System health." : "Sức khoẻ hệ thống.",
+      sub:
+        locale === "en"
+          ? `${formatNumber(totalUsers, locale)} users · ${formatNumber(stats?.totalCoaches ?? 0, locale)} coaches · ${formatNumber(stats?.activeUsersLast7Days ?? 0, locale)} active this week`
+          : `${formatNumber(totalUsers, locale)} user · ${formatNumber(stats?.totalCoaches ?? 0, locale)} coach · ${formatNumber(stats?.activeUsersLast7Days ?? 0, locale)} hoạt động tuần này`,
+    },
+    exercises: {
+      label: locale === "en" ? "Library" : "Thư viện",
+      title:
+        locale === "en"
+          ? `${formatNumber(exerciseCount, locale)} exercises.`
+          : `${formatNumber(exerciseCount, locale)} bài tập.`,
+      sub: locale === "en" ? "Grouped exercise variations" : "Các variation bài tập theo nhóm cơ",
+    },
+    programs: {
+      label: locale === "en" ? "Programs" : "Giáo án",
+      title:
+        locale === "en"
+          ? `${formatNumber(programCount, locale)} authored.`
+          : `${formatNumber(programCount, locale)} giáo án.`,
+      sub: locale === "en" ? "System-wide program oversight" : "Theo dõi giáo án toàn hệ thống",
+    },
+    requests: {
+      label: locale === "en" ? "Coach requests" : "Yêu cầu coach",
+      title:
+        locale === "en"
+          ? `${formatNumber(pendingRequestCount, locale)} pending.`
+          : `${formatNumber(pendingRequestCount, locale)} chờ duyệt.`,
+      sub: locale === "en" ? "Review trainee-to-coach requests" : "Duyệt yêu cầu kết nối trainee với coach",
+    },
+    users: {
+      label: locale === "en" ? "Users" : "Người dùng",
+      title:
+        locale === "en"
+          ? `${formatNumber(userCount, locale)} accounts.`
+          : `${formatNumber(userCount, locale)} tài khoản.`,
+      sub:
+        locale === "en"
+          ? `${formatNumber(stats?.totalCoaches ?? 0, locale)} coaches · ${formatNumber(stats?.totalAdmins ?? 0, locale)} admins`
+          : `${formatNumber(stats?.totalCoaches ?? 0, locale)} coach · ${formatNumber(stats?.totalAdmins ?? 0, locale)} admin`,
+    },
+  }
+
+  const activeCopy = copy[activeSection]
+
+  return (
+    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <p className="label-micro mb-2">{activeCopy.label}</p>
+        <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground md:text-[34px]">
+          {activeCopy.title}
+        </h1>
+        <p className="mt-2 font-mono text-sm text-muted-foreground tnum">{activeCopy.sub}</p>
+      </div>
+    </div>
+  )
+}
+
+function AdminSidebar({
+  activeSection,
+  items,
+  locale,
+  onNavigate,
+}: {
+  activeSection: AdminSectionId
+  items: AdminSectionItem[]
+  locale: "en" | "vi"
+  onNavigate: (section: AdminSectionId) => void
+}) {
+  return (
+    <aside className="flex shrink-0 flex-col border-b border-border bg-background p-4 md:min-h-[calc(100vh-1px)] md:w-60 md:border-b-0 md:border-r">
+      <div className="flex items-center gap-3 px-2 py-1">
+        <div className="flex h-7 w-7 items-center justify-center text-foreground">
+          <Dumbbell className="h-5 w-5" />
+        </div>
+        <span className="text-xl font-semibold tracking-[-0.04em] text-foreground">lift</span>
+      </div>
+
+      <div className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-[5px] bg-foreground px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-background">
+        <ShieldCheck className="h-3 w-3" />
+        Admin
+      </div>
+
+      <p className="label-micro mt-7 px-2">{locale === "en" ? "Control center" : "Trung tâm điều khiển"}</p>
+      <nav className="mt-2 flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
+        {items.map((item) => {
+          const Icon = item.icon
+          const isActive = item.id === activeSection
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`flex min-w-fit items-center gap-3 rounded-[6px] px-3 py-2 text-left text-sm transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)] md:w-full ${
+                isActive
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              }`}
+              onClick={() => onNavigate(item.id)}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="flex-1 whitespace-nowrap font-medium">{item.label}</span>
+              {item.badge ? (
+                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] font-semibold text-primary-foreground tnum">
+                  {item.badge}
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
+      </nav>
+    </aside>
+  )
 }
 
 function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
   return (
-    <Tabs defaultValue="dashboard" className="space-y-5">
-      <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl bg-muted/70 p-2">
-        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-        <TabsTrigger value="users">Users</TabsTrigger>
-        <TabsTrigger value="requests">Coach Requests</TabsTrigger>
-        <TabsTrigger value="connections">Connections</TabsTrigger>
-        <TabsTrigger value="programs">Programs</TabsTrigger>
-        <TabsTrigger value="exercises">Exercises</TabsTrigger>
-        <TabsTrigger value="audit">Audit</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="dashboard" className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className="rounded-2xl border border-border bg-card p-5">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="mt-3 h-9 w-28" />
-              <Skeleton className="mt-2 h-4 w-36" />
-            </div>
-          ))}
-        </div>
-
-        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-44" />
-            <Skeleton className="h-4 w-72 max-w-full" />
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }, (_, index) => (
+          <div key={index} className="rounded-[10px] border border-border bg-card p-5">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-3 h-9 w-28" />
+            <Skeleton className="mt-2 h-4 w-36" />
           </div>
+        ))}
+      </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 p-1">
-            <Skeleton className="h-8 w-20 rounded-full" />
-            <Skeleton className="h-8 w-24 rounded-full" />
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-3">
-          {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="rounded-2xl border border-border bg-card p-4">
-              <Skeleton className="h-6 w-32" />
-              <Skeleton className="mt-2 h-4 w-48 max-w-full" />
-              <div className="mt-6 flex h-44 items-end gap-2">
-                {Array.from({ length: 6 }, (_, barIndex) => (
-                  <div key={barIndex} className="flex flex-1 flex-col items-center gap-2">
-                    <Skeleton className="h-3 w-8" />
-                    <div className="flex h-32 w-full items-end rounded-xl bg-muted/40 p-1.5">
-                      <Skeleton className="w-full rounded-lg" style={{ height: `${35 + barIndex * 8}%` }} />
-                    </div>
-                    <Skeleton className="h-3 w-6" />
-                  </div>
-                ))}
-              </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="rounded-[10px] border border-border bg-card p-4">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="mt-2 h-4 w-48 max-w-full" />
+            <div className="mt-6 flex h-44 items-end gap-2">
+              {Array.from({ length: 6 }, (_, barIndex) => (
+                <div key={barIndex} className="flex flex-1 flex-col items-center gap-2">
+                  <Skeleton className="h-3 w-8" />
+                  <Skeleton className="w-full rounded-[4px]" style={{ height: `${35 + barIndex * 8}%` }} />
+                  <Skeleton className="h-3 w-6" />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          {Array.from({ length: 2 }, (_, index) => (
-            <div key={index} className="rounded-2xl border border-border bg-card p-5">
-              <Skeleton className="h-6 w-36" />
-              <Skeleton className="mt-2 h-4 w-52 max-w-full" />
-              <div className="mt-5 space-y-3">
-                {Array.from({ length: 4 }, (_, itemIndex) => (
-                  <Skeleton key={itemIndex} className="h-16 rounded-2xl" />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="min-h-[40px] text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>{locale === "en" ? "Loading admin console..." : "Đang tải bảng điều khiển admin..."}</span>
           </div>
+        ))}
+      </div>
+
+      <div className="min-h-[40px] text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>{locale === "en" ? "Loading admin console..." : "Đang tải bảng điều khiển admin..."}</span>
         </div>
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   )
 }
 
@@ -433,6 +567,7 @@ export function AdminConsole() {
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
+  const [activeSection, setActiveSection] = useState<AdminSectionId>("dashboard")
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -1174,73 +1309,59 @@ export function AdminConsole() {
         ? "Confirm"
         : "Xác nhận"
   const isConsolePending = !session?.access_token || isLoading
-  const topStats = [
-    { label: "Admins", value: dashboard?.stats.totalAdmins },
-    { label: "Programs", value: dashboard?.stats.totalPrograms },
-    { label: "Meals", value: dashboard?.stats.totalMeals },
-    { label: "Workout Logs", value: dashboard?.stats.totalWorkoutLogs },
-  ] as const
+  const pendingRequestCount = coachRequests.filter((request) => request.status === "pending").length
+  const adminNavItems: AdminSectionItem[] = [
+    { icon: LayoutDashboard, id: "dashboard", label: "Dashboard" },
+    { icon: Users, id: "users", label: "Users" },
+    { badge: pendingRequestCount || undefined, icon: UserRoundCheck, id: "requests", label: "Coach Requests" },
+    { icon: Link2, id: "connections", label: "Connections" },
+    { icon: ClipboardList, id: "programs", label: "Programs" },
+    { icon: Dumbbell, id: "exercises", label: "Exercises" },
+    { icon: ScrollText, id: "audit", label: "Audit" },
+  ]
 
   return (
     <>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {locale === "en" ? "Admin Control Center" : "Trung tâm điều khiển Admin"}
+      <div className="min-h-screen bg-background md:grid md:grid-cols-[240px_minmax(0,1fr)]">
+        <AdminSidebar
+          activeSection={activeSection}
+          items={adminNavItems}
+          locale={locale}
+          onNavigate={setActiveSection}
+        />
+
+        <main className="min-w-0">
+          <div className="space-y-6 px-4 py-6 md:px-9 md:py-8">
+            <AdminShellHeader
+              activeSection={activeSection}
+              auditCount={auditLogs.length}
+              connectionCount={connections?.connections.length ?? 0}
+              exerciseCount={exercises.length}
+              locale={locale}
+              pendingRequestCount={pendingRequestCount}
+              programCount={programs.length}
+              stats={dashboard?.stats}
+              userCount={users.length}
+            />
+
+            <div className="min-h-[42px]">
+              {error ? (
+                <div className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+
+              {!error && notice ? (
+                <div className="rounded-[10px] border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+                  {notice}
+                </div>
+              ) : null}
             </div>
-            <h1 className="text-2xl font-bold md:text-3xl">
-              {locale === "en" ? "System administration" : "Quản trị hệ thống"}
-            </h1>
-            <p className="mt-1 text-muted-foreground">
-              {locale === "en"
-                ? "Manage users, coach flows, library data, audits, and platform health in one place."
-                : "Quản lý user, coach flow, dữ liệu thư viện, audit và sức khoẻ nền tảng trong cùng một nơi."}
-            </p>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-4">
-            {topStats.map((item) => (
-              <div key={item.label}>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                {typeof item.value === "number" ? (
-                  <p className="text-xl font-semibold tabular-nums">{item.value}</p>
-                ) : (
-                  <Skeleton className="mt-2 h-7 w-16" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="min-h-[52px]">
-          {error ? (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
-
-          {!error && notice ? (
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
-              {notice}
-            </div>
-          ) : null}
-        </div>
-
-        {isConsolePending ? (
-          <AdminConsoleLoadingState locale={locale} />
-        ) : (
-          <Tabs defaultValue="dashboard" className="space-y-5">
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl bg-muted/70 p-2">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="requests">Coach Requests</TabsTrigger>
-            <TabsTrigger value="connections">Connections</TabsTrigger>
-            <TabsTrigger value="programs">Programs</TabsTrigger>
-            <TabsTrigger value="exercises">Exercises</TabsTrigger>
-            <TabsTrigger value="audit">Audit</TabsTrigger>
-          </TabsList>
+            {isConsolePending ? (
+              <AdminConsoleLoadingState locale={locale} />
+            ) : (
+              <Tabs value={activeSection} onValueChange={(value) => setActiveSection(value as AdminSectionId)}>
 
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -1251,7 +1372,7 @@ export function AdminConsole() {
               <StatsCard title="Active 30d" value={dashboard?.stats.activeUsersLast30Days ?? 0} subtitle={locale === "en" ? "users with activity in 30 days" : "user có hoạt động trong 30 ngày"} iconName="trending-up" variant="accent" />
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between rounded-[10px] border border-border bg-card p-4">
               <div>
                 <h2 className="text-lg font-semibold">{locale === "en" ? "Platform charts" : "Biểu đồ nền tảng"}</h2>
                 <p className="text-sm text-muted-foreground">
@@ -1259,11 +1380,11 @@ export function AdminConsole() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 rounded-full border border-border bg-muted/40 p-1">
-                <Button variant={chartView === "weekly" ? "default" : "ghost"} size="sm" onClick={() => setChartView("weekly")}>
+              <div className="flex items-center gap-2">
+                <Button variant={chartView === "weekly" ? "default" : "outline"} size="sm" onClick={() => setChartView("weekly")}>
                   {locale === "en" ? "Weekly" : "Theo tuần"}
                 </Button>
-                <Button variant={chartView === "monthly" ? "default" : "ghost"} size="sm" onClick={() => setChartView("monthly")}>
+                <Button variant={chartView === "monthly" ? "default" : "outline"} size="sm" onClick={() => setChartView("monthly")}>
                   {locale === "en" ? "Monthly" : "Theo tháng"}
                 </Button>
               </div>
@@ -1288,7 +1409,7 @@ export function AdminConsole() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">{locale === "en" ? "Recent users" : "Người dùng gần đây"}</h3>
@@ -1303,9 +1424,10 @@ export function AdminConsole() {
                       <button
                         key={user.id}
                         type="button"
-                        className="w-full rounded-xl border border-border/70 bg-muted/20 p-4 text-left transition-colors hover:border-primary/30"
+                        className="w-full rounded-[8px] border border-border/70 bg-muted/20 p-4 text-left transition-colors hover:border-primary/30"
                         onClick={() => {
                           setSelectedUserId(user.id)
+                          setActiveSection("users")
                           void refreshAllData(session.access_token, user.id, true)
                         }}
                       >
@@ -1328,7 +1450,7 @@ export function AdminConsole() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">{locale === "en" ? "Pending coach requests" : "Coach requests chờ duyệt"}</h3>
@@ -1340,7 +1462,7 @@ export function AdminConsole() {
                 <div className="space-y-3">
                   {dashboard?.pendingCoachRequests.length ? (
                     dashboard.pendingCoachRequests.map((request) => (
-                      <div key={request.id} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <div key={request.id} className="rounded-[8px] border border-border/70 bg-muted/20 p-4">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <Badge variant={requestBadgeVariant(request.status)}>{request.status}</Badge>
                           <span className="text-xs text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
@@ -1361,7 +1483,7 @@ export function AdminConsole() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold">{locale === "en" ? "Top coaches" : "Coach nổi bật"}</h3>
                   <Badge variant="secondary">{dashboard?.topCoaches.length ?? 0}</Badge>
@@ -1370,10 +1492,10 @@ export function AdminConsole() {
                 <div className="space-y-3">
                   {dashboard?.topCoaches.length ? (
                     dashboard.topCoaches.map((coach, index) => (
-                      <div key={coach.id} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <div key={coach.id} className="flex items-center justify-between rounded-[8px] border border-border/70 bg-muted/20 p-4">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span>
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-muted font-mono text-xs font-semibold text-primary tnum">{index + 1}</span>
                             <p className="font-medium">{coach.name}</p>
                             {!coach.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
                           </div>
@@ -1391,7 +1513,7 @@ export function AdminConsole() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold">{locale === "en" ? "Recent programs" : "Giáo án gần đây"}</h3>
                   <Badge variant="outline">{dashboard?.recentPrograms.length ?? 0}</Badge>
@@ -1400,7 +1522,7 @@ export function AdminConsole() {
                 <div className="space-y-3">
                   {dashboard?.recentPrograms.length ? (
                     dashboard.recentPrograms.map((program) => (
-                      <div key={program.id} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                      <div key={program.id} className="rounded-[8px] border border-border/70 bg-muted/20 p-4">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <p className="font-medium">{program.name}</p>
                           <Badge variant="outline">{program.difficulty}</Badge>
@@ -1422,7 +1544,7 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-5">
-            <div className="grid gap-3 rounded-2xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search by name, email, username, phone..." : "Tìm theo tên, email, username, số điện thoại..."} className="pl-9" />
@@ -1441,7 +1563,7 @@ export function AdminConsole() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.45fr)]">
-              <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="rounded-[10px] border border-border bg-card p-4">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-semibold">{locale === "en" ? "All users" : "Toàn bộ user"}</h3>
                   <Badge variant="outline">{filteredUsers.length}</Badge>
@@ -1453,7 +1575,7 @@ export function AdminConsole() {
                       <button
                         key={user.id}
                         type="button"
-                        className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                        className={`w-full rounded-[8px] border p-4 text-left transition-colors ${
                           selectedUserId === user.id
                             ? "border-primary/40 bg-primary/5"
                             : "border-border/70 bg-muted/20 hover:border-primary/25"
@@ -1486,7 +1608,7 @@ export function AdminConsole() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 {userDetail ? (
                   <div className="space-y-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1502,7 +1624,7 @@ export function AdminConsole() {
                         </p>
                       </div>
 
-                      <div className="grid min-w-[220px] grid-cols-2 gap-3 rounded-xl border border-border bg-muted/20 p-3 text-sm">
+                      <div className="grid min-w-[220px] grid-cols-2 gap-3 rounded-[8px] border border-border bg-muted/20 p-3 text-sm">
                         <div>
                           <p className="text-muted-foreground">{locale === "en" ? "Created" : "Tạo lúc"}</p>
                           <p className="font-medium">{formatDateTime(userDetail.user.createdAt, locale)}</p>
@@ -1515,7 +1637,7 @@ export function AdminConsole() {
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
                         <div className="mb-3 flex items-center gap-2">
                           <UserCog className="h-4 w-4 text-muted-foreground" />
                           <h4 className="font-medium">{locale === "en" ? "Account controls" : "Quản lý tài khoản"}</h4>
@@ -1547,7 +1669,7 @@ export function AdminConsole() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
                         <div className="mb-3 flex items-center gap-2">
                           <KeyRound className="h-4 w-4 text-muted-foreground" />
                           <h4 className="font-medium">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</h4>
@@ -1571,7 +1693,7 @@ export function AdminConsole() {
                     </div>
 
                     <div className="grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
                         <h4 className="mb-3 font-medium">{locale === "en" ? "Connections" : "Kết nối"}</h4>
                         {userDetail.assignedCoach ? (
                           <div className="mb-3 rounded-lg border border-border bg-background px-3 py-2 text-sm">
@@ -1595,7 +1717,7 @@ export function AdminConsole() {
                         )}
                       </div>
 
-                      <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
                         <h4 className="mb-3 font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
                         {userDetail.recentWorkoutLogs.length ? (
                           <div className="space-y-2">
@@ -1616,7 +1738,7 @@ export function AdminConsole() {
                     </div>
 
                     <div className="grid gap-4 xl:grid-cols-2">
-                      <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
                         <h4 className="mb-3 font-medium">{locale === "en" ? "Programs" : "Giáo án"}</h4>
                         {userDetail.createdPrograms.length || userDetail.assignedPrograms.length ? (
                           <div className="space-y-2">
@@ -1638,7 +1760,7 @@ export function AdminConsole() {
                         )}
                       </div>
 
-                      <div className="rounded-xl border border-border bg-muted/20 p-4">
+                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
                         <h4 className="mb-3 font-medium">{locale === "en" ? "Coach requests & audit" : "Coach requests & audit"}</h4>
                         {userDetail.coachRequests.length || userDetail.recentAuditLogs.length ? (
                           <div className="space-y-2">
@@ -1673,7 +1795,7 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="requests" className="space-y-5">
-            <div className="grid gap-3 rounded-2xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search coach requests..." : "Tìm coach requests..."} className="pl-9" />
@@ -1694,7 +1816,7 @@ export function AdminConsole() {
             <div className="grid gap-4 xl:grid-cols-2">
               {filteredRequests.length ? (
                 filteredRequests.map((request) => (
-                  <div key={request.id} className="rounded-2xl border border-border bg-card p-5">
+                  <div key={request.id} className="rounded-[10px] border border-border bg-card p-5">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <Badge variant={requestBadgeVariant(request.status)}>{request.status}</Badge>
                       <span className="text-xs text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
@@ -1738,7 +1860,7 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-5">
-            <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="rounded-[10px] border border-border bg-card p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Link2 className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-lg font-semibold">{locale === "en" ? "Assign coach to trainee" : "Gán coach cho trainee"}</h3>
@@ -1774,7 +1896,7 @@ export function AdminConsole() {
               </div>
             </div>
 
-            <div className="grid gap-3 rounded-2xl border border-border bg-card p-4">
+            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search current connections..." : "Tìm connection hiện tại..."} className="pl-9" />
@@ -1784,7 +1906,7 @@ export function AdminConsole() {
             <div className="grid gap-4 xl:grid-cols-2">
               {filteredConnections.length ? (
                 filteredConnections.map((connection) => (
-                  <div key={connection.trainee.id} className="rounded-2xl border border-border bg-card p-5">
+                  <div key={connection.trainee.id} className="rounded-[10px] border border-border bg-card p-5">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <Badge variant="outline">{locale === "en" ? "Connected" : "Đang kết nối"}</Badge>
                       <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: connection.trainee.id, kind: "connection", label: `${connection.trainee.name} - ${connection.coach.name}` })}>
@@ -1806,7 +1928,7 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="programs" className="space-y-5">
-            <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="rounded-[10px] border border-border bg-card p-4">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs..." : "Tìm giáo án..."} className="pl-9" />
@@ -1816,7 +1938,7 @@ export function AdminConsole() {
             <div className="grid gap-4 xl:grid-cols-2">
               {filteredPrograms.length ? (
                 filteredPrograms.map((program) => (
-                  <div key={program.id} className="rounded-2xl border border-border bg-card p-5">
+                  <div key={program.id} className="rounded-[10px] border border-border bg-card p-5">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
@@ -1846,7 +1968,7 @@ export function AdminConsole() {
 
           <TabsContent value="exercises" className="space-y-5">
             <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-[10px] border border-border bg-card p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">{exerciseForm.id ? (locale === "en" ? "Edit exercise" : "Sửa bài tập") : locale === "en" ? "Create exercise" : "Tạo bài tập"}</h3>
@@ -1923,7 +2045,7 @@ export function AdminConsole() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-2xl border border-border bg-card p-4">
+                <div className="rounded-[10px] border border-border bg-card p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                       <h3 className="text-sm font-semibold">{locale === "en" ? "Exercise groups" : "Nhóm bài tập"}</h3>
@@ -1940,7 +2062,7 @@ export function AdminConsole() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="mt-4 flex flex-col gap-3 rounded-[10px] border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
                     <label className="flex items-center gap-3 text-sm font-medium">
                       <Checkbox
                         checked={selectAllExerciseGroupsState}
@@ -2001,7 +2123,7 @@ export function AdminConsole() {
                       const isOpen = shouldAutoExpandExerciseGroups || openExerciseGroups.includes(group.groupKey)
 
                       return (
-                        <div key={group.groupKey} className="overflow-hidden rounded-2xl border border-border bg-card">
+                        <div key={group.groupKey} className="overflow-hidden rounded-[10px] border border-border bg-card">
                           <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                               <Checkbox
@@ -2074,7 +2196,7 @@ export function AdminConsole() {
                             <div className="border-t border-border bg-muted/10 p-4">
                               <div className="space-y-3">
                                 {group.exercises.map((exercise) => (
-                                  <div key={exercise.id} className="rounded-xl border border-border bg-card p-4">
+                                  <div key={exercise.id} className="rounded-[8px] border border-border bg-card p-4">
                                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                       <div>
                                         <div className="flex flex-wrap items-center gap-2">
@@ -2148,7 +2270,7 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-5">
-            <div className="grid gap-3 rounded-2xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search audit logs..." : "Tìm audit log..."} className="pl-9" />
@@ -2171,7 +2293,7 @@ export function AdminConsole() {
             <div className="space-y-3">
               {filteredAuditLogs.length ? (
                 filteredAuditLogs.map((log) => (
-                  <div key={log.id} className="rounded-2xl border border-border bg-card p-5">
+                  <div key={log.id} className="rounded-[10px] border border-border bg-card p-5">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -2195,8 +2317,10 @@ export function AdminConsole() {
               )}
             </div>
           </TabsContent>
-          </Tabs>
-        )}
+              </Tabs>
+            )}
+          </div>
+        </main>
       </div>
 
       <Dialog open={isImportDialogOpen} onOpenChange={handleImportDialogChange}>
@@ -2211,7 +2335,7 @@ export function AdminConsole() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-4">
+            <div className="rounded-[10px] border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="exercise-import-file">{locale === "en" ? "Select file" : "Chọn file"}</Label>
               <Input
                 key={importInputKey}
@@ -2241,7 +2365,7 @@ export function AdminConsole() {
             </div>
 
             {importFileName ? (
-              <div className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-3">
+              <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "File" : "File"}</p>
                   <p className="mt-1 truncate text-sm font-medium">{importFileName}</p>
@@ -2258,14 +2382,14 @@ export function AdminConsole() {
             ) : null}
 
             {actionKey === "exercise-import-parse" ? (
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 rounded-[10px] border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>{locale === "en" ? "Reading file..." : "Đang đọc file..."}</span>
               </div>
             ) : null}
 
             {importIssues.length ? (
-              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+              <div className="rounded-[10px] border border-destructive/30 bg-destructive/5 p-4">
                 <h4 className="text-sm font-semibold">{locale === "en" ? "Validation issues" : "Lỗi cần sửa"}</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (
@@ -2282,7 +2406,7 @@ export function AdminConsole() {
             ) : null}
 
             {importRows.length ? (
-              <div className="rounded-2xl border border-border bg-card">
+              <div className="rounded-[10px] border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{locale === "en" ? "Preview" : "Xem trước"}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -2364,3 +2488,4 @@ export function AdminConsole() {
     </>
   )
 }
+
