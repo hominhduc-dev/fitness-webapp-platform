@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "CommonJS",
-    "moduleResolution": "bundler",
+    "moduleResolution": "Node",
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,
