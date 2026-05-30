@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   Pencil,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-import { ExercisePicker } from "@/components/exercises/exercise-picker"
+import { formatExerciseVariationLabel as fmtLabel, formatExerciseVariationMeta as fmtMeta } from "@/lib/exercise-display"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -477,10 +478,17 @@ function RoutinePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[400px]">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[65] bg-foreground/25 backdrop-blur-[2px]"
+        className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.22)] sm:max-w-[400px]"
+      >
         <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="text-[15px] font-semibold">Pick a routine</DialogTitle>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} className="-mr-1 -mt-1">
+              <X className="h-4 w-4" />
+            </Button>
           </div>
           <div className="relative pt-2">
             <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-3.5 w-3.5 text-muted-foreground" />
@@ -562,14 +570,16 @@ function RoutineBuilderDialog({
   const [exercises, setExercises] = useState<RoutineExercise[]>(
     initialRoutine?.exercises.map((e) => ({ ...e, id: e.id || createFormId() })) ?? [],
   )
-  const [isExerciseSearchOpen, setIsExerciseSearchOpen] = useState(false)
+  // null = add new exercise, string = swap existing exercise by id
+  const [exerciseSearchTarget, setExerciseSearchTarget] = useState<string | null | "add">(null)
+  const isExerciseSearchOpen = exerciseSearchTarget !== null
 
   useEffect(() => {
     if (open) {
       setName(initialRoutine?.name ?? "")
       setTag(initialRoutine?.tag ?? "push")
       setExercises(initialRoutine?.exercises.map((e) => ({ ...e, id: e.id || createFormId() })) ?? [])
-      setIsExerciseSearchOpen(false)
+      setExerciseSearchTarget(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -601,31 +611,44 @@ function RoutineBuilderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[680px]">
-        <DialogHeader className="border-b border-border px-7 pb-4 pt-6 text-left">
-          <p className="label-micro">{isEditMode ? "Edit routine" : "New routine"}</p>
-          <DialogTitle className="text-[23px] font-semibold tracking-[-0.02em]">
-            {name.trim() || (isEditMode ? "Untitled routine" : "Untitled routine")}
-          </DialogTitle>
-          <p className="font-mono text-xs text-muted-foreground tnum">
-            {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
-          </p>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[65] bg-foreground/25 backdrop-blur-[2px]"
+        className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)] sm:max-w-[680px]"
+      >
+        {/* Header — same structure as ProgramEditor */}
+        <div className="border-b border-border px-7 pb-[18px] pt-6">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="label-micro mb-1.5">{isEditMode ? "Edit routine" : "New routine"}</p>
+              <DialogTitle className="truncate text-[23px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+                {name.trim() || "Untitled routine"}
+              </DialogTitle>
+              <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
+                {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
+              </p>
+            </div>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
+          {/* Name input + tag chips */}
+          <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Push day A"
               className="h-10 flex-1 bg-background"
             />
-            <div className="flex gap-1.5 overflow-x-auto">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
               {ROUTINE_TAGS.map((tagOption) => (
                 <button
                   key={tagOption}
                   type="button"
                   onClick={() => setTag(tagOption)}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium capitalize transition-colors",
+                    "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium capitalize transition-colors",
                     tag === tagOption
                       ? "border-foreground bg-foreground text-background"
                       : "border-border bg-background hover:bg-muted",
@@ -637,7 +660,7 @@ function RoutineBuilderDialog({
               ))}
             </div>
           </div>
-        </DialogHeader>
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 py-5">
           {exercises.length === 0 ? (
@@ -647,36 +670,50 @@ function RoutineBuilderDialog({
           ) : null}
 
           <div className="space-y-2.5">
-            {exercises.map((exercise, index) => (
+            {exercises.map((exercise, index) => {
+              // Resolve display label from option or fallback
+              const resolved = exerciseOptions.find((o) => o.id === exercise.variationId)
+              const hasExercise = Boolean(exercise.variationId || exercise.fallbackExerciseName)
+
+              return (
               <div key={exercise.id} className="rounded-[10px] border border-border bg-card p-3">
                 <div className="flex items-center gap-3">
                   <span className="w-5 text-right font-mono text-xs font-semibold text-muted-foreground tnum">
                     {index + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <ExercisePicker
-                      exercises={exerciseOptions}
-                      fallbackSelection={{
-                        equipment: exercise.fallbackEquipment,
-                        exerciseName: exercise.fallbackExerciseName,
-                        isDefault: exercise.fallbackIsDefault,
-                        muscleGroup: exercise.fallbackMuscleGroup,
-                        variationName: exercise.fallbackVariationName,
-                      }}
-                      selectedVariationId={exercise.variationId}
-                      onSelect={(variationId) => {
-                        const option = exerciseOptions.find((item) => item.id === variationId)
-
-                        updateExercise(exercise.id, {
-                          fallbackEquipment: option?.equipment,
-                          fallbackExerciseName: option?.exerciseName,
-                          fallbackIsDefault: option?.isDefault,
-                          fallbackMuscleGroup: option?.muscleGroup,
-                          fallbackVariationName: option?.variationName,
-                          variationId,
-                        })
-                      }}
-                    />
+                    {/* Exercise picker button — opens ExerciseSearchDialog */}
+                    <button
+                      type="button"
+                      onClick={() => setExerciseSearchTarget(exercise.id)}
+                      className={cn(
+                        "flex min-h-[48px] w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/90 px-4 py-2 text-left transition-colors hover:border-primary/25",
+                        exerciseSearchTarget === exercise.id && "border-primary/35 ring-2 ring-primary/10",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className={cn("block truncate text-sm", hasExercise ? "text-foreground" : "text-muted-foreground")}>
+                          {hasExercise
+                            ? fmtLabel({
+                                exerciseName: resolved?.exerciseName ?? exercise.fallbackExerciseName,
+                                isDefault: resolved?.isDefault ?? exercise.fallbackIsDefault,
+                                variationName: resolved?.variationName ?? exercise.fallbackVariationName,
+                              })
+                            : "Choose an exercise"}
+                        </span>
+                        {hasExercise && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {fmtMeta({
+                              equipment: resolved?.equipment ?? exercise.fallbackEquipment,
+                              isDefault: resolved?.isDefault ?? exercise.fallbackIsDefault,
+                              muscleGroup: resolved?.muscleGroup ?? exercise.fallbackMuscleGroup,
+                              variationName: resolved?.variationName ?? exercise.fallbackVariationName,
+                            })}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button
@@ -740,14 +777,15 @@ function RoutineBuilderDialog({
                   />
                 </div>
               </div>
-            ))}
+            )
+          })}
           </div>
 
           <Button
             type="button"
             variant="outline"
             className="mt-3 w-full border-dashed bg-transparent text-primary hover:bg-muted hover:text-primary"
-            onClick={() => setIsExerciseSearchOpen(true)}
+            onClick={() => setExerciseSearchTarget("add")}
             disabled={exerciseOptions.length === 0}
           >
             <Plus className="h-4 w-4" />
@@ -755,21 +793,19 @@ function RoutineBuilderDialog({
           </Button>
         </div>
 
-        <DialogFooter className="border-t border-border px-7 py-4">
-          <Button type="button" variant="ghost" onClick={onClose}>
+        {/* Footer — same structure as ProgramEditor */}
+        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-7 py-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
             Cancel
           </Button>
           <Button
             type="button"
+            className="w-full sm:w-auto"
             disabled={!canSave}
             onClick={() => {
-              if (!canSave) {
-                return
-              }
-
+              if (!canSave) return
               onSave({
                 exercises,
-                // Preserve ID when editing so schedule slots stay linked
                 id: initialRoutine?.id ?? createFormId(),
                 name: name.trim(),
                 tag,
@@ -778,27 +814,45 @@ function RoutineBuilderDialog({
           >
             {isEditMode ? "Save changes" : "Save routine"}
           </Button>
-        </DialogFooter>
+        </div>
 
         <ExerciseSearchDialog
-          existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
+          existingVariationIds={
+            // When swapping: exclude the current exercise so it doesn't show as "Added"
+            exerciseSearchTarget && exerciseSearchTarget !== "add"
+              ? exercises.filter((e) => e.id !== exerciseSearchTarget).map((e) => e.variationId).filter(Boolean)
+              : exercises.map((e) => e.variationId).filter(Boolean)
+          }
           exerciseOptions={exerciseOptions}
           open={isExerciseSearchOpen}
-          onClose={() => setIsExerciseSearchOpen(false)}
+          onClose={() => setExerciseSearchTarget(null)}
           onPick={(option) => {
-            setExercises((current) => [
-              ...current,
-              {
-                ...createEmptyRoutineExercise(),
+            if (exerciseSearchTarget === "add") {
+              // Add new exercise to the list
+              setExercises((current) => [
+                ...current,
+                {
+                  ...createEmptyRoutineExercise(),
+                  fallbackEquipment: option.equipment,
+                  fallbackExerciseName: option.exerciseName,
+                  fallbackIsDefault: option.isDefault,
+                  fallbackMuscleGroup: option.muscleGroup,
+                  fallbackVariationName: option.variationName,
+                  variationId: option.id,
+                },
+              ])
+            } else if (exerciseSearchTarget) {
+              // Swap an existing exercise in-place
+              updateExercise(exerciseSearchTarget, {
                 fallbackEquipment: option.equipment,
                 fallbackExerciseName: option.exerciseName,
                 fallbackIsDefault: option.isDefault,
                 fallbackMuscleGroup: option.muscleGroup,
                 fallbackVariationName: option.variationName,
                 variationId: option.id,
-              },
-            ])
-            setIsExerciseSearchOpen(false)
+              })
+            }
+            setExerciseSearchTarget(null)
           }}
         />
       </DialogContent>
@@ -871,9 +925,18 @@ function ExerciseSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[110] flex h-[82svh] max-h-[82svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[480px]">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[105] bg-foreground/20 backdrop-blur-[2px]"
+        className="z-[110] flex h-[82svh] max-h-[82svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.22)] sm:max-w-[480px]"
+      >
         <DialogHeader className="border-b border-border px-6 pb-3 pt-5 text-left">
-          <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">Add exercise</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">Add exercise</DialogTitle>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} className="-mr-1 -mt-1">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
           <div className="relative mt-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
