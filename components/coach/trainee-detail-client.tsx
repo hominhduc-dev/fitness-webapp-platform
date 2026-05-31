@@ -68,6 +68,22 @@ function toDateInputValue(value = new Date()) {
   return local.toISOString().slice(0, 10)
 }
 
+function parseValidDate(value: unknown) {
+  if (value == null) return null
+  const date = value instanceof Date ? value : new Date(value as string | number)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+function getProgramExportStartDate(program: CoachProgram, assignedAt: unknown) {
+  const parsedAssignedAt = parseValidDate(assignedAt)
+
+  if (parsedAssignedAt) {
+    return parsedAssignedAt.toISOString().slice(0, 10)
+  }
+
+  return new Date(Date.now() - program.duration * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
 function formatNumber(value?: number, suffix = "") {
   return value != null ? `${value}${suffix}` : "--"
 }
@@ -439,9 +455,7 @@ export function CoachTraineeDetailClient({
 
     try {
       const assignment = program.assignedTrainees.find((t) => t.id === detail.trainee.id)
-      const from = assignment
-        ? assignment.assignedAt.toISOString().slice(0, 10)
-        : new Date(Date.now() - program.duration * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      const from = getProgramExportStartDate(program, assignment?.assignedAt)
 
       // Upper bound: program end date OR tomorrow — always exclusive (+1 day)
       // so that logs recorded *today* (same day as assignedAt or today) are included.

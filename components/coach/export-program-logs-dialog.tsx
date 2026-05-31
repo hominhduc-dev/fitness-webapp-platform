@@ -21,8 +21,24 @@ type ExportProgramLogsDialogProps = {
   programName: string
 }
 
+function parseValidDate(value: unknown) {
+  if (value == null) return null
+  const date = value instanceof Date ? value : new Date(value as string | number)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
 function formatDateToISO(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+function getProgramStartDate(assignedAt: unknown, programDuration: number) {
+  const parsedAssignedAt = parseValidDate(assignedAt)
+
+  if (parsedAssignedAt) {
+    return parsedAssignedAt
+  }
+
+  return new Date(Date.now() - programDuration * 7 * 24 * 60 * 60 * 1000)
 }
 
 async function loadAllLogsForProgramExport(
@@ -64,8 +80,9 @@ export function ExportProgramLogsDialog({
   const selectedTrainee = assignedTrainees.find((t) => t.id === selectedTraineeId)
 
   const getDateRange = (trainee: AssignedTrainee) => {
-    const from = formatDateToISO(trainee.assignedAt)
-    const endDate = new Date(trainee.assignedAt)
+    const startDate = getProgramStartDate(trainee.assignedAt, programDuration)
+    const from = formatDateToISO(startDate)
+    const endDate = new Date(startDate)
     endDate.setDate(endDate.getDate() + programDuration * 7)
     // Use tomorrow as upper bound so today's logs are included (query uses `lt`)
     const tomorrow = new Date()
