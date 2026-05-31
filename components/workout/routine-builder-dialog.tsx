@@ -17,7 +17,7 @@ import { parseRepTargetText, formatRepTarget } from "@/lib/workout-reps"
 
 type RoutineTag = "push" | "pull" | "legs" | "upper" | "lower" | "full"
 
-type RoutineExerciseDraft = {
+export type RoutineExerciseDraft = {
   id: string
   variationId: string
   displayName: string
@@ -28,11 +28,24 @@ type RoutineExerciseDraft = {
   weight: string
 }
 
+export type RoutineDraftData = {
+  id?: string
+  name: string
+  tag: RoutineTag
+  exercises: RoutineExerciseDraft[]
+}
+
 export type RoutineBuilderDialogProps = {
+  // — uncontrolled / trainee mode —
+  trigger?: React.ReactNode
+  workoutToEdit?: Workout
   onWorkoutSaved?: (workout: Workout, previousWorkout?: Workout) => void
   refreshOnSuccess?: boolean
-  trigger: React.ReactNode
-  workoutToEdit?: Workout
+  // — controlled / coach draft mode —
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  draftToEdit?: RoutineDraftData
+  onSaveDraft?: (data: RoutineDraftData) => void
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -249,12 +262,23 @@ export function RoutineBuilderDialog({
   workoutToEdit,
   onWorkoutSaved,
   refreshOnSuccess = true,
+  open: controlledOpen,
+  onOpenChange,
+  draftToEdit,
+  onSaveDraft,
 }: RoutineBuilderDialogProps) {
   const router = useRouter()
   const { isLoading: authLoading, session } = useAuth()
-  const isEditing = Boolean(workoutToEdit)
+  const isEditing = Boolean(workoutToEdit) || Boolean(draftToEdit?.id)
+  const isControlled = controlledOpen !== undefined
 
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isControlled ? controlledOpen! : internalOpen
+  const setOpen = (v: boolean) => {
+    if (isControlled) onOpenChange?.(v)
+    else setInternalOpen(v)
+  }
+
   const [name, setName] = useState("")
   const [tag, setTag] = useState<RoutineTag>("push")
   const [exercises, setExercises] = useState<RoutineExerciseDraft[]>([])
@@ -269,7 +293,11 @@ export function RoutineBuilderDialog({
 
   // ── Reset form on open/close ──────────────────────────────────────────────
   const resetForm = () => {
-    if (workoutToEdit) {
+    if (draftToEdit) {
+      setName(draftToEdit.name)
+      setTag(draftToEdit.tag)
+      setExercises(draftToEdit.exercises)
+    } else if (workoutToEdit) {
       setName(workoutToEdit.name)
       setTag(inferTag(workoutToEdit))
       setExercises(workoutToEdit.exercises.map(toDraft))
@@ -343,7 +371,16 @@ export function RoutineBuilderDialog({
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!session?.access_token || !canSave) return
+    if (!canSave) return
+
+    // Draft mode (coach): no DB save — hand data back to caller
+    if (onSaveDraft) {
+      onSaveDraft({ id: draftToEdit?.id, name: name.trim(), tag, exercises })
+      setOpen(false)
+      return
+    }
+
+    if (!session?.access_token) return
     setIsSaving(true)
     setError(null)
 
@@ -393,10 +430,12 @@ export function RoutineBuilderDialog({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Trigger */}
-      <span onClick={() => !authLoading && setOpen(true)} className="contents">
-        {trigger}
-      </span>
+      {/* Trigger (uncontrolled mode only) */}
+      {trigger != null && (
+        <span onClick={() => !authLoading && setOpen(true)} className="contents">
+          {trigger}
+        </span>
+      )}
 
       {/* Backdrop + modal */}
       {open && (

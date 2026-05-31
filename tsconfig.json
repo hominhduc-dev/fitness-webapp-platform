@@ -37,8 +37,6 @@
   ],
   "exclude": [
     "node_modules",
-    "backend/**/*",
-    "design_handoff_anthropic/**/*",
-    "design_handoff_coach/**/*"
+    "backend/**/*"
   ]
 }

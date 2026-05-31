@@ -3,10 +3,7 @@
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
-  ChevronDown,
   Copy,
   Loader2,
   Pencil,
@@ -18,7 +15,6 @@ import {
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-import { formatExerciseVariationLabel as fmtLabel, formatExerciseVariationMeta as fmtMeta } from "@/lib/exercise-display"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -48,6 +44,7 @@ import type {
 } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
+import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft } from "@/components/workout/routine-builder-dialog"
 
 type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
@@ -312,16 +309,6 @@ function mapProgramToSchedule(
   }
 }
 
-function createEmptyRoutineExercise(): RoutineExercise {
-  return {
-    id: createFormId(),
-    reps: "8-12",
-    sets: 3,
-    variationId: "",
-    weight: "",
-  }
-}
-
 function estimateWorkoutDuration(exercises: RoutineExercise[]) {
   if (exercises.length === 0) {
     return 30
@@ -450,6 +437,53 @@ function SessionSlot({
   )
 }
 
+// ─── Converters: coach Routine ↔ shared RoutineDraftData ────────────────────
+
+function routineToDraft(routine: Routine): RoutineDraftData {
+  return {
+    id: routine.id,
+    name: routine.name,
+    tag: routine.tag,
+    exercises: routine.exercises.map((ex): RoutineExerciseDraft => ({
+      id: ex.id,
+      variationId: ex.variationId,
+      displayName: ex.fallbackExerciseName
+        ? ex.fallbackVariationName
+          ? `${ex.fallbackExerciseName} — ${ex.fallbackVariationName}`
+          : ex.fallbackExerciseName
+        : ex.variationId,
+      muscleGroup: ex.fallbackMuscleGroup ?? "",
+      equipment: ex.fallbackEquipment,
+      sets: ex.sets,
+      reps: ex.reps,
+      weight: ex.weight,
+    })),
+  }
+}
+
+function draftToRoutine(draft: RoutineDraftData): Routine {
+  return {
+    id: draft.id ?? createFormId(),
+    name: draft.name,
+    tag: draft.tag,
+    exercises: draft.exercises.map((ex): RoutineExercise => {
+      const parts = ex.displayName.split(" — ")
+      return {
+        id: ex.id,
+        variationId: ex.variationId,
+        fallbackExerciseName: parts[0] ?? ex.displayName,
+        fallbackVariationName: parts.length > 1 ? parts[1] : undefined,
+        fallbackMuscleGroup: ex.muscleGroup,
+        fallbackEquipment: ex.equipment,
+        fallbackIsDefault: parts.length === 1,
+        sets: ex.sets,
+        reps: ex.reps,
+        weight: ex.weight,
+      }
+    }),
+  }
+}
+
 function RoutinePickerDialog({
   library,
   onClose,
@@ -553,471 +587,6 @@ function RoutinePickerDialog({
   )
 }
 
-function RoutineBuilderDialog({
-  exerciseOptions,
-  initialRoutine,
-  onClose,
-  onSave,
-  open,
-}: {
-  exerciseOptions: ExerciseVariationOption[]
-  initialRoutine?: Routine
-  onClose: () => void
-  onSave: (routine: Routine) => void
-  open: boolean
-}) {
-  const isEditMode = Boolean(initialRoutine)
-  const [name, setName] = useState(initialRoutine?.name ?? "")
-  const [tag, setTag] = useState<RoutineTag>(initialRoutine?.tag ?? "push")
-  const [exercises, setExercises] = useState<RoutineExercise[]>(
-    initialRoutine?.exercises.map((e) => ({ ...e, id: e.id || createFormId() })) ?? [],
-  )
-  // null = add new exercise, string = swap existing exercise by id
-  const [exerciseSearchTarget, setExerciseSearchTarget] = useState<string | null | "add">(null)
-  const isExerciseSearchOpen = exerciseSearchTarget !== null
-
-  useEffect(() => {
-    if (open) {
-      setName(initialRoutine?.name ?? "")
-      setTag(initialRoutine?.tag ?? "push")
-      setExercises(initialRoutine?.exercises.map((e) => ({ ...e, id: e.id || createFormId() })) ?? [])
-      setExerciseSearchTarget(null)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
-  const canSave = name.trim().length > 0 && exercises.length > 0 && exercises.every((exercise) => exercise.variationId)
-
-  const updateExercise = (exerciseId: string, patch: Partial<RoutineExercise>) => {
-    setExercises((current) =>
-      current.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...patch } : exercise)),
-    )
-  }
-
-  const moveExercise = (index: number, direction: -1 | 1) => {
-    setExercises((current) => {
-      const target = index + direction
-
-      if (target < 0 || target >= current.length) {
-        return current
-      }
-
-      const next = current.slice()
-      const moving = next[index]
-      next[index] = next[target]
-      next[target] = moving
-      return next
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent
-        showCloseButton={false}
-        overlayClassName="z-[65] bg-foreground/25 backdrop-blur-[2px]"
-        className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)] sm:max-w-[680px]"
-      >
-        {/* Header — same structure as ProgramEditor */}
-        <div className="border-b border-border px-4 pb-[18px] pt-6 md:px-7">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="label-micro mb-1.5">{isEditMode ? "Edit routine" : "New routine"}</p>
-              <DialogTitle className="truncate text-[23px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
-                {name.trim() || "Untitled routine"}
-              </DialogTitle>
-              <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
-                {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
-              </p>
-            </div>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Name input + tag chips */}
-          <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Push day A"
-              className="h-10 flex-1 bg-background"
-            />
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-              {ROUTINE_TAGS.map((tagOption) => (
-                <button
-                  key={tagOption}
-                  type="button"
-                  onClick={() => setTag(tagOption)}
-                  className={cn(
-                    "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium capitalize transition-colors",
-                    tag === tagOption
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background hover:bg-muted",
-                  )}
-                >
-                  <RoutineDot tag={tagOption} />
-                  {tagOption}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 md:px-7">
-          {exercises.length === 0 ? (
-            <div className="rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
-              No exercises yet. Add your first one.
-            </div>
-          ) : null}
-
-          <div className="space-y-2.5">
-            {exercises.map((exercise, index) => {
-              // Resolve display label from option or fallback
-              const resolved = exerciseOptions.find((o) => o.id === exercise.variationId)
-              const hasExercise = Boolean(exercise.variationId || exercise.fallbackExerciseName)
-
-              return (
-              <div key={exercise.id} className="rounded-[10px] border border-border bg-card p-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-5 text-right font-mono text-xs font-semibold text-muted-foreground tnum">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {/* Exercise picker button — opens ExerciseSearchDialog */}
-                    <button
-                      type="button"
-                      onClick={() => setExerciseSearchTarget(exercise.id)}
-                      className={cn(
-                        "flex min-h-[48px] w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/90 px-4 py-2 text-left transition-colors hover:border-primary/25",
-                        exerciseSearchTarget === exercise.id && "border-primary/35 ring-2 ring-primary/10",
-                      )}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className={cn("block truncate text-sm", hasExercise ? "text-foreground" : "text-muted-foreground")}>
-                          {hasExercise
-                            ? fmtLabel({
-                                exerciseName: resolved?.exerciseName ?? exercise.fallbackExerciseName,
-                                isDefault: resolved?.isDefault ?? exercise.fallbackIsDefault,
-                                variationName: resolved?.variationName ?? exercise.fallbackVariationName,
-                              })
-                            : "Choose an exercise"}
-                        </span>
-                        {hasExercise && (
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {fmtMeta({
-                              equipment: resolved?.equipment ?? exercise.fallbackEquipment,
-                              isDefault: resolved?.isDefault ?? exercise.fallbackIsDefault,
-                              muscleGroup: resolved?.muscleGroup ?? exercise.fallbackMuscleGroup,
-                              variationName: resolved?.variationName ?? exercise.fallbackVariationName,
-                            })}
-                          </span>
-                        )}
-                      </span>
-                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    </button>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => moveExercise(index, -1)}
-                      disabled={index === 0}
-                      aria-label="Move exercise up"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => moveExercise(index, 1)}
-                      disabled={index === exercises.length - 1}
-                      aria-label="Move exercise down"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
-                      aria-label="Remove exercise"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-3 gap-2 pl-0 sm:pl-8">
-                  <NumberField
-                    label="Sets"
-                    value={exercise.sets}
-                    min={1}
-                    onChange={(value) => updateExercise(exercise.id, { sets: Math.max(1, Math.round(value)) })}
-                  />
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor={`${exercise.id}-reps`} className="label-micro">
-                      Reps range
-                    </Label>
-                    <Input
-                      id={`${exercise.id}-reps`}
-                      value={exercise.reps}
-                      onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })}
-                      className="h-9 bg-background text-center font-mono text-sm tnum"
-                      placeholder="8-12"
-                    />
-                  </div>
-                  <NumberField
-                    label="Kg"
-                    value={exercise.weight}
-                    min={0}
-                    step={0.5}
-                    onChange={(value) => updateExercise(exercise.id, { weight: value ? String(value) : "" })}
-                  />
-                </div>
-              </div>
-            )
-          })}
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-3 w-full border-dashed bg-transparent text-primary hover:bg-muted hover:text-primary"
-            onClick={() => setExerciseSearchTarget("add")}
-            disabled={exerciseOptions.length === 0}
-          >
-            <Plus className="h-4 w-4" />
-            Add exercise
-          </Button>
-        </div>
-
-        {/* Footer — same structure as ProgramEditor */}
-        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 py-4 sm:flex-row sm:justify-end md:px-7">
-          <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            className="w-full sm:w-auto"
-            disabled={!canSave}
-            onClick={() => {
-              if (!canSave) return
-              onSave({
-                exercises,
-                id: initialRoutine?.id ?? createFormId(),
-                name: name.trim(),
-                tag,
-              })
-            }}
-          >
-            {isEditMode ? "Save changes" : "Save routine"}
-          </Button>
-        </div>
-
-        <ExerciseSearchDialog
-          existingVariationIds={
-            // When swapping: exclude the current exercise so it doesn't show as "Added"
-            exerciseSearchTarget && exerciseSearchTarget !== "add"
-              ? exercises.filter((e) => e.id !== exerciseSearchTarget).map((e) => e.variationId).filter(Boolean)
-              : exercises.map((e) => e.variationId).filter(Boolean)
-          }
-          exerciseOptions={exerciseOptions}
-          open={isExerciseSearchOpen}
-          onClose={() => setExerciseSearchTarget(null)}
-          onPick={(option) => {
-            if (exerciseSearchTarget === "add") {
-              // Add new exercise to the list
-              setExercises((current) => [
-                ...current,
-                {
-                  ...createEmptyRoutineExercise(),
-                  fallbackEquipment: option.equipment,
-                  fallbackExerciseName: option.exerciseName,
-                  fallbackIsDefault: option.isDefault,
-                  fallbackMuscleGroup: option.muscleGroup,
-                  fallbackVariationName: option.variationName,
-                  variationId: option.id,
-                },
-              ])
-            } else if (exerciseSearchTarget) {
-              // Swap an existing exercise in-place
-              updateExercise(exerciseSearchTarget, {
-                fallbackEquipment: option.equipment,
-                fallbackExerciseName: option.exerciseName,
-                fallbackIsDefault: option.isDefault,
-                fallbackMuscleGroup: option.muscleGroup,
-                fallbackVariationName: option.variationName,
-                variationId: option.id,
-              })
-            }
-            setExerciseSearchTarget(null)
-          }}
-        />
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function ExerciseSearchDialog({
-  existingVariationIds,
-  exerciseOptions,
-  onClose,
-  onPick,
-  open,
-}: {
-  existingVariationIds: string[]
-  exerciseOptions: ExerciseVariationOption[]
-  onClose: () => void
-  onPick: (option: ExerciseVariationOption) => void
-  open: boolean
-}) {
-  const [query, setQuery] = useState("")
-  const [muscleGroup, setMuscleGroup] = useState("all")
-  const existingSet = useMemo(() => new Set(existingVariationIds), [existingVariationIds])
-  const muscleGroups = useMemo(
-    () => ["all", ...Array.from(new Set(exerciseOptions.map((option) => option.muscleGroup))).sort((left, right) => left.localeCompare(right))],
-    [exerciseOptions],
-  )
-  const visibleExercises = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return exerciseOptions
-      .slice()
-      .sort((left, right) => {
-        const nameComparison = left.exerciseName.localeCompare(right.exerciseName)
-
-        if (nameComparison !== 0) {
-          return nameComparison
-        }
-
-        return left.variationName.localeCompare(right.variationName)
-      })
-      .filter((option) => {
-        if (muscleGroup !== "all" && option.muscleGroup !== muscleGroup) {
-          return false
-        }
-
-        if (!normalizedQuery) {
-          return true
-        }
-
-        return [
-          option.exerciseName,
-          option.variationName,
-          option.name,
-          option.muscleGroup,
-          option.equipment ?? "",
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedQuery)
-      })
-  }, [exerciseOptions, muscleGroup, query])
-
-  useEffect(() => {
-    if (!open) {
-      setQuery("")
-      setMuscleGroup("all")
-    }
-  }, [open])
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent
-        showCloseButton={false}
-        overlayClassName="z-[105] bg-foreground/20 backdrop-blur-[2px]"
-        className="z-[110] flex h-[82svh] max-h-[82svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.22)] sm:max-w-[480px]"
-      >
-        <DialogHeader className="border-b border-border px-6 pb-3 pt-5 text-left">
-          <div className="flex items-center justify-between gap-3">
-            <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">Add exercise</DialogTitle>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} className="-mr-1 -mt-1">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search..."
-              className="h-10 rounded-[4px] bg-background pl-9 text-sm focus-visible:ring-primary/30"
-              autoFocus
-            />
-          </div>
-          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
-            {muscleGroups.map((group) => {
-              const active = muscleGroup === group
-
-              return (
-                <button
-                  key={group}
-                  type="button"
-                  onClick={() => setMuscleGroup(group)}
-                  className={cn(
-                    "h-8 shrink-0 rounded-full border px-3 text-sm font-medium capitalize transition-colors",
-                    active
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background text-foreground hover:bg-muted",
-                  )}
-                >
-                  {group === "all" ? "All" : group}
-                </button>
-              )
-            })}
-          </div>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {visibleExercises.length === 0 ? (
-            <div className="px-6 py-10 text-center text-sm text-muted-foreground">No exercises match this search.</div>
-          ) : (
-            visibleExercises.map((option) => {
-              const added = existingSet.has(option.id)
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={added}
-                  onClick={() => onPick(option)}
-                  className={cn(
-                    "flex w-full items-center gap-4 border-b border-border px-6 py-3 text-left transition-colors",
-                    added ? "cursor-default opacity-55" : "hover:bg-muted",
-                  )}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">{option.exerciseName}</span>
-                    <span className="label-micro mt-0.5 block truncate">
-                      {option.muscleGroup} · {option.equipment || "Bodyweight"}
-                    </span>
-                  </span>
-                  {added ? (
-                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-success">Added</span>
-                  ) : (
-                    <Plus className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-              )
-            })
-          )}
-        </div>
-
-        <DialogFooter className="border-t border-border px-6 py-3 sm:justify-center">
-          <Button type="button" variant="ghost" size="sm" className="text-primary hover:text-primary" disabled>
-            <Plus className="h-3.5 w-3.5" />
-            Create custom exercise
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function NumberField({
   label,
   min,
@@ -1076,16 +645,18 @@ export function ProgramEditor({
   const [builderMode, setBuilderMode] = useState<BuilderMode | null>(null)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
 
-  // Derive the routine being edited (slot or library)
-  const builderRoutine = useMemo(() => {
+  // Derive the draft data for the shared RoutineBuilderDialog (slot or library edit)
+  const builderDraft = useMemo((): RoutineDraftData | undefined => {
     if (!builderMode) return undefined
     if (builderMode.kind === "edit-slot") {
-      return schedule[builderMode.slot.weekIndex]?.[builderMode.slot.dayIndex]?.routine ?? undefined
+      const routine = schedule[builderMode.slot.weekIndex]?.[builderMode.slot.dayIndex]?.routine
+      return routine ? routineToDraft(routine) : undefined
     }
     if (builderMode.kind === "edit-library") {
-      return routineLibrary.find((r) => r.id === builderMode.routineId)
+      const routine = routineLibrary.find((r) => r.id === builderMode.routineId)
+      return routine ? routineToDraft(routine) : undefined
     }
-    return undefined
+    return undefined  // "create" mode → empty form
   }, [builderMode, schedule, routineLibrary])
   const [clientQuery, setClientQuery] = useState("")
   const [isLoadingPage, setIsLoadingPage] = useState(programId ? true : !hasInitialEditorData)
@@ -1639,10 +1210,9 @@ export function ProgramEditor({
 
       <RoutineBuilderDialog
         open={Boolean(builderMode)}
-        initialRoutine={builderRoutine}
-        exerciseOptions={exerciseOptions}
-        onClose={() => setBuilderMode(null)}
-        onSave={handleBuilderSave}
+        onOpenChange={(v) => { if (!v) setBuilderMode(null) }}
+        draftToEdit={builderDraft}
+        onSaveDraft={(draft) => handleBuilderSave(draftToRoutine(draft))}
       />
 
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>

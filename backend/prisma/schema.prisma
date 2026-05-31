@@ -331,7 +331,7 @@ model WorkoutLog {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  @@index([userId])
+  @@index([userId, startedAt])
   @@index([workoutId])
 }
 
@@ -452,7 +452,7 @@ model CoachRequest {
   updatedAt DateTime           @updatedAt
 
   @@unique([traineeId, coachId])
-  @@index([coachId])
+  @@index([coachId, status])
 }
 
 model Notification {
