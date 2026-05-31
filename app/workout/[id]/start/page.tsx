@@ -2,9 +2,12 @@
 
 import {
   Check,
+  FileText,
   MoreHorizontal,
   Plus,
+  Search,
   Trash2,
+  X,
 } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -12,11 +15,18 @@ import { useEffect, useRef, useState } from "react"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
-import { createWorkoutLog, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { createWorkoutLog, fetchExercises, fetchWorkoutDetail } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"
-import type { ExerciseSet, WorkoutExercise, Workout } from "@/lib/types"
+import type { ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 
 // ─── Session storage helpers (unchanged) ──────────────────────────────────────
@@ -213,6 +223,8 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
   const [reps, setReps] = useState(set.actualReps?.toString() ?? set.targetReps.toString())
   const [rir, setRir] = useState(set.rir?.toString() ?? "")
   const [completed, setCompleted] = useState(set.completed)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [note, setNote] = useState(set.notes ?? "")
 
   useEffect(() => {
     setWeight(set.weight?.toString() ?? "")
@@ -233,35 +245,32 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
     ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
     : "— · —"
 
-  // Desktop: Set | Previous | kg | Reps | RIR | actions  (6 cols)
-  // Mobile:  Set | kg | Reps | RIR | actions              (5 cols, no Previous)
+  // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
-    <div
-      className={cn(
-        "grid items-center border-b border-border last:border-0",
-        // mobile 5-col, desktop 6-col
-        "grid-cols-[36px_1fr_1fr_1fr_54px] gap-2",
-        "md:grid-cols-[56px_1fr_1fr_1fr_1fr_58px] md:gap-3",
-        "px-4 py-[10px] md:px-5",
-        "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
-        completed ? "bg-muted" : "bg-transparent",
-      )}
-    >
-      {/* Set number */}
-      <span
+    <div className={cn(completed ? "bg-muted" : "bg-transparent")}>
+      <div
         className={cn(
-          "font-mono text-[15px] font-semibold text-center",
-          completed ? "text-muted-foreground" : "text-foreground",
+          "grid items-center",
+          "grid-cols-[36px_1fr_1fr_1fr_1fr_54px] gap-2",
+          "px-4 py-[10px] md:px-5",
+          "transition-colors duration-[180ms]",
         )}
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       >
-        {setIndex + 1}
-      </span>
+        {/* Set number */}
+        <span
+          className={cn(
+            "font-mono text-[15px] font-semibold text-center",
+            completed ? "text-muted-foreground" : "text-foreground",
+          )}
+          style={{ fontFeatureSettings: '"tnum" 1' }}
+        >
+          {setIndex + 1}
+        </span>
 
-      {/* Previous (desktop only) */}
-      <span className="hidden md:block text-[13px] text-muted-foreground font-mono text-center" style={{ fontFeatureSettings: '"tnum" 1' }}>
-        {prevLabel}
-      </span>
+        {/* Previous */}
+        <span className="text-[11px] text-muted-foreground font-mono text-center leading-tight" style={{ fontFeatureSettings: '"tnum" 1' }}>
+          {prevLabel}
+        </span>
 
       {/* Weight input */}
       <input
@@ -337,33 +346,63 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
 
-      {/* Row actions */}
-      <div className="flex items-center justify-end gap-2">
-        {canRemove && !completed ? (
+        {/* Row actions */}
+        <div className="flex items-center justify-end gap-1">
           <button
             type="button"
-            onClick={onRemove}
-            aria-label="Remove set"
-            className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setNoteOpen((v) => !v)}
+            aria-label="Set note"
+            className={cn(
+              "flex h-[22px] w-[22px] items-center justify-center rounded-[4px] transition-colors",
+              note.trim()
+                ? "text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
           >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
           </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={handleToggle}
-          aria-label={completed ? "Mark incomplete" : "Complete set"}
-          className={cn(
-            "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
-            "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
-            completed
-              ? "bg-[var(--success)] border-0"
-              : "border-[1.5px] border-border bg-transparent",
-          )}
-        >
-          {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
-        </button>
+          {canRemove && !completed ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="Remove set"
+              className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleToggle}
+            aria-label={completed ? "Mark incomplete" : "Complete set"}
+            className={cn(
+              "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
+              "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
+              completed
+                ? "bg-[var(--success)] border-0"
+                : "border-[1.5px] border-border bg-transparent",
+            )}
+          >
+            {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+          </button>
+        </div>
       </div>
+
+      {/* Set note (inline, collapsible) */}
+      {noteOpen && (
+        <div className="px-4 pb-2 md:px-5">
+          <textarea
+            rows={2}
+            value={note}
+            onChange={(e) => {
+              setNote(e.target.value)
+              onChange({ notes: e.target.value || undefined })
+            }}
+            placeholder="Note for this set..."
+            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -377,6 +416,8 @@ interface LiftExerciseBlockProps {
   onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
   onAddSet: (exerciseId: string) => void
   onRemoveSet: (exerciseId: string, setId: string) => void
+  onRemoveExercise: (exerciseId: string) => void
+  onExerciseNoteChange: (exerciseId: string, note: string) => void
 }
 
 function LiftExerciseBlock({
@@ -386,8 +427,12 @@ function LiftExerciseBlock({
   onSetComplete,
   onAddSet,
   onRemoveSet,
+  onRemoveExercise,
+  onExerciseNoteChange,
 }: LiftExerciseBlockProps) {
   const completedCount = exercise.sets.filter((s) => s.completed).length
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [note, setNote] = useState(exercise.notes ?? "")
   const exerciseLabel = formatExerciseVariationLabel({
     exerciseName: exercise.exercise.name,
     isDefault: exercise.variation.isDefault,
@@ -403,29 +448,63 @@ function LiftExerciseBlock({
           <p className="mt-0.5 text-xs text-muted-foreground">
             {exercise.sets.length} set{exercise.sets.length !== 1 ? "s" : ""}
             {completedCount > 0 && ` · ${completedCount} completed`}
+            {note.trim() && ` · 📝`}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="More options"
-          className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
-        >
-          <MoreHorizontal className="h-[18px] w-[18px]" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="More options"
+              className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <MoreHorizontal className="h-[18px] w-[18px]" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
+              <FileText className="mr-2 h-4 w-4" />
+              {noteOpen ? "Hide note" : "Add note"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onRemoveExercise(exercise.id)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Remove exercise
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      {/* Exercise note */}
+      {noteOpen && (
+        <div className="border-b border-border px-4 py-3 md:px-5">
+          <textarea
+            rows={2}
+            value={note}
+            onChange={(e) => {
+              setNote(e.target.value)
+              onExerciseNoteChange(exercise.id, e.target.value)
+            }}
+            placeholder="Note for this exercise..."
+            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      )}
 
       {/* Column headers */}
       <div
         className={cn(
           "grid items-center border-b border-border",
-          "grid-cols-[36px_1fr_1fr_1fr_54px] gap-2",
-          "md:grid-cols-[56px_1fr_1fr_1fr_1fr_58px] md:gap-3",
+          "grid-cols-[36px_1fr_1fr_1fr_1fr_54px] gap-2",
           "px-4 py-2 md:px-5",
           "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
         )}
       >
         <span className="text-center">Set</span>
-        <span className="hidden md:block text-center">Previous</span>
+        <span className="text-center">Prev</span>
         <span className="text-center">{weightUnit}</span>
         <span className="text-center">Reps</span>
         <span className="text-center">RIR</span>
@@ -455,7 +534,7 @@ function LiftExerciseBlock({
       <button
         type="button"
         onClick={() => onAddSet(exercise.id)}
-        className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors"
+        className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
       >
         <Plus className="h-3.5 w-3.5" />
         Add set
@@ -509,6 +588,7 @@ export default function WorkoutStartPage() {
   const [workout, setWorkout] = useState<Workout | null>(null)
   const [exercises, setExercises] = useState<Workout["exercises"]>([])
   const [startTime, setStartTime] = useState(new Date())
+  const [now, setNow] = useState(new Date())
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -521,6 +601,11 @@ export default function WorkoutStartPage() {
     return yesterday
   })
   const [restEvent, setRestEvent] = useState<RestEvent>(null)
+  // Add exercise dialog
+  const [showAddExercise, setShowAddExercise] = useState(false)
+  const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVariationOption[]>([])
+  const [exerciseSearch, setExerciseSearch] = useState("")
+  const [loadingLibrary, setLoadingLibrary] = useState(false)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -562,6 +647,12 @@ export default function WorkoutStartPage() {
     return () => { cancelled = true }
   }, [authLoading, session?.access_token, workoutId])
 
+  // ── Timer: update elapsed every 30s ────────────────────────────────────────
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
   // ── Persist session to localStorage ────────────────────────────────────────
   useEffect(() => {
     if (!workout || !workoutId) return
@@ -590,7 +681,10 @@ export default function WorkoutStartPage() {
         .reduce((a, s) => a + (s.weight ?? 0) * (s.actualReps ?? s.targetReps), 0),
     0,
   )
-  const elapsedMinutes = Math.max(1, Math.round((Date.now() - startTime.getTime()) / 60000))
+  const elapsedMinutes = Math.max(1, Math.round((now.getTime() - startTime.getTime()) / 60000))
+  const elapsedLabel = elapsedMinutes < 60
+    ? `${elapsedMinutes} min`
+    : `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m`
 
   const startedLabel = (() => {
     const h = startTime.getHours()
@@ -599,7 +693,6 @@ export default function WorkoutStartPage() {
   })()
 
   const dateLabel = (() => {
-    const now = new Date()
     const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     const months = [
       "January", "February", "March", "April", "May", "June",
@@ -638,6 +731,48 @@ export default function WorkoutStartPage() {
         }
       }),
     )
+  }
+
+  const handleRemoveExercise = (exerciseId: string) => {
+    setExercises((prev) => prev.filter((ex) => ex.id !== exerciseId))
+  }
+
+  const handleExerciseNoteChange = (exerciseId: string, note: string) => {
+    setExercises((prev) =>
+      prev.map((ex) => ex.id === exerciseId ? { ...ex, notes: note || undefined } : ex),
+    )
+  }
+
+  const handleOpenAddExercise = async () => {
+    setShowAddExercise(true)
+    if (exerciseLibrary.length > 0 || !session?.access_token) return
+    setLoadingLibrary(true)
+    try {
+      const list = await fetchExercises(session.access_token)
+      setExerciseLibrary(list)
+    } catch {
+      // non-critical — user sees empty list
+    } finally {
+      setLoadingLibrary(false)
+    }
+  }
+
+  const handleAddExercise = (variation: ExerciseVariationOption) => {
+    const id = `added-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const newExercise: WorkoutExercise = {
+      id,
+      exercise: { id: variation.exerciseId, muscleGroup: variation.muscleGroup, name: variation.exerciseName },
+      variation: { id: variation.id, isDefault: variation.isDefault, name: variation.variationName, equipment: variation.equipment, sortOrder: variation.sortOrder },
+      sets: Array.from({ length: 3 }, (_, i) => ({
+        id: `${id}-s${i}`,
+        completed: false,
+        setNumber: i + 1,
+        targetReps: 10,
+      })),
+    }
+    setExercises((prev) => [...prev, newExercise])
+    setShowAddExercise(false)
+    setExerciseSearch("")
   }
 
   const handleRemoveSet = (exerciseId: string, setId: string) => {
@@ -800,7 +935,7 @@ export default function WorkoutStartPage() {
           <StatCell
             label="Started"
             value={startedLabel}
-            sub={`${elapsedMinutes} min ago`}
+            sub={elapsedLabel}
             lastRow={false}
           />
           <StatCell
@@ -840,6 +975,8 @@ export default function WorkoutStartPage() {
             onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
             onAddSet={handleAddSet}
             onRemoveSet={handleRemoveSet}
+            onRemoveExercise={handleRemoveExercise}
+            onExerciseNoteChange={handleExerciseNoteChange}
           />
         ))}
 
@@ -849,6 +986,7 @@ export default function WorkoutStartPage() {
           <Button
             variant="outline"
             className="w-full md:w-auto gap-1.5"
+            onClick={() => void handleOpenAddExercise()}
           >
             <Plus className="h-4 w-4" />
             Add exercise
@@ -945,6 +1083,76 @@ export default function WorkoutStartPage() {
               {isSaving ? "Đang lưu..." : "Lưu"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add Exercise dialog ───────────────────────────────────────────── */}
+      <Dialog open={showAddExercise} onOpenChange={(open) => { setShowAddExercise(open); if (!open) setExerciseSearch("") }}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-md">
+          <DialogHeader className="shrink-0 border-b border-border px-4 py-4">
+            <DialogTitle>Add exercise</DialogTitle>
+          </DialogHeader>
+
+          {/* Search */}
+          <div className="shrink-0 border-b border-border px-4 py-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                autoFocus
+                type="text"
+                value={exerciseSearch}
+                onChange={(e) => setExerciseSearch(e.target.value)}
+                placeholder="Search exercises..."
+                className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              {exerciseSearch && (
+                <button
+                  type="button"
+                  onClick={() => setExerciseSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Exercise list */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {loadingLibrary ? (
+              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                Loading exercises...
+              </div>
+            ) : (
+              (() => {
+                const q = exerciseSearch.toLowerCase().trim()
+                const filtered = exerciseLibrary.filter((ex) =>
+                  !q || ex.name.toLowerCase().includes(q) || ex.exerciseName.toLowerCase().includes(q) || ex.muscleGroup.toLowerCase().includes(q),
+                )
+                if (filtered.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                      No exercises found.
+                    </div>
+                  )
+                }
+                return filtered.map((ex) => (
+                  <button
+                    key={ex.id}
+                    type="button"
+                    onClick={() => handleAddExercise(ex)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted border-b border-border last:border-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{ex.name}</p>
+                      <p className="text-xs text-muted-foreground">{ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}</p>
+                    </div>
+                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                ))
+              })()
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
