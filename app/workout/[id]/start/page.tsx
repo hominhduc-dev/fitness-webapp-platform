@@ -346,31 +346,8 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
 
-        {/* Row actions */}
+        {/* Row actions: tick + more options */}
         <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => setNoteOpen((v) => !v)}
-            aria-label="Set note"
-            className={cn(
-              "flex h-[22px] w-[22px] items-center justify-center rounded-[4px] transition-colors",
-              note.trim()
-                ? "text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
-          </button>
-          {canRemove && !completed ? (
-            <button
-              type="button"
-              onClick={onRemove}
-              aria-label="Remove set"
-              className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={handleToggle}
@@ -385,6 +362,36 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
           >
             {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Set options"
+                className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
+                <FileText className="mr-2 h-4 w-4" />
+                {noteOpen ? "Hide note" : "Add note"}
+                {note.trim() && !noteOpen && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
+              </DropdownMenuItem>
+              {canRemove && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={onRemove}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remove set
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
