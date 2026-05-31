@@ -40,12 +40,14 @@ import {
 import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import type {
+  AssignedTrainee,
   CoachProgram,
   CoachTrainee,
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
+import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 
 type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
@@ -1066,6 +1068,7 @@ export function ProgramEditor({
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
   const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>(initialTraineeOptions)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
+  const [assignedTrainees, setAssignedTrainees] = useState<AssignedTrainee[]>([])
   const [routineLibrary, setRoutineLibrary] = useState<Routine[]>([])
   const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8, 4))
   const [activeWeek, setActiveWeek] = useState(0)
@@ -1143,6 +1146,7 @@ export function ProgramEditor({
               ? [adjustForTraineeId]
               : (program.assignedTo ?? program.assignedTrainees.map((trainee) => trainee.id)),
           )
+          setAssignedTrainees(program.assignedTrainees)
           setRoutineLibrary(mapped.routines)
           setSchedule(mapped.schedule)
           setActiveWeek(0)
@@ -1494,15 +1498,24 @@ export function ProgramEditor({
               placeholder="Short description (e.g. Heavy compounds Mon/Thu, accessory volume Tue/Sat)"
               className="h-9 bg-background text-[13px]"
             />
-            <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsAssignDialogOpen(true)}>
-              <UserPlus className="h-4 w-4" />
-              Assign clients
-              {selectedTraineeIds.length > 0 ? (
-                <Badge variant="micro" className="ml-1 bg-muted">
-                  {selectedTraineeIds.length}
-                </Badge>
-              ) : null}
-            </Button>
+            <div className="flex items-center gap-2">
+              {programId && assignedTrainees.length > 0 && (
+                <ExportProgramLogsDialog
+                  assignedTrainees={assignedTrainees}
+                  programDuration={Number(duration) || 8}
+                  programName={programName || "Program"}
+                />
+              )}
+              <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsAssignDialogOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+                Assign clients
+                {selectedTraineeIds.length > 0 ? (
+                  <Badge variant="micro" className="ml-1 bg-muted">
+                    {selectedTraineeIds.length}
+                  </Badge>
+                ) : null}
+              </Button>
+            </div>
           </div>
         </div>
 

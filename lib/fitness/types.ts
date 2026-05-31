@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types"
 
 type AssignedTrainee = {
+  assignedAt: Date
   avatar?: string | null
   email: string
   fitnessGoals: string[]
@@ -23,6 +24,13 @@ type AssignedTrainee = {
 type CoachProgram = Program & {
   assignedTrainees: AssignedTrainee[]
   createdAt: Date
+}
+
+type TraineeProgram = {
+  assignedAt: Date
+  duration: number
+  id: string
+  name: string
 }
 
 type CoachTrainee = {
@@ -60,6 +68,7 @@ type WeeklyCaloriesPoint = {
 
 type WorkoutCollection = {
   historyLogs: WorkoutLog[]
+  programs: TraineeProgram[]
   recentLogs: WorkoutLog[]
   schedule: Record<number, Workout | null>
   todayWorkout: Workout | null
@@ -489,6 +498,7 @@ export type {
   ProgressYearView,
   ProgressYearViewDay,
   TraineeDashboardData,
+  TraineeProgram,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,

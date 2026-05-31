@@ -351,9 +351,13 @@ coachRouter.get("/trainees/:traineeId/workout-logs", async (req, res) => {
     const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined
     const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined
     const weekStart = typeof req.query.weekStart === "string" ? req.query.weekStart : undefined
+    const from = typeof req.query.from === "string" ? req.query.from : undefined
+    const to = typeof req.query.to === "string" ? req.query.to : undefined
     const result = await listCoachWorkoutLogsForTrainee(profile.profile, String(req.params.traineeId), {
       cursor,
+      from,
       limit: Number.isFinite(limit) ? limit : undefined,
+      to,
       weekStart,
     })
 

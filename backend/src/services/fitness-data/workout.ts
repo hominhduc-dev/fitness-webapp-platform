@@ -4,6 +4,7 @@ export {
   deletePersonalWorkoutForTrainee,
   deleteWorkoutLogForTrainee,
   getWorkoutDetailForTrainee,
+  listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
   resetCurrentTraineeData,
   updatePersonalWorkoutForTrainee,

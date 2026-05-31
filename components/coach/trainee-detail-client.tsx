@@ -6,6 +6,7 @@ import {
   Award,
   BarChart3,
   ClipboardCheck,
+  Download,
   Loader2,
   Scale,
   StickyNote,
@@ -28,9 +29,11 @@ import {
   assignCoachProgram,
   createCoachBodyMetric,
   createCoachCheckIn,
+  fetchCoachWorkoutLogs,
   unassignCoachProgram,
 } from "@/lib/fitness/api"
 import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
+import type { WorkoutLog } from "@/lib/types"
 
 type CoachTraineeDetailClientProps = {
   coachPrograms: CoachProgram[]
@@ -122,30 +125,41 @@ function averageScore(checkIn: CoachCheckIn) {
 }
 
 /* ─── Weekly bar chart (pure CSS, no Recharts) ───────────────────────────── */
-const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const
-
 type WeeklyBarChartProps = {
   data: number[]
 }
 
+/** Returns [Mon, Tue, Wed, Thu, Fri, Sat, Sun] Date objects for the current week */
+function getCurrentWeekDates(): Date[] {
+  const today = new Date()
+  const day = today.getDay() // 0 = Sun
+  // Offset so Monday = index 0
+  const mondayOffset = day === 0 ? -6 : 1 - day
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() + mondayOffset + i)
+    return d
+  })
+}
+
 function WeeklyBarChart({ data }: WeeklyBarChartProps) {
   const max = Math.max(...data, 1)
-  const today = new Date().getDay() // 0 = Sunday
-  // Map JS getDay (0=Sun) to Mon-indexed (0=Mon)
-  const todayIndex = today === 0 ? 6 : today - 1
+  const today = new Date()
+  const todayDateNum = today.getDate()
+  const weekDates = getCurrentWeekDates()
 
-  const chartData = DAYS.map((day, i) => ({
-    day,
+  const chartData = weekDates.map((date, i) => ({
+    dateNum: date.getDate(),
     sets: data[i] ?? 0,
-    isToday: i === todayIndex,
+    isToday: date.getDate() === todayDateNum && date.getMonth() === today.getMonth(),
   }))
 
   return (
     <div className="grid grid-cols-7 items-end gap-2" style={{ height: 110 }}>
-      {chartData.map(({ day, sets, isToday }) => {
+      {chartData.map(({ dateNum, sets, isToday }) => {
         const heightPct = sets === 0 ? 4 : (sets / max) * 90
         return (
-          <div key={day} className="flex h-full flex-col items-center justify-end gap-1.5">
+          <div key={dateNum} className="flex h-full flex-col items-center justify-end gap-1.5">
             <div className="relative flex w-full items-end" style={{ height: "90%" }}>
               <div
                 className={cn(
@@ -159,8 +173,13 @@ function WeeklyBarChart({ data }: WeeklyBarChartProps) {
                 style={{ height: `${heightPct}%` }}
               />
             </div>
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-              {day}
+            <span
+              className={cn(
+                "font-mono text-[10px] tabular-nums tracking-tight",
+                isToday ? "font-semibold text-primary" : "text-muted-foreground",
+              )}
+            >
+              {dateNum}
             </span>
           </div>
         )
@@ -305,6 +324,7 @@ export function CoachTraineeDetailClient({
   const [checkInError, setCheckInError] = useState<string | null>(null)
   const [isAssigning, setIsAssigning] = useState(false)
   const [removingProgramId, setRemovingProgramId] = useState<string | null>(null)
+  const [exportingProgramId, setExportingProgramId] = useState<string | null>(null)
   const [isSavingMetric, setIsSavingMetric] = useState(false)
   const [isSavingCheckIn, setIsSavingCheckIn] = useState(false)
 
@@ -410,6 +430,52 @@ export function CoachTraineeDetailClient({
       setAssignError(error instanceof Error ? error.message : "Could not assign program.")
     } finally {
       setIsAssigning(false)
+    }
+  }
+
+  async function handleExportProgramLogs(program: CoachProgram) {
+    if (!session?.access_token) return
+    setExportingProgramId(program.id)
+
+    try {
+      const assignment = program.assignedTrainees.find((t) => t.id === detail.trainee.id)
+      const from = assignment
+        ? assignment.assignedAt.toISOString().slice(0, 10)
+        : new Date(Date.now() - program.duration * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+      // Upper bound: program end date OR tomorrow — always exclusive (+1 day)
+      // so that logs recorded *today* (same day as assignedAt or today) are included.
+      const endDate = new Date(from)
+      endDate.setDate(endDate.getDate() + program.duration * 7)
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const toDate = endDate < tomorrow ? endDate : tomorrow
+      const to = toDate.toISOString().slice(0, 10)
+
+      const allLogs: WorkoutLog[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < 20; page++) {
+        const result = await fetchCoachWorkoutLogs(session.access_token, detail.trainee.id, { cursor, from, limit: 50, to })
+        allLogs.push(...result.logs)
+        if (!result.nextCursor) break
+        cursor = result.nextCursor
+      }
+
+      if (allLogs.length === 0) {
+        setAssignError(`${detail.trainee.name} chưa có buổi tập nào trong program này.`)
+        return
+      }
+
+      const { downloadCoachWorkoutLogsWorkbook } = await import("@/components/coach/trainee-workout-logs-excel")
+      await downloadCoachWorkoutLogsWorkbook(allLogs, {
+        traineeId: detail.trainee.id,
+        traineeName: detail.trainee.name,
+        weekStart: from,
+      })
+    } catch (error) {
+      setAssignError(error instanceof Error ? error.message : "Không thể export logs.")
+    } finally {
+      setExportingProgramId(null)
     }
   }
 
@@ -617,6 +683,17 @@ export function CoachTraineeDetailClient({
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent sm:w-auto"
+                      onClick={() => void handleExportProgramLogs(program)}
+                      disabled={exportingProgramId === program.id}
+                    >
+                      {exportingProgramId === program.id
+                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        : <Download className="mr-2 h-4 w-4" />}
+                      Export logs
+                    </Button>
                     <Link href={`/coach/programs/${program.id}`} className="w-full sm:w-auto">
                       <Button variant="outline" className="w-full bg-transparent">
                         Open plan

@@ -524,6 +524,7 @@ function serializeProgram(program: ProgramRecord) {
   return {
     assignedTo: program.assignments.map((assignment) => assignment.userId),
     assignedTrainees: program.assignments.map((assignment) => ({
+      assignedAt: assignment.assignedAt,
       avatar: assignment.user.avatar,
       email: assignment.user.email,
       fitnessGoals: assignment.user.fitnessGoals,
@@ -2237,6 +2238,12 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   return {
     historyLogs: historyLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    programs: assignments.map((a) => ({
+      assignedAt: a.assignedAt,
+      duration: a.program.duration,
+      id: a.program.id,
+      name: a.program.name,
+    })),
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
     todayWorkout: todayOneOffWorkout ?? schedule[new Date().getDay()] ?? null,
@@ -3877,10 +3884,40 @@ async function createCoachCheckInForTrainee(
   return serializeCoachCheckIn(checkIn as CoachCheckInRecord)
 }
 
+async function listWorkoutLogsForExportTrainee(
+  profile: SerializedProfile,
+  options: { from: string; to: string },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const parsedFrom = parseLocalDateInput(options.from)
+  const parsedTo = parseLocalDateInput(options.to)
+
+  if (!parsedFrom || !parsedTo) {
+    throw new AuthServiceError("from/to không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
+  if (parsedTo <= parsedFrom) {
+    throw new AuthServiceError("to phải sau from.", 400)
+  }
+
+  const logs = await db.workoutLog.findMany({
+    include: WORKOUT_LOG_INCLUDE,
+    orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+    where: {
+      startedAt: { gte: parsedFrom, lt: parsedTo },
+      userId: profile.id,
+    },
+  })
+
+  return logs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
+}
+
 async function listCoachWorkoutLogsForTrainee(
   profile: SerializedProfile,
   traineeId: string,
-  options?: { cursor?: string; limit?: number; weekStart?: string },
+  options?: { cursor?: string; from?: string; limit?: number; to?: string; weekStart?: string },
 ) {
   const db = ensurePrisma()
   assertCoach(profile)
@@ -3893,7 +3930,25 @@ async function listCoachWorkoutLogsForTrainee(
     throw new AuthServiceError("weekStart không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
   }
 
+  const parsedFrom = options?.from ? parseLocalDateInput(options.from) : undefined
+  const parsedTo = options?.to ? parseLocalDateInput(options.to) : undefined
+
+  if (options?.from && !parsedFrom) {
+    throw new AuthServiceError("from không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
+  if (options?.to && !parsedTo) {
+    throw new AuthServiceError("to không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
   const weekEnd = parsedWeekStart ? addLocalDays(parsedWeekStart, 7) : undefined
+
+  const dateFilter = parsedFrom && parsedTo
+    ? { startedAt: { gte: parsedFrom, lt: parsedTo } }
+    : parsedWeekStart && weekEnd
+      ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
+      : {}
+
   const workoutLogs = await db.workoutLog.findMany({
     cursor: options?.cursor ? { id: options.cursor } : undefined,
     include: WORKOUT_LOG_INCLUDE,
@@ -3901,14 +3956,7 @@ async function listCoachWorkoutLogsForTrainee(
     skip: options?.cursor ? 1 : 0,
     take: take + 1,
     where: {
-      ...(parsedWeekStart && weekEnd
-        ? {
-            startedAt: {
-              gte: parsedWeekStart,
-              lt: weekEnd,
-            },
-          }
-        : {}),
+      ...dateFilter,
       userId: traineeId,
     },
   })
@@ -4594,6 +4642,7 @@ export {
   listMealHistoryForUser,
   listMealsForUser,
   listNotificationsForUser,
+  listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,

@@ -1,6 +1,6 @@
 import { ProgressClient, type ProgressClientInitialData } from "@/components/progress/progress-client"
 import { requireAppSession } from "@/lib/auth/server"
-import { fetchProgressCalendar } from "@/lib/fitness/api"
+import { fetchProgressCalendar, fetchWorkouts } from "@/lib/fitness/api"
 
 export default async function ProgressPage() {
   const { accessToken, profile } = await requireAppSession({ role: "trainee" })
@@ -9,13 +9,15 @@ export default async function ProgressPage() {
   const viewMonth = now.getMonth() + 1
   const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1
   const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear
-  const [calendar, prevCalendar] = await Promise.all([
+  const [calendar, prevCalendar, workoutCollection] = await Promise.all([
     fetchProgressCalendar(accessToken, viewYear, viewMonth),
     fetchProgressCalendar(accessToken, prevYear, prevMonth, { summaryOnly: true }).catch(() => null),
+    fetchWorkouts(accessToken).catch(() => null),
   ])
   const initialData: ProgressClientInitialData = {
     calendar,
     prevCalendar,
+    programs: workoutCollection?.programs ?? [],
     viewMonth,
     viewYear,
     weightUnitLabel: profile.preferredWeightUnit === "lbs" ? "lbs" : "kg",

@@ -37,6 +37,7 @@ type ReportRow = {
 }
 
 type DayMergeRange = {
+  dayLabel: string
   dayNumber: number
   endRow: number
   startRow: number
@@ -263,6 +264,7 @@ function buildReportRows(logs: WorkoutLog[], weekStart: string) {
       }
 
       const dayNumber = Math.floor((dayDate.getTime() - selectedWeekStart.getTime()) / (24 * 60 * 60 * 1000)) + 1
+      const dayLabel = dayDate.toLocaleDateString("en-US", { weekday: "long", day: "2-digit", month: "2-digit" })
       const dayStartRow = REPORT_START_ROW + rows.length
 
       dayLogs.forEach((log, logIndex) => {
@@ -308,6 +310,7 @@ function buildReportRows(logs: WorkoutLog[], weekStart: string) {
 
       const dayEndRow = REPORT_START_ROW + rows.length - 1
       mergeRanges.push({
+        dayLabel,
         dayNumber,
         endRow: dayEndRow,
         startRow: dayStartRow,
@@ -426,13 +429,15 @@ function buildRawSetRows(logs: WorkoutLog[], weekStart: string) {
         const dayNumber = dayValue
           ? Math.floor((dayValue.getTime() - selectedWeekStart.getTime()) / (24 * 60 * 60 * 1000)) + 1
           : ""
+        const dayOfWeek = log.startedAt.toLocaleDateString("en-US", { weekday: "long" })
+        const dayDateDisplay = `${dayOfWeek}, ${log.startedAt.toLocaleDateString("en-US", { day: "2-digit", month: "2-digit", year: "numeric" })}`
 
         return exercise.sets.map((set) => ({
           actual_reps: set.actualReps ?? "",
           comments_count: log.comments.length,
           completed: set.completed ? "yes" : "no",
           completed_at: log.completedAt ? log.completedAt.toISOString() : "",
-          day_date: dayDate,
+          day_date: dayDateDisplay,
           day_no: dayNumber,
           exercise_id: exercise.id,
           exercise_label: formatExerciseVariationLabel({
@@ -471,7 +476,7 @@ function buildRawSetRows(logs: WorkoutLog[], weekStart: string) {
 function setRawSheetWidths(worksheet: Worksheet) {
   worksheet.columns = [
     { header: "day_no", key: "day_no", width: 10 },
-    { header: "day_date", key: "day_date", width: 14 },
+    { header: "day_date", key: "day_date", width: 30 },
     { header: "session_no", key: "session_no", width: 12 },
     { header: "session_id", key: "session_id", width: 40 },
     { header: "session_started_at", key: "session_started_at", width: 28 },
@@ -553,6 +558,8 @@ async function buildCoachWorkoutLogsWorkbookFile(
   }
 
   reportSheet.name = `Week ${options.weekStart}`
+  // Widen column A to fit day-of-week label (e.g. "Sunday, 05/31")
+  reportSheet.getColumn(1).width = 18
   const styles = captureStyles(reportSheet)
   const summaryLabels = Array.from(
     { length: SUMMARY_TOTAL_ROW - SUMMARY_ITEM_START_ROW },
@@ -605,7 +612,7 @@ async function buildCoachWorkoutLogsWorkbookFile(
   })
 
   mergeRanges.forEach((range) => {
-    reportSheet.getCell(range.startRow, 1).value = range.dayNumber
+    reportSheet.getCell(range.startRow, 1).value = range.dayLabel
 
     if (range.endRow > range.startRow) {
       reportSheet.mergeCells(range.startRow, 1, range.endRow, 1)
