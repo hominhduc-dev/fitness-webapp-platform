@@ -1212,7 +1212,7 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="label-micro mb-2">This week · {formatWeekRangeLabel(weekStart)}</p>
-          <h1 className="text-[36px] font-semibold leading-none tracking-[-0.02em]">{plannedCount} sessions planned.</h1>
+          <h1 className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{plannedCount} sessions planned.</h1>
           <p className="mt-2 font-mono text-[13px] text-muted-foreground tnum">
             {completedCount}/{plannedCount} done this week · {Math.max(0, plannedCount - completedCount)} to go
           </p>

@@ -451,7 +451,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           {activeProgram && (
             <p className="label-micro mb-1 text-muted-foreground">{activeProgram.name}</p>
           )}
-          <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+          <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-[32px]">
             {trainee.name}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
