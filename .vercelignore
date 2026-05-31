@@ -1,6 +1,3 @@
-design_handoff_anthropic
-design_handoff_coach
-backend/node_modules
-backend/dist
+backend
 next-start.out.log
 next-start.err.log

@@ -24,6 +24,31 @@ import { AuthServiceError, type SerializedProfile } from "../auth.service"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
 import { prisma, retryTransaction } from "../../lib/prisma"
 
+// Narrow projections of the User relation so list queries don't drag the full
+// ~20-column row (email/phone/avatar/goal arrays/timestamps) per joined record.
+const MINI_USER_SELECT = {
+  avatar: true,
+  email: true,
+  id: true,
+  name: true,
+} satisfies Prisma.UserSelect
+
+const TRAINEE_SUMMARY_SELECT = {
+  avatar: true,
+  email: true,
+  fitnessGoals: true,
+  id: true,
+  name: true,
+} satisfies Prisma.UserSelect
+
+const IMPORT_REVIEWER_SELECT = {
+  avatar: true,
+  email: true,
+  id: true,
+  name: true,
+  role: true,
+} satisfies Prisma.UserSelect
+
 const WORKOUT_EXERCISE_INCLUDE = {
   sets: {
     orderBy: {
@@ -52,7 +77,12 @@ const WORKOUT_WITH_PROGRAM_INCLUDE = {
 } satisfies Prisma.WorkoutInclude
 
 const WORKOUT_LOG_COMMENT_INCLUDE = {
-  author: true,
+  author: {
+    select: {
+      avatar: true,
+      name: true,
+    },
+  },
 } satisfies Prisma.WorkoutLogCommentInclude
 
 const WORKOUT_LOG_INCLUDE = {
@@ -70,7 +100,9 @@ const WORKOUT_LOG_INCLUDE = {
 const PROGRAM_INCLUDE = {
   assignments: {
     include: {
-      user: true,
+      user: {
+        select: TRAINEE_SUMMARY_SELECT,
+      },
     },
   },
   workouts: {
@@ -105,7 +137,7 @@ type WorkoutLogRecord = Prisma.WorkoutLogGetPayload<{
 
 type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
   include: {
-    createdBy: true
+    createdBy: { select: { name: true } }
     variations: {
       include: {
         _count: {
@@ -121,9 +153,11 @@ type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
 
 type NotificationRecord = Notification
 
+type ImportReviewerUser = Pick<User, "avatar" | "email" | "id" | "name" | "role">
+
 type ExerciseImportRequestRecord = ExerciseImportRequest & {
-  reviewedBy: User | null
-  submittedBy: User
+  reviewedBy: ImportReviewerUser | null
+  submittedBy: ImportReviewerUser
 }
 
 type ExerciseImportRowInput = {
@@ -175,11 +209,11 @@ type WorkoutLogSnapshotExercise = {
 }
 
 type BodyMetricRecord = BodyMetricEntry & {
-  coach: User | null
+  coach: Pick<User, "name"> | null
 }
 
 type CoachCheckInRecord = CoachCheckIn & {
-  coach: User
+  coach: Pick<User, "name">
 }
 
 type PersonalWorkoutInput = {
@@ -552,7 +586,7 @@ function serializeCoachRequest(request: {
   createdAt: Date
   id: string
   status: CoachRequestStatus
-  trainee: User
+  trainee: Pick<User, "avatar" | "email" | "fitnessGoals" | "id" | "name">
   traineeId: string
 }) {
   return {
@@ -1589,7 +1623,11 @@ async function listExerciseLibrary(
 
   const exercises = await db.exercise.findMany({
     include: {
-      createdBy: true,
+      createdBy: {
+        select: {
+          name: true,
+        },
+      },
       variations: {
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
@@ -1636,7 +1674,11 @@ async function listCoachExercises(profile: SerializedProfile, options?: { search
 
   const exercises = await db.exercise.findMany({
     include: {
-      createdBy: true,
+      createdBy: {
+        select: {
+          name: true,
+        },
+      },
       variations: {
         include: {
           _count: {
@@ -1726,7 +1768,11 @@ async function createCoachExercise(
       },
     },
     include: {
-      createdBy: true,
+      createdBy: {
+        select: {
+          name: true,
+        },
+      },
       variations: {
         include: {
           _count: {
@@ -1829,7 +1875,11 @@ async function updateCoachExercise(
 
     return transaction.exercise.findUniqueOrThrow({
       include: {
-        createdBy: true,
+        createdBy: {
+          select: {
+            name: true,
+          },
+        },
         variations: {
           include: {
             _count: {
@@ -1914,8 +1964,12 @@ async function submitCoachExerciseImportRequest(
       submittedById: profile.id,
     },
     include: {
-      reviewedBy: true,
-      submittedBy: true,
+      reviewedBy: {
+        select: IMPORT_REVIEWER_SELECT,
+      },
+      submittedBy: {
+        select: IMPORT_REVIEWER_SELECT,
+      },
     },
   })
 
@@ -1928,8 +1982,12 @@ async function listCoachExerciseImportRequests(profile: SerializedProfile) {
 
   const requests = await db.exerciseImportRequest.findMany({
     include: {
-      reviewedBy: true,
-      submittedBy: true,
+      reviewedBy: {
+        select: IMPORT_REVIEWER_SELECT,
+      },
+      submittedBy: {
+        select: IMPORT_REVIEWER_SELECT,
+      },
     },
     orderBy: {
       createdAt: "desc",
@@ -3546,7 +3604,11 @@ async function createBodyMetricForTrainee(
       traineeId,
     },
     include: {
-      coach: true,
+      coach: {
+        select: {
+          name: true,
+        },
+      },
     },
   })
 
@@ -3568,7 +3630,11 @@ async function listBodyMetricsForCurrentTrainee(
 
   const entries = await db.bodyMetricEntry.findMany({
     include: {
-      coach: true,
+      coach: {
+        select: {
+          name: true,
+        },
+      },
     },
     orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
     where: {
@@ -3612,7 +3678,11 @@ async function createBodyMetricForCurrentTrainee(
       weightKg,
     },
     include: {
-      coach: true,
+      coach: {
+        select: {
+          name: true,
+        },
+      },
     },
   })
 
@@ -3881,7 +3951,11 @@ async function createCoachCheckInForTrainee(
       traineeId,
     },
     include: {
-      coach: true,
+      coach: {
+        select: {
+          name: true,
+        },
+      },
     },
   })
 
@@ -4263,7 +4337,11 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     }),
     db.bodyMetricEntry.findMany({
       include: {
-        coach: true,
+        coach: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
       take: 12,
@@ -4273,7 +4351,11 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     }),
     db.coachCheckIn.findMany({
       include: {
-        coach: true,
+        coach: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: [{ checkInDate: "desc" }, { createdAt: "desc" }],
       take: 8,
@@ -4332,7 +4414,9 @@ async function getCoachDashboard(profile: SerializedProfile) {
     listCoachTrainees(profile),
     db.coachRequest.findMany({
       include: {
-        trainee: true,
+        trainee: {
+          select: TRAINEE_SUMMARY_SELECT,
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -4349,7 +4433,9 @@ async function getCoachDashboard(profile: SerializedProfile) {
             comments: true,
           },
         },
-        user: true,
+        user: {
+          select: MINI_USER_SELECT,
+        },
         workout: {
           select: {
             id: true,
@@ -4546,9 +4632,6 @@ async function updateCoachRequestStatus(
   }
 
   const existingRequest = await db.coachRequest.findFirst({
-    include: {
-      trainee: true,
-    },
     where: {
       coachId: profile.id,
       id: requestId,
@@ -4569,7 +4652,9 @@ async function updateCoachRequestStatus(
         status,
       },
       include: {
-        trainee: true,
+        trainee: {
+          select: TRAINEE_SUMMARY_SELECT,
+        },
       },
       where: {
         id: requestId,

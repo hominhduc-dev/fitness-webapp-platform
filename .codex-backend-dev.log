@@ -1,9 +1,0 @@
-
-> myfitnessapp@1.0.0 dev:backend
-> npm --prefix backend run dev
-
-
-> fitness-app-backend@0.1.0 dev
-> tsx watch src/index.ts
-
-Backend listening on http://localhost:4000

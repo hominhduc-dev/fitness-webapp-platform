@@ -5,7 +5,7 @@
 ### Frontend
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript 5
 - **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
-- **Forms:** React Hook Form 7 + Zod validation
+- **Forms:** Controlled React components (no React Hook Form/Zod on the client)
 - **Charts:** Recharts
 - **Drag & Drop:** @dnd-kit
 - **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
