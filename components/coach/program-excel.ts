@@ -809,6 +809,16 @@ async function downloadCoachProgramTemplate(
   referenceSheet["!cols"] = [{ wch: 40 }, { wch: 28 }, { wch: 22 }, { wch: 32 }, { wch: 18 }, { wch: 18 }]
   traineesSheet["!cols"] = [{ wch: 28 }, { wch: 34 }]
 
+  // Freeze panes
+  // Program: freeze cột "field" (col A) + header row
+  programSheet["!views"] = [{ state: "frozen", xSplit: 1, ySplit: 1 }]
+  // Workouts: freeze 2 cột đầu (workout_name, scheduled_day) + header row
+  workoutsSheet["!views"] = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
+  // Reference: freeze 2 cột đầu (variation_id, exercise_name) + header row
+  referenceSheet["!views"] = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
+  // Trainees: freeze header row
+  traineesSheet["!views"] = [{ state: "frozen", ySplit: 1 }]
+
   XLSX.utils.book_append_sheet(workbook, programSheet, PROGRAM_SHEET_NAME)
   XLSX.utils.book_append_sheet(workbook, workoutsSheet, WORKOUTS_SHEET_NAME)
   XLSX.utils.book_append_sheet(workbook, instructionsSheet, INSTRUCTIONS_SHEET_NAME)
