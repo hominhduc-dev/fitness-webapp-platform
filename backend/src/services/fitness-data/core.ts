@@ -209,6 +209,7 @@ type CoachProgramInput = {
     duration?: number
     exercises: Array<{
       repsMin?: number
+      rir?: number
       variationId: string
       reps: number
       sets: number
@@ -847,6 +848,9 @@ function buildProgramTreeCreateManyData(programId: string, workouts: CoachProgra
       setRows.push(
         ...Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
           id: randomUUID(),
+          rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
+            ? Math.max(0, Math.round(exercise.rir))
+            : undefined,
           setNumber: setIndex + 1,
           targetReps: repTarget.reps,
           targetRepsMin: repTarget.repsMin,

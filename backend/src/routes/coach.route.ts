@@ -85,6 +85,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                   const exerciseRecord = exercise && typeof exercise === "object" ? exercise : {}
                   const safeExercise = exerciseRecord as {
                     repsMin?: unknown
+                    rir?: unknown
                     variationId?: unknown
                     reps?: unknown
                     sets?: unknown
@@ -93,6 +94,7 @@ function parseProgramInput(body: Record<string, unknown>) {
 
                   return {
                     repsMin: safeExercise.repsMin == null ? undefined : Number(safeExercise.repsMin),
+                    rir: safeExercise.rir == null ? undefined : Number(safeExercise.rir),
                     variationId: String(safeExercise.variationId ?? ""),
                     reps: Number(safeExercise.reps ?? 0),
                     sets: Number(safeExercise.sets ?? 0),
