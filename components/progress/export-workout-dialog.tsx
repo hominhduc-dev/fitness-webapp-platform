@@ -87,8 +87,8 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
         return
       }
 
-      const { downloadTraineeSelfExport } = await import("@/components/progress/self-export-excel")
-      await downloadTraineeSelfExport(logs, { from, label, to })
+      const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
+      await downloadWorkoutLogs(logs, { from, label, to })
       setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể export. Thử lại sau.")
