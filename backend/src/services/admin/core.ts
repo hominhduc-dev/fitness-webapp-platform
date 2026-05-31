@@ -1409,6 +1409,9 @@ async function createAdminExercise(
   let exercise
 
   try {
+    // Create the exercise + its default variation and return the variation
+    // (with the relations serializeExerciseSummary needs) in a single round
+    // trip — avoids a second variation.findFirst over the network.
     exercise = await db.exercise.create({
       data: {
         createdById: profile.id,
@@ -1423,6 +1426,9 @@ async function createAdminExercise(
           },
         },
       },
+      include: {
+        variations: ADMIN_VARIATION_INCLUDE,
+      },
     })
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -1431,19 +1437,15 @@ async function createAdminExercise(
     throw error
   }
 
-  const variation = await db.variation.findFirst({
-    include: ADMIN_VARIATION_INCLUDE,
-    where: {
-      exerciseId: exercise.id,
-      isDefault: true,
-    },
-  })
+  const variation = exercise.variations[0]
 
   if (!variation) {
     throw new AuthServiceError("Không thể tạo bài tập.", 500)
   }
 
-  await logAdminAudit(db, profile.id, {
+  // Fire-and-forget: audit logging already swallows its own errors and must
+  // not add latency to the response the admin is waiting on.
+  void logAdminAudit(db, profile.id, {
     action: "exercise.created",
     entityId: variation.id,
     entityLabel: exercise.name,
