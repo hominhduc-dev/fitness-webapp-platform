@@ -4,6 +4,7 @@ import {
   Check,
   MoreHorizontal,
   Plus,
+  Trash2,
 } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -201,11 +202,13 @@ interface LiftSetRowProps {
   set: ExerciseSet
   setIndex: number
   weightUnit: "kg" | "lbs"
+  canRemove: boolean
   onToggle: (data: Partial<ExerciseSet>) => void
   onChange: (patch: Partial<ExerciseSet>) => void
+  onRemove: () => void
 }
 
-function LiftSetRow({ set, setIndex, weightUnit, onToggle, onChange }: LiftSetRowProps) {
+function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
   const [weight, setWeight] = useState(set.weight?.toString() ?? "")
   const [reps, setReps] = useState(set.actualReps?.toString() ?? set.targetReps.toString())
   const [completed, setCompleted] = useState(set.completed)
@@ -228,15 +231,15 @@ function LiftSetRow({ set, setIndex, weightUnit, onToggle, onChange }: LiftSetRo
     ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
     : "— · —"
 
-  // Desktop: Set | Type | Previous | kg | Reps | ✓  (6 cols)
-  // Mobile:  Set | Type | kg | Reps | ✓            (5 cols, no Previous)
+  // Desktop: Set | Type | Previous | kg | Reps | actions  (6 cols)
+  // Mobile:  Set | Type | kg | Reps | actions            (5 cols, no Previous)
   return (
     <div
       className={cn(
         "grid items-center border-b border-border last:border-0",
         // desktop 6-col, mobile 5-col
-        "grid-cols-[36px_50px_1fr_1fr_32px] gap-2",
-        "md:grid-cols-[56px_70px_1fr_92px_92px_32px] md:gap-3",
+        "grid-cols-[36px_50px_minmax(0,1fr)_minmax(0,1fr)_58px] gap-2",
+        "md:grid-cols-[56px_70px_1fr_92px_92px_58px] md:gap-3",
         "px-3 py-[10px] md:px-4",
         "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
         completed ? "bg-muted" : "bg-transparent",
@@ -320,21 +323,33 @@ function LiftSetRow({ set, setIndex, weightUnit, onToggle, onChange }: LiftSetRo
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
 
-      {/* Complete checkbox */}
-      <button
-        type="button"
-        onClick={handleToggle}
-        aria-label={completed ? "Mark incomplete" : "Complete set"}
-        className={cn(
-          "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
-          "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
-          completed
-            ? "bg-[var(--success)] border-0"
-            : "border-[1.5px] border-border bg-transparent",
-        )}
-      >
-        {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
-      </button>
+      {/* Row actions */}
+      <div className="flex items-center justify-end gap-2">
+        {canRemove && !completed ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Remove set"
+            className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleToggle}
+          aria-label={completed ? "Mark incomplete" : "Complete set"}
+          className={cn(
+            "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
+            "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
+            completed
+              ? "bg-[var(--success)] border-0"
+              : "border-[1.5px] border-border bg-transparent",
+          )}
+        >
+          {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+        </button>
+      </div>
     </div>
   )
 }
@@ -347,6 +362,7 @@ interface LiftExerciseBlockProps {
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
   onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
   onAddSet: (exerciseId: string) => void
+  onRemoveSet: (exerciseId: string, setId: string) => void
 }
 
 function LiftExerciseBlock({
@@ -355,6 +371,7 @@ function LiftExerciseBlock({
   onSetUpdate,
   onSetComplete,
   onAddSet,
+  onRemoveSet,
 }: LiftExerciseBlockProps) {
   const completedCount = exercise.sets.filter((s) => s.completed).length
   const exerciseLabel = formatExerciseVariationLabel({
@@ -387,8 +404,8 @@ function LiftExerciseBlock({
       <div
         className={cn(
           "grid items-center border-b border-border",
-          "grid-cols-[36px_50px_1fr_1fr_32px] gap-2",
-          "md:grid-cols-[56px_70px_1fr_92px_92px_32px] md:gap-3",
+          "grid-cols-[36px_50px_minmax(0,1fr)_minmax(0,1fr)_58px] gap-2",
+          "md:grid-cols-[56px_70px_1fr_92px_92px_58px] md:gap-3",
           "px-3 py-2 md:px-4",
           "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
         )}
@@ -408,6 +425,7 @@ function LiftExerciseBlock({
           set={set}
           setIndex={idx}
           weightUnit={weightUnit}
+          canRemove={exercise.sets.length > 1}
           onToggle={(data) => {
             onSetUpdate(set.id, data)
             if (data.completed) {
@@ -415,6 +433,7 @@ function LiftExerciseBlock({
             }
           }}
           onChange={(patch) => onSetUpdate(set.id, patch)}
+          onRemove={() => onRemoveSet(exercise.id, set.id)}
         />
       ))}
 
@@ -582,7 +601,7 @@ export default function WorkoutStartPage() {
         if (ex.id !== exerciseId) return ex
         const updatedSetIndex = ex.sets.findIndex((set) => set.id === setId)
         const shouldSyncWeightToFollowingSets =
-          updatedSetIndex === 0 &&
+          updatedSetIndex >= 0 &&
           Object.prototype.hasOwnProperty.call(patch, "weight")
 
         return {
@@ -595,8 +614,7 @@ export default function WorkoutStartPage() {
             if (
               shouldSyncWeightToFollowingSets &&
               index > updatedSetIndex &&
-              !set.completed &&
-              set.weight == null
+              !set.completed
             ) {
               return { ...set, weight: patch.weight }
             }
@@ -604,6 +622,19 @@ export default function WorkoutStartPage() {
             return set
           }),
         }
+      }),
+    )
+  }
+
+  const handleRemoveSet = (exerciseId: string, setId: string) => {
+    setExercises((prev) =>
+      prev.map((ex) => {
+        if (ex.id !== exerciseId || ex.sets.length <= 1) return ex
+        const nextSets = ex.sets
+          .filter((set) => set.id !== setId)
+          .map((set, index) => ({ ...set, setNumber: index + 1 }))
+
+        return nextSets.length === ex.sets.length ? ex : { ...ex, sets: nextSets }
       }),
     )
   }
@@ -794,6 +825,7 @@ export default function WorkoutStartPage() {
             onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
             onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
             onAddSet={handleAddSet}
+            onRemoveSet={handleRemoveSet}
           />
         ))}
 

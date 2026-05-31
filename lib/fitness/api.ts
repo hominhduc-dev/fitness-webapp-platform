@@ -21,6 +21,8 @@ import type {
   CoachDashboardRecentWorkoutLog,
   CoachDashboardSummary,
   CoachExercise,
+  CoachExerciseImportRequest,
+  CoachExerciseImportRow,
   CoachExerciseInput,
   CoachProgressSummary,
   CoachProgram,
@@ -299,6 +301,12 @@ type SerializedCoachExercise = {
   usageCount: number
   variationId?: string
   variationName: string
+}
+
+type SerializedCoachExerciseImportRequest = Omit<CoachExerciseImportRequest, "createdAt" | "reviewedAt" | "updatedAt"> & {
+  createdAt: string
+  reviewedAt?: string
+  updatedAt: string
 }
 
 type SerializedNotification = {
@@ -744,6 +752,15 @@ function mapCoachExercise(exercise: SerializedCoachExercise): CoachExercise {
     usageCount: exercise.usageCount,
     variationId: exercise.variationId,
     variationName: exercise.variationName,
+  }
+}
+
+function mapCoachExerciseImportRequest(request: SerializedCoachExerciseImportRequest): CoachExerciseImportRequest {
+  return {
+    ...request,
+    createdAt: new Date(request.createdAt),
+    reviewedAt: request.reviewedAt ? new Date(request.reviewedAt) : undefined,
+    updatedAt: new Date(request.updatedAt),
   }
 }
 
@@ -1440,6 +1457,37 @@ async function deleteCoachExerciseRequest(accessToken: string, exerciseId: strin
   })
 }
 
+async function fetchCoachExerciseImportRequests(accessToken: string): Promise<CoachExerciseImportRequest[]> {
+  const response = await request<{ requests: SerializedCoachExerciseImportRequest[] }>(
+    "/api/coach/exercise-import-requests",
+    accessToken,
+    {
+      cache: "no-store",
+    },
+  )
+
+  return response.requests.map(mapCoachExerciseImportRequest)
+}
+
+async function submitCoachExerciseImportRequest(
+  accessToken: string,
+  input: {
+    fileName?: string
+    rows: CoachExerciseImportRow[]
+  },
+) {
+  const response = await request<{ request: SerializedCoachExerciseImportRequest }>(
+    "/api/coach/exercise-import-requests",
+    accessToken,
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  )
+
+  return mapCoachExerciseImportRequest(response.request)
+}
+
 async function fetchNotifications(accessToken: string, limit = 20): Promise<NotificationList> {
   let response: { notifications: SerializedNotification[]; unreadCount: number }
 
@@ -1512,6 +1560,7 @@ export {
   fetchWorkoutLogDetail,
   fetchDiscoverableCoaches,
   fetchCoachDashboard,
+  fetchCoachExerciseImportRequests,
   fetchCoachProgram,
   fetchCoachPrograms,
   fetchCoachTraineeDetail,
@@ -1524,6 +1573,7 @@ export {
   fetchMeals,
   fetchNotifications,
   searchFoods,
+  submitCoachExerciseImportRequest,
   fetchWorkoutDetail,
   fetchWorkouts,
   logMeal,

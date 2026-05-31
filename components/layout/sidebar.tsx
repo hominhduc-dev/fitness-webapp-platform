@@ -236,7 +236,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   }, [session?.access_token])
 
   const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
-    ["/coach/trainees", "/coach/programs", "/progress"].includes(item.href),
+    ["/coach/trainees", "/coach/programs", "/coach/exercises", "/progress"].includes(item.href),
   )
 
   return (

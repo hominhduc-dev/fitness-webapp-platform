@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import {
   ChevronDown,
   ChevronRight,
+  Check,
   Download,
   FileSpreadsheet,
   Loader2,
@@ -20,7 +21,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import type { AdminExerciseItem } from "@/lib/admin/types"
+import type { AdminExerciseImportRequest, AdminExerciseItem } from "@/lib/admin/types"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
 /* ------------------------------------------------------------------ */
@@ -224,7 +225,9 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
             <span />
           </div>
 
-          {exercises.map((e) => (
+          {exercises.map((e) => {
+            const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
+            return (
             <div
               key={e.id}
               className="grid grid-cols-[minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 hover:bg-muted/20 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]"
@@ -262,19 +265,25 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
                 <button
                   type="button"
                   title="Edit"
+                  disabled={!canManage}
                   onClick={() => onEdit(e)}
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className={cn(
+                    "rounded-md p-1.5 transition-colors",
+                    canManage
+                      ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "cursor-not-allowed text-muted-foreground/30",
+                  )}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
                 <button
                   type="button"
-                  title={e.usageCount > 0 ? "Cannot delete — in use" : "Delete"}
-                  disabled={e.usageCount > 0 || deletingId === e.id}
+                  title={!canManage ? "Cannot manage shared exercise" : e.usageCount > 0 ? "Cannot delete — in use" : "Delete"}
+                  disabled={!canManage || e.usageCount > 0 || deletingId === e.id}
                   onClick={() => onDelete(e)}
                   className={cn(
                     "rounded-md p-1.5 transition-colors",
-                    e.usageCount > 0 || deletingId === e.id
+                    !canManage || e.usageCount > 0 || deletingId === e.id
                       ? "cursor-not-allowed text-muted-foreground/30"
                       : "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
                   )}
@@ -286,7 +295,8 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
                 </button>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -308,21 +318,25 @@ export type ExerciseSaveData = {
 type Props = {
   exercises: AdminExerciseItem[]
   actionKey: string | null
+  importRequests?: AdminExerciseImportRequest[]
   locale: "en" | "vi"
   onSave: (data: ExerciseSaveData) => Promise<void>
   onDelete: (exercise: AdminExerciseItem) => Promise<void>
   onImport: () => void
   onDownloadTemplate: () => void
+  onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
 }
 
 export function AdminExercisesPanel({
   exercises,
   actionKey,
+  importRequests = [],
   locale,
   onSave,
   onDelete,
   onImport,
   onDownloadTemplate,
+  onReviewImportRequest,
 }: Props) {
   const [q, setQ] = useState("")
   const [openGroups, setOpenGroups] = useState<string[]>([])
@@ -377,6 +391,68 @@ export function AdminExercisesPanel({
 
   return (
     <div className="space-y-5">
+      {importRequests.length > 0 ? (
+        <div className="rounded-[10px] border border-border bg-card">
+          <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="label-micro text-muted-foreground">{locale === "en" ? "Pending review" : "Chờ duyệt"}</p>
+              <h3 className="text-sm font-semibold text-foreground">
+                {locale === "en" ? "Coach exercise imports" : "Import bài tập từ coach"}
+              </h3>
+            </div>
+            <Badge variant="outline" className="w-fit font-mono text-[11px]">
+              {importRequests.length} pending
+            </Badge>
+          </div>
+          <div className="divide-y divide-border">
+            {importRequests.map((request) => (
+              <div key={request.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {request.fileName ?? (locale === "en" ? "Untitled import" : "File import chưa đặt tên")}
+                    </p>
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      {request.rowCount} rows
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {locale === "en" ? "Submitted by" : "Gửi bởi"} {request.submittedBy.name} ·{" "}
+                    {request.createdAt.toLocaleString(locale === "en" ? "en-US" : "vi-VN")}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="bg-transparent"
+                    disabled={!onReviewImportRequest || actionKey === `exercise-import-review-${request.id}`}
+                    onClick={() => void onReviewImportRequest?.(request.id, "rejected")}
+                  >
+                    <X className="h-4 w-4" />
+                    {locale === "en" ? "Reject" : "Từ chối"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!onReviewImportRequest || actionKey === `exercise-import-review-${request.id}`}
+                    onClick={() => void onReviewImportRequest?.(request.id, "approved")}
+                  >
+                    {actionKey === `exercise-import-review-${request.id}` ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    {locale === "en" ? "Approve" : "Duyệt"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/* Actions toolbar */}
       <div className="flex flex-wrap gap-2">
         <Button

@@ -1,10 +1,13 @@
 import { ExerciseLibraryClient } from "@/components/coach/exercise-library-client"
 import { requireAppSession } from "@/lib/auth/server"
-import { fetchCoachExercises } from "@/lib/fitness/api"
+import { fetchCoachExerciseImportRequests, fetchCoachExercises } from "@/lib/fitness/api"
 
 export default async function CoachExercisesPage() {
   const { accessToken } = await requireAppSession({ role: "coach" })
-  const exercises = await fetchCoachExercises(accessToken)
+  const [exercises, importRequests] = await Promise.all([
+    fetchCoachExercises(accessToken),
+    fetchCoachExerciseImportRequests(accessToken).catch(() => []),
+  ])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
@@ -15,7 +18,7 @@ export default async function CoachExercisesPage() {
         </p>
       </div>
 
-      <ExerciseLibraryClient initialExercises={exercises} />
+      <ExerciseLibraryClient initialExercises={exercises} initialImportRequests={importRequests} />
     </div>
   )
 }

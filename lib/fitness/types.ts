@@ -378,6 +378,43 @@ type CoachExerciseInput = {
   name: string
 }
 
+type CoachExerciseImportRow = {
+  exerciseName: string
+  equipment?: string
+  isDefault?: boolean
+  muscleGroup: string
+  rowNumber: number
+  sortOrder?: number
+  variationName: string
+}
+
+type CoachExerciseImportRequest = {
+  createdAt: Date
+  fileName?: string
+  id: string
+  result?: Record<string, unknown>
+  reviewedAt?: Date
+  reviewedBy: {
+    avatar?: string | null
+    email: string
+    id: string
+    name: string
+    role: string
+  } | null
+  reviewNote?: string
+  rowCount: number
+  rows: CoachExerciseImportRow[]
+  status: "pending" | "approved" | "rejected"
+  submittedBy: {
+    avatar?: string | null
+    email: string
+    id: string
+    name: string
+    role: string
+  }
+  updatedAt: Date
+}
+
 type AppNotificationType =
   | "check_in_reminder"
   | "coach_request"
@@ -420,6 +457,8 @@ export type {
   CoachDashboardRecentWorkoutLog,
   CoachDashboardSummary,
   CoachExercise,
+  CoachExerciseImportRequest,
+  CoachExerciseImportRow,
   CoachExerciseInput,
   CoachProgressSummary,
   CoachProgram,

@@ -51,12 +51,14 @@ import {
   fetchAdminConnections,
   fetchAdminDashboard,
   fetchAdminExercises,
+  fetchAdminExerciseImportRequests,
   fetchAdminPrograms,
   fetchAdminUserDetail,
   fetchAdminUsers,
   importAdminExercisesRequest,
   removeAdminCoachConnection,
   resetAdminUserPasswordRequest,
+  reviewAdminExerciseImportRequest,
   updateAdminCoachRequestStatus,
   updateAdminExerciseRequest,
   updateAdminUserRequest,
@@ -67,6 +69,7 @@ import type {
   AdminConnectionsData,
   AdminDashboardData,
   AdminExerciseItem,
+  AdminExerciseImportRequest,
   AdminExerciseImportRow,
   AdminMiniUser,
   AdminProgramSummary,
@@ -478,6 +481,7 @@ export function AdminConsole() {
   const [connections, setConnections] = useState<AdminConnectionsData | null>(null)
   const [programs, setPrograms] = useState<AdminProgramSummary[]>([])
   const [exercises, setExercises] = useState<AdminExerciseItem[]>([])
+  const [exerciseImportRequests, setExerciseImportRequests] = useState<AdminExerciseImportRequest[]>([])
   const [auditLogs, setAuditLogs] = useState<AdminAuditLogItem[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [selectedRole, setSelectedRole] = useState<UserRole>("trainee")
@@ -550,7 +554,7 @@ export function AdminConsole() {
     setError(null)
 
     try {
-      const [nextDashboard, nextUsers, nextRequests, nextConnections, nextPrograms, nextExercises, nextAuditLogs] =
+      const [nextDashboard, nextUsers, nextRequests, nextConnections, nextPrograms, nextExercises, nextImportRequests, nextAuditLogs] =
         await Promise.all([
           fetchAdminDashboard(accessToken),
           fetchAdminUsers(accessToken),
@@ -558,6 +562,7 @@ export function AdminConsole() {
           fetchAdminConnections(accessToken),
           fetchAdminPrograms(accessToken),
           fetchAdminExercises(accessToken),
+          fetchAdminExerciseImportRequests(accessToken, "pending"),
           fetchAdminAuditLogs(accessToken),
         ])
 
@@ -576,6 +581,7 @@ export function AdminConsole() {
       setConnections(nextConnections)
       setPrograms(nextPrograms)
       setExercises(nextExercises)
+      setExerciseImportRequests(nextImportRequests)
       setAuditLogs(nextAuditLogs)
       setSelectedUserId(nextSelectedUserId)
       setUserDetail(nextUserDetail)
@@ -633,11 +639,13 @@ export function AdminConsole() {
     const token = session.access_token
 
     try {
-      const [nextExercises, nextAuditLogs] = await Promise.all([
+      const [nextExercises, nextImportRequests, nextAuditLogs] = await Promise.all([
         fetchAdminExercises(token),
+        fetchAdminExerciseImportRequests(token, "pending").catch(() => exerciseImportRequests),
         fetchAdminAuditLogs(token).catch(() => auditLogs), // audit is non-critical
       ])
       setExercises(nextExercises)
+      setExerciseImportRequests(nextImportRequests)
       setAuditLogs(nextAuditLogs)
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Không thể tải danh sách bài tập.")
@@ -1066,6 +1074,34 @@ export function AdminConsole() {
       resetImportState()
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "Không thể import danh sách bài tập.")
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  async function handleReviewExerciseImportRequest(requestId: string, status: "approved" | "rejected") {
+    if (!session?.access_token) {
+      return
+    }
+
+    setActionKey(`exercise-import-review-${requestId}`)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const response = await reviewAdminExerciseImportRequest(session.access_token, requestId, { status })
+      setNotice(
+        status === "approved"
+          ? locale === "en"
+            ? `Approved import. Created ${response.result?.createdCount ?? 0} variations and skipped ${response.result?.skippedCount ?? 0}.`
+            : `Đã duyệt import. Tạo ${response.result?.createdCount ?? 0} variation và bỏ qua ${response.result?.skippedCount ?? 0}.`
+          : locale === "en"
+            ? "Import request rejected."
+            : "Đã từ chối yêu cầu import.",
+      )
+      await refreshExercises()
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : "Không thể xử lý yêu cầu import.")
     } finally {
       setActionKey(null)
     }
@@ -1825,11 +1861,13 @@ export function AdminConsole() {
             <AdminExercisesPanel
               exercises={exercises}
               actionKey={actionKey}
+              importRequests={exerciseImportRequests}
               locale={locale}
               onSave={handleSaveExerciseData}
               onDelete={handleDeleteExerciseDirect}
               onImport={() => setIsImportDialogOpen(true)}
               onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
+              onReviewImportRequest={handleReviewExerciseImportRequest}
             />
           </TabsContent>
 

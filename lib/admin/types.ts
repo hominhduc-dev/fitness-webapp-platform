@@ -93,6 +93,21 @@ type AdminExerciseImportResult = {
   totalRows: number
 }
 
+type AdminExerciseImportRequest = {
+  createdAt: Date
+  fileName?: string
+  id: string
+  result?: Record<string, unknown>
+  reviewedAt?: Date
+  reviewedBy: AdminMiniUser | null
+  reviewNote?: string
+  rowCount: number
+  rows: AdminExerciseImportRow[]
+  status: "pending" | "approved" | "rejected"
+  submittedBy: AdminMiniUser
+  updatedAt: Date
+}
+
 type AdminExerciseGroupDeleteSkippedItem = {
   id: string
   name: string
@@ -209,6 +224,7 @@ export type {
   AdminDashboardStats,
   AdminExerciseItem,
   AdminExerciseImportResult,
+  AdminExerciseImportRequest,
   AdminExerciseImportRow,
   AdminExerciseImportSkippedRow,
   AdminExerciseGroupDeleteResult,

@@ -42,6 +42,12 @@ enum CoachRequestStatus {
   rejected
 }
 
+enum ExerciseImportRequestStatus {
+  pending
+  approved
+  rejected
+}
+
 enum WeightUnit {
   kg
   lbs
@@ -106,6 +112,8 @@ model User {
   trainees               User[]              @relation("CoachTrainees")
   meals                  Meal[]
   exercisesCreated       Exercise[]          @relation("ExerciseCreator")
+  exerciseImportRequests ExerciseImportRequest[] @relation("ExerciseImportSubmitter")
+  exerciseImportReviews  ExerciseImportRequest[] @relation("ExerciseImportReviewer")
   foodsCreated           Food[]              @relation("FoodCreator")
   notifications          Notification[]
   programsCreated        Program[]           @relation("ProgramCreator")
@@ -156,6 +164,27 @@ model Variation {
   @@unique([exerciseId, name])
   @@index([equipment])
   @@index([exerciseId, sortOrder])
+}
+
+model ExerciseImportRequest {
+  id            String                      @id @default(uuid()) @db.Uuid
+  submittedById String                      @db.Uuid
+  reviewedById  String?                     @db.Uuid
+  status        ExerciseImportRequestStatus @default(pending)
+  fileName      String?
+  rowCount      Int
+  rows          Json
+  reviewNote    String?
+  result        Json?
+  submittedBy   User                        @relation("ExerciseImportSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewedBy    User?                       @relation("ExerciseImportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt    DateTime?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  @@index([status, createdAt])
+  @@index([submittedById])
+  @@index([reviewedById])
 }
 
 model Food {
