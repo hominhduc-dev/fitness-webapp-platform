@@ -216,13 +216,10 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
       {open && (
         <div className="border-t border-border">
           {/* Column header */}
-          <div
-            className="grid items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2"
-            style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) 80px 64px 56px" }}
-          >
+          <div className="grid grid-cols-[minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]">
             <span className="label-micro text-muted-foreground">Exercise</span>
-            <span className="label-micro text-muted-foreground">Variation</span>
-            <span className="label-micro text-muted-foreground">Equipment</span>
+            <span className="label-micro hidden text-muted-foreground sm:block">Variation</span>
+            <span className="label-micro hidden text-muted-foreground sm:block">Equipment</span>
             <span className="label-micro text-right text-muted-foreground">Uses</span>
             <span />
           </div>
@@ -230,24 +227,30 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
           {exercises.map((e) => (
             <div
               key={e.id}
-              className="grid items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 hover:bg-muted/20"
-              style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) 80px 64px 56px" }}
+              className="grid grid-cols-[minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 hover:bg-muted/20 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]"
             >
-              {/* Name + default badge */}
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
-                {e.isDefault && (
-                  <Badge variant="micro" className="bg-primary/10 text-primary border-primary/20 shrink-0">
-                    Default
-                  </Badge>
-                )}
+              {/* Name + default badge (+ variation/equipment inline on mobile) */}
+              <div className="flex min-w-0 flex-col">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
+                  {e.isDefault && (
+                    <Badge variant="micro" className="bg-primary/10 text-primary border-primary/20 shrink-0">
+                      Default
+                    </Badge>
+                  )}
+                </div>
+                {/* Mobile-only: show variation + equipment under the name */}
+                <span className="truncate text-[11px] text-muted-foreground sm:hidden">
+                  {e.variationName}
+                  {e.equipment ? ` · ${e.equipment}` : ""}
+                </span>
               </div>
 
-              {/* Variation name */}
-              <span className="truncate text-[12px] text-muted-foreground">{e.variationName}</span>
+              {/* Variation name (desktop column) */}
+              <span className="hidden truncate text-[12px] text-muted-foreground sm:block">{e.variationName}</span>
 
-              {/* Equipment */}
-              <span className="text-[12px] text-muted-foreground">{e.equipment ?? "—"}</span>
+              {/* Equipment (desktop column) */}
+              <span className="hidden text-[12px] text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
 
               {/* Usage count */}
               <span className="text-right font-mono text-[12px] text-muted-foreground tnum">

@@ -1796,8 +1796,7 @@ export function AdminConsole() {
               {filteredPrograms.length ? filteredPrograms.map((program) => (
                 <div
                   key={program.id}
-                  className="grid items-center border-t border-border/50 px-4 py-3 first:border-t-0 gap-2"
-                  style={{ gridTemplateColumns: "minmax(0,1fr) 90px 80px 80px auto" }}
+                  className="grid items-center gap-2 border-t border-border/50 px-4 py-3 first:border-t-0 grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_90px_80px_80px_auto]"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">

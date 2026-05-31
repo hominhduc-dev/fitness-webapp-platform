@@ -146,7 +146,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="label-micro">Programs</p>
-        <h1 className="mt-2 text-[36px] font-semibold leading-none tracking-[-0.02em]">{programs.length} authored.</h1>
+        <h1 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{programs.length} authored.</h1>
         <p className="mt-1.5 font-mono text-[13px] tnum text-muted-foreground">
           {totalAssignments} clients training on a program · {unassigned} unassigned
         </p>
