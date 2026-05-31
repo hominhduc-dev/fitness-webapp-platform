@@ -1,4 +1,4 @@
-import { CoachRequestStatus, UserRole } from "@prisma/client"
+import { CoachRequestStatus, ExerciseImportRequestStatus, UserRole } from "@prisma/client"
 import { Router } from "express"
 
 import { AuthServiceError, requireCurrentProfile } from "../services/auth.service"
@@ -16,10 +16,12 @@ import {
   listAdminCoachRequests,
   listAdminConnections,
   listAdminExercises,
+  listAdminExerciseImportRequests,
   listAdminPrograms,
   listAdminUsers,
   removeAdminCoachFromTrainee,
   resetAdminUserPassword,
+  reviewExerciseImportRequest,
   updateAdminCoachRequest,
   updateAdminExercise,
   updateAdminUser,
@@ -30,6 +32,24 @@ const adminRouter = Router()
 
 function getOptionalString(value: unknown) {
   return typeof value === "string" ? value : undefined
+}
+
+function parseExerciseImportRows(body: Record<string, unknown>) {
+  return Array.isArray(body.rows)
+    ? body.rows.map((row: unknown) => {
+        const source = row && typeof row === "object" ? (row as Record<string, unknown>) : {}
+
+        return {
+          exerciseName: getOptionalString(source.exerciseName) ?? getOptionalString(source.name),
+          equipment: getOptionalString(source.equipment),
+          isDefault: typeof source.isDefault === "boolean" ? source.isDefault : undefined,
+          muscleGroup: getOptionalString(source.muscleGroup),
+          rowNumber: typeof source.rowNumber === "number" ? source.rowNumber : undefined,
+          sortOrder: typeof source.sortOrder === "number" ? source.sortOrder : undefined,
+          variationName: getOptionalString(source.variationName),
+        }
+      })
+    : []
 }
 
 function parseRole(value: unknown) {
@@ -257,26 +277,48 @@ adminRouter.post("/exercises", async (req, res) => {
 adminRouter.post("/exercises/import", async (req, res) => {
   try {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const rows = Array.isArray(req.body.rows)
-      ? req.body.rows.map((row: unknown) => {
-          const source = row && typeof row === "object" ? (row as Record<string, unknown>) : {}
-
-          return {
-            exerciseName: getOptionalString(source.exerciseName) ?? getOptionalString(source.name),
-            equipment: getOptionalString(source.equipment),
-            isDefault: typeof source.isDefault === "boolean" ? source.isDefault : undefined,
-            muscleGroup: getOptionalString(source.muscleGroup),
-            rowNumber: typeof source.rowNumber === "number" ? source.rowNumber : undefined,
-            sortOrder: typeof source.sortOrder === "number" ? source.sortOrder : undefined,
-            variationName: getOptionalString(source.variationName),
-          }
-        })
-      : []
+    const rows = parseExerciseImportRows(req.body)
     const result = await importAdminExercises(profile, rows)
 
     res.status(201).json({
       result,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.get("/exercise-import-requests", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const status = Object.values(ExerciseImportRequestStatus).includes(req.query.status as ExerciseImportRequestStatus)
+      ? (req.query.status as ExerciseImportRequestStatus)
+      : undefined
+    const requests = await listAdminExerciseImportRequests(profile, { status })
+
+    res.json({
+      requests,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.patch("/exercise-import-requests/:requestId", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const status = req.body.status === "approved" ? "approved" : req.body.status === "rejected" ? "rejected" : null
+
+    if (!status) {
+      throw new AuthServiceError("Trạng thái duyệt import không hợp lệ.", 400)
+    }
+
+    const result = await reviewExerciseImportRequest(profile, String(req.params.requestId), {
+      reviewNote: getOptionalString(req.body.reviewNote),
+      status,
+    })
+
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }

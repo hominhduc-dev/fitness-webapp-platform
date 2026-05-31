@@ -9,6 +9,7 @@ import type {
   AdminExerciseGroupDeleteResult,
   AdminExerciseItem,
   AdminExerciseImportResult,
+  AdminExerciseImportRequest,
   AdminExerciseImportRow,
   AdminMiniUser,
   AdminProgramSummary,
@@ -38,6 +39,11 @@ type SerializedAdminExerciseItem = Omit<AdminExerciseItem, "createdAt" | "update
 }
 
 type SerializedAdminExerciseImportResult = AdminExerciseImportResult
+type SerializedAdminExerciseImportRequest = Omit<AdminExerciseImportRequest, "createdAt" | "reviewedAt" | "updatedAt"> & {
+  createdAt: string
+  reviewedAt?: string
+  updatedAt: string
+}
 type SerializedAdminExerciseGroupDeleteResult = AdminExerciseGroupDeleteResult
 
 type SerializedAdminAuditLogItem = Omit<AdminAuditLogItem, "createdAt"> & {
@@ -169,6 +175,15 @@ function mapAdminExerciseItem(exercise: SerializedAdminExerciseItem): AdminExerc
     ...exercise,
     createdAt: new Date(exercise.createdAt),
     updatedAt: new Date(exercise.updatedAt),
+  }
+}
+
+function mapAdminExerciseImportRequest(requestItem: SerializedAdminExerciseImportRequest): AdminExerciseImportRequest {
+  return {
+    ...requestItem,
+    createdAt: new Date(requestItem.createdAt),
+    reviewedAt: requestItem.reviewedAt ? new Date(requestItem.reviewedAt) : undefined,
+    updatedAt: new Date(requestItem.updatedAt),
   }
 }
 
@@ -433,6 +448,39 @@ async function importAdminExercisesRequest(accessToken: string, rows: AdminExerc
   return response.result
 }
 
+async function fetchAdminExerciseImportRequests(accessToken: string, status?: AdminExerciseImportRequest["status"]) {
+  const query = buildQuery({
+    status,
+  })
+  const response = await request<{ requests: SerializedAdminExerciseImportRequest[] }>(
+    `/api/admin/exercise-import-requests${query}`,
+    accessToken,
+  )
+  return response.requests.map(mapAdminExerciseImportRequest)
+}
+
+async function reviewAdminExerciseImportRequest(
+  accessToken: string,
+  requestId: string,
+  input: {
+    reviewNote?: string
+    status: "approved" | "rejected"
+  },
+) {
+  const response = await request<{
+    request: SerializedAdminExerciseImportRequest
+    result?: SerializedAdminExerciseImportResult
+  }>(`/api/admin/exercise-import-requests/${requestId}`, accessToken, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+
+  return {
+    request: mapAdminExerciseImportRequest(response.request),
+    result: response.result,
+  }
+}
+
 async function fetchAdminAuditLogs(accessToken: string, options?: { entityType?: string; search?: string }) {
   const query = buildQuery({
     entityType: options?.entityType,
@@ -454,12 +502,14 @@ export {
   fetchAdminConnections,
   fetchAdminDashboard,
   fetchAdminExercises,
+  fetchAdminExerciseImportRequests,
   fetchAdminPrograms,
   fetchAdminUserDetail,
   fetchAdminUsers,
   importAdminExercisesRequest,
   removeAdminCoachConnection,
   resetAdminUserPasswordRequest,
+  reviewAdminExerciseImportRequest,
   updateAdminCoachRequestStatus,
   updateAdminExerciseRequest,
   updateAdminUserRequest,

@@ -17,11 +17,13 @@ import {
   getCoachDashboard,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  listCoachExerciseImportRequests,
   listCoachExercises,
   listAvailableCoachesForTrainee,
   listCoachPrograms,
   listCoachWorkoutLogsForTrainee,
   listCoachTrainees,
+  submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
   updateCoachExercise,
   updateCoachProgram,
@@ -31,6 +33,28 @@ import {
 import { getAccessToken, sendError } from "./route.utils"
 
 const coachRouter = Router()
+
+function getOptionalString(value: unknown) {
+  return typeof value === "string" ? value : undefined
+}
+
+function parseExerciseImportRows(body: Record<string, unknown>) {
+  return Array.isArray(body.rows)
+    ? body.rows.map((row: unknown) => {
+        const source = row && typeof row === "object" ? (row as Record<string, unknown>) : {}
+
+        return {
+          exerciseName: getOptionalString(source.exerciseName) ?? getOptionalString(source.name),
+          equipment: getOptionalString(source.equipment),
+          isDefault: typeof source.isDefault === "boolean" ? source.isDefault : undefined,
+          muscleGroup: getOptionalString(source.muscleGroup),
+          rowNumber: typeof source.rowNumber === "number" ? source.rowNumber : undefined,
+          sortOrder: typeof source.sortOrder === "number" ? source.sortOrder : undefined,
+          variationName: getOptionalString(source.variationName),
+        }
+      })
+    : []
+}
 
 function parseProgramInput(body: Record<string, unknown>) {
   return {
@@ -228,6 +252,35 @@ coachRouter.post("/exercises", async (req, res) => {
 
     res.status(201).json({
       exercise,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.get("/exercise-import-requests", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const requests = await listCoachExerciseImportRequests(profile.profile)
+
+    res.json({
+      requests,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/exercise-import-requests", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const request = await submitCoachExerciseImportRequest(profile.profile, {
+      fileName: getOptionalString(req.body.fileName),
+      rows: parseExerciseImportRows(req.body),
+    })
+
+    res.status(201).json({
+      request,
     })
   } catch (error) {
     sendError(res, error)

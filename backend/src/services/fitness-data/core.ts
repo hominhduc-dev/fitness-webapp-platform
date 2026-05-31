@@ -1,5 +1,6 @@
 import {
   $Enums,
+  ExerciseImportRequestStatus,
   Prisma,
   type BodyMetricEntry,
   CoachRequestStatus,
@@ -15,6 +16,7 @@ import {
   type Notification,
   type User,
   type Variation,
+  type ExerciseImportRequest,
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
@@ -118,6 +120,21 @@ type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
 }>
 
 type NotificationRecord = Notification
+
+type ExerciseImportRequestRecord = ExerciseImportRequest & {
+  reviewedBy: User | null
+  submittedBy: User
+}
+
+type ExerciseImportRowInput = {
+  exerciseName?: string
+  equipment?: string
+  isDefault?: boolean
+  muscleGroup?: string
+  rowNumber?: number
+  sortOrder?: number
+  variationName?: string
+}
 
 type ProgressAnalyticsLogRecord = {
   exerciseSnapshot: Prisma.JsonValue | null
@@ -325,6 +342,92 @@ function canProfileAccessExercise(createdById: string | null | undefined, profil
   }
 
   return profile?.role === UserRole.coach
+}
+
+function sanitizeImportText(value?: string | null) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function normalizeCoachExerciseImportRows(rows: ExerciseImportRowInput[]) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new AuthServiceError("File import không có dữ liệu bài tập hợp lệ.", 400)
+  }
+
+  if (rows.length > 1000) {
+    throw new AuthServiceError("Chỉ hỗ trợ import tối đa 1000 dòng mỗi lần.", 400)
+  }
+
+  const sanitizedRows = rows.map((row, index) => ({
+    exerciseName: sanitizeImportText(row.exerciseName),
+    equipment: sanitizeImportText(row.equipment),
+    isDefault: row.isDefault === true,
+    muscleGroup: sanitizeImportText(row.muscleGroup),
+    rowNumber: row.rowNumber ?? index + 2,
+    sortOrder:
+      typeof row.sortOrder === "number" && Number.isFinite(row.sortOrder)
+        ? Math.max(0, Math.round(row.sortOrder))
+        : undefined,
+    variationName: sanitizeImportText(row.variationName) ?? "Default",
+  }))
+
+  const invalidRows = sanitizedRows.filter((row) => !row.exerciseName || !row.muscleGroup || !row.variationName)
+
+  if (invalidRows.length > 0) {
+    const invalidPreview = invalidRows
+      .slice(0, 5)
+      .map((row) => row.rowNumber)
+      .join(", ")
+
+    throw new AuthServiceError(
+      `Có dòng thiếu exercise name, muscle group hoặc variation name. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
+      400,
+    )
+  }
+
+  return sanitizedRows.map((row) => ({
+    exerciseName: row.exerciseName as string,
+    equipment: row.equipment,
+    isDefault: row.isDefault,
+    muscleGroup: row.muscleGroup as string,
+    rowNumber: row.rowNumber,
+    sortOrder: row.sortOrder,
+    variationName: row.variationName as string,
+  }))
+}
+
+function serializeExerciseImportRequest(request: ExerciseImportRequestRecord) {
+  return {
+    createdAt: request.createdAt,
+    fileName: request.fileName ?? undefined,
+    id: request.id,
+    result:
+      request.result && typeof request.result === "object" && !Array.isArray(request.result)
+        ? (request.result as Record<string, unknown>)
+        : undefined,
+    reviewedAt: request.reviewedAt ?? undefined,
+    reviewedBy: request.reviewedBy
+      ? {
+          avatar: request.reviewedBy.avatar,
+          email: request.reviewedBy.email,
+          id: request.reviewedBy.id,
+          name: request.reviewedBy.name,
+          role: request.reviewedBy.role,
+        }
+      : null,
+    reviewNote: request.reviewNote ?? undefined,
+    rowCount: request.rowCount,
+    rows: Array.isArray(request.rows) ? request.rows : [],
+    status: request.status,
+    submittedBy: {
+      avatar: request.submittedBy.avatar,
+      email: request.submittedBy.email,
+      id: request.submittedBy.id,
+      name: request.submittedBy.name,
+      role: request.submittedBy.role,
+    },
+    updatedAt: request.updatedAt,
+  }
 }
 
 function serializeVariationOption(
@@ -1784,6 +1887,55 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
     deleted: true,
     id: exerciseId,
   }
+}
+
+async function submitCoachExerciseImportRequest(
+  profile: SerializedProfile,
+  input: {
+    fileName?: string
+    rows: ExerciseImportRowInput[]
+  },
+) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const rows = normalizeCoachExerciseImportRows(input.rows)
+
+  const request = await db.exerciseImportRequest.create({
+    data: {
+      fileName: sanitizeImportText(input.fileName),
+      rowCount: rows.length,
+      rows: rows as Prisma.InputJsonValue,
+      submittedById: profile.id,
+    },
+    include: {
+      reviewedBy: true,
+      submittedBy: true,
+    },
+  })
+
+  return serializeExerciseImportRequest(request as ExerciseImportRequestRecord)
+}
+
+async function listCoachExerciseImportRequests(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const requests = await db.exerciseImportRequest.findMany({
+    include: {
+      reviewedBy: true,
+      submittedBy: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 20,
+    where: {
+      submittedById: profile.id,
+    },
+  })
+
+  return requests.map((request) => serializeExerciseImportRequest(request as ExerciseImportRequestRecord))
 }
 
 async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
@@ -4432,6 +4584,7 @@ export {
   getYearViewForTrainee,
   listAvailableCoachesForTrainee,
   listBodyMetricsForCurrentTrainee,
+  listCoachExerciseImportRequests,
   listExerciseLibrary,
   listCoachExercises,
   listCoachPrograms,
@@ -4445,6 +4598,7 @@ export {
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,
   resetCurrentTraineeData,
+  submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
   updateCoachExercise,
   updateCoachProgram,
