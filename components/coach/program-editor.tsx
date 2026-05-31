@@ -617,7 +617,7 @@ function RoutineBuilderDialog({
         className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)] sm:max-w-[680px]"
       >
         {/* Header — same structure as ProgramEditor */}
-        <div className="border-b border-border px-7 pb-[18px] pt-6">
+        <div className="border-b border-border px-4 pb-[18px] pt-6 md:px-7">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="label-micro mb-1.5">{isEditMode ? "Edit routine" : "New routine"}</p>
@@ -1418,7 +1418,7 @@ export function ProgramEditor({
       ) : null}
 
       <div className="flex w-full max-w-[880px] flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_24px_60px_-12px_rgba(13,13,11,0.18)]">
-        <div className="border-b border-border px-7 pb-[18px] pt-6">
+        <div className="border-b border-border px-4 pb-[18px] pt-6 md:px-7">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="label-micro mb-1.5">{isAdjustMode ? "Adjust program" : programId ? "Edit program" : "New program"}</p>
