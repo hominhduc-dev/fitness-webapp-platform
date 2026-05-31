@@ -211,6 +211,7 @@ interface LiftSetRowProps {
 function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
   const [weight, setWeight] = useState(set.weight?.toString() ?? "")
   const [reps, setReps] = useState(set.actualReps?.toString() ?? set.targetReps.toString())
+  const [rir, setRir] = useState(set.rir?.toString() ?? "")
   const [completed, setCompleted] = useState(set.completed)
 
   useEffect(() => {
@@ -224,6 +225,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
       completed: next,
       weight: Number.parseFloat(weight) || undefined,
       actualReps: Number.parseInt(reps) || set.targetReps,
+      rir: rir.trim() ? Number.parseInt(rir) : undefined,
     })
   }
 
@@ -231,15 +233,15 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
     ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
     : "— · —"
 
-  // Desktop: Set | Type | Previous | kg | Reps | actions  (6 cols)
-  // Mobile:  Set | Type | kg | Reps | actions            (5 cols, no Previous)
+  // Desktop: Set | Type | Previous | kg | Reps | RIR | actions  (7 cols)
+  // Mobile:  Set | Type | kg | Reps | RIR | actions              (6 cols, no Previous)
   return (
     <div
       className={cn(
         "grid items-center border-b border-border last:border-0",
-        // desktop 6-col, mobile 5-col
-        "grid-cols-[36px_50px_minmax(0,1fr)_minmax(0,1fr)_58px] gap-2",
-        "md:grid-cols-[56px_70px_1fr_92px_92px_58px] md:gap-3",
+        // desktop 7-col, mobile 6-col
+        "grid-cols-[32px_44px_minmax(0,1fr)_minmax(0,1fr)_56px_54px] gap-1.5",
+        "md:grid-cols-[56px_70px_1fr_88px_88px_72px_58px] md:gap-3",
         "px-3 py-[10px] md:px-4",
         "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
         completed ? "bg-muted" : "bg-transparent",
@@ -310,6 +312,32 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
         }}
         placeholder="—"
         aria-label="Reps"
+        className={cn(
+          "w-full font-mono text-[14px] text-center rounded-md",
+          "border transition-colors duration-[180ms]",
+          "focus:outline-none focus:ring-1 focus:ring-primary",
+          "h-8 px-1",
+          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          completed
+            ? "border-transparent bg-transparent text-muted-foreground"
+            : "border-border bg-background text-foreground",
+        )}
+        style={{ fontFeatureSettings: '"tnum" 1' }}
+      />
+
+      {/* RIR input */}
+      <input
+        type="number"
+        inputMode="numeric"
+        value={rir}
+        onChange={(e) => {
+          setRir(e.target.value)
+          onChange({ rir: e.target.value.trim() ? Number.parseInt(e.target.value) : undefined })
+        }}
+        placeholder={set.rir != null ? String(set.rir) : "—"}
+        aria-label="RIR"
+        min={0}
+        max={10}
         className={cn(
           "w-full font-mono text-[14px] text-center rounded-md",
           "border transition-colors duration-[180ms]",
@@ -404,8 +432,8 @@ function LiftExerciseBlock({
       <div
         className={cn(
           "grid items-center border-b border-border",
-          "grid-cols-[36px_50px_minmax(0,1fr)_minmax(0,1fr)_58px] gap-2",
-          "md:grid-cols-[56px_70px_1fr_92px_92px_58px] md:gap-3",
+          "grid-cols-[32px_44px_minmax(0,1fr)_minmax(0,1fr)_56px_54px] gap-1.5",
+          "md:grid-cols-[56px_70px_1fr_88px_88px_72px_58px] md:gap-3",
           "px-3 py-2 md:px-4",
           "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
         )}
@@ -415,6 +443,7 @@ function LiftExerciseBlock({
         <span className="hidden md:block">Previous</span>
         <span>{weightUnit}</span>
         <span>Reps</span>
+        <span className="text-center">RIR</span>
         <span />
       </div>
 
