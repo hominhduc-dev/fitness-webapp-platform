@@ -717,7 +717,117 @@ async function downloadCoachWorkoutLogsWorkbook(
   downloadCoachWorkoutLogsWorkbookFile(workbookFile)
 }
 
+/**
+ * Add the Weekly Report sheet (template-based) to an existing ExcelJS workbook.
+ * Inserts as the first sheet.
+ * @param workbook  ExcelJS Workbook instance to add the sheet into.
+ * @param logs      Workout logs to render.
+ * @param fromDate  Reference start date in YYYY-MM-DD format (used as weekStart anchor).
+ */
+async function addWeeklyReportSheet(
+  workbook: import("exceljs").Workbook,
+  logs: WorkoutLog[],
+  fromDate: string,
+): Promise<void> {
+  if (logs.length === 0) return
+
+  const templateResponse = await fetch(TEMPLATE_URL)
+  if (!templateResponse.ok) {
+    throw new Error("Không tải được template weekly report.")
+  }
+
+  const templateBuffer = await templateResponse.arrayBuffer()
+  const ExcelJS = await import("exceljs")
+  const templateWorkbook = new ExcelJS.Workbook()
+  await templateWorkbook.xlsx.load(templateBuffer)
+
+  const templateSheet = templateWorkbook.worksheets[0]
+  if (!templateSheet) {
+    throw new Error("Template weekly report không hợp lệ.")
+  }
+
+  // Clone template sheet into the target workbook as first sheet
+  const reportSheet = workbook.addWorksheet("Weekly Report", { properties: { tabColor: { argb: "FF1A1A1A" } } })
+
+  // Copy row data & styles from template
+  templateSheet.eachRow({ includeEmpty: true }, (srcRow, rowNumber) => {
+    const destRow = reportSheet.getRow(rowNumber)
+    destRow.height = srcRow.height ?? undefined
+    srcRow.eachCell({ includeEmpty: true }, (srcCell, colNumber) => {
+      const destCell = destRow.getCell(colNumber)
+      destCell.value = srcCell.value
+      destCell.style = JSON.parse(JSON.stringify(srcCell.style ?? {})) as typeof srcCell.style
+    })
+  })
+
+  // Copy column widths
+  templateSheet.columns.forEach((col, idx) => {
+    if (col.width) reportSheet.getColumn(idx + 1).width = col.width
+  })
+
+  // Copy merge info (best-effort)
+  templateSheet.model.merges?.forEach((range: string) => {
+    try { reportSheet.mergeCells(range) } catch { /* skip already merged */ }
+  })
+
+  // Now fill in the data — same logic as buildCoachWorkoutLogsWorkbookFile
+  reportSheet.name = "Weekly Report"
+  reportSheet.getColumn(1).width = 18
+
+  const styles = captureStyles(reportSheet)
+  const summaryLabels = Array.from(
+    { length: SUMMARY_TOTAL_ROW - SUMMARY_ITEM_START_ROW },
+    (_v, i) => String(reportSheet.getCell(SUMMARY_ITEM_START_ROW + i, SUMMARY_LABEL_COLUMN).value ?? "").trim(),
+  ).filter(Boolean)
+
+  TEMPLATE_MERGES.forEach((range) => {
+    try { reportSheet.unMergeCells(range) } catch { /* ignore */ }
+  })
+
+  const { mergeRanges, rows } = buildReportRows(logs, fromDate)
+  const maxRow = Math.max(reportSheet.rowCount, REPORT_START_ROW + rows.length + 12)
+  clearReportArea(reportSheet, maxRow)
+
+  reportSheet.getCell("A2").value = formatWeekTitle(fromDate)
+
+  rows.forEach((row, index) => {
+    const rowNumber = REPORT_START_ROW + index
+    const rowHeight = row.isFirstRowInDay ? styles.firstDataHeight : styles.continuationDataHeight
+    if (typeof rowHeight === "number") reportSheet.getRow(rowNumber).height = rowHeight
+
+    applyStylesToRange(
+      reportSheet,
+      rowNumber,
+      row.isFirstRowInDay ? styles.firstDataStyles : styles.continuationDataStyles,
+      Array.from({ length: DATA_END_COLUMN }, (_v, i) => i + 1),
+    )
+
+    reportSheet.getCell(rowNumber, 2).value = row.muscleGroup
+    reportSheet.getCell(rowNumber, 3).value = row.exerciseName
+    reportSheet.getCell(rowNumber, 4).value = row.variationName
+    reportSheet.getCell(rowNumber, 7).value = row.completedSets || null
+    reportSheet.getCell(rowNumber, 8).value = row.repCells[0]
+    reportSheet.getCell(rowNumber, 9).value = row.repCells[1]
+    reportSheet.getCell(rowNumber, 10).value = row.repCells[2]
+    reportSheet.getCell(rowNumber, 11).value = row.repCells[3]
+    reportSheet.getCell(rowNumber, 12).value = row.weightSummary
+    reportSheet.getCell(rowNumber, 13).value = row.targetSummary
+    reportSheet.getCell(rowNumber, 14).value = row.rirSummary
+    reportSheet.getCell(rowNumber, 15).value = row.note
+  })
+
+  mergeRanges.forEach((range) => {
+    reportSheet.getCell(range.startRow, 1).value = range.dayLabel
+    if (range.endRow > range.startRow) {
+      reportSheet.mergeCells(range.startRow, 1, range.endRow, 1)
+    }
+  })
+
+  rebuildSummary(reportSheet, styles, summaryLabels, REPORT_START_ROW + rows.length - 1)
+}
+
 export {
+  addWeeklyReportSheet,
   createCoachWorkoutLogsWorkbookPreview,
   downloadCoachWorkoutLogsWorkbook,
   downloadCoachWorkoutLogsWorkbookFile,
