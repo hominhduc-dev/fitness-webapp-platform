@@ -67,7 +67,14 @@ export async function buildWorkoutLogsFile(logs: WorkoutLog[], options: WorkoutE
   workbook.creator = "YeahBuddy"
   workbook.created = new Date()
 
+  // Sheet 1: Weekly Report (template-based)
+  const { addWeeklyReportSheet } = await import("@/components/coach/trainee-workout-logs-excel")
+  await addWeeklyReportSheet(workbook, logs, options.from)
+
+  // Sheet 2: Sessions summary
   buildSessionsSheet(workbook, logs, options)
+
+  // Sheet 3: Raw Sets
   buildRawSetsSheet(workbook, logs)
 
   const safeLabel = sanitizeSegment(options.label) || "export"
