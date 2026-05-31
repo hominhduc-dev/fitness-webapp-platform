@@ -17,6 +17,7 @@ type ProgramFieldKey = "assignToEmails" | "description" | "difficulty" | "durati
 type WorkoutColumnKey =
   | "exerciseName"
   | "reps"
+  | "rirRpe"
   | "scheduledDay"
   | "sets"
   | "variationId"
@@ -86,6 +87,7 @@ const PROGRAM_FIELD_ALIASES: Record<ProgramFieldKey, string[]> = {
 const WORKOUT_COLUMN_ALIASES: Record<WorkoutColumnKey, string[]> = {
   exerciseName: ["exercise", "exercise_name", "exercisename"],
   reps: ["reps", "reps_range", "repsrange", "target_reps", "targetreps", "target_reps_range", "targetrepsrange"],
+  rirRpe: ["rir_rpe", "rirrpe", "rir&rpe", "rir", "rpe"],
   scheduledDay: ["day", "scheduled_day", "scheduledday", "weekday"],
   sets: ["sets"],
   variationId: ["exercise_variation_id", "variation_id", "variationid"],
@@ -687,6 +689,8 @@ function parseWorkoutRows(
 
     const weightRaw = normalizeText(typeof columnMap.weight === "number" ? row[columnMap.weight] : "")
     const parsedWeight = Number(weightRaw)
+    const rirRaw = normalizeText(typeof columnMap.rirRpe === "number" ? row[columnMap.rirRpe] : "")
+    const parsedRir = parsePositiveInteger(rirRaw)
     const key = `${workoutName}::${scheduledDay}`
     const workout = groupedWorkouts.get(key) ?? {
       exercises: [],
@@ -697,6 +701,7 @@ function parseWorkoutRows(
     workout.exercises.push({
       reps: repTarget.reps,
       repsMin: repTarget.repsMin,
+      rir: parsedRir,
       sets,
       variationId: variation.id,
       weight: weightRaw && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
@@ -757,75 +762,182 @@ async function importCoachProgramTemplate(
   }
 }
 
+// ── ExcelJS-based template download ──────────────────────────────────────────
+
+type SampleWorkoutRow = {
+  displayName: string
+  repsRange: string
+  scheduledDay: string
+  sets: number
+  weight: number | ""
+  workoutName: string
+}
+
+function buildSampleWorkoutExcelRows(exercises: ExerciseVariationOption[]): SampleWorkoutRow[] {
+  const usedVariationIds = new Set<string>()
+  const rows: SampleWorkoutRow[] = []
+
+  SAMPLE_WORKOUT_PLANS.forEach((plan) => {
+    plan.slots.forEach((slot) => {
+      const selected = selectSampleExercise(exercises, slot, usedVariationIds)
+      if (!selected) return
+      usedVariationIds.add(selected.id)
+      rows.push({
+        displayName: selected.name,
+        repsRange: slot.repsRange,
+        scheduledDay: plan.scheduledDay,
+        sets: slot.sets,
+        weight: slot.weight ?? "",
+        workoutName: plan.name,
+      })
+    })
+  })
+
+  return rows
+}
+
+function styleHeaderRow(sheet: import("exceljs").Worksheet) {
+  sheet.getRow(1).eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 }
+    cell.fill = { fgColor: { argb: "FF1A1A1A" }, pattern: "solid", type: "pattern" }
+    cell.alignment = { vertical: "middle" }
+  })
+  sheet.getRow(1).height = 20
+}
+
 async function downloadCoachProgramTemplate(
   exercises: ExerciseVariationOption[],
   trainees: CoachTrainee[],
 ) {
-  const XLSX = await import("xlsx")
-  const workbook = XLSX.utils.book_new()
-  const sampleProgramRows = buildSampleProgramRows(trainees)
-  const sampleWorkoutRows = buildSampleWorkoutRows(exercises)
-  const instructionsSheet = XLSX.utils.aoa_to_sheet([
-    ["Coach program import template"],
-    ["1. This workbook already includes a ready-to-import sample schedule."],
-    ["2. Edit the Program sheet for metadata and trainee assignment before importing."],
-    ["3. The Workouts sheet is prefilled with sample rows based on your current exercise library."],
-    ["4. Each row in Workouts is one exercise inside one workout day."],
-    ["5. scheduled_day accepts 0-6, 7, English day names, Vietnamese aliases like T2/CN, and Day 1-Day 7."],
-    ["6. reps_range accepts a single target like 10 or a range like 8-12."],
-    ["7. variation_id is already filled for reliability. Keep it unless you intentionally change the exercise."],
-    ["8. assign_to_emails is optional. Use emails from the Trainees sheet if you want to assign the program on save."],
-  ])
-  const programSheet = XLSX.utils.aoa_to_sheet(sampleProgramRows)
-  const workoutsSheet = XLSX.utils.aoa_to_sheet(sampleWorkoutRows)
-  const referenceSheet = XLSX.utils.aoa_to_sheet([
-    ["variation_id", "exercise_name", "variation_name", "display_name", "muscle_group", "equipment"],
-    ...exercises.map((exercise) => [
-      exercise.id,
-      exercise.exerciseName,
-      exercise.variationName,
-      exercise.name,
-      exercise.muscleGroup,
-      exercise.equipment ?? "",
-    ]),
-  ])
-  const traineesSheet = XLSX.utils.aoa_to_sheet([
-    ["trainee_name", "email"],
-    ...trainees.map((trainee) => [trainee.name, trainee.email]),
-  ])
+  const ExcelJS = await import("exceljs")
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = "YeahBuddy"
+  workbook.created = new Date()
 
-  instructionsSheet["!cols"] = [{ wch: 110 }]
-  programSheet["!cols"] = [{ wch: 22 }, { wch: 70 }]
-  workoutsSheet["!cols"] = [
-    { wch: 24 },
-    { wch: 16 },
-    { wch: 28 },
-    { wch: 24 },
-    { wch: 40 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 12 },
+  const exerciseCount = exercises.length
+  // Data rows to apply dropdown/formula to (enough for any realistic program)
+  const DATA_ROWS = 500
+
+  // ── 1. Program sheet ──────────────────────────────────────────────────────
+  const programSheet = workbook.addWorksheet(PROGRAM_SHEET_NAME)
+  programSheet.columns = [
+    { header: "field", key: "field", width: 22 },
+    { header: "value", key: "value", width: 70 },
   ]
-  referenceSheet["!cols"] = [{ wch: 40 }, { wch: 28 }, { wch: 22 }, { wch: 32 }, { wch: 18 }, { wch: 18 }]
-  traineesSheet["!cols"] = [{ wch: 28 }, { wch: 34 }]
+  styleHeaderRow(programSheet)
 
-  // Freeze panes
-  // Program: freeze cột "field" (col A) + header row
-  programSheet["!views"] = [{ state: "frozen", xSplit: 1, ySplit: 1 }]
-  // Workouts: freeze 2 cột đầu (workout_name, scheduled_day) + header row
-  workoutsSheet["!views"] = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
-  // Reference: freeze 2 cột đầu (variation_id, exercise_name) + header row
-  referenceSheet["!views"] = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
-  // Trainees: freeze header row
-  traineesSheet["!views"] = [{ state: "frozen", ySplit: 1 }]
+  const programFieldData: Array<[string, string]> = [
+    ["name", "Sample 4-Day Strength Program"],
+    ["description", "Sample schedule generated from your exercise library. Edit before importing."],
+    ["duration_weeks", "8"],
+    ["difficulty", "intermediate"],
+    ["assign_to_emails", ""],
+  ]
+  programFieldData.forEach(([f, v]) => programSheet.addRow([f, v]))
+  programSheet.views = [{ state: "frozen", xSplit: 1, ySplit: 1 }]
 
-  XLSX.utils.book_append_sheet(workbook, programSheet, PROGRAM_SHEET_NAME)
-  XLSX.utils.book_append_sheet(workbook, workoutsSheet, WORKOUTS_SHEET_NAME)
-  XLSX.utils.book_append_sheet(workbook, instructionsSheet, INSTRUCTIONS_SHEET_NAME)
-  XLSX.utils.book_append_sheet(workbook, referenceSheet, REFERENCE_SHEET_NAME)
-  XLSX.utils.book_append_sheet(workbook, traineesSheet, TRAINEES_SHEET_NAME)
+  // ── 2. Workouts sheet ─────────────────────────────────────────────────────
+  const workoutsSheet = workbook.addWorksheet(WORKOUTS_SHEET_NAME)
+  workoutsSheet.columns = [
+    { header: "workout_name", key: "workout_name", width: 24 },
+    { header: "scheduled_day", key: "scheduled_day", width: 16 },
+    { header: "exercise_name", key: "exercise_name", width: 36 },
+    { header: "variation_id", key: "variation_id", width: 40 },
+    { header: "sets", key: "sets", width: 10 },
+    { header: "reps_range", key: "reps_range", width: 12 },
+    { header: "weight", key: "weight", width: 12 },
+    { header: "rir_rpe", key: "rir_rpe", width: 12 },
+  ]
+  styleHeaderRow(workoutsSheet)
 
-  XLSX.writeFile(workbook, "coach-program-template.xlsx")
+  // Add dropdown (data validation) on exercise_name column (C) for all data rows
+  const droplistFormula = `Reference!$D$2:$D$${exerciseCount + 1}`
+  for (let row = 2; row <= DATA_ROWS + 1; row++) {
+    workoutsSheet.getCell(row, 3).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      formulae: [droplistFormula],
+      showErrorMessage: false,
+    }
+  }
+
+  // Add formula for variation_id (col D) for all data rows
+  for (let row = 2; row <= DATA_ROWS + 1; row++) {
+    workoutsSheet.getCell(row, 4).value = {
+      formula: `IFERROR(INDEX(Reference!$A:$A,MATCH(C${row},Reference!$D:$D,0)),"")`,
+    }
+  }
+
+  // Add sample data rows on top of the formulas
+  const sampleRows = buildSampleWorkoutExcelRows(exercises)
+  sampleRows.forEach((row, idx) => {
+    const rowNum = idx + 2
+    workoutsSheet.getCell(rowNum, 1).value = row.workoutName
+    workoutsSheet.getCell(rowNum, 2).value = row.scheduledDay
+    workoutsSheet.getCell(rowNum, 3).value = row.displayName
+    // Col D: keep the formula (already set above — will auto-resolve on open)
+    workoutsSheet.getCell(rowNum, 5).value = row.sets
+    workoutsSheet.getCell(rowNum, 6).value = row.repsRange
+    workoutsSheet.getCell(rowNum, 7).value = row.weight
+    workoutsSheet.getCell(rowNum, 8).value = ""
+  })
+
+  workoutsSheet.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
+
+  // ── 3. Instructions sheet ─────────────────────────────────────────────────
+  const instructionsSheet = workbook.addWorksheet(INSTRUCTIONS_SHEET_NAME)
+  instructionsSheet.columns = [{ header: "Coach program import template", key: "text", width: 110 }]
+  instructionsSheet.getRow(1).font = { bold: true, size: 13 }
+  const instructions = [
+    "1. This workbook includes a ready-to-import sample schedule.",
+    "2. Edit the Program sheet for metadata and trainee assignment before importing.",
+    "3. The Workouts sheet is prefilled with sample rows based on your exercise library.",
+    "4. Each row in Workouts is one exercise inside one workout day.",
+    "5. exercise_name has a dropdown — pick from the list and variation_id fills automatically.",
+    "6. scheduled_day accepts 0-6, 7, English day names, Vietnamese aliases like T2/CN, and Day 1-Day 7.",
+    "7. reps_range accepts a single target like 10 or a range like 8-12.",
+    "8. rir_rpe is optional. Enter a target RIR (e.g. 2) or RPE (e.g. 8) as a number.",
+    "9. assign_to_emails is optional. Use emails from the Trainees sheet to assign the program on save.",
+  ]
+  instructions.forEach((text) => instructionsSheet.addRow([text]))
+
+  // ── 4. Reference sheet ────────────────────────────────────────────────────
+  const referenceSheet = workbook.addWorksheet(REFERENCE_SHEET_NAME)
+  referenceSheet.columns = [
+    { header: "variation_id", key: "variation_id", width: 40 },
+    { header: "exercise_name", key: "exercise_name", width: 28 },
+    { header: "variation_name", key: "variation_name", width: 22 },
+    { header: "display_name", key: "display_name", width: 36 },
+    { header: "muscle_group", key: "muscle_group", width: 18 },
+    { header: "equipment", key: "equipment", width: 18 },
+  ]
+  styleHeaderRow(referenceSheet)
+  exercises.forEach((ex) => {
+    referenceSheet.addRow([ex.id, ex.exerciseName, ex.variationName, ex.name, ex.muscleGroup, ex.equipment ?? ""])
+  })
+  referenceSheet.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
+
+  // ── 5. Trainees sheet ─────────────────────────────────────────────────────
+  const traineesSheet = workbook.addWorksheet(TRAINEES_SHEET_NAME)
+  traineesSheet.columns = [
+    { header: "trainee_name", key: "trainee_name", width: 28 },
+    { header: "email", key: "email", width: 34 },
+  ]
+  styleHeaderRow(traineesSheet)
+  trainees.forEach((t) => traineesSheet.addRow([t.name, t.email]))
+  traineesSheet.views = [{ state: "frozen", ySplit: 1 }]
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "coach-program-template.xlsx"
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export { downloadCoachProgramTemplate, importCoachProgramTemplate }
