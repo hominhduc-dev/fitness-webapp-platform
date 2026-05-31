@@ -929,6 +929,15 @@ export default function WorkoutStartPage() {
       <main className="mx-auto max-w-[880px] px-4 pt-5 pb-30 md:px-10 md:pt-8">
         {/* Header */}
         <div className="mb-7">
+          {/* Mobile back button */}
+          <button
+            type="button"
+            onClick={handleCancelWorkout}
+            className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
+          >
+            <X className="h-4 w-4" />
+            Cancel workout
+          </button>
           <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-2">
             {dateLabel}
           </p>
