@@ -976,7 +976,7 @@ export function AdminConsole() {
       }
 
       resetExerciseForm()
-      await refreshAllData(session.access_token, selectedUserId, true)
+      await refreshExercises()
     } catch (exerciseError) {
       setError(exerciseError instanceof Error ? exerciseError.message : "Không thể lưu bài tập.")
     } finally {
@@ -998,7 +998,7 @@ export function AdminConsole() {
         await createAdminExerciseRequest(session.access_token, data)
         setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
       }
-      await refreshAllData(session.access_token, selectedUserId, true)
+      await refreshExercises()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu bài tập.")
       throw err
@@ -1014,7 +1014,7 @@ export function AdminConsole() {
     try {
       await deleteAdminExerciseRequest(session.access_token, exercise.id)
       setNotice(locale === "en" ? "Exercise deleted." : "Đã xóa bài tập.")
-      await refreshAllData(session.access_token, selectedUserId, true)
+      await refreshExercises()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
       throw err
@@ -1037,7 +1037,7 @@ export function AdminConsole() {
           ? `Imported ${result.createdCount} exercise variations and skipped ${result.skippedCount} rows.`
           : `Đã import ${result.createdCount} variation bài tập và bỏ qua ${result.skippedCount} dòng.`,
       )
-      await refreshAllData(session.access_token, selectedUserId, true)
+      await refreshExercises()
       setIsImportDialogOpen(false)
       resetImportState()
     } catch (importError) {
@@ -1141,8 +1141,18 @@ export function AdminConsole() {
         await removeAdminCoachConnection(session.access_token, confirmState.id)
       }
 
+      // Exercise/exercise-group deletes only touch the exercise list (+ audit),
+      // so use the lightweight refresh. Other entities (program/connection/request)
+      // affect dashboard counts and need the full refresh.
+      const exerciseOnlyKinds = ["exercise", "exercise-group", "exercise-groups"]
+      const useLightRefresh = exerciseOnlyKinds.includes(confirmState.kind)
+
       setConfirmState(null)
-      await refreshAllData(session.access_token, selectedUserId, true)
+      if (useLightRefresh) {
+        await refreshExercises()
+      } else {
+        await refreshAllData(session.access_token, selectedUserId, true)
+      }
       setNotice(nextNotice)
     } catch (confirmError) {
       setError(confirmError instanceof Error ? confirmError.message : "Không thể hoàn tất thao tác.")
