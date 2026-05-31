@@ -233,16 +233,16 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
     ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
     : "— · —"
 
-  // Desktop: Set | Type | Previous | kg | Reps | RIR | actions  (7 cols)
-  // Mobile:  Set | Type | kg | Reps | RIR | actions              (6 cols, no Previous)
+  // Desktop: Set | Previous | kg | Reps | RIR | actions  (6 cols)
+  // Mobile:  Set | kg | Reps | RIR | actions              (5 cols, no Previous)
   return (
     <div
       className={cn(
         "grid items-center border-b border-border last:border-0",
-        // desktop 7-col, mobile 6-col
-        "grid-cols-[32px_44px_minmax(0,1fr)_minmax(0,1fr)_56px_54px] gap-1.5",
-        "md:grid-cols-[56px_70px_1fr_88px_88px_72px_58px] md:gap-3",
-        "px-3 py-[10px] md:px-4",
+        // mobile 5-col, desktop 6-col
+        "grid-cols-[36px_1fr_1fr_1fr_54px] gap-2",
+        "md:grid-cols-[56px_1fr_1fr_1fr_1fr_58px] md:gap-3",
+        "px-4 py-[10px] md:px-5",
         "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
         completed ? "bg-muted" : "bg-transparent",
       )}
@@ -250,7 +250,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
       {/* Set number */}
       <span
         className={cn(
-          "font-mono text-[15px] font-semibold",
+          "font-mono text-[15px] font-semibold text-center",
           completed ? "text-muted-foreground" : "text-foreground",
         )}
         style={{ fontFeatureSettings: '"tnum" 1' }}
@@ -258,22 +258,8 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
         {setIndex + 1}
       </span>
 
-      {/* Type tag */}
-      <span
-        className={cn(
-          "font-mono text-[10px] uppercase tracking-[0.08em]",
-          set.setNumber === 0 || (set as ExerciseSet & { kind?: string }).kind === "warm"
-            ? "text-muted-foreground"
-            : completed
-              ? "text-muted-foreground"
-              : "text-foreground/70",
-        )}
-      >
-        {setIndex === 0 ? "warm" : "work"}
-      </span>
-
       {/* Previous (desktop only) */}
-      <span className="hidden md:block text-[13px] text-muted-foreground font-mono" style={{ fontFeatureSettings: '"tnum" 1' }}>
+      <span className="hidden md:block text-[13px] text-muted-foreground font-mono text-center" style={{ fontFeatureSettings: '"tnum" 1' }}>
         {prevLabel}
       </span>
 
@@ -432,17 +418,16 @@ function LiftExerciseBlock({
       <div
         className={cn(
           "grid items-center border-b border-border",
-          "grid-cols-[32px_44px_minmax(0,1fr)_minmax(0,1fr)_56px_54px] gap-1.5",
-          "md:grid-cols-[56px_70px_1fr_88px_88px_72px_58px] md:gap-3",
-          "px-3 py-2 md:px-4",
+          "grid-cols-[36px_1fr_1fr_1fr_54px] gap-2",
+          "md:grid-cols-[56px_1fr_1fr_1fr_1fr_58px] md:gap-3",
+          "px-4 py-2 md:px-5",
           "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
         )}
       >
-        <span>Set</span>
-        <span>Type</span>
-        <span className="hidden md:block">Previous</span>
-        <span>{weightUnit}</span>
-        <span>Reps</span>
+        <span className="text-center">Set</span>
+        <span className="hidden md:block text-center">Previous</span>
+        <span className="text-center">{weightUnit}</span>
+        <span className="text-center">Reps</span>
         <span className="text-center">RIR</span>
         <span />
       </div>
