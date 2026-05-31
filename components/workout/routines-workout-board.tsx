@@ -4,7 +4,7 @@ import Link from "next/link"
 import { MoreHorizontal, Pencil, Play, Plus, User } from "lucide-react"
 import { useMemo, useState } from "react"
 
-import { CreateWorkoutDialogLazy } from "@/components/workout/create-workout-dialog-lazy"
+import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { Button } from "@/components/ui/button"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
@@ -121,10 +121,9 @@ function FilterChip({
   )
 }
 
-function CreateRoutineButton({ workoutTemplates }: { workoutTemplates: Workout[] }) {
+function CreateRoutineButton() {
   return (
-    <CreateWorkoutDialogLazy
-      workoutTemplates={workoutTemplates}
+    <RoutineBuilderDialog
       trigger={
         <Button className="h-10 w-full gap-2 rounded-[8px] bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
           <Plus className="h-4 w-4" />
@@ -169,7 +168,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         </div>
 
         {workout.isPersonal ? (
-          <CreateWorkoutDialogLazy
+          <RoutineBuilderDialog
             workoutToEdit={workout}
             trigger={
               <Button
@@ -222,7 +221,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         </Link>
         {workout.isPersonal ? (
           <>
-            <CreateWorkoutDialogLazy
+            <RoutineBuilderDialog
               workoutToEdit={workout}
               trigger={
                 <Button variant="outline" size="sm" className="h-10 gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium">
@@ -263,7 +262,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
             {reusableWorkouts.length} saved.
           </h1>
         </div>
-        <CreateRoutineButton workoutTemplates={reusableWorkouts} />
+        <CreateRoutineButton />
       </div>
 
       <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
@@ -286,7 +285,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
           <p className="text-sm font-medium text-foreground">No routines yet.</p>
           <p className="mt-1 text-sm text-muted-foreground">Create one or ask your coach to assign a routine.</p>
           <div className="mt-5 flex justify-center">
-            <CreateRoutineButton workoutTemplates={reusableWorkouts} />
+            <CreateRoutineButton />
           </div>
         </div>
       )}
