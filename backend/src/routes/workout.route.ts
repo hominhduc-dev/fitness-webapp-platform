@@ -7,6 +7,7 @@ import {
   deletePersonalWorkoutForTrainee,
   deleteWorkoutLogForTrainee,
   getWorkoutDetailForTrainee,
+  listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
   updatePersonalWorkoutForTrainee,
 } from "../services/fitness-data.service"
@@ -59,6 +60,24 @@ workoutRouter.get("/", async (req, res) => {
     const result = await listWorkoutsForTrainee(profile.profile)
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+workoutRouter.get("/logs", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const from = typeof req.query.from === "string" ? req.query.from : undefined
+    const to = typeof req.query.to === "string" ? req.query.to : undefined
+
+    if (!from || !to) {
+      res.status(400).json({ error: { message: "from và to là bắt buộc (YYYY-MM-DD)." } })
+      return
+    }
+
+    const logs = await listWorkoutLogsForExportTrainee(profile.profile, { from, to })
+    res.json({ data: logs })
   } catch (error) {
     sendError(res, error)
   }

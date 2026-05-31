@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types"
 
 import type {
+  AssignedTrainee,
   BodyMetricEntry,
   CoachCheckIn,
   CoachDashboardActivityPoint,
@@ -156,6 +157,7 @@ type SerializedExerciseLibraryExercise = SerializedExerciseBase & {
 }
 
 type SerializedAssignedTrainee = {
+  assignedAt: string
   avatar?: string | null
   email: string
   fitnessGoals: string[]
@@ -559,10 +561,14 @@ function mapMeal(meal: SerializedMeal): Meal {
   }
 }
 
+function mapAssignedTrainee(t: SerializedAssignedTrainee): AssignedTrainee {
+  return { ...t, assignedAt: new Date(t.assignedAt) }
+}
+
 function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
   return {
     assignedTo: program.assignedTo,
-    assignedTrainees: program.assignedTrainees,
+    assignedTrainees: program.assignedTrainees.map(mapAssignedTrainee),
     createdAt: new Date(program.createdAt),
     createdBy: program.createdBy,
     description: program.description,
@@ -732,7 +738,7 @@ function mapCoachDashboardRecentWorkoutLog(
     id: log.id,
     startedAt: new Date(log.startedAt),
     totalVolume: log.totalVolume,
-    trainee: log.trainee,
+    trainee: mapAssignedTrainee(log.trainee),
     workout: log.workout,
   }
 }
@@ -994,6 +1000,7 @@ async function deleteMeal(accessToken: string, mealId: string) {
 async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
   const response = await request<{
     historyLogs: SerializedWorkoutLog[]
+    programs: Array<{ assignedAt: string; duration: number; id: string; name: string }>
     recentLogs: SerializedWorkoutLog[]
     schedule: Record<number, SerializedWorkout | null>
     todayWorkout: SerializedWorkout | null
@@ -1008,6 +1015,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
 
   return {
     historyLogs: (response.historyLogs ?? []).map(mapWorkoutLog),
+    programs: (response.programs ?? []).map((p) => ({ ...p, assignedAt: new Date(p.assignedAt) })),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
     schedule: Object.fromEntries(
       Object.entries(response.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
@@ -1017,6 +1025,19 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
     weekStats: response.weekStats ?? { activeDaysThisWeek: 0, todayVolume: 0, workoutsThisWeek: 0 },
     workouts: response.workouts.map(mapWorkout),
   }
+}
+
+async function fetchWorkoutLogsForExport(
+  accessToken: string,
+  options: { from: string; to: string },
+): Promise<WorkoutLog[]> {
+  const params = new URLSearchParams({ from: options.from, to: options.to })
+  const response = await request<{ data: SerializedWorkoutLog[] }>(
+    `/api/workouts/logs?${params.toString()}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+  return response.data.map(mapWorkoutLog)
 }
 
 async function fetchWorkoutDetail(accessToken: string, workoutId: string) {
@@ -1187,7 +1208,7 @@ async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardD
       createdAt: new Date(requestItem.createdAt),
       id: requestItem.id,
       status: requestItem.status,
-      trainee: requestItem.trainee,
+      trainee: mapAssignedTrainee(requestItem.trainee),
       traineeId: requestItem.traineeId,
     })),
     recentWorkoutLogs: (response.recentWorkoutLogs ?? []).map(mapCoachDashboardRecentWorkoutLog),
@@ -1340,7 +1361,7 @@ async function createCoachCheckIn(
 async function fetchCoachWorkoutLogs(
   accessToken: string,
   traineeId: string,
-  options?: { cursor?: string; limit?: number; weekStart?: string },
+  options?: { cursor?: string; from?: string; limit?: number; to?: string; weekStart?: string },
 ): Promise<CoachWorkoutLogPage> {
   const searchParams = new URLSearchParams()
 
@@ -1354,6 +1375,14 @@ async function fetchCoachWorkoutLogs(
 
   if (options?.weekStart) {
     searchParams.set("weekStart", options.weekStart)
+  }
+
+  if (options?.from) {
+    searchParams.set("from", options.from)
+  }
+
+  if (options?.to) {
+    searchParams.set("to", options.to)
   }
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
@@ -1575,6 +1604,7 @@ export {
   searchFoods,
   submitCoachExerciseImportRequest,
   fetchWorkoutDetail,
+  fetchWorkoutLogsForExport,
   fetchWorkouts,
   logMeal,
   markAllNotificationsRead,

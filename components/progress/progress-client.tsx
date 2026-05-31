@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import dynamic from "next/dynamic"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   fetchProgressAnalytics,
@@ -18,6 +19,7 @@ import type {
   ProgressCalendar,
   ProgressCalendarLogStub,
   ProgressYearView,
+  TraineeProgram,
 } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -863,6 +865,7 @@ function ProgressPrsSkeleton() {
 export type ProgressClientInitialData = {
   calendar: ProgressCalendar
   prevCalendar: ProgressCalendar | null
+  programs?: TraineeProgram[]
   viewMonth: number
   viewYear: number
   weightUnitLabel: string
@@ -1062,13 +1065,14 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             </button>
           </div>
 
-          {/* Filter chips */}
-          <div className="flex flex-wrap gap-2">
+          {/* Filter chips + export */}
+          <div className="flex flex-wrap items-center gap-2">
             {(["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
               <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
                 {k === "all" ? "All" : k[0].toUpperCase() + k.slice(1)}
               </Chip>
             ))}
+            <ExportWorkoutDialog programs={initialData.programs ?? []} />
           </div>
         </div>
 

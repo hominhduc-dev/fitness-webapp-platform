@@ -83,7 +83,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
 
       const nextAssigned: AssignedTrainee[] = trainees
         .filter((t) => selected.has(t.id))
-        .map((t) => ({ id: t.id, name: t.name, email: t.email, avatar: t.avatar, fitnessGoals: t.fitnessGoals }))
+        .map((t) => ({ assignedAt: new Date(), id: t.id, name: t.name, email: t.email, avatar: t.avatar, fitnessGoals: t.fitnessGoals }))
 
       onAssigned(program.id, nextAssigned)
       onClose()
