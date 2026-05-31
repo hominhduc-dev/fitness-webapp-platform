@@ -662,7 +662,7 @@ function RoutineBuilderDialog({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 md:px-7">
           {exercises.length === 0 ? (
             <div className="rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
               No exercises yet. Add your first one.
@@ -749,7 +749,7 @@ function RoutineBuilderDialog({
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 pl-8">
+                <div className="mt-3 grid grid-cols-3 gap-2 pl-0 sm:pl-8">
                   <NumberField
                     label="Sets"
                     value={exercise.sets}
@@ -794,7 +794,7 @@ function RoutineBuilderDialog({
         </div>
 
         {/* Footer — same structure as ProgramEditor */}
-        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-7 py-4 sm:flex-row sm:justify-end">
+        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 py-4 sm:flex-row sm:justify-end md:px-7">
           <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
             Cancel
           </Button>
@@ -1506,7 +1506,7 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="flex min-h-[66px] flex-wrap items-center gap-3 border-b border-border bg-muted px-7 py-3">
+        <div className="flex min-h-[66px] flex-wrap items-center gap-3 border-b border-border bg-muted px-4 py-3 md:px-7">
           <p className="label-micro">Week</p>
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
             {Array.from({ length: totalWeeks }).map((_, index) => {
@@ -1545,7 +1545,7 @@ export function ProgramEditor({
           </Button>
         </div>
 
-        <div className="px-7 py-5">
+        <div className="px-4 py-5 md:px-7">
           {error ? (
             <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
               {error}
@@ -1598,7 +1598,7 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-7 py-4 sm:flex-row sm:justify-end">
+        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 py-4 sm:flex-row sm:justify-end md:px-7">
           {onClose ? (
             <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
               Cancel
