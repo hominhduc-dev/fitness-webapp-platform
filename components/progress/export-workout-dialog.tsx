@@ -17,8 +17,24 @@ import type { TraineeProgram } from "@/lib/fitness/types"
 
 type ExportMode = "week" | "program"
 
+function parseValidDate(value: unknown) {
+  if (value == null) return null
+  const date = value instanceof Date ? value : new Date(value as string | number)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
 function formatDateToISO(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+function getProgramStartDate(assignedAt: unknown, durationWeeks: number) {
+  const parsedAssignedAt = parseValidDate(assignedAt)
+
+  if (parsedAssignedAt) {
+    return parsedAssignedAt
+  }
+
+  return new Date(Date.now() - durationWeeks * 7 * 24 * 60 * 60 * 1000)
 }
 
 function getWeekStart(date: Date) {
@@ -69,8 +85,9 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
           setIsExporting(false)
           return
         }
-        from = formatDateToISO(selectedProgram.assignedAt)
-        const endDate = new Date(selectedProgram.assignedAt)
+        const startDate = getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration)
+        from = formatDateToISO(startDate)
+        const endDate = new Date(startDate)
         endDate.setDate(endDate.getDate() + selectedProgram.duration * 7)
         // Tomorrow as upper bound so today's logs are included (query uses `lt`)
         const tomorrow = new Date()
@@ -180,7 +197,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
               )}
               {selectedProgram && (
                 <p className="text-xs text-muted-foreground">
-                  Từ {formatDateToISO(selectedProgram.assignedAt)} · {selectedProgram.duration} tuần
+                  Từ {formatDateToISO(getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration))} · {selectedProgram.duration} tuần
                 </p>
               )}
             </div>
