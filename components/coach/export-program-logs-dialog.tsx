@@ -89,14 +89,12 @@ export function ExportProgramLogsDialog({
         return
       }
 
-      const weekStart = from
-      const { downloadCoachWorkoutLogsWorkbook } = await import(
-        "@/components/coach/trainee-workout-logs-excel"
-      )
-      await downloadCoachWorkoutLogsWorkbook(logs, {
-        traineeId: selectedTrainee.id,
-        traineeName: selectedTrainee.name,
-        weekStart,
+      const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
+      await downloadWorkoutLogs(logs, {
+        from,
+        label: programName,
+        subjectName: selectedTrainee.name,
+        to,
       })
       setOpen(false)
     } catch (err) {

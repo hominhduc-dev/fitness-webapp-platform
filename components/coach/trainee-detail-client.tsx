@@ -466,11 +466,12 @@ export function CoachTraineeDetailClient({
         return
       }
 
-      const { downloadCoachWorkoutLogsWorkbook } = await import("@/components/coach/trainee-workout-logs-excel")
-      await downloadCoachWorkoutLogsWorkbook(allLogs, {
-        traineeId: detail.trainee.id,
-        traineeName: detail.trainee.name,
-        weekStart: from,
+      const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
+      await downloadWorkoutLogs(allLogs, {
+        from,
+        label: program.name,
+        subjectName: detail.trainee.name,
+        to,
       })
     } catch (error) {
       setAssignError(error instanceof Error ? error.message : "Không thể export logs.")

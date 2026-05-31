@@ -532,6 +532,49 @@ function downloadCoachWorkoutLogsWorkbookFile(file: CoachWorkoutLogsWorkbookFile
   downloadBuffer(file.buffer, file.fileName)
 }
 
+function buildAndFillRawSheet(rawSheet: Worksheet, logs: WorkoutLog[], weekStart: string) {
+  const rowObjects = buildRawSetRows(logs, weekStart)
+
+  // Add all rows first
+  rawSheet.addRows(rowObjects)
+
+  // Track which rows belong to each session so we can merge Date & Workout
+  const selectedWeekStart = parseDateInputAsLocalDate(weekStart, 12)
+  if (!selectedWeekStart) return
+
+  const orderedLogs = logs
+    .slice()
+    .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
+
+  let currentDataRow = 2 // row 1 is header
+  for (const log of orderedLogs) {
+    const sessionStartRow = currentDataRow
+    const setCount = log.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
+    if (setCount === 0) continue
+    currentDataRow += setCount
+    const sessionEndRow = currentDataRow - 1
+
+    // Columns 1 (day_no) and 2 (day_date) — merge & center per session
+    for (const col of [1, 2]) {
+      if (sessionEndRow > sessionStartRow) {
+        rawSheet.mergeCells(sessionStartRow, col, sessionEndRow, col)
+      }
+      const cell = rawSheet.getCell(sessionStartRow, col)
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }
+      cell.font = { bold: true, size: 10 }
+    }
+
+    // Column 7 (workout_name) — merge & center per session
+    const workoutCol = 7
+    if (sessionEndRow > sessionStartRow) {
+      rawSheet.mergeCells(sessionStartRow, workoutCol, sessionEndRow, workoutCol)
+    }
+    const wCell = rawSheet.getCell(sessionStartRow, workoutCol)
+    wCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }
+    wCell.font = { bold: true, size: 10 }
+  }
+}
+
 async function buildCoachWorkoutLogsWorkbookFile(
   logs: WorkoutLog[],
   options: DownloadCoachWorkoutLogsWorkbookOptions,
@@ -629,7 +672,7 @@ async function buildCoachWorkoutLogsWorkbookFile(
 
   const rawSheet = workbook.addWorksheet("Raw Sets")
   setRawSheetWidths(rawSheet)
-  rawSheet.addRows(buildRawSetRows(logs, options.weekStart))
+  buildAndFillRawSheet(rawSheet, logs, options.weekStart)
 
   const safeTraineeName =
     sanitizeFileNameSegment(options.traineeName ?? "") ||
