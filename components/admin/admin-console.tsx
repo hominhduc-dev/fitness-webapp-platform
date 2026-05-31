@@ -620,6 +620,30 @@ export function AdminConsole() {
     }
   }
 
+  /**
+   * Lightweight refresh for exercise mutations.
+   * Exercise create/update/delete only affect the exercise list (+ audit log),
+   * so refetch just those two instead of the whole admin console (8 queries).
+   */
+  async function refreshExercises() {
+    if (!session?.access_token) {
+      return
+    }
+
+    const token = session.access_token
+
+    try {
+      const [nextExercises, nextAuditLogs] = await Promise.all([
+        fetchAdminExercises(token),
+        fetchAdminAuditLogs(token).catch(() => auditLogs), // audit is non-critical
+      ])
+      setExercises(nextExercises)
+      setAuditLogs(nextAuditLogs)
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : "Không thể tải danh sách bài tập.")
+    }
+  }
+
   function resetExerciseForm() {
     setExerciseForm({
       equipment: "",

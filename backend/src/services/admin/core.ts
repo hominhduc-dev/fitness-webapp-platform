@@ -1427,7 +1427,20 @@ async function createAdminExercise(
         },
       },
       include: {
-        variations: ADMIN_VARIATION_INCLUDE,
+        variations: {
+          include: {
+            _count: {
+              select: {
+                workoutExercises: true,
+              },
+            },
+            exercise: {
+              include: {
+                createdBy: true,
+              },
+            },
+          },
+        },
       },
     })
   } catch (error) {
