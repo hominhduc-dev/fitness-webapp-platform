@@ -53,6 +53,17 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
     const el = wrapRef.current
     if (!el) return
 
+    // Returns true if the node (or any ancestor up to body) is position:fixed.
+    // Used to skip PTR arming when the touch lands inside a modal overlay.
+    const isInsideFixedOverlay = (node: EventTarget | null): boolean => {
+      let cur = node as HTMLElement | null
+      while (cur && cur.nodeType === 1 && cur !== document.body) {
+        if (getComputedStyle(cur).position === "fixed") return true
+        cur = cur.parentElement
+      }
+      return false
+    }
+
     // Scroll offset of the nearest scrollable ancestor (handles both
     // document-scroll and an inner `overflow-auto` container).
     const scrollTopOf = (node: EventTarget | null): number => {
@@ -83,6 +94,7 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
 
     const onStart = (e: TouchEvent) => {
       if (refreshingRef.current || e.touches.length !== 1) return
+      if (isInsideFixedOverlay(e.target)) return
       startY.current = scrollTopOf(e.target) <= 0 ? e.touches[0].clientY : null
     }
 

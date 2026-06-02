@@ -943,6 +943,11 @@ export function ProgramEditor({
       return
     }
 
+    if (builderMode) {
+      setError("Routine editor đang mở và có thay đổi chưa lưu. Vui lòng lưu hoặc huỷ routine trước.")
+      return
+    }
+
     let payload: CreateCoachProgramInput
 
     try {
@@ -987,7 +992,7 @@ export function ProgramEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex min-h-screen items-start justify-center overflow-y-auto bg-foreground/45 px-0 py-0 backdrop-blur-sm md:px-1 md:py-1" aria-busy={isSaving}>
+    <div className="fixed inset-0 z-[60] flex min-h-screen items-start justify-center overflow-y-auto overscroll-contain bg-foreground/45 px-0 py-0 backdrop-blur-sm md:px-1 md:py-1" aria-busy={isSaving}>
       {isSaving ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)]">
@@ -1188,7 +1193,7 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 py-4 sm:flex-row sm:justify-end md:px-7">
+        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:justify-end md:px-7">
           {onClose ? (
             <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
               Cancel
