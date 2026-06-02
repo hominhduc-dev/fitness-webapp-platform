@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, ChevronDown, Search } from "lucide-react"
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
 import type { ExerciseVariationOption } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -42,7 +43,6 @@ export function ExercisePicker({
   )
 
   const groupedExercises = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
     const grouped = new Map<string, ExerciseVariationOption[]>()
 
     for (const exercise of exercises.slice().sort((left, right) => {
@@ -60,17 +60,10 @@ export function ExercisePicker({
 
       return left.variationName.localeCompare(right.variationName)
     })) {
-      const searchable = [
-        exercise.exerciseName,
-        exercise.variationName,
-        exercise.name,
-        exercise.muscleGroup,
-        exercise.equipment ?? "",
-      ]
-        .join(" ")
-        .toLowerCase()
-
-      if (normalizedQuery && !searchable.includes(normalizedQuery)) {
+      if (!matchesExerciseSearch(
+        [exercise.exerciseName, exercise.variationName, exercise.name, exercise.muscleGroup, exercise.equipment],
+        query,
+      )) {
         continue
       }
 
@@ -79,12 +72,11 @@ export function ExercisePicker({
       grouped.set(exercise.muscleGroup, groupItems)
     }
 
-    return Array.from(grouped.entries())
-      .sort(([leftGroup], [rightGroup]) => leftGroup.localeCompare(rightGroup))
-      .map(([muscleGroup, items]) => ({
-        items,
-        muscleGroup,
-      }))
+    const groups = Array.from(grouped.entries()).map(([muscleGroup, items]) => ({
+      muscleGroup,
+      items: sortByExerciseRelevance(items, query, (e) => e.exerciseName),
+    }))
+    return sortGroupsByExerciseRelevance(groups, query, (g) => g.muscleGroup, (g) => g.items.map((e) => ({ name: e.exerciseName })))
   }, [exercises, query])
 
   const isSearching = query.trim().length > 0

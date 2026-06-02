@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { cn } from "@/lib/utils"
 import type { AdminExerciseImportRequest, AdminExerciseItem } from "@/lib/admin/types"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
@@ -344,13 +345,10 @@ export function AdminExercisesPanel({
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   /* Derived: filter + group */
-  const filtered = useMemo(() => {
-    if (!q.trim()) return exercises
-    const lq = q.toLowerCase()
-    return exercises.filter((e) =>
-      [e.name, e.variationName, e.muscleGroup, e.equipment].some((v) => v?.toLowerCase().includes(lq)),
-    )
-  }, [exercises, q])
+  const filtered = useMemo(
+    () => exercises.filter((e) => matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)),
+    [exercises, q],
+  )
 
   const grouped = useMemo(() => {
     const map: Record<string, AdminExerciseItem[]> = {}
@@ -358,10 +356,9 @@ export function AdminExercisesPanel({
       const g = e.muscleGroup || "Other"
       ;(map[g] ??= []).push(e)
     })
-    return Object.keys(map)
-      .sort()
-      .map((group) => ({ group, items: map[group] }))
-  }, [filtered])
+    const groups = Object.keys(map).map((group) => ({ group, items: sortByExerciseRelevance(map[group], q, (e) => e.name) }))
+    return sortGroupsByExerciseRelevance(groups, q, (g) => g.group, (g) => g.items)
+  }, [filtered, q])
 
   /* Auto-expand when searching */
   const forceOpen = q.trim().length > 0
