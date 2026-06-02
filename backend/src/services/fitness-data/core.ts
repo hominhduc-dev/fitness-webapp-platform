@@ -3251,57 +3251,65 @@ async function createCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
-  const program = await db.program.create({
-    data: {
-      assignments:
-        assignToUserIds.length > 0
-          ? {
-              create: assignToUserIds.map((userId) => ({
-                userId,
-              })),
-            }
-          : undefined,
-      createdById: profile.id,
-      description: input.description?.trim() || undefined,
-      difficulty: input.difficulty,
-      duration: Math.max(1, Math.round(input.duration)),
-      name: input.name.trim(),
-      workouts: {
-        create: input.workouts.map((workout, workoutIndex) => ({
-          duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
-          exercises: {
-            create: workout.exercises.map((exercise, exerciseIndex) => {
-              const repTarget = normalizeRepTarget(
-                exercise.reps,
-                exercise.repsMin,
-                `${workout.name.trim() || `Buổi ${workoutIndex + 1}`} / bài tập ${exerciseIndex + 1}`,
-              )
+  const program = await retryTransaction(() => db.$transaction(async (tx) => {
+    const programId = randomUUID()
+    const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
 
-              return {
-                order: exerciseIndex + 1,
-                sets: {
-                  create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
-                    setNumber: setIndex + 1,
-                    targetReps: repTarget.reps,
-                    targetRepsMin: repTarget.repsMin,
-                    weight:
-                      exercise.weight != null && Number.isFinite(exercise.weight)
-                        ? Math.max(0, exercise.weight)
-                        : undefined,
-                  })),
-                },
-                variationId: exercise.variationId,
-              }
-            }),
-          },
-          name: workout.name.trim() || `Day ${workoutIndex + 1}`,
-          scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
-        })),
+    await tx.program.create({
+      data: {
+        createdById: profile.id,
+        description: input.description?.trim() || undefined,
+        difficulty: input.difficulty,
+        duration: Math.max(1, Math.round(input.duration)),
+        id: programId,
+        name: input.name.trim(),
+        workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
-      workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
-    },
-    include: PROGRAM_INCLUDE,
-  })
+    })
+
+    if (assignToUserIds.length > 0) {
+      await tx.programAssignment.createMany({
+        data: assignToUserIds.map((userId) => ({
+          programId,
+          userId,
+        })),
+      })
+    }
+
+    if (workoutRows.length > 0) {
+      await tx.workout.createMany({
+        data: workoutRows,
+      })
+    }
+
+    if (exerciseRows.length > 0) {
+      await tx.workoutExercise.createMany({
+        data: exerciseRows,
+      })
+    }
+
+    if (setRows.length > 0) {
+      await tx.exerciseSet.createMany({
+        data: setRows,
+      })
+    }
+
+    const createdProgram = await tx.program.findUnique({
+      include: PROGRAM_INCLUDE,
+      where: {
+        id: programId,
+      },
+    })
+
+    if (!createdProgram) {
+      throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
+    }
+
+    return createdProgram
+  }, {
+    maxWait: 15000,
+    timeout: 60000,
+  }))
 
   return serializeProgram(program as ProgramRecord)
 }
@@ -3521,55 +3529,46 @@ async function adjustCoachProgramForTrainee(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
-  const adjustedProgram = await db.$transaction(async (transaction) => {
-    const createdProgram = await transaction.program.create({
+  const adjustedProgram = await retryTransaction(() => db.$transaction(async (transaction) => {
+    const programId = randomUUID()
+    const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
+
+    await transaction.program.create({
       data: {
-        assignments: {
-          create: {
-            userId: traineeId,
-          },
-        },
         createdById: profile.id,
         description: input.description?.trim() || undefined,
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
+        id: programId,
         name: input.name.trim(),
-        workouts: {
-          create: input.workouts.map((workout, workoutIndex) => ({
-            duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
-            exercises: {
-              create: workout.exercises.map((exercise, exerciseIndex) => {
-                const repTarget = normalizeRepTarget(
-                  exercise.reps,
-                  exercise.repsMin,
-                  `${workout.name.trim() || `Buổi ${workoutIndex + 1}`} / bài tập ${exerciseIndex + 1}`,
-                )
-
-                return {
-                  order: exerciseIndex + 1,
-                  sets: {
-                    create: Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
-                      setNumber: setIndex + 1,
-                      targetReps: repTarget.reps,
-                      targetRepsMin: repTarget.repsMin,
-                      weight:
-                        exercise.weight != null && Number.isFinite(exercise.weight)
-                          ? Math.max(0, exercise.weight)
-                          : undefined,
-                    })),
-                  },
-                  variationId: exercise.variationId,
-                }
-              }),
-            },
-            name: workout.name.trim() || `Day ${workoutIndex + 1}`,
-            scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
-          })),
-        },
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
-      include: PROGRAM_INCLUDE,
     })
+
+    await transaction.programAssignment.createMany({
+      data: [{
+        programId,
+        userId: traineeId,
+      }],
+    })
+
+    if (workoutRows.length > 0) {
+      await transaction.workout.createMany({
+        data: workoutRows,
+      })
+    }
+
+    if (exerciseRows.length > 0) {
+      await transaction.workoutExercise.createMany({
+        data: exerciseRows,
+      })
+    }
+
+    if (setRows.length > 0) {
+      await transaction.exerciseSet.createMany({
+        data: setRows,
+      })
+    }
 
     await transaction.programAssignment.delete({
       where: {
@@ -3590,7 +3589,7 @@ async function adjustCoachProgramForTrainee(
           traineeId: trainee.id,
           trainerId: profile.id,
         },
-        relatedEntityId: createdProgram.id,
+        relatedEntityId: programId,
         relatedEntityType: "program",
         scheduledFor: new Date(),
         sentAt: new Date(),
@@ -3601,11 +3600,22 @@ async function adjustCoachProgramForTrainee(
       },
     })
 
+    const createdProgram = await transaction.program.findUnique({
+      include: PROGRAM_INCLUDE,
+      where: {
+        id: programId,
+      },
+    })
+
+    if (!createdProgram) {
+      throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
+    }
+
     return createdProgram
   }, {
     maxWait: 15000,
-    timeout: 30000,
-  })
+    timeout: 60000,
+  }))
 
   return serializeProgram(adjustedProgram as ProgramRecord)
 }
