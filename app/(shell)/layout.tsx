@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 
 import { ShellHeader } from "@/components/layout/shell-header"
 import { SidebarClient } from "@/components/layout/sidebar-client"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 import { AppProviders } from "@/components/providers/app-providers"
 import { requireAppUser } from "@/lib/auth/server"
 import { getServerLocale } from "@/lib/i18n/server"
@@ -16,7 +17,9 @@ export default async function AppShellLayout({ children }: { children: ReactNode
 
         <div className="flex min-w-0 flex-1 flex-col">
           <ShellHeader role={profile.role} />
-          <main className="flex-1 overflow-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))]">{children}</main>
+          <main className="flex-1 overflow-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+            <PullToRefresh>{children}</PullToRefresh>
+          </main>
         </div>
       </div>
     </AppProviders>
