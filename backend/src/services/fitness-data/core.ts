@@ -220,6 +220,7 @@ type PersonalWorkoutInput = {
   duration?: number
   exercises: Array<{
     repsMin?: number
+    rir?: number
     variationId: string
     reps: number
     restTime?: number
@@ -258,6 +259,7 @@ type NormalizedPersonalWorkoutInput = {
   duration?: number
   exercises: Array<{
     repsMin?: number
+    rir?: number
     variationId: string
     reps: number
     restTime?: number
@@ -2654,6 +2656,9 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
       return {
         reps: repTarget.reps,
         repsMin: repTarget.repsMin,
+        rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
+          ? Math.max(0, Math.round(exercise.rir))
+          : undefined,
         variationId: exercise.variationId,
         restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
         sets: Math.max(1, Math.round(exercise.sets)),
@@ -2680,6 +2685,7 @@ function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWor
         setNumber: setIndex + 1,
         targetRepsMin: exercise.repsMin,
         targetReps: exercise.reps,
+        rir: exercise.rir,
         weight: exercise.weight,
       })),
     },

@@ -15,7 +15,7 @@ export function PageLoadingState({
   return (
     <div className={cn("mx-auto w-full px-4 py-6 md:px-6", maxWidthClassName, className)}>
       <div className="space-y-6">
-        <div className="h-1 overflow-hidden rounded-full bg-primary/10">
+        <div className="h-1 overflow-hidden rounded-full bg-primary-soft">
           <div className="page-loading-bar h-full w-28 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
         </div>
 
@@ -111,7 +111,7 @@ export function PageLoadingState({
 
 export function WorkoutSessionLoadingState() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur-lg">
         <div className="flex h-16 items-center justify-between px-4">
           <Skeleton className="h-10 w-10 rounded-xl" />
@@ -127,7 +127,7 @@ export function WorkoutSessionLoadingState() {
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-4 w-24" />
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-primary/10">
+          <div className="h-2 overflow-hidden rounded-full bg-primary-soft">
             <div className="page-loading-bar h-full w-24 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
           </div>
         </div>
@@ -157,7 +157,7 @@ export function WorkoutSessionLoadingState() {
         ))}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 p-4 backdrop-blur-lg">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-lg">
         <div className="mx-auto max-w-2xl">
           <Skeleton className="h-12 w-full rounded-2xl" />
         </div>

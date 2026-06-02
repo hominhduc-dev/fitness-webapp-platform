@@ -117,7 +117,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
         </DialogHeader>
 
         {error ? (
-          <div className="mx-5 mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+          <div className="mx-5 mt-3 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</div>
         ) : null}
 
         <div className="max-h-[44vh] overflow-y-auto py-1">
@@ -135,7 +135,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
               >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                  <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                  <AvatarFallback className="bg-primary-soft text-xs text-primary">
                     {getInitials(trainee.name)}
                   </AvatarFallback>
                 </Avatar>

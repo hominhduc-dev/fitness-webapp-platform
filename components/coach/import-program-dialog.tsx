@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, Loader2, UploadCloud, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, Loader2, Trash2, UploadCloud, X } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
+import { parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 
 type ImportProgramDialogProps = {
@@ -47,31 +48,63 @@ const STEPS: Array<{ label: string; value: Step }> = [
 
 const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced"]
 
-function countExercises(draft: ImportedProgramDraft | null) {
-  return draft?.workouts.reduce((sum, workout) => sum + workout.exercises.length, 0) ?? 0
+// ─── Editable workout types ─────────────────────────────────────────────────
+
+type EditableExercise = {
+  variationId: string
+  sets: string
+  reps: string   // "8-12" or "10"
+  weight: string
+  rir: string
 }
 
-function buildPayload(
-  draft: ImportedProgramDraft,
-  fallbackName: string,
-  overrides?: {
-    assignEnabled: boolean
-    difficulty: Difficulty
-    duration: number
-    name: string
-  },
-): CreateCoachProgramInput {
-  const name = overrides?.name.trim() || draft.name?.trim() || fallbackName.replace(/\.[^.]+$/, "") || "Imported program"
+type EditableWorkout = {
+  name: string
+  scheduledDay?: number
+  exercises: EditableExercise[]
+}
 
+function workoutToEditable(workout: CreateCoachProgramInput["workouts"][number]): EditableWorkout {
   return {
-    assignToUserIds: overrides?.assignEnabled === false ? [] : draft.assignToUserIds ?? [],
-    description: draft.description?.trim() || undefined,
-    difficulty: overrides?.difficulty ?? draft.difficulty ?? "intermediate",
-    duration: overrides?.duration ?? draft.duration ?? 4,
-    name,
-    workouts: draft.workouts,
+    name: workout.name,
+    scheduledDay: workout.scheduledDay,
+    exercises: workout.exercises.map((ex) => ({
+      variationId: ex.variationId,
+      sets: String(ex.sets),
+      reps: ex.repsMin != null && ex.repsMin !== ex.reps
+        ? `${ex.repsMin}-${ex.reps}`
+        : String(ex.reps),
+      weight: ex.weight != null ? String(ex.weight) : "",
+      rir: ex.rir != null ? String(ex.rir) : "",
+    })),
   }
 }
+
+function editableToPayloadWorkout(
+  editable: EditableWorkout,
+): CreateCoachProgramInput["workouts"][number] {
+  return {
+    name: editable.name,
+    scheduledDay: editable.scheduledDay,
+    exercises: editable.exercises
+      .filter((ex) => ex.variationId)
+      .map((ex) => {
+        const repTarget = parseRepTargetText(ex.reps) ?? { reps: Math.max(1, Number(ex.reps) || 1) }
+        const parsedWeight = Number(ex.weight)
+        const parsedRir = Number(ex.rir)
+        return {
+          variationId: ex.variationId,
+          sets: Math.max(1, Number(ex.sets) || 1),
+          reps: repTarget.reps,
+          repsMin: repTarget.repsMin,
+          weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
+          rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
+        }
+      }),
+  }
+}
+
+// ─── Main dialog ─────────────────────────────────────────────────────────────
 
 export function ImportProgramDialog({
   exerciseOptions,
@@ -85,6 +118,7 @@ export function ImportProgramDialog({
   const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
   const [draft, setDraft] = useState<ImportedProgramDraft | null>(null)
+  const [editableWorkouts, setEditableWorkouts] = useState<EditableWorkout[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isParsing, setIsParsing] = useState(false)
@@ -99,32 +133,40 @@ export function ImportProgramDialog({
     () => new Map(exerciseOptions.map((exercise) => [exercise.id, exercise] as const)),
     [exerciseOptions],
   )
-  const payload = useMemo(
-    () =>
-      draft
-        ? buildPayload(draft, fileName, {
-            assignEnabled,
-            difficulty,
-            duration,
-            name: programName,
-          })
-        : null,
-    [assignEnabled, difficulty, draft, duration, fileName, programName],
-  )
-  const exerciseCount = countExercises(draft)
-  const invalidVariationCount = useMemo(() => {
-    if (!payload || variationById.size === 0) return 0
 
-    return payload.workouts.reduce(
-      (sum, workout) => sum + workout.exercises.filter((exercise) => !variationById.has(exercise.variationId)).length,
+  const payload = useMemo((): CreateCoachProgramInput | null => {
+    if (!draft) return null
+    const name = programName.trim() || draft.name?.trim() || fileName.replace(/\.[^.]+$/, "") || "Imported program"
+    return {
+      assignToUserIds: assignEnabled ? (draft.assignToUserIds ?? []) : [],
+      description: draft.description?.trim() || undefined,
+      difficulty,
+      duration,
+      name,
+      workouts: editableWorkouts
+        .map(editableToPayloadWorkout)
+        .filter((w) => w.exercises.length > 0),
+    }
+  }, [assignEnabled, difficulty, draft, duration, editableWorkouts, fileName, programName])
+
+  const exerciseCount = useMemo(
+    () => editableWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
+    [editableWorkouts],
+  )
+
+  const invalidVariationCount = useMemo(() => {
+    if (variationById.size === 0) return 0
+    return editableWorkouts.reduce(
+      (sum, w) => sum + w.exercises.filter((ex) => !variationById.has(ex.variationId)).length,
       0,
     )
-  }, [payload, variationById])
+  }, [editableWorkouts, variationById])
 
   const reset = () => {
     setStep("upload")
     setFileName("")
     setDraft(null)
+    setEditableWorkouts([])
     setError(null)
     setIsDragging(false)
     setIsParsing(false)
@@ -145,16 +187,17 @@ export function ImportProgramDialog({
 
   const handleFile = async (file?: File | null) => {
     if (!file) return
-
     setIsParsing(true)
     setError(null)
     setDraft(null)
+    setEditableWorkouts([])
     setFileName(file.name)
 
     try {
       const { importCoachProgramTemplate } = await import("@/components/coach/program-excel")
       const importedDraft = await importCoachProgramTemplate(file, exerciseOptions, trainees)
       setDraft(importedDraft)
+      setEditableWorkouts(importedDraft.workouts.map(workoutToEditable))
       setProgramName(importedDraft.name?.trim() || file.name.replace(/\.[^.]+$/, ""))
       setDifficulty(importedDraft.difficulty ?? "intermediate")
       setDuration(importedDraft.duration ?? 4)
@@ -170,7 +213,6 @@ export function ImportProgramDialog({
 
   const handleDownloadTemplate = async () => {
     setError(null)
-
     try {
       const { downloadCoachProgramTemplate } = await import("@/components/coach/program-excel")
       await downloadCoachProgramTemplate(exerciseOptions, trainees)
@@ -181,10 +223,8 @@ export function ImportProgramDialog({
 
   const handleCreate = async () => {
     if (!token || !payload) return
-
     setIsSaving(true)
     setError(null)
-
     try {
       const program = await createCoachProgram(token, payload)
       setSavedName(program.name)
@@ -197,11 +237,46 @@ export function ImportProgramDialog({
     }
   }
 
+  // ── Exercise edit helpers ──────────────────────────────────────────────────
+
+  const updateExercise = (
+    workoutIdx: number,
+    exerciseIdx: number,
+    patch: Partial<EditableExercise>,
+  ) => {
+    setEditableWorkouts((prev) =>
+      prev.map((w, wi) =>
+        wi !== workoutIdx
+          ? w
+          : {
+              ...w,
+              exercises: w.exercises.map((ex, ei) =>
+                ei !== exerciseIdx ? ex : { ...ex, ...patch },
+              ),
+            },
+      ),
+    )
+  }
+
+  const removeExercise = (workoutIdx: number, exerciseIdx: number) => {
+    setEditableWorkouts((prev) =>
+      prev
+        .map((w, wi) =>
+          wi !== workoutIdx
+            ? w
+            : { ...w, exercises: w.exercises.filter((_, ei) => ei !== exerciseIdx) },
+        )
+        .filter((w) => w.exercises.length > 0),
+    )
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90svh] sm:max-w-[780px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[14px]"
+        className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90svh] sm:max-w-[800px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[14px]"
       >
         <DialogHeader className="border-b border-border px-5 pb-4 pt-5 text-left sm:px-6 sm:pt-6">
           <div className="flex items-start justify-between gap-4">
@@ -219,7 +294,6 @@ export function ImportProgramDialog({
             {STEPS.map((item, index) => {
               const active = step === item.value
               const complete = STEPS.findIndex((candidate) => candidate.value === step) > index
-
               return (
                 <span key={item.value} className="flex shrink-0 items-center gap-2">
                   <span
@@ -239,20 +313,18 @@ export function ImportProgramDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {/* ── Upload step ── */}
           {step === "upload" ? (
             <div className="space-y-5">
               <button
                 type="button"
                 className={cn(
                   "flex min-h-[210px] w-full flex-col items-center justify-center rounded-[10px] border border-dashed bg-muted/40 px-6 text-center transition-colors",
-                  isDragging ? "border-primary bg-primary/10" : "border-border hover:border-input",
+                  isDragging ? "border-primary bg-primary-soft" : "border-border hover:border-input",
                 )}
                 onClick={() => fileInputRef.current?.click()}
                 onDragLeave={() => setIsDragging(false)}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setIsDragging(true)
-                }}
+                onDragOver={(event) => { event.preventDefault(); setIsDragging(true) }}
                 onDrop={(event) => {
                   event.preventDefault()
                   setIsDragging(false)
@@ -285,14 +357,8 @@ export function ImportProgramDialog({
               <div className="rounded-[10px] border border-border px-4 py-3">
                 <Label className="label-micro mb-2 block">Workbook cần các sheet</Label>
                 <div className="space-y-2 font-mono text-[11px] leading-5 text-muted-foreground">
-                  <SheetHint
-                    name="Program"
-                    columns="name · description · duration_weeks · difficulty · assign_to_emails"
-                  />
-                  <SheetHint
-                    name="Workouts"
-                    columns="workout_name · scheduled_day · exercise_name · variation_name · variation_id · sets · reps_range · weight"
-                  />
+                  <SheetHint name="Program" columns="name · description · duration_weeks · difficulty · assign_to_emails" />
+                  <SheetHint name="Workouts" columns="workout_name · scheduled_day · exercise_name · variation_id · sets · reps_range · weight · rir_rpe" />
                   <SheetHint name="Trainees" columns="trainee_name · email (tùy chọn, để gán)" />
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
@@ -303,12 +369,25 @@ export function ImportProgramDialog({
             </div>
           ) : null}
 
+          {/* ── Review step ── */}
           {step === "review" ? (
             <div className="space-y-4">
+              {/* Program name + difficulty + weeks */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">
                   <Label className="label-micro mb-1.5 block">Tên program</Label>
                   <Input value={programName} onChange={(event) => setProgramName(event.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="label-micro block">Số tuần</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={52}
+                    value={duration}
+                    onChange={(e) => setDuration(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-24 text-center font-mono"
+                  />
                 </div>
                 <div>
                   <Label className="label-micro mb-1.5 block">Độ khó</Label>
@@ -333,7 +412,7 @@ export function ImportProgramDialog({
               </div>
 
               {error ? (
-                <div className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
                   <div className="mb-1 flex items-center gap-2 font-medium">
                     <AlertTriangle className="h-4 w-4" />
                     File import chưa hợp lệ
@@ -348,26 +427,14 @@ export function ImportProgramDialog({
                     <p className="text-sm leading-relaxed text-muted-foreground">{payload.description}</p>
                   ) : null}
 
+                  {/* Stats summary */}
                   <div className="flex flex-wrap gap-5">
                     <Stat value={duration} label="weeks" />
-                    <Stat value={payload.workouts.length} label="days/week" />
+                    <Stat value={editableWorkouts.length} label="sessions" />
                     <Stat value={exerciseCount} label="exercises" />
                   </div>
 
-                  {invalidVariationCount > 0 ? (
-                    <div className="flex items-center gap-2 rounded-[10px] bg-warning/10 px-4 py-3 text-sm text-warning">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>
-                        <b>{invalidVariationCount}</b> variation_id không có trong thư viện hiện tại.
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-[10px] bg-success/10 px-4 py-3 text-sm text-success">
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      <span>Tất cả variation_id hợp lệ - sẵn sàng tạo.</span>
-                    </div>
-                  )}
-
+                  {/* Assign toggle */}
                   {draft.assignToUserIds && draft.assignToUserIds.length > 0 ? (
                     <button
                       type="button"
@@ -388,24 +455,29 @@ export function ImportProgramDialog({
                     </button>
                   ) : null}
 
-                  <div className="hidden gap-3 rounded-[10px] border border-border px-4 py-3 md:grid md:grid-cols-[minmax(0,1.4fr)_repeat(3,auto)] md:items-end">
-                    <div className="min-w-0">
-                      <Label className="label-micro mb-1.5 block">Tên program</Label>
-                      <p className="truncate text-base font-semibold text-foreground">{payload.name}</p>
-                      {payload.description ? (
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                          {payload.description}
-                        </p>
-                      ) : null}
+                  {/* Validation badge */}
+                  {invalidVariationCount > 0 ? (
+                    <div className="flex items-center gap-2 rounded-[10px] bg-warn-soft px-4 py-3 text-sm text-warning">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>
+                        <b>{invalidVariationCount}</b> variation_id không có trong thư viện hiện tại.
+                      </span>
                     </div>
-                    <Stat value={payload.duration} label="weeks" />
-                    <Stat value={payload.workouts.length} label="sessions" />
-                    <Stat value={exerciseCount} label="exercises" />
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-[10px] bg-ok-soft px-4 py-3 text-sm text-success">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>Tất cả variation_id hợp lệ - sẵn sàng tạo.</span>
+                    </div>
+                  )}
 
+                  {/* Editable workout list */}
                   <div className="space-y-3">
-                    {payload.workouts.map((workout, workoutIndex) => (
-                      <div key={`${workout.name}-${workout.scheduledDay}-${workoutIndex}`} className="rounded-[10px] border border-border px-4 py-3">
+                    {editableWorkouts.map((workout, workoutIdx) => (
+                      <div
+                        key={`${workout.scheduledDay}-${workoutIdx}`}
+                        className="rounded-[10px] border border-border px-4 py-3"
+                      >
+                        {/* Workout header */}
                         <div className="mb-3 flex flex-wrap items-center gap-2">
                           <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                             {typeof workout.scheduledDay === "number" ? DAY_LABELS[workout.scheduledDay] : "Day"}
@@ -415,57 +487,92 @@ export function ImportProgramDialog({
                             · {workout.exercises.length} bài
                           </span>
                         </div>
-                        <div className="hidden grid-cols-[minmax(0,1.6fr)_84px_52px_60px_56px] gap-2 border-b border-border pb-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground md:grid">
+
+                        {/* Column headers (desktop) */}
+                        <div className="mb-1 hidden grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px] items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground md:grid">
                           <span>Exercise</span>
-                          <span>ID</span>
+                          <span className="text-center">ID</span>
                           <span className="text-center">Sets</span>
                           <span className="text-center">Reps</span>
                           <span className="text-center">Kg</span>
+                          <span className="text-center">RIR</span>
+                          <span />
                         </div>
-                        <div className="space-y-2">
-                          {workout.exercises.map((exercise, exerciseIndex) => {
-                            const option = variationById.get(exercise.variationId)
-                            const repsLabel =
-                              exercise.repsMin && exercise.repsMin !== exercise.reps
-                                ? `${exercise.repsMin}-${exercise.reps}`
-                                : String(exercise.reps)
 
+                        {/* Exercise rows */}
+                        <div className="space-y-1.5">
+                          {workout.exercises.map((ex, exerciseIdx) => {
+                            const option = variationById.get(ex.variationId)
                             return (
                               <div
-                                key={`${exercise.variationId}-${exerciseIndex}`}
-                                className="grid items-center gap-2 border-t border-border/70 pt-2 text-sm md:grid-cols-[minmax(0,1.6fr)_84px_52px_60px_56px]"
+                                key={`${ex.variationId}-${exerciseIdx}`}
+                                className="grid items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-2 py-2 md:grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px]"
                               >
+                                {/* Exercise name */}
                                 <div className="min-w-0">
-                                  <p className="truncate text-foreground">
+                                  <p className="truncate text-sm font-medium text-foreground">
                                     {option?.exerciseName ?? "Unknown exercise"}
                                   </p>
                                   <p className="truncate text-xs text-muted-foreground">
-                                    {option?.variationName ?? exercise.variationId}
+                                    {option?.variationName ?? ex.variationId}
                                   </p>
                                 </div>
-                                <span className="hidden items-center gap-1 md:inline-flex" title={exercise.variationId}>
+
+                                {/* ID badge */}
+                                <span className="hidden items-center justify-center gap-1 md:inline-flex" title={ex.variationId}>
                                   {option ? (
                                     <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                                   ) : (
                                     <AlertCircle className="h-3.5 w-3.5 text-destructive" />
                                   )}
-                                  <span className="font-mono text-[11px] text-muted-foreground">
-                                    {exercise.variationId.slice(0, 6)}...
+                                  <span className="font-mono text-[10px] text-muted-foreground">
+                                    {ex.variationId.slice(0, 5)}…
                                   </span>
                                 </span>
-                                <span className="hidden text-center font-mono text-xs text-foreground tnum md:block">
-                                  {exercise.sets}
-                                </span>
-                                <span className="hidden text-center font-mono text-xs text-foreground tnum md:block">
-                                  {repsLabel}
-                                </span>
-                                <span className="hidden text-center font-mono text-xs text-muted-foreground tnum md:block">
-                                  {exercise.weight ?? "-"}
-                                </span>
-                                <p className="font-mono text-xs text-muted-foreground tnum md:hidden">
-                                  {exercise.sets}x{repsLabel}
-                                  {exercise.weight != null ? ` · ${exercise.weight}kg` : ""}
-                                </p>
+
+                                {/* Editable number fields */}
+                                <MiniInput
+                                  value={ex.sets}
+                                  placeholder="3"
+                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { sets: v })}
+                                />
+                                <MiniInput
+                                  value={ex.reps}
+                                  placeholder="8-12"
+                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { reps: v })}
+                                />
+                                <MiniInput
+                                  value={ex.weight}
+                                  placeholder="—"
+                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { weight: v })}
+                                />
+                                <MiniInput
+                                  value={ex.rir}
+                                  placeholder="—"
+                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { rir: v })}
+                                />
+
+                                {/* Remove button */}
+                                <button
+                                  type="button"
+                                  title="Xoá bài tập"
+                                  onClick={() => removeExercise(workoutIdx, exerciseIdx)}
+                                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+
+                                {/* Mobile summary (shown instead of fields) */}
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 md:hidden">
+                                  <MobileField label="Sets" value={ex.sets} placeholder="3"
+                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { sets: v })} />
+                                  <MobileField label="Reps" value={ex.reps} placeholder="8-12"
+                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { reps: v })} />
+                                  <MobileField label="Kg" value={ex.weight} placeholder="—"
+                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { weight: v })} />
+                                  <MobileField label="RIR" value={ex.rir} placeholder="—"
+                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { rir: v })} />
+                                </div>
                               </div>
                             )
                           })}
@@ -478,12 +585,13 @@ export function ImportProgramDialog({
             </div>
           ) : null}
 
+          {/* ── Done step ── */}
           {step === "done" ? (
             <div className="py-10 text-center">
-              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-ok-soft">
                 <CheckCircle2 className="h-7 w-7 text-success" />
               </span>
-              <h3 className="mt-4 text-xl font-semibold">Đã tạo "{savedName}"</h3>
+              <h3 className="mt-4 text-xl font-semibold">Đã tạo &ldquo;{savedName}&rdquo;</h3>
               <p className="mt-2 text-sm text-muted-foreground">Program mới đã được thêm vào danh sách của coach.</p>
             </div>
           ) : null}
@@ -503,7 +611,11 @@ export function ImportProgramDialog({
                   <ArrowLeft className="h-4 w-4" />
                   Lại
                 </Button>
-                <Button type="button" onClick={() => void handleCreate()} disabled={!payload || Boolean(error) || isSaving || !token}>
+                <Button
+                  type="button"
+                  onClick={() => void handleCreate()}
+                  disabled={!payload || Boolean(error) || isSaving || !token}
+                >
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   {isSaving ? "Đang tạo..." : "Tạo program"}
                 </Button>
@@ -518,6 +630,62 @@ export function ImportProgramDialog({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ─── Small helper components ─────────────────────────────────────────────────
+
+function MiniInput({
+  onChange,
+  placeholder,
+  value,
+}: {
+  onChange: (v: string) => void
+  placeholder?: string
+  value: string
+}) {
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className={cn(
+        "hidden h-8 w-full rounded border border-border bg-background px-1.5 text-center font-mono text-xs text-foreground md:block",
+        "focus:outline-none focus:ring-1 focus:ring-ring",
+        "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+      )}
+    />
+  )
+}
+
+function MobileField({
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string
+  onChange: (v: string) => void
+  placeholder?: string
+  value: string
+}) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "h-7 w-16 rounded border border-border bg-background px-1.5 text-center font-mono text-xs text-foreground",
+          "focus:outline-none focus:ring-1 focus:ring-ring",
+        )}
+      />
+    </label>
   )
 }
 

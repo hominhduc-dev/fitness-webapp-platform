@@ -60,7 +60,7 @@ const STATUS_LABEL: Record<Status, string> = {
   rest: "Rest week",
 }
 const STATUS_BADGE: Record<Status, string> = {
-  "on-track": "bg-success/10 text-success border-success/20",
+  "on-track": "bg-ok-soft text-success border-success/20",
   behind: "bg-amber-500/10 text-amber-600 border-amber-500/20",
   rest: "bg-muted text-muted-foreground border-border",
 }
@@ -538,7 +538,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
                     <div className="flex items-center justify-between">
                       <span className="text-[13px] text-muted-foreground">{k.name}</span>
                       {k.isNew && (
-                        <Badge variant="micro" className="bg-primary/10 text-primary border-primary/20">
+                        <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
                           New
                         </Badge>
                       )}

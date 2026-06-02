@@ -289,7 +289,7 @@ export function LogFoodDialog({
                         <button
                           key={`recent-${food.fdcId}`}
                           className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                            selected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/40"
+                            selected ? "border-primary bg-primary-soft" : "border-border bg-background hover:border-primary/40"
                           }`}
                           type="button"
                           onClick={() => {
@@ -344,7 +344,7 @@ export function LogFoodDialog({
                             result.canLogByGram === false
                               ? "cursor-not-allowed border-border bg-muted/40 opacity-70"
                               : selected
-                                ? "border-primary bg-primary/5"
+                                ? "border-primary bg-primary-soft"
                                 : "border-border bg-background hover:border-primary/40"
                           }`}
                           disabled={result.canLogByGram === false}
@@ -406,7 +406,7 @@ export function LogFoodDialog({
             <p className="text-sm text-muted-foreground">{messages.meals.relogHint}</p>
 
             {error ? (
-              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive-soft px-3 py-2 text-sm text-destructive">
                 {error}
               </div>
             ) : null}

@@ -52,8 +52,8 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
       className={cn(
         "rounded-[10px] border bg-card p-4 transition-colors hover:border-primary/25 md:p-5",
         variant === "default" && "border-border",
-        variant === "primary" && "border-primary/20 bg-primary/5",
-        variant === "accent"  && "border-success/20 bg-success/5",
+        variant === "primary" && "border-primary/20 bg-primary-soft",
+        variant === "accent"  && "border-success/20 bg-ok-soft",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -77,8 +77,8 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
               className={cn(
                 "inline-flex rounded-sm px-1.5 py-0.5 font-mono text-[10px] tnum",
                 trend.positive
-                  ? "bg-success/10 text-success"
-                  : "bg-warning/10 text-warning",
+                  ? "bg-ok-soft text-success"
+                  : "bg-warn-soft text-warning",
               )}
             >
               {trend.positive ? "+" : ""}{trend.value}%
@@ -91,8 +91,8 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
               variant === "default" && "bg-muted text-muted-foreground",
-              variant === "primary" && "bg-primary/10 text-primary",
-              variant === "accent"  && "bg-success/10 text-success",
+              variant === "primary" && "bg-primary-soft text-primary",
+              variant === "accent"  && "bg-ok-soft text-success",
             )}
           >
             <Icon className="h-4 w-4" />

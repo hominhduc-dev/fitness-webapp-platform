@@ -528,8 +528,8 @@ export function WeightTrackingClient() {
             className={cn(
               "rounded-[8px] border px-4 py-3 text-sm",
               error
-                ? "border-destructive/20 bg-destructive/5 text-destructive"
-                : "border-primary/15 bg-primary/5 text-primary",
+                ? "border-destructive/20 bg-destructive-soft text-destructive"
+                : "border-primary/15 bg-primary-soft text-primary",
             )}
           >
             {error ?? infoMessage}
@@ -572,7 +572,7 @@ export function WeightTrackingClient() {
                   className={cn(
                     "rounded-full border px-3 py-1 font-mono text-xs tnum transition-colors",
                     selectedRange === r
-                      ? "border-primary bg-primary/10 text-primary"
+                      ? "border-primary bg-primary-soft text-primary"
                       : "border-border bg-background text-muted-foreground hover:bg-muted",
                   )}
                 >
@@ -754,7 +754,7 @@ export function WeightTrackingClient() {
                       bmiCategory === "healthy" && "bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-[var(--success)]",
                       bmiCategory === "underweight" && "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]",
                       bmiCategory === "overweight" && "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]",
-                      bmiCategory === "obese" && "bg-destructive/10 text-destructive",
+                      bmiCategory === "obese" && "bg-destructive-soft text-destructive",
                     )}
                   >
                     {bmiCategory === "healthy"

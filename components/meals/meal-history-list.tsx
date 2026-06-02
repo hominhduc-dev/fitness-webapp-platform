@@ -76,7 +76,7 @@ export function MealHistoryList({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="truncate text-sm font-semibold text-foreground">{meal.name}</p>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-primary">
                   {mealTypeLabel[meal.type]}
                 </span>
               </div>

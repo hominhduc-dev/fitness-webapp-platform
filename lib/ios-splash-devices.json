@@ -1,0 +1,18 @@
+[
+  { "name": "iphone-se", "w": 375, "h": 667, "dpr": 2 },
+  { "name": "iphone-8plus", "w": 414, "h": 736, "dpr": 3 },
+  { "name": "iphone-x", "w": 375, "h": 812, "dpr": 3 },
+  { "name": "iphone-xr", "w": 414, "h": 896, "dpr": 2 },
+  { "name": "iphone-xsmax", "w": 414, "h": 896, "dpr": 3 },
+  { "name": "iphone-12", "w": 390, "h": 844, "dpr": 3 },
+  { "name": "iphone-12promax", "w": 428, "h": 926, "dpr": 3 },
+  { "name": "iphone-15", "w": 393, "h": 852, "dpr": 3 },
+  { "name": "iphone-15plus", "w": 430, "h": 932, "dpr": 3 },
+  { "name": "iphone-16pro", "w": 402, "h": 874, "dpr": 3 },
+  { "name": "iphone-16promax", "w": 440, "h": 956, "dpr": 3 },
+  { "name": "ipad-9-7", "w": 768, "h": 1024, "dpr": 2 },
+  { "name": "ipad-10-2", "w": 810, "h": 1080, "dpr": 2 },
+  { "name": "ipad-air-10-5", "w": 834, "h": 1112, "dpr": 2 },
+  { "name": "ipad-pro-11", "w": 834, "h": 1194, "dpr": 2 },
+  { "name": "ipad-pro-12-9", "w": 1024, "h": 1366, "dpr": 2 }
+]

@@ -21,6 +21,7 @@ function parsePersonalWorkoutInput(body: unknown) {
     duration?: unknown
     exercises?: Array<{
       repsMin?: unknown
+      rir?: unknown
       variationId?: unknown
       reps?: unknown
       restTime?: unknown
@@ -39,6 +40,7 @@ function parsePersonalWorkoutInput(body: unknown) {
     exercises: Array.isArray(requestBody.exercises)
       ? requestBody.exercises.map((exercise) => ({
           repsMin: typeof exercise?.repsMin === "number" ? exercise.repsMin : undefined,
+          rir: typeof exercise?.rir === "number" ? exercise.rir : undefined,
           variationId: typeof exercise?.variationId === "string" ? exercise.variationId : "",
           reps: typeof exercise?.reps === "number" ? exercise.reps : 0,
           restTime: typeof exercise?.restTime === "number" ? exercise.restTime : undefined,

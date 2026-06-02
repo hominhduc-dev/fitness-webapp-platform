@@ -11,67 +11,94 @@
 :root {
   color-scheme: light;
 
-  /* -- Brand / interactive ---------------------------------- */
-  --primary: #3a5fff;            /* electric blue accent */
-  --primary-hover: #2a4ff0;
-  --primary-pressed: #1f3fd9;
+  /* ── Ink ramp — warm-neutral grayscale (design system source of truth) ── */
+  --ink-0:   #fcfcfa;    /* page background — warm paper white */
+  --ink-50:  #f5f5f1;    /* card / raised surface */
+  --ink-100: #ebebe6;    /* hairline / strong divider */
+  --ink-150: #e0e0db;    /* divider */
+  --ink-200: #c9c9c2;    /* disabled background */
+  --ink-400: #8a8a82;    /* muted text */
+  --ink-600: #4a4a44;    /* secondary text */
+  --ink-800: #1a1a17;    /* primary text */
+  --ink-900: #0d0d0b;    /* display / extreme */
+
+  /* ── Accent — single electric blue ─────────────────────────────────────── */
+  --accent-color:        #3a5fff;   /* design-system --accent alias */
+  --accent-hover-color:  #2a4ff0;
+  --accent-press-color:  #1f3fd9;
+  --accent-soft-color:   #eaeeff;
+  --accent-ink-color:    #0a1a8a;  /* text on --accent-soft */
+
+  /* ── Semantic — ok / warn / danger + soft tints ────────────────────────── */
+  --ok:          #2a8a5f;
+  --ok-soft:     #e6f3ec;
+  --warn:        #b56a1a;
+  --warn-soft:   #faefdb;
+  --danger:      #c0341a;
+  --danger-soft: #faeae6;
+
+  /* ── shadcn / Radix semantic tokens (mapped from ink ramp + accent above) */
+  --primary: var(--accent-color);
+  --primary-hover: var(--accent-hover-color);
+  --primary-pressed: var(--accent-press-color);
   --primary-foreground: #ffffff;
 
-  --secondary: #eaeeff;          /* accent-soft */
+  --secondary: var(--accent-soft-color);
   --secondary-hover: #dde3ff;
-  --secondary-foreground: #1a1a17;
+  --secondary-foreground: var(--ink-800);
 
-  --accent: #eaeeff;
-  --accent-foreground: #0a1a8a;  /* accent-ink */
+  --accent: var(--accent-soft-color);
+  --accent-foreground: var(--accent-ink-color);
 
-  /* -- Surfaces (warm neutrals) ----------------------------- */
-  --background: #fcfcfa;         /* ink-0 — warm paper white */
-  --foreground: #1a1a17;         /* ink-800 */
+  --background: var(--ink-0);
+  --foreground: var(--ink-800);
 
-  --card: #fcfcfa;
-  --card-foreground: #1a1a17;
-  --surface: #f5f5f1;            /* ink-50 — raised */
+  --card: var(--ink-0);
+  --card-foreground: var(--ink-800);
+  --surface: var(--ink-50);
 
-  --popover: #fcfcfa;
-  --popover-foreground: #1a1a17;
+  --popover: var(--ink-0);
+  --popover-foreground: var(--ink-800);
 
-  --muted: #f5f5f1;              /* ink-50 */
-  --muted-foreground: #4a4a44;   /* ink-600 */
+  --muted: var(--ink-50);
+  --muted-foreground: var(--ink-600);
 
-  --text-primary: #1a1a17;
-  --text-secondary: #4a4a44;
+  --text-primary: var(--ink-800);
+  --text-secondary: var(--ink-600);
 
-  /* -- Semantic (desaturated; data is the focus, not chrome) - */
-  --success: #2a8a5f;
-  --warning: #b56a1a;
-  --info: #3a5fff;
-  --destructive: #c0341a;
+  --success: var(--ok);
+  --success-soft: var(--ok-soft);
+  --warning: var(--warn);
+  --warning-soft: var(--warn-soft);
+  --info: var(--accent-color);
+  --destructive: var(--danger);
+  --destructive-soft: var(--danger-soft);
   --destructive-foreground: #ffffff;
+  --primary-soft: var(--accent-soft-color);   /* soft accent bg tint */
 
-  /* -- Borders & inputs ------------------------------------- */
-  --border: #ebebe6;             /* ink-100 — hairlines do the work of shadows */
-  --input: #e0e0db;              /* ink-150 */
-  --ring: #3a5fff;
+  --border: var(--ink-100);
+  --input: var(--ink-150);
+  --ring: var(--accent-color);
 
-  /* -- Charts (sparingly colored — accent + ink ramp) ------- */
-  --chart-1: #3a5fff;            /* accent */
-  --chart-2: #8a8a82;            /* ink-400 */
-  --chart-3: #2a8a5f;            /* ok */
-  --chart-4: #b56a1a;            /* warn */
-  --chart-5: #c9c9c2;            /* ink-200 */
+  /* ── Charts ─────────────────────────────────────────────────────────────── */
+  --chart-1: var(--accent-color);    /* primary series */
+  --chart-2: var(--ink-400);         /* secondary / neutral */
+  --chart-3: var(--ok);              /* success / PR / volume */
+  --chart-4: var(--warn);            /* warning */
+  --chart-5: var(--ink-200);         /* bar track / disabled */
 
-  /* -- Radius (tighter than the previous 0.75rem) ----------- */
-  --radius: 0.625rem;            /* 10px → sm 6, md 8, lg 10, xl 14 */
+  /* ── Radius ──────────────────────────────────────────────────────────────── */
+  --radius: 0.625rem;   /* 10px → sm 6px, md 8px, lg 10px, xl 14px */
 
-  /* -- Sidebar --------------------------------------------- */
-  --sidebar: #fcfcfa;
-  --sidebar-foreground: #1a1a17;
-  --sidebar-primary: #3a5fff;
+  /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+  --sidebar: var(--ink-0);
+  --sidebar-foreground: var(--ink-800);
+  --sidebar-primary: var(--accent-color);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ebebe6;     /* ink-100 — active item bg */
-  --sidebar-accent-foreground: #1a1a17;
-  --sidebar-border: #ebebe6;
-  --sidebar-ring: #3a5fff;
+  --sidebar-accent: var(--ink-100);
+  --sidebar-accent-foreground: var(--ink-800);
+  --sidebar-border: var(--ink-100);
+  --sidebar-ring: var(--accent-color);
 }
 
 @theme inline {
@@ -79,6 +106,18 @@
   --font-sans: var(--font-geist), "Inter Fallback", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* ── Ink ramp — available as bg-ink-0, text-ink-600, etc. ── */
+  --color-ink-0:   var(--ink-0);
+  --color-ink-50:  var(--ink-50);
+  --color-ink-100: var(--ink-100);
+  --color-ink-150: var(--ink-150);
+  --color-ink-200: var(--ink-200);
+  --color-ink-400: var(--ink-400);
+  --color-ink-600: var(--ink-600);
+  --color-ink-800: var(--ink-800);
+  --color-ink-900: var(--ink-900);
+
+  /* ── shadcn / Radix tokens ── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -95,6 +134,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -116,9 +156,20 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-surface: var(--surface);
+
+  /* ── Semantic ── */
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-info: var(--info);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-primary-soft: var(--primary-soft);
 }
 
 @layer base {
@@ -128,13 +179,20 @@
 
   html {
     @apply bg-background;
+    /* iOS Safari: don't auto-inflate text on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01" 1, "cv11" 1;
     text-rendering: optimizeLegibility;
+    /* iOS Safari: kill the grey tap flash + rubber-band scroll on the page */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
   }
+
 
   /* Numbers always tabular — Lift's signature */
   .tnum,
@@ -170,6 +228,26 @@
   will-change: transform;
 }
 
+/* ============================================================
+   iOS / safe-area helpers
+   ============================================================ */
+
+/* Reusable safe-area padding helpers (notch + Home indicator) */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pl-safe { padding-left: env(safe-area-inset-left); }
+.pr-safe { padding-right: env(safe-area-inset-right); }
+
+/* iOS Safari auto-zooms any focused field whose font is < 16px.
+   Scope the 16px floor to iOS only so other platforms keep their sizing. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Quiet scrollbars — match the warm neutral palette */
 ::-webkit-scrollbar {
   width: 8px;
@@ -198,56 +276,86 @@
 .dark {
   color-scheme: dark;
 
-  --primary: #5a7fff;
-  --primary-hover: #6a8fff;
-  --primary-pressed: #4a6fff;
+  /* ── Ink ramp (dark — inverted warmth) ─────────────────────────────────── */
+  --ink-0:   #0d0d0b;    /* page background */
+  --ink-50:  #1a1a17;    /* card / raised surface */
+  --ink-100: #2a2a25;    /* hairline / strong divider */
+  --ink-150: #333330;    /* divider */
+  --ink-200: #3a3a35;    /* disabled background */
+  --ink-400: #8a8a82;    /* muted text (same as light) */
+  --ink-600: #c9c9c2;    /* secondary text (inverted) */
+  --ink-800: #f5f5f1;    /* primary text */
+  --ink-900: #fcfcfa;    /* display / extreme */
+
+  /* ── Accent ─────────────────────────────────────────────────────────────── */
+  --accent-color:       #5a7fff;
+  --accent-hover-color: #6a8fff;
+  --accent-press-color: #4a6fff;
+  --accent-soft-color:  #1a2340;
+  --accent-ink-color:   #a0b0ff;
+
+  /* ── Semantic soft tints (dark) ─────────────────────────────────────────── */
+  --ok:          #3aaa77;
+  --ok-soft:     #0d2218;
+  --warn:        #d48a35;
+  --warn-soft:   #271a08;
+  --danger:      #e04a30;
+  --danger-soft: #2a0e08;
+
+  /* ── shadcn / Radix tokens ── */
+  --primary: var(--accent-color);
+  --primary-hover: var(--accent-hover-color);
+  --primary-pressed: var(--accent-press-color);
   --primary-foreground: #ffffff;
 
-  --secondary: #1a2340;
+  --secondary: var(--accent-soft-color);
   --secondary-hover: #222d4f;
-  --secondary-foreground: #c9c9c2;
+  --secondary-foreground: var(--ink-600);
 
-  --accent: #1a2340;
-  --accent-foreground: #a0b0ff;
+  --accent: var(--accent-soft-color);
+  --accent-foreground: var(--accent-ink-color);
 
-  --background: #0d0d0b;
-  --foreground: #f5f5f1;
+  --background: var(--ink-0);
+  --foreground: var(--ink-800);
 
-  --card: #1a1a17;
-  --card-foreground: #f5f5f1;
+  --card: var(--ink-50);
+  --card-foreground: var(--ink-800);
   --surface: #222220;
 
-  --popover: #1a1a17;
-  --popover-foreground: #f5f5f1;
+  --popover: var(--ink-50);
+  --popover-foreground: var(--ink-800);
 
-  --muted: #1a1a17;
-  --muted-foreground: #8a8a82;
+  --muted: var(--ink-50);
+  --muted-foreground: var(--ink-400);
 
-  --text-primary: #f5f5f1;
-  --text-secondary: #8a8a82;
+  --text-primary: var(--ink-800);
+  --text-secondary: var(--ink-400);
 
-  --success: #3aaa77;
-  --warning: #d48a35;
-  --info: #5a7fff;
-  --destructive: #e04a30;
+  --success: var(--ok);
+  --success-soft: var(--ok-soft);
+  --warning: var(--warn);
+  --warning-soft: var(--warn-soft);
+  --info: var(--accent-color);
+  --destructive: var(--danger);
+  --destructive-soft: var(--danger-soft);
   --destructive-foreground: #ffffff;
 
-  --border: #2a2a25;
-  --input: #333330;
-  --ring: #5a7fff;
+  --border: var(--ink-100);
+  --input: var(--ink-150);
+  --ring: var(--accent-color);
 
-  --chart-1: #5a7fff;
-  --chart-2: #8a8a82;
-  --chart-3: #3aaa77;
-  --chart-4: #d48a35;
-  --chart-5: #3a3a35;
+  --chart-1: var(--accent-color);
+  --chart-2: var(--ink-400);
+  --chart-3: var(--ok);
+  --chart-4: var(--warn);
+  --chart-5: var(--ink-200);
 
   --sidebar: #111110;
-  --sidebar-foreground: #f5f5f1;
-  --sidebar-primary: #5a7fff;
+  --sidebar-foreground: var(--ink-800);
+  --sidebar-primary: var(--accent-color);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2a2a25;
-  --sidebar-accent-foreground: #f5f5f1;
-  --sidebar-border: #2a2a25;
-  --sidebar-ring: #5a7fff;
+  --sidebar-accent: var(--ink-100);
+  --sidebar-accent-foreground: var(--ink-800);
+  --sidebar-border: var(--ink-100);
+  --sidebar-ring: var(--accent-color);
 }

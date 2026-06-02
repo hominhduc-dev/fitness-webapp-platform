@@ -900,7 +900,7 @@ export default function WorkoutStartPage() {
   // ── Loading / error states ──────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background text-muted-foreground">
         Loading workout...
       </div>
     )
@@ -908,7 +908,7 @@ export default function WorkoutStartPage() {
 
   if (!workout) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
         <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
           <p className="text-lg font-semibold">Workout not found</p>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -924,9 +924,9 @@ export default function WorkoutStartPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-[880px] px-4 pt-5 pb-30 md:px-10 md:pt-8">
+      <main className="mx-auto max-w-[880px] px-4 pt-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:px-10 md:pt-8">
         {/* Header */}
         <div className="mb-7">
           {/* Mobile back button */}

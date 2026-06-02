@@ -117,7 +117,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   return (
     <div className="relative z-50 md:hidden">
       {/* ── Top bar ── */}
-      <header className="relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md">
+      <header className="relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
         <div className="flex items-center gap-2">
           <img src="/lift-mark.svg" alt="" className="h-5 w-[22px]" />
           <span className="text-[18px] font-semibold leading-none tracking-[-0.04em] text-foreground">
@@ -147,9 +147,9 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             type="button"
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
-            className="fixed inset-x-0 bottom-0 top-[57px] z-40 bg-background/45 backdrop-blur-[1px]"
+            className="fixed inset-x-0 bottom-0 top-[calc(57px+env(safe-area-inset-top))] z-40 bg-background/45 backdrop-blur-[1px]"
           />
-          <nav className="fixed left-3 right-3 top-[65px] z-50 max-h-[calc(100dvh-80px)] overflow-y-auto rounded-lg border border-border bg-background p-2.5 shadow-lg">
+          <nav className="fixed left-3 right-3 top-[calc(65px+env(safe-area-inset-top))] z-50 max-h-[calc(100dvh-80px-env(safe-area-inset-top))] overflow-y-auto rounded-lg border border-border bg-background p-2.5 shadow-lg">
             {/* Role nav items */}
             <Suspense fallback={null}>
               <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />
@@ -171,7 +171,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               type="button"
               onClick={() => void handleSignOut()}
               disabled={isSigningOut}
-              className="flex w-full items-center gap-3 rounded-[6px] px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+              className="flex w-full items-center gap-3 rounded-[6px] px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive disabled:opacity-50"
             >
               <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{isSigningOut ? messages.common.signingOut : messages.common.signOut}</span>

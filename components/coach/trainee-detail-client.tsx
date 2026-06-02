@@ -230,7 +230,7 @@ function KeyLiftCard({ lift }: KeyLiftCardProps) {
           {lift.name}
         </span>
         {lift.isNew && (
-          <Badge variant="micro" className="bg-primary/10 text-primary border-primary/20">
+          <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
             PR
           </Badge>
         )}
@@ -302,7 +302,7 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             {s.kind} day
             {s.prs > 0 && (
-              <Badge variant="micro" className="bg-primary/10 text-primary border-primary/20">
+              <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
                 {s.prs} PR
               </Badge>
             )}
@@ -675,7 +675,7 @@ export function CoachTraineeDetailClient({
           </div>
 
           {assignError ? (
-            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
               {assignError}
             </div>
           ) : null}
@@ -721,7 +721,7 @@ export function CoachTraineeDetailClient({
                     </Link>
                     <Button
                       variant="outline"
-                      className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive"
                       onClick={() => void handleUnassignProgram(program.id)}
                       disabled={removingProgramId === program.id}
                     >
@@ -815,7 +815,7 @@ export function CoachTraineeDetailClient({
             <p className="mt-1 text-sm text-muted-foreground">Log the latest measurement for this client.</p>
 
             {metricError ? (
-              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
                 {metricError}
               </div>
             ) : null}
@@ -984,7 +984,7 @@ export function CoachTraineeDetailClient({
             <p className="mt-1 text-sm text-muted-foreground">Record adherence, recovery, and coach feedback.</p>
 
             {checkInError ? (
-              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
                 {checkInError}
               </div>
             ) : null}
@@ -1135,7 +1135,7 @@ export function CoachTraineeDetailClient({
                     </div>
 
                     {checkIn.nextFocus ? (
-                      <div className="mt-4 rounded-md border border-primary/20 bg-primary/5 px-3 py-3 text-sm">
+                      <div className="mt-4 rounded-md border border-primary/20 bg-primary-soft px-3 py-3 text-sm">
                         <span className="font-medium text-primary">Next focus:</span>{" "}
                         {checkIn.nextFocus}
                       </div>

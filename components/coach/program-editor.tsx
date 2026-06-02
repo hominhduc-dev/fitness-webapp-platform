@@ -63,6 +63,7 @@ type RoutineExercise = {
   fallbackMuscleGroup?: string
   fallbackVariationName?: string
   id: string
+  rir?: number
   reps: string
   sets: number
   variationId: string
@@ -239,6 +240,7 @@ function mapWorkoutExerciseToRoutineExercise(
     fallbackMuscleGroup: resolvedOption?.muscleGroup ?? workoutExercise.exercise.muscleGroup,
     fallbackVariationName: workoutExercise.variation.name,
     id: workoutExercise.id || createFormId(),
+    rir: workoutExercise.sets[0]?.rir,
     reps: formatRepTarget({
       reps: workoutExercise.sets[0]?.targetReps ?? 1,
       repsMin: workoutExercise.sets[0]?.targetRepsMin,
@@ -378,7 +380,7 @@ function SessionSlot({
               role="button"
               tabIndex={0}
               title="Edit routine exercises"
-              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
+              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation()
                 onEdit()
@@ -399,7 +401,7 @@ function SessionSlot({
               role="button"
               tabIndex={0}
               title="Mark as rest day"
-              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
+              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation()
                 onToggleRest()
@@ -457,6 +459,7 @@ function routineToDraft(routine: Routine): RoutineDraftData {
       sets: ex.sets,
       reps: ex.reps,
       weight: ex.weight,
+      rir: ex.rir != null ? String(ex.rir) : "",
     })),
   }
 }
@@ -468,6 +471,7 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
     tag: draft.tag,
     exercises: draft.exercises.map((ex): RoutineExercise => {
       const parts = ex.displayName.split(" — ")
+      const parsedRir = Number(ex.rir)
       return {
         id: ex.id,
         variationId: ex.variationId,
@@ -476,6 +480,7 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
         fallbackMuscleGroup: ex.muscleGroup,
         fallbackEquipment: ex.equipment,
         fallbackIsDefault: parts.length === 1,
+        rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
         sets: ex.sets,
         reps: ex.reps,
         weight: ex.weight,
@@ -567,7 +572,7 @@ function RoutinePickerDialog({
                   type="button"
                   title="Edit routine"
                   onClick={() => onEditLibraryRoutine(routine)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -907,6 +912,7 @@ export function ProgramEditor({
               return {
                 reps: repTarget.reps,
                 repsMin: repTarget.repsMin,
+                rir: typeof exercise.rir === "number" ? exercise.rir : undefined,
                 sets: exercise.sets,
                 variationId: exercise.variationId,
                 weight:
@@ -1131,12 +1137,12 @@ export function ProgramEditor({
 
         <div className="px-4 py-5 md:px-7">
           {error ? (
-            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           ) : null}
           {notice ? (
-            <div className="mb-4 rounded-[10px] border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+            <div className="mb-4 rounded-[10px] border border-success/20 bg-ok-soft px-4 py-3 text-sm text-success">
               {notice}
             </div>
           ) : null}

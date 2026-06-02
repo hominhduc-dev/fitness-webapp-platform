@@ -70,7 +70,7 @@ export function MealTypeList({
           >
             <div className="flex items-center justify-between gap-4 rounded-[20px] bg-white px-4 py-3.5">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">
                   <section.icon className="h-5 w-5" />
                 </div>
 
@@ -120,7 +120,7 @@ export function MealTypeList({
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            className="rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            className="rounded-full text-muted-foreground hover:bg-primary-soft hover:text-primary"
                             disabled={isSubmitting}
                             onClick={() => onEditMeal(meal)}
                           >
@@ -133,7 +133,7 @@ export function MealTypeList({
                             variant="ghost"
                             size="icon-sm"
                             className={cn(
-                              "rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+                              "rounded-full text-muted-foreground hover:bg-destructive-soft hover:text-destructive",
                               isSubmitting && "pointer-events-none",
                             )}
                             disabled={isSubmitting}

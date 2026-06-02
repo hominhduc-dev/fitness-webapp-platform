@@ -293,7 +293,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
       </div>
 
       {error ? (
-        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       ) : null}
@@ -308,7 +308,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
                   {Math.round(totalCalories)} <span className="text-lg font-normal text-muted-foreground">/ {Math.round(targetCalories)} kcal</span>
                 </p>
               </div>
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-soft">
                 <Flame className="h-8 w-8 text-primary" />
               </div>
             </div>
@@ -329,7 +329,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
                 <p className="text-2xl font-bold text-info">{formatMetric(totalProtein)}g</p>
                 <p className="text-xs text-muted-foreground">{messages.meals.protein}</p>
               </div>
-              <div className="rounded-lg bg-warning/10 p-3 text-center">
+              <div className="rounded-lg bg-warn-soft p-3 text-center">
                 <p className="text-2xl font-bold text-warning">{formatMetric(totalCarbs)}g</p>
                 <p className="text-xs text-muted-foreground">{messages.meals.carbs}</p>
               </div>

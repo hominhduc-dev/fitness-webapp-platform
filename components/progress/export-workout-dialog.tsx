@@ -140,7 +140,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
                   onClick={() => setMode(m)}
                   className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                     mode === m
-                      ? "border-primary bg-primary/10 text-primary"
+                      ? "border-primary bg-primary-soft text-primary"
                       : "border-border bg-background text-muted-foreground hover:bg-muted"
                   }`}
                 >

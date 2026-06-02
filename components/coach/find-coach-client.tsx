@@ -88,7 +88,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
             </div>
 
             {error ? (
-              <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
                 {error}
               </div>
             ) : null}
@@ -97,7 +97,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
               <h2 className="text-xl font-bold mb-2">{messages.coach.whyCoach}</h2>
               <div className="grid gap-4 sm:grid-cols-3 mt-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
                     <Check className="h-4 w-4 text-primary" />
                   </div>
                   <div>
@@ -106,7 +106,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
                     <Check className="h-4 w-4 text-primary" />
                   </div>
                   <div>
@@ -115,7 +115,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
                     <Check className="h-4 w-4 text-primary" />
                   </div>
                   <div>
@@ -127,7 +127,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
             </div>
 
             {connectedCoach ? (
-              <div className="mb-6 rounded-xl border border-success/30 bg-success/5 p-4">
+              <div className="mb-6 rounded-xl border border-success/30 bg-ok-soft p-4">
                 <p className="font-semibold">{messages.coach.currentCoach}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {messages.coach.currentCoachCopy(connectedCoach.name)}
@@ -161,7 +161,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
                           <div className="flex items-start gap-4 mb-4">
                             <Avatar className="h-16 w-16 border-2 border-primary/20">
                               <AvatarImage src={coach.avatar || "/placeholder.svg"} />
-                              <AvatarFallback className="bg-primary/10 text-primary text-lg">
+                              <AvatarFallback className="bg-primary-soft text-primary text-lg">
                                 {getInitials(coach.name)}
                               </AvatarFallback>
                             </Avatar>
@@ -188,7 +188,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
                           <div className="flex flex-wrap gap-1">
                             {coach.fitnessGoals.length > 0 ? (
                               coach.fitnessGoals.slice(0, 3).map((goal) => (
-                                <span key={goal} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                                <span key={goal} className="rounded-full bg-primary-soft px-2 py-0.5 text-xs text-primary">
                                   {goal}
                                 </span>
                               ))
