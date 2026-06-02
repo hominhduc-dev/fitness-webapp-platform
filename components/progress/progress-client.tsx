@@ -117,7 +117,7 @@ function Chip({
       className={cn(
         "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
         active
-          ? "border-primary bg-primary/10 text-primary"
+          ? "border-primary bg-primary-soft text-primary"
           : "border-border bg-background text-muted-foreground hover:bg-muted",
       )}
     >
@@ -1102,7 +1102,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
         {/* ---- Error banner ---- */}
         {error ? (
-          <div className="mb-6 rounded-[8px] border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <div className="mb-6 rounded-[8px] border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         ) : null}

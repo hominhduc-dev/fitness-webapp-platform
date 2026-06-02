@@ -38,7 +38,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-screen flex-col border-r border-border bg-sidebar transition-all duration-300 md:flex",
+        "sticky top-0 hidden h-dvh flex-col border-r border-border bg-sidebar transition-all duration-300 md:flex",
         collapsed ? "w-16" : "w-64",
       )}
     >
@@ -71,7 +71,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-primary/10 text-primary shadow-sm"
+                  ? "bg-primary-soft text-primary shadow-sm"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 collapsed && "justify-center px-2",
               )}
@@ -114,7 +114,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
   const settingsItems = adminNavItems.filter((i) => i.href.startsWith("/profile"))
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         {/* Brand */}
         <div className="mb-4 flex items-center gap-2.5 px-1">
@@ -240,7 +240,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   )
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         <div className="mb-4 flex items-center gap-2.5 px-1">
           <img src="/lift-mark.svg" alt="" className="h-5 w-[22px] text-foreground" />

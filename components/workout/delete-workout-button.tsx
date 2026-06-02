@@ -60,7 +60,7 @@ export function DeleteWorkoutButton({
       variant={variant}
       size={size}
       className={cn(
-        "shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive",
+        "shrink-0 text-destructive hover:bg-destructive-soft hover:text-destructive",
         className,
       )}
       disabled={authLoading || isDeleting}
@@ -116,7 +116,7 @@ export function DeleteWorkoutButton({
         </DialogHeader>
 
         {error ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         ) : null}

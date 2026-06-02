@@ -472,7 +472,7 @@ export function TraineeWorkoutLogsPanel({
           </p>
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary">
             {log.completedAt ? "Completed" : "In progress"}
           </span>
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
@@ -580,7 +580,7 @@ export function TraineeWorkoutLogsPanel({
                           <td className="border-b border-border/60 px-3 py-3">
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                                set.completed ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                                set.completed ? "bg-primary-soft text-primary" : "bg-muted text-muted-foreground"
                               }`}
                             >
                               {set.completed ? "Done" : "Pending"}
@@ -733,7 +733,7 @@ export function TraineeWorkoutLogsPanel({
   return (
     <div className="space-y-6">
       {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       ) : null}

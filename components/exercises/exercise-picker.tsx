@@ -235,7 +235,7 @@ export function ExercisePicker({
                           type="button"
                           className={cn(
                             "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                            isSelected ? "bg-primary/10 text-primary" : "hover:bg-accent/60",
+                            isSelected ? "bg-primary-soft text-primary" : "hover:bg-accent/60",
                           )}
                           onClick={() => handleSelectExercise(exercise)}
                         >

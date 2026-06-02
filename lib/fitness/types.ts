@@ -341,6 +341,7 @@ type CreateWorkoutInput = {
   duration?: number
   exercises: Array<{
     repsMin?: number
+    rir?: number
     variationId: string
     reps: number
     restTime?: number

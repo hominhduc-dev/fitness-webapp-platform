@@ -236,15 +236,15 @@ function getTagColor(tag: string) {
 
 function getStatusBadge(entry: ScheduleEntry) {
   if (entry.isCompleted) {
-    return { className: "bg-success/10 text-success", label: "Done" }
+    return { className: "bg-ok-soft text-success", label: "Done" }
   }
 
   if (entry.isToday) {
-    return { className: "bg-primary/10 text-primary", label: "Today" }
+    return { className: "bg-primary-soft text-primary", label: "Today" }
   }
 
   if (entry.isMissed) {
-    return { className: "bg-warning/10 text-warning", label: "Missed" }
+    return { className: "bg-warn-soft text-warning", label: "Missed" }
   }
 
   return null
@@ -468,7 +468,7 @@ function RoutinePickerDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {error ? (
-            <div className="border-b border-destructive/20 bg-destructive/5 px-5 py-3 text-sm text-destructive">{error}</div>
+            <div className="border-b border-destructive/20 bg-destructive-soft px-5 py-3 text-sm text-destructive">{error}</div>
           ) : null}
           {visibleRoutines.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-muted-foreground">
@@ -610,7 +610,7 @@ function RoutineBuilderDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 py-5">
           {error ? (
-            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</div>
+            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">{error}</div>
           ) : null}
           {exercises.length === 0 ? (
             <div className="rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">

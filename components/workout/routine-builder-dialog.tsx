@@ -26,6 +26,7 @@ export type RoutineExerciseDraft = {
   sets: number
   reps: string
   weight: string
+  rir: string
 }
 
 export type RoutineDraftData = {
@@ -91,6 +92,7 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     sets: exercise.sets.length,
     reps: formatRepTarget({ reps: set0?.targetReps ?? 10, repsMin: set0?.targetRepsMin }),
     weight: set0?.weight != null ? String(set0.weight) : "",
+    rir: set0?.rir != null ? String(set0.rir) : "",
   }
 }
 
@@ -282,7 +284,8 @@ export function RoutineBuilderDialog({
   const [name, setName] = useState("")
   const [tag, setTag] = useState<RoutineTag>("push")
   const [exercises, setExercises] = useState<RoutineExerciseDraft[]>([])
-  const [showPicker, setShowPicker] = useState(false)
+  // "add" = add new exercise; exerciseId = swap that exercise; null = closed
+  const [pickerTarget, setPickerTarget] = useState<string | "add" | null>(null)
   const [library, setLibrary] = useState<ExerciseVariationOption[]>([])
   const [loadingLibrary, setLoadingLibrary] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -315,40 +318,59 @@ export function RoutineBuilderDialog({
 
   // ── Load exercise library when picker opens ───────────────────────────────
   useEffect(() => {
-    if (!showPicker || library.length > 0 || !session?.access_token) return
+    if (!pickerTarget || library.length > 0 || !session?.access_token) return
     setLoadingLibrary(true)
     fetchExercises(session.access_token)
       .then(setLibrary)
       .catch(() => {/* non-critical */})
       .finally(() => setLoadingLibrary(false))
-  }, [showPicker, session?.access_token])
+  }, [pickerTarget, session?.access_token])
 
   // ── Keyboard: Escape to close ─────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !showPicker) setOpen(false)
+      if (e.key === "Escape" && !pickerTarget) setOpen(false)
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [open, showPicker])
+  }, [open, pickerTarget])
 
   // ── Exercise handlers ─────────────────────────────────────────────────────
-  const addExercise = (ex: ExerciseVariationOption) => {
-    setExercises((prev) => [
-      ...prev,
-      {
-        id: draftId(),
-        variationId: ex.id,
-        displayName: ex.name,
-        muscleGroup: ex.muscleGroup,
-        equipment: ex.equipment,
-        sets: 3,
-        reps: "10",
-        weight: "",
-      },
-    ])
-    setShowPicker(false)
+  const pickExercise = (ex: ExerciseVariationOption) => {
+    if (pickerTarget === "add") {
+      // Add new exercise at the end
+      setExercises((prev) => [
+        ...prev,
+        {
+          id: draftId(),
+          variationId: ex.id,
+          displayName: ex.name,
+          muscleGroup: ex.muscleGroup,
+          equipment: ex.equipment,
+          sets: 3,
+          reps: "10",
+          weight: "",
+          rir: "",
+        },
+      ])
+    } else if (pickerTarget) {
+      // Swap in-place — keep sets/reps/weight/rir, replace identity
+      setExercises((prev) =>
+        prev.map((item) =>
+          item.id === pickerTarget
+            ? {
+                ...item,
+                variationId: ex.id,
+                displayName: ex.name,
+                muscleGroup: ex.muscleGroup,
+                equipment: ex.equipment,
+              }
+            : item,
+        ),
+      )
+    }
+    setPickerTarget(null)
   }
 
   const updateExercise = (id: string, patch: Partial<RoutineExerciseDraft>) => {
@@ -391,9 +413,11 @@ export function RoutineBuilderDialog({
           const repTarget = parseRepTargetText(ex.reps)
           if (!repTarget) throw new Error(`Reps không hợp lệ ở bài tập ${i + 1}. Dùng dạng 8-12 hoặc 10.`)
           const parsedWeight = Number(ex.weight)
+          const parsedRir = Number(ex.rir)
           return {
             reps: repTarget.reps,
             repsMin: repTarget.repsMin,
+            rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
             variationId: ex.variationId,
             sets: Math.max(1, Number(ex.sets) || 1),
             weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
@@ -510,7 +534,7 @@ export function RoutineBuilderDialog({
             {/* ── Exercise list ─────────────────────────────────────────── */}
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7">
               {error && (
-                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
                   {error}
                 </div>
               )}
@@ -531,12 +555,18 @@ export function RoutineBuilderDialog({
                     <span className="min-w-[18px] text-right font-mono text-xs font-semibold text-muted-foreground">
                       {i + 1}
                     </span>
-                    <div className="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      title="Đổi bài tập"
+                      onClick={() => setPickerTarget(ex.id)}
+                      className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
+                    >
                       <p className="truncate text-sm font-medium text-foreground">{ex.displayName}</p>
                       <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                         {ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}
+                        <span className="ml-1.5 text-primary/70">tap to swap</span>
                       </p>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
@@ -557,14 +587,14 @@ export function RoutineBuilderDialog({
                       <button
                         type="button"
                         onClick={() => removeExercise(ex.id)}
-                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     <FieldNum
                       label="Sets"
                       value={String(ex.sets)}
@@ -582,6 +612,12 @@ export function RoutineBuilderDialog({
                       onChange={(v) => updateExercise(ex.id, { weight: v })}
                       allowDecimals
                     />
+                    <FieldNum
+                      label="RIR"
+                      value={ex.rir}
+                      onChange={(v) => updateExercise(ex.id, { rir: v })}
+                      placeholder="0-4"
+                    />
                   </div>
                 </div>
               ))}
@@ -589,7 +625,7 @@ export function RoutineBuilderDialog({
               {/* Add exercise button */}
               <button
                 type="button"
-                onClick={() => setShowPicker(true)}
+                onClick={() => setPickerTarget("add")}
                 className={cn(
                   "mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-[10px]",
                   "border border-dashed border-border py-3.5 text-sm font-medium text-primary",
@@ -619,12 +655,17 @@ export function RoutineBuilderDialog({
       )}
 
       {/* Exercise picker sub-modal */}
-      {showPicker && (
+      {pickerTarget && (
         <ExercisePickerModal
           library={loadingLibrary ? [] : library}
-          existing={exercises}
-          onPick={addExercise}
-          onClose={() => setShowPicker(false)}
+          existing={
+            // When swapping: exclude the exercise being swapped so it shows as pickable
+            pickerTarget === "add"
+              ? exercises
+              : exercises.filter((e) => e.id !== pickerTarget)
+          }
+          onPick={pickExercise}
+          onClose={() => setPickerTarget(null)}
         />
       )}
     </>

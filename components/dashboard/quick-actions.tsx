@@ -44,7 +44,7 @@ export function QuickActions() {
           href={action.href}
           className={cn(
             "group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-colors md:min-h-[132px]",
-            action.tone === "success" && "border-success/20 bg-success/5 hover:border-success/30",
+            action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
             action.tone === "primary" && "border-border bg-card hover:border-primary/25",
             action.tone === "neutral" && "border-border bg-card hover:border-border/80",
           )}
@@ -52,8 +52,8 @@ export function QuickActions() {
           <div
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-[8px] md:h-12 md:w-12",
-              action.tone === "primary" && "bg-primary/10 text-primary",
-              action.tone === "success" && "bg-success/10 text-success",
+              action.tone === "primary" && "bg-primary-soft text-primary",
+              action.tone === "success" && "bg-ok-soft text-success",
               action.tone === "neutral" && "bg-muted text-muted-foreground",
             )}
           >

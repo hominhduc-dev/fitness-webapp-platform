@@ -237,7 +237,7 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
                   {e.isDefault && (
-                    <Badge variant="micro" className="bg-primary/10 text-primary border-primary/20 shrink-0">
+                    <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20 shrink-0">
                       Default
                     </Badge>
                   )}
@@ -285,7 +285,7 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
                     "rounded-md p-1.5 transition-colors",
                     !canManage || e.usageCount > 0 || deletingId === e.id
                       ? "cursor-not-allowed text-muted-foreground/30"
-                      : "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+                      : "text-muted-foreground hover:bg-destructive-soft hover:text-destructive",
                   )}
                 >
                   {deletingId === e.id

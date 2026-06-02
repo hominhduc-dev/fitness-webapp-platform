@@ -326,12 +326,12 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   return (
     <div className="space-y-5">
       {error ? (
-        <div className="rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="rounded-[10px] border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+        <div className="rounded-[10px] border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
           {notice}
         </div>
       ) : null}
@@ -421,7 +421,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             ) : null}
 
             {importIssues.length ? (
-              <div className="rounded-[10px] border border-destructive/30 bg-destructive/5 p-4">
+              <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft p-4">
                 <h4 className="text-sm font-semibold">Lỗi cần sửa</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (

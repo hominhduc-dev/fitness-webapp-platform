@@ -54,7 +54,7 @@ export function PendingRequestsPanel({ initialRequests }: { initialRequests: Coa
         </span>
       </div>
 
-      {error ? <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+      {error ? <div className="mb-3 rounded-lg bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</div> : null}
 
       <div className="space-y-3">
         {requests.map((request) => (

@@ -180,7 +180,7 @@ export default async function CoachDashboardPage() {
                           <div className="flex items-center gap-2">
                             <p className="truncate text-sm font-semibold">{log.workout.name}</p>
                             {log.commentCount > 0 ? (
-                              <span className="label-micro rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                              <span className="label-micro rounded-full bg-primary-soft px-2 py-0.5 text-primary">
                                 {log.commentCount} feedback
                               </span>
                             ) : null}

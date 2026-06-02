@@ -11,12 +11,12 @@ export default async function AppShellLayout({ children }: { children: ReactNode
 
   return (
     <AppProviders initialLocale={locale} initialProfile={profile}>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-[100dvh] bg-background">
         <SidebarClient role={profile.role} />
 
         <div className="flex min-w-0 flex-1 flex-col">
           <ShellHeader role={profile.role} />
-          <main className="flex-1 overflow-auto pb-6">{children}</main>
+          <main className="flex-1 overflow-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))]">{children}</main>
         </div>
       </div>
     </AppProviders>

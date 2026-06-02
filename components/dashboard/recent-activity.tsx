@@ -91,7 +91,7 @@ function ActivityRow({
 
         {/* Coach comments badge */}
         {log.comments.length > 0 && (
-          <div className="shrink-0 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-[10px] text-primary">
+          <div className="shrink-0 rounded-full border border-primary/20 bg-primary-soft px-2 py-0.5 font-mono text-[10px] text-primary">
             {log.comments.length} note{log.comments.length > 1 ? "s" : ""}
           </div>
         )}

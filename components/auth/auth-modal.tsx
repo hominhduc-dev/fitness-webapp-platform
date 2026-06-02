@@ -333,13 +333,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
         </div>
       )}
       {error && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3">
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive-soft p-3">
           <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
       {success && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 p-3">
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary-soft p-3">
           <CheckCircle className="h-4 w-4 shrink-0 text-primary" />
           <p className="text-sm text-primary">{success}</p>
         </div>

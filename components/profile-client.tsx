@@ -447,13 +447,13 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive">
           {error}
         </div>
       ) : null}
 
       {success ? (
-        <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3 text-sm text-primary">
+        <div className="mb-4 rounded-lg border border-primary/20 bg-primary-soft p-3 text-sm text-primary">
           {success}
         </div>
       ) : null}
@@ -478,7 +478,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           <div className="relative">
             <Avatar className="h-24 w-24 border-4 border-primary/20">
               <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
-              <AvatarFallback className="bg-primary/10 text-2xl text-primary">{initials || "YB"}</AvatarFallback>
+              <AvatarFallback className="bg-primary-soft text-2xl text-primary">{initials || "YB"}</AvatarFallback>
             </Avatar>
 
             <Button
@@ -701,7 +701,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       </div>
 
       {profile.role === "trainee" ? (
-        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 p-6">
+        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive-soft p-6">
           <div className="mb-4 flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
             <h2 className="text-lg font-semibold">{messages.profile.resetData}</h2>

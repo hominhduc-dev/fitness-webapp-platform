@@ -159,7 +159,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
             className={cn(
               "flex items-center gap-1 rounded-md",
               "px-3 py-1.5 text-[13px] font-medium",
-              "bg-transparent text-destructive hover:bg-destructive/10 transition-colors duration-150",
+              "bg-transparent text-destructive hover:bg-destructive-soft transition-colors duration-150",
             )}
           >
             <SkipForward className="h-3.5 w-3.5" />

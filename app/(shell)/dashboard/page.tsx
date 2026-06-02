@@ -167,8 +167,8 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
               key={card.label}
               className={cn(
                 "rounded-[10px] border p-4 transition-colors md:p-5",
-                card.tone === "primary" && "border-primary/20 bg-primary/5",
-                card.tone === "blue"    && "border-primary/20 bg-primary/5",
+                card.tone === "primary" && "border-primary/20 bg-primary-soft",
+                card.tone === "blue"    && "border-primary/20 bg-primary-soft",
                 card.tone === "neutral" && "border-border bg-card",
               )}
             >
@@ -193,8 +193,8 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
                 <div
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
-                    card.tone === "primary" && "bg-primary/10 text-primary",
-                    card.tone === "blue"    && "bg-primary/10 text-primary",
+                    card.tone === "primary" && "bg-primary-soft text-primary",
+                    card.tone === "blue"    && "bg-primary-soft text-primary",
                     card.tone === "neutral" && "bg-muted text-muted-foreground",
                   )}
                 >

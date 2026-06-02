@@ -78,8 +78,8 @@ export default function ResetPasswordPage() {
             Chức năng đặt lại mật khẩu hiện chưa sẵn sàng vì thiếu cấu hình Supabase public.
           </div>
         )}
-        {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {success && <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3 text-sm text-primary">{success}</div>}
+        {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive">{error}</div>}
+        {success && <div className="mb-4 rounded-lg border border-primary/20 bg-primary-soft p-3 text-sm text-primary">{success}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
