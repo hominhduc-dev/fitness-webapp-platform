@@ -9,6 +9,7 @@ import {
   type Program,
   type User,
 } from "@prisma/client"
+import { randomUUID } from "node:crypto"
 
 import { prisma } from "../../lib/prisma"
 import { supabaseAdmin } from "../../lib/supabase"
@@ -52,11 +53,16 @@ type ExerciseSummaryRecord = Prisma.VariationGetPayload<{
   include: typeof ADMIN_VARIATION_INCLUDE
 }>
 
-type ExerciseWithVariationsRecord = Prisma.ExerciseGetPayload<{
-  include: {
-    variations: true
-  }
-}>
+type ExerciseWithVariationsRecord = {
+  id: string
+  muscleGroup: string
+  name: string
+  variations: Array<{
+    id: string
+    isDefault: boolean
+    name: string
+  }>
+}
 
 type CoachRequestRecord = {
   coach: User
@@ -1662,8 +1668,14 @@ async function importAdminExercises(
 
   // --- Phase 2: Deduplicate against existing DB records ---
   const existingVariations = await db.variation.findMany({
-    include: {
-      exercise: true,
+    select: {
+      exercise: {
+        select: {
+          muscleGroup: true,
+          name: true,
+        },
+      },
+      name: true,
     },
   })
 
@@ -1735,8 +1747,16 @@ async function importAdminExercises(
     createdCount = await db.$transaction(async (tx) => {
       // 3a. Build map of existing exercises
       const allExercises = await tx.exercise.findMany({
-        include: {
+        select: {
+          id: true,
+          muscleGroup: true,
+          name: true,
           variations: {
+            select: {
+              id: true,
+              isDefault: true,
+              name: true,
+            },
             orderBy: [{ isDefault: "desc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
           },
         },
@@ -1767,20 +1787,34 @@ async function importAdminExercises(
       }, new Map())
 
       // 3c. Create missing parent exercises
+      const missingExerciseRows: Prisma.ExerciseCreateManyInput[] = []
+
       for (const [exerciseSignature, exerciseRows] of rowsByExercise.entries()) {
         if (!existingExerciseMap.has(exerciseSignature)) {
-          const created = await tx.exercise.create({
-            data: {
-              createdById: exerciseRows[0]?.createdById,
-              muscleGroup: exerciseRows[0]?.muscleGroup ?? "",
-              name: exerciseRows[0]?.exerciseName ?? "",
-            },
-            include: {
-              variations: true,
-            },
+          const exerciseId = randomUUID()
+          const exerciseName = exerciseRows[0]?.exerciseName ?? ""
+          const muscleGroup = exerciseRows[0]?.muscleGroup ?? ""
+
+          missingExerciseRows.push({
+            createdById: exerciseRows[0]?.createdById,
+            id: exerciseId,
+            muscleGroup,
+            name: exerciseName,
           })
-          existingExerciseMap.set(exerciseSignature, created)
+
+          existingExerciseMap.set(exerciseSignature, {
+            id: exerciseId,
+            muscleGroup,
+            name: exerciseName,
+            variations: [],
+          })
         }
+      }
+
+      if (missingExerciseRows.length > 0) {
+        await tx.exercise.createMany({
+          data: missingExerciseRows,
+        })
       }
 
       // 3d. Create variations — batch non-default, individual for default
