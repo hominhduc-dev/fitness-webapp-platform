@@ -10,6 +10,7 @@ import type {
   Workout,
   WorkoutLog,
   WorkoutLogComment,
+  WorkoutScheduleEntry,
 } from "@/lib/types"
 
 type AssignedTrainee = {
@@ -71,6 +72,7 @@ type WorkoutCollection = {
   programs: TraineeProgram[]
   recentLogs: WorkoutLog[]
   schedule: Record<number, Workout | null>
+  scheduleEntries: WorkoutScheduleEntry[]
   todayWorkout: Workout | null
   weekLogs: WorkoutLog[]
   weekStats: {
@@ -359,6 +361,7 @@ type WorkoutLogInput = {
   completedAt?: string
   exercises: Workout["exercises"]
   notes?: string
+  plannedDate?: string
   startedAt?: string
 }
 

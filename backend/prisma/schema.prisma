@@ -321,6 +321,7 @@ model WorkoutLog {
   workoutId        String?   @db.Uuid
   workoutSnapshot  Json?
   exerciseSnapshot Json?
+  plannedDate      DateTime? @db.Date
   startedAt        DateTime
   completedAt      DateTime?
   totalVolume      Float?
@@ -332,6 +333,7 @@ model WorkoutLog {
   updatedAt        DateTime  @updatedAt
 
   @@index([userId, startedAt])
+  @@index([userId, plannedDate])
   @@index([workoutId])
 }
 

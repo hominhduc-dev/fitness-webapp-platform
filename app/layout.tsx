@@ -40,6 +40,7 @@ const geistMono = Geist_Mono({
 })
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://yeahbuddy.fit"
+const isVercelRuntime = process.env.VERCEL === "1"
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -166,7 +167,7 @@ export default function RootLayout({
       </head>
       <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         {children}
-        <Analytics />
+        {isVercelRuntime ? <Analytics /> : null}
       </body>
     </html>
   )

@@ -120,12 +120,25 @@ export interface WorkoutLogComment {
 export interface WorkoutLog {
   id: string
   workout: Workout
+  plannedDate?: Date
   startedAt: Date
   completedAt?: Date
   exercises: WorkoutExercise[]
   comments: WorkoutLogComment[]
   totalVolume?: number
   notes?: string
+}
+
+export interface WorkoutScheduleEntry {
+  date: Date
+  durationLabel?: string
+  isCompleted: boolean
+  isMissed: boolean
+  isToday: boolean
+  log: WorkoutLog | null
+  source: "coach" | "self"
+  weekday: number
+  workout: Workout | null
 }
 
 export interface Meal {

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, isBefore, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns"
 import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
@@ -14,11 +14,12 @@ import { Label } from "@/components/ui/label"
 import { createWorkout, fetchExercises } from "@/lib/fitness/api"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
-import type { ExerciseVariationOption, Workout, WorkoutLog, WeeklySchedule } from "@/lib/types"
+import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
 
 type WeeklyCalendarProps = {
   recentLogs: WorkoutLog[]
   schedule: WeeklySchedule
+  scheduleEntries?: WorkoutScheduleEntry[]
   showHero?: boolean
   weekLogs?: WorkoutLog[]
   workouts: Workout[]
@@ -48,16 +49,10 @@ type Routine = {
   tag: RoutineTag
 }
 
-type ScheduleEntry = {
-  date: Date
-  durationLabel?: string
-  isCompleted: boolean
-  isMissed: boolean
-  isToday: boolean
-  log: WorkoutLog | null
-  source: "coach" | "self"
-  weekday: number
-  workout: Workout | null
+type ScheduleEntry = WorkoutScheduleEntry
+type WorkoutLogIndex = {
+  byDateAndWorkoutId: Map<string, Map<string, WorkoutLog>>
+  firstByDate: Map<string, WorkoutLog>
 }
 
 const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
@@ -99,10 +94,6 @@ function getDateKey(date: Date) {
   return format(date, "yyyy-MM-dd")
 }
 
-function getWeekDateForScheduledDay(weekStart: Date, scheduledDay: number) {
-  return addDays(weekStart, (scheduledDay + 6) % 7)
-}
-
 function getScheduledWorkoutForDate(workouts: Workout[], schedule: WeeklySchedule, date: Date) {
   const oneOffWorkout = workouts.find((workout) => workout.scheduledDate && isSameDay(workout.scheduledDate, date))
 
@@ -117,18 +108,37 @@ function getScheduledWorkoutForDate(workouts: Workout[], schedule: WeeklySchedul
   return recurringWorkout ?? schedule[date.getDay()] ?? null
 }
 
-function getLogForDate(logs: WorkoutLog[], date: Date, workout: Workout | null) {
-  const logsForDate = logs.filter((log) => isSameDay(log.startedAt, date))
+function buildLogsByPlannedDateAndWorkoutId(logs: WorkoutLog[]): WorkoutLogIndex {
+  return logs.reduce<WorkoutLogIndex>(
+    (index, log) => {
+      const plannedDate = log.plannedDate ?? log.startedAt
+      const dateKey = getDateKey(plannedDate)
+      const logsByWorkout = index.byDateAndWorkoutId.get(dateKey) ?? new Map<string, WorkoutLog>()
 
-  if (logsForDate.length === 0) {
-    return null
-  }
+      logsByWorkout.set(log.workout.id, log)
+      index.byDateAndWorkoutId.set(dateKey, logsByWorkout)
+
+      if (!index.firstByDate.has(dateKey)) {
+        index.firstByDate.set(dateKey, log)
+      }
+
+      return index
+    },
+    {
+      byDateAndWorkoutId: new Map<string, Map<string, WorkoutLog>>(),
+      firstByDate: new Map<string, WorkoutLog>(),
+    },
+  )
+}
+
+function getLogForDate(logIndex: WorkoutLogIndex, date: Date, workout: Workout | null) {
+  const dateKey = getDateKey(date)
 
   if (!workout) {
-    return logsForDate[0]
+    return logIndex.firstByDate.get(dateKey) ?? null
   }
 
-  return logsForDate.find((log) => log.workout.id === workout.id) ?? logsForDate[0]
+  return logIndex.byDateAndWorkoutId.get(dateKey)?.get(workout.id) ?? null
 }
 
 function getDurationLabel(workout: Workout | null, log: WorkoutLog | null) {
@@ -251,13 +261,13 @@ function getStatusBadge(entry: ScheduleEntry) {
 }
 
 function buildWeekEntries({
-  logs,
+  logIndex,
   optimisticScheduleByDate,
   schedule,
   weekStart,
   workouts,
 }: {
-  logs: WorkoutLog[]
+  logIndex: WorkoutLogIndex
   optimisticScheduleByDate: Record<string, Workout | null>
   schedule: WeeklySchedule
   weekStart: Date
@@ -270,7 +280,7 @@ function buildWeekEntries({
     const workout = Object.hasOwn(optimisticScheduleByDate, dateKey)
       ? optimisticScheduleByDate[dateKey] ?? null
       : baseWorkout
-    const log = getLogForDate(logs, date, workout)
+    const log = getLogForDate(logIndex, date, workout)
 
     return {
       date,
@@ -978,9 +988,129 @@ function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
   )
 }
 
-export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: WeeklyCalendarProps) {
+const SourceFilters = memo(function SourceFilters({
+  showSource,
+  onChange,
+}: {
+  showSource: SourceFilter
+  onChange: (source: SourceFilter) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <SourceChip active={showSource === "all"} onClick={() => onChange("all")}>
+        All
+      </SourceChip>
+      <SourceChip active={showSource === "coach"} onClick={() => onChange("coach")}>
+        <User className="h-3 w-3" />
+        From coach
+      </SourceChip>
+      <SourceChip active={showSource === "self"} onClick={() => onChange("self")}>
+        Mine
+      </SourceChip>
+    </div>
+  )
+})
+
+const CalendarGrid = memo(function CalendarGrid({
+  entries,
+  onRestDayClick,
+}: {
+  entries: ScheduleEntry[]
+  onRestDayClick: (date: Date) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-7">
+      {entries.map((entry) => (
+        <DayCard
+          key={getDateKey(entry.date)}
+          entry={entry}
+          onRestDayClick={onRestDayClick}
+        />
+      ))}
+    </div>
+  )
+})
+
+const NextWeekPreview = memo(function NextWeekPreview({
+  entries,
+  nextWeekStart,
+  onRestDayClick,
+}: {
+  entries: ScheduleEntry[]
+  nextWeekStart: Date
+  onRestDayClick: (date: Date) => void
+}) {
+  return (
+    <>
+      <div className="mb-3 flex items-baseline justify-between">
+        <p className="label-micro">Next week · {formatWeekRangeLabel(nextWeekStart)}</p>
+        <span className="label-micro text-muted-foreground">Preview</span>
+      </div>
+      <div className="opacity-70">
+        <CalendarGrid entries={entries} onRestDayClick={onRestDayClick} />
+      </div>
+    </>
+  )
+})
+
+function RoutineDialogs({
+  date,
+  error,
+  exerciseOptions,
+  isLoadingExercises,
+  isRoutineBuilderOpen,
+  isSavingRoutine,
+  library,
+  onClose,
+  onCreateNew,
+  onPick,
+  onBuilderClose,
+  onSaveDraft,
+}: {
+  date: Date
+  error: string | null
+  exerciseOptions: ExerciseVariationOption[]
+  isLoadingExercises: boolean
+  isRoutineBuilderOpen: boolean
+  isSavingRoutine: boolean
+  library: Routine[]
+  onClose: () => void
+  onCreateNew: () => void
+  onPick: (routine: Routine) => void
+  onBuilderClose: () => void
+  onSaveDraft: (routine: Routine) => void
+}) {
+  return (
+    <>
+      <RoutinePickerDialog
+        date={date}
+        error={error}
+        isSaving={isSavingRoutine}
+        library={library}
+        open={!isRoutineBuilderOpen}
+        onClose={onClose}
+        onCreateNew={onCreateNew}
+        onPick={onPick}
+      />
+
+      <RoutineBuilderDialog
+        date={date}
+        error={error}
+        exerciseOptions={exerciseOptions}
+        isLoadingExercises={isLoadingExercises}
+        isSaving={isSavingRoutine}
+        open={isRoutineBuilderOpen}
+        onClose={onBuilderClose}
+        onSave={onSaveDraft}
+      />
+    </>
+  )
+}
+
+export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
   const { session } = useAuth()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
+  const [showNextWeekPreview, setShowNextWeekPreview] = useState(false)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
   const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
   const [visibleRecentLogs, setVisibleRecentLogs] = useState(recentLogs)
@@ -1003,38 +1133,74 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
     setVisibleWeekLogs(weekLogs ?? [])
   }, [recentLogs, weekLogs])
 
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
-  const nextWeekStart = addDays(weekStart, 7)
-  const logsForDisplay = visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
-  const thisWeekEntries = buildWeekEntries({
-    logs: logsForDisplay,
-    optimisticScheduleByDate,
-    schedule,
-    weekStart,
-    workouts: visibleWorkouts,
-  })
-  const nextWeekEntries = buildWeekEntries({
-    logs: visibleRecentLogs,
-    optimisticScheduleByDate,
-    schedule,
-    weekStart: nextWeekStart,
-    workouts: visibleWorkouts,
-  })
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
 
-  const routineLibrary = [
+    const requestIdleCallback = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(callback, 1))
+    const cancelIdleCallback = window.cancelIdleCallback ?? window.clearTimeout
+    const idleId = requestIdleCallback(() => setShowNextWeekPreview(true))
+
+    return () => cancelIdleCallback(idleId)
+  }, [])
+
+  const weekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), [])
+  const nextWeekStart = useMemo(() => addDays(weekStart, 7), [weekStart])
+  const logsForDisplay = visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
+  const logsByPlannedDateAndWorkoutId = useMemo(() => buildLogsByPlannedDateAndWorkoutId(logsForDisplay), [logsForDisplay])
+  const recentLogsByPlannedDateAndWorkoutId = useMemo(
+    () => buildLogsByPlannedDateAndWorkoutId(visibleRecentLogs),
+    [visibleRecentLogs],
+  )
+  const hasOptimisticSchedule = Object.keys(optimisticScheduleByDate).length > 0
+  const thisWeekEntries = useMemo(() => {
+    if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
+      return scheduleEntries
+    }
+
+    return buildWeekEntries({
+      logIndex: logsByPlannedDateAndWorkoutId,
+      optimisticScheduleByDate,
+      schedule,
+      weekStart,
+      workouts: visibleWorkouts,
+    })
+  }, [hasOptimisticSchedule, logsByPlannedDateAndWorkoutId, optimisticScheduleByDate, schedule, scheduleEntries, visibleWorkouts, weekStart])
+  const nextWeekEntries = useMemo(() => {
+    if (!showNextWeekPreview) {
+      return []
+    }
+
+    return buildWeekEntries({
+      logIndex: recentLogsByPlannedDateAndWorkoutId,
+      optimisticScheduleByDate,
+      schedule,
+      weekStart: nextWeekStart,
+      workouts: visibleWorkouts,
+    })
+  }, [nextWeekStart, optimisticScheduleByDate, recentLogsByPlannedDateAndWorkoutId, schedule, showNextWeekPreview, visibleWorkouts])
+
+  const routineLibrary = useMemo(() => [
     ...extraRoutineLibrary,
     ...visibleWorkouts
       .filter((workout) => !workout.scheduledDate)
       .slice()
       .sort((left, right) => Number(Boolean(right.isPersonal)) - Number(Boolean(left.isPersonal)))
       .map((workout, index) => mapWorkoutToRoutine(workout, index)),
-  ]
+  ], [extraRoutineLibrary, visibleWorkouts])
 
-  const coachWorkouts = visibleWorkouts.filter((workout) => !workout.isPersonal)
-  const plannedCount = thisWeekEntries.filter((entry) => entry.workout).length
-  const completedCount = thisWeekEntries.filter((entry) => entry.isCompleted).length
-  const filteredThisWeek = thisWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource))
-  const filteredNextWeek = nextWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource))
+  const coachWorkouts = useMemo(() => visibleWorkouts.filter((workout) => !workout.isPersonal), [visibleWorkouts])
+  const plannedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.workout).length, [thisWeekEntries])
+  const completedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.isCompleted).length, [thisWeekEntries])
+  const filteredThisWeek = useMemo(
+    () => thisWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource)),
+    [showSource, thisWeekEntries],
+  )
+  const filteredNextWeek = useMemo(
+    () => nextWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource)),
+    [nextWeekEntries, showSource],
+  )
 
   const handleWorkoutSaved = (workout: Workout, previousWorkout?: Workout, referenceDate?: Date) => {
     const nextVisibleWorkouts = [...visibleWorkouts.filter((currentWorkout) => currentWorkout.id !== workout.id), workout]
@@ -1217,52 +1383,32 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
             {completedCount}/{plannedCount} done this week · {Math.max(0, plannedCount - completedCount)} to go
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <SourceChip active={showSource === "all"} onClick={() => setShowSource("all")}>
-            All
-          </SourceChip>
-          <SourceChip active={showSource === "coach"} onClick={() => setShowSource("coach")}>
-            <User className="h-3 w-3" />
-            From coach
-          </SourceChip>
-          <SourceChip active={showSource === "self"} onClick={() => setShowSource("self")}>
-            Mine
-          </SourceChip>
-        </div>
+        <SourceFilters showSource={showSource} onChange={setShowSource} />
       </div>
 
       <CoachProgramCard coachWorkouts={coachWorkouts} />
 
       <p className="label-micro mb-3">This week</p>
-      <div className="mb-8 grid grid-cols-2 gap-2.5 md:grid-cols-7">
-        {filteredThisWeek.map((entry) => (
-          <DayCard
-            key={getDateKey(entry.date)}
-            entry={entry}
-            onRestDayClick={(date) => {
-              setSelectedRestDate(date)
-              setRoutineError(null)
-            }}
-          />
-        ))}
+      <div className="mb-8">
+        <CalendarGrid
+          entries={filteredThisWeek}
+          onRestDayClick={(date) => {
+            setSelectedRestDate(date)
+            setRoutineError(null)
+          }}
+        />
       </div>
 
-      <div className="mb-3 flex items-baseline justify-between">
-        <p className="label-micro">Next week · {formatWeekRangeLabel(nextWeekStart)}</p>
-        <span className="label-micro text-muted-foreground">Preview</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2.5 opacity-70 md:grid-cols-7">
-        {filteredNextWeek.map((entry) => (
-          <DayCard
-            key={getDateKey(entry.date)}
-            entry={entry}
-            onRestDayClick={(date) => {
-              setSelectedRestDate(date)
-              setRoutineError(null)
-            }}
-          />
-        ))}
-      </div>
+      {showNextWeekPreview ? (
+        <NextWeekPreview
+          entries={filteredNextWeek}
+          nextWeekStart={nextWeekStart}
+          onRestDayClick={(date) => {
+            setSelectedRestDate(date)
+            setRoutineError(null)
+          }}
+        />
+      ) : null}
 
       <div className="mt-7 text-center">
         <Button asChild variant="ghost">
@@ -1273,30 +1419,25 @@ export function WeeklyCalendar({ recentLogs, schedule, weekLogs, workouts }: Wee
         </Button>
       </div>
 
-      <RoutinePickerDialog
-        date={selectedRestDate}
-        error={routineError}
-        isSaving={isSavingRoutine}
-        library={routineLibrary}
-        open={Boolean(selectedRestDate) && !isRoutineBuilderOpen}
-        onClose={closeRoutineFlow}
-        onCreateNew={openRoutineBuilder}
-        onPick={(routine) => void saveTemplateToRestDate(routine)}
-      />
-
-      <RoutineBuilderDialog
-        date={selectedRestDate}
-        error={routineError}
-        exerciseOptions={exerciseOptions}
-        isLoadingExercises={isLoadingExercises}
-        isSaving={isSavingRoutine}
-        open={Boolean(selectedRestDate) && isRoutineBuilderOpen}
-        onClose={() => {
-          setIsRoutineBuilderOpen(false)
-          setRoutineError(null)
-        }}
-        onSave={(routine) => void saveDraftToRestDate(routine)}
-      />
+      {selectedRestDate ? (
+        <RoutineDialogs
+          date={selectedRestDate}
+          error={routineError}
+          exerciseOptions={exerciseOptions}
+          isLoadingExercises={isLoadingExercises}
+          isRoutineBuilderOpen={isRoutineBuilderOpen}
+          isSavingRoutine={isSavingRoutine}
+          library={routineLibrary}
+          onClose={closeRoutineFlow}
+          onCreateNew={openRoutineBuilder}
+          onPick={(routine) => void saveTemplateToRestDate(routine)}
+          onBuilderClose={() => {
+            setIsRoutineBuilderOpen(false)
+            setRoutineError(null)
+          }}
+          onSaveDraft={(routine) => void saveDraftToRestDate(routine)}
+        />
+      ) : null}
     </section>
   )
 }

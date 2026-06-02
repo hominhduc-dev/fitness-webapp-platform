@@ -11,6 +11,7 @@ import type {
   Program,
   Workout,
   WorkoutLog,
+  WorkoutScheduleEntry,
 } from "@/lib/types"
 
 import type {
@@ -126,9 +127,22 @@ type SerializedWorkoutLog = {
   exercises: SerializedWorkoutExercise[]
   id: string
   notes?: string
+  plannedDate?: string | null
   startedAt: string
   totalVolume?: number
   workout: SerializedWorkout
+}
+
+type SerializedWorkoutScheduleEntry = {
+  date: string
+  durationLabel?: string
+  isCompleted: boolean
+  isMissed: boolean
+  isToday: boolean
+  log: SerializedWorkoutLog | null
+  source: "coach" | "self"
+  weekday: number
+  workout: SerializedWorkout | null
 }
 
 type SerializedMeal = {
@@ -536,9 +550,24 @@ function mapWorkoutLog(log: SerializedWorkoutLog): WorkoutLog {
     exercises: log.exercises.map(mapWorkoutExercise),
     id: log.id,
     notes: log.notes,
+    plannedDate: parseScheduledDate(log.plannedDate ?? undefined),
     startedAt: new Date(log.startedAt),
     totalVolume: log.totalVolume,
     workout: mapWorkout(log.workout),
+  }
+}
+
+function mapWorkoutScheduleEntry(entry: SerializedWorkoutScheduleEntry): WorkoutScheduleEntry {
+  return {
+    date: parseScheduledDate(entry.date) ?? new Date(entry.date),
+    durationLabel: entry.durationLabel,
+    isCompleted: entry.isCompleted,
+    isMissed: entry.isMissed,
+    isToday: entry.isToday,
+    log: entry.log ? mapWorkoutLog(entry.log) : null,
+    source: entry.source,
+    weekday: entry.weekday,
+    workout: entry.workout ? mapWorkout(entry.workout) : null,
   }
 }
 
@@ -1003,6 +1032,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
     programs: Array<{ assignedAt: string; duration: number; id: string; name: string }>
     recentLogs: SerializedWorkoutLog[]
     schedule: Record<number, SerializedWorkout | null>
+    scheduleEntries?: SerializedWorkoutScheduleEntry[]
     todayWorkout: SerializedWorkout | null
     weekLogs: SerializedWorkoutLog[]
     weekStats: {
@@ -1020,6 +1050,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
     schedule: Object.fromEntries(
       Object.entries(response.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
     ) as Record<number, Workout | null>,
+    scheduleEntries: (response.scheduleEntries ?? []).map(mapWorkoutScheduleEntry),
     todayWorkout: response.todayWorkout ? mapWorkout(response.todayWorkout) : null,
     weekLogs: (response.weekLogs ?? []).map(mapWorkoutLog),
     weekStats: response.weekStats ?? { activeDaysThisWeek: 0, todayVolume: 0, workoutsThisWeek: 0 },
