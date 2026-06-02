@@ -13,32 +13,13 @@ import {
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
 import { fetchCoachWorkoutLogs } from "@/lib/fitness/api"
+import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { AssignedTrainee } from "@/lib/fitness/types"
 
 type ExportProgramLogsDialogProps = {
   assignedTrainees: AssignedTrainee[]
   programDuration: number
   programName: string
-}
-
-function parseValidDate(value: unknown) {
-  if (value == null) return null
-  const date = value instanceof Date ? value : new Date(value as string | number)
-  return Number.isFinite(date.getTime()) ? date : null
-}
-
-function formatDateToISO(date: Date) {
-  return date.toISOString().slice(0, 10)
-}
-
-function getProgramStartDate(assignedAt: unknown, programDuration: number) {
-  const parsedAssignedAt = parseValidDate(assignedAt)
-
-  if (parsedAssignedAt) {
-    return parsedAssignedAt
-  }
-
-  return new Date(Date.now() - programDuration * 7 * 24 * 60 * 60 * 1000)
 }
 
 async function loadAllLogsForProgramExport(
