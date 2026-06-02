@@ -76,6 +76,7 @@ import type {
   AdminUserDetail,
   AdminUserListItem,
 } from "@/lib/admin/types"
+import { matchesExerciseSearch, scoreExerciseSearch, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
 import type { UserRole } from "@/lib/types"
 
@@ -1274,7 +1275,7 @@ export function AdminConsole() {
   )
 
   const filteredExercises = exercises.filter((exercise) =>
-    matchesSearch(
+    matchesExerciseSearch(
       [exercise.name, exercise.variationName, exercise.muscleGroup, exercise.equipment, exercise.createdBy?.name],
       exerciseSearch,
     ),
@@ -1282,6 +1283,12 @@ export function AdminConsole() {
   const groupedExercisesMap = new Map<string, ExerciseGroupItem>()
   const sortedExercises = [...filteredExercises].sort((left, right) => {
     const language = locale === "vi" ? "vi" : "en"
+
+    if (exerciseSearch.trim()) {
+      const scoreDiff = scoreExerciseSearch(right.name, exerciseSearch) - scoreExerciseSearch(left.name, exerciseSearch)
+      if (scoreDiff !== 0) return scoreDiff
+    }
+
     const groupComparison = left.muscleGroup.localeCompare(right.muscleGroup, language, { sensitivity: "base" })
 
     if (groupComparison !== 0) {
@@ -1322,8 +1329,11 @@ export function AdminConsole() {
     })
   }
 
-  const groupedExercises = Array.from(groupedExercisesMap.values()).sort((left, right) =>
-    left.muscleGroup.localeCompare(right.muscleGroup, locale === "vi" ? "vi" : "en", { sensitivity: "base" }),
+  const groupedExercises = sortGroupsByExerciseRelevance(
+    Array.from(groupedExercisesMap.values()),
+    exerciseSearch,
+    (g) => g.muscleGroup,
+    (g) => g.exercises,
   )
   const visibleExerciseGroupKeys = groupedExercises.map((group) => group.groupKey)
   const visibleExerciseGroupKeySignature = visibleExerciseGroupKeys.join("|")

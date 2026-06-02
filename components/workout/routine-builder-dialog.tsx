@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
 import type { ExerciseVariationOption, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { parseRepTargetText, formatRepTarget } from "@/lib/workout-reps"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -118,11 +119,14 @@ function ExercisePickerModal({
     inputRef.current?.focus()
   }, [])
 
-  const visible = library.filter((ex) => {
-    if (muscle !== "all" && ex.muscleGroup.toLowerCase() !== muscle) return false
-    if (q && !ex.name.toLowerCase().includes(q.toLowerCase()) && !ex.exerciseName.toLowerCase().includes(q.toLowerCase())) return false
-    return true
-  })
+  const visible = sortByExerciseRelevance(
+    library.filter((ex) => {
+      if (muscle !== "all" && ex.muscleGroup.toLowerCase() !== muscle) return false
+      return matchesExerciseSearch([ex.name, ex.exerciseName, ex.muscleGroup, ex.equipment], q)
+    }),
+    q,
+    (ex) => ex.name,
+  )
 
   return (
     <div
@@ -464,12 +468,12 @@ export function RoutineBuilderDialog({
       {/* Backdrop + modal */}
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-stretch justify-center sm:items-center sm:p-6"
+          className="fixed inset-0 z-[80] flex items-stretch justify-center sm:items-center sm:p-6"
           style={{ background: "rgba(13,13,11,0.45)", backdropFilter: "blur(4px)" }}
           onClick={() => setOpen(false)}
         >
           <div
-            className="flex w-full flex-col overflow-hidden bg-background sm:max-w-[640px] sm:rounded-[14px]"
+            className="flex h-full w-full flex-col overflow-hidden bg-background sm:h-auto sm:max-w-[640px] sm:rounded-[14px]"
             style={{
               maxHeight: "100%",
               boxShadow: "0 24px 60px -12px rgba(13,13,11,0.25)",
@@ -638,7 +642,7 @@ export function RoutineBuilderDialog({
             </div>
 
             {/* ── Footer ───────────────────────────────────────────────── */}
-            <div className="flex justify-end gap-2.5 border-t border-border bg-background px-4 py-3 sm:px-7">
+            <div className="flex justify-end gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:pb-3">
               <Button variant="ghost" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
