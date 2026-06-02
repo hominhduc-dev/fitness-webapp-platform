@@ -275,6 +275,7 @@ type NormalizedPersonalWorkoutInput = {
 
 const DEFAULT_CALORIE_TARGET = 2500
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 const PROGRESS_SERIES_COLORS = ["#22C55E", "#2563EB", "#F43F5E"]
 const PROGRESS_PIE_COLORS = ["#2563EB", "#22C55E", "#F59E0B", "#F43F5E", "#8B5CF6", "#06B6D4"]
@@ -678,6 +679,7 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
     exercises: snapshotExercises ?? (log.workout ? serializeWorkout(log.workout).exercises : []),
     id: log.id,
     notes: log.notes ?? undefined,
+    plannedDate: log.plannedDate ? formatUtcDateOnly(log.plannedDate) : undefined,
     startedAt: log.startedAt,
     totalVolume: log.totalVolume ?? undefined,
     workout: log.workout
@@ -692,6 +694,101 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
           scheduledDay: snapshotWorkout?.scheduledDay,
         },
   }
+}
+
+function getSerializedWorkoutForDate(
+  workouts: Array<ReturnType<typeof serializeWorkout>>,
+  schedule: Record<number, ReturnType<typeof serializeWorkout> | null>,
+  date: Date,
+) {
+  const dateKey = formatUtcDateOnly(date)
+  const oneOffWorkout = workouts.find((workout) => workout.scheduledDate === dateKey)
+
+  if (oneOffWorkout) {
+    return oneOffWorkout
+  }
+
+  const recurringWorkout = workouts.find(
+    (workout) => !workout.scheduledDate && workout.scheduledDay === date.getUTCDay(),
+  )
+
+  return recurringWorkout ?? schedule[date.getUTCDay()] ?? null
+}
+
+function getSerializedLogForPlannedDate(
+  logs: Array<ReturnType<typeof serializeWorkoutLog>>,
+  date: Date,
+  workout: ReturnType<typeof serializeWorkout> | null,
+) {
+  const dateKey = formatUtcDateOnly(date)
+  const logsForDate = logs.filter((log) => {
+    const plannedDate = log.plannedDate ?? formatUtcDateOnly(log.startedAt)
+    return plannedDate === dateKey
+  })
+
+  if (logsForDate.length === 0) {
+    return null
+  }
+
+  if (!workout) {
+    return logsForDate[0]
+  }
+
+  return logsForDate.find((log) => log.workout.id === workout.id) ?? null
+}
+
+function getScheduleEntryDurationLabel(
+  workout: ReturnType<typeof serializeWorkout> | null,
+  log: ReturnType<typeof serializeWorkoutLog> | null,
+  now = new Date(),
+) {
+  if (log?.completedAt) {
+    return `${Math.max(1, Math.floor((log.completedAt.getTime() - log.startedAt.getTime()) / 60000))}m`
+  }
+
+  if (log) {
+    return `${Math.max(1, Math.floor((now.getTime() - log.startedAt.getTime()) / 60000))}m so far`
+  }
+
+  if (workout?.duration) {
+    return `${workout.duration}m`
+  }
+
+  return undefined
+}
+
+function buildSerializedScheduleEntriesForWeek({
+  logs,
+  schedule,
+  todayStart,
+  weekStart,
+  workouts,
+}: {
+  logs: Array<ReturnType<typeof serializeWorkoutLog>>
+  schedule: Record<number, ReturnType<typeof serializeWorkout> | null>
+  todayStart: Date
+  weekStart: Date
+  workouts: Array<ReturnType<typeof serializeWorkout>>
+}) {
+  const now = new Date()
+
+  return DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
+    const date = addUtcDays(weekStart, displayIndex)
+    const workout = getSerializedWorkoutForDate(workouts, schedule, date)
+    const log = getSerializedLogForPlannedDate(logs, date, workout)
+
+    return {
+      date: formatUtcDateOnly(date),
+      durationLabel: getScheduleEntryDurationLabel(workout, log, now),
+      isCompleted: Boolean(log),
+      isMissed: Boolean(workout && !log && date < todayStart),
+      isToday: formatUtcDateOnly(date) === formatUtcDateOnly(todayStart),
+      log,
+      source: workout?.isPersonal ? "self" : "coach",
+      weekday,
+      workout,
+    }
+  })
 }
 
 function serializeNotification(notification: NotificationRecord) {
@@ -967,6 +1064,34 @@ function parseScheduledDateInput(value: string) {
   }
 
   return parsedDate
+}
+
+function resolveWorkoutLogPlannedDate(
+  workout: Pick<WorkoutRecord, "scheduledDate" | "scheduledDay">,
+  startedAt: Date,
+  inputPlannedDate?: string | null,
+) {
+  if (inputPlannedDate?.trim()) {
+    const plannedDate = parseScheduledDateInput(inputPlannedDate)
+
+    if (!plannedDate) {
+      throw new AuthServiceError("plannedDate không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+    }
+
+    return plannedDate
+  }
+
+  if (workout.scheduledDate) {
+    return workout.scheduledDate
+  }
+
+  if (typeof workout.scheduledDay === "number") {
+    const startedDay = startOfUtcDay(startedAt)
+    const dayOffset = (startedDay.getUTCDay() - workout.scheduledDay + 7) % 7
+    return addUtcDays(startedDay, -dayOffset)
+  }
+
+  return startOfUtcDay(startedAt)
 }
 
 function parseLocalDateInput(value: string) {
@@ -2299,6 +2424,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   const todayVolume = weekLogs
     .filter((log) => log.startedAt >= todayStart)
     .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
+  const serializedWeekLogs = weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
 
   return {
     historyLogs: historyLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
@@ -2310,8 +2436,15 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     })),
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
+    scheduleEntries: buildSerializedScheduleEntriesForWeek({
+      logs: serializedWeekLogs,
+      schedule,
+      todayStart,
+      weekStart,
+      workouts: serializedWorkouts,
+    }),
     todayWorkout: todayOneOffWorkout ?? schedule[new Date().getDay()] ?? null,
-    weekLogs: weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    weekLogs: serializedWeekLogs,
     weekStats: {
       activeDaysThisWeek: activeDaysSet.size,
       todayVolume,
@@ -2521,6 +2654,7 @@ async function createWorkoutLogForTrainee(
     completedAt?: string | null
     exercises: ReturnType<typeof serializeWorkout>["exercises"]
     notes?: string | null
+    plannedDate?: string | null
     startedAt?: string | null
   },
 ) {
@@ -2546,14 +2680,18 @@ async function createWorkoutLogForTrainee(
 
   const serializedWorkout = serializeWorkout(workout as WorkoutRecord)
   const totalVolume = calculateWorkoutVolume(input.exercises)
+  const startedAt = input.startedAt ? new Date(input.startedAt) : new Date()
+  const completedAt = input.completedAt ? new Date(input.completedAt) : new Date()
+  const plannedDate = resolveWorkoutLogPlannedDate(workout as WorkoutRecord, startedAt, input.plannedDate)
 
   const log = await retryTransaction(() => db.$transaction(async (transaction) => {
     const createdLog = await transaction.workoutLog.create({
       data: {
-        completedAt: input.completedAt ? new Date(input.completedAt) : new Date(),
+        completedAt,
         exerciseSnapshot: input.exercises as Prisma.InputJsonValue,
         notes: input.notes?.trim() || undefined,
-        startedAt: input.startedAt ? new Date(input.startedAt) : new Date(),
+        plannedDate,
+        startedAt,
         totalVolume,
         userId: profile.id,
         workoutId: workout.id,

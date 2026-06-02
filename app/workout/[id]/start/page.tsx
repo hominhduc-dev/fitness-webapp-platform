@@ -193,6 +193,29 @@ function getRecentDays(): Date[] {
   return days
 }
 
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function resolvePlannedDateForWorkout(workout: Workout, actualDate: Date) {
+  if (workout.scheduledDate) {
+    return formatDateInputValue(workout.scheduledDate)
+  }
+
+  if (typeof workout.scheduledDay === "number") {
+    const plannedDate = new Date(actualDate)
+    plannedDate.setHours(0, 0, 0, 0)
+    const dayOffset = (plannedDate.getDay() - workout.scheduledDay + 7) % 7
+    plannedDate.setDate(plannedDate.getDate() - dayOffset)
+    return formatDateInputValue(plannedDate)
+  }
+
+  return formatDateInputValue(actualDate)
+}
+
 function getDayLabel(date: Date): { primary: string; secondary?: string } {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -602,10 +625,9 @@ export default function WorkoutStartPage() {
   const [error, setError] = useState<string | null>(null)
   const [showDateDialog, setShowDateDialog] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    yesterday.setHours(0, 0, 0, 0)
-    return yesterday
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today
   })
   const [restEvent, setRestEvent] = useState<RestEvent>(null)
   // Add exercise dialog
@@ -852,10 +874,12 @@ export default function WorkoutStartPage() {
     selectedMidnight.setHours(0, 0, 0, 0)
     const dayDiff = Math.round((todayMidnight.getTime() - selectedMidnight.getTime()) / (24 * 60 * 60 * 1000))
     const loggedStartedAt = new Date(startTime.getTime() - dayDiff * 24 * 60 * 60 * 1000)
+    const loggedCompletedAt = new Date(Date.now() - dayDiff * 24 * 60 * 60 * 1000)
     try {
       await createWorkoutLog(session.access_token, workout.id, {
-        completedAt: new Date().toISOString(),
+        completedAt: loggedCompletedAt.toISOString(),
         exercises,
+        plannedDate: resolvePlannedDateForWorkout(workout, loggedStartedAt),
         startedAt: loggedStartedAt.toISOString(),
       })
       markDashboardForRefresh()
@@ -882,10 +906,9 @@ export default function WorkoutStartPage() {
       void performSave(new Date())
       return
     }
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    yesterday.setHours(0, 0, 0, 0)
-    setSelectedDate(yesterday)
+    const defaultLogDate = new Date(today)
+    defaultLogDate.setHours(0, 0, 0, 0)
+    setSelectedDate(defaultLogDate)
     setShowDateDialog(true)
   }
 

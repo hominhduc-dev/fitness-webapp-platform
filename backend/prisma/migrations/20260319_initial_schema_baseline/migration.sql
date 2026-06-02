@@ -1,4 +1,4 @@
-﻿-- Baseline migration for environments that start from an empty database or Prisma shadow database.
+-- Baseline migration for environments that start from an empty database or Prisma shadow database.
 -- Existing environments that already contain this schema should mark this migration as applied:
 --   npx prisma migrate resolve --applied 20260319_initial_schema_baseline
 

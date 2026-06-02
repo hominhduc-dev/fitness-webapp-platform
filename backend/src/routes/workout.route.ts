@@ -135,6 +135,7 @@ workoutRouter.post("/:workoutId/logs", async (req, res) => {
       completedAt: typeof req.body.completedAt === "string" ? req.body.completedAt : undefined,
       exercises: Array.isArray(req.body.exercises) ? req.body.exercises : [],
       notes: typeof req.body.notes === "string" ? req.body.notes : undefined,
+      plannedDate: typeof req.body.plannedDate === "string" ? req.body.plannedDate : undefined,
       startedAt: typeof req.body.startedAt === "string" ? req.body.startedAt : undefined,
     })
 
