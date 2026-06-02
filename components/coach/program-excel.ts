@@ -882,7 +882,7 @@ async function downloadCoachProgramTemplate(
     workoutsSheet.getCell(rowNum, 8).value = ""
   })
 
-  workoutsSheet.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
+  workoutsSheet.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }]
 
   // ── 3. Instructions sheet ─────────────────────────────────────────────────
   const instructionsSheet = workbook.addWorksheet(INSTRUCTIONS_SHEET_NAME)
@@ -912,7 +912,23 @@ async function downloadCoachProgramTemplate(
     { header: "equipment", key: "equipment", width: 18 },
   ]
   styleHeaderRow(referenceSheet)
-  exercises.forEach((ex) => {
+  const sortedReferenceExercises = [...exercises].sort((a, b) => {
+    const muscleGroupComparison = a.muscleGroup.localeCompare(b.muscleGroup, undefined, { sensitivity: "base" })
+
+    if (muscleGroupComparison !== 0) {
+      return muscleGroupComparison
+    }
+
+    const exerciseNameComparison = a.exerciseName.localeCompare(b.exerciseName, undefined, { sensitivity: "base" })
+
+    if (exerciseNameComparison !== 0) {
+      return exerciseNameComparison
+    }
+
+    return a.variationName.localeCompare(b.variationName, undefined, { sensitivity: "base" })
+  })
+
+  sortedReferenceExercises.forEach((ex) => {
     referenceSheet.addRow([ex.id, ex.exerciseName, ex.variationName, ex.name, ex.muscleGroup, ex.equipment ?? ""])
   })
   referenceSheet.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
