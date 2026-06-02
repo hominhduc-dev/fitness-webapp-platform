@@ -32,6 +32,7 @@ import {
   fetchCoachWorkoutLogs,
   unassignCoachProgram,
 } from "@/lib/fitness/api"
+import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
 
@@ -68,20 +69,8 @@ function toDateInputValue(value = new Date()) {
   return local.toISOString().slice(0, 10)
 }
 
-function parseValidDate(value: unknown) {
-  if (value == null) return null
-  const date = value instanceof Date ? value : new Date(value as string | number)
-  return Number.isFinite(date.getTime()) ? date : null
-}
-
 function getProgramExportStartDate(program: CoachProgram, assignedAt: unknown) {
-  const parsedAssignedAt = parseValidDate(assignedAt)
-
-  if (parsedAssignedAt) {
-    return parsedAssignedAt.toISOString().slice(0, 10)
-  }
-
-  return new Date(Date.now() - program.duration * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  return formatDateToISO(getProgramStartDate(assignedAt, program.duration))
 }
 
 function formatNumber(value?: number, suffix = "") {
