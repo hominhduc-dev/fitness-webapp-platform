@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createWorkout, fetchExercises } from "@/lib/fitness/api"
+import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
@@ -805,9 +806,7 @@ function ExerciseSearchDialog({
     [exerciseOptions],
   )
   const visibleExercises = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return exerciseOptions
+    const filtered = exerciseOptions
       .slice()
       .sort((left, right) => {
         const nameComparison = left.exerciseName.localeCompare(right.exerciseName)
@@ -823,21 +822,13 @@ function ExerciseSearchDialog({
           return false
         }
 
-        if (!normalizedQuery) {
-          return true
-        }
-
-        return [
-          option.exerciseName,
-          option.variationName,
-          option.name,
-          option.muscleGroup,
-          option.equipment ?? "",
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedQuery)
+        return matchesExerciseSearch(
+          [option.exerciseName, option.variationName, option.name, option.muscleGroup, option.equipment],
+          query,
+        )
       })
+
+    return sortByExerciseRelevance(filtered, query, (option) => option.exerciseName)
   }, [exerciseOptions, muscleGroup, query])
 
   useEffect(() => {

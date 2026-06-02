@@ -28,6 +28,7 @@ import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"
 import type { ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+import { matchesExerciseSearch } from "@/lib/exercise-search"
 
 // ─── Session storage helpers (unchanged) ──────────────────────────────────────
 
@@ -1164,9 +1165,8 @@ export default function WorkoutStartPage() {
               </div>
             ) : (
               (() => {
-                const q = exerciseSearch.toLowerCase().trim()
                 const filtered = exerciseLibrary.filter((ex) =>
-                  !q || ex.name.toLowerCase().includes(q) || ex.exerciseName.toLowerCase().includes(q) || ex.muscleGroup.toLowerCase().includes(q),
+                  matchesExerciseSearch([ex.name, ex.exerciseName, ex.muscleGroup, ex.equipment], exerciseSearch),
                 )
                 if (filtered.length === 0) {
                   return (
