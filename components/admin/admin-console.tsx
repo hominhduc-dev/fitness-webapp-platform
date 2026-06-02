@@ -205,6 +205,24 @@ function getExerciseGroupKey(value?: string | null) {
   return normalizedValue ? normalizedValue : "__other__"
 }
 
+function sortAdminExercises(items: AdminExerciseItem[]) {
+  return [...items].sort((a, b) => {
+    const muscleGroupComparison = a.muscleGroup.localeCompare(b.muscleGroup, undefined, { sensitivity: "base" })
+
+    if (muscleGroupComparison !== 0) {
+      return muscleGroupComparison
+    }
+
+    const nameComparison = a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+
+    if (nameComparison !== 0) {
+      return nameComparison
+    }
+
+    return a.createdAt.getTime() - b.createdAt.getTime()
+  })
+}
+
 function roleBadgeVariant(role: UserRole) {
   switch (role) {
     case "admin":
@@ -1000,15 +1018,17 @@ export function AdminConsole() {
 
     try {
       if (exerciseForm.id) {
-        await updateAdminExerciseRequest(session.access_token, exerciseForm.id, exerciseForm)
+        const savedExercise = await updateAdminExerciseRequest(session.access_token, exerciseForm.id, exerciseForm)
+        setExercises((current) => sortAdminExercises(current.map((item) => (item.id === savedExercise.id ? savedExercise : item))))
         setNotice(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
       } else {
-        await createAdminExerciseRequest(session.access_token, exerciseForm)
+        const savedExercise = await createAdminExerciseRequest(session.access_token, exerciseForm)
+        setExercises((current) => sortAdminExercises([savedExercise, ...current]))
         setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
       }
 
       resetExerciseForm()
-      await refreshExercises()
+      void refreshExercises()
     } catch (exerciseError) {
       setError(exerciseError instanceof Error ? exerciseError.message : "Không thể lưu bài tập.")
     } finally {
@@ -1024,13 +1044,15 @@ export function AdminConsole() {
     setNotice(null)
     try {
       if (data.id) {
-        await updateAdminExerciseRequest(session.access_token, data.id, data)
+        const savedExercise = await updateAdminExerciseRequest(session.access_token, data.id, data)
+        setExercises((current) => sortAdminExercises(current.map((item) => (item.id === savedExercise.id ? savedExercise : item))))
         setNotice(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
       } else {
-        await createAdminExerciseRequest(session.access_token, data)
+        const savedExercise = await createAdminExerciseRequest(session.access_token, data)
+        setExercises((current) => sortAdminExercises([savedExercise, ...current]))
         setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
       }
-      await refreshExercises()
+      void refreshExercises()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu bài tập.")
       throw err
@@ -1045,8 +1067,9 @@ export function AdminConsole() {
     setNotice(null)
     try {
       await deleteAdminExerciseRequest(session.access_token, exercise.id)
+      setExercises((current) => current.filter((item) => item.id !== exercise.id))
       setNotice(locale === "en" ? "Exercise deleted." : "Đã xóa bài tập.")
-      await refreshExercises()
+      void refreshExercises()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
       throw err
@@ -1063,15 +1086,16 @@ export function AdminConsole() {
     setNotice(null)
 
     try {
-      const result = await importAdminExercisesRequest(session.access_token, importRows)
+      const token = session.access_token
+      const result = await importAdminExercisesRequest(token, importRows)
       setNotice(
         locale === "en"
           ? `Imported ${result.createdCount} exercise variations and skipped ${result.skippedCount} rows.`
           : `Đã import ${result.createdCount} variation bài tập và bỏ qua ${result.skippedCount} dòng.`,
       )
-      await refreshExercises()
       setIsImportDialogOpen(false)
       resetImportState()
+      void refreshExercises()
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "Không thể import danh sách bài tập.")
     } finally {
@@ -1099,7 +1123,8 @@ export function AdminConsole() {
             ? "Import request rejected."
             : "Đã từ chối yêu cầu import.",
       )
-      await refreshExercises()
+      setExerciseImportRequests((current) => current.filter((request) => request.id !== response.request.id))
+      void refreshExercises()
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : "Không thể xử lý yêu cầu import.")
     } finally {
