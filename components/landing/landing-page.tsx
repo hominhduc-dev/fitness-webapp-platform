@@ -14,6 +14,8 @@ import {
 } from "lucide-react"
 
 import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
+import { LanguageToggle } from "@/components/layout/language-toggle"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AppLocale } from "@/lib/i18n/config"
@@ -47,6 +49,8 @@ export function LandingPage(_props: { locale: AppLocale }) {
    TopBar
 ───────────────────────────────────────────────────────────── */
 function TopBar() {
+  const { messages } = useLocale()
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3.5 md:px-10 md:py-[18px]">
@@ -70,14 +74,15 @@ function TopBar() {
             href="#features"
             className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
           >
-            Features
+            {messages.landing.navFeatures}
           </Link>
           <Link
             href="#trainers"
             className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
           >
-            For trainers
+            {messages.landing.navTrainers}
           </Link>
+          <LanguageToggle />
 
           <Button
             variant="ghost"
@@ -86,7 +91,7 @@ function TopBar() {
             className="text-sm font-medium"
           >
             <Link href="/?auth=login" scroll={false}>
-              Sign in
+              {messages.landing.signIn}
             </Link>
           </Button>
 
@@ -96,7 +101,7 @@ function TopBar() {
             className="bg-foreground text-background text-sm font-medium hover:bg-foreground/90"
           >
             <Link href="/?auth=register" scroll={false}>
-              Get started
+              {messages.landing.getStarted}
             </Link>
           </Button>
         </nav>
@@ -109,23 +114,24 @@ function TopBar() {
    Hero
 ───────────────────────────────────────────────────────────── */
 function Hero() {
+  const { messages } = useLocale()
+
   return (
     <section className="mx-auto max-w-[1200px] px-5 pb-16 pt-10 md:px-10 md:pb-16 md:pt-20">
       {/* Headline block */}
       <div className="max-w-[760px]">
-        <p className="label-micro mb-3.5">v1.0 · may 2026</p>
+        <p className="label-micro mb-3.5">{messages.landing.version}</p>
 
         <h1
           className="m-0 text-[44px] font-semibold leading-[0.96] tracking-[-0.035em] text-foreground md:text-[84px]"
         >
-          Log the set.{" "}
+          {messages.landing.heroTitle}{" "}
           <br />
-          <span className="text-muted-foreground">Move on.</span>
+          <span className="text-muted-foreground">{messages.landing.heroMutedTitle}</span>
         </h1>
 
         <p className="mt-6 max-w-[540px] text-base leading-[1.55] text-muted-foreground md:text-[19px]">
-          A quiet gym log for lifters who know what they&apos;re doing. No streaks to
-          maintain. No coach pinging you. Just your numbers, where you left them.
+          {messages.landing.heroCopy}
         </p>
 
         {/* CTAs */}
@@ -136,21 +142,21 @@ function Hero() {
             className="bg-foreground text-background font-medium hover:bg-foreground/90"
           >
             <Link href="/?auth=register" scroll={false}>
-              Start logging — it&apos;s free
+              {messages.landing.startLogging}
             </Link>
           </Button>
 
           <Button variant="ghost" size="lg" className="gap-2 font-medium" asChild>
             <Link href="#demo">
               <Play className="h-4 w-4" />
-              Watch 30s demo
+              {messages.landing.watchDemo}
             </Link>
           </Button>
         </div>
 
         {/* Micro trust line */}
         <p className="mt-[22px] font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
-          No credit card · iOS &amp; web · export your data anytime
+          {messages.landing.trustLine}
         </p>
       </div>
 
@@ -168,6 +174,7 @@ function Hero() {
 }
 
 function MockSetLog() {
+  const { messages } = useLocale()
   const sets = [
     { n: 1, kind: "warm", kg: 60, reps: 10, done: true, pr: false },
     { n: 2, kind: "work", kg: 80, reps: 8, done: true, pr: false },
@@ -179,8 +186,8 @@ function MockSetLog() {
     <div className="overflow-hidden rounded-[10px] border border-border bg-card">
       {/* Header */}
       <div className="border-b border-border px-[18px] py-3.5">
-        <div className="text-base font-semibold text-foreground">Bench press</div>
-        <div className="mt-0.5 text-xs text-muted-foreground/70">3 working sets · last 82.5 × 8</div>
+        <div className="text-base font-semibold text-foreground">{messages.landing.benchPress}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground/70">{messages.landing.benchSummary}</div>
       </div>
 
       {/* Rows */}
@@ -238,9 +245,11 @@ function MockSetLog() {
 }
 
 function MockChart() {
+  const { messages } = useLocale()
+
   return (
     <div className="rounded-[10px] border border-border bg-card p-[18px]">
-      <p className="label-micro mb-1.5">Bench press · 1RM est.</p>
+      <p className="label-micro mb-1.5">{messages.landing.oneRmEstimate}</p>
 
       <div className="flex items-baseline gap-2">
         <span className="font-sans text-[36px] font-semibold leading-none tracking-[-0.03em] text-foreground [font-feature-settings:'tnum'_1]">
@@ -274,40 +283,19 @@ function MockChart() {
 /* ─────────────────────────────────────────────────────────────
    Features grid
 ───────────────────────────────────────────────────────────── */
-const FEATURE_ITEMS = [
-  {
-    Icon: Dumbbell,
-    title: "Log a set in 3 taps",
-    copy: "Previous numbers pre-filled. Tap kg, tap reps, tap check. Move on.",
-  },
-  {
-    Icon: Flame,
-    title: "PRs that find themselves",
-    copy: "Hit a new best? YeahBuddy notices. No celebrating, no confetti — just a small tag.",
-  },
-  {
-    Icon: BarChart3,
-    title: "Charts that mean something",
-    copy: "Volume, frequency, 1RM estimate. No vanity numbers.",
-  },
-  {
-    Icon: Ruler,
-    title: "Body weight + measurements",
-    copy: "Weekly weigh-ins. Track waist, arms, body fat. Skip what you do not care about.",
-  },
-  {
-    Icon: Timer,
-    title: "Rest timer that knows",
-    copy: "Auto-starts after each set. Tap to add 30 seconds. Auto-dismisses when done.",
-  },
-  {
-    Icon: Calendar,
-    title: "History without the noise",
-    copy: "A clean monthly calendar. Click any day to see the session.",
-  },
-] as const
+const FEATURE_ICONS = [Dumbbell, Flame, BarChart3, Ruler, Timer, Calendar] as const
 
 function FeaturesSection() {
+  const { messages } = useLocale()
+  const featureItems = [
+    { copy: messages.landing.featureLogCopy, Icon: FEATURE_ICONS[0], title: messages.landing.featureLogTitle },
+    { copy: messages.landing.featurePrCopy, Icon: FEATURE_ICONS[1], title: messages.landing.featurePrTitle },
+    { copy: messages.landing.featureChartsCopy, Icon: FEATURE_ICONS[2], title: messages.landing.featureChartsTitle },
+    { copy: messages.landing.featureBodyCopy, Icon: FEATURE_ICONS[3], title: messages.landing.featureBodyTitle },
+    { copy: messages.landing.featureTimerCopy, Icon: FEATURE_ICONS[4], title: messages.landing.featureTimerTitle },
+    { copy: messages.landing.featureHistoryCopy, Icon: FEATURE_ICONS[5], title: messages.landing.featureHistoryTitle },
+  ]
+
   return (
     <section
       id="features"
@@ -315,27 +303,27 @@ function FeaturesSection() {
     >
       {/* Section header */}
       <div className="mb-7 max-w-[640px] md:mb-12">
-        <p className="label-micro mb-3">What&apos;s inside</p>
+        <p className="label-micro mb-3">{messages.landing.featuresEyebrow}</p>
         <h2 className="m-0 text-[32px] font-semibold leading-[1.05] tracking-[-0.025em] text-foreground md:text-[48px]">
-          Everything you need.{" "}
-          <span className="text-muted-foreground">Nothing you don&apos;t.</span>
+          {messages.landing.featuresTitle}{" "}
+          <span className="text-muted-foreground">{messages.landing.featuresMutedTitle}</span>
         </h2>
       </div>
 
       {/* 3×2 grid with hairline dividers */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="grid grid-cols-1 md:grid-cols-3">
-          {FEATURE_ITEMS.map((item, i) => {
+          {featureItems.map((item, i) => {
             const col = i % 3
             const row = Math.floor(i / 3)
-            const totalRows = Math.ceil(FEATURE_ITEMS.length / 3)
+            const totalRows = Math.ceil(featureItems.length / 3)
             return (
               <div
                 key={item.title}
                 className={cn(
                   "px-5 py-[22px] md:px-7 md:py-8",
                   // Mobile: bottom border on all but the last item
-                  i < FEATURE_ITEMS.length - 1 && "border-b border-border",
+                  i < featureItems.length - 1 && "border-b border-border",
                   // Desktop overrides: right border on cols 0 and 1
                   col < 2 && "md:border-r md:border-border",
                   // Desktop overrides: bottom border on all but last row
@@ -361,14 +349,15 @@ function FeaturesSection() {
 /* ─────────────────────────────────────────────────────────────
    Trainer callout
 ───────────────────────────────────────────────────────────── */
-const CLIENT_ROWS = [
-  { name: "Maya R.", activity: "pulled", status: "pr · deadlift 142.5", tone: "ok" as const },
-  { name: "Theo S.", activity: "pushed", status: "−2 sets vs plan", tone: "warn" as const },
-  { name: "Hana K.", activity: "rested", status: "4 days off", tone: "neutral" as const },
-  { name: "Devon L.", activity: "pulled", status: "on track", tone: "neutral" as const },
-] as const
-
 function TrainerCallout() {
+  const { messages } = useLocale()
+  const clientRows = [
+    { name: "Maya R.", activity: messages.landing.clientPulled, status: messages.landing.clientDeadliftPr, tone: "ok" as const },
+    { name: "Theo S.", activity: messages.landing.clientPushed, status: messages.landing.clientUnderPlan, tone: "warn" as const },
+    { name: "Hana K.", activity: messages.landing.clientRested, status: messages.landing.clientDaysOff, tone: "neutral" as const },
+    { name: "Devon L.", activity: messages.landing.clientPulled, status: messages.landing.clientOnTrack, tone: "neutral" as const },
+  ]
+
   return (
     <section
       id="trainers"
@@ -377,13 +366,12 @@ function TrainerCallout() {
       <div className="grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
         {/* Left: copy */}
         <div>
-          <p className="label-micro mb-3 text-[#9a9a92]">For coaches &amp; trainers</p>
+          <p className="label-micro mb-3 text-[#9a9a92]">{messages.landing.trainerEyebrow}</p>
           <h2 className="m-0 text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-[#fcfcfa] md:text-[42px]">
-            One dashboard for every lifter you coach.
+            {messages.landing.trainerTitle}
           </h2>
           <p className="mb-6 mt-[18px] max-w-[440px] text-[15px] leading-[1.55] text-[#c9c9c2]">
-            Assign programs, watch real sets land in real time, flag form check
-            videos, and message clients between sessions — without a third app.
+            {messages.landing.trainerCopy}
           </p>
 
           <div className="flex flex-wrap gap-2.5">
@@ -392,22 +380,22 @@ function TrainerCallout() {
               asChild
               className="bg-primary font-medium text-primary-foreground hover:bg-primary/90"
             >
-              <Link href="/coach">Open trainer view →</Link>
+              <Link href="/coach">{messages.landing.openTrainerView} →</Link>
             </Button>
             <Button
               variant="ghost"
               size="default"
               className="font-medium text-[#fcfcfa] hover:bg-white/10 hover:text-[#fcfcfa]"
             >
-              Request invite
+              {messages.landing.requestInvite}
             </Button>
           </div>
         </div>
 
         {/* Right: mock client table */}
         <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.04] p-5 font-mono text-[13px] leading-[1.7] text-[#c9c9c2]">
-          <div className="mb-2.5 text-[#fcfcfa]">This week · 12 clients</div>
-          {CLIENT_ROWS.map((row, i) => (
+          <div className="mb-2.5 text-[#fcfcfa]">{messages.landing.thisWeekClients}</div>
+          {clientRows.map((row, i) => (
             <div
               key={row.name}
               className={cn(
@@ -438,14 +426,17 @@ function TrainerCallout() {
    Footer
 ───────────────────────────────────────────────────────────── */
 function FooterSection() {
+  const { messages } = useLocale()
+  const footerLinks = [messages.landing.privacy, messages.landing.terms, messages.landing.changelog, messages.landing.contact]
+
   return (
     <footer className="border-t border-border">
       <div className="mx-auto flex max-w-[1200px] flex-col items-start justify-between gap-3 px-5 py-6 md:flex-row md:items-center md:px-10 md:py-8">
         <p className="font-mono text-xs tracking-[0.04em] text-muted-foreground/70">
-          © 2026 YeahBuddy Fitness · log the set, move on.
+          {messages.landing.footerLine}
         </p>
         <div className="flex gap-[18px]">
-          {["Privacy", "Terms", "Changelog", "Contact"].map((label) => (
+          {footerLinks.map((label) => (
             <Link
               key={label}
               href="#"

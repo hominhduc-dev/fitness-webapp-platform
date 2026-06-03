@@ -3,6 +3,7 @@
 import { Check, Plus, SkipForward } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
+import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
 
 export type RestEvent = {
@@ -17,6 +18,7 @@ interface RestTimerProps {
 }
 
 export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerProps) {
+  const { messages } = useLocale()
   const [remaining, setRemaining] = useState(defaultDuration)
   const [visible, setVisible] = useState(true)
   const startedRef = useRef(Date.now())
@@ -97,7 +99,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
         {/* Left: label + countdown */}
         <div className="min-w-[90px] md:min-w-[110px] shrink-0">
           <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-[2px]">
-            Rest
+            {messages.workoutPage.rest}
           </div>
           <div
             className="font-mono text-[26px] md:text-[30px] font-semibold text-primary leading-none"
@@ -124,7 +126,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
           </div>
           {/* Caption */}
           <p className="mt-2 text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
-            After:{" "}
+            {messages.workoutPage.after}{" "}
             <span className="text-foreground">
               {event.exercise}
             </span>
@@ -143,7 +145,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
         <div className="flex items-center gap-2 ml-auto shrink-0">
           <button
             onClick={handleAddTime}
-            aria-label="Add 30 seconds"
+            aria-label={messages.workoutPage.add30Seconds}
             className={cn(
               "flex items-center gap-1 rounded-md border border-border",
               "px-3 py-1.5 text-[13px] font-medium text-foreground",
@@ -155,7 +157,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
           </button>
           <button
             onClick={handleSkip}
-            aria-label="Skip rest"
+            aria-label={messages.workoutPage.skipRest}
             className={cn(
               "flex items-center gap-1 rounded-md",
               "px-3 py-1.5 text-[13px] font-medium",
@@ -163,7 +165,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
             )}
           >
             <SkipForward className="h-3.5 w-3.5" />
-            Skip
+            {messages.workoutPage.skip}
           </button>
         </div>
       </div>

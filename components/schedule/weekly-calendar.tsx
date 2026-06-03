@@ -3,11 +3,13 @@
 import Link from "next/link"
 import { memo, useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, isBefore, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns"
+import { enUS, vi } from "date-fns/locale"
 import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -16,6 +18,7 @@ import { createWorkout, fetchExercises } from "@/lib/fitness/api"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
+import type { AppMessages } from "@/lib/i18n/messages"
 
 type WeeklyCalendarProps = {
   recentLogs: WorkoutLog[]
@@ -245,17 +248,17 @@ function getTagColor(tag: string) {
   return colors[tag] ?? "var(--muted-foreground)"
 }
 
-function getStatusBadge(entry: ScheduleEntry) {
+function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
   if (entry.isCompleted) {
-    return { className: "bg-ok-soft text-success", label: "Done" }
+    return { className: "bg-ok-soft text-success", label: messages.schedule.done }
   }
 
   if (entry.isToday) {
-    return { className: "bg-primary-soft text-primary", label: "Today" }
+    return { className: "bg-primary-soft text-primary", label: messages.schedule.todayLabel }
   }
 
   if (entry.isMissed) {
-    return { className: "bg-warn-soft text-warning", label: "Missed" }
+    return { className: "bg-warn-soft text-warning", label: messages.schedule.missedLabel }
   }
 
   return null
@@ -327,8 +330,10 @@ function DayCard({
   entry: ScheduleEntry
   onRestDayClick: (date: Date) => void
 }) {
+  const { locale, messages } = useLocale()
+  const dateLocale = locale === "vi" ? vi : enUS
   const workout = entry.workout
-  const badge = getStatusBadge(entry)
+  const badge = getStatusBadge(entry, messages)
   const tag = getRoutineTag(workout)
 
   return (
@@ -342,7 +347,7 @@ function DayCard({
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className={cn("label-micro", entry.isToday ? "text-primary" : "text-muted-foreground")}>
-            {format(entry.date, "EEE")}
+            {format(entry.date, "EEE", { locale: dateLocale })}
           </div>
           <div className={cn("mt-0.5 font-mono text-lg font-semibold leading-none tnum", entry.isToday ? "text-primary" : "text-foreground")}>
             {format(entry.date, "d")}
@@ -377,7 +382,7 @@ function DayCard({
               {entry.source === "coach" ? (
                 <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                   <User className="h-2.5 w-2.5" />
-                  Coach
+                  {messages.schedule.coach}
                 </span>
               ) : null}
             </div>
@@ -387,14 +392,14 @@ function DayCard({
             <Button asChild size="sm" className="mt-auto">
               <Link href={`/workout/${workout.id}/start`}>
                 <Play className="h-3.5 w-3.5 fill-current" />
-                {entry.log && !entry.log.completedAt ? "Resume" : "Start"}
+                {entry.log && !entry.log.completedAt ? messages.schedule.resume : messages.workoutPage.start}
               </Link>
             </Button>
           ) : (
             <Button asChild variant="ghost" size="sm" className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary">
               <Link href={`/workout/${workout.id}/start`}>
                 {entry.isCompleted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-                {entry.isCompleted ? "Review" : "Open"}
+                {entry.isCompleted ? messages.schedule.review : messages.schedule.open}
               </Link>
             </Button>
           )}
@@ -406,7 +411,7 @@ function DayCard({
           className="flex flex-1 flex-col items-center justify-center rounded-[8px] border border-dashed border-border text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted hover:text-primary"
         >
           <Plus className="mb-1 h-4 w-4" />
-          Add routine
+          {messages.schedule.addRoutine}
         </button>
       )}
     </div>
@@ -436,6 +441,8 @@ function RoutinePickerDialog({
   onPick: (routine: Routine) => void
   open: boolean
 }) {
+  const { locale, messages } = useLocale()
+  const dateLocale = locale === "vi" ? vi : enUS
   const [query, setQuery] = useState("")
   const visibleRoutines = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -461,16 +468,16 @@ function RoutinePickerDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
       <DialogContent className="z-[80] flex max-h-[calc(100svh-1.5rem)] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-h-[72svh] sm:max-w-[400px]">
         <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5 text-left">
-          <DialogTitle className="text-[15px] font-semibold">Pick a routine</DialogTitle>
+          <DialogTitle className="text-[15px] font-semibold">{messages.schedule.pickRoutine}</DialogTitle>
           <p className="font-mono text-[11px] text-muted-foreground tnum">
-            {date ? format(date, "EEE, MMM d") : "Rest day"}
+            {date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle}
           </p>
           <div className="relative pt-2">
             <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search routines..."
+              placeholder={messages.schedule.searchRoutines}
               className="h-9 bg-background pl-8 text-sm"
               autoFocus
             />
@@ -483,7 +490,7 @@ function RoutinePickerDialog({
           ) : null}
           {visibleRoutines.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-              No routines match this search. Create a new routine for this rest day.
+              {messages.schedule.noRoutinesMatch}
             </div>
           ) : (
             visibleRoutines.map((routine, index) => (
@@ -501,7 +508,7 @@ function RoutinePickerDialog({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-foreground">{routine.name}</span>
                   <span className="label-micro mt-0.5 block">
-                    {routine.tag} · {routine.exercises.length} exercise{routine.exercises.length === 1 ? "" : "s"}
+                    {routine.tag} · {messages.workoutPage.exerciseCount(routine.exercises.length)}
                   </span>
                 </span>
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
@@ -513,7 +520,7 @@ function RoutinePickerDialog({
         <DialogFooter className="shrink-0 border-t border-border px-5 py-3 sm:justify-center">
           <Button type="button" variant="ghost" size="sm" className="text-primary" onClick={onCreateNew} disabled={isSaving}>
             <Plus className="h-3.5 w-3.5" />
-            Create new routine
+            {messages.schedule.createNewRoutine}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -540,6 +547,8 @@ function RoutineBuilderDialog({
   onSave: (routine: Routine) => void
   open: boolean
 }) {
+  const { locale, messages } = useLocale()
+  const dateLocale = locale === "vi" ? vi : enUS
   const [name, setName] = useState("")
   const [tag, setTag] = useState<RoutineTag>("push")
   const [exercises, setExercises] = useState<RoutineExercise[]>([])
@@ -583,19 +592,21 @@ function RoutineBuilderDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
       <DialogContent className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[680px]">
         <DialogHeader className="border-b border-border px-7 pb-4 pt-6 text-left">
-          <p className="label-micro">New routine · {date ? format(date, "EEE, MMM d") : "Rest day"}</p>
+          <p className="label-micro">
+            {messages.schedule.newRoutineForDate(date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle)}
+          </p>
           <DialogTitle className="text-[23px] font-semibold tracking-[-0.02em]">
-            {name.trim() || "Untitled routine"}
+            {name.trim() || messages.workoutPage.untitledRoutine}
           </DialogTitle>
           <p className="font-mono text-xs text-muted-foreground tnum">
-            {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
+            {messages.workoutPage.exerciseCount(exercises.length)} · {messages.workoutPage.setCount(totalSets)}
           </p>
 
           <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Saturday push"
+              placeholder={messages.workoutPage.routineNamePlaceholder}
               className="h-10 flex-1 bg-background"
             />
             <div className="flex gap-1.5 overflow-x-auto">
@@ -612,7 +623,17 @@ function RoutineBuilderDialog({
                   )}
                 >
                   <RoutineDot tag={tagOption} />
-                  {tagOption}
+                  {tagOption === "push"
+                    ? messages.workoutPage.tagPush
+                    : tagOption === "pull"
+                      ? messages.workoutPage.tagPull
+                      : tagOption === "legs"
+                        ? messages.workoutPage.tagLegs
+                        : tagOption === "upper"
+                          ? messages.workoutPage.tagUpper
+                          : tagOption === "lower"
+                            ? messages.workoutPage.tagLower
+                            : messages.workoutPage.tagFull}
                 </button>
               ))}
             </div>
@@ -625,7 +646,7 @@ function RoutineBuilderDialog({
           ) : null}
           {exercises.length === 0 ? (
             <div className="rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
-              No exercises yet. Add your first one.
+              {messages.workoutPage.noExercisesYet}
             </div>
           ) : null}
 
@@ -669,7 +690,7 @@ function RoutineBuilderDialog({
                       size="icon-sm"
                       onClick={() => moveExercise(index, -1)}
                       disabled={index === 0 || isSaving}
-                      aria-label="Move exercise up"
+                      aria-label={messages.schedule.moveExerciseUp}
                     >
                       <ArrowUp className="h-3.5 w-3.5" />
                     </Button>
@@ -679,7 +700,7 @@ function RoutineBuilderDialog({
                       size="icon-sm"
                       onClick={() => moveExercise(index, 1)}
                       disabled={index === exercises.length - 1 || isSaving}
-                      aria-label="Move exercise down"
+                      aria-label={messages.schedule.moveExerciseDown}
                     >
                       <ArrowDown className="h-3.5 w-3.5" />
                     </Button>
@@ -689,7 +710,7 @@ function RoutineBuilderDialog({
                       size="icon-sm"
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
-                      aria-label="Remove exercise"
+                      aria-label={messages.workoutPage.removeExercise}
                       disabled={isSaving}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -699,7 +720,7 @@ function RoutineBuilderDialog({
 
                 <div className="mt-3 grid grid-cols-3 gap-2 pl-8">
                   <div className="flex flex-col gap-1">
-                    <Label className="label-micro">Sets</Label>
+                    <Label className="label-micro">{messages.workoutPage.set}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -709,7 +730,7 @@ function RoutineBuilderDialog({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className="label-micro">Reps range</Label>
+                    <Label className="label-micro">{messages.schedule.repsRange}</Label>
                     <Input
                       value={exercise.reps}
                       onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })}
@@ -741,13 +762,13 @@ function RoutineBuilderDialog({
             disabled={isLoadingExercises || isSaving || exerciseOptions.length === 0}
           >
             {isLoadingExercises ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Add exercise
+            {messages.workoutPage.addExercise}
           </Button>
         </div>
 
         <DialogFooter className="border-t border-border px-7 py-4">
           <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
-            Cancel
+            {messages.common.cancel}
           </Button>
           <Button
             type="button"
@@ -755,7 +776,7 @@ function RoutineBuilderDialog({
             onClick={() => onSave({ exercises, id: createDraftId(), name: name.trim(), tag })}
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Save routine
+            {messages.schedule.saveRoutine}
           </Button>
         </DialogFooter>
 
@@ -773,7 +794,7 @@ function RoutineBuilderDialog({
                 disabled
               >
                 <Plus className="h-3.5 w-3.5" />
-                Create custom exercise
+                {messages.schedule.createCustomExercise}
               </Button>
             }
             onPick={(option) => {
@@ -799,6 +820,8 @@ function RoutineBuilderDialog({
 }
 
 function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
+  const { messages } = useLocale()
+
   if (coachWorkouts.length === 0) {
     return null
   }
@@ -809,22 +832,22 @@ function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
   return (
     <div className="mb-7 grid gap-5 rounded-[12px] bg-foreground px-5 py-5 text-background md:grid-cols-[1.35fr_1fr] md:px-7 md:py-6">
       <div>
-        <p className="label-micro mb-2 text-background/55">Your coach program</p>
-        <h2 className="text-[26px] font-semibold leading-tight tracking-[-0.015em]">Current training block</h2>
+        <p className="label-micro mb-2 text-background/55">{messages.schedule.yourCoachProgram}</p>
+        <h2 className="text-[26px] font-semibold leading-tight tracking-[-0.015em]">{messages.schedule.currentTrainingBlock}</h2>
         <p className="mt-1.5 font-mono text-xs text-background/70 tnum">
-          Assigned by coach · {daysPerWeek} days/week · {coachWorkouts.length} routines
+          {messages.schedule.assignedByCoach(daysPerWeek, coachWorkouts.length)}
         </p>
         <p className="mt-3 max-w-md text-[13px] leading-relaxed text-background/70">
-          Coach-assigned sessions are reflected in your weekly plan. Personal workouts can still be added on open days.
+          {messages.schedule.coachAssignedCopy}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button asChild size="sm" variant="secondary" className="border-background/15 bg-background/10 text-background hover:bg-background/15">
-            <Link href="/workout">View program</Link>
+            <Link href="/workout">{messages.schedule.viewProgram}</Link>
           </Button>
           <Button asChild size="sm" variant="ghost" className="text-background hover:bg-background/10 hover:text-background">
             <Link href="/coach/find">
               <MessageSquare className="h-3.5 w-3.5" />
-              Message coach
+              {messages.schedule.messageCoach}
             </Link>
           </Button>
         </div>
@@ -832,7 +855,7 @@ function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
 
       <div className="self-center">
         <div className="mb-2 flex justify-between">
-          <span className="label-micro text-background/55">Active plan</span>
+          <span className="label-micro text-background/55">{messages.schedule.activePlan}</span>
           <span className="font-mono text-[11px] text-background tnum">{progressPct}%</span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-background/10">
@@ -862,17 +885,19 @@ const SourceFilters = memo(function SourceFilters({
   showSource: SourceFilter
   onChange: (source: SourceFilter) => void
 }) {
+  const { messages } = useLocale()
+
   return (
     <div className="flex flex-wrap gap-1.5">
       <SourceChip active={showSource === "all"} onClick={() => onChange("all")}>
-        All
+        {messages.schedule.allSources}
       </SourceChip>
       <SourceChip active={showSource === "coach"} onClick={() => onChange("coach")}>
         <User className="h-3 w-3" />
-        From coach
+        {messages.schedule.fromCoach}
       </SourceChip>
       <SourceChip active={showSource === "self"} onClick={() => onChange("self")}>
-        Mine
+        {messages.schedule.mine}
       </SourceChip>
     </div>
   )
@@ -907,11 +932,13 @@ const NextWeekPreview = memo(function NextWeekPreview({
   nextWeekStart: Date
   onRestDayClick: (date: Date) => void
 }) {
+  const { messages } = useLocale()
+
   return (
     <>
       <div className="mb-3 flex items-baseline justify-between">
-        <p className="label-micro">Next week · {formatWeekRangeLabel(nextWeekStart)}</p>
-        <span className="label-micro text-muted-foreground">Preview</span>
+        <p className="label-micro">{messages.schedule.nextWeekRange(formatWeekRangeLabel(nextWeekStart))}</p>
+        <span className="label-micro text-muted-foreground">{messages.schedule.previewWorkout}</span>
       </div>
       <div className="opacity-70">
         <CalendarGrid entries={entries} onRestDayClick={onRestDayClick} />
@@ -976,6 +1003,7 @@ function RoutineDialogs({
 
 export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
   const { session } = useAuth()
+  const { messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [showNextWeekPreview, setShowNextWeekPreview] = useState(false)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
@@ -1112,7 +1140,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
       const exercises = await fetchExercises(session.access_token)
       setExerciseOptions(exercises)
     } catch (loadError) {
-      setRoutineError(loadError instanceof Error ? loadError.message : "Unable to load exercise library.")
+      setRoutineError(loadError instanceof Error ? loadError.message : messages.schedule.loadExerciseLibraryError)
     } finally {
       setIsLoadingExercises(false)
     }
@@ -1173,7 +1201,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
       handleWorkoutSaved(createdWorkout, undefined, selectedRestDate)
       closeRoutineFlow()
     } catch (saveError) {
-      setRoutineError(saveError instanceof Error ? saveError.message : "Unable to add this routine.")
+      setRoutineError(saveError instanceof Error ? saveError.message : messages.schedule.unableAddRoutine)
     } finally {
       setIsSavingRoutine(false)
     }
@@ -1197,7 +1225,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         const repTarget = parseRepTargetText(exercise.reps)
 
         if (!repTarget) {
-          throw new Error(`Reps range is invalid on exercise ${index + 1}. Use 8-12 or 10.`)
+          throw new Error(messages.schedule.invalidRepsRange(index + 1))
         }
 
         const parsedWeight = Number(exercise.weight)
@@ -1214,7 +1242,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         }
       })
     } catch (buildError) {
-      setRoutineError(buildError instanceof Error ? buildError.message : "Invalid routine data.")
+      setRoutineError(buildError instanceof Error ? buildError.message : messages.schedule.invalidRoutineData)
       return
     }
 
@@ -1234,7 +1262,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
       handleWorkoutSaved(createdWorkout, undefined, selectedRestDate)
       closeRoutineFlow()
     } catch (saveError) {
-      setRoutineError(saveError instanceof Error ? saveError.message : "Unable to save this routine.")
+      setRoutineError(saveError instanceof Error ? saveError.message : messages.schedule.unableSaveRoutine)
     } finally {
       setIsSavingRoutine(false)
     }
@@ -1244,10 +1272,10 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     <section className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-10 md:py-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="label-micro mb-2">This week · {formatWeekRangeLabel(weekStart)}</p>
-          <h1 className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{plannedCount} sessions planned.</h1>
+          <p className="label-micro mb-2">{messages.schedule.thisWeekRange(formatWeekRangeLabel(weekStart))}</p>
+          <h1 className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{messages.schedule.plannedSessions(plannedCount)}</h1>
           <p className="mt-2 font-mono text-[13px] text-muted-foreground tnum">
-            {completedCount}/{plannedCount} done this week · {Math.max(0, plannedCount - completedCount)} to go
+            {messages.schedule.doneToGo(completedCount, plannedCount, Math.max(0, plannedCount - completedCount))}
           </p>
         </div>
         <SourceFilters showSource={showSource} onChange={setShowSource} />
@@ -1255,7 +1283,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
 
       <CoachProgramCard coachWorkouts={coachWorkouts} />
 
-      <p className="label-micro mb-3">This week</p>
+      <p className="label-micro mb-3">{messages.schedule.thisWeek}</p>
       <div className="mb-8">
         <CalendarGrid
           entries={filteredThisWeek}
@@ -1281,7 +1309,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         <Button asChild variant="ghost">
           <Link href="/workout">
             <CalendarDays className="h-4 w-4" />
-            View full plan
+            {messages.schedule.viewFullPlan}
           </Link>
         </Button>
       </div>

@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
@@ -61,6 +62,18 @@ const TAG_DOT: Record<RoutineTag, string> = {
   pull:  "var(--success,  #22c55e)",
   push:  "var(--primary)",
   upper: "#7c5dff",
+}
+
+function getRoutineTagLabel(tag: RoutineTag, messages: ReturnType<typeof useLocale>["messages"]) {
+  const labels: Record<RoutineTag, string> = {
+    full: messages.workoutPage.tagFull,
+    legs: messages.workoutPage.tagLegs,
+    lower: messages.workoutPage.tagLower,
+    pull: messages.workoutPage.tagPull,
+    push: messages.workoutPage.tagPush,
+    upper: messages.workoutPage.tagUpper,
+  }
+  return labels[tag]
 }
 
 function draftId() {
@@ -149,6 +162,7 @@ export function RoutineBuilderDialog({
 }: RoutineBuilderDialogProps) {
   const router = useRouter()
   const { isLoading: authLoading, session } = useAuth()
+  const { messages } = useLocale()
   const isEditing = Boolean(workoutToEdit) || Boolean(draftToEdit?.id)
   const isControlled = controlledOpen !== undefined
 
@@ -289,7 +303,7 @@ export function RoutineBuilderDialog({
         .filter((ex) => ex.variationId)
         .map((ex, i) => {
           const repTarget = parseRepTargetText(ex.reps)
-          if (!repTarget) throw new Error(`Reps không hợp lệ ở bài tập ${i + 1}. Dùng dạng 8-12 hoặc 10.`)
+          if (!repTarget) throw new Error(messages.workoutPage.invalidRepsAtExercise(i + 1))
           const parsedWeight = Number(ex.weight)
           const parsedRir = Number(ex.rir)
           return {
@@ -303,7 +317,7 @@ export function RoutineBuilderDialog({
         })
 
       if (normalizedExercises.length === 0) {
-        throw new Error("Add at least one exercise.")
+        throw new Error(messages.workoutPage.addAtLeastOneExercise)
       }
 
       const payload = {
@@ -323,7 +337,7 @@ export function RoutineBuilderDialog({
       setOpen(false)
       if (refreshOnSuccess) router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save routine.")
+      setError(err instanceof Error ? err.message : messages.workoutPage.saveRoutineError)
     } finally {
       setIsSaving(false)
     }
@@ -359,13 +373,13 @@ export function RoutineBuilderDialog({
               <div className="mb-4 flex items-start justify-between">
                 <div>
                   <p className="label-micro mb-1.5 text-muted-foreground">
-                    {isEditing ? "Edit routine" : "New routine"}
+                    {isEditing ? messages.workoutPage.editRoutineMode : messages.workoutPage.newRoutine}
                   </p>
                   <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
-                    {name.trim() || "Untitled routine"}
+                    {name.trim() || messages.workoutPage.untitledRoutine}
                   </h2>
                   <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    {exercises.length} exercise{exercises.length === 1 ? "" : "s"} · {totalSets} set{totalSets === 1 ? "" : "s"}
+                    {messages.workoutPage.exerciseCount(exercises.length)} · {messages.workoutPage.setCount(totalSets)}
                   </p>
                 </div>
                 <button
@@ -381,7 +395,7 @@ export function RoutineBuilderDialog({
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Push day A"
+                  placeholder={messages.workoutPage.routineNamePlaceholder}
                   className="flex-1 text-[15px]"
                   autoFocus
                 />
@@ -402,7 +416,7 @@ export function RoutineBuilderDialog({
                         className="h-1.5 w-1.5 shrink-0 rounded-full"
                         style={{ background: TAG_DOT[t] }}
                       />
-                      {t[0].toUpperCase() + t.slice(1)}
+                      {getRoutineTagLabel(t, messages)}
                     </button>
                   ))}
                 </div>
@@ -420,7 +434,7 @@ export function RoutineBuilderDialog({
               {exercises.length === 0 && (
                 <div className="mb-4 flex flex-col items-center justify-center rounded-[10px] border border-dashed border-border py-10 text-center text-muted-foreground">
                   <Dumbbell className="mb-2.5 h-5 w-5 opacity-50" />
-                  <p className="text-sm">No exercises yet. Add your first one.</p>
+                  <p className="text-sm">{messages.workoutPage.noExercisesYet}</p>
                 </div>
               )}
 
@@ -435,14 +449,14 @@ export function RoutineBuilderDialog({
                     </span>
                     <button
                       type="button"
-                      title="Đổi bài tập"
+                      title={messages.workoutPage.swapExercise}
                       onClick={() => setPickerTarget(ex.id)}
                       className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
                     >
                       <p className="truncate text-sm font-medium text-foreground">{ex.displayName}</p>
                       <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                         {ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}
-                        <span className="ml-1.5 text-primary/70">tap to swap</span>
+                        <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
                       </p>
                     </button>
                     <div className="flex items-center gap-1">
@@ -474,12 +488,12 @@ export function RoutineBuilderDialog({
 
                   <div className="grid grid-cols-4 gap-2">
                     <FieldNum
-                      label="Sets"
+                      label={messages.workoutPage.set}
                       value={String(ex.sets)}
                       onChange={(v) => updateExercise(ex.id, { sets: Number(v) || 0 })}
                     />
                     <FieldNum
-                      label="Reps"
+                      label={messages.workoutPage.reps}
                       value={ex.reps}
                       onChange={(v) => updateExercise(ex.id, { reps: v })}
                       placeholder="8-12"
@@ -511,21 +525,21 @@ export function RoutineBuilderDialog({
                 )}
               >
                 <span className="text-base leading-none">+</span>
-                Add exercise
+                {messages.workoutPage.addExercise}
               </button>
             </div>
 
             {/* ── Footer ───────────────────────────────────────────────── */}
             <div className="flex justify-end gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:pb-3">
               <Button variant="ghost" onClick={() => setOpen(false)}>
-                Cancel
+                {messages.common.cancel}
               </Button>
               <Button
                 className="bg-foreground text-background hover:bg-foreground/90"
                 onClick={() => void handleSave()}
                 disabled={!canSave}
               >
-                {isSaving ? "Saving…" : isEditing ? "Save changes" : "Save routine"}
+                {isSaving ? messages.workoutPage.saving : isEditing ? messages.workoutPage.saveChanges : messages.workoutPage.saveRoutine}
               </Button>
             </div>
           </div>

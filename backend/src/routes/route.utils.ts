@@ -26,4 +26,34 @@ function sendError(res: Response, error: unknown) {
   })
 }
 
-export { getAccessToken, sendError }
+function sendData(res: Response, data: unknown, options?: { meta?: unknown; status?: number }) {
+  return res.status(options?.status ?? 200).json({
+    data,
+    error: null,
+    meta: options?.meta ?? null,
+  })
+}
+
+function sendApiError(res: Response, error: unknown) {
+  if (error instanceof AuthServiceError) {
+    return res.status(error.status).json({
+      data: null,
+      error: {
+        message: error.message,
+      },
+      meta: null,
+    })
+  }
+
+  console.error(error)
+
+  return res.status(500).json({
+    data: null,
+    error: {
+      message: "Internal Server Error",
+    },
+    meta: null,
+  })
+}
+
+export { getAccessToken, sendApiError, sendData, sendError }

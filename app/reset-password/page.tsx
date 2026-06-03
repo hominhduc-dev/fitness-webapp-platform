@@ -6,6 +6,7 @@ import { useState } from "react"
 import { Eye, EyeOff, Loader2, Lock } from "lucide-react"
 import { useRouter } from "next/navigation"
 
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,7 @@ import { hasSupabasePublicConfig } from "@/lib/supabase/config"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
+  const { messages } = useLocale()
   const isSupabaseConfigured = hasSupabasePublicConfig()
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -29,19 +31,19 @@ export default function ResetPasswordPage() {
     setSuccess(null)
 
     if (password.length < 6) {
-      setError("Mật khẩu mới phải có ít nhất 6 ký tự.")
+      setError(messages.auth.passwordTooShort)
       return
     }
 
     if (password !== confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp.")
+      setError(messages.auth.passwordMismatch)
       return
     }
 
     const supabase = getOptionalBrowserSupabaseClient()
 
     if (!supabase) {
-      setError("Tính năng đặt lại mật khẩu chưa được cấu hình trên môi trường này.")
+      setError(messages.auth.resetPasswordConfigMissing)
       return
     }
 
@@ -57,7 +59,7 @@ export default function ResetPasswordPage() {
       return
     }
 
-    setSuccess("Mật khẩu đã được cập nhật. Đang chuyển về trang chủ...")
+    setSuccess(messages.auth.passwordUpdatedRedirecting)
     setIsSubmitting(false)
 
     window.setTimeout(() => {
@@ -69,13 +71,13 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Đặt lại mật khẩu</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Nhập mật khẩu mới cho tài khoản YeahBuddy của bạn.</p>
+          <h1 className="text-2xl font-bold">{messages.auth.resetPasswordTitle}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{messages.auth.resetPasswordDescription}</p>
         </div>
 
         {!isSupabaseConfigured && (
           <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700">
-            Chức năng đặt lại mật khẩu hiện chưa sẵn sàng vì thiếu cấu hình Supabase public.
+            {messages.auth.resetPasswordConfigMissing}
           </div>
         )}
         {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive">{error}</div>}
@@ -83,7 +85,7 @@ export default function ResetPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="reset-password">Mật khẩu mới</Label>
+            <Label htmlFor="reset-password">{messages.auth.newPassword}</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -106,7 +108,7 @@ export default function ResetPasswordPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="reset-confirm-password">Xác nhận mật khẩu</Label>
+            <Label htmlFor="reset-confirm-password">{messages.auth.confirmPasswordLabel}</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -132,10 +134,10 @@ export default function ResetPasswordPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Đang cập nhật...
+                {messages.auth.updatingPassword}
               </>
             ) : (
-              "Cập nhật mật khẩu"
+              messages.auth.updatePassword
             )}
           </Button>
         </form>

@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- @dsCard group="Components" -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../colors_and_type.css"><link rel="stylesheet" href="_card.css">
+<style>
+.field { display:flex; flex-direction:column; gap:6px; }
+.field .lbl { font-family:var(--font-mono); font-size:11px; color:var(--ink-400); text-transform:uppercase; letter-spacing:0.08em; }
+.input { font-family:var(--font-sans); font-size:14px; padding:8px 10px; border:1px solid var(--ink-150); border-radius:4px; background:#fcfcfa; color:var(--ink-800); outline:none; }
+.input:focus, .input.focused { border-color:var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input.numeric { font-family:var(--font-mono); text-align:center; width:70px; }
+.input.invalid { border-color:var(--danger); }
+</style>
+</head>
+<body>
+<div style="display:flex; gap:20px; align-items:flex-end; flex-wrap:wrap;">
+  <div class="field" style="width:200px;">
+    <div class="lbl">Exercise</div>
+    <input class="input" placeholder="Search exercises…" value="Bench press" />
+  </div>
+  <div class="field">
+    <div class="lbl">Weight kg</div>
+    <input class="input numeric" value="82.5" />
+  </div>
+  <div class="field">
+    <div class="lbl">Reps</div>
+    <input class="input numeric" value="8" />
+  </div>
+  <div class="field">
+    <div class="lbl">RPE (focused)</div>
+    <input class="input numeric focused" value="8.5" />
+  </div>
+  <div class="field">
+    <div class="lbl">Notes</div>
+    <input class="input invalid" placeholder="too long" value="error state" style="width:140px;" />
+  </div>
+</div>
+</body></html>

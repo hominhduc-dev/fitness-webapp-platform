@@ -5,6 +5,7 @@ import { Download, Loader2, Upload } from "lucide-react"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -111,6 +112,61 @@ function sortExercises(exercises: CoachExercise[]) {
 
 export function ExerciseLibraryClient({ initialExercises, initialImportRequests }: ExerciseLibraryClientProps) {
   const { session } = useAuth()
+  const { locale, messages } = useLocale()
+  const copy = {
+    downloadTemplateError: locale === "en" ? "Unable to create template file." : "Không thể tạo file mẫu.",
+    emptyFile: locale === "en" ? "Selected file is empty." : "File được chọn đang trống.",
+    missingColumns: (columns: string) =>
+      locale === "en" ? `Missing required columns: ${columns}.` : `Thiếu cột bắt buộc: ${columns}.`,
+    missingExerciseRow:
+      locale === "en" ? "Missing exercise_name or muscle_group." : "Thiếu exercise_name hoặc muscle_group.",
+    noRows: locale === "en" ? "No exercise rows found in this file." : "Không tìm thấy dòng bài tập nào trong file.",
+    readFileError: locale === "en" ? "Unable to read selected file." : "Không thể đọc file đã chọn.",
+    importSubmitted: (count: number) =>
+      locale === "en"
+        ? `Submitted ${count} exercise rows for admin approval. Data has not been inserted into the database yet.`
+        : `Đã gửi ${count} dòng bài tập để admin duyệt. Dữ liệu chưa được insert vào DB.`,
+    submitImportError: locale === "en" ? "Unable to submit import request." : "Không thể gửi yêu cầu import.",
+    exerciseUpdated: locale === "en" ? "Personal exercise updated." : "Đã cập nhật bài tập cá nhân.",
+    exerciseCreated: locale === "en" ? "Personal exercise created." : "Đã tạo bài tập cá nhân.",
+    saveExerciseError: locale === "en" ? "Unable to save personal exercise." : "Không thể lưu bài tập cá nhân.",
+    exerciseDeleted: locale === "en" ? "Personal exercise deleted." : "Đã xoá bài tập cá nhân.",
+    deleteExerciseError: locale === "en" ? "Unable to delete this exercise." : "Không thể xoá bài tập này.",
+    pendingApproval: locale === "en" ? "Pending admin approval" : "Đang chờ admin duyệt",
+    pendingRequestCount: (count: number) =>
+      locale === "en"
+        ? `${count} Excel import request${count === 1 ? "" : "s"} pending admin approval.`
+        : `${count} yêu cầu import Excel đang chờ admin duyệt.`,
+    importTitle: locale === "en" ? "Submit exercise import for admin approval" : "Gửi import bài tập để admin duyệt",
+    importDescription:
+      locale === "en"
+        ? "The Excel file will be saved as a pending request. Exercises are inserted only after an admin approves it."
+        : "File Excel sẽ được lưu thành yêu cầu chờ duyệt. Chỉ sau khi admin approve thì bài tập mới được insert vào DB.",
+    selectFile: locale === "en" ? "Select file" : "Chọn file",
+    importHelp:
+      locale === "en"
+        ? "Required: exercise_name, muscle_group. Optional: variation_name, equipment, is_default, sort_order."
+        : "Bắt buộc: exercise_name, muscle_group. Có thể thêm variation_name, equipment, is_default, sort_order.",
+    downloadExcelTemplate: locale === "en" ? "Download Excel template" : "Tải file mẫu Excel",
+    file: "File",
+    validRows: locale === "en" ? "Valid rows" : "Dòng hợp lệ",
+    issues: locale === "en" ? "Issues" : "Lỗi",
+    readingFile: locale === "en" ? "Reading file..." : "Đang đọc file...",
+    validationIssues: locale === "en" ? "Validation issues" : "Lỗi cần sửa",
+    rowPrefix: (row: number) => (locale === "en" ? `Row ${row}: ` : `Dòng ${row}: `),
+    preview: locale === "en" ? "Preview" : "Xem trước",
+    previewDescription:
+      locale === "en"
+        ? "The rows below will be sent for admin approval and will not create exercises immediately."
+        : "Các dòng dưới đây sẽ được gửi để admin duyệt, chưa tạo bài tập ngay.",
+    row: locale === "en" ? "Row" : "Dòng",
+    exercise: locale === "en" ? "Exercise" : "Bài tập",
+    muscleGroup: locale === "en" ? "Muscle group" : "Nhóm cơ",
+    variation: "Variation",
+    equipment: locale === "en" ? "Equipment" : "Thiết bị",
+    noEquipment: locale === "en" ? "No equipment" : "Không có thiết bị",
+    submitForApproval: locale === "en" ? "Submit for approval" : "Gửi admin duyệt",
+  }
   const [exercises, setExercises] = useState(sortExercises(initialExercises))
   const [importRequests, setImportRequests] = useState(initialImportRequests)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -147,7 +203,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       XLSX.utils.book_append_sheet(workbook, exercisesSheet, "Exercises")
       XLSX.writeFile(workbook, "coach-exercise-import-template.xlsx")
     } catch (downloadError) {
-      setError(downloadError instanceof Error ? downloadError.message : "Không thể tạo file mẫu.")
+      setError(downloadError instanceof Error ? downloadError.message : copy.downloadTemplateError)
     } finally {
       setActionKey(null)
     }
@@ -185,7 +241,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         worksheets.find((item) => typeof item.columnMap.exerciseName === "number" && typeof item.columnMap.muscleGroup === "number")
 
       if (!worksheet || !worksheet.rows.length) {
-        throw new Error("File được chọn đang trống.")
+        throw new Error(copy.emptyFile)
       }
 
       const { columnMap, rows } = worksheet
@@ -195,7 +251,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       ].filter(Boolean)
 
       if (missingColumns.length > 0) {
-        throw new Error(`Thiếu cột bắt buộc: ${missingColumns.join(", ")}.`)
+        throw new Error(copy.missingColumns(missingColumns.join(", ")))
       }
 
       const nextRows: AdminExerciseImportRow[] = []
@@ -219,7 +275,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         if (isBlankRow) return
 
         if (!exerciseName || !muscleGroup) {
-          nextIssues.push({ message: "Thiếu exercise_name hoặc muscle_group.", rowNumber })
+          nextIssues.push({ message: copy.missingExerciseRow, rowNumber })
           return
         }
 
@@ -235,7 +291,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       })
 
       if (!nextRows.length && !nextIssues.length) {
-        nextIssues.push({ message: "Không tìm thấy dòng bài tập nào trong file." })
+        nextIssues.push({ message: copy.noRows })
       }
 
       setImportFileName(file.name)
@@ -244,7 +300,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     } catch (importError) {
       setImportFileName(file.name)
       setImportRows([])
-      setImportIssues([{ message: importError instanceof Error ? importError.message : "Không thể đọc file đã chọn." }])
+      setImportIssues([{ message: importError instanceof Error ? importError.message : copy.readFileError }])
     } finally {
       setActionKey(null)
     }
@@ -263,11 +319,11 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         rows: importRows,
       })
       setImportRequests((current) => [request, ...current])
-      setNotice(`Đã gửi ${request.rowCount} dòng bài tập để admin duyệt. Dữ liệu chưa được insert vào DB.`)
+      setNotice(copy.importSubmitted(request.rowCount))
       setIsImportDialogOpen(false)
       resetImportState()
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Không thể gửi yêu cầu import.")
+      setError(submitError instanceof Error ? submitError.message : copy.submitImportError)
     } finally {
       setActionKey(null)
     }
@@ -293,9 +349,9 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       setExercises((current) =>
         sortExercises(data.id ? current.map((exercise) => (exercise.id === savedExercise.id ? savedExercise : exercise)) : [savedExercise, ...current]),
       )
-      setNotice(data.id ? "Đã cập nhật bài tập cá nhân." : "Đã tạo bài tập cá nhân.")
+      setNotice(data.id ? copy.exerciseUpdated : copy.exerciseCreated)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Không thể lưu bài tập cá nhân.")
+      setError(saveError instanceof Error ? saveError.message : copy.saveExerciseError)
       throw saveError
     } finally {
       setActionKey(null)
@@ -312,9 +368,9 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     try {
       await deleteCoachExerciseRequest(session.access_token, exercise.id)
       setExercises((current) => current.filter((item) => item.id !== exercise.id))
-      setNotice("Đã xoá bài tập cá nhân.")
+      setNotice(copy.exerciseDeleted)
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Không thể xoá bài tập này.")
+      setError(deleteError instanceof Error ? deleteError.message : copy.deleteExerciseError)
       throw deleteError
     } finally {
       setActionKey(null)
@@ -337,9 +393,9 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       ) : null}
       {pendingImportRequests.length > 0 ? (
         <div className="rounded-[10px] border border-border bg-card px-4 py-3">
-          <p className="label-micro text-muted-foreground">Pending admin approval</p>
+          <p className="label-micro text-muted-foreground">{copy.pendingApproval}</p>
           <p className="mt-1 text-sm text-foreground">
-            {pendingImportRequests.length} Excel import request{pendingImportRequests.length === 1 ? "" : "s"} đang chờ admin duyệt.
+            {copy.pendingRequestCount(pendingImportRequests.length)}
           </p>
         </div>
       ) : null}
@@ -347,7 +403,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       <AdminExercisesPanel
         actionKey={actionKey}
         exercises={panelExercises}
-        locale="vi"
+        locale={locale}
         onDelete={handleDeleteExercise}
         onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
         onImport={() => setIsImportDialogOpen(true)}
@@ -363,15 +419,15 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       >
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Gửi import bài tập để admin duyệt</DialogTitle>
+            <DialogTitle>{copy.importTitle}</DialogTitle>
             <DialogDescription>
-              File Excel sẽ được lưu thành yêu cầu chờ duyệt. Chỉ sau khi admin approve thì bài tập mới được insert vào DB.
+              {copy.importDescription}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="rounded-[10px] border border-dashed border-border bg-muted/20 p-4">
-              <Label htmlFor="coach-exercise-import-file">Chọn file</Label>
+              <Label htmlFor="coach-exercise-import-file">{copy.selectFile}</Label>
               <Input
                 key={importInputKey}
                 id="coach-exercise-import-file"
@@ -381,7 +437,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
                 onChange={(event) => void handleImportFileChange(event)}
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                Bắt buộc: exercise_name, muscle_group. Có thể thêm variation_name, equipment, is_default, sort_order.
+                {copy.importHelp}
               </p>
               <Button
                 type="button"
@@ -392,22 +448,22 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
                 disabled={actionKey === "exercise-template-download"}
               >
                 {actionKey === "exercise-template-download" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Tải file mẫu Excel
+                {copy.downloadExcelTemplate}
               </Button>
             </div>
 
             {importFileName ? (
               <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 sm:grid-cols-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">File</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{copy.file}</p>
                   <p className="mt-1 truncate text-sm font-medium">{importFileName}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Dòng hợp lệ</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{copy.validRows}</p>
                   <p className="mt-1 text-sm font-medium">{importRows.length}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Lỗi</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{copy.issues}</p>
                   <p className="mt-1 text-sm font-medium">{importIssues.length}</p>
                 </div>
               </div>
@@ -416,17 +472,17 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             {actionKey === "exercise-import-parse" ? (
               <div className="flex items-center gap-2 rounded-[10px] border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Đang đọc file...</span>
+                <span>{copy.readingFile}</span>
               </div>
             ) : null}
 
             {importIssues.length ? (
               <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft p-4">
-                <h4 className="text-sm font-semibold">Lỗi cần sửa</h4>
+                <h4 className="text-sm font-semibold">{copy.validationIssues}</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (
                     <p key={`${issue.rowNumber ?? "general"}-${index}`}>
-                      {issue.rowNumber ? `Dòng ${issue.rowNumber}: ` : ""}
+                      {issue.rowNumber ? copy.rowPrefix(issue.rowNumber) : ""}
                       {issue.message}
                     </p>
                   ))}
@@ -437,20 +493,20 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             {importRows.length ? (
               <div className="rounded-[10px] border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
-                  <h4 className="text-sm font-semibold">Xem trước</h4>
+                  <h4 className="text-sm font-semibold">{copy.preview}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Các dòng dưới đây sẽ được gửi để admin duyệt, chưa tạo bài tập ngay.
+                    {copy.previewDescription}
                   </p>
                 </div>
                 <div className="max-h-80 overflow-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-muted/30 text-left text-muted-foreground">
                       <tr>
-                        <th className="px-4 py-2">Dòng</th>
-                        <th className="px-4 py-2">Bài tập</th>
-                        <th className="px-4 py-2">Nhóm cơ</th>
-                        <th className="px-4 py-2">Variation</th>
-                        <th className="px-4 py-2">Thiết bị</th>
+                        <th className="px-4 py-2">{copy.row}</th>
+                        <th className="px-4 py-2">{copy.exercise}</th>
+                        <th className="px-4 py-2">{copy.muscleGroup}</th>
+                        <th className="px-4 py-2">{copy.variation}</th>
+                        <th className="px-4 py-2">{copy.equipment}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -460,7 +516,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
                           <td className="px-4 py-2 font-medium">{row.exerciseName}</td>
                           <td className="px-4 py-2">{row.muscleGroup}</td>
                           <td className="px-4 py-2">{row.variationName}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{row.equipment ?? "Không có thiết bị"}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{row.equipment ?? copy.noEquipment}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -472,11 +528,11 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsImportDialogOpen(false)} disabled={actionKey === "exercise-import"}>
-              Huỷ
+              {messages.common.cancel}
             </Button>
             <Button onClick={() => void handleSubmitImportRequest()} disabled={actionKey === "exercise-import" || !importRows.length || importIssues.length > 0}>
               {actionKey === "exercise-import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Gửi admin duyệt
+              {copy.submitForApproval}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,7 +6,9 @@ import { useMemo, useState } from "react"
 
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import type { AppMessages } from "@/lib/i18n/messages"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { Workout, WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -62,34 +64,43 @@ function inferRoutineTag(workout: Workout): Exclude<RoutineTag, "all"> {
   return "full"
 }
 
-function getTagLabel(tag: RoutineTag) {
-  return tag === "all" ? "All" : tag[0].toUpperCase() + tag.slice(1).replace("_", " ")
+function getTagLabel(tag: RoutineTag, messages: AppMessages) {
+  const labels: Record<RoutineTag, string> = {
+    all: messages.workoutPage.all,
+    full: messages.workoutPage.tagFull,
+    legs: messages.workoutPage.tagLegs,
+    lower: messages.workoutPage.tagLower,
+    pull: messages.workoutPage.tagPull,
+    push: messages.workoutPage.tagPush,
+    upper: messages.workoutPage.tagUpper,
+  }
+  return labels[tag]
 }
 
 function getTotalSets(workout: Workout) {
   return workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)
 }
 
-function getLastUsed(workout: Workout, historyLogs: WorkoutLog[]) {
+function getLastUsed(workout: Workout, historyLogs: WorkoutLog[], messages: AppMessages) {
   const latestLog = historyLogs.find((log) => log.workout.id === workout.id)
 
   if (!latestLog) {
-    return "never"
+    return messages.workoutPage.never
   }
 
-  return formatRelativeCompact(latestLog.completedAt ?? latestLog.startedAt)
+  return formatRelativeCompact(latestLog.completedAt ?? latestLog.startedAt, messages)
 }
 
-function formatRelativeCompact(date: Date) {
+function formatRelativeCompact(date: Date, messages: AppMessages) {
   const diffMs = Date.now() - date.getTime()
   const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000))
 
-  if (diffDays === 0) return "today"
-  if (diffDays === 1) return "yesterday"
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 14) return "last week"
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-  return `${Math.floor(diffDays / 30)} months ago`
+  if (diffDays === 0) return messages.workoutPage.today
+  if (diffDays === 1) return messages.workoutPage.yesterday
+  if (diffDays < 7) return messages.workoutPage.daysAgo(diffDays)
+  if (diffDays < 14) return messages.workoutPage.lastWeek
+  if (diffDays < 30) return messages.workoutPage.weeksAgo(Math.floor(diffDays / 7))
+  return messages.workoutPage.monthsAgo(Math.floor(diffDays / 30))
 }
 
 function RoutineDot({ tag }: { tag: Exclude<RoutineTag, "all"> }) {
@@ -122,12 +133,14 @@ function FilterChip({
 }
 
 function CreateRoutineButton() {
+  const { messages } = useLocale()
+
   return (
     <RoutineBuilderDialog
       trigger={
         <Button className="h-10 w-full gap-2 rounded-[8px] bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
           <Plus className="h-4 w-4" />
-          Create routine
+          {messages.workoutPage.createRoutine}
         </Button>
       }
     />
@@ -135,9 +148,10 @@ function CreateRoutineButton() {
 }
 
 function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; workout: Workout }) {
+  const { messages } = useLocale()
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
-  const lastUsed = getLastUsed(workout, historyLogs)
+  const lastUsed = getLastUsed(workout, historyLogs, messages)
 
   return (
     <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
@@ -153,7 +167,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             {!workout.isPersonal ? (
               <span className="inline-flex items-center gap-1 rounded-[3px] bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-foreground/80">
                 <User className="h-2.5 w-2.5" />
-                from coach
+                {messages.workoutPage.fromCoach}
               </span>
             ) : null}
           </div>
@@ -161,9 +175,9 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             {workout.name}
           </h2>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs leading-snug text-muted-foreground tnum">
-            <span>{workout.exercises.length} exercises</span>
-            <span>{totalSets} sets</span>
-            <span>last {lastUsed}</span>
+            <span>{messages.workoutPage.exerciseCount(workout.exercises.length)}</span>
+            <span>{messages.workoutPage.setCount(totalSets)}</span>
+            <span>{messages.workoutPage.lastUsed(lastUsed)}</span>
           </div>
         </div>
 
@@ -176,7 +190,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
                 variant="ghost"
                 size="icon-sm"
                 className="shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label="Edit routine"
+                aria-label={messages.workoutPage.editRoutine}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
@@ -209,14 +223,16 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             </div>
           )
         })}
-        {workout.exercises.length > 4 ? <p className="text-[11px] text-muted-foreground">+ {workout.exercises.length - 4} more</p> : null}
+        {workout.exercises.length > 4 ? (
+          <p className="text-[11px] text-muted-foreground">{messages.workoutPage.more(workout.exercises.length - 4)}</p>
+        ) : null}
       </div>
 
       <div className="mt-auto flex gap-2">
         <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
           <Button className="h-10 w-full justify-center gap-2 rounded-[8px] bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
             <Play className="h-4 w-4" />
-            Start
+            {messages.workoutPage.start}
           </Button>
         </Link>
         {workout.isPersonal ? (
@@ -226,7 +242,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
               trigger={
                 <Button variant="outline" size="sm" className="h-10 gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium">
                   <Pencil className="h-4 w-4" />
-                  Edit
+                  {messages.workoutPage.edit}
                 </Button>
               }
             />
@@ -235,8 +251,8 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
               size="sm"
               variant="outline"
               className="h-10 rounded-[8px] bg-transparent"
-              confirmTitle="Delete routine?"
-              confirmDescription="This will remove the personal routine. Coach-assigned routines are not affected."
+              confirmTitle={messages.workoutPage.deleteRoutineTitle}
+              confirmDescription={messages.workoutPage.deleteRoutineDescription}
             />
           </>
         ) : null}
@@ -246,6 +262,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
 }
 
 export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutBoardProps) {
+  const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
   const visibleWorkouts = useMemo(
@@ -257,9 +274,9 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
     <>
       <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end">
         <div>
-          <span className="label-micro mb-2 block">Routines</span>
+          <span className="label-micro mb-2 block">{messages.workoutPage.routines}</span>
           <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-[36px]">
-            {reusableWorkouts.length} saved.
+            {messages.workoutPage.savedRoutines(reusableWorkouts.length)}
           </h1>
         </div>
         <CreateRoutineButton />
@@ -269,7 +286,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
         {FILTERS.map((tag) => (
           <FilterChip key={tag} active={filter === tag} onClick={() => setFilter(tag)}>
             {tag !== "all" ? <RoutineDot tag={tag} /> : null}
-            {getTagLabel(tag)}
+            {getTagLabel(tag, messages)}
           </FilterChip>
         ))}
       </div>
@@ -282,8 +299,8 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
         </div>
       ) : (
         <div className="rounded-[10px] border border-dashed border-border px-6 py-14 text-center">
-          <p className="text-sm font-medium text-foreground">No routines yet.</p>
-          <p className="mt-1 text-sm text-muted-foreground">Create one or ask your coach to assign a routine.</p>
+          <p className="text-sm font-medium text-foreground">{messages.workoutPage.noRoutinesTitle}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.noRoutinesCopy}</p>
           <div className="mt-5 flex justify-center">
             <CreateRoutineButton />
           </div>

@@ -103,40 +103,6 @@ type MealHistoryPage = {
   nextCursor?: string
 }
 
-type FoodSearchQueryKind = "branded" | "generic"
-
-type FoodSearchMeta = {
-  queryKind: FoodSearchQueryKind
-  queryMapped?: string
-  queryNormalized: string
-  queryOriginal: string
-  resolvedQuery: string
-  searchFallbackUsed: boolean
-}
-
-type FoodSearchResult = {
-  brandOwner?: string
-  canLogByGram?: boolean
-  dataType?: string
-  fdcId: number
-  logWarning?: string
-  name: string
-  nutritionPreview?: {
-    calories?: number
-    carbs?: number
-    fat?: number
-    fiber?: number
-    protein?: number
-    sodium?: number
-    sugar?: number
-  }
-}
-
-type FoodSearchResponse = {
-  meta: FoodSearchMeta
-  results: FoodSearchResult[]
-}
-
 type CoachDashboardSummary = {
   atRiskTraineeCount: number
   averageCompletionRate: number
@@ -483,10 +449,6 @@ export type {
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
-  FoodSearchMeta,
-  FoodSearchQueryKind,
-  FoodSearchResponse,
-  FoodSearchResult,
   MealHistoryPage,
   MealCollection,
   NotificationList,

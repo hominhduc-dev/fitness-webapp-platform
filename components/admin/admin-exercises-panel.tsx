@@ -47,18 +47,57 @@ type FormData = {
   equipment: string
 }
 
+function getExercisePanelCopy(locale: "en" | "vi") {
+  return {
+    addToLibrary: locale === "en" ? "Add to library" : "Thêm vào thư viện",
+    approve: locale === "en" ? "Approve" : "Duyệt",
+    cancel: locale === "en" ? "Cancel" : "Hủy",
+    cannotDeleteInUse: locale === "en" ? "Cannot delete - in use" : "Không thể xóa - đang được dùng",
+    cannotManageShared: locale === "en" ? "Cannot manage shared exercise" : "Không thể sửa bài tập dùng chung",
+    coachExerciseImports: locale === "en" ? "Coach exercise imports" : "Import bài tập từ coach",
+    create: locale === "en" ? "Create" : "Tạo",
+    default: locale === "en" ? "Default" : "Mặc định",
+    delete: locale === "en" ? "Delete" : "Xóa",
+    deleteConfirm: (name: string, variation: string) =>
+      locale === "en" ? `Delete "${name} · ${variation}"?` : `Xóa "${name} · ${variation}"?`,
+    downloadTemplate: locale === "en" ? "Download template" : "Tải file mẫu",
+    editExercise: locale === "en" ? "Edit exercise" : "Sửa bài tập",
+    equipment: locale === "en" ? "Equipment" : "Thiết bị",
+    exercise: locale === "en" ? "Exercise" : "Bài tập",
+    exerciseName: locale === "en" ? "Exercise name" : "Tên bài tập",
+    importExcel: locale === "en" ? "Import Excel" : "Import Excel",
+    newExercise: locale === "en" ? "New exercise" : "Bài tập mới",
+    noMatches: locale === "en" ? "No exercises match." : "Không có bài tập nào khớp.",
+    pending: locale === "en" ? "pending" : "chờ duyệt",
+    pendingReview: locale === "en" ? "Pending review" : "Chờ duyệt",
+    reject: locale === "en" ? "Reject" : "Từ chối",
+    rows: locale === "en" ? "rows" : "dòng",
+    save: locale === "en" ? "Save" : "Lưu",
+    searchExercises: locale === "en" ? "Search exercises..." : "Tìm bài tập...",
+    submittedBy: locale === "en" ? "Submitted by" : "Gửi bởi",
+    untitledImport: locale === "en" ? "Untitled import" : "File import chưa đặt tên",
+    usageCount: (count: number) =>
+      locale === "en" ? `${count.toLocaleString()} uses` : `${count.toLocaleString()} lượt dùng`,
+    uses: locale === "en" ? "Uses" : "Lượt dùng",
+    variation: locale === "en" ? "Variation" : "Variation",
+    variationCount: (count: number) => (locale === "en" ? `${count} variation${count === 1 ? "" : "s"}` : `${count} variation`),
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* ExerciseFormModal                                                    */
 /* ------------------------------------------------------------------ */
 
 type ExerciseFormModalProps = {
   initial: AdminExerciseItem | null
+  locale: "en" | "vi"
   saving: boolean
   onClose: () => void
   onSave: (data: FormData) => void
 }
 
-function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormModalProps) {
+function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: ExerciseFormModalProps) {
+  const copy = getExercisePanelCopy(locale)
   const [name, setName] = useState(initial?.name ?? "")
   const [variationName, setVariation] = useState(initial?.variationName ?? "Default")
   const [muscleGroup, setMuscle] = useState(initial?.muscleGroup ?? MUSCLES[0])
@@ -75,15 +114,15 @@ function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormMod
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="flex max-h-[90vh] max-w-[460px] flex-col gap-0 overflow-hidden rounded-[14px] p-0">
         <VisuallyHidden>
-          <DialogTitle>{initial ? "Edit exercise" : "New exercise"}</DialogTitle>
+          <DialogTitle>{initial ? copy.editExercise : copy.newExercise}</DialogTitle>
         </VisuallyHidden>
 
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border px-6 pb-4 pt-5">
           <div>
-            <p className="label-micro text-muted-foreground">{initial ? "Edit exercise" : "New exercise"}</p>
+            <p className="label-micro text-muted-foreground">{initial ? copy.editExercise : copy.newExercise}</p>
             <h2 className="mt-1 text-[19px] font-semibold tracking-tight text-foreground">
-              {initial ? initial.name : "Add to library"}
+              {initial ? initial.name : copy.addToLibrary}
             </h2>
           </div>
         </div>
@@ -92,7 +131,7 @@ function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormMod
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {/* Name */}
           <div>
-            <Label className="label-micro text-muted-foreground">Exercise name</Label>
+            <Label className="label-micro text-muted-foreground">{copy.exerciseName}</Label>
             <Input
               className="mt-1.5"
               value={name}
@@ -104,7 +143,7 @@ function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormMod
 
           {/* Variation */}
           <div>
-            <Label className="label-micro text-muted-foreground">Variation</Label>
+            <Label className="label-micro text-muted-foreground">{copy.variation}</Label>
             <Input
               className="mt-1.5"
               value={variationName}
@@ -115,7 +154,7 @@ function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormMod
 
           {/* Muscle group chips */}
           <div>
-            <Label className="label-micro text-muted-foreground">Muscle group</Label>
+            <Label className="label-micro text-muted-foreground">{locale === "en" ? "Muscle group" : "Nhóm cơ"}</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {MUSCLES.map((m) => (
                 <button
@@ -137,7 +176,7 @@ function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormMod
 
           {/* Equipment chips */}
           <div>
-            <Label className="label-micro text-muted-foreground">Equipment</Label>
+            <Label className="label-micro text-muted-foreground">{copy.equipment}</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {EQUIP.map((eq) => (
                 <button
@@ -161,11 +200,11 @@ function ExerciseFormModal({ initial, saving, onClose, onSave }: ExerciseFormMod
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {copy.cancel}
           </Button>
           <Button onClick={handleSave} disabled={!canSave || saving}>
             {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-            {initial ? "Save" : "Create"}
+            {initial ? copy.save : copy.create}
           </Button>
         </div>
       </DialogContent>
@@ -185,9 +224,11 @@ type GroupBlockProps = {
   onEdit: (e: AdminExerciseItem) => void
   onDelete: (e: AdminExerciseItem) => void
   deletingId: string | null
+  locale: "en" | "vi"
 }
 
-function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deletingId }: GroupBlockProps) {
+function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deletingId, locale }: GroupBlockProps) {
+  const copy = getExercisePanelCopy(locale)
   const totalUses = exercises.reduce((a, e) => a + e.usageCount, 0)
 
   return (
@@ -207,10 +248,10 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
         }
         <span className="flex-1 text-[15px] font-semibold text-foreground">{group}</span>
         <span className="font-mono text-[11px] text-muted-foreground tnum">
-          {exercises.length} variation{exercises.length !== 1 ? "s" : ""}
+          {copy.variationCount(exercises.length)}
         </span>
         <Badge variant="outline" className="font-mono text-[11px] tnum">
-          {totalUses.toLocaleString()} uses
+          {copy.usageCount(totalUses)}
         </Badge>
       </button>
 
@@ -219,10 +260,10 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
         <div className="border-t border-border">
           {/* Column header */}
           <div className="grid grid-cols-[minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]">
-            <span className="label-micro text-muted-foreground">Exercise</span>
-            <span className="label-micro hidden text-muted-foreground sm:block">Variation</span>
-            <span className="label-micro hidden text-muted-foreground sm:block">Equipment</span>
-            <span className="label-micro text-right text-muted-foreground">Uses</span>
+            <span className="label-micro text-muted-foreground">{copy.exercise}</span>
+            <span className="label-micro hidden text-muted-foreground sm:block">{copy.variation}</span>
+            <span className="label-micro hidden text-muted-foreground sm:block">{copy.equipment}</span>
+            <span className="label-micro text-right text-muted-foreground">{copy.uses}</span>
             <span />
           </div>
 
@@ -239,7 +280,7 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
                   <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
                   {e.isDefault && (
                     <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20 shrink-0">
-                      Default
+                      {copy.default}
                     </Badge>
                   )}
                 </div>
@@ -279,7 +320,7 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
                 </button>
                 <button
                   type="button"
-                  title={!canManage ? "Cannot manage shared exercise" : e.usageCount > 0 ? "Cannot delete — in use" : "Delete"}
+                  title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}
                   disabled={!canManage || e.usageCount > 0 || deletingId === e.id}
                   onClick={() => onDelete(e)}
                   className={cn(
@@ -339,6 +380,7 @@ export function AdminExercisesPanel({
   onDownloadTemplate,
   onReviewImportRequest,
 }: Props) {
+  const copy = getExercisePanelCopy(locale)
   const [q, setQ] = useState("")
   const [openGroups, setOpenGroups] = useState<string[]>([])
   const [modal, setModal] = useState<"new" | AdminExerciseItem | null>(null)
@@ -373,7 +415,7 @@ export function AdminExercisesPanel({
   }
 
   async function handleDelete(e: AdminExerciseItem) {
-    if (!confirm(`Delete "${e.name} · ${e.variationName}"?`)) return
+    if (!confirm(copy.deleteConfirm(e.name, e.variationName))) return
     setDeletingId(e.id)
     try {
       await onDelete(e)
@@ -392,13 +434,13 @@ export function AdminExercisesPanel({
         <div className="rounded-[10px] border border-border bg-card">
           <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="label-micro text-muted-foreground">{locale === "en" ? "Pending review" : "Chờ duyệt"}</p>
+              <p className="label-micro text-muted-foreground">{copy.pendingReview}</p>
               <h3 className="text-sm font-semibold text-foreground">
-                {locale === "en" ? "Coach exercise imports" : "Import bài tập từ coach"}
+                {copy.coachExerciseImports}
               </h3>
             </div>
             <Badge variant="outline" className="w-fit font-mono text-[11px]">
-              {importRequests.length} pending
+              {importRequests.length} {copy.pending}
             </Badge>
           </div>
           <div className="divide-y divide-border">
@@ -407,14 +449,14 @@ export function AdminExercisesPanel({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {request.fileName ?? (locale === "en" ? "Untitled import" : "File import chưa đặt tên")}
+                      {request.fileName ?? copy.untitledImport}
                     </p>
                     <Badge variant="secondary" className="font-mono text-[10px]">
-                      {request.rowCount} rows
+                      {request.rowCount} {copy.rows}
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {locale === "en" ? "Submitted by" : "Gửi bởi"} {request.submittedBy.name} ·{" "}
+                    {copy.submittedBy} {request.submittedBy.name} ·{" "}
                     {request.createdAt.toLocaleString(locale === "en" ? "en-US" : "vi-VN")}
                   </p>
                 </div>
@@ -428,7 +470,7 @@ export function AdminExercisesPanel({
                     onClick={() => void onReviewImportRequest?.(request.id, "rejected")}
                   >
                     <X className="h-4 w-4" />
-                    {locale === "en" ? "Reject" : "Từ chối"}
+                    {copy.reject}
                   </Button>
                   <Button
                     type="button"
@@ -441,7 +483,7 @@ export function AdminExercisesPanel({
                     ) : (
                       <Check className="h-4 w-4" />
                     )}
-                    {locale === "en" ? "Approve" : "Duyệt"}
+                    {copy.approve}
                   </Button>
                 </div>
               </div>
@@ -461,15 +503,15 @@ export function AdminExercisesPanel({
             ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             : <Download className="mr-1.5 h-4 w-4" />
           }
-          Template
+          {copy.downloadTemplate}
         </Button>
         <Button variant="outline" onClick={onImport}>
           <FileSpreadsheet className="mr-1.5 h-4 w-4" />
-          Import Excel
+          {copy.importExcel}
         </Button>
         <Button onClick={() => setModal("new")}>
           <Plus className="mr-1.5 h-4 w-4" />
-          New exercise
+          {copy.newExercise}
         </Button>
       </div>
 
@@ -479,7 +521,7 @@ export function AdminExercisesPanel({
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search exercises…"
+          placeholder={copy.searchExercises}
           className="pl-9"
         />
       </div>
@@ -496,11 +538,12 @@ export function AdminExercisesPanel({
             onEdit={(e) => setModal(e)}
             onDelete={handleDelete}
             deletingId={deletingId}
+            locale={locale}
           />
         ))}
         {grouped.length === 0 && (
           <div className="rounded-[10px] border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
-            No exercises match.
+            {copy.noMatches}
           </div>
         )}
       </div>
@@ -509,6 +552,7 @@ export function AdminExercisesPanel({
       {modal !== null && (
         <ExerciseFormModal
           initial={modal === "new" ? null : modal}
+          locale={locale}
           saving={isSaving}
           onClose={() => setModal(null)}
           onSave={handleSave}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   Check,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,6 +23,8 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { fetchCoachTraineeDetail } from "@/lib/fitness/api"
 import type { CoachProgram, CoachTrainee, CoachTraineeDetail } from "@/lib/fitness/types"
+import type { AppLocale } from "@/lib/i18n/config"
+import type { AppMessages } from "@/lib/i18n/messages"
 import type { WorkoutLog } from "@/lib/types"
 
 /* ------------------------------------------------------------------ */
@@ -54,24 +57,36 @@ const STATUS_COLOR: Record<Status, string> = {
   behind: "var(--warning)",
   rest: "color-mix(in srgb, var(--muted-foreground) 40%, transparent)",
 }
-const STATUS_LABEL: Record<Status, string> = {
-  "on-track": "On track",
-  behind: "Behind",
-  rest: "Rest week",
-}
 const STATUS_BADGE: Record<Status, string> = {
   "on-track": "bg-ok-soft text-success border-success/20",
   behind: "bg-amber-500/10 text-amber-600 border-amber-500/20",
   rest: "bg-muted text-muted-foreground border-border",
 }
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "on-track", label: "On track" },
-  { key: "behind", label: "Behind" },
-  { key: "rest", label: "Rest" },
-] as const
+const FILTERS = ["all", "on-track", "behind", "rest"] as const
+
+function getStatusLabel(status: Status, messages: AppMessages) {
+  if (status === "on-track") return messages.coach.statusOnTrack
+  if (status === "behind") return messages.coach.statusBehind
+  return messages.coach.statusRestWeek
+}
+
+function getFilterLabel(filter: (typeof FILTERS)[number], messages: AppMessages) {
+  if (filter === "all") return messages.coach.allFilter
+  if (filter === "rest") return messages.coach.rest
+  return getStatusLabel(filter, messages)
+}
+
+function getWeekdayLabels(locale: AppLocale) {
+  const formatter = new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { weekday: "short" })
+  const start = new Date(2024, 0, 1)
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return formatter.format(date)
+  })
+}
 
 /* derive a 7-element array: sets per day Mon–Sun for the last 7 days */
 function weeklySetsByDay(logs: WorkoutLog[]): number[] {
@@ -140,28 +155,29 @@ type AssignWorkoutModalProps = {
   onAssigned: () => void
 }
 
-function buildUpcomingDays(n = 14) {
+function buildUpcomingDays(locale: AppLocale, messages: AppMessages, n = 14) {
   const days: { iso: string; date: string; day: string; label?: string }[] = []
   const today = new Date()
+  const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   for (let i = 0; i < n; i++) {
     const d = new Date(today)
     d.setDate(d.getDate() + i)
     const iso = d.toISOString().slice(0, 10)
-    const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    const day = d.toLocaleDateString("en-US", { weekday: "short" })
-    const label = i === 0 ? "Today" : i === 1 ? "Tomorrow" : undefined
+    const date = d.toLocaleDateString(dateLocale, { month: "short", day: "numeric" })
+    const day = d.toLocaleDateString(dateLocale, { weekday: "short" })
+    const label = i === 0 ? messages.common.today : i === 1 ? messages.coach.tomorrow : undefined
     days.push({ iso, date, day, label })
   }
   return days
 }
 
-const UPCOMING_DAYS = buildUpcomingDays()
-
 function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWorkoutModalProps) {
   const { session } = useAuth()
+  const { locale, messages } = useLocale()
+  const upcomingDays = useMemo(() => buildUpcomingDays(locale, messages), [locale, messages])
   const [tab, setTab] = useState<"routine" | "program">("program")
   const [pickedProgram, setPickedProgram] = useState<CoachProgram | null>(null)
-  const [pickedDate, setPickedDate] = useState(UPCOMING_DAYS[0].iso)
+  const [pickedDate, setPickedDate] = useState(upcomingDays[0].iso)
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
 
@@ -185,13 +201,13 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="flex max-h-[90vh] max-w-[580px] flex-col gap-0 overflow-hidden rounded-[14px] p-0">
-        <VisuallyHidden><DialogTitle>Assign workout</DialogTitle></VisuallyHidden>
+        <VisuallyHidden><DialogTitle>{messages.coach.assignWorkout}</DialogTitle></VisuallyHidden>
         {/* Header */}
         <div className="border-b border-border px-6 pb-4 pt-5">
           <div className="mb-3 flex items-start justify-between">
             <div>
-              <p className="label-micro text-muted-foreground">Assign to {trainee.name}</p>
-              <h2 className="mt-1.5 text-xl font-semibold tracking-tight">Assign workout</h2>
+              <p className="label-micro text-muted-foreground">{messages.coach.assignTo(trainee.name)}</p>
+              <h2 className="mt-1.5 text-xl font-semibold tracking-tight">{messages.coach.assignWorkout}</h2>
             </div>
           </div>
           {/* Tab chips */}
@@ -207,7 +223,7 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
                     : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
                 )}
               >
-                {t === "program" ? "Full program" : "Single routine"}
+                {t === "program" ? messages.coach.fullProgram : messages.coach.singleRoutine}
               </button>
             ))}
           </div>
@@ -217,7 +233,7 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {tab === "program" && (
             <div>
-              <p className="label-micro mb-2.5 text-muted-foreground">Pick a program</p>
+              <p className="label-micro mb-2.5 text-muted-foreground">{messages.coach.pickProgram}</p>
               <div className="flex flex-col gap-2">
                 {programs.map((p) => {
                   const isPicked = pickedProgram?.id === p.id
@@ -236,7 +252,7 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">{p.name}</p>
                           <p className="label-micro mt-0.5 text-muted-foreground tnum">
-                            {p.duration} weeks · {p.workoutsPerWeek} days/week · {p.assignedTrainees.length} on it
+                            {messages.coach.weeks(p.duration)} · {messages.coach.daysPerWeek(p.workoutsPerWeek)} · {messages.coach.programAssignedCount(p.assignedTrainees.length)}
                           </p>
                           {p.description && (
                             <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
@@ -249,9 +265,9 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
                 })}
                 {programs.length === 0 && (
                   <div className="rounded-[10px] border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                    No programs yet.{" "}
+                    {messages.coach.noProgramsYet}{" "}
                     <Link href="/coach/programs/new" className="text-primary underline-offset-2 hover:underline">
-                      Build one first.
+                      {messages.coach.buildOneFirst}
                     </Link>
                   </div>
                 )}
@@ -261,17 +277,17 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
 
           {tab === "routine" && (
             <div className="rounded-[10px] border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Single-routine assignment coming soon. Use "Full program" to assign a structured plan.
+              {messages.coach.singleRoutineComingSoon}
             </div>
           )}
 
           {/* Date picker */}
           <div>
             <p className="label-micro mb-2.5 text-muted-foreground">
-              {tab === "program" ? "Start date" : "Schedule for"}
+              {tab === "program" ? messages.coach.startDate : messages.coach.scheduleFor}
             </p>
             <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {UPCOMING_DAYS.map((d) => {
+              {upcomingDays.map((d) => {
                 const isPicked = pickedDate === d.iso
                 return (
                   <button
@@ -299,11 +315,11 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
 
           {/* Note */}
           <div>
-            <p className="label-micro mb-2 text-muted-foreground">Note to client (optional)</p>
+            <p className="label-micro mb-2 text-muted-foreground">{messages.coach.noteToClient}</p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. Focus on bar path on bench. Video your top set."
+              placeholder={messages.coach.noteToClientPlaceholder}
               rows={3}
               className="w-full resize-y rounded-[8px] border border-border bg-background px-3 py-2.5 text-[13px] leading-relaxed text-foreground outline-none focus:ring-1 focus:ring-ring"
             />
@@ -312,15 +328,14 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
           {/* Preview */}
           {canAssign && pickedProgram && (
             <div className="rounded-[10px] border border-border bg-muted/40 p-4">
-              <p className="label-micro mb-1.5 text-muted-foreground">Preview</p>
+              <p className="label-micro mb-1.5 text-muted-foreground">{messages.coach.preview}</p>
               <p className="text-[13px] leading-relaxed text-foreground">
-                {trainee.name} will start{" "}
-                <span className="font-semibold">{pickedProgram.name}</span> ({pickedProgram.duration}-week
-                program) on{" "}
-                <span className="font-mono font-semibold tnum">
-                  {UPCOMING_DAYS.find((d) => d.iso === pickedDate)?.date}
-                </span>
-                .
+                {messages.coach.programStartedPreview(
+                  trainee.name,
+                  pickedProgram.name,
+                  pickedProgram.duration,
+                  upcomingDays.find((d) => d.iso === pickedDate)?.date ?? pickedDate,
+                )}
               </p>
               {note && <p className="mt-2 text-[12px] italic text-muted-foreground">"{note}"</p>}
             </div>
@@ -330,11 +345,11 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {messages.common.cancel}
           </Button>
           <Button onClick={handleAssign} disabled={!canAssign || saving}>
             <Check className="mr-1.5 h-3.5 w-3.5" />
-            Assign
+            {messages.coach.assign}
           </Button>
         </div>
       </DialogContent>
@@ -353,13 +368,14 @@ type ClientRowProps = {
 }
 
 function ClientRow({ trainee, selected, onClick }: ClientRowProps) {
+  const { locale, messages } = useLocale()
   const status = deriveStatus(trainee)
   const program = trainee.programCount > 0
-    ? `${trainee.programCount} program${trainee.programCount !== 1 ? "s" : ""}`
-    : "No program"
+    ? messages.coach.traineeProgramCount(trainee.programCount)
+    : messages.coach.noProgram
   const lastSeen = trainee.lastCheckInAt
-    ? trainee.lastCheckInAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    : trainee.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? trainee.lastCheckInAt.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", { month: "short", day: "numeric" })
+    : trainee.createdAt.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", { month: "short", day: "numeric" })
 
   return (
     <button
@@ -385,7 +401,7 @@ function ClientRow({ trainee, selected, onClick }: ClientRowProps) {
           <span
             className="h-[6px] w-[6px] flex-shrink-0 rounded-full"
             style={{ background: STATUS_COLOR[status] }}
-            title={STATUS_LABEL[status]}
+            title={getStatusLabel(status, messages)}
           />
         </div>
         <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
@@ -412,6 +428,7 @@ type ClientDetailProps = {
 }
 
 function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: ClientDetailProps) {
+  const { locale, messages } = useLocale()
   const status = deriveStatus(trainee)
   const weekly = detail ? weeklySetsByDay(detail.recentLogs) : []
   const maxSets = Math.max(...weekly, 6)
@@ -419,6 +436,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
   const keyLifts = detail ? deriveKeyLifts(detail.recentLogs) : []
   const recentLogs = detail?.recentLogs.slice(0, 5) ?? []
   const activeProgram = detail?.programs[0]
+  const days = getWeekdayLabels(locale)
 
   return (
     <div
@@ -434,7 +452,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           className="mb-3.5 flex items-center gap-1.5 text-[13px] text-muted-foreground"
         >
           <ChevronLeft className="h-[14px] w-[14px]" />
-          All clients
+          {messages.coach.allClients}
         </button>
       )}
 
@@ -456,13 +474,18 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Badge variant="micro" className={STATUS_BADGE[status]}>
-              {STATUS_LABEL[status]}
+              {getStatusLabel(status, messages)}
             </Badge>
             <span className="font-mono text-[12px] text-muted-foreground">
-              · {trainee.thisWeekWorkouts}-day streak · last seen{" "}
-              {trainee.lastCheckInAt
-                ? trainee.lastCheckInAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                : "unknown"}
+              · {messages.coach.dayStreak(trainee.thisWeekWorkouts)} ·{" "}
+              {messages.coach.lastSeen(
+                trainee.lastCheckInAt
+                  ? trainee.lastCheckInAt.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : messages.coach.unknown,
+              )}
             </span>
           </div>
         </div>
@@ -471,18 +494,18 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           <div className="flex gap-2">
             <Button variant="outline">
               <MessageSquare className="mr-1.5 h-[14px] w-[14px]" />
-              Message
+              {messages.coach.message}
             </Button>
             <Button onClick={onAssign}>
               <Plus className="mr-1.5 h-[14px] w-[14px]" />
-              Assign workout
+              {messages.coach.assignWorkout}
             </Button>
           </div>
         )}
       </div>
 
       {loading && (
-        <div className="py-20 text-center text-sm text-muted-foreground">Loading training data…</div>
+        <div className="py-20 text-center text-sm text-muted-foreground">{messages.coach.loadingTrainingData}</div>
       )}
 
       {!loading && detail && (
@@ -491,17 +514,19 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           <div className="mb-6 rounded-[10px] border border-border bg-card p-5">
             <div className="mb-4 flex items-baseline justify-between">
               <div>
-                <p className="label-micro text-muted-foreground">This week · sets per day</p>
+                <p className="label-micro text-muted-foreground">
+                  {messages.coach.thisWeek} · {messages.coach.setsPerDay}
+                </p>
                 <div className="mt-1.5 font-mono text-[22px] font-medium tnum">
-                  {totalSets} <span className="text-[13px] text-muted-foreground">sets</span>
+                  {totalSets} <span className="text-[13px] text-muted-foreground">{messages.coach.sets}</span>
                 </div>
               </div>
               <span className="label-micro text-muted-foreground tnum">
-                vs plan: {(trainee.plannedSessionsPerWeek ?? 0) * 5}
+                {messages.coach.vsPlan((trainee.plannedSessionsPerWeek ?? 0) * 5)}
               </span>
             </div>
             <div className="grid grid-cols-7 gap-2" style={{ height: 110, alignItems: "end" }}>
-              {DAYS.map((day, i) => {
+              {days.map((day, i) => {
                 const v = weekly[i] ?? 0
                 const isToday = i === (new Date().getDay() + 6) % 7
                 const h = v === 0 ? 4 : Math.max(8, (v / maxSets) * 90)
@@ -531,7 +556,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           {/* Key lifts */}
           {keyLifts.length > 0 && (
             <>
-              <p className="label-micro mb-3 text-muted-foreground">Key lifts (estimated 1RM)</p>
+              <p className="label-micro mb-3 text-muted-foreground">{messages.coach.keyLifts}</p>
               <div className="mb-6 grid gap-3 sm:grid-cols-3">
                 {keyLifts.map((k) => (
                   <div key={k.name} className="rounded-[10px] border border-border bg-card p-4">
@@ -539,7 +564,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
                       <span className="text-[13px] text-muted-foreground">{k.name}</span>
                       {k.isNew && (
                         <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
-                          New
+                          {messages.coach.newBadge}
                         </Badge>
                       )}
                     </div>
@@ -557,7 +582,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
                               : "text-muted-foreground",
                         )}
                       >
-                        {k.delta === "+0.0" ? "flat" : k.delta}
+                        {k.delta === "+0.0" ? messages.coach.flat : k.delta}
                       </span>
                     </div>
                   </div>
@@ -567,10 +592,10 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
           )}
 
           {/* Recent sessions */}
-          <p className="label-micro mb-3 text-muted-foreground">Recent sessions</p>
+          <p className="label-micro mb-3 text-muted-foreground">{messages.coach.recentSessions}</p>
           <div className="rounded-[10px] border border-border bg-card overflow-hidden">
             {recentLogs.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-muted-foreground">No sessions logged yet.</p>
+              <p className="px-5 py-8 text-center text-sm text-muted-foreground">{messages.coach.noSessionsLoggedYet}</p>
             ) : (
               recentLogs.map((log, i) => {
                 const complete = log.completedAt ? 1 : 0
@@ -586,7 +611,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
                     )}
                   >
                     <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                      {new Date(log.startedAt).toLocaleDateString("en-US", {
+                      {new Date(log.startedAt).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", {
                         month: "short",
                         day: "numeric",
                       })}
@@ -601,7 +626,7 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
                         complete === 1 ? "text-success" : "text-warning",
                       )}
                     >
-                      {complete === 1 ? "100%" : "In prog."}
+                      {complete === 1 ? messages.coach.completedPercent : messages.coach.inProgressShort}
                     </span>
                     <ChevronRight className="h-[14px] w-[14px] text-muted-foreground" />
                   </Link>
@@ -614,11 +639,11 @@ function ClientDetail({ trainee, detail, loading, onAssign, onBack, isMobile }: 
             <div className="mt-5 flex gap-2">
               <Button variant="outline" className="flex-1 justify-center">
                 <MessageSquare className="mr-1.5 h-[14px] w-[14px]" />
-                Message
+                {messages.coach.message}
               </Button>
               <Button className="flex-1 justify-center" onClick={onAssign}>
                 <Plus className="mr-1.5 h-[14px] w-[14px]" />
-                Assign workout
+                {messages.coach.assignWorkout}
               </Button>
             </div>
           )}
@@ -639,6 +664,7 @@ type Props = {
 
 export function TraineesClientView({ initialTrainees, programs }: Props) {
   const { session } = useAuth()
+  const { messages } = useLocale()
   const [trainees] = useState(initialTrainees)
   const [selectedId, setSelectedId] = useState<string | null>(
     initialTrainees.length > 0 ? initialTrainees[0].id : null,
@@ -694,8 +720,8 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
       {/* List header */}
       <div className="border-b border-border px-6 pb-3 pt-5">
         <div className="mb-3.5 flex items-baseline justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <span className="label-micro text-muted-foreground tnum">{trainees.length} total</span>
+          <h1 className="text-2xl font-semibold tracking-tight">{messages.coach.clients}</h1>
+          <span className="label-micro text-muted-foreground tnum">{messages.coach.clientTotal(trainees.length)}</span>
         </div>
         {/* Search */}
         <div className="relative mb-3">
@@ -703,13 +729,13 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search clients…"
+            placeholder={messages.coach.searchClients}
             className="pl-9"
           />
         </div>
         {/* Filter chips */}
         <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-          {FILTERS.map(({ key, label }) => (
+          {FILTERS.map((key) => (
             <button
               key={key}
               onClick={() => setFilter(key)}
@@ -720,7 +746,7 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
                   : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
               )}
             >
-              {label}
+              {getFilterLabel(key, messages)}
             </button>
           ))}
         </div>
@@ -729,7 +755,7 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
         {visible.length === 0 ? (
-          <p className="px-6 py-8 text-center text-sm text-muted-foreground">No clients match.</p>
+          <p className="px-6 py-8 text-center text-sm text-muted-foreground">{messages.coach.noClientsMatch}</p>
         ) : (
           visible.map((t) => (
             <ClientRow
@@ -757,7 +783,7 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
     </div>
   ) : (
     <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-      Select a client to see their training.
+      {messages.coach.selectClientTraining}
     </div>
   )
 
@@ -777,20 +803,22 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
           <div>
             <div className="border-b border-border px-4 pb-3 pt-5">
               <div className="mb-3.5 flex items-baseline justify-between">
-                <h1 className="text-[22px] font-semibold tracking-tight">Clients</h1>
-                <span className="label-micro text-muted-foreground tnum">{trainees.length} total</span>
+                <h1 className="text-[22px] font-semibold tracking-tight">{messages.coach.clients}</h1>
+                <span className="label-micro text-muted-foreground tnum">
+                  {messages.coach.clientTotal(trainees.length)}
+                </span>
               </div>
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-[11px] h-[14px] w-[14px] text-muted-foreground" />
                 <Input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search clients…"
+                  placeholder={messages.coach.searchClients}
                   className="pl-9"
                 />
               </div>
               <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                {FILTERS.map(({ key, label }) => (
+                {FILTERS.map((key) => (
                   <button
                     key={key}
                     onClick={() => setFilter(key)}
@@ -801,7 +829,7 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
                         : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
                     )}
                   >
-                    {label}
+                    {getFilterLabel(key, messages)}
                   </button>
                 ))}
               </div>

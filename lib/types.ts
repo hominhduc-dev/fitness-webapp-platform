@@ -141,21 +141,41 @@ export interface WorkoutScheduleEntry {
   workout: Workout | null
 }
 
-export interface Meal {
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack"
+
+export type FoodCategory = "staple" | "protein" | "veg" | "fruit" | "dish" | "drink" | "other"
+
+export interface MealItem {
+  amountLabel?: string
+  amountUnit: string
+  amountValue: number
+  calories: number
+  carbs?: number
+  fat?: number
+  fiber?: number
+  foodId: string
   id: string
-  type: "breakfast" | "lunch" | "dinner" | "snack"
+  name: string
+  protein?: number
+  sodium?: number
+  sugar?: number
+  weightGrams?: number
+}
+
+export interface Meal {
+  id?: string
+  type: MealType
   name: string
   calories: number
-  foodId?: string
-  fdcId?: number
+  items?: MealItem[]
+  loggedDate?: Date
   protein?: number
   carbs?: number
   fat?: number
   fiber?: number
   sugar?: number
   sodium?: number
-  weightGrams?: number
-  time: Date
+  time?: Date
 }
 
 export interface DailyNutrition {
@@ -163,6 +183,24 @@ export interface DailyNutrition {
   meals: Meal[]
   totalCalories: number
   targetCalories: number
+}
+
+export interface NutritionFood {
+  calories: number
+  carbs: number
+  category: FoodCategory
+  fat: number
+  fiber?: number
+  id: string
+  name: string
+  protein: number
+  servingAmount: number
+  servingLabel: string
+  servingUnit: string
+  slug: string
+  sodium?: number
+  source: "system" | "user"
+  sugar?: number
 }
 
 export interface CoachRequest {

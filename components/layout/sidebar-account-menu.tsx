@@ -8,6 +8,7 @@ import { LogOut, Settings } from "lucide-react"
 import { useState } from "react"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -117,6 +118,13 @@ export function SidebarAccountMenu({
             <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1.5">
+          <p className="mb-1.5 px-1 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            {messages.common.language}
+          </p>
+          <LanguageToggle compact />
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile">

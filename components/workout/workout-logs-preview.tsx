@@ -3,13 +3,14 @@
 import { useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 
+import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
 import type { WorkoutLog } from "@/lib/types"
 
-function formatDate(value: Date | string) {
+function formatDate(value: Date | string, locale: string) {
   const date = value instanceof Date ? value : new Date(value)
   if (!Number.isFinite(date.getTime())) return ""
-  return date.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })
+  return date.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
 function formatVolume(value?: number) {
@@ -27,6 +28,7 @@ function countSets(log: WorkoutLog) {
  * expands to its exercises and per-set weight × reps.
  */
 export function WorkoutLogsPreview({ logs }: { logs: WorkoutLog[] }) {
+  const { locale, messages } = useLocale()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggle = (id: string) =>
@@ -47,9 +49,9 @@ export function WorkoutLogsPreview({ logs }: { logs: WorkoutLog[] }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          {logs.length} buổi · {totalSets} sets
+          {messages.workoutPage.sessionCount(logs.length)} · {messages.workoutPage.setCount(totalSets)}
         </span>
-        <span>{formatVolume(totalVolume)} kg tổng</span>
+        <span>{messages.workoutPage.previewTotalKg(formatVolume(totalVolume))}</span>
       </div>
 
       <div className="max-h-64 divide-y divide-border overflow-y-auto overscroll-contain rounded-md border border-border">
@@ -68,20 +70,20 @@ export function WorkoutLogsPreview({ logs }: { logs: WorkoutLog[] }) {
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{log.workout?.name ?? "Workout"}</p>
+                  <p className="truncate text-sm font-medium text-foreground">{log.workout?.name ?? messages.workoutPage.workout}</p>
                   <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                    {formatDate(log.startedAt)}
+                    {formatDate(log.startedAt, locale)}
                   </p>
                 </div>
                 <span className="shrink-0 font-mono text-[11px] tnum text-muted-foreground">
-                  {countSets(log)} sets · {formatVolume(log.totalVolume)} kg
+                  {messages.workoutPage.setCount(countSets(log))} · {formatVolume(log.totalVolume)} kg
                 </span>
               </button>
 
               {isOpen ? (
                 <div className="bg-muted/30 px-3 pb-2.5 pt-0.5">
                   {log.exercises.length === 0 ? (
-                    <p className="py-1 text-xs text-muted-foreground">Không có bài tập.</p>
+                    <p className="py-1 text-xs text-muted-foreground">{messages.workoutPage.noExerciseData}</p>
                   ) : (
                     log.exercises.map((exercise) => (
                       <div key={exercise.id} className="border-l border-border py-1 pl-3">

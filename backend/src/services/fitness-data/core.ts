@@ -2141,7 +2141,7 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
         recordedAt: "asc",
       },
       where: {
-        recordedAt: {
+        loggedDate: {
           gte: start,
           lte: end,
         },
@@ -2157,7 +2157,7 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
         recordedAt: true,
       },
       where: {
-        recordedAt: {
+        loggedDate: {
           gte: recentWindow.start,
           lte: recentWindow.end,
         },
@@ -2234,7 +2234,7 @@ async function createMealForUser(
       calories: Math.max(0, roundMealValue(input.calories)),
       carbs: input.carbs != null ? roundMealValue(input.carbs) : undefined,
       fat: input.fat != null ? roundMealValue(input.fat) : undefined,
-      foodNameSnapshot: input.name.trim(),
+      loggedDate: input.recordedAt ? new Date(input.recordedAt) : new Date(),
       name: input.name.trim(),
       protein: input.protein != null ? roundMealValue(input.protein) : undefined,
       recordedAt: input.recordedAt ? new Date(input.recordedAt) : new Date(),
@@ -2281,7 +2281,7 @@ async function updateMealForUser(
       calories: Math.max(0, roundMealValue(input.calories)),
       carbs: input.carbs != null ? roundMealValue(input.carbs) : undefined,
       fat: input.fat != null ? roundMealValue(input.fat) : undefined,
-      foodNameSnapshot: input.name.trim(),
+      loggedDate: input.recordedAt ? new Date(input.recordedAt) : meal.loggedDate,
       name: input.name.trim(),
       protein: input.protein != null ? roundMealValue(input.protein) : undefined,
       recordedAt: input.recordedAt ? new Date(input.recordedAt) : meal.recordedAt,
@@ -2510,7 +2510,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
         recordedAt: "asc",
       },
       where: {
-        recordedAt: {
+        loggedDate: {
           gte: todayStart,
           lte: todayEnd,
         },

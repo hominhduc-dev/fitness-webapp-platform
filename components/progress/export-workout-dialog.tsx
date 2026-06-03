@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import { fetchWorkoutLogsForExport } from "@/lib/fitness/api"
 import { formatDateToISO, formatDisplayDate, getProgramStartDate } from "@/lib/fitness/date-range"
@@ -48,6 +49,7 @@ type ExportWorkoutDialogProps = {
 
 export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps) {
   const { session } = useAuth()
+  const { messages } = useLocale()
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<ExportMode>("week")
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
@@ -69,7 +71,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       return { from: weekStart, label: `week-${weekStart}`, to: addDays(weekStart, 7) }
     }
     if (!selectedProgram) {
-      setError("Chọn một program để export.")
+      setError(messages.workoutPage.exportSelectProgramError)
       return null
     }
     const startDate = getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration)
@@ -94,12 +96,12 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       const logs = await fetchWorkoutLogsForExport(session.access_token, { from: range.from, to: range.to })
       if (logs.length === 0) {
         setPreviewLogs(null)
-        setError("Không có buổi tập nào trong khoảng thời gian này.")
+        setError(messages.workoutPage.exportEmptyRange)
         return
       }
       setPreviewLogs(logs)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tải preview. Thử lại sau.")
+      setError(err instanceof Error ? err.message : messages.workoutPage.exportPreviewFailed)
     } finally {
       setIsLoadingPreview(false)
     }
@@ -122,7 +124,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       const logs = previewLogs ?? (await fetchWorkoutLogsForExport(session.access_token, { from: range.from, to: range.to }))
 
       if (logs.length === 0) {
-        setError("Không có buổi tập nào trong khoảng thời gian này.")
+        setError(messages.workoutPage.exportEmptyRange)
         setIsExporting(false)
         return
       }
@@ -131,7 +133,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       await downloadWorkoutLogs(logs, { from: range.from, label: range.label, to: range.to })
       setOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể export. Thử lại sau.")
+      setError(err instanceof Error ? err.message : messages.workoutPage.exportFailed)
     } finally {
       setIsExporting(false)
     }
@@ -151,19 +153,19 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Download className="h-4 w-4" />
-          Export
+          {messages.workoutPage.export}
         </Button>
       </DialogTrigger>
 
       <DialogContent className={previewLogs ? "w-full max-w-md" : "w-full max-w-sm"}>
         <DialogHeader>
-          <DialogTitle>Export dữ liệu tập luyện</DialogTitle>
+          <DialogTitle>{messages.workoutPage.exportTitle}</DialogTitle>
         </DialogHeader>
 
         <div className="mt-2 flex flex-col gap-5">
           {/* Mode picker */}
           <div className="flex flex-col gap-2">
-            <Label className="text-xs text-muted-foreground">Lọc theo</Label>
+            <Label className="text-xs text-muted-foreground">{messages.workoutPage.exportFilterBy}</Label>
             <div className="flex gap-2">
               {(["week", "program"] as ExportMode[]).map((m) => (
                 <button
@@ -176,7 +178,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
                       : "border-border bg-background text-muted-foreground hover:bg-muted"
                   }`}
                 >
-                  {m === "week" ? "Theo tuần" : "Theo program"}
+                  {m === "week" ? messages.workoutPage.exportWeek : messages.workoutPage.exportProgram}
                 </button>
               ))}
             </div>
@@ -186,7 +188,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
           {mode === "week" && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="week-start" className="text-xs text-muted-foreground">
-                Tuần bắt đầu (thứ 2)
+                {messages.workoutPage.exportWeekStarts}
               </Label>
               <input
                 id="week-start"
@@ -199,7 +201,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
-                Export từ {formatDisplayDate(weekStart)} đến {formatDisplayDate(addDays(weekStart, 7))}
+                {messages.workoutPage.exportFromTo(formatDisplayDate(weekStart), formatDisplayDate(addDays(weekStart, 7)))}
               </p>
             </div>
           )}
@@ -211,7 +213,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
                 Program
               </Label>
               {programs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Bạn chưa được gán program nào.</p>
+                <p className="text-sm text-muted-foreground">{messages.workoutPage.noAssignedPrograms}</p>
               ) : (
                 <select
                   id="program-select"
@@ -219,17 +221,17 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
                   onChange={(e) => setSelectedProgramId(e.target.value)}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">Chọn program...</option>
+                  <option value="">{messages.workoutPage.exportSelectProgram}</option>
                   {programs.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.duration} tuần)
+                      {p.name} ({p.duration} {messages.workoutPage.weeks})
                     </option>
                   ))}
                 </select>
               )}
               {selectedProgram && (
                 <p className="text-xs text-muted-foreground">
-                  Từ {formatDisplayDate(getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration))} · {selectedProgram.duration} tuần
+                  {messages.workoutPage.exportFromTo(formatDisplayDate(getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration)), `${selectedProgram.duration} ${messages.workoutPage.weeks}`)}
                 </p>
               )}
             </div>
@@ -239,7 +241,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
 
           {previewLogs ? (
             <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Xem trước</Label>
+              <Label className="text-xs text-muted-foreground">{messages.workoutPage.exportPreview}</Label>
               <WorkoutLogsPreview logs={previewLogs} />
             </div>
           ) : null}
@@ -252,7 +254,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
               className="w-full gap-2"
             >
               {isLoadingPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              {isLoadingPreview ? "Đang tải..." : previewLogs ? "Tải lại preview" : "Xem trước"}
+              {isLoadingPreview ? messages.workoutPage.exportLoading : previewLogs ? messages.workoutPage.exportReloadPreview : messages.workoutPage.exportPreview}
             </Button>
 
             <Button
@@ -261,7 +263,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
               className="w-full gap-2"
             >
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {isExporting ? "Đang tạo file..." : "Tải xuống Excel"}
+              {isExporting ? messages.workoutPage.generatingFile : messages.workoutPage.exportDownloadExcel}
             </Button>
           </div>
         </div>

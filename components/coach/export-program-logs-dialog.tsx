@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import { fetchCoachWorkoutLogs } from "@/lib/fitness/api"
 import { formatDateToISO, formatDisplayDate, getProgramStartDate } from "@/lib/fitness/date-range"
@@ -55,6 +56,7 @@ export function ExportProgramLogsDialog({
   programName,
 }: ExportProgramLogsDialogProps) {
   const { session } = useAuth()
+  const { messages } = useLocale()
   const [open, setOpen] = useState(false)
   const [selectedTraineeId, setSelectedTraineeId] = useState<string>("")
   const [isExporting, setIsExporting] = useState(false)
@@ -90,12 +92,12 @@ export function ExportProgramLogsDialog({
       const logs = await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to)
       if (logs.length === 0) {
         setPreviewLogs(null)
-        setError("Trainee này chưa có buổi tập nào trong program.")
+        setError(messages.workoutPage.exportTraineeEmptyProgram)
         return
       }
       setPreviewLogs(logs)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tải preview. Thử lại sau.")
+      setError(err instanceof Error ? err.message : messages.workoutPage.exportPreviewFailed)
     } finally {
       setIsLoadingPreview(false)
     }
@@ -112,7 +114,7 @@ export function ExportProgramLogsDialog({
       const logs = previewLogs ?? (await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to))
 
       if (logs.length === 0) {
-        setError("Trainee này chưa có buổi tập nào trong program.")
+        setError(messages.workoutPage.exportTraineeEmptyProgram)
         setIsExporting(false)
         return
       }
@@ -126,7 +128,7 @@ export function ExportProgramLogsDialog({
       })
       setOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể export. Thử lại sau.")
+      setError(err instanceof Error ? err.message : messages.workoutPage.exportFailed)
     } finally {
       setIsExporting(false)
     }
@@ -148,23 +150,23 @@ export function ExportProgramLogsDialog({
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Download className="h-4 w-4" />
-          Export logs
+          {messages.workoutPage.exportLogs}
         </Button>
       </DialogTrigger>
 
       <DialogContent className={previewLogs ? "w-full max-w-md" : "w-full max-w-sm"}>
         <DialogHeader>
-          <DialogTitle>Export logs — {programName}</DialogTitle>
+          <DialogTitle>{messages.workoutPage.exportLogs} - {programName}</DialogTitle>
         </DialogHeader>
 
         <div className="mt-2 flex flex-col gap-5">
           <p className="text-sm text-muted-foreground">
-            Export tất cả buổi tập của trainee trong suốt thời gian program ({programDuration} tuần).
+            {messages.workoutPage.exportProgramSummary(programDuration)}
           </p>
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="trainee-select" className="text-xs text-muted-foreground">
-              Chọn trainee
+              {messages.workoutPage.exportSelectTrainee}
             </Label>
             <select
               id="trainee-select"
@@ -172,7 +174,7 @@ export function ExportProgramLogsDialog({
               onChange={(e) => setSelectedTraineeId(e.target.value)}
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">Chọn trainee...</option>
+              <option value="">{messages.workoutPage.exportSelectTraineePlaceholder}</option>
               {assignedTrainees.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({t.email})
@@ -183,7 +185,7 @@ export function ExportProgramLogsDialog({
               <p className="text-xs text-muted-foreground">
                 {(() => {
                   const { from, to } = getDateRange(selectedTrainee)
-                  return `Khoảng thời gian: ${formatDisplayDate(from)} → ${formatDisplayDate(to)}`
+                  return messages.workoutPage.exportProgramRange(formatDisplayDate(from), formatDisplayDate(to))
                 })()}
               </p>
             )}
@@ -193,7 +195,7 @@ export function ExportProgramLogsDialog({
 
           {previewLogs ? (
             <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Xem trước</Label>
+              <Label className="text-xs text-muted-foreground">{messages.workoutPage.exportPreview}</Label>
               <WorkoutLogsPreview logs={previewLogs} />
             </div>
           ) : null}
@@ -206,7 +208,7 @@ export function ExportProgramLogsDialog({
               className="w-full gap-2"
             >
               {isLoadingPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-              {isLoadingPreview ? "Đang tải..." : previewLogs ? "Tải lại preview" : "Xem trước"}
+              {isLoadingPreview ? messages.workoutPage.exportLoading : previewLogs ? messages.workoutPage.exportReloadPreview : messages.workoutPage.exportPreview}
             </Button>
 
             <Button
@@ -215,7 +217,7 @@ export function ExportProgramLogsDialog({
               className="w-full gap-2"
             >
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {isExporting ? "Đang tạo file..." : "Tải xuống Excel"}
+              {isExporting ? messages.workoutPage.generatingFile : messages.workoutPage.exportDownloadExcel}
             </Button>
           </div>
         </div>
