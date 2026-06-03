@@ -160,20 +160,40 @@ function restoreWorkoutSessionExercises(
     const storedExercise = storedExercisesById.get(exercise.id)
     if (!storedExercise) return exercise
     const storedSetsById = new Map(storedExercise.sets.map((set) => [set.id, set]))
+
+    const restoredSets = exercise.sets.map((set) => {
+      const storedSet = storedSetsById.get(set.id)
+      if (!storedSet) return set
+      return {
+        ...set,
+        actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
+        completed: Boolean(storedSet.completed),
+        notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
+        rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
+        weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
+      }
+    })
+
+    // Re-append sets the user added during the session that aren't in the API response
+    const baseSetIds = new Set(exercise.sets.map((s) => s.id))
+    const lastSet = exercise.sets[exercise.sets.length - 1]
+    const sessionAddedSets: Workout["exercises"][number]["sets"] = storedExercise.sets
+      .filter((storedSet) => !baseSetIds.has(storedSet.id))
+      .map((storedSet, i) => ({
+        id: storedSet.id,
+        setNumber: exercise.sets.length + i + 1,
+        targetReps: lastSet?.targetReps ?? 10,
+        targetRepsMin: lastSet?.targetRepsMin,
+        actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
+        completed: Boolean(storedSet.completed),
+        notes: typeof storedSet.notes === "string" ? storedSet.notes : undefined,
+        rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
+        weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
+      }))
+
     return {
       ...exercise,
-      sets: exercise.sets.map((set) => {
-        const storedSet = storedSetsById.get(set.id)
-        if (!storedSet) return set
-        return {
-          ...set,
-          actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
-          completed: Boolean(storedSet.completed),
-          notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
-          rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
-          weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
-        }
-      }),
+      sets: [...restoredSets, ...sessionAddedSets],
     }
   })
 }
