@@ -87,6 +87,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null)
   const [dailyCalorieGoal, setDailyCalorieGoal] = useState(String(DEFAULT_DAILY_CALORIE_GOAL))
   const [webhookUrl, setWebhookUrl] = useState("")
+  const [savedWebhookUrl, setSavedWebhookUrl] = useState("")
+  const [isSavingWebhook, setIsSavingWebhook] = useState(false)
   const [notifications, setNotifications] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
@@ -120,6 +122,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     )
     setDailyCalorieGoal(String(profile.dailyCalorieGoal ?? DEFAULT_DAILY_CALORIE_GOAL))
     setWebhookUrl(profile.webhookUrl ?? "")
+    setSavedWebhookUrl(profile.webhookUrl ?? "")
   }, [profile])
 
   useEffect(() => {
@@ -243,6 +246,21 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       )
     } finally {
       setIsUploadingAvatar(false)
+    }
+  }
+
+  const handleWebhookBlur = async () => {
+    const next = webhookUrl.trim() || null
+    const prev = savedWebhookUrl.trim() || null
+    if (next === prev || !profile || isSavingWebhook) return
+    setIsSavingWebhook(true)
+    try {
+      await updateProfile({ webhookUrl: next })
+      setSavedWebhookUrl(webhookUrl.trim())
+    } catch {
+      // non-critical — main Save still works
+    } finally {
+      setIsSavingWebhook(false)
     }
   }
 
@@ -680,16 +698,24 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               {messages.profile.webhookUrl}
             </Label>
             <p className="mb-2 text-sm text-muted-foreground">{messages.profile.webhookUrlCopy}</p>
-            <Input
-              id="webhook-url"
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder={messages.profile.webhookUrlPlaceholder}
-              type="url"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-            />
+            <div className="relative">
+              <Input
+                id="webhook-url"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                onBlur={() => void handleWebhookBlur()}
+                placeholder={messages.profile.webhookUrlPlaceholder}
+                type="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              {isSavingWebhook && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-muted-foreground">
+                  saving…
+                </span>
+              )}
+            </div>
           </div>
 
           {webhookUrl.trim() && (
