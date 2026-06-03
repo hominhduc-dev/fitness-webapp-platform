@@ -847,18 +847,37 @@ export default function WorkoutStartPage() {
     data: Partial<ExerciseSet>,
   ) => {
     if (data.completed) {
+      const exerciseLabel = formatExerciseVariationLabel({
+        exerciseName: exercise.exercise.name,
+        isDefault: exercise.variation.isDefault,
+        variationName: exercise.variation.name,
+      })
       setRestEvent({
-        exercise: formatExerciseVariationLabel({
-          exerciseName: exercise.exercise.name,
-          isDefault: exercise.variation.isDefault,
-          variationName: exercise.variation.name,
-        }),
+        exercise: exerciseLabel,
         set: {
           id: set.id,
           kg: data.weight ?? set.weight ?? 0,
           reps: data.actualReps ?? set.actualReps ?? null,
         },
       })
+
+      if (profile?.webhookUrl) {
+        const kg = data.weight ?? set.weight
+        const reps = data.actualReps ?? set.actualReps ?? set.targetReps
+        void fetch(profile.webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "set_completed",
+            exercise: exerciseLabel,
+            setNumber: set.setNumber,
+            weight: kg ?? null,
+            reps,
+            rir: data.rir ?? set.rir ?? null,
+            workoutName: workout?.name ?? null,
+          }),
+        }).catch(() => { /* non-critical, fire-and-forget */ })
+      }
       // Advance current exercise index if all sets on this exercise are done
       const updatedSets = exercise.sets.map((s) => (s.id === set.id ? { ...s, ...data } : s))
       if (updatedSets.every((s) => s.completed)) {
