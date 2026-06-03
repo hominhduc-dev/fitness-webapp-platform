@@ -133,8 +133,10 @@ type SerializedWorkoutLog = {
 type SerializedWorkoutScheduleEntry = {
   date: string
   durationLabel?: string
+  isCatchUp?: boolean
   isCompleted: boolean
   isMissed: boolean
+  isRolledOver?: boolean
   isToday: boolean
   log: SerializedWorkoutLog | null
   source: "coach" | "self"
@@ -614,8 +616,10 @@ function mapWorkoutScheduleEntry(entry: SerializedWorkoutScheduleEntry): Workout
   return {
     date: parseScheduledDate(entry.date) ?? new Date(entry.date),
     durationLabel: entry.durationLabel,
+    isCatchUp: entry.isCatchUp ?? false,
     isCompleted: entry.isCompleted,
     isMissed: entry.isMissed,
+    isRolledOver: entry.isRolledOver ?? false,
     isToday: entry.isToday,
     log: entry.log ? mapWorkoutLog(entry.log) : null,
     source: entry.source,
