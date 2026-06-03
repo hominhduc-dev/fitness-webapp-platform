@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import { fetchWorkoutLogsForExport } from "@/lib/fitness/api"
-import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
+import { formatDateToISO, formatDisplayDate, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { TraineeProgram } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
 
@@ -199,7 +199,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <p className="text-xs text-muted-foreground">
-                Export từ {weekStart} đến {addDays(weekStart, 7)}
+                Export từ {formatDisplayDate(weekStart)} đến {formatDisplayDate(addDays(weekStart, 7))}
               </p>
             </div>
           )}
@@ -229,7 +229,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
               )}
               {selectedProgram && (
                 <p className="text-xs text-muted-foreground">
-                  Từ {formatDateToISO(getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration))} · {selectedProgram.duration} tuần
+                  Từ {formatDisplayDate(getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration))} · {selectedProgram.duration} tuần
                 </p>
               )}
             </div>

@@ -15,6 +15,14 @@ export function formatDateToISO(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** Format a `YYYY-MM-DD` string (or Date) as `DD/MM/YYYY` for display. */
+export function formatDisplayDate(value: string | Date): string {
+  const iso = typeof value === "string" ? value : formatDateToISO(value)
+  const [year, month, day] = iso.split("-")
+  if (!year || !month || !day) return iso
+  return `${day}/${month}/${year}`
+}
+
 /**
  * Resolve a program's start date. Falls back to `durationWeeks` ago from now
  * when `assignedAt` is missing or invalid.
