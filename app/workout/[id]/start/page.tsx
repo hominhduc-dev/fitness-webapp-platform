@@ -160,20 +160,40 @@ function restoreWorkoutSessionExercises(
     const storedExercise = storedExercisesById.get(exercise.id)
     if (!storedExercise) return exercise
     const storedSetsById = new Map(storedExercise.sets.map((set) => [set.id, set]))
+
+    const restoredSets = exercise.sets.map((set) => {
+      const storedSet = storedSetsById.get(set.id)
+      if (!storedSet) return set
+      return {
+        ...set,
+        actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
+        completed: Boolean(storedSet.completed),
+        notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
+        rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
+        weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
+      }
+    })
+
+    // Re-append sets the user added during the session that aren't in the API response
+    const baseSetIds = new Set(exercise.sets.map((s) => s.id))
+    const lastSet = exercise.sets[exercise.sets.length - 1]
+    const sessionAddedSets: Workout["exercises"][number]["sets"] = storedExercise.sets
+      .filter((storedSet) => !baseSetIds.has(storedSet.id))
+      .map((storedSet, i) => ({
+        id: storedSet.id,
+        setNumber: exercise.sets.length + i + 1,
+        targetReps: lastSet?.targetReps ?? 10,
+        targetRepsMin: lastSet?.targetRepsMin,
+        actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
+        completed: Boolean(storedSet.completed),
+        notes: typeof storedSet.notes === "string" ? storedSet.notes : undefined,
+        rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
+        weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
+      }))
+
     return {
       ...exercise,
-      sets: exercise.sets.map((set) => {
-        const storedSet = storedSetsById.get(set.id)
-        if (!storedSet) return set
-        return {
-          ...set,
-          actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
-          completed: Boolean(storedSet.completed),
-          notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
-          rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
-          weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
-        }
-      }),
+      sets: [...restoredSets, ...sessionAddedSets],
     }
   })
 }
@@ -827,18 +847,39 @@ export default function WorkoutStartPage() {
     data: Partial<ExerciseSet>,
   ) => {
     if (data.completed) {
+      const exerciseLabel = formatExerciseVariationLabel({
+        exerciseName: exercise.exercise.name,
+        isDefault: exercise.variation.isDefault,
+        variationName: exercise.variation.name,
+      })
       setRestEvent({
-        exercise: formatExerciseVariationLabel({
-          exerciseName: exercise.exercise.name,
-          isDefault: exercise.variation.isDefault,
-          variationName: exercise.variation.name,
-        }),
+        duration: exercise.restTime ?? undefined,
+        exercise: exerciseLabel,
         set: {
           id: set.id,
           kg: data.weight ?? set.weight ?? 0,
           reps: data.actualReps ?? set.actualReps ?? null,
         },
       })
+
+      if (profile?.webhookUrl) {
+        const kg = data.weight ?? set.weight
+        const reps = data.actualReps ?? set.actualReps ?? set.targetReps
+        const restSecs = exercise.restTime ?? null
+        const weightStr = kg != null ? `${kg}kg` : null
+        const parts = [weightStr, `${reps} reps`].filter(Boolean).join(" × ")
+        void fetch(profile.webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            // ntfy.sh-compatible format — title is parsed by iOS Shortcut to start timer
+            title: restSecs != null ? `Rest ${restSecs}s` : `✅ ${exerciseLabel}`,
+            message: `${exerciseLabel} · Set ${set.setNumber}${parts ? ` · ${parts}` : ""}`,
+            tags: ["muscle"],
+            priority: 4,
+          }),
+        }).catch(() => { /* non-critical, fire-and-forget */ })
+      }
       // Advance current exercise index if all sets on this exercise are done
       const updatedSets = exercise.sets.map((s) => (s.id === set.id ? { ...s, ...data } : s))
       if (updatedSets.every((s) => s.completed)) {

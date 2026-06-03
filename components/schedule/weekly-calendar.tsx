@@ -41,6 +41,7 @@ type RoutineExercise = {
   fallbackVariationName?: string
   id: string
   reps: string
+  restTime?: string
   sets: number
   variationId: string
   weight: string
@@ -82,6 +83,7 @@ function createEmptyRoutineExercise(defaultVariationId = ""): RoutineExercise {
   return {
     id: createDraftId(),
     reps: "8-12",
+    restTime: "",
     sets: 3,
     variationId: defaultVariationId,
     weight: "",
@@ -219,6 +221,7 @@ function mapWorkoutExerciseToRoutineExercise(workoutExercise: Workout["exercises
       reps: workoutExercise.sets[0]?.targetReps ?? 1,
       repsMin: workoutExercise.sets[0]?.targetRepsMin,
     }),
+    restTime: workoutExercise.restTime != null ? String(workoutExercise.restTime) : "",
     sets: workoutExercise.sets.length || 1,
     variationId: workoutExercise.variation.id,
     weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
@@ -718,7 +721,7 @@ function RoutineBuilderDialog({
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 pl-8">
+                <div className="mt-3 grid grid-cols-4 gap-2 pl-8">
                   <div className="flex flex-col gap-1">
                     <Label className="label-micro">{messages.workoutPage.set}</Label>
                     <Input
@@ -747,6 +750,18 @@ function RoutineBuilderDialog({
                       value={exercise.weight}
                       onChange={(event) => updateExercise(exercise.id, { weight: event.target.value })}
                       className="h-9 bg-background text-center font-mono text-sm tnum"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="label-micro">REST</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={5}
+                      value={exercise.restTime ?? ""}
+                      onChange={(event) => updateExercise(exercise.id, { restTime: event.target.value })}
+                      className="h-9 bg-background text-center font-mono text-sm tnum"
+                      placeholder="90"
                     />
                   </div>
                 </div>
@@ -1180,10 +1195,12 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         exercises: routine.exercises.map((exercise) => {
           const repTarget = parseRepTargetText(exercise.reps) ?? { reps: 1, repsMin: undefined }
           const parsedWeight = Number(exercise.weight)
+          const parsedRest = Number(exercise.restTime)
 
           return {
             reps: repTarget.reps,
             repsMin: repTarget.repsMin,
+            restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
             sets: Math.max(1, exercise.sets),
             variationId: exercise.variationId,
             weight:
@@ -1215,6 +1232,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     let normalizedExercises: Array<{
       reps: number
       repsMin?: number
+      restTime?: number
       sets: number
       variationId: string
       weight?: number
@@ -1229,10 +1247,12 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         }
 
         const parsedWeight = Number(exercise.weight)
+        const parsedRest = Number(exercise.restTime)
 
         return {
           reps: repTarget.reps,
           repsMin: repTarget.repsMin,
+          restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
           sets: Math.max(1, exercise.sets),
           variationId: exercise.variationId,
           weight:

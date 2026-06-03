@@ -327,7 +327,7 @@ export function ExercisePicker({
 
       {open && isMobile ? (
         <Drawer open={open} onOpenChange={setOpen}>
-              <DrawerContent className="max-h-[82svh] overflow-hidden rounded-t-[28px] border-t border-border bg-background/98">
+              <DrawerContent className="z-[100] max-h-[82svh] overflow-hidden rounded-t-[28px] border-t border-border bg-background/98" overlayClassName="z-[100]">
             <DrawerHeader className="px-4 pt-4 text-left">
               <DrawerTitle>{messages.workoutPage.chooseExercise}</DrawerTitle>
               <DrawerDescription>{messages.workoutPage.chooseExerciseDescription}</DrawerDescription>

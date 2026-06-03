@@ -520,6 +520,45 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
   }
 }
 
+function buildExerciseSetsWithHistory(
+  workoutExerciseId: string,
+  templateSets: ExerciseSet[],
+  previousPerformanceBySetNumber: Map<number, PreviousExerciseSetPerformance> | undefined,
+): ReturnType<typeof serializeExerciseSet>[] {
+  const sorted = templateSets.slice().sort((a, b) => a.setNumber - b.setNumber)
+  const serialized = sorted.map((set) => serializeExerciseSet(set, previousPerformanceBySetNumber))
+
+  if (!previousPerformanceBySetNumber || sorted.length === 0) {
+    return serialized
+  }
+
+  const maxTemplateSetNumber = sorted[sorted.length - 1].setNumber
+  const lastSet = sorted[sorted.length - 1]
+  const extraSets: ReturnType<typeof serializeExerciseSet>[] = []
+
+  previousPerformanceBySetNumber.forEach((performance, setNumber) => {
+    if (setNumber > maxTemplateSetNumber) {
+      extraSets.push({
+        actualReps: undefined,
+        completed: false,
+        id: `${workoutExerciseId}-xtra-${setNumber}`,
+        notes: undefined,
+        previousPerformance: serializePreviousSetPerformance(performance),
+        rir: undefined,
+        setNumber,
+        targetRepsMin: lastSet.targetRepsMin ?? undefined,
+        targetReps: lastSet.targetReps,
+        weight: undefined,
+      })
+    }
+  })
+
+  if (extraSets.length === 0) return serialized
+
+  extraSets.sort((a, b) => a.setNumber - b.setNumber)
+  return [...serialized, ...extraSets]
+}
+
 function serializeWorkout(
   workout: WorkoutRecord,
   options?: {
@@ -537,10 +576,11 @@ function serializeWorkout(
         id: workoutExercise.id,
         notes: workoutExercise.notes ?? undefined,
         restTime: workoutExercise.restTime ?? undefined,
-        sets: workoutExercise.sets
-          .slice()
-          .sort((left, right) => left.setNumber - right.setNumber)
-          .map((set) => serializeExerciseSet(set, options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id))),
+        sets: buildExerciseSetsWithHistory(
+          workoutExercise.id,
+          workoutExercise.sets,
+          options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id),
+        ),
         variation: serializeVariation(workoutExercise.variation),
       })),
     id: workout.id,
