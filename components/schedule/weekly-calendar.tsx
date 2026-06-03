@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, isBefore, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns"
 import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
+import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createWorkout, fetchExercises } from "@/lib/fitness/api"
-import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
@@ -759,164 +759,40 @@ function RoutineBuilderDialog({
           </Button>
         </DialogFooter>
 
-        <ExerciseSearchDialog
-          existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
-          exerciseOptions={exerciseOptions}
-          open={isExerciseSearchOpen}
-          onClose={() => setIsExerciseSearchOpen(false)}
-          onPick={(option) => {
-            setExercises((current) => [
-              ...current,
-              {
-                ...createEmptyRoutineExercise(),
-                fallbackEquipment: option.equipment,
-                fallbackExerciseName: option.exerciseName,
-                fallbackIsDefault: option.isDefault,
-                fallbackMuscleGroup: option.muscleGroup,
-                fallbackVariationName: option.variationName,
-                variationId: option.id,
-              },
-            ])
-            setIsExerciseSearchOpen(false)
-          }}
-        />
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function ExerciseSearchDialog({
-  existingVariationIds,
-  exerciseOptions,
-  onClose,
-  onPick,
-  open,
-}: {
-  existingVariationIds: string[]
-  exerciseOptions: ExerciseVariationOption[]
-  onClose: () => void
-  onPick: (option: ExerciseVariationOption) => void
-  open: boolean
-}) {
-  const [query, setQuery] = useState("")
-  const [muscleGroup, setMuscleGroup] = useState("all")
-  const existingSet = useMemo(() => new Set(existingVariationIds), [existingVariationIds])
-  const muscleGroups = useMemo(
-    () => ["all", ...Array.from(new Set(exerciseOptions.map((option) => option.muscleGroup))).sort((left, right) => left.localeCompare(right))],
-    [exerciseOptions],
-  )
-  const visibleExercises = useMemo(() => {
-    const filtered = exerciseOptions
-      .slice()
-      .sort((left, right) => {
-        const nameComparison = left.exerciseName.localeCompare(right.exerciseName)
-
-        if (nameComparison !== 0) {
-          return nameComparison
-        }
-
-        return left.variationName.localeCompare(right.variationName)
-      })
-      .filter((option) => {
-        if (muscleGroup !== "all" && option.muscleGroup !== muscleGroup) {
-          return false
-        }
-
-        return matchesExerciseSearch(
-          [option.exerciseName, option.variationName, option.name, option.muscleGroup, option.equipment],
-          query,
-        )
-      })
-
-    return sortByExerciseRelevance(filtered, query, (option) => option.exerciseName)
-  }, [exerciseOptions, muscleGroup, query])
-
-  useEffect(() => {
-    if (!open) {
-      setQuery("")
-      setMuscleGroup("all")
-    }
-  }, [open])
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[110] flex h-[82svh] max-h-[82svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[480px]">
-        <DialogHeader className="border-b border-border px-6 pb-3 pt-5 text-left">
-          <DialogTitle className="text-xl font-semibold tracking-[-0.01em]">Add exercise</DialogTitle>
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search..."
-              className="h-10 rounded-[4px] bg-background pl-9 text-sm focus-visible:ring-primary/30"
-              autoFocus
-            />
-          </div>
-          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
-            {muscleGroups.map((group) => {
-              const active = muscleGroup === group
-
-              return (
-                <button
-                  key={group}
-                  type="button"
-                  onClick={() => setMuscleGroup(group)}
-                  className={cn(
-                    "h-8 shrink-0 rounded-full border px-3 text-sm font-medium capitalize transition-colors",
-                    active
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background text-foreground hover:bg-muted",
-                  )}
-                >
-                  {group === "all" ? "All" : group}
-                </button>
-              )
-            })}
-          </div>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {visibleExercises.length === 0 ? (
-            <div className="px-6 py-10 text-center text-sm text-muted-foreground">No exercises match this search.</div>
-          ) : (
-            visibleExercises.map((option) => {
-              const added = existingSet.has(option.id)
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={added}
-                  onClick={() => onPick(option)}
-                  className={cn(
-                    "flex w-full items-center gap-4 border-b border-border px-6 py-3 text-left transition-colors",
-                    added ? "cursor-default opacity-55" : "hover:bg-muted",
-                  )}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">{option.exerciseName}</span>
-                    <span className="label-micro mt-0.5 block truncate">
-                      {option.muscleGroup} · {option.equipment || "Bodyweight"}
-                    </span>
-                  </span>
-                  {added ? (
-                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-success">Added</span>
-                  ) : (
-                    <Plus className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-              )
-            })
-          )}
-        </div>
-
-        <DialogFooter className="border-t border-border px-6 py-3 sm:justify-center">
-          <Button type="button" variant="ghost" size="sm" className="text-primary hover:text-primary" disabled>
-            <Plus className="h-3.5 w-3.5" />
-            Create custom exercise
-          </Button>
-        </DialogFooter>
+        {isExerciseSearchOpen ? (
+          <AddExerciseModal
+            existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
+            exercises={exerciseOptions}
+            onClose={() => setIsExerciseSearchOpen(false)}
+            footer={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full text-primary hover:text-primary"
+                disabled
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Create custom exercise
+              </Button>
+            }
+            onPick={(option) => {
+              setExercises((current) => [
+                ...current,
+                {
+                  ...createEmptyRoutineExercise(),
+                  fallbackEquipment: option.equipment,
+                  fallbackExerciseName: option.exerciseName,
+                  fallbackIsDefault: option.isDefault,
+                  fallbackMuscleGroup: option.muscleGroup,
+                  fallbackVariationName: option.variationName,
+                  variationId: option.id,
+                },
+              ])
+              setIsExerciseSearchOpen(false)
+            }}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )
