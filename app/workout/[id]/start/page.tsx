@@ -864,17 +864,18 @@ export default function WorkoutStartPage() {
       if (profile?.webhookUrl) {
         const kg = data.weight ?? set.weight
         const reps = data.actualReps ?? set.actualReps ?? set.targetReps
+        const restSecs = exercise.restTime ?? null
+        const weightStr = kg != null ? `${kg}kg` : null
+        const parts = [weightStr, `${reps} reps`].filter(Boolean).join(" × ")
         void fetch(profile.webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            event: "set_completed",
-            exercise: exerciseLabel,
-            setNumber: set.setNumber,
-            weight: kg ?? null,
-            reps,
-            rir: data.rir ?? set.rir ?? null,
-            workoutName: workout?.name ?? null,
+            // ntfy.sh-compatible format — title is parsed by iOS Shortcut to start timer
+            title: restSecs != null ? `Rest ${restSecs}s` : `✅ ${exerciseLabel}`,
+            message: `${exerciseLabel} · Set ${set.setNumber}${parts ? ` · ${parts}` : ""}`,
+            tags: ["muscle"],
+            priority: 4,
           }),
         }).catch(() => { /* non-critical, fire-and-forget */ })
       }
