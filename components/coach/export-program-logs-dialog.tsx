@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Download, Eye, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,9 +12,11 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
+import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import { fetchCoachWorkoutLogs } from "@/lib/fitness/api"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { AssignedTrainee } from "@/lib/fitness/types"
+import type { WorkoutLog } from "@/lib/types"
 
 type ExportProgramLogsDialogProps = {
   assignedTrainees: AssignedTrainee[]
@@ -56,9 +58,16 @@ export function ExportProgramLogsDialog({
   const [open, setOpen] = useState(false)
   const [selectedTraineeId, setSelectedTraineeId] = useState<string>("")
   const [isExporting, setIsExporting] = useState(false)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [previewLogs, setPreviewLogs] = useState<WorkoutLog[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const selectedTrainee = assignedTrainees.find((t) => t.id === selectedTraineeId)
+
+  // Drop any stale preview when the selected trainee changes.
+  useEffect(() => {
+    setPreviewLogs(null)
+  }, [selectedTraineeId])
 
   const getDateRange = (trainee: AssignedTrainee) => {
     const startDate = getProgramStartDate(trainee.assignedAt, programDuration)
@@ -72,6 +81,26 @@ export function ExportProgramLogsDialog({
     return { from, to }
   }
 
+  const handlePreview = async () => {
+    if (!session?.access_token || isLoadingPreview || !selectedTrainee) return
+    setError(null)
+    setIsLoadingPreview(true)
+    try {
+      const { from, to } = getDateRange(selectedTrainee)
+      const logs = await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to)
+      if (logs.length === 0) {
+        setPreviewLogs(null)
+        setError("Trainee này chưa có buổi tập nào trong program.")
+        return
+      }
+      setPreviewLogs(logs)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải preview. Thử lại sau.")
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
+
   const handleExport = async () => {
     if (!session?.access_token || isExporting || !selectedTrainee) return
     setIsExporting(true)
@@ -79,7 +108,8 @@ export function ExportProgramLogsDialog({
 
     try {
       const { from, to } = getDateRange(selectedTrainee)
-      const logs = await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to)
+      // Reuse already-fetched preview logs when available (cleared on trainee change).
+      const logs = previewLogs ?? (await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to))
 
       if (logs.length === 0) {
         setError("Trainee này chưa có buổi tập nào trong program.")
@@ -105,7 +135,16 @@ export function ExportProgramLogsDialog({
   if (assignedTrainees.length === 0) return null
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) {
+          setPreviewLogs(null)
+          setError(null)
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Download className="h-4 w-4" />
@@ -113,7 +152,7 @@ export function ExportProgramLogsDialog({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-full max-w-sm">
+      <DialogContent className={previewLogs ? "w-full max-w-md" : "w-full max-w-sm"}>
         <DialogHeader>
           <DialogTitle>Export logs — {programName}</DialogTitle>
         </DialogHeader>
@@ -152,14 +191,33 @@ export function ExportProgramLogsDialog({
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button
-            onClick={() => void handleExport()}
-            disabled={isExporting || !selectedTraineeId}
-            className="w-full gap-2"
-          >
-            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {isExporting ? "Đang tạo file..." : "Tải xuống Excel"}
-          </Button>
+          {previewLogs ? (
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs text-muted-foreground">Xem trước</Label>
+              <WorkoutLogsPreview logs={previewLogs} />
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void handlePreview()}
+              disabled={isLoadingPreview || isExporting || !selectedTraineeId}
+              className="w-full gap-2"
+            >
+              {isLoadingPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              {isLoadingPreview ? "Đang tải..." : previewLogs ? "Tải lại preview" : "Xem trước"}
+            </Button>
+
+            <Button
+              onClick={() => void handleExport()}
+              disabled={isExporting || !selectedTraineeId}
+              className="w-full gap-2"
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExporting ? "Đang tạo file..." : "Tải xuống Excel"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

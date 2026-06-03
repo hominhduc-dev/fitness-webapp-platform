@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Download, Eye, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,9 +12,11 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
+import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import { fetchWorkoutLogsForExport } from "@/lib/fitness/api"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { TraineeProgram } from "@/lib/fitness/types"
+import type { WorkoutLog } from "@/lib/types"
 
 type ExportMode = "week" | "program"
 
@@ -42,9 +44,57 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [selectedProgramId, setSelectedProgramId] = useState<string>("")
   const [isExporting, setIsExporting] = useState(false)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [previewLogs, setPreviewLogs] = useState<WorkoutLog[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const selectedProgram = programs.find((p) => p.id === selectedProgramId)
+
+  // Drop any stale preview when the selected range changes.
+  useEffect(() => {
+    setPreviewLogs(null)
+  }, [mode, weekStart, selectedProgramId])
+
+  const resolveRange = (): { from: string; to: string; label: string } | null => {
+    if (mode === "week") {
+      return { from: weekStart, label: `week-${weekStart}`, to: addDays(weekStart, 7) }
+    }
+    if (!selectedProgram) {
+      setError("Chọn một program để export.")
+      return null
+    }
+    const startDate = getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration)
+    const from = formatDateToISO(startDate)
+    const endDate = new Date(startDate)
+    endDate.setDate(endDate.getDate() + selectedProgram.duration * 7)
+    // Tomorrow as upper bound so today's logs are included (query uses `lt`)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const to = formatDateToISO(endDate < tomorrow ? endDate : tomorrow)
+    return { from, label: selectedProgram.name, to }
+  }
+
+  const handlePreview = async () => {
+    if (!session?.access_token || isLoadingPreview) return
+    setError(null)
+    const range = resolveRange()
+    if (!range) return
+
+    setIsLoadingPreview(true)
+    try {
+      const logs = await fetchWorkoutLogsForExport(session.access_token, { from: range.from, to: range.to })
+      if (logs.length === 0) {
+        setPreviewLogs(null)
+        setError("Không có buổi tập nào trong khoảng thời gian này.")
+        return
+      }
+      setPreviewLogs(logs)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải preview. Thử lại sau.")
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
 
   const handleExport = async () => {
     if (!session?.access_token || isExporting) return
@@ -52,32 +102,15 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
     setError(null)
 
     try {
-      let from: string
-      let to: string
-      let label: string
-
-      if (mode === "week") {
-        from = weekStart
-        to = addDays(weekStart, 7)
-        label = `week-${weekStart}`
-      } else {
-        if (!selectedProgram) {
-          setError("Chọn một program để export.")
-          setIsExporting(false)
-          return
-        }
-        const startDate = getProgramStartDate(selectedProgram.assignedAt, selectedProgram.duration)
-        from = formatDateToISO(startDate)
-        const endDate = new Date(startDate)
-        endDate.setDate(endDate.getDate() + selectedProgram.duration * 7)
-        // Tomorrow as upper bound so today's logs are included (query uses `lt`)
-        const tomorrow = new Date()
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        to = formatDateToISO(endDate < tomorrow ? endDate : tomorrow)
-        label = selectedProgram.name
+      const range = resolveRange()
+      if (!range) {
+        setIsExporting(false)
+        return
       }
 
-      const logs = await fetchWorkoutLogsForExport(session.access_token, { from, to })
+      // Reuse already-fetched preview logs when available (preview is cleared
+      // whenever the range changes, so it's always in sync).
+      const logs = previewLogs ?? (await fetchWorkoutLogsForExport(session.access_token, { from: range.from, to: range.to }))
 
       if (logs.length === 0) {
         setError("Không có buổi tập nào trong khoảng thời gian này.")
@@ -86,7 +119,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       }
 
       const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
-      await downloadWorkoutLogs(logs, { from, label, to })
+      await downloadWorkoutLogs(logs, { from: range.from, label: range.label, to: range.to })
       setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể export. Thử lại sau.")
@@ -96,7 +129,16 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) {
+          setPreviewLogs(null)
+          setError(null)
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Download className="h-4 w-4" />
@@ -104,7 +146,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-full max-w-sm">
+      <DialogContent className={previewLogs ? "w-full max-w-md" : "w-full max-w-sm"}>
         <DialogHeader>
           <DialogTitle>Export dữ liệu tập luyện</DialogTitle>
         </DialogHeader>
@@ -186,14 +228,33 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button
-            onClick={() => void handleExport()}
-            disabled={isExporting || (mode === "program" && !selectedProgramId)}
-            className="w-full gap-2"
-          >
-            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {isExporting ? "Đang tạo file..." : "Tải xuống Excel"}
-          </Button>
+          {previewLogs ? (
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs text-muted-foreground">Xem trước</Label>
+              <WorkoutLogsPreview logs={previewLogs} />
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void handlePreview()}
+              disabled={isLoadingPreview || isExporting || (mode === "program" && !selectedProgramId)}
+              className="w-full gap-2"
+            >
+              {isLoadingPreview ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              {isLoadingPreview ? "Đang tải..." : previewLogs ? "Tải lại preview" : "Xem trước"}
+            </Button>
+
+            <Button
+              onClick={() => void handleExport()}
+              disabled={isExporting || (mode === "program" && !selectedProgramId)}
+              className="w-full gap-2"
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExporting ? "Đang tạo file..." : "Tải xuống Excel"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
