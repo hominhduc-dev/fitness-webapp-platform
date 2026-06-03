@@ -222,19 +222,57 @@ function buildTargets(profile: SerializedProfile) {
   }
 }
 
+async function listRecentFoodsForUser(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  const recentItems = await db.mealFoodItem.findMany({
+    include: {
+      food: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 40,
+    where: {
+      meal: {
+        userId: profile.id,
+      },
+    },
+  })
+  const seenFoodIds = new Set<string>()
+  const foods: Array<ReturnType<typeof serializeFood>> = []
+
+  for (const item of recentItems) {
+    if (seenFoodIds.has(item.foodId)) {
+      continue
+    }
+
+    seenFoodIds.add(item.foodId)
+    foods.push(serializeFood(item.food))
+
+    if (foods.length >= 10) {
+      break
+    }
+  }
+
+  return foods
+}
+
 async function listNutritionDayForUser(profile: SerializedProfile, rawDate?: unknown) {
   const db = ensurePrisma()
   const loggedDate = parseDateKey(rawDate)
-  const meals = await db.meal.findMany({
-    include: MEAL_WITH_FOOD_INCLUDE,
-    orderBy: {
-      type: "asc",
-    },
-    where: {
-      loggedDate,
-      userId: profile.id,
-    },
-  })
+  const [meals, recentFoods] = await Promise.all([
+    db.meal.findMany({
+      include: MEAL_WITH_FOOD_INCLUDE,
+      orderBy: {
+        type: "asc",
+      },
+      where: {
+        loggedDate,
+        userId: profile.id,
+      },
+    }),
+    listRecentFoodsForUser(profile),
+  ])
   const mealsByType = new Map(meals.map((meal) => [meal.type, meal]))
   const sections = MEAL_ORDER.map((type) => {
     const meal = mealsByType.get(type)
@@ -245,6 +283,7 @@ async function listNutritionDayForUser(profile: SerializedProfile, rawDate?: unk
   return {
     date: formatDateKey(loggedDate),
     meals: sections,
+    recentFoods,
     targets: buildTargets(profile),
     totals: {
       calories: roundNutrition(totals.calories, 0),
