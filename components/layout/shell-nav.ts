@@ -42,22 +42,22 @@ export function getTraineeNavItems(messages: AppMessages, options?: { compactLab
 export function getCoachNavItems(messages: AppMessages, counts?: CoachCounts): ShellNavItem[] {
   return [
     { exact: true, href: "/coach", icon: Home, label: messages.shell.home },
-    { count: counts?.trainees, href: "/coach/trainees", icon: Users, label: "Clients" },
+    { count: counts?.trainees, href: "/coach/trainees", icon: Users, label: messages.shell.clients },
     { count: counts?.programs, href: "/coach/programs", icon: ListChecks, label: messages.shell.programs },
-    { href: "/coach/exercises", icon: Activity, label: "Exercises" },
-    { href: "/progress", icon: BarChart3, label: "Stats" },
+    { href: "/coach/exercises", icon: Activity, label: messages.shell.exercises },
+    { href: "/progress", icon: BarChart3, label: messages.shell.stats },
   ]
 }
 
 export function getAdminNavItems(messages: AppMessages): ShellNavItem[] {
   return [
-    { exact: true, href: "/admin", icon: LayoutDashboard, label: "Overview" },
-    { href: "/admin?s=users", icon: Users, label: "Users" },
-    { href: "/admin?s=requests", icon: UserRoundCheck, label: "Coach Requests" },
-    { href: "/admin?s=connections", icon: Link2, label: "Connections" },
-    { href: "/admin?s=programs", icon: ClipboardList, label: "Programs" },
-    { href: "/admin?s=exercises", icon: Dumbbell, label: "Exercises" },
-    { href: "/admin?s=audit", icon: ScrollText, label: "Audit" },
+    { exact: true, href: "/admin", icon: LayoutDashboard, label: messages.shell.overview },
+    { href: "/admin?s=users", icon: Users, label: messages.shell.users },
+    { href: "/admin?s=requests", icon: UserRoundCheck, label: messages.shell.coachRequests },
+    { href: "/admin?s=connections", icon: Link2, label: messages.shell.connections },
+    { href: "/admin?s=programs", icon: ClipboardList, label: messages.shell.programs },
+    { href: "/admin?s=exercises", icon: Dumbbell, label: messages.shell.exercises },
+    { href: "/admin?s=audit", icon: ScrollText, label: messages.shell.audit },
     { href: "/profile", icon: Settings, label: messages.common.settings },
   ]
 }

@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import dynamic from "next/dynamic"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -72,19 +73,19 @@ function formatYYYYMM(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`
 }
 
-function monthLabel(year: number, month: number) {
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(
+function monthLabel(year: number, month: number, locale: string) {
+  return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { month: "long", year: "numeric" }).format(
     new Date(year, month - 1, 1),
   )
 }
 
-function formatShortDate(date: Date) {
-  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" }).format(date)
+function formatShortDate(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { day: "numeric", month: "short" }).format(date)
 }
 
-function formatDuration(mins: number) {
+function formatDuration(mins: number, minLabel = "min") {
   if (mins <= 0) return "—"
-  if (mins < 60) return `${mins} min`
+  if (mins < 60) return `${mins} ${minLabel}`
   return `${Math.floor(mins / 60)}h ${mins % 60}m`
 }
 
@@ -154,6 +155,7 @@ function StatsSummary({
   calendar: ProgressCalendar | null
   prevCalendar: ProgressCalendar | null
 }) {
+  const { messages } = useLocale()
   const cur = calendar?.summary ?? { avgDurationMins: 0, totalVolume: 0, totalWorkouts: 0 }
   const prev = prevCalendar?.summary ?? { avgDurationMins: 0, totalVolume: 0, totalWorkouts: 0 }
 
@@ -170,7 +172,7 @@ function StatsSummary({
     <div className="grid grid-cols-3 gap-2 sm:gap-4">
       {/* Workouts */}
       <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
-        <LabelMicro className="mb-2 block">Sessions</LabelMicro>
+        <LabelMicro className="mb-2 block">{messages.progressPage.sessions}</LabelMicro>
         <div className="flex items-baseline gap-2">
           <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
             {cur.totalWorkouts}
@@ -184,14 +186,14 @@ function StatsSummary({
             )}
           >
             {workoutDelta >= 0 ? "+" : ""}
-            {workoutDelta}% vs prev
+            {workoutDelta}% {messages.progressPage.vsPrevious}
           </div>
         )}
       </div>
 
       {/* Volume */}
       <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
-        <LabelMicro className="mb-2 block">Volume</LabelMicro>
+        <LabelMicro className="mb-2 block">{messages.workoutPage.volume}</LabelMicro>
         <div className="flex min-w-0 items-baseline gap-1">
           <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
             {formatVolume(cur.totalVolume)}
@@ -206,20 +208,20 @@ function StatsSummary({
             )}
           >
             {volumeDelta >= 0 ? "+" : ""}
-            {volumeDelta}% vs prev
+            {volumeDelta}% {messages.progressPage.vsPrevious}
           </div>
         )}
       </div>
 
       {/* Avg duration */}
       <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
-        <LabelMicro className="mb-2 block">Avg duration</LabelMicro>
+        <LabelMicro className="mb-2 block">{messages.progressPage.avgDuration}</LabelMicro>
         <div className="whitespace-nowrap font-mono text-[1.55rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
-          {formatDuration(cur.avgDurationMins)}
+          {formatDuration(cur.avgDurationMins, messages.dashboard.min)}
         </div>
         {prev.avgDurationMins > 0 && (
           <div className="mt-2 font-mono text-[10px] leading-tight tnum text-muted-foreground sm:text-[11px]">
-            prev {formatDuration(prev.avgDurationMins)}
+            {messages.progressPage.previousShort} {formatDuration(prev.avgDurationMins, messages.dashboard.min)}
           </div>
         )}
       </div>
@@ -240,6 +242,7 @@ function WorkoutLogModal({
   accessToken: string
   onClose: () => void
 }) {
+  const { locale, messages } = useLocale()
   const [log, setLog] = useState<WorkoutLog | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -250,7 +253,7 @@ function WorkoutLogModal({
     setLoading(true)
     fetchWorkoutLogDetail(accessToken, logId)
       .then((data) => { if (!cancelled) { setLog(data); setLoading(false) } })
-      .catch((err) => { if (!cancelled) { setError(err.message ?? "Failed to load"); setLoading(false) } })
+      .catch((err) => { if (!cancelled) { setError(err.message ?? messages.progressPage.loadFailed); setLoading(false) } })
     return () => { cancelled = true }
   }, [logId, accessToken])
 
@@ -265,7 +268,7 @@ function WorkoutLogModal({
     if (e.target === overlayRef.current) onClose()
   }
 
-  const startDate = log ? formatShortDate(log.startedAt) : ""
+  const startDate = log ? formatShortDate(log.startedAt, locale) : ""
   const totalSets = log?.exercises.reduce((s, ex) => s + ex.sets.length, 0) ?? 0
   const completedSets = log?.exercises.reduce(
     (s, ex) => s + ex.sets.filter((set) => set.completed).length, 0,
@@ -287,11 +290,11 @@ function WorkoutLogModal({
               <>
                 <LabelMicro className="mb-1 block">{startDate}</LabelMicro>
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {log?.workout.name ?? "Workout"}
+                  {log?.workout.name ?? messages.workoutPage.workout}
                 </h2>
                 <div className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
-                  {completedSets}/{totalSets} sets completed
-                  {log?.totalVolume ? ` · ${formatVolume(log.totalVolume)} kg total` : ""}
+                  {completedSets}/{totalSets} {messages.workoutPage.setCount(totalSets)} {messages.workoutPage.completed}
+                  {log?.totalVolume ? ` · ${messages.workoutPage.previewTotalKg(formatVolume(log.totalVolume))}` : ""}
                 </div>
               </>
             )}
@@ -300,7 +303,7 @@ function WorkoutLogModal({
             type="button"
             onClick={onClose}
             className="ml-4 rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Close"
+            aria-label={messages.common.closeNavigation}
           >
             <X className="h-4 w-4" />
           </button>
@@ -315,7 +318,7 @@ function WorkoutLogModal({
           ) : error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : log && log.exercises.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No exercise data recorded.</p>
+            <p className="text-sm text-muted-foreground">{messages.workoutPage.noExerciseData}</p>
           ) : (
             <div className="space-y-4">
               {log?.exercises.map((ex, i) => (
@@ -332,10 +335,10 @@ function WorkoutLogModal({
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-border">
-                          <th className="label-micro px-3 py-2">Set</th>
-                          <th className="label-micro px-3 py-2">Weight</th>
-                          <th className="label-micro px-3 py-2">Reps</th>
-                          <th className="label-micro px-3 py-2">Done</th>
+                          <th className="label-micro px-3 py-2">{messages.workoutPage.set}</th>
+                          <th className="label-micro px-3 py-2">{messages.workoutPage.weight}</th>
+                          <th className="label-micro px-3 py-2">{messages.workoutPage.reps}</th>
+                          <th className="label-micro px-3 py-2">{messages.workoutPage.done}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -400,7 +403,15 @@ function CalendarSection({
   calendarLoading: boolean
   onDayClick: (logs: ProgressCalendarLogStub[]) => void
 }) {
+  const { locale, messages } = useLocale()
   const [hovered, setHovered] = useState<number | null>(null)
+  const weekdayLabels = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) =>
+        new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { weekday: "short" }).format(new Date(2026, 1, index + 1)).toUpperCase(),
+      ),
+    [locale],
+  )
 
   const today = new Date()
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month
@@ -434,7 +445,7 @@ function CalendarSection({
         <>
           {/* Day-of-week headers */}
           <div className="mb-2 grid grid-cols-7 gap-1.5">
-            {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
+            {weekdayLabels.map((d) => (
               <div key={d} className="label-micro py-1.5 text-center">{d}</div>
             ))}
           </div>
@@ -504,7 +515,7 @@ function CalendarSection({
         {(["push", "pull", "legs"] as const).map((k) => (
           <div key={k} className="label-micro inline-flex items-center gap-1.5">
             <span className="rounded-full" style={{ width: 6, height: 6, background: kindColor(k), display: "inline-block" }} />
-            {k[0].toUpperCase() + k.slice(1)}
+            {k === "push" ? messages.workoutPage.tagPush : k === "pull" ? messages.workoutPage.tagPull : messages.workoutPage.tagLegs}
           </div>
         ))}
       </div>
@@ -525,6 +536,7 @@ function RecentSessions({
   calendarLoading: boolean
   onLogClick: (logId: string) => void
 }) {
+  const { locale, messages } = useLocale()
   // Collect all logs from calendar days, sorted by startedAt desc
   const logs = useMemo(() => {
     if (!calendar) return []
@@ -545,7 +557,7 @@ function RecentSessions({
   if (logs.length === 0) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center rounded-[10px] border border-dashed border-border text-sm text-muted-foreground">
-        No sessions this month.
+        {messages.workoutPage.noSessionsThisMonth}
       </div>
     )
   }
@@ -554,7 +566,7 @@ function RecentSessions({
     <div className="flex flex-col gap-2">
       {logs.map((log) => {
         const date = new Date(log.startedAt)
-        const dateLabel = formatShortDate(date)
+        const dateLabel = formatShortDate(date, locale)
         const kind = inferKind(log.workoutKind, log.workoutName)
 
         return (
@@ -606,6 +618,7 @@ function YearView({
   year: number
   onDayClick?: (date: string) => void
 }) {
+  const { messages } = useLocale()
   // Build a 53-column × 7-row grid (Mon-start weeks)
   const grid = useMemo(() => {
     // Map date → count
@@ -694,9 +707,9 @@ function YearView({
   return (
     <div className="rounded-[10px] border border-border bg-card p-5">
       <div className="mb-4 flex items-baseline justify-between">
-        <LabelMicro>{year} activity</LabelMicro>
+        <LabelMicro>{messages.progressPage.activity(year)}</LabelMicro>
         <span className="font-mono text-[11px] tnum text-muted-foreground">
-          {totalWorkouts} {totalWorkouts === 1 ? "session" : "sessions"}
+          {messages.workoutPage.sessionCount(totalWorkouts)}
         </span>
       </div>
 
@@ -728,7 +741,7 @@ function YearView({
                       <button
                         key={cell.date}
                         type="button"
-                        title={cell.count > 0 ? `${cell.date}: ${cell.count} session${cell.count > 1 ? "s" : ""}` : cell.date}
+                        title={cell.count > 0 ? `${cell.date}: ${messages.workoutPage.sessionCount(cell.count)}` : cell.date}
                         onClick={() => cell.count > 0 && onDayClick?.(cell.date)}
                         className="h-3 w-3 rounded-[2px] transition-opacity hover:opacity-80"
                         style={{ background: intensity(cell.count) }}
@@ -756,7 +769,7 @@ function YearView({
 
       {/* Intensity legend */}
       <div className="mt-4 flex items-center gap-2 border-t border-border pt-3.5">
-        <LabelMicro>Less</LabelMicro>
+        <LabelMicro>{messages.progressPage.less}</LabelMicro>
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
           <div
             key={i}
@@ -764,7 +777,7 @@ function YearView({
             style={{ background: intensity(ratio) }}
           />
         ))}
-        <LabelMicro>More</LabelMicro>
+        <LabelMicro>{messages.progressPage.more}</LabelMicro>
       </div>
     </div>
   )
@@ -781,6 +794,7 @@ function PrCard({
   record: ProgressAnalytics["personalRecords"][number]
   weightUnitLabel: string
 }) {
+  const { locale, messages } = useLocale()
   const sparkData = [
     record.weight * 0.88,
     record.weight * 0.92,
@@ -804,14 +818,14 @@ function PrCard({
         <span className="text-sm text-muted-foreground">{weightUnitLabel}</span>
       </div>
       <div className="flex items-center gap-3 font-mono text-[11px] tnum">
-        <span className="text-[var(--success)]">↑ set {formatShortDate(record.date)}</span>
+        <span className="text-[var(--success)]">↑ {messages.workoutPage.set} {formatShortDate(record.date, locale)}</span>
       </div>
       <div className="mt-1">
         <Sparkline data={sparkData} height={48} />
       </div>
       <div className="label-micro flex justify-between">
-        <span>Earlier</span>
-        <span>Now</span>
+        <span>{messages.progressPage.earlier}</span>
+        <span>{messages.progressPage.now}</span>
       </div>
     </div>
   )
@@ -873,6 +887,7 @@ export type ProgressClientInitialData = {
 
 export function ProgressClient({ initialData }: { initialData: ProgressClientInitialData }) {
   const { isLoading: authLoading, session } = useAuth()
+  const { locale, messages } = useLocale()
   const hasConsumedInitialCalendar = useRef(false)
   const hasConsumedInitialPrevCalendar = useRef(false)
 
@@ -1039,17 +1054,17 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               type="button"
               onClick={goToPrevMonth}
               className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Previous month"
+              aria-label={messages.progressPage.previousMonth}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
 
             <div>
-              <LabelMicro className="mb-1 block">{monthLabel(viewYear, viewMonth)}</LabelMicro>
+              <LabelMicro className="mb-1 block">{monthLabel(viewYear, viewMonth, locale)}</LabelMicro>
               <h1 className="text-[2rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
                 {calendarLoading
                   ? "—"
-                  : `${calendar?.summary.totalWorkouts ?? 0} ${(calendar?.summary.totalWorkouts ?? 0) === 1 ? "session" : "sessions"}`
+                  : messages.workoutPage.sessionCount(calendar?.summary.totalWorkouts ?? 0)
                 }
               </h1>
             </div>
@@ -1059,7 +1074,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               onClick={goToNextMonth}
               disabled={isCurrentMonth}
               className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-              aria-label="Next month"
+              aria-label={messages.progressPage.nextMonth}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -1069,7 +1084,13 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
           <div className="flex flex-wrap items-center gap-2">
             {(["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
               <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
-                {k === "all" ? "All" : k[0].toUpperCase() + k.slice(1)}
+                {k === "all"
+                  ? messages.workoutPage.all
+                  : k === "push"
+                    ? messages.workoutPage.tagPush
+                    : k === "pull"
+                      ? messages.workoutPage.tagPull
+                      : messages.workoutPage.tagLegs}
               </Chip>
             ))}
             <ExportWorkoutDialog programs={initialData.programs ?? []} />
@@ -1095,7 +1116,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {t === "history" ? "History" : t === "year" ? "Year view" : "Personal records"}
+              {t === "history" ? messages.progressPage.historyTab : t === "year" ? messages.progressPage.yearView : messages.progressPage.personalRecords}
             </button>
           ))}
         </div>
@@ -1122,7 +1143,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             />
 
             <div>
-              <LabelMicro className="mb-3 block">Recent</LabelMicro>
+              <LabelMicro className="mb-3 block">{messages.progressPage.recent}</LabelMicro>
               <RecentSessions
                 calendar={calendar}
                 calendarLoading={calendarLoading}
@@ -1142,7 +1163,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                 type="button"
                 onClick={() => setYearViewYear((y) => y - 1)}
                 className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted"
-                aria-label="Previous year"
+                aria-label={messages.progressPage.previousYear}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -1152,7 +1173,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                 onClick={() => setYearViewYear((y) => y + 1)}
                 disabled={yearViewYear >= now.getFullYear()}
                 className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
-                aria-label="Next year"
+                aria-label={messages.progressPage.nextYear}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -1177,11 +1198,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
           ) : (
           <div className="space-y-6">
             <div>
-              <LabelMicro className="mb-2 block">Personal records</LabelMicro>
+              <LabelMicro className="mb-2 block">{messages.progressPage.personalRecords}</LabelMicro>
               <h2 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground">
                 {data.personalRecords.length > 0
-                  ? `${data.personalRecords.length} tracked.`
-                  : "No records yet."}
+                  ? messages.progressPage.trackedRecords(data.personalRecords.length)
+                  : messages.progressPage.noRecords}
               </h2>
             </div>
 
@@ -1197,7 +1218,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               </div>
             ) : (
               <div className="flex min-h-[14rem] items-center justify-center rounded-[10px] border border-dashed border-border text-sm text-muted-foreground">
-                Complete weighted sets in your workout logs to generate personal records.
+                {messages.progressPage.completeWeightedSetsForPr}
               </div>
             )}
 

@@ -6,6 +6,7 @@ import { ChevronDown, Clock3, Download, FileSpreadsheet, Loader2, MessageSquare,
 import { formatDateInputValue, startOfLocalWeek } from "@/components/coach/trainee-workout-log-dates"
 import type { CoachWorkoutLogsWorkbookPreview } from "@/components/coach/trainee-workout-logs-excel"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -230,6 +231,37 @@ export function TraineeWorkoutLogsPanel({
   traineeName,
 }: TraineeWorkoutLogsPanelProps) {
   const { profile, session } = useAuth()
+  const { locale } = useLocale()
+  const copy = {
+    close: locale === "en" ? "Close" : "Đóng",
+    collapseAll: locale === "en" ? "Collapse all" : "Thu gọn tất cả",
+    downloadExcel: locale === "en" ? "Download Excel file" : "Tải file Excel",
+    emptyDay: locale === "en" ? "No workout logs on this day." : "Không có workout log trong ngày này.",
+    emptyWeek: locale === "en" ? "No workout logs in the selected week." : "Chưa có workout log nào trong tuần đã chọn.",
+    expandAll: locale === "en" ? "Expand all" : "Mở rộng tất cả",
+    exportWeeklyReport: locale === "en" ? "Export weekly report" : "Export báo cáo tuần",
+    loadMore: locale === "en" ? "Load more" : "Tải thêm",
+    loadingHistory: locale === "en" ? "Loading workout history..." : "Đang tải workout history...",
+    noFeedback: locale === "en" ? "No feedback for this workout yet." : "Chưa có feedback nào cho buổi tập này.",
+    noPreviewData: locale === "en" ? "No preview data." : "Không có dữ liệu preview.",
+    previewDescription:
+      locale === "en"
+        ? "Preview the Excel file before downloading. The in-app preview may not match the final Excel styling exactly."
+        : "Preview nhanh file Excel trước khi tải. Bản xem trong app có thể không giống Excel 100% về style.",
+    previewReport: locale === "en" ? "Preview report" : "Preview report",
+    previewWeeklyReport: locale === "en" ? "Preview weekly report" : "Preview báo cáo tuần",
+    sessions: (count: number) => (locale === "en" ? `${count} sessions` : `${count} buổi`),
+    sessionSummary: (count: number, completed: number, total: number, volume: number) => {
+      const base =
+        locale === "en"
+          ? `${count} workout${count === 1 ? "" : "s"} • ${completed}/${total} sets completed`
+          : `${count} buổi tập • ${completed}/${total} sets hoàn thành`
+      return volume > 0
+        ? `${base} • ${Math.round(volume).toLocaleString(locale === "en" ? "en-US" : "vi-VN")} kg volume`
+        : base
+    },
+    workbookPreviewLoading: locale === "en" ? "Generating workbook preview..." : "Đang tạo preview workbook...",
+  }
   const defaultWeekStart = formatDateInputValue(startOfLocalWeek(new Date()))
   const initialWeekLogs = initialLogs.filter((log) => isLogInSelectedWeek(log, defaultWeekStart))
   const [logs, setLogs] = useState<WorkoutLog[]>(initialWeekLogs)
@@ -612,7 +644,7 @@ export function TraineeWorkoutLogsPanel({
 
         <div className="mt-4 space-y-3">
           {log.comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Chưa có feedback nào cho buổi tập này.</p>
+            <p className="text-sm text-muted-foreground">{copy.noFeedback}</p>
           ) : (
             log.comments.map((comment) => {
               const isOwner = profile?.id === comment.authorId
@@ -769,7 +801,7 @@ export function TraineeWorkoutLogsPanel({
             ) : (
               <FileSpreadsheet className="h-4 w-4" />
             )}
-            Preview report
+            {copy.previewReport}
           </Button>
           <Button
             type="button"
@@ -779,7 +811,7 @@ export function TraineeWorkoutLogsPanel({
             disabled={isExporting || isLoading || logs.length === 0}
           >
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Export weekly report
+            {copy.exportWeeklyReport}
           </Button>
         </div>
       </div>
@@ -787,20 +819,20 @@ export function TraineeWorkoutLogsPanel({
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Đang tải workout history...
+          {copy.loadingHistory}
         </div>
       ) : logs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          Chưa có workout log nào trong tuần đã chọn.
+          {copy.emptyWeek}
         </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={expandAllDays}>
-              Expand all
+              {copy.expandAll}
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={collapseAllDays}>
-              Collapse all
+              {copy.collapseAll}
             </Button>
           </div>
 
@@ -819,15 +851,13 @@ export function TraineeWorkoutLogsPanel({
                       <p className="text-sm font-semibold">{section.label}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {section.logs.length > 0
-                          ? `${section.logs.length} buổi tập • ${section.completedSets}/${section.totalSets} sets hoàn thành${
-                              section.totalVolume > 0 ? ` • ${Math.round(section.totalVolume).toLocaleString()} kg volume` : ""
-                            }`
-                          : "Không có workout log trong ngày này."}
+                          ? copy.sessionSummary(section.logs.length, section.completedSets, section.totalSets, section.totalVolume)
+                          : copy.emptyDay}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                        {section.logs.length} sessions
+                        {copy.sessions(section.logs.length)}
                       </span>
                       <ChevronDown
                         className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
@@ -841,7 +871,7 @@ export function TraineeWorkoutLogsPanel({
                     <div className="border-t border-border bg-muted/10 px-4 py-4">
                       {section.logs.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                          Không có workout log trong ngày này.
+                          {copy.emptyDay}
                         </div>
                       ) : (
                         <div className="space-y-4">{section.logs.map(renderLogCard)}</div>
@@ -864,7 +894,7 @@ export function TraineeWorkoutLogsPanel({
             disabled={isLoadingMore}
           >
             {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Load more
+            {copy.loadMore}
           </Button>
         </div>
       ) : null}
@@ -872,9 +902,9 @@ export function TraineeWorkoutLogsPanel({
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-h-[90vh] max-w-[min(96vw,1200px)] overflow-hidden p-0">
           <DialogHeader className="border-b border-border px-6 py-4">
-            <DialogTitle>Preview weekly report</DialogTitle>
+            <DialogTitle>{copy.previewWeeklyReport}</DialogTitle>
             <DialogDescription>
-              Preview nhanh file Excel trước khi tải. Bản xem trong app có thể không giống Excel 100% về style.
+              {copy.previewDescription}
             </DialogDescription>
           </DialogHeader>
 
@@ -882,7 +912,7 @@ export function TraineeWorkoutLogsPanel({
             {isPreviewLoading ? (
               <div className="flex h-[60vh] items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Đang tạo preview workbook...
+                {copy.workbookPreviewLoading}
               </div>
             ) : previewWorkbook ? (
               <Tabs defaultValue={previewWorkbook.sheets[0]?.name} className="h-full">
@@ -907,7 +937,7 @@ export function TraineeWorkoutLogsPanel({
               </Tabs>
             ) : (
               <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">
-                Không có dữ liệu preview.
+                {copy.noPreviewData}
               </div>
             )}
           </div>
@@ -919,7 +949,7 @@ export function TraineeWorkoutLogsPanel({
               className="bg-transparent"
               onClick={() => setIsPreviewOpen(false)}
             >
-              Đóng
+              {copy.close}
             </Button>
             <Button
               type="button"
@@ -934,7 +964,7 @@ export function TraineeWorkoutLogsPanel({
               disabled={!previewWorkbook}
             >
               <Download className="mr-2 h-4 w-4" />
-              Tải file Excel
+              {copy.downloadExcel}
             </Button>
           </DialogFooter>
         </DialogContent>

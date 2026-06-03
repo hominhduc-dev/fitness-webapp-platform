@@ -154,7 +154,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setSuccess(null)
 
     if (!isSupabaseConfigured) {
-      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
       return
     }
 
@@ -176,9 +176,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       const message =
         rawError instanceof ApiError || rawError instanceof Error
           ? rawError.message
-          : messages.auth.login === "Sign In"
-            ? "Unable to sign in."
-            : "Không thể đăng nhập."
+          : messages.auth.loginFailed
       setError(message)
     } finally {
       setIsLoading(false)
@@ -191,7 +189,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setSuccess(null)
 
     if (!isSupabaseConfigured) {
-      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
       return
     }
 
@@ -232,9 +230,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       const message =
         rawError instanceof ApiError || rawError instanceof Error
           ? rawError.message
-          : messages.auth.register === "Create Account"
-            ? "Unable to create your account."
-            : "Không thể đăng ký."
+          : messages.auth.registerFailed
       setError(message)
     } finally {
       setIsLoading(false)
@@ -246,7 +242,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setSuccess(null)
 
     if (!isSupabaseConfigured) {
-      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
       return
     }
 
@@ -270,9 +266,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       const message =
         rawError instanceof ApiError || rawError instanceof Error
           ? rawError.message
-          : messages.auth.login === "Sign In"
-            ? "Unable to send the password reset email."
-            : "Không thể gửi email đặt lại mật khẩu."
+          : messages.auth.resetEmailFailed
       setError(message)
     } finally {
       setIsLoading(false)
@@ -286,7 +280,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     const supabase = getOptionalBrowserSupabaseClient()
 
     if (!supabase) {
-      setError(supabaseConfigError ?? "Supabase chưa được cấu hình.")
+      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
       return
     }
 
@@ -329,7 +323,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       {!isSupabaseConfigured && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
           <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
-          <p className="text-sm text-amber-700">Tính năng đăng nhập đang bị tắt vì thiếu cấu hình Supabase public.</p>
+          <p className="text-sm text-amber-700">{messages.auth.authDisabledConfig}</p>
         </div>
       )}
       {error && (

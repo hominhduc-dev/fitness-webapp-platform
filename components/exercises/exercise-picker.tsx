@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, ChevronDown, Search } from "lucide-react"
 
+import { useLocale } from "@/components/providers/locale-provider"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
@@ -30,6 +31,7 @@ export function ExercisePicker({
   onSelect,
   selectedVariationId,
 }: ExercisePickerProps) {
+  const { messages } = useLocale()
   const [open, setOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [query, setQuery] = useState("")
@@ -176,7 +178,7 @@ export function ExercisePicker({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search exercise, variation, or muscle group"
+          placeholder={messages.workoutPage.searchExercisePlaceholder}
           className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-xl border bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-[3px]"
         />
       </div>
@@ -184,7 +186,7 @@ export function ExercisePicker({
       <div className={pickerListClassName}>
         {groupedExercises.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/70 px-4 py-5 text-center text-sm text-muted-foreground">
-            No exercises match this search.
+            {messages.workoutPage.noExerciseMatches}
           </div>
         ) : (
           groupedExercises.map((group) => {
@@ -200,7 +202,7 @@ export function ExercisePicker({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{group.muscleGroup}</p>
                     <p className="text-xs text-muted-foreground">
-                      {group.items.length} exercise{group.items.length === 1 ? "" : "s"}
+                      {messages.workoutPage.exerciseCount(group.items.length)}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -300,7 +302,7 @@ export function ExercisePicker({
                     isDefault: fallbackSelection.isDefault,
                     variationName: fallbackSelection.variationName,
                   })
-              : "Choose an exercise"}
+              : messages.workoutPage.chooseExercise}
           </span>
           {selectedExercise || fallbackSelection ? (
             <span className="block truncate text-xs text-muted-foreground">
@@ -327,8 +329,8 @@ export function ExercisePicker({
         <Drawer open={open} onOpenChange={setOpen}>
               <DrawerContent className="max-h-[82svh] overflow-hidden rounded-t-[28px] border-t border-border bg-background/98">
             <DrawerHeader className="px-4 pt-4 text-left">
-              <DrawerTitle>Choose an exercise</DrawerTitle>
-              <DrawerDescription>Search by exercise name, variation, or muscle group.</DrawerDescription>
+              <DrawerTitle>{messages.workoutPage.chooseExercise}</DrawerTitle>
+              <DrawerDescription>{messages.workoutPage.chooseExerciseDescription}</DrawerDescription>
             </DrawerHeader>
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-5">
               {pickerPanel}

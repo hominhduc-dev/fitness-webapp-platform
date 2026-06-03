@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchCoachPrograms, fetchCoachTraineeDetail } from "@/lib/fitness/api"
+import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
 
 function getInitials(name: string) {
   return name
@@ -38,15 +39,23 @@ const STATUS_BADGE_CLASS: Record<"on-track" | "behind" | "rest", string> = {
   "rest": "bg-muted text-muted-foreground border-border",
 }
 
-const STATUS_LABEL: Record<"on-track" | "behind" | "rest", string> = {
-  "on-track": "On track",
-  "behind": "Behind",
-  "rest": "Rest week",
+function getStatusLabel(status: "on-track" | "behind" | "rest", messages: Awaited<ReturnType<typeof getServerMessages>>) {
+  const statusLabel: Record<"on-track" | "behind" | "rest", string> = {
+    "on-track": messages.coach.statusOnTrack,
+    "behind": messages.coach.statusBehind,
+    "rest": messages.coach.statusRestWeek,
+  }
+
+  return statusLabel[status]
 }
 
 export default async function TraineeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { accessToken } = await requireAppSession({ role: "coach" })
+  const [{ accessToken }, locale, messages] = await Promise.all([
+    requireAppSession({ role: "coach" }),
+    getServerLocale(),
+    getServerMessages(),
+  ])
   const [detail, coachPrograms] = await Promise.all([
     fetchCoachTraineeDetail(accessToken, id),
     fetchCoachPrograms(accessToken),
@@ -59,7 +68,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
   const streak = detail.trainee.thisWeekWorkouts
 
   const lastSeen = detail.trainee.lastCheckInAt
-    ? detail.trainee.lastCheckInAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? detail.trainee.lastCheckInAt.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", { month: "short", day: "numeric" })
     : null
 
   return (
@@ -71,7 +80,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <span className="text-sm text-muted-foreground">All clients</span>
+        <span className="text-sm text-muted-foreground">{messages.coach.allClients}</span>
       </div>
 
       {/* Client header */}
@@ -97,11 +106,10 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
               variant="micro"
               className={STATUS_BADGE_CLASS[status]}
             >
-              {STATUS_LABEL[status]}
+              {getStatusLabel(status, messages)}
             </Badge>
             <span className="font-mono text-xs text-muted-foreground">
-              · {streak} workout{streak !== 1 ? "s" : ""} this week
-              {lastSeen ? ` · last seen ${lastSeen}` : ""}
+              {messages.coach.traineeWorkoutSummary(streak, lastSeen ?? undefined)}
             </span>
           </div>
         </div>

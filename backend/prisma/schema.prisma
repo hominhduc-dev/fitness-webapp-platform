@@ -56,17 +56,16 @@ enum WeightUnit {
 enum FoodSource {
   system
   user
-  imported
 }
 
-enum FoodNutrientKey {
-  calories
+enum FoodCategory {
+  staple
   protein
-  carbs
-  fat
-  fiber
-  sugar
-  sodium
+  veg
+  fruit
+  dish
+  drink
+  other
 }
 
 enum NotificationType {
@@ -105,6 +104,9 @@ model User {
   fitnessGoals           String[]            @default([])
   preferredWeightUnit    WeightUnit          @default(kg)
   dailyCalorieGoal       Int                 @default(2500)
+  dailyProteinGoal       Int                 @default(140)
+  dailyCarbsGoal         Int                 @default(280)
+  dailyFatGoal           Int                 @default(70)
   heightCm               Float?
   targetWeightKg         Float?
   coachId                String?             @db.Uuid
@@ -189,14 +191,14 @@ model ExerciseImportRequest {
 
 model Food {
   id            String           @id @default(uuid()) @db.Uuid
-  fdcId         String?          @unique
+  slug          String           @unique
   name          String
+  category      FoodCategory
   brand         String?
-  brandOwner    String?
-  dataType      String?
   barcode       String?          @unique
   servingAmount Float            @default(1)
   servingUnit   String           @default("serving")
+  servingLabel  String
   calories      Float
   protein       Float?
   carbs         Float?
@@ -206,32 +208,15 @@ model Food {
   sodium        Float?
   source        FoodSource       @default(system)
   isVerified    Boolean          @default(false)
-  rawJson       Json?
   createdById   String?          @db.Uuid
   createdBy     User?            @relation("FoodCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  nutrients     FoodNutrient[]
   mealItems     MealFoodItem[]
-  mealLogs      Meal[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   @@index([createdById])
+  @@index([category])
   @@index([name])
-}
-
-model FoodNutrient {
-  id            String          @id @default(uuid()) @db.Uuid
-  foodId        String          @db.Uuid
-  nutrientKey   FoodNutrientKey
-  nutrientName  String
-  unit          String
-  amountPer100g Float
-  food          Food            @relation(fields: [foodId], references: [id], onDelete: Cascade)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  @@unique([foodId, nutrientKey])
-  @@index([nutrientKey])
 }
 
 model Program {
@@ -397,11 +382,9 @@ model CoachCheckIn {
 model Meal {
   id               String   @id @default(uuid()) @db.Uuid
   userId           String   @db.Uuid
-  foodId           String?  @db.Uuid
   type             MealType
   name             String
-  foodNameSnapshot String?
-  weightGrams      Float?
+  loggedDate       DateTime @db.Date
   calories         Float
   protein          Float?
   carbs            Float?
@@ -411,13 +394,13 @@ model Meal {
   sodium           Float?
   recordedAt       DateTime
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  food             Food?    @relation(fields: [foodId], references: [id], onDelete: SetNull)
   items            MealFoodItem[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@unique([userId, loggedDate, type])
+  @@index([userId, loggedDate])
   @@index([userId, recordedAt])
-  @@index([foodId])
 }
 
 model MealFoodItem {
@@ -425,9 +408,13 @@ model MealFoodItem {
   mealId           String    @db.Uuid
   foodId           String    @db.Uuid
   quantity         Float     @default(1)
+  amountValue      Float     @default(1)
+  amountUnit       String    @default("serving")
+  amountLabel      String?
+  weightGrams      Float?
   notes            String?
   foodNameSnapshot String?
-  calories         Float?
+  calories         Float     @default(0)
   protein          Float?
   carbs            Float?
   fat              Float?

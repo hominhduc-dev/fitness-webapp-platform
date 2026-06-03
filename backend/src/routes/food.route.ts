@@ -1,20 +1,33 @@
 import { Router } from "express"
 
 import { requireCurrentProfile } from "../services/auth.service"
-import { searchFoodsForUser } from "../services/meal-log.service"
-import { getAccessToken, sendError } from "./route.utils"
+import { createFoodForUser, listFoodsForUser } from "../services/nutrition.service"
+import { getAccessToken, sendApiError, sendData } from "./route.utils"
 
 const foodRouter = Router()
 
-foodRouter.get("/search", async (req, res) => {
+foodRouter.get("/", async (req, res) => {
   try {
-    await requireCurrentProfile(getAccessToken(req))
-    const query = typeof req.query.q === "string" ? req.query.q : ""
-    const result = await searchFoodsForUser(query)
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const foods = await listFoodsForUser(profile.profile, {
+      category: req.query.category,
+      query: req.query.query,
+    })
 
-    res.json(result)
+    sendData(res, { foods })
   } catch (error) {
-    sendError(res, error)
+    sendApiError(res, error)
+  }
+})
+
+foodRouter.post("/", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const food = await createFoodForUser(profile.profile, req.body)
+
+    sendData(res, { food }, { status: 201 })
+  } catch (error) {
+    sendApiError(res, error)
   }
 })
 

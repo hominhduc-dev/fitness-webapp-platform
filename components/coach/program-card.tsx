@@ -5,6 +5,7 @@ import { Copy, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { useLocale } from "@/components/providers/locale-provider"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,16 +34,16 @@ interface ProgramCardProps {
   onDelete: () => void
 }
 
-function formatEditedAt(value: Date) {
+function formatEditedAt(value: Date, messages: ReturnType<typeof useLocale>["messages"]) {
   const diffMs = Date.now() - value.getTime()
   const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000))
 
-  if (diffDays === 0) return "today"
-  if (diffDays === 1) return "yesterday"
-  if (diffDays < 14) return `${diffDays} days ago`
+  if (diffDays === 0) return messages.coach.today
+  if (diffDays === 1) return messages.coach.yesterday
+  if (diffDays < 14) return messages.coach.daysAgo(diffDays)
 
   const diffWeeks = Math.floor(diffDays / 7)
-  return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`
+  return messages.coach.weeksAgo(diffWeeks)
 }
 
 /**
@@ -50,6 +51,7 @@ function formatEditedAt(value: Date) {
  * Kebab (top-right) opens Edit / Assign / Duplicate / Delete.
  */
 export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDelete }: ProgramCardProps) {
+  const { messages } = useLocale()
   const [menuOpen, setMenuOpen] = useState(false)
   const assigned = program.assignedTrainees ?? []
 
@@ -65,33 +67,33 @@ export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDe
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[17px] font-semibold leading-snug tracking-[-0.01em]">{program.name}</h3>
           <p className="label-micro mt-1 text-muted-foreground">
-            {program.duration} weeks · {program.workoutsPerWeek} days/week
+            {messages.coach.weeks(program.duration)} · {messages.coach.daysPerWeek(program.workoutsPerWeek)}
           </p>
         </div>
 
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 text-muted-foreground hover:bg-muted" aria-label="Program actions">
+            <Button variant="ghost" size="icon-sm" className="-mr-1 -mt-1 text-muted-foreground hover:bg-muted" aria-label={messages.coach.programActions}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onSelect={onEdit}>
               <Pencil className="h-4 w-4" />
-              Edit program
+              {messages.coach.editProgram}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onAssign}>
               <UserPlus className="h-4 w-4" />
-              Assign
+              {messages.coach.assign}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onDuplicate}>
               <Copy className="h-4 w-4" />
-              Duplicate
+              {messages.coach.duplicate}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={onDelete}>
               <Trash2 className="h-4 w-4" />
-              Delete
+              {messages.common.delete}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -99,7 +101,7 @@ export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDe
 
       {/* Description */}
       <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-        {program.description || "No description added."}
+        {program.description || messages.coach.noDescription}
       </p>
 
       {/* Assigned strip */}
@@ -117,11 +119,11 @@ export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDe
               ))}
             </div>
             <span className="font-mono text-[11px] tnum text-muted-foreground">
-              {assigned.length} active client{assigned.length === 1 ? "" : "s"}
+              {messages.coach.activeClientsCount(assigned.length)}
             </span>
           </>
         ) : (
-          <span className="label-micro">Not assigned yet</span>
+          <span className="label-micro">{messages.coach.notAssignedYet}</span>
         )}
       </div>
 
@@ -129,15 +131,15 @@ export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDe
       <div className="flex gap-2">
         <Button className="flex-1 gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={onAssign}>
           <UserPlus className="h-3.5 w-3.5" />
-          Assign
+          {messages.coach.assign}
         </Button>
         <Button variant="outline" className="gap-1.5" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" />
-          Edit
+          {messages.common.edit}
         </Button>
       </div>
 
-      <p className="label-micro">Edited {formatEditedAt(program.createdAt)}</p>
+      <p className="label-micro">{messages.coach.edited(formatEditedAt(program.createdAt, messages))}</p>
     </div>
   )
 }

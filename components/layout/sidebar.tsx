@@ -129,12 +129,12 @@ function AdminSidebar({ pathname }: { pathname: string }) {
           href="/dashboard"
           className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
         >
-          ← Back to athlete view
+          ← {messages.shell.backToAthleteView}
         </Link>
 
         {/* Nav sections */}
         <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-          <p className="label-micro mb-2 px-1 text-muted-foreground">Control center</p>
+          <p className="label-micro mb-2 px-1 text-muted-foreground">{messages.shell.controlCenter}</p>
           <nav className="flex flex-col gap-1">
             {sectionItems.map((item) => {
               const isActive = isAdminItemActive(item)
@@ -158,7 +158,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 
           {settingsItems.length > 0 && (
             <>
-              <p className="label-micro mb-2 mt-5 px-1 text-muted-foreground">Account</p>
+              <p className="label-micro mb-2 mt-5 px-1 text-muted-foreground">{messages.shell.account}</p>
               <nav className="flex flex-col gap-1">
                 {settingsItems.map((item) => {
                   const isActive = isAdminItemActive(item)
@@ -251,13 +251,13 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         </div>
 
         <Link href="/dashboard" className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
-          ← Back to athlete view
+          ← {messages.shell.backToAthleteView}
         </Link>
 
         <Button asChild className="mb-7 w-full justify-start gap-2 bg-foreground text-background hover:bg-foreground/90">
           <Link href="/coach/trainees">
             <UserPlus className="h-4 w-4" />
-            Add client
+            {messages.shell.addClient}
           </Link>
         </Button>
 
@@ -297,7 +297,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
             fallbackEmail="coach@example.com"
             fallbackInitials="EK"
             fallbackName="Coach Eli K."
-            subtitle={<span className="font-mono text-[11px]">12 active clients</span>}
+            subtitle={<span className="font-mono text-[11px]">12 {messages.shell.activeClients}</span>}
           />
         </div>
       </div>

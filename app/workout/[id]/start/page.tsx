@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils"
 import type { ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+import type { AppMessages } from "@/lib/i18n/messages"
 
 // ─── Session storage helpers (unchanged) ──────────────────────────────────────
 
@@ -216,17 +218,19 @@ function resolvePlannedDateForWorkout(workout: Workout, actualDate: Date) {
   return formatDateInputValue(actualDate)
 }
 
-function getDayLabel(date: Date): { primary: string; secondary?: string } {
+function getDayLabel(date: Date, messages: AppMessages, locale: string): { primary: string; secondary?: string } {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const target = new Date(date)
   target.setHours(0, 0, 0, 0)
   const diff = Math.round((today.getTime() - target.getTime()) / (24 * 60 * 60 * 1000))
-  const dayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
   const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`
-  if (diff === 0) return { primary: "Hôm nay", secondary: dateStr }
-  if (diff === 1) return { primary: "Hôm qua", secondary: dateStr }
-  return { primary: dayNames[date.getDay()], secondary: dateStr }
+  if (diff === 0) return { primary: messages.workoutPage.today, secondary: dateStr }
+  if (diff === 1) return { primary: messages.workoutPage.yesterdayDate, secondary: dateStr }
+  return {
+    primary: new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { weekday: "long" }).format(date),
+    secondary: dateStr,
+  }
 }
 
 // ─── Set row (Lift spec) ───────────────────────────────────────────────────────
@@ -242,6 +246,7 @@ interface LiftSetRowProps {
 }
 
 function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
+  const { messages } = useLocale()
   const [weight, setWeight] = useState(set.weight?.toString() ?? "")
   const [reps, setReps] = useState(set.actualReps?.toString() ?? set.targetReps.toString())
   const [rir, setRir] = useState(set.rir?.toString() ?? "")
@@ -305,7 +310,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
           onChange({ weight: Number.parseFloat(e.target.value) || undefined })
         }}
         placeholder="—"
-        aria-label={`Weight in ${weightUnit}`}
+        aria-label={messages.workoutPage.weightInUnit(weightUnit)}
         className={cn(
           "w-full font-mono text-[14px] text-center rounded-md",
           "border transition-colors duration-[180ms]",
@@ -329,7 +334,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
           onChange({ actualReps: Number.parseInt(e.target.value) || undefined })
         }}
         placeholder="—"
-        aria-label="Reps"
+        aria-label={messages.workoutPage.reps}
         className={cn(
           "w-full font-mono text-[14px] text-center rounded-md",
           "border transition-colors duration-[180ms]",
@@ -374,7 +379,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
           <button
             type="button"
             onClick={handleToggle}
-            aria-label={completed ? "Mark incomplete" : "Complete set"}
+            aria-label={completed ? messages.workoutPage.markIncomplete : messages.workoutPage.completeSet}
             className={cn(
               "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
               "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
@@ -389,7 +394,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label="Set options"
+                aria-label={messages.workoutPage.setOptions}
                 className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
@@ -398,7 +403,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
             <DropdownMenuContent align="end" className="w-36">
               <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
                 <FileText className="mr-2 h-4 w-4" />
-                {noteOpen ? "Hide note" : "Add note"}
+                {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
                 {note.trim() && !noteOpen && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
               </DropdownMenuItem>
               {canRemove && (
@@ -409,7 +414,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
                     onClick={onRemove}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Remove set
+                    {messages.workoutPage.removeSet}
                   </DropdownMenuItem>
                 </>
               )}
@@ -428,7 +433,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
               setNote(e.target.value)
               onChange({ notes: e.target.value || undefined })
             }}
-            placeholder="Note for this set..."
+            placeholder={messages.workoutPage.noteForSet}
             className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -460,6 +465,7 @@ function LiftExerciseBlock({
   onRemoveExercise,
   onExerciseNoteChange,
 }: LiftExerciseBlockProps) {
+  const { messages } = useLocale()
   const completedCount = exercise.sets.filter((s) => s.completed).length
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(exercise.notes ?? "")
@@ -476,8 +482,8 @@ function LiftExerciseBlock({
         <div className="min-w-0 flex-1">
           <p className="text-lg font-semibold leading-tight truncate">{exerciseLabel}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {exercise.sets.length} set{exercise.sets.length !== 1 ? "s" : ""}
-            {completedCount > 0 && ` · ${completedCount} completed`}
+            {messages.workoutPage.setCount(exercise.sets.length)}
+            {completedCount > 0 && ` · ${messages.workoutPage.setCompleted(completedCount)}`}
             {note.trim() && ` · 📝`}
           </p>
         </div>
@@ -485,7 +491,7 @@ function LiftExerciseBlock({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="More options"
+              aria-label={messages.workoutPage.moreOptions}
               className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
             >
               <MoreHorizontal className="h-[18px] w-[18px]" />
@@ -494,7 +500,7 @@ function LiftExerciseBlock({
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
               <FileText className="mr-2 h-4 w-4" />
-              {noteOpen ? "Hide note" : "Add note"}
+              {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -502,7 +508,7 @@ function LiftExerciseBlock({
               onClick={() => onRemoveExercise(exercise.id)}
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              Remove exercise
+              {messages.workoutPage.removeExercise}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -518,7 +524,7 @@ function LiftExerciseBlock({
               setNote(e.target.value)
               onExerciseNoteChange(exercise.id, e.target.value)
             }}
-            placeholder="Note for this exercise..."
+            placeholder={messages.workoutPage.noteForExercise}
             className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -533,10 +539,10 @@ function LiftExerciseBlock({
           "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
         )}
       >
-        <span className="text-center">Set</span>
-        <span className="text-center">Prev</span>
+        <span className="text-center">{messages.workoutPage.set}</span>
+        <span className="text-center">{messages.workoutPage.previous}</span>
         <span className="text-center">{weightUnit}</span>
-        <span className="text-center">Reps</span>
+        <span className="text-center">{messages.workoutPage.reps}</span>
         <span className="text-center">RIR</span>
         <span />
       </div>
@@ -567,7 +573,7 @@ function LiftExerciseBlock({
         className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
       >
         <Plus className="h-3.5 w-3.5" />
-        Add set
+        {messages.workoutPage.addSet}
       </button>
     </div>
   )
@@ -614,6 +620,7 @@ export default function WorkoutStartPage() {
   const params = useParams()
   const router = useRouter()
   const { isLoading: authLoading, profile, session } = useAuth()
+  const { locale, messages } = useLocale()
 
   const [workout, setWorkout] = useState<Workout | null>(null)
   const [exercises, setExercises] = useState<Workout["exercises"]>([])
@@ -666,7 +673,7 @@ export default function WorkoutStartPage() {
         )
         setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
       } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Không thể tải workout.")
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : messages.workoutPage.loadingWorkout)
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -711,7 +718,7 @@ export default function WorkoutStartPage() {
   )
   const elapsedMinutes = Math.max(1, Math.round((now.getTime() - startTime.getTime()) / 60000))
   const elapsedLabel = elapsedMinutes < 60
-    ? `${elapsedMinutes} min`
+    ? `${elapsedMinutes} ${messages.dashboard.min}`
     : `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m`
 
   const startedLabel = (() => {
@@ -721,12 +728,11 @@ export default function WorkoutStartPage() {
   })()
 
   const dateLabel = (() => {
-    const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December",
-    ]
-    return `${weekdays[now.getDay()]} · ${months[now.getMonth()]} ${now.getDate()}`
+    return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
+      day: "numeric",
+      month: "long",
+      weekday: "long",
+    }).format(now)
   })()
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -885,7 +891,7 @@ export default function WorkoutStartPage() {
       router.push("/dashboard")
       router.refresh()
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Không thể lưu workout log.")
+      setError(saveError instanceof Error ? saveError.message : messages.meals.logMealError)
     } finally {
       setIsSaving(false)
     }
@@ -922,7 +928,7 @@ export default function WorkoutStartPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background text-muted-foreground">
-        Loading workout...
+        {messages.workoutPage.loadingWorkout}
       </div>
     )
   }
@@ -931,12 +937,12 @@ export default function WorkoutStartPage() {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
         <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
-          <p className="text-lg font-semibold">Workout not found</p>
+          <p className="text-lg font-semibold">{messages.workoutPage.workoutNotFound}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            {error || "This workout is unavailable or not assigned to you."}
+            {error || messages.workoutPage.thisWorkoutUnavailable}
           </p>
           <Button className="mt-4" onClick={() => router.push("/workout")}>
-            Back to workouts
+            {messages.workoutPage.backToWorkouts}
           </Button>
         </div>
       </div>
@@ -957,7 +963,7 @@ export default function WorkoutStartPage() {
             className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
           >
             <X className="h-4 w-4" />
-            Cancel workout
+            {messages.workoutPage.cancelWorkout}
           </button>
           <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-2">
             {dateLabel}
@@ -970,28 +976,28 @@ export default function WorkoutStartPage() {
         {/* Session stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-[10px] bg-card overflow-hidden mb-7">
           <StatCell
-            label="Started"
+            label={messages.workoutPage.started}
             value={startedLabel}
             sub={elapsedLabel}
             lastRow={false}
           />
           <StatCell
-            label="Sets"
+            label={messages.workoutPage.set}
             value={`${completedSets} / ${totalSets}`}
-            sub="completed"
+            sub={messages.workoutPage.completed}
             last
             lastRow={false}
           />
           <StatCell
-            label="Volume"
+            label={messages.workoutPage.volume}
             value={volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : String(Math.round(volume))}
-            sub="kg lifted"
+            sub={messages.workoutPage.kgLifted}
             lastRow
           />
           <StatCell
-            label="Exercises"
+            label={messages.workoutPage.exercises}
             value={exercises.length}
-            sub="planned"
+            sub={messages.workoutPage.planned}
             last
             lastRow
           />
@@ -1026,7 +1032,7 @@ export default function WorkoutStartPage() {
             onClick={() => void handleOpenAddExercise()}
           >
             <Plus className="h-4 w-4" />
-            Add exercise
+            {messages.workoutPage.addExercise}
           </Button>
 
           {/* Spacer (desktop) */}
@@ -1038,7 +1044,7 @@ export default function WorkoutStartPage() {
             className="hidden md:flex"
             onClick={handleCancelWorkout}
           >
-            Cancel
+            {messages.common.cancel}
           </Button>
 
           {/* Finish workout */}
@@ -1047,7 +1053,7 @@ export default function WorkoutStartPage() {
             onClick={handleFinishWorkout}
             disabled={completedSets === 0 || isSaving}
           >
-            {isSaving ? "Saving..." : "Finish workout"}
+            {isSaving ? messages.workoutPage.saving : messages.workoutPage.finishWorkout}
           </Button>
         </div>
       </main>
@@ -1063,7 +1069,7 @@ export default function WorkoutStartPage() {
       <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Bạn thực sự tập lúc nào?</DialogTitle>
+            <DialogTitle>{messages.workoutPage.actualWorkoutDateTitle}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-2 py-1">
@@ -1071,7 +1077,7 @@ export default function WorkoutStartPage() {
               .slice()
               .reverse()
               .map((day) => {
-                const { primary, secondary } = getDayLabel(day)
+                const { primary, secondary } = getDayLabel(day, messages, locale)
                 const isSelected =
                   selectedDate.getFullYear() === day.getFullYear() &&
                   selectedDate.getMonth() === day.getMonth() &&
@@ -1108,7 +1114,7 @@ export default function WorkoutStartPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDateDialog(false)} disabled={isSaving}>
-              Hủy
+              {messages.common.cancel}
             </Button>
             <Button
               onClick={() => {
@@ -1117,7 +1123,7 @@ export default function WorkoutStartPage() {
               }}
               disabled={isSaving}
             >
-              {isSaving ? "Đang lưu..." : "Lưu"}
+              {isSaving ? messages.common.saving : messages.common.save}
             </Button>
           </DialogFooter>
         </DialogContent>

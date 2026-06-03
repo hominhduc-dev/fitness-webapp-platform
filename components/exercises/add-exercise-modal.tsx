@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Search, X } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { useLocale } from "@/components/providers/locale-provider"
 import { Input } from "@/components/ui/input"
 import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import type { ExerciseVariationOption } from "@/lib/types"
@@ -33,10 +34,11 @@ export function AddExerciseModal({
   existingVariationIds,
   onPick,
   onClose,
-  title = "Add exercise",
+  title,
   loading = false,
   footer,
 }: AddExerciseModalProps) {
+  const { messages } = useLocale()
   const [query, setQuery] = useState("")
   const [muscle, setMuscle] = useState("all")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -89,7 +91,7 @@ export function AddExerciseModal({
         {/* Header */}
         <div className="border-b border-border px-[22px] pb-3 pt-5">
           <div className="mb-3.5 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+            <h3 className="text-lg font-semibold text-foreground">{title ?? messages.workoutPage.addExercise}</h3>
             <button
               type="button"
               onClick={onClose}
@@ -104,7 +106,7 @@ export function AddExerciseModal({
               ref={inputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search…"
+              placeholder={messages.workoutPage.searchShortPlaceholder}
               className="pl-9"
             />
           </div>
@@ -121,7 +123,7 @@ export function AddExerciseModal({
                     : "border-border bg-background text-foreground hover:border-foreground/30",
                 )}
               >
-                {group === "all" ? "All" : group}
+                {group === "all" ? messages.workoutPage.all : group}
               </button>
             ))}
           </div>
@@ -131,11 +133,11 @@ export function AddExerciseModal({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {loading ? (
             <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              Loading exercises…
+              {messages.workoutPage.loadingExercises}
             </div>
           ) : visible.length === 0 ? (
             <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              No exercises found.
+              {messages.workoutPage.noExercisesFound}
             </div>
           ) : (
             visible.map((exercise, index) => {
@@ -160,7 +162,7 @@ export function AddExerciseModal({
                     </p>
                   </div>
                   {added ? (
-                    <span className="text-xs font-medium text-green-600">added</span>
+                    <span className="text-xs font-medium text-green-600">{messages.workoutPage.added}</span>
                   ) : (
                     <span className="text-lg leading-none text-muted-foreground">+</span>
                   )}

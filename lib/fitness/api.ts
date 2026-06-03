@@ -8,6 +8,7 @@ import type {
   ExerciseVariation,
   ExerciseVariationOption,
   Meal,
+  NutritionFood,
   Program,
   Workout,
   WorkoutLog,
@@ -34,9 +35,6 @@ import type {
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
-  FoodSearchResponse,
-  MealHistoryPage,
-  MealCollection,
   NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
@@ -48,7 +46,6 @@ import type {
   ProgressWeeklyVolumePoint,
   ProgressYearView,
   TraineeDashboardData,
-  WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
   AppNotification,
@@ -149,17 +146,65 @@ type SerializedMeal = {
   calories: number
   carbs?: number
   fat?: number
-  fdcId?: number
   fiber?: number
-  foodId?: string
+  id?: string
+  items?: SerializedMealItem[]
+  loggedDate?: string
+  name: string
+  protein?: number
+  sodium?: number
+  sugar?: number
+  time?: string
+  type: Meal["type"]
+}
+
+type SerializedMealItem = {
+  amountLabel?: string
+  amountUnit: string
+  amountValue: number
+  calories: number
+  carbs?: number
+  fat?: number
+  fiber?: number
+  foodId: string
   id: string
   name: string
   protein?: number
   sodium?: number
   sugar?: number
-  time: string
-  type: Meal["type"]
   weightGrams?: number
+}
+
+type SerializedNutritionFood = NutritionFood
+
+type ApiEnvelope<T> = {
+  data: T
+  error: null
+  meta: unknown
+}
+
+type NutritionTargets = {
+  calories: number
+  carbs: number
+  fat: number
+  protein: number
+}
+
+type NutritionTotals = {
+  calories: number
+  carbs: number
+  fat: number
+  fiber?: number
+  protein: number
+  sodium?: number
+  sugar?: number
+}
+
+type NutritionDay = {
+  date: Date
+  meals: Meal[]
+  targets: NutritionTargets
+  totals: NutritionTotals
 }
 
 type SerializedExerciseLibraryExercise = SerializedExerciseBase & {
@@ -356,12 +401,19 @@ type SerializedDailyNutrition = Omit<DailyNutrition, "date" | "meals"> & {
 }
 
 async function parseJson<T>(response: Response) {
-  const payload = (await response.json().catch(() => null)) as T | { error?: string; message?: string } | null
+  const payload = (await response.json().catch(() => null)) as
+    | T
+    | { error?: string | { message?: string }; message?: string }
+    | null
 
   if (!response.ok) {
     const message =
       payload && typeof payload === "object" && ("error" in payload || "message" in payload)
-        ? payload.error ?? payload.message ?? "Request failed"
+        ? typeof payload.error === "string"
+          ? payload.error
+          : payload.error && typeof payload.error === "object" && "message" in payload.error
+            ? String(payload.error.message)
+            : payload.message ?? "Request failed"
         : "Request failed"
 
     throw new ApiError(message, response.status)
@@ -576,17 +628,31 @@ function mapMeal(meal: SerializedMeal): Meal {
     calories: meal.calories,
     carbs: meal.carbs,
     fat: meal.fat,
-    fdcId: meal.fdcId,
     fiber: meal.fiber,
-    foodId: meal.foodId,
     id: meal.id,
+    items: (meal.items ?? []).map((item) => ({
+      amountLabel: item.amountLabel,
+      amountUnit: item.amountUnit,
+      amountValue: item.amountValue,
+      calories: item.calories,
+      carbs: item.carbs,
+      fat: item.fat,
+      fiber: item.fiber,
+      foodId: item.foodId,
+      id: item.id,
+      name: item.name,
+      protein: item.protein,
+      sodium: item.sodium,
+      sugar: item.sugar,
+      weightGrams: item.weightGrams,
+    })),
+    loggedDate: toDate(meal.loggedDate),
     name: meal.name,
     protein: meal.protein,
     sodium: meal.sodium,
     sugar: meal.sugar,
-    time: new Date(meal.time),
+    time: toDate(meal.time),
     type: meal.type,
-    weightGrams: meal.weightGrams,
   }
 }
 
@@ -824,19 +890,32 @@ function mapDailyNutrition(nutrition: SerializedDailyNutrition): DailyNutrition 
   }
 }
 
-async function fetchMeals(accessToken: string, date?: string): Promise<MealCollection> {
-  const query = date ? `?date=${encodeURIComponent(date)}` : ""
-  const response = await request<{
-    dailyNutrition: SerializedDailyNutrition
-    meals: SerializedMeal[]
-    weeklyCalories: WeeklyCaloriesPoint[]
-  }>(`/api/meals${query}`, accessToken)
-
+function mapNutritionDay(day: {
+  date: string
+  meals: SerializedMeal[]
+  targets: NutritionTargets
+  totals: NutritionTotals
+}): NutritionDay {
   return {
-    dailyNutrition: mapDailyNutrition(response.dailyNutrition),
-    meals: response.meals.map(mapMeal),
-    weeklyCalories: response.weeklyCalories,
+    date: new Date(`${day.date}T00:00:00`),
+    meals: day.meals.map(mapMeal),
+    targets: day.targets,
+    totals: day.totals,
   }
+}
+
+async function fetchNutritionDay(accessToken: string, date?: string): Promise<NutritionDay> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : ""
+  const response = await request<ApiEnvelope<{
+    date: string
+    meals: SerializedMeal[]
+    targets: NutritionTargets
+    totals: NutritionTotals
+  }>>(`/api/meals${query}`, accessToken, {
+    cache: "no-store",
+  })
+
+  return mapNutritionDay(response.data)
 }
 
 async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData> {
@@ -863,31 +942,74 @@ async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData
   }
 }
 
-async function fetchMealHistory(
+async function fetchFoods(
   accessToken: string,
-  options?: { cursor?: string; limit?: number },
-): Promise<MealHistoryPage> {
+  options?: { category?: string; query?: string },
+): Promise<NutritionFood[]> {
   const searchParams = new URLSearchParams()
 
-  if (options?.cursor) {
-    searchParams.set("cursor", options.cursor)
+  if (options?.category && options.category !== "all") {
+    searchParams.set("category", options.category)
   }
 
-  if (typeof options?.limit === "number" && Number.isFinite(options.limit)) {
-    searchParams.set("limit", String(options.limit))
+  if (options?.query?.trim()) {
+    searchParams.set("query", options.query.trim())
   }
 
   const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
-  const response = await request<{ meals: SerializedMeal[]; nextCursor?: string }>(
-    `/api/meals/history${query}`,
+  const response = await request<ApiEnvelope<{ foods: SerializedNutritionFood[] }>>(
+    `/api/foods${query}`,
     accessToken,
     { cache: "no-store" },
   )
 
-  return {
-    meals: (response.meals ?? []).map(mapMeal),
-    nextCursor: response.nextCursor,
-  }
+  return response.data.foods
+}
+
+async function createCustomFood(
+  accessToken: string,
+  input: {
+    calories: number
+    carbs?: number
+    category: string
+    fat?: number
+    name: string
+    protein?: number
+    servingLabel: string
+  },
+): Promise<NutritionFood> {
+  const response = await request<ApiEnvelope<{ food: SerializedNutritionFood }>>("/api/foods", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return response.data.food
+}
+
+async function addMealItem(
+  accessToken: string,
+  input: {
+    amountUnit: "g" | "ml" | "serving"
+    amountValue: number
+    date: string
+    foodId: string
+    mealType: Meal["type"]
+  },
+): Promise<Meal> {
+  const response = await request<ApiEnvelope<{ meal: SerializedMeal }>>("/api/meals/items", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return mapMeal(response.data.meal)
+}
+
+async function deleteMealItem(accessToken: string, itemId: string): Promise<Meal> {
+  const response = await request<ApiEnvelope<{ meal: SerializedMeal }>>(`/api/meals/items/${itemId}`, accessToken, {
+    method: "DELETE",
+  })
+
+  return mapMeal(response.data.meal)
 }
 
 async function fetchWeightEntries(accessToken: string, days = 30): Promise<BodyMetricEntry[]> {
@@ -953,77 +1075,6 @@ async function fetchWorkoutLogDetail(accessToken: string, logId: string): Promis
     { cache: "no-store" },
   )
   return mapWorkoutLog(response.log)
-}
-
-async function createMeal(
-  accessToken: string,
-  input: {
-    calories: number
-    carbs?: number
-    fat?: number
-    name: string
-    protein?: number
-    recordedAt?: string
-    type: Meal["type"]
-  },
-) {
-  const response = await request<{ meal: SerializedMeal }>("/api/meals", accessToken, {
-    body: JSON.stringify(input),
-    method: "POST",
-  })
-
-  return mapMeal(response.meal)
-}
-
-async function searchFoods(accessToken: string, query: string): Promise<FoodSearchResponse> {
-  const trimmedQuery = query.trim()
-  return request<FoodSearchResponse>(`/api/foods/search?q=${encodeURIComponent(trimmedQuery)}`, accessToken, {
-    cache: "no-store",
-  })
-}
-
-async function logMeal(
-  accessToken: string,
-  input: {
-    eatenAt?: string
-    fdcId: number
-    mealType?: Meal["type"]
-    weightGrams: number
-  },
-) {
-  const response = await request<{ meal: SerializedMeal }>("/api/meals/log", accessToken, {
-    body: JSON.stringify(input),
-    method: "POST",
-  })
-
-  return mapMeal(response.meal)
-}
-
-async function updateMeal(
-  accessToken: string,
-  mealId: string,
-  input: {
-    calories: number
-    carbs?: number
-    fat?: number
-    name: string
-    protein?: number
-    recordedAt?: string
-    type: Meal["type"]
-  },
-) {
-  const response = await request<{ meal: SerializedMeal }>(`/api/meals/${mealId}`, accessToken, {
-    body: JSON.stringify(input),
-    method: "PATCH",
-  })
-
-  return mapMeal(response.meal)
-}
-
-async function deleteMeal(accessToken: string, mealId: string) {
-  await request<{ deleted: boolean; id: string }>(`/api/meals/${mealId}`, accessToken, {
-    method: "DELETE",
-  })
 }
 
 async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
@@ -1602,16 +1653,18 @@ export {
   createCoachRequest,
   createCoachProgram,
   createCoachWorkoutLogComment,
-  createMeal,
+  createCustomFood,
   createWeightEntry,
   createWorkout,
   createWorkoutLog,
+  addMealItem,
   deleteCoachExerciseRequest,
   deleteCoachWorkoutLogComment,
   deleteWorkout,
   deleteWorkoutLog,
-  deleteMeal,
+  deleteMealItem,
   deleteCoachProgram,
+  fetchFoods,
   fetchCoachExercises,
   fetchProgressAnalytics,
   fetchProgressCalendar,
@@ -1629,15 +1682,12 @@ export {
   fetchExerciseLibrary,
   fetchExercises,
   fetchDashboard,
-  fetchMealHistory,
-  fetchMeals,
+  fetchNutritionDay,
   fetchNotifications,
-  searchFoods,
   submitCoachExerciseImportRequest,
   fetchWorkoutDetail,
   fetchWorkoutLogsForExport,
   fetchWorkouts,
-  logMeal,
   markAllNotificationsRead,
   markNotificationRead,
   unassignCoachProgram,
@@ -1645,6 +1695,5 @@ export {
   updateCoachProgram,
   updateCoachRequestStatus,
   updateCoachWorkoutLogComment,
-  updateMeal,
   updateWorkout,
 }

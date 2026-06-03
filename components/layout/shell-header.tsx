@@ -5,6 +5,7 @@ import { LogOut, Menu, Settings, X } from "lucide-react"
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
+import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import {
@@ -132,7 +133,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
         <button
           type="button"
-          aria-label={open ? "Close navigation" : "Open navigation"}
+          aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
           onClick={() => setOpen((v) => !v)}
           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
@@ -145,7 +146,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         <>
           <button
             type="button"
-            aria-label="Close navigation"
+            aria-label={messages.common.closeNavigation}
             onClick={() => setOpen(false)}
             className="fixed inset-x-0 bottom-0 top-[calc(57px+env(safe-area-inset-top))] z-40 bg-background/45 backdrop-blur-[1px]"
           />
@@ -157,6 +158,13 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
             {/* ── Footer section: settings + logout ── */}
             <div className="my-2 h-px bg-border" />
+
+            <div className="px-3 py-2">
+              <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                {messages.common.language}
+              </p>
+              <LanguageToggle compact />
+            </div>
 
             <Link
               href="/profile"

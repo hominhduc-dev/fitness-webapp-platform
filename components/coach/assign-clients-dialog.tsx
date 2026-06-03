@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { Check, Search } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -36,6 +37,7 @@ interface AssignClientsDialogProps {
  */
 export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: AssignClientsDialogProps) {
   const { session } = useAuth()
+  const { messages } = useLocale()
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
@@ -88,7 +90,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
       onAssigned(program.id, nextAssigned)
       onClose()
     } catch (assignError) {
-      setError(assignError instanceof Error ? assignError.message : "Unable to update assignments.")
+      setError(assignError instanceof Error ? assignError.message : messages.coach.updateAssignmentsFailed)
     } finally {
       setSaving(false)
     }
@@ -98,11 +100,11 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
     <Dialog open={!!program} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-5 py-4">
-          <p className="label-micro">Assign program</p>
+          <p className="label-micro">{messages.coach.assignProgram}</p>
           <DialogTitle className="text-lg font-semibold tracking-[-0.01em]">{program?.name}</DialogTitle>
           {program ? (
             <p className="font-mono text-xs tnum text-muted-foreground">
-              {program.duration} weeks · {program.workoutsPerWeek} days/week
+              {messages.coach.weeks(program.duration)} · {messages.coach.daysPerWeek(program.workoutsPerWeek)}
             </p>
           ) : null}
           <div className="relative mt-2">
@@ -110,7 +112,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search clients…"
+              placeholder={messages.coach.searchPlaceholder}
               className="pl-9"
             />
           </div>
@@ -152,19 +154,19 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
             )
           })}
           {visible.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">No clients match.</div>
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground">{messages.coach.noClientsMatch}</div>
           ) : null}
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <span className="font-mono text-xs tnum text-muted-foreground">{selected.size} selected</span>
+          <span className="font-mono text-xs tnum text-muted-foreground">{messages.coach.selectedCount(selected.size)}</span>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose} disabled={saving}>
-              Cancel
+              {messages.common.cancel}
             </Button>
             <Button className="gap-1.5" onClick={() => void handleSave()} disabled={saving}>
               <Check className="h-3.5 w-3.5" />
-              {saving ? "Saving…" : selected.size === 0 ? "Clear assignments" : `Assign ${selected.size}`}
+              {saving ? messages.coach.saving : selected.size === 0 ? messages.coach.clearAssignments : messages.coach.assignCount(selected.size)}
             </Button>
           </div>
         </div>

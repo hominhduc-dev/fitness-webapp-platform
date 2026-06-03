@@ -19,7 +19,7 @@ import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { getAppBaseUrl } from "@/lib/supabase/config"
 
-const availableGoals = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"]
+const availableGoalValues = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"] as const
 const DEFAULT_DAILY_CALORIE_GOAL = 2500
 const MIN_DAILY_CALORIE_GOAL = 500
 const MAX_DAILY_CALORIE_GOAL = 10000
@@ -71,7 +71,7 @@ export type ProfileClientInitialData = {
 }
 
 export function ProfileClient({ initialData }: { initialData: ProfileClientInitialData }) {
-  const { locale, messages } = useLocale()
+  const { messages } = useLocale()
   const { isLoading, profile: authProfile, session, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
   const hasConsumedInitialWeight = useRef(false)
@@ -94,6 +94,13 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [resetConfirmation, setResetConfirmation] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const goalLabels: Record<(typeof availableGoalValues)[number], string> = {
+    "Build Muscle": messages.profile.goalBuildMuscle,
+    Flexibility: messages.profile.goalFlexibility,
+    "Improve Endurance": messages.profile.goalImproveEndurance,
+    "Increase Strength": messages.profile.goalIncreaseStrength,
+    "Lose Weight": messages.profile.goalLoseWeight,
+  }
 
   useEffect(() => {
     if (!profile) {
@@ -298,7 +305,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
     try {
       if (parsedCurrentWeightKg != null && !session?.access_token) {
-        throw new Error(locale === "en" ? "You are not signed in." : "Bạn chưa đăng nhập.")
+        throw new Error(messages.profile.notSignedIn)
       }
 
       const updatedProfile = await updateProfile({
@@ -380,9 +387,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       setError(
         rawError instanceof Error
           ? rawError.message
-          : locale === "en"
-            ? "Unable to send the password reset email."
-            : "Không thể gửi email đổi mật khẩu.",
+          : messages.profile.resetEmailFailed,
       )
     } finally {
       setIsSendingReset(false)
@@ -391,7 +396,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
   const handleResetTraineeData = async () => {
     if (!session?.access_token) {
-      setError(locale === "en" ? "You are not signed in." : "Bạn chưa đăng nhập.")
+      setError(messages.profile.notSignedIn)
       setSuccess(null)
       return
     }
@@ -641,7 +646,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {availableGoals.map((goal) => {
+          {availableGoalValues.map((goal) => {
             const isSelected = selectedGoals.includes(goal)
 
             return (
@@ -653,7 +658,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                   isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
               >
-                {goal}
+                {goalLabels[goal]}
               </button>
             )
           })}

@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,8 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
+import type { AppLocale } from "@/lib/i18n/config"
+import type { AppMessages } from "@/lib/i18n/messages"
 import { cn } from "@/lib/utils"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft } from "@/components/workout/routine-builder-dialog"
@@ -107,6 +110,30 @@ const DAY_OPTIONS = [
   { label: "Sat", scheduledDay: 6 },
   { label: "Sun", scheduledDay: 0 },
 ]
+
+function getDayLabels(locale: AppLocale) {
+  const formatter = new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { weekday: "short" })
+  const start = new Date(2024, 0, 1)
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return formatter.format(date)
+  })
+}
+
+function getRoutineTagLabel(tag: RoutineTag, messages: AppMessages) {
+  const keyByTag: Record<RoutineTag, keyof AppMessages["workoutPage"]> = {
+    full: "tagFull",
+    legs: "tagLegs",
+    lower: "tagLower",
+    pull: "tagPull",
+    push: "tagPush",
+    upper: "tagUpper",
+  }
+
+  return messages.workoutPage[keyByTag[tag]] as string
+}
 
 const DAY_PATTERN_BY_DAYS_PER_WEEK: Record<number, number[]> = {
   3: [0, 2, 4],
@@ -268,11 +295,12 @@ function mapWorkoutToRoutine(
   workout: CoachProgram["workouts"][number],
   index: number,
   exerciseOptions: ExerciseVariationOption[],
+  messages: AppMessages,
 ): Routine {
   return {
     exercises: workout.exercises.map((exercise) => mapWorkoutExerciseToRoutineExercise(exercise, exerciseOptions)),
     id: workout.id || createFormId(),
-    name: workout.name || `Day ${index + 1}`,
+    name: workout.name || messages.coach.dayFallbackName(index + 1),
     tag: inferTag(workout.name, index),
   }
 }
@@ -291,10 +319,11 @@ function mapProgramToSchedule(
   weeks: number,
   daysPerWeek: number,
   exerciseOptions: ExerciseVariationOption[],
+  messages: AppMessages,
 ) {
   const schedule = makeEmptySchedule(weeks, daysPerWeek)
   const occurrenceByDay = new Map<number, number>()
-  const routines = program.workouts.map((workout, index) => mapWorkoutToRoutine(workout, index, exerciseOptions))
+  const routines = program.workouts.map((workout, index) => mapWorkoutToRoutine(workout, index, exerciseOptions, messages))
 
   program.workouts.forEach((workout, index) => {
     const dayIndex = getDayIndexFromScheduledDay(workout.scheduledDay)
@@ -335,10 +364,12 @@ function RoutineDot({ tag }: { tag: RoutineTag }) {
 }
 
 function RoutineTagBadge({ tag }: { tag: RoutineTag }) {
+  const { locale, messages } = useLocale()
+
   return (
     <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
       <RoutineDot tag={tag} />
-      {tag}
+      {getRoutineTagLabel(tag, messages)}
     </span>
   )
 }
@@ -356,6 +387,7 @@ function SessionSlot({
   onToggleRest: () => void
   slot: ScheduleSlot
 }) {
+  const { messages } = useLocale()
   const isRest = slot === null
   const routine = slot?.routine ?? null
 
@@ -379,7 +411,7 @@ function SessionSlot({
             <span
               role="button"
               tabIndex={0}
-              title="Edit routine exercises"
+              title={messages.coach.editRoutineExercises}
               className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation()
@@ -400,7 +432,7 @@ function SessionSlot({
             <span
               role="button"
               tabIndex={0}
-              title="Mark as rest day"
+              title={messages.coach.markAsRestDay}
               className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation()
@@ -425,11 +457,13 @@ function SessionSlot({
           <RoutineTagBadge tag={routine.tag} />
           <span className="mt-2 block truncate text-[13px] font-medium text-foreground">{routine.name}</span>
           <span className="mt-1 block font-mono text-[10px] text-muted-foreground tnum">
-            {routine.exercises.length} move{routine.exercises.length === 1 ? "" : "s"}
+            {messages.coach.exerciseCount(routine.exercises.length)}
           </span>
         </span>
       ) : isRest ? (
-        <span className="flex flex-1 items-center justify-center text-xs text-muted-foreground/50">Rest</span>
+        <span className="flex flex-1 items-center justify-center text-xs text-muted-foreground/50">
+          {messages.coach.rest}
+        </span>
       ) : (
         <span className="flex flex-1 items-center justify-center text-muted-foreground">
           <Plus className="h-4 w-4" />
@@ -504,6 +538,7 @@ function RoutinePickerDialog({
   onPick: (routine: Routine) => void
   open: boolean
 }) {
+  const { messages } = useLocale()
   const [query, setQuery] = useState("")
   const visibleRoutines = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -526,7 +561,7 @@ function RoutinePickerDialog({
       >
         <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
           <div className="flex items-center justify-between gap-3">
-            <DialogTitle className="text-[15px] font-semibold">Pick a routine</DialogTitle>
+            <DialogTitle className="text-[15px] font-semibold">{messages.coach.pickRoutine}</DialogTitle>
             <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} className="-mr-1 -mt-1">
               <X className="h-4 w-4" />
             </Button>
@@ -536,7 +571,7 @@ function RoutinePickerDialog({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search routines..."
+              placeholder={messages.coach.searchRoutines}
               className="h-9 bg-background pl-8 text-sm"
               autoFocus
             />
@@ -545,7 +580,7 @@ function RoutinePickerDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {visibleRoutines.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">No routines match this search.</div>
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground">{messages.coach.noRoutineMatches}</div>
           ) : (
             visibleRoutines.map((routine, index) => (
               <div
@@ -564,13 +599,13 @@ function RoutinePickerDialog({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-foreground">{routine.name}</span>
                     <span className="label-micro mt-0.5 block uppercase">
-                      {routine.tag} · {routine.exercises.length} exercise{routine.exercises.length === 1 ? "" : "s"}
+                      {getRoutineTagLabel(routine.tag, messages)} · {messages.coach.exerciseCount(routine.exercises.length)}
                     </span>
                   </span>
                 </button>
                 <button
                   type="button"
-                  title="Edit routine"
+                  title={messages.coach.editRoutine}
                   onClick={() => onEditLibraryRoutine(routine)}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
                 >
@@ -584,7 +619,7 @@ function RoutinePickerDialog({
         <DialogFooter className="border-t border-border px-5 py-3 sm:justify-center">
           <Button type="button" variant="ghost" size="sm" className="text-primary" onClick={onCreateNew}>
             <Plus className="h-3.5 w-3.5" />
-            Create new routine
+            {messages.schedule.createNewRoutine}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -630,6 +665,7 @@ export function ProgramEditor({
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoading: authLoading, session } = useAuth()
+  const { locale, messages } = useLocale()
   const hasInitialEditorData = initialExerciseOptions.length > 0 || initialTraineeOptions.length > 0
   const adjustForTraineeId = programId ? searchParams.get("adjustTrainee") ?? undefined : undefined
   const isAdjustMode = Boolean(programId && adjustForTraineeId)
@@ -710,7 +746,7 @@ export function ProgramEditor({
         if (program) {
           const nextWeeks = clampWeeks(program.duration || 8)
           const nextDaysPerWeek = clampDaysPerWeek(program.workoutsPerWeek || program.workouts.length || 4)
-          const mapped = mapProgramToSchedule(program, nextWeeks, nextDaysPerWeek, nextExerciseOptions)
+          const mapped = mapProgramToSchedule(program, nextWeeks, nextDaysPerWeek, nextExerciseOptions, messages)
 
           setProgramName(program.name)
           setDescription(program.description ?? "")
@@ -729,7 +765,7 @@ export function ProgramEditor({
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Không thể tải dữ liệu program.")
+          setError(loadError instanceof Error ? loadError.message : messages.coach.loadProgramError)
         }
       } finally {
         if (!cancelled) {
@@ -743,7 +779,7 @@ export function ProgramEditor({
     return () => {
       cancelled = true
     }
-  }, [adjustForTraineeId, authLoading, initialExerciseOptions, initialTraineeOptions, programId, session?.access_token, hasInitialEditorData])
+  }, [adjustForTraineeId, authLoading, initialExerciseOptions, initialTraineeOptions, messages, programId, session?.access_token, hasInitialEditorData])
 
   const totalWeeks = Number(duration) || 8
   const totalDaysPerWeek = Number(daysPerWeek) || 4
@@ -755,6 +791,7 @@ export function ProgramEditor({
   const completion = totalProgramSlots > 0 ? Math.min(100, Math.round((filledSessions / totalProgramSlots) * 100)) : 0
   const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving
   const activeWeekSlots = schedule[activeWeek] ?? schedule[0] ?? []
+  const dayLabels = useMemo(() => getDayLabels(locale), [locale])
 
   const filteredTrainees = useMemo(() => {
     const normalized = clientQuery.trim().toLowerCase()
@@ -835,8 +872,8 @@ export function ProgramEditor({
     setBuilderMode(null)
     setNotice(
       builderMode.kind === "create"
-        ? `Routine "${routine.name}" created and assigned.`
-        : `Routine "${routine.name}" updated.`,
+        ? messages.coach.routineCreatedAssigned(routine.name)
+        : messages.coach.routineUpdated(routine.name),
     )
   }
 
@@ -866,7 +903,7 @@ export function ProgramEditor({
           : sourceWeek.map((slot) => (slot?.routine ? { routine: cloneRoutineForSlot(slot.routine) } : slot === null ? null : { routine: null })),
       ),
     )
-    setNotice(`Copied week ${activeWeek + 1} to all weeks.`)
+    setNotice(messages.coach.copyWeekToAllNotice(activeWeek + 1))
   }
 
   const toggleTraineeAssignment = (traineeId: string, checked: boolean) => {
@@ -894,17 +931,15 @@ export function ProgramEditor({
             duration: estimateWorkoutDuration(routine.exercises),
             exercises: routine.exercises.map((exercise, exerciseIndex) => {
               if (!exercise.variationId.trim()) {
-                throw new Error(
-                  `Hãy chọn bài tập cho ${routine.name.trim() || `Week ${weekIndex + 1} day ${dayIndex + 1}`} / bài tập ${exerciseIndex + 1}.`,
-                )
+                const routineLabel = routine.name.trim() || messages.coach.weekDayLabel(weekIndex + 1, dayIndex + 1)
+                throw new Error(messages.coach.exerciseRequiredError(routineLabel, exerciseIndex + 1))
               }
 
               const repTarget = parseRepTargetText(exercise.reps)
 
               if (!repTarget) {
-                throw new Error(
-                  `Reps range không hợp lệ ở ${routine.name.trim() || `Week ${weekIndex + 1} day ${dayIndex + 1}`} / bài tập ${exerciseIndex + 1}. Dùng dạng 8-12 hoặc 10.`,
-                )
+                const routineLabel = routine.name.trim() || messages.coach.weekDayLabel(weekIndex + 1, dayIndex + 1)
+                throw new Error(messages.coach.invalidRepRangeError(routineLabel, exerciseIndex + 1))
               }
 
               const parsedWeight = Number(exercise.weight)
@@ -921,7 +956,7 @@ export function ProgramEditor({
                     : undefined,
               }
             }),
-            name: routine.name.trim() || `Week ${weekIndex + 1} ${DAY_OPTIONS[dayIndex].label}`,
+            name: routine.name.trim() || messages.coach.weekDayFallback(weekIndex + 1, dayLabels[dayIndex] ?? DAY_OPTIONS[dayIndex].label),
             scheduledDay: DAY_OPTIONS[dayIndex].scheduledDay,
           },
         ]
@@ -944,7 +979,7 @@ export function ProgramEditor({
     }
 
     if (builderMode) {
-      setError("Routine editor đang mở và có thay đổi chưa lưu. Vui lòng lưu hoặc huỷ routine trước.")
+      setError(messages.coach.programEditorOpenUnsaved)
       return
     }
 
@@ -953,7 +988,7 @@ export function ProgramEditor({
     try {
       payload = buildProgramPayload()
     } catch (buildError) {
-      setError(buildError instanceof Error ? buildError.message : "Không thể chuẩn hóa dữ liệu program.")
+      setError(buildError instanceof Error ? buildError.message : messages.coach.programNormalizeError)
       return
     }
 
@@ -981,14 +1016,14 @@ export function ProgramEditor({
 
       return savedProgram
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Không thể lưu program.")
+      setError(saveError instanceof Error ? saveError.message : messages.coach.programSaveError)
     } finally {
       setIsSaving(false)
     }
   }
 
   if (isLoadingPage) {
-    return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">Loading program...</div>
+    return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">{messages.coach.loadingProgram}</div>
   }
 
   return (
@@ -997,8 +1032,8 @@ export function ProgramEditor({
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)]">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <h2 className="mt-5 text-xl font-semibold">Saving program...</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Updating workouts, rep targets, and assignments.</p>
+            <h2 className="mt-5 text-xl font-semibold">{messages.coach.savingProgram}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{messages.coach.updateProgramDetails}</p>
           </div>
         </div>
       ) : null}
@@ -1007,12 +1042,14 @@ export function ProgramEditor({
         <div className="border-b border-border px-4 pb-[18px] pt-6 md:px-7">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="label-micro mb-1.5">{isAdjustMode ? "Adjust program" : programId ? "Edit program" : "New program"}</p>
+              <p className="label-micro mb-1.5">
+                {isAdjustMode ? messages.coach.adjustProgram : programId ? messages.coach.editProgram : messages.coach.newProgram}
+              </p>
               <h1 className="truncate text-[23px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
-                {programName.trim() || "Untitled program"}
+                {programName.trim() || messages.coach.untitledProgram}
               </h1>
               <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
-                {totalWeeks} weeks · {totalDaysPerWeek} days/week · {filledSessions}/{totalProgramSlots} sessions filled
+                {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}
               </p>
             </div>
             {onClose ? (
@@ -1032,7 +1069,7 @@ export function ProgramEditor({
             <Input
               value={programName}
               onChange={(event) => setProgramName(event.target.value)}
-              placeholder="e.g. Strength block - 12w"
+              placeholder={messages.coach.programNamePlaceholder}
               className="bg-background"
             />
             <Select value={duration} onValueChange={handleDurationChange}>
@@ -1042,7 +1079,7 @@ export function ProgramEditor({
               <SelectContent className="border-border bg-card">
                 {WEEK_OPTIONS.map((weekCount) => (
                   <SelectItem key={weekCount} value={String(weekCount)}>
-                    {weekCount} weeks
+                    {messages.coach.weeks(weekCount)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1054,7 +1091,7 @@ export function ProgramEditor({
               <SelectContent className="border-border bg-card">
                 {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
                   <SelectItem key={dayCount} value={String(dayCount)}>
-                    {dayCount} days/week
+                    {messages.coach.daysPerWeek(dayCount)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1077,7 +1114,7 @@ export function ProgramEditor({
             <Input
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Short description (e.g. Heavy compounds Mon/Thu, accessory volume Tue/Sat)"
+              placeholder={messages.coach.descriptionPlaceholder}
               className="h-9 bg-background text-[13px]"
             />
             <div className="flex items-center gap-2">
@@ -1085,12 +1122,12 @@ export function ProgramEditor({
                 <ExportProgramLogsDialog
                   assignedTrainees={assignedTrainees}
                   programDuration={Number(duration) || 8}
-                  programName={programName || "Program"}
+                  programName={programName || messages.coach.program}
                 />
               )}
               <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsAssignDialogOpen(true)}>
                 <UserPlus className="h-4 w-4" />
-                Assign clients
+                {messages.coach.assignClients}
                 {selectedTraineeIds.length > 0 ? (
                   <Badge variant="micro" className="ml-1 bg-muted">
                     {selectedTraineeIds.length}
@@ -1102,7 +1139,7 @@ export function ProgramEditor({
         </div>
 
         <div className="flex min-h-[66px] flex-wrap items-center gap-3 border-b border-border bg-muted px-4 py-3 md:px-7">
-          <p className="label-micro">Week</p>
+          <p className="label-micro">{messages.coach.week}</p>
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
             {Array.from({ length: totalWeeks }).map((_, index) => {
               const week = schedule[index] ?? []
@@ -1123,7 +1160,7 @@ export function ProgramEditor({
                       : "border-input bg-background text-foreground hover:bg-muted",
                   )}
                 >
-                  w{index + 1}
+                  {messages.coach.weekShort(index + 1)}
                   <span
                     className={cn(
                       "mt-1 h-1 w-1 rounded-full",
@@ -1136,7 +1173,7 @@ export function ProgramEditor({
           </div>
           <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={copyActiveWeekToAll}>
             <Copy className="h-3.5 w-3.5" />
-            Copy w{activeWeek + 1} to all
+            {messages.coach.copyWeekToAll(activeWeek + 1)}
           </Button>
         </div>
 
@@ -1156,7 +1193,7 @@ export function ProgramEditor({
             {DAY_OPTIONS.map((day, dayIndex) => (
               <SessionSlot
                 key={day.scheduledDay}
-                dayLabel={day.label}
+                dayLabel={dayLabels[dayIndex] ?? day.label}
                 slot={activeWeekSlots[dayIndex] ?? null}
                 onClick={() => {
                   if (activeWeekSlots[dayIndex] === null) {
@@ -1178,7 +1215,7 @@ export function ProgramEditor({
 
           <div className="mt-5 border-t border-border pt-4">
             <div className="mb-2 flex items-center justify-between">
-              <p className="label-micro">Program completion</p>
+              <p className="label-micro">{messages.coach.programCompletion}</p>
               <span className="font-mono text-[11px] text-muted-foreground tnum">{completion}%</span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-border">
@@ -1188,7 +1225,7 @@ export function ProgramEditor({
               />
             </div>
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Tap a session to swap routine · tap a rest day to add a session · use "Copy w{activeWeek + 1} to all" if every week is identical.
+              {messages.coach.sessionInstructions(activeWeek + 1)}
             </p>
           </div>
         </div>
@@ -1196,16 +1233,16 @@ export function ProgramEditor({
         <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:justify-end md:px-7">
           {onClose ? (
             <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
-              Cancel
+              {messages.common.cancel}
             </Button>
           ) : (
             <Button variant="ghost" asChild className="w-full sm:w-auto">
-              <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>Cancel</Link>
+              <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>{messages.common.cancel}</Link>
             </Button>
           )}
           <Button type="button" className="w-full sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isSaving ? "Saving..." : programId ? "Save changes" : "Save program"}
+            {isSaving ? messages.common.saving : programId ? messages.common.saveChanges : messages.coach.saveProgram}
           </Button>
         </div>
       </div>
@@ -1229,20 +1266,20 @@ export function ProgramEditor({
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <DialogContent className="z-[90] max-h-[80svh] overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[520px]">
           <DialogHeader className="border-b border-border px-6 pb-4 pt-6 text-left">
-            <DialogTitle className="text-xl font-semibold">Assign clients</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">{messages.coach.assignClients}</DialogTitle>
             <div className="relative pt-2">
               <Search className="pointer-events-none absolute left-3 top-[1.35rem] h-4 w-4 text-muted-foreground" />
               <Input
                 value={clientQuery}
                 onChange={(event) => setClientQuery(event.target.value)}
-                placeholder="Search clients..."
+                placeholder={messages.coach.searchClients}
                 className="bg-background pl-9"
               />
             </div>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3">
             {filteredTrainees.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">No clients found.</div>
+              <div className="py-8 text-center text-sm text-muted-foreground">{messages.coach.noClientsFound}</div>
             ) : (
               <div className="space-y-2">
                 {filteredTrainees.map((trainee) => {
@@ -1276,13 +1313,13 @@ export function ProgramEditor({
           </div>
           <DialogFooter className="border-t border-border px-6 py-4">
             <span className="mr-auto self-center font-mono text-xs text-muted-foreground tnum">
-              {selectedTraineeIds.length} selected
+              {messages.coach.selectedCount(selectedTraineeIds.length)}
             </span>
             <Button type="button" variant="ghost" onClick={() => setIsAssignDialogOpen(false)}>
-              Cancel
+              {messages.common.cancel}
             </Button>
             <Button type="button" onClick={() => setIsAssignDialogOpen(false)}>
-              Assign {selectedTraineeIds.length}
+              {messages.coach.assignCount(selectedTraineeIds.length)}
             </Button>
           </DialogFooter>
         </DialogContent>

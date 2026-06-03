@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lift — Color palette</title>
+<link rel="stylesheet" href="../../colors_and_type.css" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--ink-0); color: var(--ink-800); padding: 56px 40px 80px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  .pagehead { margin-bottom: 48px; }
+  .pagehead .label { display: block; margin-bottom: 12px; }
+  .pagehead h1 { font-size: 44px; letter-spacing: -0.03em; }
+  .pagehead p { color: var(--ink-600); font-size: 16px; margin-top: 10px; max-width: 560px; }
+
+  section { margin-bottom: 56px; }
+  .sec-label { display: block; margin-bottom: 6px; }
+  .sec-desc { color: var(--ink-600); font-size: 14px; margin: 0 0 22px; max-width: 620px; }
+
+  .grid { display: grid; gap: 14px; }
+  .g-neutral { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .g-wide    { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+
+  .swatch {
+    border: 1px solid var(--ink-100);
+    border-radius: var(--r-4);
+    overflow: hidden;
+    background: var(--ink-0);
+  }
+  .chip { height: 88px; border-bottom: 1px solid var(--ink-100); }
+  .meta { padding: 11px 13px 13px; }
+  .meta .name { font-size: 13px; font-weight: 600; color: var(--ink-900); }
+  .meta .hex {
+    font-family: var(--font-mono); font-size: 12px; color: var(--ink-400);
+    margin-top: 3px; text-transform: uppercase; letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .meta .role { font-size: 11.5px; color: var(--ink-600); margin-top: 7px; line-height: 1.4; }
+
+  /* paired chip for accent/semantic soft+solid */
+  .chip.split { display: flex; height: 88px; border-bottom: 1px solid var(--ink-100); }
+  .chip.split > div { flex: 1; }
+
+  .ramp { display: flex; border: 1px solid var(--ink-100); border-radius: var(--r-4); overflow: hidden; }
+  .ramp > div { flex: 1; height: 64px; position: relative; }
+  .ramp .tick {
+    position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  }
+
+  .usage { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--ink-100); border-radius: var(--r-pill);
+    padding: 7px 14px 7px 8px; font-size: 13px; color: var(--ink-800);
+  }
+  .pill .dot { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="pagehead">
+    <span class="label">Lift Design System</span>
+    <h1>Color palette</h1>
+    <p>Warm-neutral grayscale carries the interface; a single electric blue accent and three semantic colors are used sparingly. Pure black and white appear only inside accent contexts.</p>
+  </header>
+
+  <!-- NEUTRALS -->
+  <section>
+    <span class="label sec-label">Neutrals · “Ink”</span>
+    <p class="sec-desc">Slightly warm grays. Backgrounds breathe near the top of the ramp; foregrounds carry contrast at the bottom.</p>
+    <div class="grid g-neutral" id="neutrals"></div>
+  </section>
+
+  <!-- ACCENT -->
+  <section>
+    <span class="label sec-label">Accent · Electric blue</span>
+    <p class="sec-desc">One blue, used only for active sets, the primary CTA, focus rings and charted PRs. Never decorative.</p>
+    <div class="grid g-wide" id="accents"></div>
+  </section>
+
+  <!-- SEMANTIC -->
+  <section>
+    <span class="label sec-label">Semantic</span>
+    <p class="sec-desc">Success = a completed set. Warn = rare cautions. Danger = destructive actions. Each has a soft tint for backgrounds.</p>
+    <div class="grid g-wide" id="semantics"></div>
+  </section>
+
+  <!-- DATA VIZ -->
+  <section>
+    <span class="label sec-label">Data visualization</span>
+    <p class="sec-desc">Charts reuse accent + ink + success over a neutral track. No multi-hue, no gradients.</p>
+    <div class="usage" id="dataviz"></div>
+  </section>
+</div>
+
+<script>
+  const neutrals = [
+    ['--ink-0',   '#fcfcfa', 'Page background (warm paper white)'],
+    ['--ink-50',  '#f5f5f1', 'Card / raised surface'],
+    ['--ink-100', '#ebebe6', 'Hairline / strong divider'],
+    ['--ink-150', '#e0e0db', 'Divider'],
+    ['--ink-200', '#c9c9c2', 'Disabled background'],
+    ['--ink-400', '#8a8a82', 'Muted text'],
+    ['--ink-600', '#4a4a44', 'Secondary text'],
+    ['--ink-800', '#1a1a17', 'Primary text'],
+    ['--ink-900', '#0d0d0b', 'Display / extreme'],
+  ];
+  const accents = [
+    ['--accent',       '#3a5fff', 'Primary accent / CTA'],
+    ['--accent-hover', '#2a4ff0', 'Hover'],
+    ['--accent-press', '#1f3fd9', 'Pressed'],
+    ['--accent-soft',  '#eaeeff', 'Soft background tint'],
+    ['--accent-ink',   '#0a1a8a', 'Text on soft tint'],
+  ];
+  const semantics = [
+    ['--ok',         '#2a8a5f', 'Success — set completed'],
+    ['--ok-soft',    '#e6f3ec', 'Success background'],
+    ['--warn',       '#b56a1a', 'Warning — rare'],
+    ['--warn-soft',  '#faefdb', 'Warning background'],
+    ['--danger',     '#c0341a', 'Danger — destructive'],
+    ['--danger-soft','#faeae6', 'Danger background'],
+  ];
+  const dataviz = [
+    ['chart-1', '#3a5fff', 'Accent (primary series)'],
+    ['chart-2', '#8a8a82', 'Ink-400 (secondary)'],
+    ['chart-3', '#2a8a5f', 'Success (PR / volume)'],
+    ['chart-bar-bg', '#ebebe6', 'Bar track'],
+  ];
+
+  const needsBorder = hex => {
+    const n = hex.replace('#',''); const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16);
+    return (0.2126*r+0.7152*g+0.0722*b) > 235;
+  };
+
+  function swatch([varName, hex, role]) {
+    return `<div class="swatch">
+      <div class="chip" style="background:${hex}${needsBorder(hex)?';box-shadow:inset 0 0 0 1px var(--ink-100)':''}"></div>
+      <div class="meta">
+        <div class="name">${varName}</div>
+        <div class="hex">${hex}</div>
+        <div class="role">${role}</div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('neutrals').innerHTML = neutrals.map(swatch).join('');
+  document.getElementById('accents').innerHTML = accents.map(swatch).join('');
+  document.getElementById('semantics').innerHTML = semantics.map(swatch).join('');
+  document.getElementById('dataviz').innerHTML = dataviz.map(([n,hex,role]) =>
+    `<span class="pill"><span class="dot" style="background:${hex};${needsBorder(hex)?'box-shadow:inset 0 0 0 1px var(--ink-100)':''}"></span>${role} · <span style="font-family:var(--font-mono);color:var(--ink-400);font-size:12px">${hex}</span></span>`
+  ).join('');
+</script>
+</body>
+</html>

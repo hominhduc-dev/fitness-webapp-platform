@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Trash2 } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -34,8 +35,8 @@ type DeleteWorkoutButtonProps = {
 
 export function DeleteWorkoutButton({
   className,
-  confirmDescription = "This will remove the personal workout from your schedule. Coach-assigned workouts are not affected.",
-  confirmTitle = "Delete workout?",
+  confirmDescription,
+  confirmTitle,
   label,
   onDeleted,
   refreshOnSuccess = true,
@@ -45,6 +46,7 @@ export function DeleteWorkoutButton({
 }: DeleteWorkoutButtonProps) {
   const router = useRouter()
   const { isLoading: authLoading, session } = useAuth()
+  const { messages } = useLocale()
   const [isMounted, setIsMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -64,7 +66,7 @@ export function DeleteWorkoutButton({
         className,
       )}
       disabled={authLoading || isDeleting}
-      aria-label={label ? undefined : "Delete workout"}
+      aria-label={label ? undefined : messages.workoutPage.deleteWorkoutAria}
     >
       {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
       {label ? <span>{label}</span> : null}
@@ -95,7 +97,7 @@ export function DeleteWorkoutButton({
         router.refresh()
       }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete this workout.")
+      setError(deleteError instanceof Error ? deleteError.message : messages.workoutPage.deleteWorkoutError)
     } finally {
       setIsDeleting(false)
     }
@@ -111,8 +113,8 @@ export function DeleteWorkoutButton({
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{confirmTitle}</DialogTitle>
-          <DialogDescription>{confirmDescription}</DialogDescription>
+          <DialogTitle>{confirmTitle ?? messages.workoutPage.deleteWorkoutTitle}</DialogTitle>
+          <DialogDescription>{confirmDescription ?? messages.workoutPage.deleteWorkoutDescription}</DialogDescription>
         </DialogHeader>
 
         {error ? (
@@ -123,11 +125,11 @@ export function DeleteWorkoutButton({
 
         <DialogFooter>
           <Button type="button" variant="outline" className="bg-transparent" onClick={() => handleOpenChange(false)}>
-            Cancel
+            {messages.common.cancel}
           </Button>
           <Button type="button" variant="destructive" className="gap-2" onClick={() => void handleDelete()} disabled={isDeleting}>
             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            {isDeleting ? "Deleting..." : "Delete Workout"}
+            {isDeleting ? messages.workoutPage.deleting : messages.workoutPage.deleteWorkout}
           </Button>
         </DialogFooter>
       </DialogContent>
