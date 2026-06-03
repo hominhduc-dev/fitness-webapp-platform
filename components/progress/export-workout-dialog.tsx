@@ -20,17 +20,26 @@ import type { WorkoutLog } from "@/lib/types"
 
 type ExportMode = "week" | "program"
 
+// Local YYYY-MM-DD (not UTC) so week boundaries match the user's timezone.
+function toLocalISODate(d: Date) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 function getWeekStart(date: Date) {
   const d = new Date(date)
-  const day = d.getDay()
-  d.setDate(d.getDate() - day)
-  return formatDateToISO(d)
+  // Snap back to Monday. getDay() is 0 (Sun)..6 (Sat); days since Monday = (day + 6) % 7.
+  const daysSinceMonday = (d.getDay() + 6) % 7
+  d.setDate(d.getDate() - daysSinceMonday)
+  return toLocalISODate(d)
 }
 
 function addDays(isoDate: string, days: number) {
   const d = new Date(`${isoDate}T00:00:00`)
   d.setDate(d.getDate() + days)
-  return formatDateToISO(d)
+  return toLocalISODate(d)
 }
 
 type ExportWorkoutDialogProps = {
@@ -177,7 +186,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
           {mode === "week" && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="week-start" className="text-xs text-muted-foreground">
-                Tuần bắt đầu (chủ nhật)
+                Tuần bắt đầu (thứ 2)
               </Label>
               <input
                 id="week-start"
