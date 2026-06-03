@@ -2,18 +2,16 @@
 
 import Link from "next/link"
 import { memo, useEffect, useMemo, useState } from "react"
-import { addDays, differenceInMinutes, format, isBefore, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns"
+import { addDays, differenceInMinutes, format, startOfDay, startOfWeek } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
-import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { createWorkout, fetchExercises } from "@/lib/fitness/api"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
@@ -41,6 +39,7 @@ type RoutineExercise = {
   fallbackVariationName?: string
   id: string
   reps: string
+  rir?: string
   restTime?: string
   sets: number
   variationId: string
@@ -55,10 +54,6 @@ type Routine = {
 }
 
 type ScheduleEntry = WorkoutScheduleEntry
-type WorkoutLogIndex = {
-  byDateAndWorkoutId: Map<string, Map<string, WorkoutLog>>
-  firstByDate: Map<string, WorkoutLog>
-}
 
 const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
@@ -69,6 +64,19 @@ const TAG_DOT_COLOR: Record<RoutineTag, string> = {
   pull: "var(--success)",
   push: "var(--primary)",
   upper: "var(--chart-4)",
+}
+
+function getRoutineTagLabel(tag: RoutineTag, messages: AppMessages) {
+  const labels: Record<RoutineTag, string> = {
+    full: messages.workoutPage.tagFull,
+    legs: messages.workoutPage.tagLegs,
+    lower: messages.workoutPage.tagLower,
+    pull: messages.workoutPage.tagPull,
+    push: messages.workoutPage.tagPush,
+    upper: messages.workoutPage.tagUpper,
+  }
+
+  return labels[tag]
 }
 
 function createDraftId() {
@@ -83,6 +91,7 @@ function createEmptyRoutineExercise(defaultVariationId = ""): RoutineExercise {
   return {
     id: createDraftId(),
     reps: "8-12",
+    rir: "",
     restTime: "",
     sets: 3,
     variationId: defaultVariationId,
@@ -100,51 +109,8 @@ function getDateKey(date: Date) {
   return format(date, "yyyy-MM-dd")
 }
 
-function getScheduledWorkoutForDate(workouts: Workout[], schedule: WeeklySchedule, date: Date) {
-  const oneOffWorkout = workouts.find((workout) => workout.scheduledDate && isSameDay(workout.scheduledDate, date))
-
-  if (oneOffWorkout) {
-    return oneOffWorkout
-  }
-
-  const recurringWorkout = workouts.find(
-    (workout) => !workout.scheduledDate && workout.scheduledDay === date.getDay(),
-  )
-
-  return recurringWorkout ?? schedule[date.getDay()] ?? null
-}
-
-function buildLogsByPlannedDateAndWorkoutId(logs: WorkoutLog[]): WorkoutLogIndex {
-  return logs.reduce<WorkoutLogIndex>(
-    (index, log) => {
-      const plannedDate = log.plannedDate ?? log.startedAt
-      const dateKey = getDateKey(plannedDate)
-      const logsByWorkout = index.byDateAndWorkoutId.get(dateKey) ?? new Map<string, WorkoutLog>()
-
-      logsByWorkout.set(log.workout.id, log)
-      index.byDateAndWorkoutId.set(dateKey, logsByWorkout)
-
-      if (!index.firstByDate.has(dateKey)) {
-        index.firstByDate.set(dateKey, log)
-      }
-
-      return index
-    },
-    {
-      byDateAndWorkoutId: new Map<string, Map<string, WorkoutLog>>(),
-      firstByDate: new Map<string, WorkoutLog>(),
-    },
-  )
-}
-
-function getLogForDate(logIndex: WorkoutLogIndex, date: Date, workout: Workout | null) {
-  const dateKey = getDateKey(date)
-
-  if (!workout) {
-    return logIndex.firstByDate.get(dateKey) ?? null
-  }
-
-  return logIndex.byDateAndWorkoutId.get(dateKey)?.get(workout.id) ?? null
+function isRecurringWorkout(workout: Workout | null): workout is Workout {
+  return Boolean(workout && !workout.scheduledDate && typeof workout.scheduledDay === "number")
 }
 
 function getDurationLabel(workout: Workout | null, log: WorkoutLog | null) {
@@ -221,6 +187,7 @@ function mapWorkoutExerciseToRoutineExercise(workoutExercise: Workout["exercises
       reps: workoutExercise.sets[0]?.targetReps ?? 1,
       repsMin: workoutExercise.sets[0]?.targetRepsMin,
     }),
+    rir: workoutExercise.sets[0]?.rir != null ? String(workoutExercise.sets[0].rir) : "",
     restTime: workoutExercise.restTime != null ? String(workoutExercise.restTime) : "",
     sets: workoutExercise.sets.length || 1,
     variationId: workoutExercise.variation.id,
@@ -260,6 +227,10 @@ function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
     return { className: "bg-primary-soft text-primary", label: messages.schedule.todayLabel }
   }
 
+  if (entry.isCatchUp) {
+    return { className: "bg-warn-soft text-warning", label: messages.schedule.catchUpLabel }
+  }
+
   if (entry.isMissed) {
     return { className: "bg-warn-soft text-warning", label: messages.schedule.missedLabel }
   }
@@ -267,38 +238,137 @@ function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
   return null
 }
 
+// Sequential weekly schedule: completed sessions show on the day they were actually
+// trained; days with no session are simply empty (never "missed"). Each uncompleted
+// recurring session is laid out, in program order, on the earliest free day at or after
+// both today and its coach-assigned weekday — an on-track week keeps the coach's layout
+// (rest days included), a behind week slides the rest forward. Mirrors the backend builder.
 function buildWeekEntries({
-  logIndex,
+  logs,
   optimisticScheduleByDate,
-  schedule,
   weekStart,
   workouts,
 }: {
-  logIndex: WorkoutLogIndex
+  logs: WorkoutLog[]
   optimisticScheduleByDate: Record<string, Workout | null>
-  schedule: WeeklySchedule
   weekStart: Date
   workouts: Workout[]
-}) {
-  return DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
+}): ScheduleEntry[] {
+  const todayKey = getDateKey(startOfDay(new Date()))
+  const weekStartKey = getDateKey(weekStart)
+  const weekEndKey = getDateKey(addDays(weekStart, 7))
+  const weekLogs = logs.filter((log) => {
+    const key = getDateKey(log.startedAt)
+    return key >= weekStartKey && key < weekEndKey
+  })
+
+  const cells = DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
     const date = addDays(weekStart, displayIndex)
-    const dateKey = getDateKey(date)
-    const baseWorkout = getScheduledWorkoutForDate(workouts, schedule, date)
-    const workout = Object.hasOwn(optimisticScheduleByDate, dateKey)
-      ? optimisticScheduleByDate[dateKey] ?? null
-      : baseWorkout
-    const log = getLogForDate(logIndex, date, workout)
+    return { date, dateKey: getDateKey(date), weekday }
+  })
+
+  const todayIndex = (() => {
+    const found = cells.findIndex((cell) => cell.dateKey === todayKey)
+    if (found >= 0) return found
+    return todayKey < weekStartKey ? -1 : cells.length
+  })()
+
+  const logByDay = new Map<string, WorkoutLog>()
+  for (const log of weekLogs) {
+    const key = getDateKey(log.startedAt)
+    if (!logByDay.has(key)) {
+      logByDay.set(key, log)
+    }
+  }
+  const completedWorkoutIds = new Set(weekLogs.map((log) => log.workout.id))
+
+  // One-off workouts pinned to a date stay on that date; optimistic edits override.
+  const oneOffByDay = new Map<string, Workout>()
+  for (const workout of workouts) {
+    if (workout.scheduledDate) {
+      oneOffByDay.set(getDateKey(workout.scheduledDate), workout)
+    }
+  }
+  for (const [dateKey, workout] of Object.entries(optimisticScheduleByDate)) {
+    if (workout) {
+      oneOffByDay.set(dateKey, workout)
+    } else {
+      oneOffByDay.delete(dateKey)
+    }
+  }
+
+  const remaining = workouts
+    .filter((workout) => isRecurringWorkout(workout) && !completedWorkoutIds.has(workout.id))
+    .sort((left, right) => DISPLAY_WEEKDAY_ORDER.indexOf(left.scheduledDay as number) - DISPLAY_WEEKDAY_ORDER.indexOf(right.scheduledDay as number))
+
+  const occupied = cells.map((cell) => logByDay.has(cell.dateKey) || oneOffByDay.has(cell.dateKey))
+  const assigned = new Array<Workout | null>(cells.length).fill(null)
+
+  for (const session of remaining) {
+    const schedIndex = DISPLAY_WEEKDAY_ORDER.indexOf(session.scheduledDay as number)
+    const start = Math.max(0, todayIndex < 0 ? schedIndex : Math.max(todayIndex, schedIndex))
+    for (let i = start; i < cells.length; i += 1) {
+      if (!occupied[i]) {
+        occupied[i] = true
+        assigned[i] = session
+        break
+      }
+    }
+  }
+
+  return cells.map((cell, index) => {
+    const isPast = cell.dateKey < todayKey
+    const dayIsToday = cell.dateKey === todayKey
+    const log = logByDay.get(cell.dateKey) ?? null
+
+    if (log) {
+      return {
+        date: cell.date,
+        durationLabel: getDurationLabel(log.workout, log),
+        isCatchUp: false,
+        isCompleted: true,
+        isMissed: false,
+        isRolledOver: false,
+        isToday: dayIsToday,
+        log,
+        source: log.workout.isPersonal ? "self" : "coach",
+        weekday: cell.weekday,
+        workout: log.workout,
+      } satisfies ScheduleEntry
+    }
+
+    const oneOff = oneOffByDay.get(cell.dateKey) ?? null
+    if (oneOff) {
+      return {
+        date: cell.date,
+        durationLabel: getDurationLabel(oneOff, null),
+        isCatchUp: false,
+        isCompleted: false,
+        isMissed: isPast,
+        isRolledOver: false,
+        isToday: dayIsToday,
+        log: null,
+        source: oneOff.isPersonal ? "self" : "coach",
+        weekday: cell.weekday,
+        workout: oneOff,
+      } satisfies ScheduleEntry
+    }
+
+    const placed = assigned[index]
+    const schedIndex = placed && typeof placed.scheduledDay === "number" ? DISPLAY_WEEKDAY_ORDER.indexOf(placed.scheduledDay) : -1
 
     return {
-      date,
-      durationLabel: getDurationLabel(workout, log),
-      isCompleted: Boolean(log),
-      isMissed: Boolean(workout && !log && isBefore(startOfDay(date), startOfDay(new Date()))),
-      isToday: isToday(date),
-      log,
-      source: workout?.isPersonal ? "self" : "coach",
-      weekday,
-      workout,
+      date: cell.date,
+      durationLabel: getDurationLabel(placed, null),
+      isCatchUp: Boolean(placed) && todayIndex >= 0 && schedIndex < todayIndex,
+      isCompleted: false,
+      isMissed: false,
+      isRolledOver: false,
+      isToday: dayIsToday,
+      log: null,
+      source: placed?.isPersonal ? "self" : "coach",
+      weekday: cell.weekday,
+      workout: placed,
     } satisfies ScheduleEntry
   })
 }
@@ -531,6 +601,59 @@ function RoutinePickerDialog({
   )
 }
 
+function RoutineFieldNum({
+  allowDecimals,
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  allowDecimals?: boolean
+  label: string
+  onChange: (value: string) => void
+  placeholder?: string
+  value: string
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </span>
+      <input
+        type={allowDecimals ? "number" : "text"}
+        inputMode={allowDecimals ? "decimal" : "numeric"}
+        min="0"
+        step={allowDecimals ? "0.5" : "1"}
+        value={value}
+        placeholder={placeholder ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+        className={cn(
+          "h-9 w-full rounded border border-border bg-background px-2 text-center font-mono text-sm text-foreground",
+          "focus:outline-none focus:ring-1 focus:ring-ring",
+          "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        )}
+        style={{ fontFeatureSettings: '"tnum" 1' }}
+      />
+    </div>
+  )
+}
+
+function getRoutineExerciseTitle(exercise: RoutineExercise) {
+  if (!exercise.fallbackExerciseName) {
+    return exercise.variationId
+  }
+
+  if (exercise.fallbackVariationName && !exercise.fallbackIsDefault) {
+    return `${exercise.fallbackExerciseName} - ${exercise.fallbackVariationName}`
+  }
+
+  return exercise.fallbackExerciseName
+}
+
+function getRoutineExerciseMeta(exercise: RoutineExercise) {
+  return [exercise.fallbackMuscleGroup, exercise.fallbackEquipment].filter(Boolean).join(" · ")
+}
+
 function RoutineBuilderDialog({
   date,
   error,
@@ -555,14 +678,14 @@ function RoutineBuilderDialog({
   const [name, setName] = useState("")
   const [tag, setTag] = useState<RoutineTag>("push")
   const [exercises, setExercises] = useState<RoutineExercise[]>([])
-  const [isExerciseSearchOpen, setIsExerciseSearchOpen] = useState(false)
+  const [pickerTarget, setPickerTarget] = useState<string | "add" | null>(null)
 
   useEffect(() => {
     if (!open) {
       setName("")
       setTag("push")
       setExercises([])
-      setIsExerciseSearchOpen(false)
+      setPickerTarget(null)
     }
   }, [open])
 
@@ -591,202 +714,196 @@ function RoutineBuilderDialog({
     })
   }
 
+  const pickExercise = (option: ExerciseVariationOption) => {
+    if (pickerTarget === "add") {
+      setExercises((current) => [
+        ...current,
+        {
+          ...createEmptyRoutineExercise(),
+          fallbackEquipment: option.equipment,
+          fallbackExerciseName: option.exerciseName,
+          fallbackIsDefault: option.isDefault,
+          fallbackMuscleGroup: option.muscleGroup,
+          fallbackVariationName: option.variationName,
+          variationId: option.id,
+        },
+      ])
+    } else if (pickerTarget) {
+      updateExercise(pickerTarget, {
+        fallbackEquipment: option.equipment,
+        fallbackExerciseName: option.exerciseName,
+        fallbackIsDefault: option.isDefault,
+        fallbackMuscleGroup: option.muscleGroup,
+        fallbackVariationName: option.variationName,
+        variationId: option.id,
+      })
+    }
+
+    setPickerTarget(null)
+  }
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[90] flex h-[90svh] max-h-[90svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[680px]">
-        <DialogHeader className="border-b border-border px-7 pb-4 pt-6 text-left">
-          <p className="label-micro">
+      <DialogContent className="z-[90] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-[14px] border-border p-0 sm:h-[90svh] sm:max-w-[680px]">
+        <DialogHeader className="shrink-0 gap-0 border-b border-border px-4 pb-[18px] pr-12 pt-5 text-left sm:px-7 sm:pr-12 sm:pt-6">
+          <p className="label-micro mb-1.5 text-muted-foreground">
             {messages.schedule.newRoutineForDate(date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle)}
           </p>
-          <DialogTitle className="text-[23px] font-semibold tracking-[-0.02em]">
+          <DialogTitle className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
             {name.trim() || messages.workoutPage.untitledRoutine}
           </DialogTitle>
-          <p className="font-mono text-xs text-muted-foreground tnum">
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
             {messages.workoutPage.exerciseCount(exercises.length)} · {messages.workoutPage.setCount(totalSets)}
           </p>
 
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={messages.workoutPage.routineNamePlaceholder}
-              className="h-10 flex-1 bg-background"
+              className="flex-1 text-[15px]"
+              autoFocus
             />
-            <div className="flex gap-1.5 overflow-x-auto">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {ROUTINE_TAGS.map((tagOption) => (
                 <button
                   key={tagOption}
                   type="button"
                   onClick={() => setTag(tagOption)}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium capitalize transition-colors",
+                    "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
                     tag === tagOption
                       ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background hover:bg-muted",
+                      : "border-border bg-background text-foreground hover:border-foreground/30",
                   )}
                 >
                   <RoutineDot tag={tagOption} />
-                  {tagOption === "push"
-                    ? messages.workoutPage.tagPush
-                    : tagOption === "pull"
-                      ? messages.workoutPage.tagPull
-                      : tagOption === "legs"
-                        ? messages.workoutPage.tagLegs
-                        : tagOption === "upper"
-                          ? messages.workoutPage.tagUpper
-                          : tagOption === "lower"
-                            ? messages.workoutPage.tagLower
-                            : messages.workoutPage.tagFull}
+                  {getRoutineTagLabel(tagOption, messages)}
                 </button>
               ))}
             </div>
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-7">
           {error ? (
-            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">{error}</div>
+            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">{error}</div>
           ) : null}
           {exercises.length === 0 ? (
-            <div className="rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
+            <div className="mb-4 rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
               {messages.workoutPage.noExercisesYet}
             </div>
           ) : null}
 
           <div className="space-y-2.5">
             {exercises.map((exercise, index) => (
-              <div key={exercise.id} className="rounded-[10px] border border-border bg-card p-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-5 text-right font-mono text-xs font-semibold text-muted-foreground tnum">
+              <div key={exercise.id} className="rounded-[10px] border border-border bg-background p-3.5 sm:px-[18px]">
+                <div className="mb-2.5 flex items-center gap-2.5">
+                  <span className="min-w-[18px] text-right font-mono text-xs font-semibold text-muted-foreground tnum">
                     {index + 1}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <ExercisePicker
-                      exercises={exerciseOptions}
-                      fallbackSelection={{
-                        equipment: exercise.fallbackEquipment,
-                        exerciseName: exercise.fallbackExerciseName,
-                        isDefault: exercise.fallbackIsDefault,
-                        muscleGroup: exercise.fallbackMuscleGroup,
-                        variationName: exercise.fallbackVariationName,
-                      }}
-                      selectedVariationId={exercise.variationId}
-                      disabled={isLoadingExercises || isSaving}
-                      onSelect={(variationId) => {
-                        const option = exerciseOptions.find((item) => item.id === variationId)
-
-                        updateExercise(exercise.id, {
-                          fallbackEquipment: option?.equipment,
-                          fallbackExerciseName: option?.exerciseName,
-                          fallbackIsDefault: option?.isDefault,
-                          fallbackMuscleGroup: option?.muscleGroup,
-                          fallbackVariationName: option?.variationName,
-                          variationId,
-                        })
-                      }}
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    title={messages.workoutPage.swapExercise}
+                    onClick={() => setPickerTarget(exercise.id)}
+                    disabled={isLoadingExercises || isSaving || exerciseOptions.length === 0}
+                    className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {getRoutineExerciseTitle(exercise) || messages.workoutPage.chooseExercise}
+                    </p>
+                    <p className="mt-0.5 truncate font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                      {getRoutineExerciseMeta(exercise) || messages.workoutPage.chooseExercise}
+                      <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
+                    </p>
+                  </button>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="icon-sm"
                       onClick={() => moveExercise(index, -1)}
                       disabled={index === 0 || isSaving}
                       aria-label={messages.schedule.moveExerciseUp}
+                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
                     >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="icon-sm"
                       onClick={() => moveExercise(index, 1)}
                       disabled={index === exercises.length - 1 || isSaving}
                       aria-label={messages.schedule.moveExerciseDown}
+                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
                     >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-muted-foreground hover:text-destructive"
                       onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
                       aria-label={messages.workoutPage.removeExercise}
                       disabled={isSaving}
+                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive disabled:opacity-30"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    </button>
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-4 gap-2 pl-8">
-                  <div className="flex flex-col gap-1">
-                    <Label className="label-micro">{messages.workoutPage.set}</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={exercise.sets}
-                      onChange={(event) => updateExercise(exercise.id, { sets: Math.max(1, Number(event.target.value) || 1) })}
-                      className="h-9 bg-background text-center font-mono text-sm tnum"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className="label-micro">{messages.schedule.repsRange}</Label>
-                    <Input
-                      value={exercise.reps}
-                      onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })}
-                      className="h-9 bg-background text-center font-mono text-sm tnum"
-                      placeholder="8-12"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className="label-micro">Kg</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      value={exercise.weight}
-                      onChange={(event) => updateExercise(exercise.id, { weight: event.target.value })}
-                      className="h-9 bg-background text-center font-mono text-sm tnum"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className="label-micro">REST</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={5}
-                      value={exercise.restTime ?? ""}
-                      onChange={(event) => updateExercise(exercise.id, { restTime: event.target.value })}
-                      className="h-9 bg-background text-center font-mono text-sm tnum"
-                      placeholder="90"
-                    />
-                  </div>
+                <div className="grid grid-cols-5 gap-2">
+                  <RoutineFieldNum
+                    label={messages.workoutPage.set}
+                    value={String(exercise.sets)}
+                    onChange={(value) => updateExercise(exercise.id, { sets: Math.max(1, Number(value) || 1) })}
+                  />
+                  <RoutineFieldNum
+                    label={messages.workoutPage.reps}
+                    value={exercise.reps}
+                    onChange={(value) => updateExercise(exercise.id, { reps: value })}
+                    placeholder="8-12"
+                  />
+                  <RoutineFieldNum
+                    label="kg"
+                    value={exercise.weight}
+                    onChange={(value) => updateExercise(exercise.id, { weight: value })}
+                    allowDecimals
+                  />
+                  <RoutineFieldNum
+                    label="RIR"
+                    value={exercise.rir ?? ""}
+                    onChange={(value) => updateExercise(exercise.id, { rir: value })}
+                    placeholder="0-4"
+                  />
+                  <RoutineFieldNum
+                    label="REST"
+                    value={exercise.restTime ?? ""}
+                    onChange={(value) => updateExercise(exercise.id, { restTime: value })}
+                    placeholder="90"
+                  />
                 </div>
               </div>
             ))}
           </div>
 
-          <Button
+          <button
             type="button"
-            variant="outline"
-            className="mt-3 w-full border-dashed bg-transparent text-primary hover:bg-muted hover:text-primary"
-            onClick={() => setIsExerciseSearchOpen(true)}
+            className={cn(
+              "mt-3 flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-3.5 text-sm font-medium text-primary transition-colors hover:bg-muted/50",
+              (isLoadingExercises || isSaving || exerciseOptions.length === 0) && "cursor-not-allowed opacity-60",
+            )}
+            onClick={() => setPickerTarget("add")}
             disabled={isLoadingExercises || isSaving || exerciseOptions.length === 0}
           >
             {isLoadingExercises ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             {messages.workoutPage.addExercise}
-          </Button>
+          </button>
         </div>
 
-        <DialogFooter className="border-t border-border px-7 py-4">
+        <DialogFooter className="flex-row items-center justify-end gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:pb-3">
           <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
             {messages.common.cancel}
           </Button>
           <Button
             type="button"
+            className="bg-foreground text-background hover:bg-foreground/90"
             disabled={!canSave}
             onClick={() => onSave({ exercises, id: createDraftId(), name: name.trim(), tag })}
           >
@@ -795,11 +912,11 @@ function RoutineBuilderDialog({
           </Button>
         </DialogFooter>
 
-        {isExerciseSearchOpen ? (
+        {pickerTarget ? (
           <AddExerciseModal
             existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
             exercises={exerciseOptions}
-            onClose={() => setIsExerciseSearchOpen(false)}
+            onClose={() => setPickerTarget(null)}
             footer={
               <Button
                 type="button"
@@ -812,21 +929,7 @@ function RoutineBuilderDialog({
                 {messages.schedule.createCustomExercise}
               </Button>
             }
-            onPick={(option) => {
-              setExercises((current) => [
-                ...current,
-                {
-                  ...createEmptyRoutineExercise(),
-                  fallbackEquipment: option.equipment,
-                  fallbackExerciseName: option.exerciseName,
-                  fallbackIsDefault: option.isDefault,
-                  fallbackMuscleGroup: option.muscleGroup,
-                  fallbackVariationName: option.variationName,
-                  variationId: option.id,
-                },
-              ])
-              setIsExerciseSearchOpen(false)
-            }}
+            onPick={pickExercise}
           />
         ) : null}
       </DialogContent>
@@ -1058,11 +1161,6 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
   const weekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), [])
   const nextWeekStart = useMemo(() => addDays(weekStart, 7), [weekStart])
   const logsForDisplay = visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
-  const logsByPlannedDateAndWorkoutId = useMemo(() => buildLogsByPlannedDateAndWorkoutId(logsForDisplay), [logsForDisplay])
-  const recentLogsByPlannedDateAndWorkoutId = useMemo(
-    () => buildLogsByPlannedDateAndWorkoutId(visibleRecentLogs),
-    [visibleRecentLogs],
-  )
   const hasOptimisticSchedule = Object.keys(optimisticScheduleByDate).length > 0
   const thisWeekEntries = useMemo(() => {
     if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
@@ -1070,26 +1168,24 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     }
 
     return buildWeekEntries({
-      logIndex: logsByPlannedDateAndWorkoutId,
+      logs: logsForDisplay,
       optimisticScheduleByDate,
-      schedule,
       weekStart,
       workouts: visibleWorkouts,
     })
-  }, [hasOptimisticSchedule, logsByPlannedDateAndWorkoutId, optimisticScheduleByDate, schedule, scheduleEntries, visibleWorkouts, weekStart])
+  }, [hasOptimisticSchedule, logsForDisplay, optimisticScheduleByDate, scheduleEntries, visibleWorkouts, weekStart])
   const nextWeekEntries = useMemo(() => {
     if (!showNextWeekPreview) {
       return []
     }
 
     return buildWeekEntries({
-      logIndex: recentLogsByPlannedDateAndWorkoutId,
+      logs: visibleRecentLogs,
       optimisticScheduleByDate,
-      schedule,
       weekStart: nextWeekStart,
       workouts: visibleWorkouts,
     })
-  }, [nextWeekStart, optimisticScheduleByDate, recentLogsByPlannedDateAndWorkoutId, schedule, showNextWeekPreview, visibleWorkouts])
+  }, [nextWeekStart, optimisticScheduleByDate, showNextWeekPreview, visibleRecentLogs, visibleWorkouts])
 
   const routineLibrary = useMemo(() => [
     ...extraRoutineLibrary,
@@ -1101,7 +1197,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
   ], [extraRoutineLibrary, visibleWorkouts])
 
   const coachWorkouts = useMemo(() => visibleWorkouts.filter((workout) => !workout.isPersonal), [visibleWorkouts])
-  const plannedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.workout).length, [thisWeekEntries])
+  const plannedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [thisWeekEntries])
   const completedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.isCompleted).length, [thisWeekEntries])
   const filteredThisWeek = useMemo(
     () => thisWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource)),
@@ -1194,12 +1290,14 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         duration: Math.max(30, routine.exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)),
         exercises: routine.exercises.map((exercise) => {
           const repTarget = parseRepTargetText(exercise.reps) ?? { reps: 1, repsMin: undefined }
+          const parsedRir = Number(exercise.rir)
           const parsedWeight = Number(exercise.weight)
           const parsedRest = Number(exercise.restTime)
 
           return {
             reps: repTarget.reps,
             repsMin: repTarget.repsMin,
+            rir: exercise.rir?.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
             restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
             sets: Math.max(1, exercise.sets),
             variationId: exercise.variationId,
@@ -1232,6 +1330,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     let normalizedExercises: Array<{
       reps: number
       repsMin?: number
+      rir?: number
       restTime?: number
       sets: number
       variationId: string
@@ -1247,11 +1346,13 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         }
 
         const parsedWeight = Number(exercise.weight)
+        const parsedRir = Number(exercise.rir)
         const parsedRest = Number(exercise.restTime)
 
         return {
           reps: repTarget.reps,
           repsMin: repTarget.repsMin,
+          rir: exercise.rir?.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
           restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
           sets: Math.max(1, exercise.sets),
           variationId: exercise.variationId,

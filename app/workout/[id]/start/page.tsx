@@ -2,6 +2,7 @@
 
 import {
   Check,
+  ChevronDown,
   FileText,
   MoreHorizontal,
   Plus,
@@ -472,6 +473,7 @@ interface LiftExerciseBlockProps {
   weightUnit: "kg" | "lbs"
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
   onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
+  onCollapse?: () => void
   onAddSet: (exerciseId: string) => void
   onRemoveSet: (exerciseId: string, setId: string) => void
   onRemoveExercise: (exerciseId: string) => void
@@ -483,6 +485,7 @@ function LiftExerciseBlock({
   weightUnit,
   onSetUpdate,
   onSetComplete,
+  onCollapse,
   onAddSet,
   onRemoveSet,
   onRemoveExercise,
@@ -490,13 +493,40 @@ function LiftExerciseBlock({
 }: LiftExerciseBlockProps) {
   const { messages } = useLocale()
   const completedCount = exercise.sets.filter((s) => s.completed).length
+  const allSetsCompleted = exercise.sets.length > 0 && completedCount === exercise.sets.length
+  const [collapsed, setCollapsed] = useState(allSetsCompleted)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(exercise.notes ?? "")
+  const hasRenderedRef = useRef(false)
+  const onCollapseRef = useRef(onCollapse)
   const exerciseLabel = formatExerciseVariationLabel({
     exerciseName: exercise.exercise.name,
     isDefault: exercise.variation.isDefault,
     variationName: exercise.variation.name,
   })
+
+  useEffect(() => {
+    onCollapseRef.current = onCollapse
+  }, [onCollapse])
+
+  useEffect(() => {
+    setCollapsed(allSetsCompleted)
+  }, [allSetsCompleted])
+
+  useEffect(() => {
+    if (!hasRenderedRef.current) {
+      hasRenderedRef.current = true
+      return
+    }
+
+    if (!collapsed) return
+
+    const frame = window.requestAnimationFrame(() => {
+      onCollapseRef.current?.()
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [collapsed])
 
   return (
     <div className="border border-border rounded-[10px] bg-card overflow-hidden mb-4">
@@ -510,6 +540,15 @@ function LiftExerciseBlock({
             {note.trim() && ` · 📝`}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-label={collapsed ? messages.workoutPage.expandExercise : messages.workoutPage.collapseExercise}
+          aria-expanded={!collapsed}
+          className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "-rotate-90")} />
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -553,51 +592,55 @@ function LiftExerciseBlock({
         </div>
       )}
 
-      {/* Column headers */}
-      <div
-        className={cn(
-          "grid items-center border-b border-border",
-          "grid-cols-[36px_1fr_1fr_1fr_1fr_54px] gap-2",
-          "px-4 py-2 md:px-5",
-          "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
-        )}
-      >
-        <span className="text-center">{messages.workoutPage.set}</span>
-        <span className="text-center">{messages.workoutPage.previous}</span>
-        <span className="text-center">{weightUnit}</span>
-        <span className="text-center">{messages.workoutPage.reps}</span>
-        <span className="text-center">RIR</span>
-        <span />
-      </div>
+      {!collapsed && (
+        <>
+          {/* Column headers */}
+          <div
+            className={cn(
+              "grid items-center border-b border-border",
+              "grid-cols-[36px_1fr_1fr_1fr_1fr_54px] gap-2",
+              "px-4 py-2 md:px-5",
+              "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
+            )}
+          >
+            <span className="text-center">{messages.workoutPage.set}</span>
+            <span className="text-center">{messages.workoutPage.previous}</span>
+            <span className="text-center">{weightUnit}</span>
+            <span className="text-center">{messages.workoutPage.reps}</span>
+            <span className="text-center">RIR</span>
+            <span />
+          </div>
 
-      {/* Set rows */}
-      {exercise.sets.map((set, idx) => (
-        <LiftSetRow
-          key={set.id}
-          set={set}
-          setIndex={idx}
-          weightUnit={weightUnit}
-          canRemove={exercise.sets.length > 1}
-          onToggle={(data) => {
-            onSetUpdate(set.id, data)
-            if (data.completed) {
-              onSetComplete(exercise, set, data)
-            }
-          }}
-          onChange={(patch) => onSetUpdate(set.id, patch)}
-          onRemove={() => onRemoveSet(exercise.id, set.id)}
-        />
-      ))}
+          {/* Set rows */}
+          {exercise.sets.map((set, idx) => (
+            <LiftSetRow
+              key={set.id}
+              set={set}
+              setIndex={idx}
+              weightUnit={weightUnit}
+              canRemove={exercise.sets.length > 1}
+              onToggle={(data) => {
+                onSetUpdate(set.id, data)
+                if (data.completed) {
+                  onSetComplete(exercise, set, data)
+                }
+              }}
+              onChange={(patch) => onSetUpdate(set.id, patch)}
+              onRemove={() => onRemoveSet(exercise.id, set.id)}
+            />
+          ))}
 
-      {/* Add set */}
-      <button
-        type="button"
-        onClick={() => onAddSet(exercise.id)}
-        className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {messages.workoutPage.addSet}
-      </button>
+          {/* Add set */}
+          <button
+            type="button"
+            onClick={() => onAddSet(exercise.id)}
+            className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {messages.workoutPage.addSet}
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -1057,6 +1100,12 @@ export default function WorkoutStartPage() {
               weightUnit={weightUnit}
               onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
               onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
+              onCollapse={() => {
+                exerciseRefs.current[index + 1]?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+              }}
               onAddSet={handleAddSet}
               onRemoveSet={handleRemoveSet}
               onRemoveExercise={handleRemoveExercise}

@@ -132,8 +132,10 @@ export interface WorkoutLog {
 export interface WorkoutScheduleEntry {
   date: Date
   durationLabel?: string
+  isCatchUp?: boolean
   isCompleted: boolean
   isMissed: boolean
+  isRolledOver?: boolean
   isToday: boolean
   log: WorkoutLog | null
   source: "coach" | "self"
