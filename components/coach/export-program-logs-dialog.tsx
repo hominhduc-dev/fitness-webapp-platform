@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import { fetchCoachWorkoutLogs } from "@/lib/fitness/api"
-import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
+import { formatDateToISO, formatDisplayDate, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { AssignedTrainee } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
 
@@ -183,7 +183,7 @@ export function ExportProgramLogsDialog({
               <p className="text-xs text-muted-foreground">
                 {(() => {
                   const { from, to } = getDateRange(selectedTrainee)
-                  return `Khoảng thời gian: ${from} → ${to}`
+                  return `Khoảng thời gian: ${formatDisplayDate(from)} → ${formatDisplayDate(to)}`
                 })()}
               </p>
             )}
