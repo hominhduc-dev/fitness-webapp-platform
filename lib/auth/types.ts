@@ -18,7 +18,6 @@ export interface AppProfile {
   targetWeightKg?: number | null
   updatedAt: string
   username?: string | null
-  webhookUrl?: string | null
 }
 
 export interface AuthenticatedUserPayload {
@@ -56,5 +55,4 @@ export interface UpdateProfileInput {
   phone?: string | null
   preferredWeightUnit?: "kg" | "lbs"
   targetWeightKg?: number | null
-  webhookUrl?: string | null
 }
