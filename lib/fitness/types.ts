@@ -296,6 +296,7 @@ type CreateCoachProgramInput = {
       rir?: number
       variationId: string
       reps: number
+      restTime?: number
       sets: number
       weight?: number
     }>

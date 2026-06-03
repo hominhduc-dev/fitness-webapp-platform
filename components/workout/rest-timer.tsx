@@ -7,6 +7,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
 
 export type RestEvent = {
+  duration?: number
   exercise: string
   set: { id: string; kg: number; reps: number | null }
 } | null
@@ -29,7 +30,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
   useEffect(() => {
     if (!event) return
 
-    const duration = defaultDuration
+    const duration = event.duration ?? defaultDuration
     totalRef.current = duration
     startedRef.current = Date.now()
     setRemaining(duration)
