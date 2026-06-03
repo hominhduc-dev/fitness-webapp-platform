@@ -203,6 +203,7 @@ type NutritionTotals = {
 type NutritionDay = {
   date: Date
   meals: Meal[]
+  recentFoods: NutritionFood[]
   targets: NutritionTargets
   totals: NutritionTotals
 }
@@ -893,12 +894,14 @@ function mapDailyNutrition(nutrition: SerializedDailyNutrition): DailyNutrition 
 function mapNutritionDay(day: {
   date: string
   meals: SerializedMeal[]
+  recentFoods?: SerializedNutritionFood[]
   targets: NutritionTargets
   totals: NutritionTotals
 }): NutritionDay {
   return {
     date: new Date(`${day.date}T00:00:00`),
     meals: day.meals.map(mapMeal),
+    recentFoods: day.recentFoods ?? [],
     targets: day.targets,
     totals: day.totals,
   }
@@ -909,6 +912,7 @@ async function fetchNutritionDay(accessToken: string, date?: string): Promise<Nu
   const response = await request<ApiEnvelope<{
     date: string
     meals: SerializedMeal[]
+    recentFoods?: SerializedNutritionFood[]
     targets: NutritionTargets
     totals: NutritionTotals
   }>>(`/api/meals${query}`, accessToken, {

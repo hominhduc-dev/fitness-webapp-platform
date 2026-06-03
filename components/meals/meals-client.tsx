@@ -37,12 +37,16 @@ type NutritionTotals = {
   calories: number
   carbs: number
   fat: number
+  fiber?: number
   protein: number
+  sodium?: number
+  sugar?: number
 }
 
 type NutritionDay = {
   date: Date
   meals: Meal[]
+  recentFoods: NutritionFood[]
   targets: NutritionTargets
   totals: NutritionTotals
 }
@@ -82,6 +86,51 @@ function formatMetric(value?: number, digits = 1) {
 
 function getMacro(meal: Meal, key: "carbs" | "fat" | "protein") {
   return meal[key] ?? 0
+}
+
+function getOptionalMetric(meal: Meal, key: "fiber" | "sodium" | "sugar") {
+  return meal[key] ?? 0
+}
+
+function recalculateTotals(meals: Meal[]): NutritionTotals {
+  return meals.reduce<NutritionTotals>(
+    (totals, meal) => ({
+      calories: totals.calories + meal.calories,
+      carbs: totals.carbs + getMacro(meal, "carbs"),
+      fat: totals.fat + getMacro(meal, "fat"),
+      fiber: (totals.fiber ?? 0) + getOptionalMetric(meal, "fiber"),
+      protein: totals.protein + getMacro(meal, "protein"),
+      sodium: (totals.sodium ?? 0) + getOptionalMetric(meal, "sodium"),
+      sugar: (totals.sugar ?? 0) + getOptionalMetric(meal, "sugar"),
+    }),
+    {
+      calories: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+      protein: 0,
+      sodium: 0,
+      sugar: 0,
+    },
+  )
+}
+
+function replaceMeal(nutritionDay: NutritionDay, meal: Meal, dateKey: string): NutritionDay {
+  if (formatDateKey(nutritionDay.date) !== dateKey) {
+    return nutritionDay
+  }
+
+  const meals = nutritionDay.meals.map((currentMeal) => (currentMeal.type === meal.type ? meal : currentMeal))
+
+  return {
+    ...nutritionDay,
+    meals,
+    totals: recalculateTotals(meals),
+  }
+}
+
+function prependRecentFood(recentFoods: NutritionFood[], food: NutritionFood) {
+  return [food, ...recentFoods.filter((recentFood) => recentFood.id !== food.id)].slice(0, 10)
 }
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
@@ -319,7 +368,7 @@ function CreateFoodForm({
     name: string
     protein?: number
     servingLabel: string
-  }) => void
+  }) => Promise<void> | void
   saving: boolean
 }) {
   const [name, setName] = useState("")
@@ -404,8 +453,8 @@ function CreateFoodForm({
         <Button
           disabled={!canSave || saving}
           type="button"
-          onClick={() =>
-            onSave({
+          onClick={() => {
+            void onSave({
               calories: Number(calories),
               carbs: carbs ? Number(carbs) : undefined,
               category,
@@ -414,7 +463,7 @@ function CreateFoodForm({
               protein: protein ? Number(protein) : undefined,
               servingLabel: servingLabel.trim(),
             })
-          }
+          }}
         >
           <Check className="h-4 w-4" />
           {labels.saveFood}
@@ -433,6 +482,7 @@ function AddFoodModal({
   onAdd,
   onClose,
   onCreateFood,
+  recentFoods,
   submitting,
 }: {
   foods: NutritionFood[]
@@ -454,6 +504,8 @@ function AddFoodModal({
     logFood: string
     noFoodsFound: string
     protein: string
+    recentFoods: string
+    recentFoodsHint: string
     saveFood: string
     searchFoodPlaceholder: string
     serving: string
@@ -463,7 +515,8 @@ function AddFoodModal({
   mealType: MealType
   onAdd: (input: { amountUnit: "g" | "ml" | "serving"; amountValue: number; food: NutritionFood }) => void
   onClose: () => void
-  onCreateFood: Parameters<typeof CreateFoodForm>[0]["onSave"]
+  onCreateFood: (input: Parameters<typeof createCustomFood>[1]) => Promise<NutritionFood | null>
+  recentFoods: NutritionFood[]
   submitting: boolean
 }) {
   const [query, setQuery] = useState("")
@@ -478,12 +531,25 @@ function AddFoodModal({
     const matchesQuery = !query.trim() || food.name.toLowerCase().includes(query.trim().toLowerCase())
     return matchesCategory && matchesQuery
   })
+  const showRecentFoods = !query.trim() && category === "all" && recentFoods.length > 0
 
   function pickFood(food: NutritionFood) {
     const gramUnit = food.servingUnit === "g" || food.servingUnit === "ml" ? food.servingUnit : "serving"
     setSelectedFood(food)
     setAmountUnit(gramUnit)
     setAmountValue(gramUnit === "serving" ? 1 : food.servingAmount)
+  }
+
+  async function handleCreateFood(input: Parameters<typeof createCustomFood>[1]) {
+    setCreating(false)
+    setQuery("")
+    setCategory("all")
+
+    const food = await onCreateFood(input)
+
+    if (food) {
+      pickFood(food)
+    }
   }
 
   const multiplier =
@@ -503,7 +569,7 @@ function AddFoodModal({
             labels={labels}
             saving={submitting}
             onCancel={() => setCreating(false)}
-            onSave={onCreateFood}
+            onSave={handleCreateFood}
           />
         ) : (
           <>
@@ -527,6 +593,36 @@ function AddFoodModal({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
+              {showRecentFoods ? (
+                <div className="border-b border-border bg-muted/25 px-5 py-3.5">
+                  <div className="mb-2.5 flex items-baseline justify-between gap-3">
+                    <p className="label-micro">{labels.recentFoods}</p>
+                    <p className="hidden text-[11px] text-muted-foreground sm:block">{labels.recentFoodsHint}</p>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-0.5">
+                    {recentFoods.map((food) => {
+                      const active = selectedFood?.id === food.id
+                      return (
+                        <button
+                          key={food.id}
+                          className={cn(
+                            "min-w-[170px] max-w-[220px] shrink-0 rounded-[8px] border bg-card px-3 py-2 text-left transition-colors",
+                            active ? "border-primary bg-primary-soft" : "border-border hover:bg-muted",
+                          )}
+                          type="button"
+                          onClick={() => pickFood(food)}
+                        >
+                          <p className="truncate text-[13px] font-semibold text-foreground">{food.name}</p>
+                          <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground tnum">
+                            {Math.round(food.calories)} kcal · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F
+                            {formatMetric(food.fat, 0)}
+                          </p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {filteredFoods.map((food) => {
                 const active = selectedFood?.id === food.id
                 return (
@@ -679,6 +775,8 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     logFood: messages.meals.logFood,
     noFoodsFound: messages.meals.noFoodsFound,
     protein: messages.meals.protein,
+    recentFoods: messages.meals.recentFoods,
+    recentFoodsHint: messages.meals.recentFoodsHint,
     saveFood: messages.meals.saveFood,
     searchFoodPlaceholder: messages.meals.searchFoodPlaceholder,
     serving: messages.meals.serving,
@@ -704,18 +802,26 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
       return
     }
 
+    const mealType = addTo
+    const dateKey = selectedDateKey
     setIsSubmitting(true)
+    setAddTo(null)
     setError(null)
     try {
-      await addMealItem(session.access_token, {
+      const meal = await addMealItem(session.access_token, {
         amountUnit: input.amountUnit,
         amountValue: input.amountValue,
-        date: selectedDateKey,
+        date: dateKey,
         foodId: input.food.id,
-        mealType: addTo,
+        mealType,
       })
-      await loadDay(selectedDateKey)
-      setAddTo(null)
+      setNutritionDay((current) => {
+        const updated = replaceMeal(current, meal, dateKey)
+        return {
+          ...updated,
+          recentFoods: prependRecentFood(updated.recentFoods, input.food),
+        }
+      })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.addFoodError)
     } finally {
@@ -725,7 +831,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
 
   async function handleCreateFood(input: Parameters<typeof createCustomFood>[1]) {
     if (!session?.access_token) {
-      return
+      return null
     }
 
     setIsSubmitting(true)
@@ -733,8 +839,10 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     try {
       const food = await createCustomFood(session.access_token, input)
       setFoods((current) => [food, ...current.filter((item) => item.id !== food.id)])
+      return food
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.createFoodError)
+      return null
     } finally {
       setIsSubmitting(false)
     }
@@ -748,8 +856,8 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     setIsSubmitting(true)
     setError(null)
     try {
-      await deleteMealItem(session.access_token, itemId)
-      await loadDay(selectedDateKey)
+      const meal = await deleteMealItem(session.access_token, itemId)
+      setNutritionDay((current) => replaceMeal(current, meal, selectedDateKey))
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.deleteFoodError)
     } finally {
@@ -855,10 +963,11 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
           getMealLabel={getMealLabel}
           labels={modalLabels}
           mealType={addTo}
+          recentFoods={nutritionDay.recentFoods}
           submitting={isSubmitting}
           onAdd={(input) => void handleAddFood(input)}
           onClose={() => setAddTo(null)}
-          onCreateFood={(input) => void handleCreateFood(input)}
+          onCreateFood={handleCreateFood}
         />
       ) : null}
     </div>
