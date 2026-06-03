@@ -68,6 +68,7 @@ type RoutineExercise = {
   id: string
   rir?: number
   reps: string
+  restTime?: string
   sets: number
   variationId: string
   weight: string
@@ -272,6 +273,7 @@ function mapWorkoutExerciseToRoutineExercise(
       reps: workoutExercise.sets[0]?.targetReps ?? 1,
       repsMin: workoutExercise.sets[0]?.targetRepsMin,
     }),
+    restTime: workoutExercise.restTime != null ? String(workoutExercise.restTime) : "",
     sets: workoutExercise.sets.length || 1,
     variationId: resolvedOption?.id ?? workoutExercise.variation.id,
     weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
@@ -494,6 +496,7 @@ function routineToDraft(routine: Routine): RoutineDraftData {
       reps: ex.reps,
       weight: ex.weight,
       rir: ex.rir != null ? String(ex.rir) : "",
+      restTime: ex.restTime ?? "",
     })),
   }
 }
@@ -506,6 +509,7 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
     exercises: draft.exercises.map((ex): RoutineExercise => {
       const parts = ex.displayName.split(" — ")
       const parsedRir = Number(ex.rir)
+      const parsedRest = Number(ex.restTime)
       return {
         id: ex.id,
         variationId: ex.variationId,
@@ -515,6 +519,7 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
         fallbackEquipment: ex.equipment,
         fallbackIsDefault: parts.length === 1,
         rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
+        restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? String(Math.max(0, Math.round(parsedRest))) : undefined,
         sets: ex.sets,
         reps: ex.reps,
         weight: ex.weight,
@@ -943,11 +948,13 @@ export function ProgramEditor({
               }
 
               const parsedWeight = Number(exercise.weight)
+              const parsedRest = Number(exercise.restTime)
 
               return {
                 reps: repTarget.reps,
                 repsMin: repTarget.repsMin,
                 rir: typeof exercise.rir === "number" ? exercise.rir : undefined,
+                restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
                 sets: exercise.sets,
                 variationId: exercise.variationId,
                 weight:

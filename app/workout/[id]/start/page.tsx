@@ -853,6 +853,7 @@ export default function WorkoutStartPage() {
         variationName: exercise.variation.name,
       })
       setRestEvent({
+        duration: exercise.restTime ?? undefined,
         exercise: exerciseLabel,
         set: {
           id: set.id,
