@@ -35,6 +35,9 @@ import type { AppMessages } from "@/lib/i18n/messages"
 
 const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
 
+/** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
+const DEFAULT_REST_SECONDS = 90
+
 type StoredWorkoutSession = {
   currentExerciseIndex: number
   exercises: Array<{
@@ -647,6 +650,7 @@ export default function WorkoutStartPage() {
   const [startTime, setStartTime] = useState(new Date())
   const [now, setNow] = useState(new Date())
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
+  const exerciseRefs = useRef<(HTMLDivElement | null)[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -721,6 +725,14 @@ export default function WorkoutStartPage() {
       JSON.stringify(createStoredWorkoutSession(exercises, startTime, currentExerciseIndex)),
     )
   }, [currentExerciseIndex, exercises, startTime, workout, workoutId])
+
+  // ── Auto-advance: scroll the active exercise into view ─────────────────────
+  useEffect(() => {
+    exerciseRefs.current[currentExerciseIndex]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
+  }, [currentExerciseIndex])
 
   // ── Derived stats ───────────────────────────────────────────────────────────
   const totalSets = exercises.reduce((acc, ex) => acc + ex.sets.length, 0)
@@ -862,24 +874,6 @@ export default function WorkoutStartPage() {
         },
       })
 
-      if (profile?.webhookUrl) {
-        const kg = data.weight ?? set.weight
-        const reps = data.actualReps ?? set.actualReps ?? set.targetReps
-        const restSecs = exercise.restTime ?? null
-        const weightStr = kg != null ? `${kg}kg` : null
-        const parts = [weightStr, `${reps} reps`].filter(Boolean).join(" × ")
-        void fetch(profile.webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            // ntfy.sh-compatible format — title is parsed by iOS Shortcut to start timer
-            title: restSecs != null ? `Rest ${restSecs}s` : `✅ ${exerciseLabel}`,
-            message: `${exerciseLabel} · Set ${set.setNumber}${parts ? ` · ${parts}` : ""}`,
-            tags: ["muscle"],
-            priority: 4,
-          }),
-        }).catch(() => { /* non-critical, fire-and-forget */ })
-      }
       // Advance current exercise index if all sets on this exercise are done
       const updatedSets = exercise.sets.map((s) => (s.id === set.id ? { ...s, ...data } : s))
       if (updatedSets.every((s) => s.completed)) {
@@ -1050,18 +1044,25 @@ export default function WorkoutStartPage() {
         )}
 
         {/* Exercise blocks */}
-        {exercises.map((exercise) => (
-          <LiftExerciseBlock
+        {exercises.map((exercise, index) => (
+          <div
             key={exercise.id}
-            exercise={exercise}
-            weightUnit={weightUnit}
-            onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
-            onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
-            onAddSet={handleAddSet}
-            onRemoveSet={handleRemoveSet}
-            onRemoveExercise={handleRemoveExercise}
-            onExerciseNoteChange={handleExerciseNoteChange}
-          />
+            ref={(el) => {
+              exerciseRefs.current[index] = el
+            }}
+            style={{ scrollMarginTop: "1rem" }}
+          >
+            <LiftExerciseBlock
+              exercise={exercise}
+              weightUnit={weightUnit}
+              onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
+              onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
+              onAddSet={handleAddSet}
+              onRemoveSet={handleRemoveSet}
+              onRemoveExercise={handleRemoveExercise}
+              onExerciseNoteChange={handleExerciseNoteChange}
+            />
+          </div>
         ))}
 
         {/* Bottom action bar */}
@@ -1103,7 +1104,7 @@ export default function WorkoutStartPage() {
       <RestTimer
         event={restEvent}
         onDismiss={() => setRestEvent(null)}
-        defaultDuration={90}
+        defaultDuration={DEFAULT_REST_SECONDS}
       />
 
       {/* ── Date selection dialog ─────────────────────────────────────────── */}

@@ -3,7 +3,7 @@
 import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Bell, Camera, Flame, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User, Webhook } from "lucide-react"
+import { AlertTriangle, Bell, Camera, Flame, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -86,9 +86,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [targetWeight, setTargetWeight] = useState("")
   const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null)
   const [dailyCalorieGoal, setDailyCalorieGoal] = useState(String(DEFAULT_DAILY_CALORIE_GOAL))
-  const [webhookUrl, setWebhookUrl] = useState("")
-  const [savedWebhookUrl, setSavedWebhookUrl] = useState("")
-  const [isSavingWebhook, setIsSavingWebhook] = useState(false)
   const [notifications, setNotifications] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
@@ -121,8 +118,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       profile.targetWeightKg != null ? formatNumericInput(convertWeightFromKg(profile.targetWeightKg, nextWeightUnit)) : "",
     )
     setDailyCalorieGoal(String(profile.dailyCalorieGoal ?? DEFAULT_DAILY_CALORIE_GOAL))
-    setWebhookUrl(profile.webhookUrl ?? "")
-    setSavedWebhookUrl(profile.webhookUrl ?? "")
   }, [profile])
 
   useEffect(() => {
@@ -249,21 +244,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     }
   }
 
-  const handleWebhookBlur = async () => {
-    const next = webhookUrl.trim() || null
-    const prev = savedWebhookUrl.trim() || null
-    if (next === prev || !profile || isSavingWebhook) return
-    setIsSavingWebhook(true)
-    try {
-      await updateProfile({ webhookUrl: next })
-      setSavedWebhookUrl(webhookUrl.trim())
-    } catch {
-      // non-critical — main Save still works
-    } finally {
-      setIsSavingWebhook(false)
-    }
-  }
-
   const handleSave = async () => {
     if (!profile) {
       return
@@ -336,7 +316,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         phone: phone.trim() || null,
         preferredWeightUnit,
         targetWeightKg: parsedTargetWeightKg,
-        webhookUrl: webhookUrl.trim() || null,
       })
 
       if (updatedProfile) {
@@ -683,50 +662,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               </button>
             )
           })}
-        </div>
-      </div>
-
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
-          <Webhook className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.integrations}</h2>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="webhook-url" className="mb-1 block font-medium">
-              {messages.profile.webhookUrl}
-            </Label>
-            <p className="mb-2 text-sm text-muted-foreground">{messages.profile.webhookUrlCopy}</p>
-            <div className="relative">
-              <Input
-                id="webhook-url"
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                onBlur={() => void handleWebhookBlur()}
-                placeholder={messages.profile.webhookUrlPlaceholder}
-                type="url"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              {isSavingWebhook && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-muted-foreground">
-                  saving…
-                </span>
-              )}
-            </div>
-          </div>
-
-          {webhookUrl.trim() && (
-            <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">{messages.profile.webhookSetupTitle}</p>
-              <p>1. {messages.profile.webhookStep1}</p>
-              <p>2. {messages.profile.webhookStep2}</p>
-              <p>3. {messages.profile.webhookStep3}</p>
-              <p>4. {messages.profile.webhookStep4}</p>
-            </div>
-          )}
         </div>
       </div>
 
