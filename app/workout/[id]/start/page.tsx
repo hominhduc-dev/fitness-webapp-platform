@@ -5,7 +5,6 @@ import {
   FileText,
   MoreHorizontal,
   Plus,
-  Search,
   Trash2,
   X,
 } from "lucide-react"
@@ -27,8 +26,8 @@ import { createWorkoutLog, fetchExercises, fetchWorkoutDetail } from "@/lib/fitn
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"
 import type { ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
+import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
-import { matchesExerciseSearch } from "@/lib/exercise-search"
 
 // ─── Session storage helpers (unchanged) ──────────────────────────────────────
 
@@ -634,7 +633,6 @@ export default function WorkoutStartPage() {
   // Add exercise dialog
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVariationOption[]>([])
-  const [exerciseSearch, setExerciseSearch] = useState("")
   const [loadingLibrary, setLoadingLibrary] = useState(false)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
@@ -802,7 +800,6 @@ export default function WorkoutStartPage() {
     }
     setExercises((prev) => [...prev, newExercise])
     setShowAddExercise(false)
-    setExerciseSearch("")
   }
 
   const handleRemoveSet = (exerciseId: string, setId: string) => {
@@ -1127,73 +1124,15 @@ export default function WorkoutStartPage() {
       </Dialog>
 
       {/* ── Add Exercise dialog ───────────────────────────────────────────── */}
-      <Dialog open={showAddExercise} onOpenChange={(open) => { setShowAddExercise(open); if (!open) setExerciseSearch("") }}>
-        <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-md">
-          <DialogHeader className="shrink-0 border-b border-border px-4 py-4">
-            <DialogTitle>Add exercise</DialogTitle>
-          </DialogHeader>
-
-          {/* Search */}
-          <div className="shrink-0 border-b border-border px-4 py-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                autoFocus
-                type="text"
-                value={exerciseSearch}
-                onChange={(e) => setExerciseSearch(e.target.value)}
-                placeholder="Search exercises..."
-                className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              {exerciseSearch && (
-                <button
-                  type="button"
-                  onClick={() => setExerciseSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Exercise list */}
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {loadingLibrary ? (
-              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                Loading exercises...
-              </div>
-            ) : (
-              (() => {
-                const filtered = exerciseLibrary.filter((ex) =>
-                  matchesExerciseSearch([ex.name, ex.exerciseName, ex.muscleGroup, ex.equipment], exerciseSearch),
-                )
-                if (filtered.length === 0) {
-                  return (
-                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                      No exercises found.
-                    </div>
-                  )
-                }
-                return filtered.map((ex) => (
-                  <button
-                    key={ex.id}
-                    type="button"
-                    onClick={() => handleAddExercise(ex)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted border-b border-border last:border-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{ex.name}</p>
-                      <p className="text-xs text-muted-foreground">{ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}</p>
-                    </div>
-                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
-                ))
-              })()
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {showAddExercise ? (
+        <AddExerciseModal
+          exercises={exerciseLibrary}
+          loading={loadingLibrary}
+          existingVariationIds={exercises.map((ex) => ex.variation.id)}
+          onPick={handleAddExercise}
+          onClose={() => setShowAddExercise(false)}
+        />
+      ) : null}
     </div>
   )
 }

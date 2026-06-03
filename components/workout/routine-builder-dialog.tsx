@@ -3,15 +3,15 @@
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronDown, ChevronUp, Dumbbell, Search, Trash2, X } from "lucide-react"
+import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
+import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
 import type { ExerciseVariationOption, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { parseRepTargetText, formatRepTarget } from "@/lib/workout-reps"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -53,7 +53,6 @@ export type RoutineBuilderDialogProps = {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
-const MUSCLE_FILTERS = ["all", "chest", "back", "legs", "shoulders", "arms", "core"]
 
 const TAG_DOT: Record<RoutineTag, string> = {
   full:  "var(--ink-600, #52525b)",
@@ -95,131 +94,6 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     weight: set0?.weight != null ? String(set0.weight) : "",
     rir: set0?.rir != null ? String(set0.rir) : "",
   }
-}
-
-// ─── ExercisePicker sub-modal ────────────────────────────────────────────────
-
-function ExercisePickerModal({
-  library,
-  existing,
-  onPick,
-  onClose,
-}: {
-  library: ExerciseVariationOption[]
-  existing: RoutineExerciseDraft[]
-  onPick: (ex: ExerciseVariationOption) => void
-  onClose: () => void
-}) {
-  const [q, setQ] = useState("")
-  const [muscle, setMuscle] = useState("all")
-  const existingIds = new Set(existing.map((e) => e.variationId))
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  const visible = sortByExerciseRelevance(
-    library.filter((ex) => {
-      if (muscle !== "all" && ex.muscleGroup.toLowerCase() !== muscle) return false
-      return matchesExerciseSearch([ex.name, ex.exerciseName, ex.muscleGroup, ex.equipment], q)
-    }),
-    q,
-    (ex) => ex.name,
-  )
-
-  return (
-    <div
-      className="fixed inset-0 z-[110] flex items-center justify-center p-6"
-      style={{ background: "rgba(13,13,11,0.45)", backdropFilter: "blur(4px)" }}
-      onClick={onClose}
-    >
-      <div
-        className="flex w-full max-w-[480px] flex-col overflow-hidden rounded-[12px] border border-border bg-background"
-        style={{ maxHeight: "80vh", boxShadow: "0 24px 60px -12px rgba(13,13,11,0.25)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="border-b border-border px-[22px] pb-3 pt-5">
-          <div className="mb-3.5 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground">Add exercise</h3>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <X className="h-[18px] w-[18px]" />
-            </button>
-          </div>
-          <div className="relative mb-2.5">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search…"
-              className="pl-9"
-            />
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {MUSCLE_FILTERS.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMuscle(m)}
-                className={cn(
-                  "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-xs font-medium transition-colors",
-                  muscle === m
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-background text-foreground hover:border-foreground/30",
-                )}
-              >
-                {m === "all" ? "All" : m[0].toUpperCase() + m.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* List */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {visible.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              No exercises found.
-            </div>
-          ) : (
-            visible.map((ex, i) => {
-              const added = existingIds.has(ex.id)
-              return (
-                <button
-                  key={ex.id}
-                  type="button"
-                  disabled={added}
-                  onClick={() => !added && onPick(ex)}
-                  className={cn(
-                    "flex w-full items-center gap-3 px-[22px] py-3 text-left transition-colors",
-                    i < visible.length - 1 && "border-b border-border",
-                    added ? "cursor-default opacity-50" : "hover:bg-muted",
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{ex.name}</p>
-                    <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                      {ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}
-                    </p>
-                  </div>
-                  {added ? (
-                    <span className="text-xs font-medium text-green-600">added</span>
-                  ) : (
-                    <span className="text-muted-foreground text-lg leading-none">+</span>
-                  )}
-                </button>
-              )
-            })
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 // ─── FieldNum ────────────────────────────────────────────────────────────────
@@ -660,13 +534,15 @@ export function RoutineBuilderDialog({
 
       {/* Exercise picker sub-modal */}
       {pickerTarget && (
-        <ExercisePickerModal
-          library={loadingLibrary ? [] : library}
-          existing={
+        <AddExerciseModal
+          exercises={loadingLibrary ? [] : library}
+          loading={loadingLibrary}
+          existingVariationIds={
             // When swapping: exclude the exercise being swapped so it shows as pickable
-            pickerTarget === "add"
+            (pickerTarget === "add"
               ? exercises
               : exercises.filter((e) => e.id !== pickerTarget)
+            ).map((e) => e.variationId)
           }
           onPick={pickExercise}
           onClose={() => setPickerTarget(null)}
