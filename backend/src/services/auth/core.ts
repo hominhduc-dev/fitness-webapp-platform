@@ -43,6 +43,7 @@ type ProfileUpdateInput = {
   phone?: string | null
   preferredWeightUnit?: string | null
   targetWeightKg?: number | null
+  webhookUrl?: string | null
 }
 
 const USERNAME_PATTERN = /^(?=.{3,30}$)[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$/
@@ -477,6 +478,7 @@ function serializeProfile(profile: AppUser | null) {
     targetWeightKg: profile.targetWeightKg,
     updatedAt: profile.updatedAt,
     username: profile.username,
+    webhookUrl: profile.webhookUrl ?? null,
   }
 }
 
@@ -867,6 +869,7 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
   const hasHeightUpdate = updates.heightCm !== undefined
   const hasWeightUnitUpdate = updates.preferredWeightUnit !== undefined
   const hasTargetWeightUpdate = updates.targetWeightKg !== undefined
+  const hasWebhookUrlUpdate = updates.webhookUrl !== undefined
   const nextPhone = hasPhoneUpdate
     ? updates.phone === null || updates.phone?.trim() === ""
       ? null
@@ -882,6 +885,9 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
   const nextTargetWeightKg = hasTargetWeightUpdate
     ? normalizeTargetWeightKg(updates.targetWeightKg)
     : profile.targetWeightKg
+  const nextWebhookUrl = hasWebhookUrlUpdate
+    ? (updates.webhookUrl?.trim() || null)
+    : profile.webhookUrl
 
   if (nextPhone) {
     const existingPhoneOwner = await db.user.findFirst({
@@ -911,6 +917,7 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
       phone: nextPhone,
       preferredWeightUnit: nextWeightUnit,
       targetWeightKg: nextTargetWeightKg,
+      webhookUrl: nextWebhookUrl,
     },
     where: {
       id: profile.id,
