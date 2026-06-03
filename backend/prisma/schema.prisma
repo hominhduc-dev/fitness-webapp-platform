@@ -109,6 +109,7 @@ model User {
   dailyFatGoal           Int                 @default(70)
   heightCm               Float?
   targetWeightKg         Float?
+  webhookUrl             String?
   coachId                String?             @db.Uuid
   coach                  User?               @relation("CoachTrainees", fields: [coachId], references: [id], onDelete: SetNull)
   trainees               User[]              @relation("CoachTrainees")

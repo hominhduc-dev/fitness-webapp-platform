@@ -29,6 +29,7 @@ export type RoutineExerciseDraft = {
   reps: string
   weight: string
   rir: string
+  restTime?: string
 }
 
 export type RoutineDraftData = {
@@ -106,6 +107,7 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     reps: formatRepTarget({ reps: set0?.targetReps ?? 10, repsMin: set0?.targetRepsMin }),
     weight: set0?.weight != null ? String(set0.weight) : "",
     rir: set0?.rir != null ? String(set0.rir) : "",
+    restTime: exercise.restTime != null ? String(exercise.restTime) : "",
   }
 }
 
@@ -244,6 +246,7 @@ export function RoutineBuilderDialog({
           reps: "10",
           weight: "",
           rir: "",
+          restTime: "",
         },
       ])
     } else if (pickerTarget) {
@@ -306,10 +309,12 @@ export function RoutineBuilderDialog({
           if (!repTarget) throw new Error(messages.workoutPage.invalidRepsAtExercise(i + 1))
           const parsedWeight = Number(ex.weight)
           const parsedRir = Number(ex.rir)
+          const parsedRest = Number(ex.restTime)
           return {
             reps: repTarget.reps,
             repsMin: repTarget.repsMin,
             rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
+            restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
             variationId: ex.variationId,
             sets: Math.max(1, Number(ex.sets) || 1),
             weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
@@ -486,7 +491,7 @@ export function RoutineBuilderDialog({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     <FieldNum
                       label={messages.workoutPage.set}
                       value={String(ex.sets)}
@@ -509,6 +514,12 @@ export function RoutineBuilderDialog({
                       value={ex.rir}
                       onChange={(v) => updateExercise(ex.id, { rir: v })}
                       placeholder="0-4"
+                    />
+                    <FieldNum
+                      label="REST"
+                      value={ex.restTime ?? ""}
+                      onChange={(v) => updateExercise(ex.id, { restTime: v })}
+                      placeholder="90"
                     />
                   </div>
                 </div>
