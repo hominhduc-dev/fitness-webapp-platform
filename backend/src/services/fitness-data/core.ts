@@ -736,49 +736,8 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
   }
 }
 
-function getSerializedWorkoutForDate(
-  workouts: Array<ReturnType<typeof serializeWorkout>>,
-  schedule: Record<number, ReturnType<typeof serializeWorkout> | null>,
-  date: Date,
-) {
-  const dateKey = formatUtcDateOnly(date)
-  const oneOffWorkout = workouts.find((workout) => workout.scheduledDate === dateKey)
-
-  if (oneOffWorkout) {
-    return oneOffWorkout
-  }
-
-  const recurringWorkout = workouts.find(
-    (workout) => !workout.scheduledDate && workout.scheduledDay === date.getUTCDay(),
-  )
-
-  return recurringWorkout ?? schedule[date.getUTCDay()] ?? null
-}
-
-function getSerializedLogForPlannedDate(
-  logs: Array<ReturnType<typeof serializeWorkoutLog>>,
-  date: Date,
-  workout: ReturnType<typeof serializeWorkout> | null,
-) {
-  const dateKey = formatUtcDateOnly(date)
-  const logsForDate = logs.filter((log) => {
-    const plannedDate = log.plannedDate ?? formatUtcDateOnly(log.startedAt)
-    return plannedDate === dateKey
-  })
-
-  if (logsForDate.length === 0) {
-    return null
-  }
-
-  if (!workout) {
-    return logsForDate[0]
-  }
-
-  return logsForDate.find((log) => log.workout.id === workout.id) ?? null
-}
-
 function getScheduleEntryDurationLabel(
-  workout: ReturnType<typeof serializeWorkout> | null,
+  workout: { duration?: number } | null,
   log: ReturnType<typeof serializeWorkoutLog> | null,
   now = new Date(),
 ) {
@@ -797,36 +756,133 @@ function getScheduleEntryDurationLabel(
   return undefined
 }
 
+function isRecurringWorkout(workout: ReturnType<typeof serializeWorkout> | null): workout is ReturnType<typeof serializeWorkout> {
+  return Boolean(workout && !workout.scheduledDate && typeof workout.scheduledDay === "number")
+}
+
+// Sequential weekly schedule: completed sessions show on the day they were actually
+// trained; days with no session are simply empty (never "missed"). Each uncompleted
+// recurring session is laid out, in program order, on the earliest free day that is at
+// or after both today and its coach-assigned weekday — so an on-track week keeps the
+// coach's layout (including rest days), while a behind week slides the remaining sessions
+// forward onto the following days.
 function buildSerializedScheduleEntriesForWeek({
   logs,
-  schedule,
   todayStart,
   weekStart,
   workouts,
 }: {
   logs: Array<ReturnType<typeof serializeWorkoutLog>>
-  schedule: Record<number, ReturnType<typeof serializeWorkout> | null>
   todayStart: Date
   weekStart: Date
   workouts: Array<ReturnType<typeof serializeWorkout>>
 }) {
   const now = new Date()
+  const todayKey = formatUtcDateOnly(todayStart)
+  const weekStartKey = formatUtcDateOnly(weekStart)
 
-  return DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
+  const cells = DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
     const date = addUtcDays(weekStart, displayIndex)
-    const workout = getSerializedWorkoutForDate(workouts, schedule, date)
-    const log = getSerializedLogForPlannedDate(logs, date, workout)
+    return { date, dateKey: formatUtcDateOnly(date), weekday }
+  })
+
+  const todayIndex = (() => {
+    const found = cells.findIndex((cell) => cell.dateKey === todayKey)
+    if (found >= 0) return found
+    return todayKey < weekStartKey ? -1 : cells.length
+  })()
+
+  // First workout actually started on each day this week.
+  const logByDay = new Map<string, ReturnType<typeof serializeWorkoutLog>>()
+  for (const log of logs) {
+    const key = formatUtcDateOnly(log.startedAt)
+    if (!logByDay.has(key)) {
+      logByDay.set(key, log)
+    }
+  }
+  const completedWorkoutIds = new Set(logs.map((log) => log.workout.id))
+
+  // One-off workouts pinned to a specific date stay on that date.
+  const oneOffByDay = new Map<string, ReturnType<typeof serializeWorkout>>()
+  for (const workout of workouts) {
+    if (workout.scheduledDate) {
+      oneOffByDay.set(workout.scheduledDate, workout)
+    }
+  }
+
+  // Uncompleted recurring program sessions, in coach weekday order.
+  const remaining = workouts
+    .filter((workout) => isRecurringWorkout(workout) && !completedWorkoutIds.has(workout.id))
+    .sort((left, right) => DISPLAY_WEEKDAY_ORDER.indexOf(left.scheduledDay as number) - DISPLAY_WEEKDAY_ORDER.indexOf(right.scheduledDay as number))
+
+  const occupied = cells.map((cell) => logByDay.has(cell.dateKey) || oneOffByDay.has(cell.dateKey))
+  const assigned = new Array<ReturnType<typeof serializeWorkout> | null>(cells.length).fill(null)
+
+  for (const session of remaining) {
+    const schedIndex = DISPLAY_WEEKDAY_ORDER.indexOf(session.scheduledDay as number)
+    const start = Math.max(0, todayIndex < 0 ? schedIndex : Math.max(todayIndex, schedIndex))
+    for (let i = start; i < cells.length; i += 1) {
+      if (!occupied[i]) {
+        occupied[i] = true
+        assigned[i] = session
+        break
+      }
+    }
+  }
+
+  return cells.map((cell, index) => {
+    const isPast = cell.dateKey < todayKey
+    const isToday = cell.dateKey === todayKey
+    const log = logByDay.get(cell.dateKey) ?? null
+
+    if (log) {
+      return {
+        date: cell.dateKey,
+        durationLabel: getScheduleEntryDurationLabel(log.workout, log, now),
+        isCatchUp: false,
+        isCompleted: true,
+        isMissed: false,
+        isRolledOver: false,
+        isToday,
+        log,
+        source: "isPersonal" in log.workout && log.workout.isPersonal ? "self" : "coach",
+        weekday: cell.weekday,
+        workout: log.workout,
+      }
+    }
+
+    const oneOff = oneOffByDay.get(cell.dateKey) ?? null
+    if (oneOff) {
+      return {
+        date: cell.dateKey,
+        durationLabel: getScheduleEntryDurationLabel(oneOff, null, now),
+        isCatchUp: false,
+        isCompleted: false,
+        isMissed: isPast,
+        isRolledOver: false,
+        isToday,
+        log: null,
+        source: oneOff.isPersonal ? "self" : "coach",
+        weekday: cell.weekday,
+        workout: oneOff,
+      }
+    }
+
+    const placed = assigned[index]
+    const schedIndex = placed ? DISPLAY_WEEKDAY_ORDER.indexOf(placed.scheduledDay as number) : -1
 
     return {
-      date: formatUtcDateOnly(date),
-      durationLabel: getScheduleEntryDurationLabel(workout, log, now),
-      isCompleted: Boolean(log),
-      isMissed: Boolean(workout && !log && date < todayStart),
-      isToday: formatUtcDateOnly(date) === formatUtcDateOnly(todayStart),
-      log,
-      source: workout?.isPersonal ? "self" : "coach",
-      weekday,
-      workout,
+      date: cell.dateKey,
+      durationLabel: getScheduleEntryDurationLabel(placed, null, now),
+      isCatchUp: Boolean(placed) && todayIndex >= 0 && schedIndex < todayIndex,
+      isCompleted: false,
+      isMissed: false,
+      isRolledOver: false,
+      isToday,
+      log: null,
+      source: placed?.isPersonal ? "self" : "coach",
+      weekday: cell.weekday,
+      workout: placed,
     }
   })
 }
@@ -2478,7 +2534,6 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     schedule,
     scheduleEntries: buildSerializedScheduleEntriesForWeek({
       logs: serializedWeekLogs,
-      schedule,
       todayStart,
       weekStart,
       workouts: serializedWorkouts,
