@@ -1146,7 +1146,9 @@ export function CoachTraineeDetailClient({
             Daily calorie and macro averages based on meals logged by the trainee.
           </p>
 
-          {detail.nutritionSummary.daysTracked === 0 ? (
+          {!detail.nutritionSummary ? (
+            <p className="mt-6 text-sm text-muted-foreground">Nutrition data not available.</p>
+          ) : detail.nutritionSummary.daysTracked === 0 ? (
             <p className="mt-6 text-sm text-muted-foreground">No meals logged in the last 30 days.</p>
           ) : (
             <>
