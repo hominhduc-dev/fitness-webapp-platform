@@ -112,7 +112,6 @@ authRouter.patch("/me", async (req, res) => {
           ? req.body.preferredWeightUnit
           : undefined,
       targetWeightKg: req.body.targetWeightKg == null ? req.body.targetWeightKg : Number(req.body.targetWeightKg),
-      webhookUrl: typeof req.body.webhookUrl === "string" || req.body.webhookUrl === null ? req.body.webhookUrl : undefined,
     })
 
     res.json(result)
