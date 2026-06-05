@@ -4503,7 +4503,7 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
 
   const recentWindow = toRecentWindow(7)
   const last30Days = toRecentWindow(30)
-  const [thisWeekWorkouts, progressLogs, bodyMetrics, checkIns] = await Promise.all([
+  const [thisWeekWorkouts, progressLogs, bodyMetrics, checkIns, recentMeals] = await Promise.all([
     db.workoutLog.count({
       where: {
         startedAt: {
@@ -4557,6 +4557,14 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
         traineeId: trainee.id,
       },
     }),
+    db.meal.findMany({
+      include: MEAL_WITH_FOOD_INCLUDE,
+      orderBy: { loggedDate: "desc" },
+      where: {
+        loggedDate: { gte: last30Days.start, lte: last30Days.end },
+        userId: trainee.id,
+      },
+    }),
   ])
 
   const plannedSessionsPerWeek = trainee.programAssignments.reduce(
@@ -4567,10 +4575,42 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
   const completionRate =
     plannedSessionsPerWeek > 0 ? Math.min(100, Math.round((thisWeekWorkouts / plannedSessionsPerWeek) * 100)) : 0
 
+  // Group meals by day and compute per-day totals
+  const mealsByDay = new Map<string, { calories: number; carbs: number; fat: number; protein: number }>()
+  for (const meal of recentMeals) {
+    const dateKey = meal.loggedDate instanceof Date
+      ? meal.loggedDate.toISOString().slice(0, 10)
+      : String(meal.loggedDate).slice(0, 10)
+    const existing = mealsByDay.get(dateKey) ?? { calories: 0, carbs: 0, fat: 0, protein: 0 }
+    mealsByDay.set(dateKey, {
+      calories: existing.calories + (meal.calories ?? 0),
+      carbs: existing.carbs + (meal.carbs ?? 0),
+      fat: existing.fat + (meal.fat ?? 0),
+      protein: existing.protein + (meal.protein ?? 0),
+    })
+  }
+  const dailyNutritionLogs = Array.from(mealsByDay.entries())
+    .map(([date, totals]) => ({ date, ...totals }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+  const daysTracked = dailyNutritionLogs.length
+  const avgCalories = daysTracked > 0 ? Math.round(dailyNutritionLogs.reduce((s, d) => s + d.calories, 0) / daysTracked) : 0
+  const avgProtein = daysTracked > 0 ? Math.round(dailyNutritionLogs.reduce((s, d) => s + d.protein, 0) / daysTracked) : 0
+  const avgCarbs = daysTracked > 0 ? Math.round(dailyNutritionLogs.reduce((s, d) => s + d.carbs, 0) / daysTracked) : 0
+  const avgFat = daysTracked > 0 ? Math.round(dailyNutritionLogs.reduce((s, d) => s + d.fat, 0) / daysTracked) : 0
+
   return {
     bodyMetrics: bodyMetrics.map((entry) => serializeBodyMetricEntry(entry as BodyMetricRecord)),
     checkIns: checkIns.map((entry) => serializeCoachCheckIn(entry as CoachCheckInRecord)),
     programs: trainee.programAssignments.map((assignment) => serializeProgram(assignment.program as ProgramRecord)),
+    nutritionSummary: {
+      avgCalories,
+      avgCarbs,
+      avgFat,
+      avgProtein,
+      dailyLogs: dailyNutritionLogs,
+      daysTracked,
+      traineeCalorieGoal: trainee.dailyCalorieGoal ?? 0,
+    },
     progressSummary: {
       completionRate,
       latestWorkoutAt: trainee.workoutLogs[0]?.startedAt ?? progressLogs[0]?.startedAt ?? undefined,
