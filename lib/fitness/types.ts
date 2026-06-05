@@ -295,7 +295,7 @@ type CoachNutritionSummary = {
 type CoachTraineeDetail = {
   bodyMetrics: BodyMetricEntry[]
   checkIns: CoachCheckIn[]
-  nutritionSummary: CoachNutritionSummary
+  nutritionSummary?: CoachNutritionSummary
   programs: CoachProgram[]
   progressSummary: CoachProgressSummary
   recentLogs: WorkoutLog[]
