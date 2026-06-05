@@ -574,11 +574,12 @@ export function CoachTraineeDetailClient({
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-5 bg-muted/50">
+      <TabsList className="grid w-full grid-cols-6 bg-muted/50">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="progress">Progress</TabsTrigger>
         <TabsTrigger value="metrics">Body metrics</TabsTrigger>
         <TabsTrigger value="checkins">Check-ins</TabsTrigger>
+        <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
         <TabsTrigger value="logs">Workout logs</TabsTrigger>
       </TabsList>
 
@@ -1134,6 +1135,86 @@ export function CoachTraineeDetailClient({
               </div>
             )}
           </div>
+        </div>
+      </TabsContent>
+
+      {/* ── Nutrition ─────────────────────────────────────────────────────── */}
+      <TabsContent value="nutrition" className="space-y-6">
+        <div className="rounded-lg border border-border p-5">
+          <h2 className="text-base font-semibold">Nutrition — last 30 days</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Daily calorie and macro averages based on meals logged by the trainee.
+          </p>
+
+          {detail.nutritionSummary.daysTracked === 0 ? (
+            <p className="mt-6 text-sm text-muted-foreground">No meals logged in the last 30 days.</p>
+          ) : (
+            <>
+              {/* Summary stat cards */}
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  {
+                    label: "Avg calories",
+                    value: `${detail.nutritionSummary.avgCalories} kcal`,
+                    sub: detail.nutritionSummary.traineeCalorieGoal
+                      ? `Goal: ${detail.nutritionSummary.traineeCalorieGoal} kcal`
+                      : undefined,
+                  },
+                  { label: "Avg protein", value: `${detail.nutritionSummary.avgProtein} g` },
+                  { label: "Avg carbs", value: `${detail.nutritionSummary.avgCarbs} g` },
+                  { label: "Avg fat", value: `${detail.nutritionSummary.avgFat} g` },
+                ].map((card) => (
+                  <div key={card.label} className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <p className="label-micro text-muted-foreground">{card.label}</p>
+                    <p className="mt-1 text-lg font-semibold tnum">{card.value}</p>
+                    {card.sub && <p className="mt-0.5 text-xs text-muted-foreground">{card.sub}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-4 text-xs text-muted-foreground">
+                {detail.nutritionSummary.daysTracked} day{detail.nutritionSummary.daysTracked !== 1 ? "s" : ""} tracked
+              </p>
+
+              {/* Daily log table */}
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className="label-micro pb-2 pr-4 font-medium text-muted-foreground">Date</th>
+                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">Calories</th>
+                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">Protein</th>
+                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">Carbs</th>
+                      <th className="label-micro pb-2 text-right font-medium text-muted-foreground">Fat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.nutritionSummary.dailyLogs.map((row) => {
+                      const goalPct = detail.nutritionSummary.traineeCalorieGoal > 0
+                        ? Math.round((row.calories / detail.nutritionSummary.traineeCalorieGoal) * 100)
+                        : null
+                      return (
+                        <tr key={row.date} className="border-b border-border/50 last:border-0">
+                          <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">{row.date}</td>
+                          <td className="py-2 pr-4 text-right font-mono text-xs tnum">
+                            {row.calories}
+                            {goalPct != null && (
+                              <span className={cn("ml-1.5 text-[10px]", goalPct >= 90 && goalPct <= 110 ? "text-success" : "text-muted-foreground")}>
+                                {goalPct}%
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono text-xs tnum">{Math.round(row.protein)}g</td>
+                          <td className="py-2 pr-4 text-right font-mono text-xs tnum">{Math.round(row.carbs)}g</td>
+                          <td className="py-2 text-right font-mono text-xs tnum">{Math.round(row.fat)}g</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </TabsContent>
 
