@@ -274,9 +274,28 @@ type DiscoverableCoach = {
   requestStatus: "none" | "pending" | "approved" | "rejected" | "connected"
 }
 
+type CoachNutritionDailyLog = {
+  calories: number
+  carbs: number
+  date: string
+  fat: number
+  protein: number
+}
+
+type CoachNutritionSummary = {
+  avgCalories: number
+  avgCarbs: number
+  avgFat: number
+  avgProtein: number
+  dailyLogs: CoachNutritionDailyLog[]
+  daysTracked: number
+  traineeCalorieGoal: number
+}
+
 type CoachTraineeDetail = {
   bodyMetrics: BodyMetricEntry[]
   checkIns: CoachCheckIn[]
+  nutritionSummary: CoachNutritionSummary
   programs: CoachProgram[]
   progressSummary: CoachProgressSummary
   recentLogs: WorkoutLog[]
@@ -441,6 +460,8 @@ export type {
   CoachExerciseImportRequest,
   CoachExerciseImportRow,
   CoachExerciseInput,
+  CoachNutritionDailyLog,
+  CoachNutritionSummary,
   CoachProgressSummary,
   CoachProgram,
   CoachRequestSummary,
