@@ -10,9 +10,10 @@ import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { createWorkout, fetchExercises } from "@/lib/fitness/api"
+import { WorkoutLogReview, WorkoutPlanPreview } from "@/components/workout/workout-log-review"
+import { createWorkout, fetchExercises, fetchWorkoutDetail } from "@/lib/fitness/api"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
@@ -109,8 +110,63 @@ function getDateKey(date: Date) {
   return format(date, "yyyy-MM-dd")
 }
 
-function isRecurringWorkout(workout: Workout | null): workout is Workout {
+function isRecurringWorkout(workout: Workout | null): workout is Workout & { scheduledDate?: undefined; scheduledDay: number } {
   return Boolean(workout && !workout.scheduledDate && typeof workout.scheduledDay === "number")
+}
+
+function getScheduleOccurrenceKey(workoutId: string, plannedDateKey: string) {
+  return `${workoutId}:${plannedDateKey}`
+}
+
+function normalizeScheduleMatchText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function getWorkoutCompletionMatchKeys(workout: Pick<Workout, "id" | "name" | "scheduledDay">) {
+  const keys = [`id:${workout.id}`]
+  const normalizedName = normalizeScheduleMatchText(workout.name)
+
+  if (normalizedName) {
+    keys.push(`name:${normalizedName}`)
+
+    if (typeof workout.scheduledDay === "number") {
+      keys.push(`day:${workout.scheduledDay}:name:${normalizedName}`)
+    }
+  }
+
+  return keys
+}
+
+function getRecurringWorkoutPlannedDateKey(workout: Workout, weekStart: Date) {
+  if (!isRecurringWorkout(workout)) {
+    return null
+  }
+
+  const displayIndex = DISPLAY_WEEKDAY_ORDER.indexOf(workout.scheduledDay)
+
+  if (displayIndex < 0) {
+    return null
+  }
+
+  return getDateKey(addDays(weekStart, displayIndex))
+}
+
+function getLogPlannedDateKey(log: WorkoutLog) {
+  if (log.plannedDate) {
+    return getDateKey(log.plannedDate)
+  }
+
+  if (isRecurringWorkout(log.workout)) {
+    const startedDay = startOfDay(log.startedAt)
+    const dayOffset = (startedDay.getDay() - log.workout.scheduledDay + 7) % 7
+    return getDateKey(addDays(startedDay, -dayOffset))
+  }
+
+  if (log.workout.scheduledDate) {
+    return getDateKey(log.workout.scheduledDate)
+  }
+
+  return getDateKey(log.startedAt)
 }
 
 function getDurationLabel(workout: Workout | null, log: WorkoutLog | null) {
@@ -280,7 +336,21 @@ function buildWeekEntries({
       logByDay.set(key, log)
     }
   }
-  const completedWorkoutIds = new Set(weekLogs.map((log) => log.workout.id))
+  const completedOccurrenceKeys = new Set<string>()
+  const completedWorkoutMatchKeysForWeek = new Set<string>()
+  const coachUpdatedWorkoutMatchKeys = new Set<string>()
+  workouts
+    .filter((workout) => workout.hasCoachUpdate)
+    .forEach((workout) => getWorkoutCompletionMatchKeys(workout).forEach((key) => coachUpdatedWorkoutMatchKeys.add(key)))
+
+  for (const log of weekLogs) {
+    const plannedDateKey = getLogPlannedDateKey(log)
+
+    if (plannedDateKey >= weekStartKey && plannedDateKey < weekEndKey) {
+      completedOccurrenceKeys.add(getScheduleOccurrenceKey(log.workout.id, plannedDateKey))
+      getWorkoutCompletionMatchKeys(log.workout).forEach((key) => completedWorkoutMatchKeysForWeek.add(key))
+    }
+  }
 
   // One-off workouts pinned to a date stay on that date; optimistic edits override.
   const oneOffByDay = new Map<string, Workout>()
@@ -298,7 +368,15 @@ function buildWeekEntries({
   }
 
   const remaining = workouts
-    .filter((workout) => isRecurringWorkout(workout) && !completedWorkoutIds.has(workout.id))
+    .filter((workout) => {
+      const plannedDateKey = getRecurringWorkoutPlannedDateKey(workout, weekStart)
+
+      return Boolean(
+        plannedDateKey &&
+          !completedOccurrenceKeys.has(getScheduleOccurrenceKey(workout.id, plannedDateKey)) &&
+          !getWorkoutCompletionMatchKeys(workout).some((key) => completedWorkoutMatchKeysForWeek.has(key)),
+      )
+    })
     .sort((left, right) => DISPLAY_WEEKDAY_ORDER.indexOf(left.scheduledDay as number) - DISPLAY_WEEKDAY_ORDER.indexOf(right.scheduledDay as number))
 
   const occupied = cells.map((cell) => logByDay.has(cell.dateKey) || oneOffByDay.has(cell.dateKey))
@@ -322,18 +400,21 @@ function buildWeekEntries({
     const log = logByDay.get(cell.dateKey) ?? null
 
     if (log) {
+      const logHasCoachUpdate = getWorkoutCompletionMatchKeys(log.workout).some((key) => coachUpdatedWorkoutMatchKeys.has(key))
+      const entryWorkout = logHasCoachUpdate ? { ...log.workout, hasCoachUpdate: true } : log.workout
+
       return {
         date: cell.date,
-        durationLabel: getDurationLabel(log.workout, log),
+        durationLabel: getDurationLabel(entryWorkout, log),
         isCatchUp: false,
         isCompleted: true,
         isMissed: false,
         isRolledOver: false,
         isToday: dayIsToday,
         log,
-        source: log.workout.isPersonal ? "self" : "coach",
+        source: entryWorkout.isPersonal ? "self" : "coach",
         weekday: cell.weekday,
-        workout: log.workout,
+        workout: entryWorkout,
       } satisfies ScheduleEntry
     }
 
@@ -398,15 +479,22 @@ function SourceChip({
 
 function DayCard({
   entry,
+  showCoachUpdateDot = true,
   onRestDayClick,
+  onPreviewWorkout,
+  onReviewLog,
 }: {
   entry: ScheduleEntry
+  showCoachUpdateDot?: boolean
   onRestDayClick: (date: Date) => void
+  onPreviewWorkout?: (workout: Workout, date: Date) => void
+  onReviewLog: (log: WorkoutLog) => void
 }) {
   const { locale, messages } = useLocale()
   const dateLocale = locale === "vi" ? vi : enUS
   const workout = entry.workout
   const badge = getStatusBadge(entry, messages)
+  const hasCoachUpdate = showCoachUpdateDot && Boolean(workout?.hasCoachUpdate)
   const tag = getRoutineTag(workout)
 
   return (
@@ -417,7 +505,13 @@ function DayCard({
         entry.isCompleted && "bg-muted/60",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      {hasCoachUpdate ? (
+        <span
+          aria-hidden="true"
+          className="absolute right-4 top-[18px] h-2 w-2 rounded-full bg-primary"
+        />
+      ) : null}
+      <div className={cn("flex items-start justify-between gap-2", hasCoachUpdate && "pr-5")}>
         <div>
           <div className={cn("label-micro", entry.isToday ? "text-primary" : "text-muted-foreground")}>
             {format(entry.date, "EEE", { locale: dateLocale })}
@@ -427,9 +521,11 @@ function DayCard({
           </div>
         </div>
         {badge ? (
-          <span className={cn("rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em]", badge.className)}>
-            {badge.label}
-          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em]", badge.className)}>
+              {badge.label}
+            </span>
+          </div>
         ) : null}
       </div>
 
@@ -461,18 +557,40 @@ function DayCard({
             </div>
           </div>
 
-          {entry.isToday ? (
+          {entry.isCompleted && entry.log ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary"
+              onClick={() => onReviewLog(entry.log as WorkoutLog)}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {messages.schedule.review}
+            </Button>
+          ) : entry.isToday ? (
             <Button asChild size="sm" className="mt-auto">
               <Link href={`/workout/${workout.id}/start`}>
                 <Play className="h-3.5 w-3.5 fill-current" />
                 {entry.log && !entry.log.completedAt ? messages.schedule.resume : messages.workoutPage.start}
               </Link>
             </Button>
+          ) : onPreviewWorkout ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary"
+              onClick={() => onPreviewWorkout(workout, entry.date)}
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              Preview
+            </Button>
           ) : (
             <Button asChild variant="ghost" size="sm" className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary">
               <Link href={`/workout/${workout.id}/start`}>
-                {entry.isCompleted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-                {entry.isCompleted ? messages.schedule.review : messages.schedule.open}
+                <Play className="h-3.5 w-3.5 fill-current" />
+                {messages.schedule.open}
               </Link>
             </Button>
           )}
@@ -1023,10 +1141,16 @@ const SourceFilters = memo(function SourceFilters({
 
 const CalendarGrid = memo(function CalendarGrid({
   entries,
+  onPreviewWorkout,
   onRestDayClick,
+  onReviewLog,
+  showCoachUpdateDots = true,
 }: {
   entries: ScheduleEntry[]
+  onPreviewWorkout?: (workout: Workout, date: Date) => void
   onRestDayClick: (date: Date) => void
+  onReviewLog: (log: WorkoutLog) => void
+  showCoachUpdateDots?: boolean
 }) {
   return (
     <div className="grid grid-cols-2 gap-2.5 md:grid-cols-7">
@@ -1034,7 +1158,10 @@ const CalendarGrid = memo(function CalendarGrid({
         <DayCard
           key={getDateKey(entry.date)}
           entry={entry}
+          showCoachUpdateDot={showCoachUpdateDots}
+          onPreviewWorkout={onPreviewWorkout}
           onRestDayClick={onRestDayClick}
+          onReviewLog={onReviewLog}
         />
       ))}
     </div>
@@ -1044,11 +1171,15 @@ const CalendarGrid = memo(function CalendarGrid({
 const NextWeekPreview = memo(function NextWeekPreview({
   entries,
   nextWeekStart,
+  onPreviewWorkout,
   onRestDayClick,
+  onReviewLog,
 }: {
   entries: ScheduleEntry[]
   nextWeekStart: Date
+  onPreviewWorkout: (workout: Workout, date: Date) => void
   onRestDayClick: (date: Date) => void
+  onReviewLog: (log: WorkoutLog) => void
 }) {
   const { messages } = useLocale()
 
@@ -1059,7 +1190,12 @@ const NextWeekPreview = memo(function NextWeekPreview({
         <span className="label-micro text-muted-foreground">{messages.schedule.previewWorkout}</span>
       </div>
       <div className="opacity-70">
-        <CalendarGrid entries={entries} onRestDayClick={onRestDayClick} />
+        <CalendarGrid
+          entries={entries}
+          onPreviewWorkout={onPreviewWorkout}
+          onRestDayClick={onRestDayClick}
+          onReviewLog={onReviewLog}
+        />
       </div>
     </>
   )
@@ -1121,7 +1257,7 @@ function RoutineDialogs({
 
 export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
   const { session } = useAuth()
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [showNextWeekPreview, setShowNextWeekPreview] = useState(false)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
@@ -1130,6 +1266,9 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
   const [visibleWeekLogs, setVisibleWeekLogs] = useState(weekLogs ?? [])
   const [extraRoutineLibrary, setExtraRoutineLibrary] = useState<Routine[]>([])
   const [selectedRestDate, setSelectedRestDate] = useState<Date | null>(null)
+  const [selectedPreviewWorkout, setSelectedPreviewWorkout] = useState<{ date: Date; workout: Workout } | null>(null)
+  const [selectedReviewLog, setSelectedReviewLog] = useState<WorkoutLog | null>(null)
+  const [isLoadingPreviewWorkout, setIsLoadingPreviewWorkout] = useState(false)
   const [isRoutineBuilderOpen, setIsRoutineBuilderOpen] = useState(false)
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
   const [isLoadingExercises, setIsLoadingExercises] = useState(false)
@@ -1197,6 +1336,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
   ], [extraRoutineLibrary, visibleWorkouts])
 
   const coachWorkouts = useMemo(() => visibleWorkouts.filter((workout) => !workout.isPersonal), [visibleWorkouts])
+  const closeReviewLabel = locale === "vi" ? "Đóng" : "Close"
   const plannedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [thisWeekEntries])
   const completedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.isCompleted).length, [thisWeekEntries])
   const filteredThisWeek = useMemo(
@@ -1270,6 +1410,31 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
 
       return currentDate
     })
+  }
+
+  const openWorkoutPreview = async (workout: Workout, date: Date) => {
+    setSelectedPreviewWorkout({ date, workout })
+
+    if (!session?.access_token) {
+      return
+    }
+
+    setIsLoadingPreviewWorkout(true)
+
+    try {
+      const workoutDetail = await fetchWorkoutDetail(session.access_token, workout.id)
+      setSelectedPreviewWorkout({
+        date,
+        workout: {
+          ...workoutDetail,
+          hasCoachUpdate: workout.hasCoachUpdate,
+        },
+      })
+    } catch {
+      setSelectedPreviewWorkout({ date, workout })
+    } finally {
+      setIsLoadingPreviewWorkout(false)
+    }
   }
 
   const saveTemplateToRestDate = async (routine: Routine) => {
@@ -1412,6 +1577,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
             setSelectedRestDate(date)
             setRoutineError(null)
           }}
+          onReviewLog={setSelectedReviewLog}
         />
       </div>
 
@@ -1419,10 +1585,12 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         <NextWeekPreview
           entries={filteredNextWeek}
           nextWeekStart={nextWeekStart}
+          onPreviewWorkout={(workout, date) => void openWorkoutPreview(workout, date)}
           onRestDayClick={(date) => {
             setSelectedRestDate(date)
             setRoutineError(null)
           }}
+          onReviewLog={setSelectedReviewLog}
         />
       ) : null}
 
@@ -1454,6 +1622,51 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
           onSaveDraft={(routine) => void saveDraftToRestDate(routine)}
         />
       ) : null}
+
+      <Dialog open={Boolean(selectedReviewLog)} onOpenChange={(open) => (!open ? setSelectedReviewLog(null) : undefined)}>
+        <DialogContent className="z-[95] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-[14px] border-border p-0 sm:h-[86svh] sm:max-w-[820px]">
+          <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pr-12 pt-5 text-left sm:px-6 sm:pr-12">
+            <DialogTitle className="text-xl font-semibold leading-tight tracking-[0] text-foreground">
+              {selectedReviewLog?.workout.name ?? messages.workoutPage.workout}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-[11px] uppercase tracking-[0.08em]">
+              {selectedReviewLog ? format(selectedReviewLog.startedAt, "EEE, MMM d · HH:mm") : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedReviewLog ? <WorkoutLogReview log={selectedReviewLog} /> : null}
+          <DialogFooter className="shrink-0 border-t border-border px-4 py-3 sm:px-6">
+            <Button type="button" variant="ghost" onClick={() => setSelectedReviewLog(null)}>
+              {closeReviewLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(selectedPreviewWorkout)} onOpenChange={(open) => (!open ? setSelectedPreviewWorkout(null) : undefined)}>
+        <DialogContent className="z-[95] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-[14px] border-border p-0 sm:h-[86svh] sm:max-w-[820px]">
+          <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pr-12 pt-5 text-left sm:px-6 sm:pr-12">
+            <DialogTitle className="text-xl font-semibold leading-tight tracking-[0] text-foreground">
+              {selectedPreviewWorkout?.workout.name ?? messages.workoutPage.workout}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-[11px] uppercase tracking-[0.08em]">
+              {selectedPreviewWorkout ? format(selectedPreviewWorkout.date, "EEE, MMM d") : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {isLoadingPreviewWorkout ? (
+            <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {messages.common.loading}
+            </div>
+          ) : selectedPreviewWorkout ? (
+            <WorkoutPlanPreview workout={selectedPreviewWorkout.workout} />
+          ) : null}
+          <DialogFooter className="shrink-0 border-t border-border px-4 py-3 sm:px-6">
+            <Button type="button" variant="ghost" onClick={() => setSelectedPreviewWorkout(null)}>
+              {closeReviewLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

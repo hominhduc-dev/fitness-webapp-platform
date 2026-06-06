@@ -1,12 +1,16 @@
 "use client"
 
 import {
+  ArrowDownNarrowWide,
   Check,
   ChevronDown,
+  ChevronUp,
+  Edit3,
   FileText,
   MoreHorizontal,
   Plus,
   Trash2,
+  TrendingUp,
   X,
 } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
@@ -27,7 +31,7 @@ import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
 import { createWorkoutLog, fetchExercises, fetchWorkoutDetail } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"
-import type { ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
+import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -466,6 +470,38 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
   )
 }
 
+function getCoachUpdateMeta(type: CoachUpdate["type"]) {
+  switch (type) {
+    case "weight_up":
+      return {
+        buttonBgClassName: "bg-[color-mix(in_srgb,var(--success)_12%,transparent)]",
+        hoverClassName: "hover:bg-[color-mix(in_srgb,var(--success)_12%,transparent)]",
+        icon: TrendingUp,
+        panelBgClassName: "bg-[color-mix(in_srgb,var(--success)_8%,transparent)]",
+        textClassName: "text-success",
+      }
+    case "rir_down":
+    case "weight_down":
+      return {
+        buttonBgClassName: "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]",
+        hoverClassName: "hover:bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]",
+        icon: ArrowDownNarrowWide,
+        panelBgClassName: "bg-[color-mix(in_srgb,var(--warning)_8%,transparent)]",
+        textClassName: "text-warning",
+      }
+    case "rir_up":
+    case "edit":
+    default:
+      return {
+        buttonBgClassName: "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
+        hoverClassName: "hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
+        icon: Edit3,
+        panelBgClassName: "bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]",
+        textClassName: "text-primary",
+      }
+  }
+}
+
 // ─── Exercise block (Lift spec) ────────────────────────────────────────────────
 
 interface LiftExerciseBlockProps {
@@ -495,10 +531,14 @@ function LiftExerciseBlock({
   const completedCount = exercise.sets.filter((s) => s.completed).length
   const allSetsCompleted = exercise.sets.length > 0 && completedCount === exercise.sets.length
   const [collapsed, setCollapsed] = useState(allSetsCompleted)
+  const [coachUpdateOpen, setCoachUpdateOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(exercise.notes ?? "")
   const hasRenderedRef = useRef(false)
   const onCollapseRef = useRef(onCollapse)
+  const coachUpdate = exercise.coachUpdate
+  const coachUpdateMeta = coachUpdate ? getCoachUpdateMeta(coachUpdate.type) : null
+  const CoachUpdateIcon = coachUpdateMeta?.icon
   const exerciseLabel = formatExerciseVariationLabel({
     exerciseName: exercise.exercise.name,
     isDefault: exercise.variation.isDefault,
@@ -533,12 +573,40 @@ function LiftExerciseBlock({
       {/* Block header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-4 md:px-5">
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold leading-tight truncate">{exerciseLabel}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <p className="min-w-0 truncate text-base font-semibold leading-tight tracking-[0] text-foreground md:text-lg">{exerciseLabel}</p>
+            {coachUpdate && coachUpdateMeta && CoachUpdateIcon ? (
+              <button
+                type="button"
+                onClick={() => setCoachUpdateOpen((value) => !value)}
+                aria-label="Coach update"
+                aria-expanded={coachUpdateOpen}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-[5px] border-0 px-[7px] py-[3px]",
+                  "font-mono text-[9.5px] font-semibold uppercase tracking-[0.07em]",
+                  "transition-colors duration-150",
+                  coachUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
+                  coachUpdateMeta.textClassName,
+                  coachUpdateMeta.hoverClassName,
+                )}
+              >
+                <CoachUpdateIcon className="h-[11px] w-[11px]" />
+                <span>Coach</span>
+                {coachUpdateOpen ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+              </button>
+            ) : null}
+          </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {messages.workoutPage.setCount(exercise.sets.length)}
             {completedCount > 0 && ` · ${messages.workoutPage.setCompleted(completedCount)}`}
             {note.trim() && ` · 📝`}
           </p>
+          {coachUpdate && coachUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
+            <div className={cn("mt-2 flex items-start gap-1.5 rounded-[7px] px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
+              <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
+              <span className="text-[12.5px] leading-[1.4] text-foreground">{coachUpdate.text}</span>
+            </div>
+          ) : null}
         </div>
         <button
           type="button"

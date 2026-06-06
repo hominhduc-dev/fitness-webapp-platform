@@ -66,7 +66,7 @@ type RoutineExercise = {
   fallbackMuscleGroup?: string
   fallbackVariationName?: string
   id: string
-  rir?: number
+  rir?: number | string
   reps: string
   restTime?: string
   sets: number
@@ -528,6 +528,19 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
   }
 }
 
+function normalizeOptionalWholeNumber(value: number | string | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined
+  }
+
+  if (typeof value === "string") {
+    const parsedValue = Number(value)
+    return value.trim() && Number.isFinite(parsedValue) ? Math.max(0, Math.round(parsedValue)) : undefined
+  }
+
+  return undefined
+}
+
 function RoutinePickerDialog({
   library,
   onClose,
@@ -949,11 +962,12 @@ export function ProgramEditor({
 
               const parsedWeight = Number(exercise.weight)
               const parsedRest = Number(exercise.restTime)
+              const normalizedRir = normalizeOptionalWholeNumber(exercise.rir)
 
               return {
                 reps: repTarget.reps,
                 repsMin: repTarget.repsMin,
-                rir: typeof exercise.rir === "number" ? exercise.rir : undefined,
+                rir: normalizedRir,
                 restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
                 sets: exercise.sets,
                 variationId: exercise.variationId,
