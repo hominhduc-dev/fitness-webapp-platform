@@ -131,6 +131,26 @@ type ProgramRecord = Prisma.ProgramGetPayload<{
   include: typeof PROGRAM_INCLUDE
 }>
 
+type TraineeProgramAssignmentWithWorkouts = Prisma.ProgramAssignmentGetPayload<{
+  include: {
+    program: {
+      include: {
+        workouts: {
+          include: typeof WORKOUT_INCLUDE
+        }
+      }
+    }
+  }
+}>
+
+type CoachUpdate = {
+  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
+  newValue?: number | string
+  oldValue?: number | string
+  text: string
+  type: "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"
+}
+
 type WorkoutLogRecord = Prisma.WorkoutLogGetPayload<{
   include: typeof WORKOUT_LOG_INCLUDE
 }>
@@ -562,6 +582,8 @@ function buildExerciseSetsWithHistory(
 function serializeWorkout(
   workout: WorkoutRecord,
   options?: {
+    coachUpdatesByWorkoutExerciseId?: Map<string, CoachUpdate>
+    hasCoachUpdate?: boolean
     isPersonal?: boolean
     previousPerformanceByWorkoutExerciseId?: Map<string, Map<number, PreviousExerciseSetPerformance>>
   },
@@ -572,6 +594,7 @@ function serializeWorkout(
       .slice()
       .sort((left, right) => left.order - right.order)
       .map((workoutExercise) => ({
+        coachUpdate: options?.coachUpdatesByWorkoutExerciseId?.get(workoutExercise.id),
         exercise: serializeExerciseBase(workoutExercise.variation.exercise),
         id: workoutExercise.id,
         notes: workoutExercise.notes ?? undefined,
@@ -583,6 +606,7 @@ function serializeWorkout(
         ),
         variation: serializeVariation(workoutExercise.variation),
       })),
+    ...(options?.hasCoachUpdate ? { hasCoachUpdate: true } : {}),
     id: workout.id,
     isPersonal: options?.isPersonal ?? false,
     kind: workout.kind ?? undefined,
@@ -591,6 +615,540 @@ function serializeWorkout(
     scheduledDay: workout.scheduledDay ?? undefined,
     scheduledDate: workout.scheduledDate ? formatUtcDateOnly(workout.scheduledDate) : undefined,
   }
+}
+
+function formatPlanNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "")
+}
+
+function formatNullablePlanNumber(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? formatPlanNumber(value) : "—"
+}
+
+function formatRepTargetForCoachUpdate(set: ExerciseSet) {
+  return set.targetRepsMin ? `${set.targetRepsMin}-${set.targetReps}` : String(set.targetReps)
+}
+
+function normalizeProgramMatchLabel(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function readPreviousProgramIdFromMetadata(metadata: Prisma.JsonValue | null) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return undefined
+
+  const previousProgramId = (metadata as { previousProgramId?: unknown }).previousProgramId
+  return typeof previousProgramId === "string" && previousProgramId.trim() ? previousProgramId : undefined
+}
+
+function readUpdatedWorkoutIdsFromMetadata(metadata: Prisma.JsonValue | null) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return []
+
+  const updatedWorkoutIds = (metadata as { updatedWorkoutIds?: unknown }).updatedWorkoutIds
+  if (!Array.isArray(updatedWorkoutIds)) return []
+
+  return updatedWorkoutIds.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+}
+
+function isCoachUpdate(value: unknown): value is CoachUpdate {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+
+  const update = value as { text?: unknown; type?: unknown }
+  return (
+    typeof update.text === "string" &&
+    ["weight_up", "weight_down", "rir_down", "rir_up", "edit"].includes(String(update.type))
+  )
+}
+
+function readCoachUpdatesByWorkoutIdFromMetadata(metadata: Prisma.JsonValue | null) {
+  const updatesByWorkoutId = new Map<string, Map<string, CoachUpdate>>()
+
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return updatesByWorkoutId
+
+  const rawUpdates = (metadata as { coachUpdatesByWorkoutId?: unknown }).coachUpdatesByWorkoutId
+  if (!rawUpdates || typeof rawUpdates !== "object" || Array.isArray(rawUpdates)) return updatesByWorkoutId
+
+  Object.entries(rawUpdates as Record<string, unknown>).forEach(([workoutId, rawExerciseUpdates]) => {
+    if (!rawExerciseUpdates || typeof rawExerciseUpdates !== "object" || Array.isArray(rawExerciseUpdates)) {
+      return
+    }
+
+    const exerciseUpdates = new Map<string, CoachUpdate>()
+    Object.entries(rawExerciseUpdates as Record<string, unknown>).forEach(([exerciseId, rawUpdate]) => {
+      if (isCoachUpdate(rawUpdate)) {
+        exerciseUpdates.set(exerciseId, rawUpdate)
+      }
+    })
+
+    if (exerciseUpdates.size > 0) {
+      updatesByWorkoutId.set(workoutId, exerciseUpdates)
+    }
+  })
+
+  return updatesByWorkoutId
+}
+
+function findPreviousWorkoutForCoachUpdate(
+  currentWorkout: { name: string; scheduledDay: number | null },
+  previousProgram: ProgramRecord,
+) {
+  const currentName = normalizeProgramMatchLabel(currentWorkout.name)
+  const byScheduleAndName = previousProgram.workouts.find(
+    (workout) =>
+      workout.scheduledDay === currentWorkout.scheduledDay &&
+      normalizeProgramMatchLabel(workout.name) === currentName,
+  )
+  if (byScheduleAndName) return byScheduleAndName
+
+  const bySchedule = previousProgram.workouts.find((workout) => workout.scheduledDay === currentWorkout.scheduledDay)
+  if (bySchedule) return bySchedule
+
+  return previousProgram.workouts.find((workout) => normalizeProgramMatchLabel(workout.name) === currentName)
+}
+
+function buildExerciseCoachUpdate(
+  currentExercise: WorkoutExerciseRecord,
+  previousExercise?: WorkoutExerciseRecord,
+): CoachUpdate | undefined {
+  if (!previousExercise) {
+    return {
+      field: "exercise",
+      newValue: currentExercise.variation.exercise.name,
+      text: "New exercise",
+      type: "edit",
+    }
+  }
+
+  const currentSets = currentExercise.sets.slice().sort((left, right) => left.setNumber - right.setNumber)
+  const previousSets = previousExercise.sets.slice().sort((left, right) => left.setNumber - right.setNumber)
+  const currentFirstSet = currentSets[0]
+  const previousFirstSet = previousSets[0]
+  const changes: string[] = []
+  let primaryUpdate: CoachUpdate | undefined
+
+  if (previousExercise.variationId !== currentExercise.variationId) {
+    changes.push(`${previousExercise.variation.exercise.name} → ${currentExercise.variation.exercise.name}`)
+    primaryUpdate = {
+      field: "exercise",
+      newValue: currentExercise.variation.exercise.name,
+      oldValue: previousExercise.variation.exercise.name,
+      text: "",
+      type: "edit",
+    }
+  }
+
+  if (previousSets.length !== currentSets.length) {
+    changes.push(`Sets ${previousSets.length} → ${currentSets.length}`)
+    primaryUpdate ??= {
+      field: "sets",
+      newValue: currentSets.length,
+      oldValue: previousSets.length,
+      text: "",
+      type: "edit",
+    }
+  }
+
+  if (currentFirstSet && previousFirstSet) {
+    const previousReps = formatRepTargetForCoachUpdate(previousFirstSet)
+    const currentReps = formatRepTargetForCoachUpdate(currentFirstSet)
+
+    if (previousReps !== currentReps) {
+      changes.push(`Reps ${previousReps} → ${currentReps}`)
+      primaryUpdate ??= {
+        field: "reps",
+        newValue: currentReps,
+        oldValue: previousReps,
+        text: "",
+        type: "edit",
+      }
+    }
+
+    if (previousFirstSet.weight !== currentFirstSet.weight) {
+      changes.push(
+        `Weight ${formatNullablePlanNumber(previousFirstSet.weight)}kg → ${formatNullablePlanNumber(currentFirstSet.weight)}kg`,
+      )
+      primaryUpdate ??= {
+        field: "weight",
+        newValue: currentFirstSet.weight ?? "—",
+        oldValue: previousFirstSet.weight ?? "—",
+        text: "",
+        type:
+          typeof previousFirstSet.weight === "number" &&
+          typeof currentFirstSet.weight === "number" &&
+          currentFirstSet.weight < previousFirstSet.weight
+            ? "weight_down"
+            : "weight_up",
+      }
+    }
+
+    if (previousFirstSet.rir !== currentFirstSet.rir) {
+      changes.push(`RIR ${formatNullablePlanNumber(previousFirstSet.rir)} → ${formatNullablePlanNumber(currentFirstSet.rir)}`)
+      primaryUpdate ??= {
+        field: "rir",
+        newValue: currentFirstSet.rir ?? "—",
+        oldValue: previousFirstSet.rir ?? "—",
+        text: "",
+        type:
+          typeof previousFirstSet.rir === "number" &&
+          typeof currentFirstSet.rir === "number" &&
+          currentFirstSet.rir > previousFirstSet.rir
+            ? "rir_up"
+            : "rir_down",
+      }
+    }
+  }
+
+  if (!primaryUpdate || changes.length === 0) return undefined
+
+  return {
+    ...primaryUpdate,
+    text: changes.join(" · "),
+  }
+}
+
+function normalizeCoachProgramInputSetCount(value: number) {
+  return Math.max(1, Math.round(value))
+}
+
+function normalizeCoachProgramInputOptionalInt(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined
+}
+
+function normalizeCoachProgramInputWeight(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : undefined
+}
+
+function buildExerciseCoachUpdateFromProgramInput(
+  previousExercise: WorkoutExerciseRecord | undefined,
+  nextExercise: CoachProgramInput["workouts"][number]["exercises"][number],
+): CoachUpdate | undefined {
+  if (!previousExercise) {
+    return {
+      field: "exercise",
+      text: "New exercise",
+      type: "edit",
+    }
+  }
+
+  const previousSets = previousExercise.sets.slice().sort((left, right) => left.setNumber - right.setNumber)
+  const previousFirstSet = previousSets[0]
+  const changes: string[] = []
+  let primaryUpdate: CoachUpdate | undefined
+
+  if (previousExercise.variationId !== nextExercise.variationId) {
+    changes.push("Exercise updated")
+    primaryUpdate = {
+      field: "exercise",
+      text: "",
+      type: "edit",
+    }
+  }
+
+  const nextSetCount = normalizeCoachProgramInputSetCount(nextExercise.sets)
+  if (previousSets.length !== nextSetCount) {
+    changes.push(`Sets ${previousSets.length} → ${nextSetCount}`)
+    primaryUpdate ??= {
+      field: "sets",
+      newValue: nextSetCount,
+      oldValue: previousSets.length,
+      text: "",
+      type: "edit",
+    }
+  }
+
+  if (previousFirstSet) {
+    const nextRepTarget = normalizeRepTarget(nextExercise.reps, nextExercise.repsMin)
+    const previousReps = formatRepTargetForCoachUpdate(previousFirstSet)
+    const nextReps = nextRepTarget.repsMin ? `${nextRepTarget.repsMin}-${nextRepTarget.reps}` : String(nextRepTarget.reps)
+
+    if (previousReps !== nextReps) {
+      changes.push(`Reps ${previousReps} → ${nextReps}`)
+      primaryUpdate ??= {
+        field: "reps",
+        newValue: nextReps,
+        oldValue: previousReps,
+        text: "",
+        type: "edit",
+      }
+    }
+
+    const nextWeight = normalizeCoachProgramInputWeight(nextExercise.weight)
+    if ((previousFirstSet.weight ?? undefined) !== nextWeight) {
+      changes.push(`Weight ${formatNullablePlanNumber(previousFirstSet.weight)}kg → ${formatNullablePlanNumber(nextWeight)}kg`)
+      primaryUpdate ??= {
+        field: "weight",
+        newValue: nextWeight ?? "—",
+        oldValue: previousFirstSet.weight ?? "—",
+        text: "",
+        type:
+          typeof previousFirstSet.weight === "number" &&
+          typeof nextWeight === "number" &&
+          nextWeight < previousFirstSet.weight
+            ? "weight_down"
+            : "weight_up",
+      }
+    }
+
+    const nextRir = normalizeCoachProgramInputOptionalInt(nextExercise.rir)
+    if ((previousFirstSet.rir ?? undefined) !== nextRir) {
+      changes.push(`RIR ${formatNullablePlanNumber(previousFirstSet.rir)} → ${formatNullablePlanNumber(nextRir)}`)
+      primaryUpdate ??= {
+        field: "rir",
+        newValue: nextRir ?? "—",
+        oldValue: previousFirstSet.rir ?? "—",
+        text: "",
+        type:
+          typeof previousFirstSet.rir === "number" &&
+          typeof nextRir === "number" &&
+          nextRir > previousFirstSet.rir
+            ? "rir_up"
+            : "rir_down",
+      }
+    }
+  }
+
+  if (!primaryUpdate || changes.length === 0) return undefined
+
+  return {
+    ...primaryUpdate,
+    text: changes.join(" · "),
+  }
+}
+
+function hasWorkoutInputChanged(
+  previousWorkout: WorkoutRecord,
+  nextWorkout: CoachProgramInput["workouts"][number],
+) {
+  if ((previousWorkout.name.trim() || "") !== (nextWorkout.name.trim() || "")) return true
+  if ((previousWorkout.duration ?? undefined) !== (nextWorkout.duration ? Math.max(1, Math.round(nextWorkout.duration)) : undefined)) return true
+  if ((previousWorkout.scheduledDay ?? undefined) !== nextWorkout.scheduledDay) return true
+
+  const previousExercises = previousWorkout.exercises.slice().sort((left, right) => left.order - right.order)
+  if (previousExercises.length !== nextWorkout.exercises.length) return true
+
+  return nextWorkout.exercises.some((nextExercise, index) => {
+    const previousExercise = previousExercises[index]
+    if (!previousExercise) return true
+    if (previousExercise.variationId !== nextExercise.variationId) return true
+
+    const nextSetCount = normalizeCoachProgramInputSetCount(nextExercise.sets)
+    if (previousExercise.sets.length !== nextSetCount) return true
+
+    const previousFirstSet = previousExercise.sets.slice().sort((left, right) => left.setNumber - right.setNumber)[0]
+    if (!previousFirstSet) return true
+
+    const nextRepTarget = normalizeRepTarget(nextExercise.reps, nextExercise.repsMin)
+    const nextRir = normalizeCoachProgramInputOptionalInt(nextExercise.rir)
+    const nextWeight = normalizeCoachProgramInputWeight(nextExercise.weight)
+
+    return (
+      (previousFirstSet.targetRepsMin ?? undefined) !== nextRepTarget.repsMin ||
+      previousFirstSet.targetReps !== nextRepTarget.reps ||
+      (previousFirstSet.rir ?? undefined) !== nextRir ||
+      (previousFirstSet.weight ?? undefined) !== nextWeight
+    )
+  })
+}
+
+function buildUpdatedWorkoutIdsForProgramInput(
+  previousProgram: ProgramRecord,
+  nextWorkouts: CoachProgramInput["workouts"],
+  workoutRows: Prisma.WorkoutCreateManyInput[],
+) {
+  return nextWorkouts.flatMap((nextWorkout, index) => {
+    const nextWorkoutId = workoutRows[index]?.id
+    if (typeof nextWorkoutId !== "string") return []
+
+    const previousWorkout = findPreviousWorkoutForCoachUpdate({
+      name: nextWorkout.name,
+      scheduledDay: nextWorkout.scheduledDay ?? null,
+    }, previousProgram)
+
+    if (!previousWorkout || hasWorkoutInputChanged(previousWorkout as WorkoutRecord, nextWorkout)) {
+      return [nextWorkoutId]
+    }
+
+    return []
+  })
+}
+
+function buildCoachUpdatePayloadForProgramInput(
+  previousProgram: ProgramRecord,
+  nextWorkouts: CoachProgramInput["workouts"],
+  workoutRows: Prisma.WorkoutCreateManyInput[],
+  exerciseRows: Prisma.WorkoutExerciseCreateManyInput[],
+) {
+  const payload: Record<string, Record<string, CoachUpdate>> = {}
+
+  nextWorkouts.forEach((nextWorkout, workoutIndex) => {
+    const nextWorkoutId = workoutRows[workoutIndex]?.id
+    if (typeof nextWorkoutId !== "string") return
+
+    const previousWorkout = findPreviousWorkoutForCoachUpdate({
+      name: nextWorkout.name,
+      scheduledDay: nextWorkout.scheduledDay ?? null,
+    }, previousProgram)
+    const previousExercises = previousWorkout
+      ? previousWorkout.exercises.slice().sort((left, right) => left.order - right.order)
+      : []
+    const nextExerciseRows = exerciseRows
+      .filter((row) => row.workoutId === nextWorkoutId)
+      .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0))
+
+    nextWorkout.exercises.forEach((nextExercise, exerciseIndex) => {
+      const nextWorkoutExerciseId = nextExerciseRows[exerciseIndex]?.id
+      if (typeof nextWorkoutExerciseId !== "string") return
+
+      const update = buildExerciseCoachUpdateFromProgramInput(
+        previousExercises[exerciseIndex] as WorkoutExerciseRecord | undefined,
+        nextExercise,
+      )
+
+      if (!update) return
+
+      payload[nextWorkoutId] ??= {}
+      payload[nextWorkoutId][nextWorkoutExerciseId] = update
+    })
+  })
+
+  return payload
+}
+
+async function buildCoachUpdatesForAdjustedWorkout(
+  profile: SerializedProfile,
+  workout: WorkoutWithProgramRecord,
+) {
+  const db = ensurePrisma()
+  if (!workout.programId || !workout.program || workout.program.createdById === profile.id) {
+    return undefined
+  }
+
+  const notification = await db.notification.findFirst({
+    orderBy: {
+      createdAt: "desc",
+    },
+    where: {
+      relatedEntityId: workout.programId,
+      relatedEntityType: "program",
+      type: NotificationType.program_assigned,
+      userId: profile.id,
+    },
+  })
+  const previousProgramId = readPreviousProgramIdFromMetadata(notification?.metadata ?? null)
+  const storedUpdates = readCoachUpdatesByWorkoutIdFromMetadata(notification?.metadata ?? null).get(workout.id)
+
+  if (storedUpdates && storedUpdates.size > 0) return storedUpdates
+
+  if (!previousProgramId) return undefined
+
+  const previousProgram = await db.program.findFirst({
+    include: PROGRAM_INCLUDE,
+    where: {
+      createdById: workout.program.createdById,
+      id: previousProgramId,
+    },
+  })
+
+  if (!previousProgram) return undefined
+
+  const previousWorkout = findPreviousWorkoutForCoachUpdate(workout, previousProgram as ProgramRecord)
+  if (!previousWorkout) return undefined
+
+  const previousExercises = previousWorkout.exercises.slice().sort((left, right) => left.order - right.order)
+  const updates = new Map<string, CoachUpdate>()
+
+  workout.exercises
+    .slice()
+    .sort((left, right) => left.order - right.order)
+    .forEach((currentExercise, index) => {
+      const update = buildExerciseCoachUpdate(currentExercise as WorkoutExerciseRecord, previousExercises[index] as WorkoutExerciseRecord | undefined)
+      if (update) updates.set(currentExercise.id, update)
+    })
+
+  return updates.size > 0 ? updates : undefined
+}
+
+async function buildCoachUpdateWorkoutIdsForAssignments(
+  profile: SerializedProfile,
+  assignments: TraineeProgramAssignmentWithWorkouts[],
+) {
+  const db = ensurePrisma()
+  const coachAssignments = assignments.filter((assignment) => assignment.program.createdById !== profile.id)
+  const programIds = Array.from(new Set(coachAssignments.map((assignment) => assignment.programId)))
+  const updateWorkoutIds = new Set<string>()
+
+  if (programIds.length === 0) return updateWorkoutIds
+
+  const notifications = await db.notification.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+    where: {
+      relatedEntityId: {
+        in: programIds,
+      },
+      relatedEntityType: "program",
+      type: NotificationType.program_assigned,
+      userId: profile.id,
+    },
+  })
+  const previousProgramIdByProgramId = new Map<string, string>()
+
+  notifications.forEach((notification) => {
+    readUpdatedWorkoutIdsFromMetadata(notification.metadata).forEach((workoutId) => updateWorkoutIds.add(workoutId))
+
+    if (!notification.relatedEntityId || previousProgramIdByProgramId.has(notification.relatedEntityId)) {
+      return
+    }
+
+    const previousProgramId = readPreviousProgramIdFromMetadata(notification.metadata)
+    if (previousProgramId) {
+      previousProgramIdByProgramId.set(notification.relatedEntityId, previousProgramId)
+    }
+  })
+
+  const previousProgramIds = Array.from(new Set(previousProgramIdByProgramId.values()))
+  if (previousProgramIds.length === 0) return updateWorkoutIds
+
+  const previousPrograms = await db.program.findMany({
+    include: PROGRAM_INCLUDE,
+    where: {
+      id: {
+        in: previousProgramIds,
+      },
+    },
+  })
+  const previousProgramById = new Map(previousPrograms.map((program) => [program.id, program as ProgramRecord]))
+
+  coachAssignments.forEach((assignment) => {
+    const previousProgramId = previousProgramIdByProgramId.get(assignment.programId)
+    const previousProgram = previousProgramId ? previousProgramById.get(previousProgramId) : undefined
+
+    if (!previousProgram || previousProgram.createdById !== assignment.program.createdById) {
+      return
+    }
+
+    ;(assignment.program.workouts as WorkoutRecord[]).forEach((currentWorkout) => {
+      const previousWorkout = findPreviousWorkoutForCoachUpdate(currentWorkout, previousProgram)
+
+      if (!previousWorkout) {
+        updateWorkoutIds.add(currentWorkout.id)
+        return
+      }
+
+      const currentExercises = currentWorkout.exercises.slice().sort((left, right) => left.order - right.order)
+      const previousExercises = previousWorkout.exercises.slice().sort((left, right) => left.order - right.order)
+      const hasExerciseCountChange = currentExercises.length !== previousExercises.length
+      const hasExerciseUpdate = currentExercises.some((currentExercise, index) =>
+        Boolean(buildExerciseCoachUpdate(currentExercise as WorkoutExerciseRecord, previousExercises[index] as WorkoutExerciseRecord | undefined)),
+      )
+
+      if (hasExerciseCountChange || hasExerciseUpdate) {
+        updateWorkoutIds.add(currentWorkout.id)
+      }
+    })
+  })
+
+  return updateWorkoutIds
 }
 
 function roundMealValue(value: number, fractionDigits = 1) {
@@ -756,8 +1314,70 @@ function getScheduleEntryDurationLabel(
   return undefined
 }
 
-function isRecurringWorkout(workout: ReturnType<typeof serializeWorkout> | null): workout is ReturnType<typeof serializeWorkout> {
+function isRecurringWorkout(
+  workout: ReturnType<typeof serializeWorkout> | null,
+): workout is ReturnType<typeof serializeWorkout> & { scheduledDate: undefined; scheduledDay: number } {
   return Boolean(workout && !workout.scheduledDate && typeof workout.scheduledDay === "number")
+}
+
+function getScheduleOccurrenceKey(workoutId: string, plannedDateKey: string) {
+  return `${workoutId}:${plannedDateKey}`
+}
+
+function normalizeScheduleMatchText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function getWorkoutCompletionMatchKeys(workout: { id: string; name: string; scheduledDay?: number }) {
+  const keys = [`id:${workout.id}`]
+  const normalizedName = normalizeScheduleMatchText(workout.name)
+
+  if (normalizedName) {
+    keys.push(`name:${normalizedName}`)
+
+    if (typeof workout.scheduledDay === "number") {
+      keys.push(`day:${workout.scheduledDay}:name:${normalizedName}`)
+    }
+  }
+
+  return keys
+}
+
+function getRecurringWorkoutPlannedDateKey(workout: { scheduledDate?: string; scheduledDay?: number }, weekStart: Date) {
+  const scheduledDay = !workout.scheduledDate && typeof workout.scheduledDay === "number" ? workout.scheduledDay : null
+
+  if (scheduledDay == null) {
+    return null
+  }
+
+  const displayIndex = DISPLAY_WEEKDAY_ORDER.indexOf(scheduledDay)
+
+  if (displayIndex < 0) {
+    return null
+  }
+
+  return formatUtcDateOnly(addUtcDays(weekStart, displayIndex))
+}
+
+function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
+  if (log.plannedDate) {
+    return log.plannedDate
+  }
+
+  const scheduledDay =
+    !log.workout.scheduledDate && typeof log.workout.scheduledDay === "number" ? log.workout.scheduledDay : null
+
+  if (scheduledDay != null) {
+    const startedDay = startOfUtcDay(log.startedAt)
+    const dayOffset = (startedDay.getUTCDay() - scheduledDay + 7) % 7
+    return formatUtcDateOnly(addUtcDays(startedDay, -dayOffset))
+  }
+
+  if (log.workout.scheduledDate) {
+    return log.workout.scheduledDate
+  }
+
+  return formatUtcDateOnly(log.startedAt)
 }
 
 // Sequential weekly schedule: completed sessions show on the day they were actually
@@ -780,6 +1400,7 @@ function buildSerializedScheduleEntriesForWeek({
   const now = new Date()
   const todayKey = formatUtcDateOnly(todayStart)
   const weekStartKey = formatUtcDateOnly(weekStart)
+  const weekEndKey = formatUtcDateOnly(addUtcDays(weekStart, 7))
 
   const cells = DISPLAY_WEEKDAY_ORDER.map((weekday, displayIndex) => {
     const date = addUtcDays(weekStart, displayIndex)
@@ -800,7 +1421,21 @@ function buildSerializedScheduleEntriesForWeek({
       logByDay.set(key, log)
     }
   }
-  const completedWorkoutIds = new Set(logs.map((log) => log.workout.id))
+  const completedOccurrenceKeys = new Set<string>()
+  const completedWorkoutMatchKeysForWeek = new Set<string>()
+  const coachUpdatedWorkoutMatchKeys = new Set<string>()
+  workouts
+    .filter((workout) => workout.hasCoachUpdate)
+    .forEach((workout) => getWorkoutCompletionMatchKeys(workout).forEach((key) => coachUpdatedWorkoutMatchKeys.add(key)))
+
+  for (const log of logs) {
+    const plannedDateKey = getLogPlannedDateKey(log)
+
+    if (plannedDateKey >= weekStartKey && plannedDateKey < weekEndKey) {
+      completedOccurrenceKeys.add(getScheduleOccurrenceKey(log.workout.id, plannedDateKey))
+      getWorkoutCompletionMatchKeys(log.workout).forEach((key) => completedWorkoutMatchKeysForWeek.add(key))
+    }
+  }
 
   // One-off workouts pinned to a specific date stay on that date.
   const oneOffByDay = new Map<string, ReturnType<typeof serializeWorkout>>()
@@ -812,7 +1447,15 @@ function buildSerializedScheduleEntriesForWeek({
 
   // Uncompleted recurring program sessions, in coach weekday order.
   const remaining = workouts
-    .filter((workout) => isRecurringWorkout(workout) && !completedWorkoutIds.has(workout.id))
+    .filter((workout) => {
+      const plannedDateKey = getRecurringWorkoutPlannedDateKey(workout, weekStart)
+
+      return Boolean(
+        plannedDateKey &&
+          !completedOccurrenceKeys.has(getScheduleOccurrenceKey(workout.id, plannedDateKey)) &&
+          !getWorkoutCompletionMatchKeys(workout).some((key) => completedWorkoutMatchKeysForWeek.has(key)),
+      )
+    })
     .sort((left, right) => DISPLAY_WEEKDAY_ORDER.indexOf(left.scheduledDay as number) - DISPLAY_WEEKDAY_ORDER.indexOf(right.scheduledDay as number))
 
   const occupied = cells.map((cell) => logByDay.has(cell.dateKey) || oneOffByDay.has(cell.dateKey))
@@ -836,18 +1479,21 @@ function buildSerializedScheduleEntriesForWeek({
     const log = logByDay.get(cell.dateKey) ?? null
 
     if (log) {
+      const logHasCoachUpdate = getWorkoutCompletionMatchKeys(log.workout).some((key) => coachUpdatedWorkoutMatchKeys.has(key))
+      const entryWorkout = logHasCoachUpdate ? { ...log.workout, hasCoachUpdate: true } : log.workout
+
       return {
         date: cell.dateKey,
-        durationLabel: getScheduleEntryDurationLabel(log.workout, log, now),
+        durationLabel: getScheduleEntryDurationLabel(entryWorkout, log, now),
         isCatchUp: false,
         isCompleted: true,
         isMissed: false,
         isRolledOver: false,
         isToday,
         log,
-        source: "isPersonal" in log.workout && log.workout.isPersonal ? "self" : "coach",
+        source: "isPersonal" in entryWorkout && entryWorkout.isPersonal ? "self" : "coach",
         weekday: cell.weekday,
-        workout: log.workout,
+        workout: entryWorkout,
       }
     }
 
@@ -2435,6 +3081,10 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       userId: profile.id,
     },
   })
+  const coachUpdateWorkoutIds = await buildCoachUpdateWorkoutIdsForAssignments(
+    profile,
+    assignments as TraineeProgramAssignmentWithWorkouts[],
+  )
 
   const workoutMap = new Map<string, WorkoutRecord>()
   const personalWorkoutIds = new Set<string>()
@@ -2467,7 +3117,12 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
       return (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
     })
-    .map((workout) => serializeWorkout(workout, { isPersonal: personalWorkoutIds.has(workout.id) }))
+    .map((workout) =>
+      serializeWorkout(workout, {
+        hasCoachUpdate: coachUpdateWorkoutIds.has(workout.id),
+        isPersonal: personalWorkoutIds.has(workout.id),
+      }),
+    )
 
   const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
 
@@ -2735,8 +3390,13 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
     profile.id,
     workout.exercises as WorkoutExerciseRecord[],
   )
+  const coachUpdatesByWorkoutExerciseId = await buildCoachUpdatesForAdjustedWorkout(
+    profile,
+    workout as WorkoutWithProgramRecord,
+  )
 
   return serializeWorkout(workout as WorkoutWithProgramRecord, {
+    coachUpdatesByWorkoutExerciseId,
     isPersonal: workout.program?.createdById === profile.id,
     previousPerformanceByWorkoutExerciseId,
   })
@@ -3287,6 +3947,7 @@ async function createCoachProgram(
       duration?: number
       exercises: Array<{
         repsMin?: number
+        rir?: number
         variationId: string
         reps: number
         sets: number
@@ -3418,9 +4079,7 @@ async function updateCoachProgram(
   assertCoach(profile)
 
   const existingProgram = await db.program.findFirst({
-    select: {
-      id: true,
-    },
+    include: PROGRAM_INCLUDE,
     where: {
       createdById: profile.id,
       id: programId,
@@ -3479,6 +4138,19 @@ async function updateCoachProgram(
 
   const program = await retryTransaction(() => db.$transaction(async (tx) => {
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(existingProgram.id, input.workouts)
+    const updatedWorkoutIds = buildUpdatedWorkoutIdsForProgramInput(
+      existingProgram as ProgramRecord,
+      input.workouts,
+      workoutRows,
+    )
+    const coachUpdatesByWorkoutId = buildCoachUpdatePayloadForProgramInput(
+      existingProgram as ProgramRecord,
+      input.workouts,
+      workoutRows,
+      exerciseRows,
+    )
+    const previouslyAssignedUserIds = new Set(existingProgram.assignments.map((assignment) => assignment.userId))
+    const notifiedUserIds = assignToUserIds.filter((userId) => previouslyAssignedUserIds.has(userId))
 
     await tx.programAssignment.deleteMany({
       where: {
@@ -3529,6 +4201,30 @@ async function updateCoachProgram(
     if (setRows.length > 0) {
       await tx.exerciseSet.createMany({
         data: setRows,
+      })
+    }
+
+    if (updatedWorkoutIds.length > 0 && notifiedUserIds.length > 0) {
+      await tx.notification.createMany({
+        data: notifiedUserIds.map((userId) => ({
+          channel: "in_app",
+          message: `Coach updated your plan ${existingProgram.name}.`,
+          metadata: {
+            coachUpdatesByWorkoutId,
+            previousProgramName: existingProgram.name,
+            traineeId: userId,
+            trainerId: profile.id,
+            updatedWorkoutIds,
+          },
+          relatedEntityId: existingProgram.id,
+          relatedEntityType: "program",
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+          status: NotificationStatus.sent,
+          title: "Your training plan was updated",
+          type: NotificationType.program_assigned,
+          userId,
+        })),
       })
     }
 
@@ -3627,6 +4323,13 @@ async function adjustCoachProgramForTrainee(
   const adjustedProgram = await retryTransaction(() => db.$transaction(async (transaction) => {
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
+    const updatedWorkoutIds = buildUpdatedWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts, workoutRows)
+    const coachUpdatesByWorkoutId = buildCoachUpdatePayloadForProgramInput(
+      existingProgram as ProgramRecord,
+      input.workouts,
+      workoutRows,
+      exerciseRows,
+    )
 
     await transaction.program.create({
       data: {
@@ -3679,10 +4382,12 @@ async function adjustCoachProgramForTrainee(
         channel: "in_app",
         message: `Coach updated your plan from ${existingProgram.name}.`,
         metadata: {
+          coachUpdatesByWorkoutId,
           previousProgramId: existingProgram.id,
           previousProgramName: existingProgram.name,
           traineeId: trainee.id,
           trainerId: profile.id,
+          updatedWorkoutIds,
         },
         relatedEntityId: programId,
         relatedEntityType: "program",
