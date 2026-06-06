@@ -86,6 +86,13 @@ type SerializedExerciseSet = {
 }
 
 type SerializedWorkoutExercise = {
+  coachUpdate?: {
+    field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
+    newValue?: number | string
+    oldValue?: number | string
+    text: string
+    type: "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"
+  }
   exercise: SerializedExerciseBase & {
     equipment?: string
   }
@@ -99,6 +106,7 @@ type SerializedWorkoutExercise = {
 type SerializedWorkout = {
   duration?: number
   exercises: SerializedWorkoutExercise[]
+  hasCoachUpdate?: boolean
   id: string
   isPersonal?: boolean
   kind?: string
@@ -563,6 +571,7 @@ function parseScheduledDate(value?: string) {
 
 function mapWorkoutExercise(exercise: SerializedWorkoutExercise): Workout["exercises"][number] {
   return {
+    coachUpdate: exercise.coachUpdate,
     exercise: {
       id: exercise.exercise.id,
       muscleGroup: exercise.exercise.muscleGroup,
@@ -580,6 +589,7 @@ function mapWorkout(workout: SerializedWorkout): Workout {
   return {
     duration: workout.duration,
     exercises: workout.exercises.map(mapWorkoutExercise),
+    hasCoachUpdate: workout.hasCoachUpdate,
     id: workout.id,
     isPersonal: workout.isPersonal,
     kind: workout.kind as Workout["kind"],
@@ -1100,7 +1110,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
       workoutsThisWeek: number
     }
     workouts: SerializedWorkout[]
-  }>("/api/workouts", accessToken)
+  }>("/api/workouts", accessToken, { cache: "no-store" })
 
   return {
     historyLogs: (response.historyLogs ?? []).map(mapWorkoutLog),

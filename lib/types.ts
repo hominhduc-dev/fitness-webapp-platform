@@ -83,11 +83,22 @@ export interface ExerciseSet {
   completed: boolean
 }
 
+export type CoachUpdateType = "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"
+
+export interface CoachUpdate {
+  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
+  newValue?: number | string
+  oldValue?: number | string
+  text: string
+  type: CoachUpdateType
+}
+
 export interface WorkoutExercise {
   id: string
   exercise: ExerciseBase
   variation: ExerciseVariation
   sets: ExerciseSet[]
+  coachUpdate?: CoachUpdate
   restTime?: number // seconds
   notes?: string
 }
@@ -96,6 +107,7 @@ export type WorkoutKind = "push" | "pull" | "legs" | "full_body" | "cardio" | "o
 
 export interface Workout {
   id: string
+  hasCoachUpdate?: boolean
   isPersonal?: boolean
   kind?: WorkoutKind
   name: string

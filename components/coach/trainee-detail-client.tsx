@@ -572,6 +572,8 @@ export function CoachTraineeDetailClient({
     }
   }
 
+  const nutritionSummary = detail.nutritionSummary
+
   return (
     <Tabs defaultValue="overview" className="space-y-6">
       <TabsList className="grid w-full grid-cols-6 bg-muted/50">
@@ -1146,9 +1148,9 @@ export function CoachTraineeDetailClient({
             Daily calorie and macro averages based on meals logged by the trainee.
           </p>
 
-          {!detail.nutritionSummary ? (
+          {!nutritionSummary ? (
             <p className="mt-6 text-sm text-muted-foreground">Nutrition data not available.</p>
-          ) : detail.nutritionSummary.daysTracked === 0 ? (
+          ) : nutritionSummary.daysTracked === 0 ? (
             <p className="mt-6 text-sm text-muted-foreground">No meals logged in the last 30 days.</p>
           ) : (
             <>
@@ -1157,14 +1159,14 @@ export function CoachTraineeDetailClient({
                 {[
                   {
                     label: "Avg calories",
-                    value: `${detail.nutritionSummary.avgCalories} kcal`,
-                    sub: detail.nutritionSummary.traineeCalorieGoal
-                      ? `Goal: ${detail.nutritionSummary.traineeCalorieGoal} kcal`
+                    value: `${nutritionSummary.avgCalories} kcal`,
+                    sub: nutritionSummary.traineeCalorieGoal
+                      ? `Goal: ${nutritionSummary.traineeCalorieGoal} kcal`
                       : undefined,
                   },
-                  { label: "Avg protein", value: `${detail.nutritionSummary.avgProtein} g` },
-                  { label: "Avg carbs", value: `${detail.nutritionSummary.avgCarbs} g` },
-                  { label: "Avg fat", value: `${detail.nutritionSummary.avgFat} g` },
+                  { label: "Avg protein", value: `${nutritionSummary.avgProtein} g` },
+                  { label: "Avg carbs", value: `${nutritionSummary.avgCarbs} g` },
+                  { label: "Avg fat", value: `${nutritionSummary.avgFat} g` },
                 ].map((card) => (
                   <div key={card.label} className="rounded-lg border border-border bg-muted/30 px-4 py-3">
                     <p className="label-micro text-muted-foreground">{card.label}</p>
@@ -1175,7 +1177,7 @@ export function CoachTraineeDetailClient({
               </div>
 
               <p className="mt-4 text-xs text-muted-foreground">
-                {detail.nutritionSummary.daysTracked} day{detail.nutritionSummary.daysTracked !== 1 ? "s" : ""} tracked
+                {nutritionSummary.daysTracked} day{nutritionSummary.daysTracked !== 1 ? "s" : ""} tracked
               </p>
 
               {/* Daily log table */}
@@ -1191,9 +1193,9 @@ export function CoachTraineeDetailClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.nutritionSummary.dailyLogs.map((row) => {
-                      const goalPct = detail.nutritionSummary.traineeCalorieGoal > 0
-                        ? Math.round((row.calories / detail.nutritionSummary.traineeCalorieGoal) * 100)
+                    {nutritionSummary.dailyLogs.map((row) => {
+                      const goalPct = nutritionSummary.traineeCalorieGoal > 0
+                        ? Math.round((row.calories / nutritionSummary.traineeCalorieGoal) * 100)
                         : null
                       return (
                         <tr key={row.date} className="border-b border-border/50 last:border-0">
