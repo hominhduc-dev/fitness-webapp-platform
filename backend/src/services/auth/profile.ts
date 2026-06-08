@@ -1,5 +1,6 @@
 export {
   getCurrentProfile,
+  invalidateProfileContextCache,
   requireCurrentProfile,
   updateCurrentProfile,
   type AuthenticatedProfileContext,
