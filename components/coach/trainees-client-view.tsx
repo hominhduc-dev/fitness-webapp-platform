@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Check,
@@ -155,30 +155,11 @@ type AssignWorkoutModalProps = {
   onAssigned: () => void
 }
 
-function buildUpcomingDays(locale: AppLocale, messages: AppMessages, n = 14) {
-  const days: { iso: string; date: string; day: string; label?: string }[] = []
-  const today = new Date()
-  const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
-  for (let i = 0; i < n; i++) {
-    const d = new Date(today)
-    d.setDate(d.getDate() + i)
-    const iso = d.toISOString().slice(0, 10)
-    const date = d.toLocaleDateString(dateLocale, { month: "short", day: "numeric" })
-    const day = d.toLocaleDateString(dateLocale, { weekday: "short" })
-    const label = i === 0 ? messages.common.today : i === 1 ? messages.coach.tomorrow : undefined
-    days.push({ iso, date, day, label })
-  }
-  return days
-}
-
 function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWorkoutModalProps) {
   const { session } = useAuth()
-  const { locale, messages } = useLocale()
-  const upcomingDays = useMemo(() => buildUpcomingDays(locale, messages), [locale, messages])
+  const { messages } = useLocale()
   const [tab, setTab] = useState<"routine" | "program">("program")
   const [pickedProgram, setPickedProgram] = useState<CoachProgram | null>(null)
-  const [pickedDate, setPickedDate] = useState(upcomingDays[0].iso)
-  const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
 
   const canAssign = tab === "program" ? !!pickedProgram : false
@@ -281,63 +262,13 @@ function AssignWorkoutModal({ trainee, programs, onClose, onAssigned }: AssignWo
             </div>
           )}
 
-          {/* Date picker */}
-          <div>
-            <p className="label-micro mb-2.5 text-muted-foreground">
-              {tab === "program" ? messages.coach.startDate : messages.coach.scheduleFor}
-            </p>
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {upcomingDays.map((d) => {
-                const isPicked = pickedDate === d.iso
-                return (
-                  <button
-                    key={d.iso}
-                    onClick={() => setPickedDate(d.iso)}
-                    className={cn(
-                      "flex min-w-[60px] flex-shrink-0 flex-col items-center gap-0.5 rounded-md border px-2.5 py-2 transition-all font-mono",
-                      isPicked
-                        ? "border-primary text-primary shadow-[0_0_0_3px_rgba(58,95,255,0.12)]"
-                        : "border-border text-muted-foreground hover:border-border/80",
-                    )}
-                  >
-                    <span className="text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
-                      {d.label ?? d.day}
-                    </span>
-                    <span className="text-[14px] font-semibold tnum">{d.date.split(" ")[1]}</span>
-                    <span className="text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
-                      {d.date.split(" ")[0]}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Note */}
-          <div>
-            <p className="label-micro mb-2 text-muted-foreground">{messages.coach.noteToClient}</p>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder={messages.coach.noteToClientPlaceholder}
-              rows={3}
-              className="w-full resize-y rounded-[8px] border border-border bg-background px-3 py-2.5 text-[13px] leading-relaxed text-foreground outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
           {/* Preview */}
           {canAssign && pickedProgram && (
             <div className="rounded-[10px] border border-border bg-muted/40 p-4">
               <p className="label-micro mb-1.5 text-muted-foreground">{messages.coach.preview}</p>
               <p className="text-[13px] leading-relaxed text-foreground">
-                {messages.coach.programStartedPreview(
-                  trainee.name,
-                  pickedProgram.name,
-                  pickedProgram.duration,
-                  upcomingDays.find((d) => d.iso === pickedDate)?.date ?? pickedDate,
-                )}
+                {pickedProgram.name} · {messages.coach.weeks(pickedProgram.duration)} · {messages.coach.daysPerWeek(pickedProgram.workoutsPerWeek)}
               </p>
-              {note && <p className="mt-2 text-[12px] italic text-muted-foreground">"{note}"</p>}
             </div>
           )}
         </div>
@@ -699,7 +630,6 @@ export function TraineesClientView({ initialTrainees, programs }: Props) {
   const handleSelect = (id: string) => {
     setSelectedId(id)
     setMobileView("detail")
-    loadDetail(id)
   }
 
   const selectedTrainee = trainees.find((t) => t.id === selectedId) ?? null
