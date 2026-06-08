@@ -15,6 +15,7 @@ import {
   deleteCoachProgram,
   deleteWorkoutLogCommentForCoach,
   getCoachDashboard,
+  getCoachNavCounts,
   getCoachProgramDetail,
   getCoachTraineeDetail,
   listCoachExerciseImportRequests,
@@ -117,6 +118,17 @@ coachRouter.get("/dashboard", async (req, res) => {
     const result = await getCoachDashboard(profile.profile)
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.get("/nav-counts", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const counts = await getCoachNavCounts(profile.profile)
+
+    res.json(counts)
   } catch (error) {
     sendError(res, error)
   }

@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto"
 
 import { prisma } from "../../lib/prisma"
 import { supabaseAdmin } from "../../lib/supabase"
-import { AuthServiceError, type SerializedProfile } from "../auth.service"
+import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -1015,6 +1015,10 @@ async function updateAdminUser(
       console.warn("Unable to sync admin user metadata to Supabase", error)
     }
   }
+
+  // A role/active-state change must take effect immediately, so drop any cached
+  // auth context (the affected user may have an in-flight session token cached).
+  invalidateProfileContextCache()
 
   return serializeUserListItem(updatedUser as UserSummaryRecord)
 }

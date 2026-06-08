@@ -545,20 +545,44 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
   const nextRole = existingProfile?.role ?? resolveUserRole(authUser, overrides?.role)
 
   if (existingProfile) {
+    const nextAvatar = avatar ?? existingProfile.avatar
+    const nextHeightCm = existingProfile.heightCm ?? metadataHeightCm
+    const nextPhone = phone ?? existingProfile.phone
+    const nextTargetWeightKg = existingProfile.targetWeightKg ?? metadataTargetWeightKg
+    const nextUsername = username ?? existingProfile.username
+    const shouldBackfillFitnessGoals = existingProfile.fitnessGoals.length === 0 && metadataGoals.length > 0
+
+    // Avoid a remote DB write on every authenticated request: only update when
+    // a field actually changed. The auth middleware runs this on every call, so
+    // skipping the no-op write removes one Supabase round-trip per request.
+    const hasChanges =
+      nextAvatar !== existingProfile.avatar ||
+      email !== existingProfile.email ||
+      nextHeightCm !== existingProfile.heightCm ||
+      name !== existingProfile.name ||
+      nextPhone !== existingProfile.phone ||
+      nextRole !== existingProfile.role ||
+      authUser.id !== existingProfile.supabaseAuthUserId ||
+      nextTargetWeightKg !== existingProfile.targetWeightKg ||
+      nextUsername !== existingProfile.username ||
+      shouldBackfillFitnessGoals
+
+    if (!hasChanges) {
+      return existingProfile
+    }
+
     return prisma.user.update({
       data: {
-        avatar: avatar ?? existingProfile.avatar,
-        dailyCalorieGoal: existingProfile.dailyCalorieGoal,
+        avatar: nextAvatar,
         email,
-        fitnessGoals: existingProfile.fitnessGoals.length > 0 ? existingProfile.fitnessGoals : metadataGoals,
-        heightCm: existingProfile.heightCm ?? metadataHeightCm,
+        fitnessGoals: shouldBackfillFitnessGoals ? metadataGoals : existingProfile.fitnessGoals,
+        heightCm: nextHeightCm,
         name,
-        phone: phone ?? existingProfile.phone,
-        preferredWeightUnit: existingProfile.preferredWeightUnit,
+        phone: nextPhone,
         role: nextRole,
         supabaseAuthUserId: authUser.id,
-        targetWeightKg: existingProfile.targetWeightKg ?? metadataTargetWeightKg,
-        username: username ?? existingProfile.username,
+        targetWeightKg: nextTargetWeightKg,
+        username: nextUsername,
       },
       where: {
         id: existingProfile.id,
@@ -685,6 +709,83 @@ async function ensureRegistrationIdentifiersAvailable(input: { email: string; ph
   if (existingByPhone) {
     throw new AuthServiceError("Số điện thoại này đã được sử dụng.")
   }
+}
+
+// Short-lived cache of the resolved auth context, keyed by access token.
+// Without this, every authenticated request pays a Supabase Auth `getUser`
+// HTTP round-trip plus a profile read/write. A burst of requests from the same
+// user (e.g. finishing a workout, logging a meal) reuses the cached result.
+const PROFILE_CONTEXT_CACHE_TTL_MS = 30_000
+const PROFILE_CONTEXT_CACHE_MAX_ENTRIES = 500
+
+type ProfileContext = {
+  authUser: SupabaseUser
+  profile: SerializedProfile | null
+}
+
+const profileContextCache = new Map<string, { context: ProfileContext; expiresAt: number }>()
+
+function getCachedProfileContext(accessToken: string): ProfileContext | null {
+  const entry = profileContextCache.get(accessToken)
+
+  if (!entry) {
+    return null
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    profileContextCache.delete(accessToken)
+    return null
+  }
+
+  return entry.context
+}
+
+function setCachedProfileContext(accessToken: string, context: ProfileContext) {
+  if (profileContextCache.size >= PROFILE_CONTEXT_CACHE_MAX_ENTRIES) {
+    const now = Date.now()
+
+    for (const [key, entry] of profileContextCache) {
+      if (entry.expiresAt <= now) {
+        profileContextCache.delete(key)
+      }
+    }
+
+    if (profileContextCache.size >= PROFILE_CONTEXT_CACHE_MAX_ENTRIES) {
+      profileContextCache.clear()
+    }
+  }
+
+  profileContextCache.set(accessToken, {
+    context,
+    expiresAt: Date.now() + PROFILE_CONTEXT_CACHE_TTL_MS,
+  })
+}
+
+function invalidateCachedProfileToken(accessToken: string) {
+  profileContextCache.delete(accessToken)
+}
+
+function invalidateProfileContextCache() {
+  profileContextCache.clear()
+}
+
+async function loadProfileContext(accessToken: string): Promise<ProfileContext> {
+  const cached = getCachedProfileContext(accessToken)
+
+  if (cached) {
+    return cached
+  }
+
+  const authUser = await getVerifiedUser(accessToken)
+  const profileRecord = await syncProfile(authUser)
+  const context: ProfileContext = {
+    authUser,
+    profile: serializeProfile(profileRecord),
+  }
+
+  setCachedProfileContext(accessToken, context)
+
+  return context
 }
 
 async function getVerifiedUser(accessToken: string) {
@@ -815,23 +916,21 @@ async function refreshAuthSession(input: { accessToken?: string; refreshToken: s
 }
 
 async function getCurrentProfile(accessToken: string) {
-  const user = await getVerifiedUser(accessToken)
-  const profile = await syncProfile(user)
+  const { authUser, profile } = await loadProfileContext(accessToken)
 
   if (profile) {
     assertProfileIsActive(profile)
   }
 
   return {
-    profile: serializeProfile(profile),
+    profile,
     session: null,
-    user: serializeAuthUser(user),
+    user: serializeAuthUser(authUser),
   } satisfies AuthResult
 }
 
 async function requireCurrentProfile(accessToken: string): Promise<AuthenticatedProfileContext> {
-  const authUser = await getVerifiedUser(accessToken)
-  const profile = await syncProfile(authUser)
+  const { authUser, profile } = await loadProfileContext(accessToken)
 
   if (!profile) {
     throw new AuthServiceError("Không tìm thấy hồ sơ người dùng.", 404)
@@ -841,7 +940,7 @@ async function requireCurrentProfile(accessToken: string): Promise<Authenticated
 
   return {
     authUser,
-    profile: serializeProfile(profile) as SerializedProfile,
+    profile,
   }
 }
 
@@ -955,6 +1054,7 @@ async function updateCurrentProfile(accessToken: string, updates: ProfileUpdateI
   }
 
   const updatedProfile = await applyProfileUpdates(authUser, profile, updates)
+  invalidateProfileContextCache()
 
   return {
     message: "Hồ sơ đã được cập nhật.",
@@ -1012,6 +1112,7 @@ async function uploadCurrentProfileAvatar(
     const updatedProfile = await applyProfileUpdates(authUser, profile, {
       avatar: publicUrl,
     })
+    invalidateProfileContextCache()
 
     if (previousAvatarPath && previousAvatarPath !== objectPath) {
       void removeAvatarObject(previousAvatarPath)
@@ -1062,6 +1163,7 @@ async function requestPasswordReset(input: { email: string; redirectTo?: string 
 
 async function logoutCurrentSession(accessToken: string) {
   await getVerifiedUser(accessToken)
+  invalidateCachedProfileToken(accessToken)
 
   return {
     message: "Đăng xuất thiết bị hiện tại thành công.",
@@ -1074,6 +1176,7 @@ async function logoutCurrentSession(accessToken: string) {
 export {
   AuthServiceError,
   getCurrentProfile,
+  invalidateProfileContextCache,
   loginUser,
   logoutCurrentSession,
   refreshAuthSession,

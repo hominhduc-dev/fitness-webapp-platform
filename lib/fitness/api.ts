@@ -1229,6 +1229,10 @@ async function fetchCoachPrograms(accessToken: string): Promise<CoachProgram[]> 
   return response.programs.map(mapCoachProgram)
 }
 
+async function fetchCoachNavCounts(accessToken: string): Promise<{ programs: number; trainees: number }> {
+  return request<{ programs: number; trainees: number }>("/api/coach/nav-counts", accessToken)
+}
+
 async function createCoachProgram(accessToken: string, input: CreateCoachProgramInput) {
   const response = await request<{ program: SerializedCoachProgram }>("/api/coach/programs", accessToken, {
     body: JSON.stringify(input),
@@ -1692,6 +1696,7 @@ export {
   fetchDiscoverableCoaches,
   fetchCoachDashboard,
   fetchCoachExerciseImportRequests,
+  fetchCoachNavCounts,
   fetchCoachProgram,
   fetchCoachPrograms,
   fetchCoachTraineeDetail,

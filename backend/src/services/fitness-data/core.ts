@@ -3439,8 +3439,11 @@ async function createWorkoutLogForTrainee(
   const completedAt = input.completedAt ? new Date(input.completedAt) : new Date()
   const plannedDate = resolveWorkoutLogPlannedDate(workout as WorkoutRecord, startedAt, input.plannedDate)
 
-  const log = await retryTransaction(() => db.$transaction(async (transaction) => {
-    const createdLog = await transaction.workoutLog.create({
+  // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
+  // round-trips over PgBouncer); retryTransaction still guards against transient
+  // connection resets.
+  const log = await retryTransaction(() =>
+    db.workoutLog.create({
       data: {
         completedAt,
         exerciseSnapshot: input.exercises as Prisma.InputJsonValue,
@@ -3460,10 +3463,16 @@ async function createWorkoutLogForTrainee(
         } as Prisma.InputJsonObject,
       },
       include: WORKOUT_LOG_INCLUDE,
-    })
+    }),
+  )
 
-    if (profile.coachId) {
-      await transaction.notification.create({
+  // The coach notification is non-critical: send it after the log is saved so the
+  // trainee's request returns immediately, and never fail the log if it errors.
+  if (profile.coachId) {
+    const coachId = profile.coachId
+
+    void db.notification
+      .create({
         data: {
           channel: "in_app",
           message: `${profile.name} completed ${serializedWorkout.name}.`,
@@ -3471,23 +3480,23 @@ async function createWorkoutLogForTrainee(
             traineeId: profile.id,
             traineeName: profile.name,
             workoutId: workout.id,
-            workoutLogId: createdLog.id,
+            workoutLogId: log.id,
             workoutName: serializedWorkout.name,
           },
-          relatedEntityId: createdLog.id,
+          relatedEntityId: log.id,
           relatedEntityType: "workout_log",
           scheduledFor: new Date(),
           sentAt: new Date(),
           status: NotificationStatus.sent,
           title: `${profile.name} logged a workout`,
           type: NotificationType.workout_logged,
-          userId: profile.coachId,
+          userId: coachId,
         },
       })
-    }
-
-    return createdLog
-  }))
+      .catch((error) => {
+        console.warn("Unable to create workout-logged notification", error)
+      })
+  }
 
   return serializeWorkoutLog(log as WorkoutLogRecord)
 }
@@ -3905,6 +3914,28 @@ async function listCoachPrograms(profile: SerializedProfile) {
   })
 
   return programs.map((program) => serializeProgram(program as ProgramRecord))
+}
+
+async function getCoachNavCounts(profile: SerializedProfile) {
+  assertCoach(profile)
+  const db = ensurePrisma()
+  const [programs, trainees] = await Promise.all([
+    db.program.count({
+      where: {
+        createdById: profile.id,
+      },
+    }),
+    db.user.count({
+      where: {
+        coachId: profile.id,
+      },
+    }),
+  ])
+
+  return {
+    programs,
+    trainees,
+  }
 }
 
 async function getCoachProgramDetail(profile: SerializedProfile, programId: string) {
@@ -5705,6 +5736,7 @@ export {
   deleteWorkoutLogCommentForCoach,
   deleteWorkoutLogForTrainee,
   getCoachDashboard,
+  getCoachNavCounts,
   getDashboardForTrainee,
   getCoachProgramDetail,
   getCoachTraineeDetail,
