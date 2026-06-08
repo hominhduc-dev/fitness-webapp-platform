@@ -23,8 +23,17 @@ const scheduleData = [
   // This week — Mon Mar 17 → Sun Mar 23
   { date: 'Mar 17', day: 'Mon', routine: { id: 'r2', name: 'Pull day A',  tag: 'pull' }, source: 'coach', status: 'completed', duration: '54m' },
   { date: 'Mar 18', day: 'Tue', routine: null, status: 'rest' },
-  { date: 'Mar 19', day: 'Wed', routine: { id: 'r1', name: 'Push day A',  tag: 'push' }, source: 'coach', status: 'today',     duration: '32m so far' },
-  { date: 'Mar 20', day: 'Thu', routine: { id: 'r3', name: 'Leg day',     tag: 'legs' }, source: 'coach', status: 'planned' },
+  { date: 'Mar 19', day: 'Wed', routine: { id: 'r1', name: 'Push day A',  tag: 'push' }, source: 'coach', status: 'today',     duration: '32m so far',
+    coachUpdates: [
+      { type: 'weight_up', text: 'Bench press ↑ 80→82.5 kg' },
+      { type: 'rir_down',  text: 'OHP giảm RIR 2→1' },
+    ],
+  },
+  { date: 'Mar 20', day: 'Thu', routine: { id: 'r3', name: 'Leg day',     tag: 'legs' }, source: 'coach', status: 'planned',
+    coachUpdates: [
+      { type: 'weight_up', text: 'Squat ↑ 100→105 kg' },
+    ],
+  },
   { date: 'Mar 21', day: 'Fri', routine: null, status: 'rest' },
   { date: 'Mar 22', day: 'Sat', routine: { id: 'r4', name: 'Accessory volume', tag: 'upper' }, source: 'coach', status: 'planned' },
   { date: 'Mar 23', day: 'Sun', routine: null, status: 'rest' },
@@ -68,10 +77,17 @@ function DayCard({ day, mobile, onStart }) {
   const badge = statusBadge(day.status);
   const isCoach = day.source === 'coach';
 
+  const updates = day.coachUpdates || [];
+  const [updateOpen, setUpdateOpen] = useStateSC(false);
+  const clickable = !!day.routine && !isRest;
+
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onClick={clickable ? () => onStart(day.routine) : undefined}
+      role={clickable ? 'button' : undefined}
+      title={clickable ? `Open ${day.routine.name}` : undefined}
       style={{
         background: isToday ? 'var(--ink-0)' : (isCompleted ? 'var(--ink-50)' : 'var(--ink-0)'),
         border: '1px solid ' + (isToday ? 'var(--accent)' : (hover && day.routine ? 'var(--ink-150)' : 'var(--ink-100)')),
@@ -82,7 +98,9 @@ function DayCard({ day, mobile, onStart }) {
         gap: 10,
         minHeight: 130,
         position: 'relative',
-        transition: 'border-color 120ms',
+        cursor: clickable ? 'pointer' : 'default',
+        boxShadow: clickable && hover ? '0 4px 16px -6px rgba(13,13,11,0.12)' : 'none',
+        transition: 'border-color 120ms, box-shadow 120ms',
       }}
     >
       {/* Day header */}
@@ -106,7 +124,15 @@ function DayCard({ day, mobile, onStart }) {
             fontFeatureSettings: '"tnum" 1',
           }}>{day.date.split(' ')[1]}</div>
         </div>
-        {badge && <Tag tone={badge.tone}>{badge.label}</Tag>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {badge && <Tag tone={badge.tone}>{badge.label}</Tag>}
+          {updates.length > 0 && (
+            <div style={{ position: 'relative', width: 8, height: 8 }}>
+              <span style={{ display: 'block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
+              <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--accent)', opacity: 0.4, animation: 'ping 1.8s cubic-bezier(0,0,0.2,1) infinite' }} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -156,12 +182,49 @@ function DayCard({ day, mobile, onStart }) {
             )}
           </div>
 
+          {/* Coach update — compact expandable */}
+          {updates.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={e => { e.stopPropagation(); setUpdateOpen(o => !o); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '4px 8px', border: 'none', borderRadius: 6, cursor: 'pointer',
+                  background: updateOpen ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'var(--ink-50)',
+                  color: 'var(--accent)', transition: 'background 120ms',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 10%, transparent)'}
+                onMouseLeave={e => e.currentTarget.style.background = updateOpen ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'var(--ink-50)'}
+              >
+                <Icon name="bell-dot" size={11} color="var(--accent)" />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {updates.length} update{updates.length > 1 ? 's' : ''}
+                </span>
+                <Icon name={updateOpen ? 'chevron-up' : 'chevron-down'} size={10} color="var(--accent)" />
+              </button>
+              {updateOpen && (
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {updates.map((u, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                      <Icon
+                        name={u.type === 'weight_up' ? 'trending-up' : u.type === 'rir_down' ? 'arrow-down-narrow-wide' : 'edit-3'}
+                        size={12} color={u.type === 'weight_up' ? 'var(--ok)' : u.type === 'rir_down' ? 'var(--warn)' : 'var(--ink-400)'}
+                        style={{ marginTop: 1, flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: 12, color: 'var(--ink-800)', lineHeight: 1.4 }}>{u.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {isToday && (
             <Button
               variant="primary"
               size="sm"
               icon="play"
-              onClick={() => onStart(day.routine)}
+              onClick={e => { e.stopPropagation(); onStart(day.routine); }}
               style={{ marginTop: 'auto', justifyContent: 'center' }}
             >
               Resume

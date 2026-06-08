@@ -10,6 +10,7 @@ const initialExercises = [
     id: 1,
     name: 'Bench press',
     note: '3 working sets · last 82.5 × 8',
+    coachUpdate: { type: 'weight_up', text: 'Tăng lên 82.5 kg (từ 80 kg)' },
     sets: [
       { id: 'a', kind: 'warm', kg: 60,   reps: 10, done: true,  prev: '— · —' },
       { id: 'b', kind: 'work', kg: 80,   reps: 8,  done: true,  prev: '80.0 × 8' },
@@ -21,6 +22,7 @@ const initialExercises = [
     id: 2,
     name: 'Incline dumbbell press',
     note: '3 working sets · last 30 × 10',
+    coachUpdate: { type: 'rir_down', text: 'Giảm RIR 2→1 — ẟẩy sát giới hạn hơn' },
     sets: [
       { id: 'e', kind: 'work', kg: 28, reps: 10, done: false, prev: '28.0 × 10' },
       { id: 'f', kind: 'work', kg: 30, reps: null, done: false, prev: '30.0 × 10' },
@@ -124,6 +126,11 @@ function SetRow({ set, num, onToggle, onChange, mobile }) {
 }
 
 function ExerciseBlock({ ex, onUpdate, onComplete, mobile }) {
+  const [updateOpen, setUpdateOpen] = useStateTD(false);
+  const upd = ex.coachUpdate || null;
+  const updColor = upd ? (upd.type === 'weight_up' ? 'var(--ok)' : upd.type === 'rir_down' ? 'var(--warn)' : 'var(--accent)') : null;
+  const updIcon = upd ? (upd.type === 'weight_up' ? 'trending-up' : upd.type === 'rir_down' ? 'arrow-down-narrow-wide' : 'edit-3') : null;
+
   return (
     <div style={{
       background: 'var(--ink-0)',
@@ -134,21 +141,50 @@ function ExerciseBlock({ ex, onUpdate, onComplete, mobile }) {
     }}>
       <div style={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
         padding: mobile ? '14px 14px' : '16px 20px',
         borderBottom: '1px solid var(--ink-100)',
+        gap: 10,
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: mobile ? 16 : 18, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--ink-900)' }}>{ex.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: mobile ? 16 : 18, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--ink-900)' }}>{ex.name}</span>
+            {upd && (
+              <button
+                onClick={() => setUpdateOpen(o => !o)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '3px 7px', border: 'none', borderRadius: 5, cursor: 'pointer',
+                  background: updateOpen ? `color-mix(in srgb, ${updColor} 12%, transparent)` : 'var(--ink-50)',
+                  color: updColor, transition: 'background 120ms', flexShrink: 0,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = `color-mix(in srgb, ${updColor} 12%, transparent)`}
+                onMouseLeave={e => e.currentTarget.style.background = updateOpen ? `color-mix(in srgb, ${updColor} 12%, transparent)` : 'var(--ink-50)'}
+              >
+                <Icon name={updIcon} size={11} color={updColor} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  Coach
+                </span>
+                <Icon name={updateOpen ? 'chevron-up' : 'chevron-down'} size={10} color={updColor} />
+              </button>
+            )}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ex.note}</div>
+          {upd && updateOpen && (
+            <div style={{
+              marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6,
+              padding: '7px 10px', borderRadius: 7,
+              background: `color-mix(in srgb, ${updColor} 8%, transparent)`,
+            }}>
+              <Icon name={updIcon} size={13} color={updColor} style={{ marginTop: 1, flexShrink: 0 }} />
+              <span style={{ fontSize: 12.5, color: 'var(--ink-800)', lineHeight: 1.4 }}>{upd.text}</span>
+            </div>
+          )}
         </div>
         <button style={{
-          border: 'none',
-          background: 'transparent',
-          color: 'var(--ink-400)',
-          cursor: 'pointer',
-          padding: 6,
+          border: 'none', background: 'transparent',
+          color: 'var(--ink-400)', cursor: 'pointer', padding: 6,
         }}><Icon name="more-horizontal" size={18} /></button>
       </div>
 
@@ -212,9 +248,11 @@ function TodayScreen({ onSetCompleted, startedRoutine }) {
   const [routineLabel, setRoutineLabel] = useStateTD(null);
   const mobile = useIsMobile();
 
-  // When user starts a routine from RoutinesScreen, replace exercises with routine's plan
+  // When user starts a routine, replace exercises with routine's plan (if it has one)
   useEffectTD(() => {
-    if (startedRoutine) {
+    if (!startedRoutine) return;
+    setRoutineLabel(startedRoutine.name);
+    if (Array.isArray(startedRoutine.exercises) && startedRoutine.exercises.length) {
       const seeded = startedRoutine.exercises.map((ex, exIdx) => ({
         id: Date.now() + exIdx,
         name: ex.name,
@@ -229,8 +267,8 @@ function TodayScreen({ onSetCompleted, startedRoutine }) {
         })),
       }));
       setExercises(seeded);
-      setRoutineLabel(startedRoutine.name);
     }
+    // Routine without an exercise plan (e.g. from Schedule) → keep default sample exercises
   }, [startedRoutine]);
 
   const updateSet = (exId, setId, patch) => {
