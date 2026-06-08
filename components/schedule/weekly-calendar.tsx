@@ -4,7 +4,7 @@ import Link from "next/link"
 import { memo, useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -20,6 +20,7 @@ import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry
 import type { AppMessages } from "@/lib/i18n/messages"
 
 type WeeklyCalendarProps = {
+  historyLogs?: WorkoutLog[]
   recentLogs: WorkoutLog[]
   schedule: WeeklySchedule
   scheduleEntries?: WorkoutScheduleEntry[]
@@ -1268,11 +1269,12 @@ function RoutineDialogs({
   )
 }
 
-export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [showNextWeekPreview, setShowNextWeekPreview] = useState(false)
+  const [weekOffset, setWeekOffset] = useState(0)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
   const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
   const [visibleRecentLogs, setVisibleRecentLogs] = useState(recentLogs)
@@ -1312,22 +1314,45 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
 
   const weekStart = useMemo(() => startOfUtcWeekAsLocal(new Date()), [])
   const nextWeekStart = useMemo(() => addDays(weekStart, 7), [weekStart])
+  const displayWeekStart = useMemo(() => addDays(weekStart, weekOffset * 7), [weekStart, weekOffset])
   const logsForDisplay = visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
   const hasOptimisticSchedule = Object.keys(optimisticScheduleByDate).length > 0
-  const thisWeekEntries = useMemo(() => {
-    if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
-      return scheduleEntries
-    }
 
+  // All available logs deduplicated — used to build past/future week entries.
+  const allLogs = useMemo(() => {
+    const seen = new Set<string>()
+    const combined: WorkoutLog[] = []
+    for (const log of [...historyLogs, ...visibleRecentLogs, ...visibleWeekLogs]) {
+      if (!seen.has(log.id)) {
+        seen.add(log.id)
+        combined.push(log)
+      }
+    }
+    return combined
+  }, [historyLogs, visibleRecentLogs, visibleWeekLogs])
+
+  const displayWeekEntries = useMemo(() => {
+    if (weekOffset === 0) {
+      if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
+        return scheduleEntries
+      }
+      return buildWeekEntries({
+        logs: logsForDisplay,
+        optimisticScheduleByDate,
+        weekStart,
+        workouts: visibleWorkouts,
+      })
+    }
     return buildWeekEntries({
-      logs: logsForDisplay,
-      optimisticScheduleByDate,
-      weekStart,
+      logs: allLogs,
+      optimisticScheduleByDate: {},
+      weekStart: displayWeekStart,
       workouts: visibleWorkouts,
     })
-  }, [hasOptimisticSchedule, logsForDisplay, optimisticScheduleByDate, scheduleEntries, visibleWorkouts, weekStart])
+  }, [weekOffset, hasOptimisticSchedule, scheduleEntries, logsForDisplay, allLogs, optimisticScheduleByDate, weekStart, displayWeekStart, visibleWorkouts])
+
   const nextWeekEntries = useMemo(() => {
-    if (!showNextWeekPreview) {
+    if (!showNextWeekPreview || weekOffset !== 0) {
       return []
     }
 
@@ -1337,7 +1362,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
       weekStart: nextWeekStart,
       workouts: visibleWorkouts,
     })
-  }, [nextWeekStart, optimisticScheduleByDate, showNextWeekPreview, visibleRecentLogs, visibleWorkouts])
+  }, [nextWeekStart, optimisticScheduleByDate, showNextWeekPreview, weekOffset, visibleRecentLogs, visibleWorkouts])
 
   const routineLibrary = useMemo(() => [
     ...extraRoutineLibrary,
@@ -1350,11 +1375,11 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
 
   const coachWorkouts = useMemo(() => visibleWorkouts.filter((workout) => !workout.isPersonal), [visibleWorkouts])
   const closeReviewLabel = locale === "vi" ? "Đóng" : "Close"
-  const plannedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [thisWeekEntries])
-  const completedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.isCompleted).length, [thisWeekEntries])
-  const filteredThisWeek = useMemo(
-    () => thisWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
-    [showSource, thisWeekEntries],
+  const plannedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [displayWeekEntries])
+  const completedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.isCompleted).length, [displayWeekEntries])
+  const filteredDisplayWeek = useMemo(
+    () => displayWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
+    [showSource, displayWeekEntries],
   )
   const filteredNextWeek = useMemo(
     () => nextWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
@@ -1567,11 +1592,46 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     }
   }
 
+  const weekRangeLabel = (() => {
+    const range = formatWeekRangeLabel(displayWeekStart)
+    if (weekOffset === 0) return messages.schedule.thisWeekRange(range)
+    if (weekOffset === -1) return messages.schedule.lastWeekRange(range)
+    if (weekOffset === 1) return messages.schedule.nextWeekRange(range)
+    return range
+  })()
+
   return (
     <section className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-10 md:py-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="label-micro mb-2">{messages.schedule.thisWeekRange(formatWeekRangeLabel(weekStart))}</p>
+          <div className="mb-2 flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Previous week"
+              onClick={() => setWeekOffset((o) => o - 1)}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <p className="label-micro">{weekRangeLabel}</p>
+            <button
+              type="button"
+              aria-label="Next week"
+              onClick={() => setWeekOffset((o) => o + 1)}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            {weekOffset !== 0 ? (
+              <button
+                type="button"
+                onClick={() => setWeekOffset(0)}
+                className="ml-1 font-mono text-[10px] uppercase tracking-[0.08em] text-primary transition-colors hover:underline"
+              >
+                {messages.schedule.todayLabel}
+              </button>
+            ) : null}
+          </div>
           <h1 className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{messages.schedule.plannedSessions(plannedCount)}</h1>
           <p className="mt-2 font-mono text-[13px] text-muted-foreground tnum">
             {messages.schedule.doneToGo(completedCount, plannedCount, Math.max(0, plannedCount - completedCount))}
@@ -1580,12 +1640,15 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         <SourceFilters showSource={showSource} onChange={setShowSource} />
       </div>
 
-      <CoachProgramCard coachWorkouts={coachWorkouts} completedCount={completedCount} plannedCount={plannedCount} />
+      {weekOffset === 0 ? (
+        <CoachProgramCard coachWorkouts={coachWorkouts} completedCount={completedCount} plannedCount={plannedCount} />
+      ) : null}
 
-      <p className="label-micro mb-3">{messages.schedule.thisWeek}</p>
+      <p className="label-micro mb-3">{weekOffset === 0 ? messages.schedule.thisWeek : formatWeekRangeLabel(displayWeekStart)}</p>
       <div className="mb-8">
         <CalendarGrid
-          entries={filteredThisWeek}
+          entries={filteredDisplayWeek}
+          onPreviewWorkout={(workout, date) => void openWorkoutPreview(workout, date)}
           onRestDayClick={(date) => {
             setSelectedRestDate(date)
             setRoutineError(null)
@@ -1594,7 +1657,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         />
       </div>
 
-      {showNextWeekPreview ? (
+      {weekOffset === 0 && showNextWeekPreview ? (
         <NextWeekPreview
           entries={filteredNextWeek}
           nextWeekStart={nextWeekStart}
