@@ -16,6 +16,7 @@ import { useState } from "react"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -259,10 +260,12 @@ type RecentSessionsTableProps = {
 }
 
 function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
+  const { messages } = useLocale()
+
   if (sessions.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-        No sessions recorded yet.
+        {messages.coach.noSessionsYet}
       </div>
     )
   }
@@ -271,10 +274,10 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
     <div className="overflow-hidden rounded-lg border border-border">
       {/* Header */}
       <div className="grid grid-cols-[80px_1fr_100px_80px_32px] gap-3 border-b border-border bg-muted/30 px-4 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Date</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Type</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Volume</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">Done</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDateCol}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionTypeCol}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionVolumeCol}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDoneCol}</span>
         <span />
       </div>
       {sessions.map((s, i) => (
@@ -289,7 +292,7 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
             {s.date}
           </span>
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            {s.kind} day
+            {s.kind}
             {s.prs > 0 && (
               <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
                 {s.prs} PR
@@ -320,6 +323,8 @@ export function CoachTraineeDetailClient({
   initialDetail,
 }: CoachTraineeDetailClientProps) {
   const { session } = useAuth()
+  const { locale, messages } = useLocale()
+  const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const [detail, setDetail] = useState(initialDetail)
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
@@ -398,7 +403,7 @@ export function CoachTraineeDetailClient({
     const totalSets = log.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
     return {
       date: (log.startedAt instanceof Date ? log.startedAt : new Date(log.startedAt)).toLocaleDateString(
-        "en-US",
+        dateLocale,
         { month: "short", day: "numeric" },
       ),
       kind: log.workout?.name ?? "Workout",
@@ -577,12 +582,12 @@ export function CoachTraineeDetailClient({
   return (
     <Tabs defaultValue="overview" className="space-y-6">
       <TabsList className="grid w-full grid-cols-6 bg-muted/50">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="progress">Progress</TabsTrigger>
-        <TabsTrigger value="metrics">Body metrics</TabsTrigger>
-        <TabsTrigger value="checkins">Check-ins</TabsTrigger>
-        <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
-        <TabsTrigger value="logs">Workout logs</TabsTrigger>
+        <TabsTrigger value="overview">{messages.coach.tabOverview}</TabsTrigger>
+        <TabsTrigger value="progress">{messages.coach.tabProgress}</TabsTrigger>
+        <TabsTrigger value="metrics">{messages.coach.tabBodyMetrics}</TabsTrigger>
+        <TabsTrigger value="checkins">{messages.coach.tabCheckIns}</TabsTrigger>
+        <TabsTrigger value="nutrition">{messages.coach.tabNutrition}</TabsTrigger>
+        <TabsTrigger value="logs">{messages.coach.tabWorkoutLogs}</TabsTrigger>
       </TabsList>
 
       {/* ── Overview ──────────────────────────────────────────────────────── */}
@@ -600,15 +605,15 @@ export function CoachTraineeDetailClient({
           <div className="mb-4 flex items-baseline justify-between">
             <div>
               <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                This week · sets per day
+                {messages.coach.thisWeekSetsPerDay}
               </p>
               <p className="mt-1.5 font-mono text-[22px] font-medium tabular-nums text-foreground">
                 {weeklyData.reduce((a, b) => a + b, 0)}{" "}
-                <span className="text-sm font-normal text-muted-foreground">sets</span>
+                <span className="text-sm font-normal text-muted-foreground">{messages.coach.sets}</span>
               </p>
             </div>
             <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              {detail.trainee.thisWeekWorkouts}/{plannedSessionsPerWeek || 0} sessions
+              {messages.coach.complianceSessions(detail.trainee.thisWeekWorkouts, plannedSessionsPerWeek || 0)}
             </span>
           </div>
           <WeeklyBarChart data={weeklyData} />
@@ -617,7 +622,7 @@ export function CoachTraineeDetailClient({
         {/* Key lifts */}
         <div>
           <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            Key metrics
+            {messages.coach.keyMetrics}
           </p>
           <div className="grid grid-cols-3 gap-3">
             {keyLifts.map((lift) => (
@@ -629,7 +634,7 @@ export function CoachTraineeDetailClient({
         {/* Recent sessions */}
         <div>
           <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            Recent sessions
+            {messages.coach.recentSessions}
           </p>
           <RecentSessionsTable sessions={recentSessions} />
         </div>
@@ -638,15 +643,15 @@ export function CoachTraineeDetailClient({
         <div className="rounded-lg border border-border p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-base font-semibold">Assigned programs</h2>
+              <h2 className="text-base font-semibold">{messages.coach.assignedProgramsTitle}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Assign or remove programs from this client.
+                {messages.coach.assignedProgramsDesc}
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Select value={selectedProgramId} onValueChange={setSelectedProgramId}>
                 <SelectTrigger className="w-full min-w-[240px]">
-                  <SelectValue placeholder="Select a program to assign" />
+                  <SelectValue placeholder={messages.coach.selectProgramPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
                   {assignablePrograms.map((program) => (
@@ -661,7 +666,7 @@ export function CoachTraineeDetailClient({
                 disabled={!selectedProgramId || isAssigning}
               >
                 {isAssigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Assign program
+                {messages.coach.assignProgram}
               </Button>
             </div>
           </div>
@@ -674,7 +679,7 @@ export function CoachTraineeDetailClient({
 
           {detail.programs.length === 0 ? (
             <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              No programs assigned to this client yet.
+              {messages.coach.noProgramsAssigned}
             </div>
           ) : (
             <div className="mt-4 space-y-3">
@@ -699,16 +704,16 @@ export function CoachTraineeDetailClient({
                       {exportingProgramId === program.id
                         ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         : <Download className="mr-2 h-4 w-4" />}
-                      Export logs
+                      {messages.coach.exportLogs}
                     </Button>
                     <Link href={`/coach/programs/${program.id}`} className="w-full sm:w-auto">
                       <Button variant="outline" className="w-full bg-transparent">
-                        Open plan
+                        {messages.coach.openPlan}
                       </Button>
                     </Link>
                     <Link href={`/coach/programs/${program.id}?adjustTrainee=${detail.trainee.id}`} className="w-full sm:w-auto">
                       <Button className="w-full">
-                        Adjust plan
+                        {messages.coach.adjustPlan}
                       </Button>
                     </Link>
                     <Button
@@ -718,7 +723,7 @@ export function CoachTraineeDetailClient({
                       disabled={removingProgramId === program.id}
                     >
                       {removingProgramId === program.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                      Remove
+                      {messages.coach.removeProgram}
                     </Button>
                   </div>
                 </div>
@@ -734,59 +739,59 @@ export function CoachTraineeDetailClient({
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">7-day</span>
+              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progressLast7DaysLabel}</span>
             </div>
             <p className="mt-3 font-mono text-3xl font-semibold tabular-nums">
               {detail.progressSummary.workoutsLast7Days}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">Workouts in the last 7 days</p>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressWorkoutsLast7DaysDesc}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">30-day volume</span>
+              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progress30DayVolumeLabel}</span>
             </div>
             <p className="mt-3 font-mono text-3xl font-semibold tabular-nums">
               {Math.round(detail.progressSummary.totalVolumeLast30Days).toLocaleString()}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">Total logged volume</p>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressTotalVolumeDesc}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">30-day sessions</span>
+              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progress30DaySessionsLabel}</span>
             </div>
             <p className="mt-3 font-mono text-3xl font-semibold tabular-nums">
               {detail.progressSummary.workoutsLast30Days}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">Completed sessions</p>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressCompletedSessions}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-muted-foreground">
               <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">Latest workout</span>
+              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progressLatestWorkoutLabel}</span>
             </div>
             <p className="mt-3 font-mono text-lg font-semibold">
               {detail.progressSummary.latestWorkoutAt
-                ? detail.progressSummary.latestWorkoutAt.toLocaleDateString()
+                ? detail.progressSummary.latestWorkoutAt.toLocaleDateString(dateLocale)
                 : "--"}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">Most recent completed workout</p>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressMostRecentDesc}</p>
           </div>
         </div>
 
         <div className="rounded-lg border border-border p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-base font-semibold">Weekly compliance</h2>
+              <h2 className="text-base font-semibold">{messages.coach.weeklyCompliance}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Compare completed workouts with the currently assigned weekly plan.
+                {messages.coach.weeklyComplianceDesc}
               </p>
             </div>
             <div className="text-right">
               <p className="font-mono text-3xl font-semibold tabular-nums">{completionRate}%</p>
               <p className="font-mono text-xs text-muted-foreground">
-                {detail.trainee.thisWeekWorkouts}/{plannedSessionsPerWeek || 0} sessions
+                {messages.coach.complianceSessions(detail.trainee.thisWeekWorkouts, plannedSessionsPerWeek || 0)}
               </p>
             </div>
           </div>
@@ -802,9 +807,9 @@ export function CoachTraineeDetailClient({
           <form onSubmit={handleCreateBodyMetric} className="rounded-lg border border-border p-5">
             <div className="flex items-center gap-2">
               <Scale className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">Add body metric</h2>
+              <h2 className="text-base font-semibold">{messages.coach.addBodyMetricTitle}</h2>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">Log the latest measurement for this client.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.addBodyMetricDesc}</p>
 
             {metricError ? (
               <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
@@ -814,7 +819,7 @@ export function CoachTraineeDetailClient({
 
             <div className="mt-4 space-y-4">
               <div>
-                <Label htmlFor="metric-date">Recorded date</Label>
+                <Label htmlFor="metric-date">{messages.coach.recordedDateLabel}</Label>
                 <Input
                   id="metric-date"
                   type="date"
@@ -826,7 +831,7 @@ export function CoachTraineeDetailClient({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="metric-weight">Weight (kg)</Label>
+                  <Label htmlFor="metric-weight">{messages.coach.weightKgLabel}</Label>
                   <Input
                     id="metric-weight"
                     value={metricForm.weightKg}
@@ -836,7 +841,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="metric-bodyfat">Body fat (%)</Label>
+                  <Label htmlFor="metric-bodyfat">{messages.coach.bodyFatPctLabel}</Label>
                   <Input
                     id="metric-bodyfat"
                     value={metricForm.bodyFatPct}
@@ -846,7 +851,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="metric-waist">Waist (cm)</Label>
+                  <Label htmlFor="metric-waist">{messages.coach.waistCmLabel}</Label>
                   <Input
                     id="metric-waist"
                     value={metricForm.waistCm}
@@ -856,7 +861,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="metric-chest">Chest (cm)</Label>
+                  <Label htmlFor="metric-chest">{messages.coach.chestCmLabel}</Label>
                   <Input
                     id="metric-chest"
                     value={metricForm.chestCm}
@@ -866,7 +871,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="metric-hips">Hips (cm)</Label>
+                  <Label htmlFor="metric-hips">{messages.coach.hipsCmLabel}</Label>
                   <Input
                     id="metric-hips"
                     value={metricForm.hipsCm}
@@ -876,7 +881,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="metric-thigh">Thigh (cm)</Label>
+                  <Label htmlFor="metric-thigh">{messages.coach.thighCmLabel}</Label>
                   <Input
                     id="metric-thigh"
                     value={metricForm.thighCm}
@@ -888,19 +893,19 @@ export function CoachTraineeDetailClient({
               </div>
 
               <div>
-                <Label htmlFor="metric-note">Note</Label>
+                <Label htmlFor="metric-note">{messages.coach.metricNoteLabel}</Label>
                 <Textarea
                   id="metric-note"
                   value={metricForm.note}
                   onChange={(event) => setMetricForm((current) => ({ ...current, note: event.target.value }))}
-                  placeholder="Any context about the measurement or changes since last week..."
+                  placeholder={messages.coach.metricNotePlaceholder}
                   className="mt-1.5 min-h-[96px]"
                 />
               </div>
 
               <Button type="submit" disabled={isSavingMetric} className="w-full">
                 {isSavingMetric ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save body metric
+                {messages.coach.saveBodyMetric}
               </Button>
             </div>
           </form>
@@ -908,26 +913,26 @@ export function CoachTraineeDetailClient({
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border border-border p-4">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Weight</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.weightStatLabel}</p>
                 <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{formatNumber(latestMetric?.weightKg, " kg")}</p>
               </div>
               <div className="rounded-lg border border-border p-4">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Body fat</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.bodyFatStatLabel}</p>
                 <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{formatNumber(latestMetric?.bodyFatPct, "%")}</p>
               </div>
               <div className="rounded-lg border border-border p-4">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Waist</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.waistStatLabel}</p>
                 <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{formatNumber(latestMetric?.waistCm, " cm")}</p>
               </div>
             </div>
 
             <div className="rounded-lg border border-border p-5">
-              <h2 className="text-base font-semibold">Measurement history</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Newest entries appear first.</p>
+              <h2 className="text-base font-semibold">{messages.coach.measurementHistory}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{messages.coach.measurementHistoryDesc}</p>
 
               {detail.bodyMetrics.length === 0 ? (
                 <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  No body metrics recorded for this client yet.
+                  {messages.coach.noBodyMetrics}
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
@@ -935,22 +940,22 @@ export function CoachTraineeDetailClient({
                     <div key={entry.id} className="rounded-lg border border-border bg-muted/20 px-4 py-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="font-medium">{entry.recordedAt.toLocaleDateString()}</p>
+                          <p className="font-medium">{entry.recordedAt.toLocaleDateString(dateLocale)}</p>
                           <p className="text-sm text-muted-foreground">
-                            {entry.coachName ? `Logged by ${entry.coachName}` : "Coach entry"}
+                            {entry.coachName ? messages.coach.loggedBy(entry.coachName) : messages.coach.coachEntry}
                           </p>
                         </div>
                         <div className="grid grid-cols-3 gap-3 text-sm">
                           <div>
-                            <p className="text-muted-foreground">Weight</p>
+                            <p className="text-muted-foreground">{messages.coach.weightStatLabel}</p>
                             <p className="font-mono font-medium tabular-nums">{formatNumber(entry.weightKg, " kg")}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Body fat</p>
+                            <p className="text-muted-foreground">{messages.coach.bodyFatStatLabel}</p>
                             <p className="font-mono font-medium tabular-nums">{formatNumber(entry.bodyFatPct, "%")}</p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Waist</p>
+                            <p className="text-muted-foreground">{messages.coach.waistStatLabel}</p>
                             <p className="font-mono font-medium tabular-nums">{formatNumber(entry.waistCm, " cm")}</p>
                           </div>
                         </div>
@@ -971,9 +976,9 @@ export function CoachTraineeDetailClient({
           <form onSubmit={handleCreateCheckIn} className="rounded-lg border border-border p-5">
             <div className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">New check-in</h2>
+              <h2 className="text-base font-semibold">{messages.coach.newCheckInTitle}</h2>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">Record adherence, recovery, and coach feedback.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.newCheckInDesc}</p>
 
             {checkInError ? (
               <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
@@ -983,7 +988,7 @@ export function CoachTraineeDetailClient({
 
             <div className="mt-4 space-y-4">
               <div>
-                <Label htmlFor="checkin-date">Check-in date</Label>
+                <Label htmlFor="checkin-date">{messages.coach.checkInDateLabel}</Label>
                 <Input
                   id="checkin-date"
                   type="date"
@@ -995,7 +1000,7 @@ export function CoachTraineeDetailClient({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="score-adherence">Adherence (1-10)</Label>
+                  <Label htmlFor="score-adherence">{messages.coach.adherenceScoreLabel}</Label>
                   <Input
                     id="score-adherence"
                     value={checkInForm.adherenceScore}
@@ -1004,7 +1009,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="score-energy">Energy (1-10)</Label>
+                  <Label htmlFor="score-energy">{messages.coach.energyScoreLabel}</Label>
                   <Input
                     id="score-energy"
                     value={checkInForm.energyScore}
@@ -1013,7 +1018,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="score-recovery">Recovery (1-10)</Label>
+                  <Label htmlFor="score-recovery">{messages.coach.recoveryScoreLabel}</Label>
                   <Input
                     id="score-recovery"
                     value={checkInForm.recoveryScore}
@@ -1022,7 +1027,7 @@ export function CoachTraineeDetailClient({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="score-mood">Mood (1-10)</Label>
+                  <Label htmlFor="score-mood">{messages.coach.moodScoreLabel}</Label>
                   <Input
                     id="score-mood"
                     value={checkInForm.moodScore}
@@ -1033,52 +1038,52 @@ export function CoachTraineeDetailClient({
               </div>
 
               <div>
-                <Label htmlFor="checkin-summary">Summary</Label>
+                <Label htmlFor="checkin-summary">{messages.coach.checkInSummaryLabel}</Label>
                 <Textarea
                   id="checkin-summary"
                   value={checkInForm.summary}
                   onChange={(event) => setCheckInForm((current) => ({ ...current, summary: event.target.value }))}
-                  placeholder="Short recap of the week, current condition, and constraints..."
+                  placeholder={messages.coach.checkInSummaryPlaceholder}
                   className="mt-1.5 min-h-[96px]"
                 />
               </div>
 
               <div>
-                <Label htmlFor="checkin-feedback">Coach feedback</Label>
+                <Label htmlFor="checkin-feedback">{messages.coach.coachFeedbackLabel}</Label>
                 <Textarea
                   id="checkin-feedback"
                   value={checkInForm.feedback}
                   onChange={(event) => setCheckInForm((current) => ({ ...current, feedback: event.target.value }))}
-                  placeholder="What should the client keep, change, or focus on next?"
+                  placeholder={messages.coach.coachFeedbackPlaceholder}
                   className="mt-1.5 min-h-[120px]"
                 />
               </div>
 
               <div>
-                <Label htmlFor="checkin-focus">Next focus</Label>
+                <Label htmlFor="checkin-focus">{messages.coach.nextFocusInputLabel}</Label>
                 <Input
                   id="checkin-focus"
                   value={checkInForm.nextFocus}
                   onChange={(event) => setCheckInForm((current) => ({ ...current, nextFocus: event.target.value }))}
-                  placeholder="Example: keep calories consistent and push squat depth"
+                  placeholder={messages.coach.nextFocusPlaceholder}
                   className="mt-1.5"
                 />
               </div>
 
               <Button type="submit" disabled={isSavingCheckIn} className="w-full">
                 {isSavingCheckIn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save check-in
+                {messages.coach.saveCheckIn}
               </Button>
             </div>
           </form>
 
           <div className="rounded-lg border border-border p-5">
-            <h2 className="text-base font-semibold">Check-in history</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Review feedback history and current trend.</p>
+            <h2 className="text-base font-semibold">{messages.coach.checkInHistoryTitle}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.checkInHistoryDesc}</p>
 
             {detail.checkIns.length === 0 ? (
               <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                No check-ins recorded for this client yet.
+                {messages.coach.noCheckIns}
               </div>
             ) : (
               <div className="mt-4 space-y-4">
@@ -1086,21 +1091,21 @@ export function CoachTraineeDetailClient({
                   <div key={checkIn.id} className="rounded-lg border border-border bg-muted/20 px-4 py-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="font-medium">{checkIn.checkInDate.toLocaleDateString()}</p>
-                        <p className="text-sm text-muted-foreground">Coach: {checkIn.coachName}</p>
+                        <p className="font-medium">{checkIn.checkInDate.toLocaleDateString(dateLocale)}</p>
+                        <p className="text-sm text-muted-foreground">{messages.coach.coachByName(checkIn.coachName)}</p>
                       </div>
                       <Badge variant="micro" className="self-start">
-                        Avg {averageScore(checkIn) ?? "--"}
+                        {messages.coach.avgScoreLabel(averageScore(checkIn) ?? "--")}
                       </Badge>
                     </div>
 
                     <div className="mt-3 grid gap-2 sm:grid-cols-4">
                       {(
                         [
-                          ["Adherence", checkIn.adherenceScore],
-                          ["Energy", checkIn.energyScore],
-                          ["Recovery", checkIn.recoveryScore],
-                          ["Mood", checkIn.moodScore],
+                          [messages.coach.adherenceStatLabel, checkIn.adherenceScore],
+                          [messages.coach.energyStatLabel, checkIn.energyScore],
+                          [messages.coach.recoveryStatLabel, checkIn.recoveryScore],
+                          [messages.coach.moodStatLabel, checkIn.moodScore],
                         ] as [string, number | undefined][]
                       ).map(([label, val]) => (
                         <div key={label} className="rounded-md bg-muted/40 px-3 py-2">
@@ -1116,19 +1121,19 @@ export function CoachTraineeDetailClient({
 
                     {checkIn.summary ? (
                       <div className="mt-4">
-                        <p className="text-sm font-medium">Summary</p>
+                        <p className="text-sm font-medium">{messages.coach.checkInSummarySection}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{checkIn.summary}</p>
                       </div>
                     ) : null}
 
                     <div className="mt-4">
-                      <p className="text-sm font-medium">Feedback</p>
+                      <p className="text-sm font-medium">{messages.coach.checkInFeedbackSection}</p>
                       <p className="mt-1 text-sm text-muted-foreground">{checkIn.feedback}</p>
                     </div>
 
                     {checkIn.nextFocus ? (
                       <div className="mt-4 rounded-md border border-primary/20 bg-primary-soft px-3 py-3 text-sm">
-                        <span className="font-medium text-primary">Next focus:</span>{" "}
+                        <span className="font-medium text-primary">{messages.coach.nextFocusSection}</span>{" "}
                         {checkIn.nextFocus}
                       </div>
                     ) : null}
@@ -1143,30 +1148,30 @@ export function CoachTraineeDetailClient({
       {/* ── Nutrition ─────────────────────────────────────────────────────── */}
       <TabsContent value="nutrition" className="space-y-6">
         <div className="rounded-lg border border-border p-5">
-          <h2 className="text-base font-semibold">Nutrition — last 30 days</h2>
+          <h2 className="text-base font-semibold">{messages.coach.nutritionTitle}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Daily calorie and macro averages based on meals logged by the trainee.
+            {messages.coach.nutritionDesc}
           </p>
 
           {!nutritionSummary ? (
-            <p className="mt-6 text-sm text-muted-foreground">Nutrition data not available.</p>
+            <p className="mt-6 text-sm text-muted-foreground">{messages.coach.nutritionUnavailable}</p>
           ) : nutritionSummary.daysTracked === 0 ? (
-            <p className="mt-6 text-sm text-muted-foreground">No meals logged in the last 30 days.</p>
+            <p className="mt-6 text-sm text-muted-foreground">{messages.coach.noMealsLogged30Days}</p>
           ) : (
             <>
               {/* Summary stat cards */}
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   {
-                    label: "Avg calories",
+                    label: messages.coach.avgCaloriesLabel,
                     value: `${nutritionSummary.avgCalories} kcal`,
                     sub: nutritionSummary.traineeCalorieGoal
-                      ? `Goal: ${nutritionSummary.traineeCalorieGoal} kcal`
+                      ? messages.coach.calorieGoalLabel(nutritionSummary.traineeCalorieGoal)
                       : undefined,
                   },
-                  { label: "Avg protein", value: `${nutritionSummary.avgProtein} g` },
-                  { label: "Avg carbs", value: `${nutritionSummary.avgCarbs} g` },
-                  { label: "Avg fat", value: `${nutritionSummary.avgFat} g` },
+                  { label: messages.coach.avgProteinLabel, value: `${nutritionSummary.avgProtein} g` },
+                  { label: messages.coach.avgCarbsLabel, value: `${nutritionSummary.avgCarbs} g` },
+                  { label: messages.coach.avgFatLabel, value: `${nutritionSummary.avgFat} g` },
                 ].map((card) => (
                   <div key={card.label} className="rounded-lg border border-border bg-muted/30 px-4 py-3">
                     <p className="label-micro text-muted-foreground">{card.label}</p>
@@ -1177,7 +1182,7 @@ export function CoachTraineeDetailClient({
               </div>
 
               <p className="mt-4 text-xs text-muted-foreground">
-                {nutritionSummary.daysTracked} day{nutritionSummary.daysTracked !== 1 ? "s" : ""} tracked
+                {messages.coach.daysTrackedLabel(nutritionSummary.daysTracked)}
               </p>
 
               {/* Daily log table */}
@@ -1185,11 +1190,11 @@ export function CoachTraineeDetailClient({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left">
-                      <th className="label-micro pb-2 pr-4 font-medium text-muted-foreground">Date</th>
-                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">Calories</th>
-                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">Protein</th>
-                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">Carbs</th>
-                      <th className="label-micro pb-2 text-right font-medium text-muted-foreground">Fat</th>
+                      <th className="label-micro pb-2 pr-4 font-medium text-muted-foreground">{messages.coach.nutritionDateCol}</th>
+                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.caloriesCol}</th>
+                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.proteinCol}</th>
+                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.carbsCol}</th>
+                      <th className="label-micro pb-2 text-right font-medium text-muted-foreground">{messages.coach.fatCol}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1226,9 +1231,9 @@ export function CoachTraineeDetailClient({
       <TabsContent value="logs" className="space-y-6">
         <div className="rounded-lg border border-border p-5">
           <div>
-            <h2 className="text-base font-semibold">Workout log history</h2>
+            <h2 className="text-base font-semibold">{messages.coach.workoutLogHistoryTitle}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review the full session timeline, inspect logged work, and leave feedback on each completed workout.
+              {messages.coach.workoutLogHistoryDesc}
             </p>
           </div>
 
