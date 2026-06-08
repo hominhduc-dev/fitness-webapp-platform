@@ -55,7 +55,7 @@ function TopBar() {
     <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3.5 md:px-10 md:py-[18px]">
         {/* Logo */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex shrink-0 items-center gap-2.5">
           <Image
             src="/lift-mark.svg"
             alt=""
@@ -63,22 +63,22 @@ function TopBar() {
             height={26}
             className="shrink-0"
           />
-          <span className="text-[20px] font-semibold tracking-[-0.04em] text-foreground">
+          <span className="hidden whitespace-nowrap text-[20px] font-semibold tracking-[-0.04em] text-foreground sm:inline">
             YeahBuddy Fitness
           </span>
         </div>
 
         {/* Nav */}
-        <nav className="flex items-center gap-2 md:gap-7">
+        <nav className="flex items-center gap-2 lg:gap-7">
           <Link
             href="#features"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
+            className="hidden whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground lg:block"
           >
             {messages.landing.navFeatures}
           </Link>
           <Link
             href="#trainers"
-            className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
+            className="hidden whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground lg:block"
           >
             {messages.landing.navTrainers}
           </Link>
