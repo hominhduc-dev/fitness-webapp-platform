@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { memo, useEffect, useMemo, useState } from "react"
-import { addDays, differenceInMinutes, format, startOfDay, startOfWeek } from "date-fns"
+import { addDays, differenceInMinutes, format, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -20,6 +20,7 @@ import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry
 import type { AppMessages } from "@/lib/i18n/messages"
 
 type WeeklyCalendarProps = {
+  historyLogs?: WorkoutLog[]
   recentLogs: WorkoutLog[]
   schedule: WeeklySchedule
   scheduleEntries?: WorkoutScheduleEntry[]
@@ -86,6 +87,17 @@ function createDraftId() {
   }
 
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+// Returns a local-midnight Date whose calendar date (yyyy-MM-dd) matches the
+// UTC Monday that starts the week containing `date`. Mirrors backend's
+// startOfUtcWeek so frontend and server always agree on the week boundary.
+function startOfUtcWeekAsLocal(date: Date): Date {
+  const utcDay = date.getUTCDay()
+  const offset = utcDay === 0 ? -6 : 1 - utcDay
+  const utcMondayMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) + offset * 86_400_000
+  const utcMonday = new Date(utcMondayMs)
+  return new Date(utcMonday.getUTCFullYear(), utcMonday.getUTCMonth(), utcMonday.getUTCDate())
 }
 
 function createEmptyRoutineExercise(defaultVariationId = ""): RoutineExercise {
@@ -1055,7 +1067,15 @@ function RoutineBuilderDialog({
   )
 }
 
-function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
+function CoachProgramCard({
+  coachWorkouts,
+  completedCount,
+  plannedCount,
+}: {
+  coachWorkouts: Workout[]
+  completedCount: number
+  plannedCount: number
+}) {
   const { messages } = useLocale()
 
   if (coachWorkouts.length === 0) {
@@ -1063,7 +1083,7 @@ function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
   }
 
   const daysPerWeek = new Set(coachWorkouts.map((workout) => workout.scheduledDay).filter((day) => day != null)).size || coachWorkouts.length
-  const progressPct = 25
+  const progressPct = plannedCount > 0 ? Math.round((completedCount / plannedCount) * 100) : 0
 
   return (
     <div className="mb-7 grid gap-5 rounded-[12px] bg-foreground px-5 py-5 text-background md:grid-cols-[1.35fr_1fr] md:px-7 md:py-6">
@@ -1091,23 +1111,17 @@ function CoachProgramCard({ coachWorkouts }: { coachWorkouts: Workout[] }) {
 
       <div className="self-center">
         <div className="mb-2 flex justify-between">
-          <span className="label-micro text-background/55">{messages.schedule.activePlan}</span>
-          <span className="font-mono text-[11px] text-background tnum">{progressPct}%</span>
+          <span className="label-micro text-background/55">{messages.schedule.thisWeek}</span>
+          <span className="font-mono text-[11px] text-background tnum">
+            {completedCount}/{plannedCount}
+          </span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-background/10">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${progressPct}%` }} />
+          <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${progressPct}%` }} />
         </div>
-        <div className="mt-4 grid grid-cols-12 gap-1">
-          {Array.from({ length: 12 }).map((_, index) => (
-            <span
-              key={index}
-              className={cn("h-1.5 rounded-sm", index < 3 ? "bg-primary" : "bg-background/10")}
-            />
-          ))}
-        </div>
-        <div className="mt-1.5 flex justify-between">
-          <span className="label-micro text-background/40">w1</span>
-          <span className="label-micro text-background/40">w12</span>
+        <div className="mt-2 flex justify-between">
+          <span className="label-micro text-background/40">{messages.schedule.completion}</span>
+          <span className="font-mono text-[11px] text-background/60 tnum">{progressPct}%</span>
         </div>
       </div>
     </div>
@@ -1255,11 +1269,12 @@ function RoutineDialogs({
   )
 }
 
-export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [showNextWeekPreview, setShowNextWeekPreview] = useState(false)
+  const [weekOffset, setWeekOffset] = useState(0)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
   const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
   const [visibleRecentLogs, setVisibleRecentLogs] = useState(recentLogs)
@@ -1297,24 +1312,47 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     return () => cancelIdleCallback(idleId)
   }, [])
 
-  const weekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), [])
+  const weekStart = useMemo(() => startOfUtcWeekAsLocal(new Date()), [])
   const nextWeekStart = useMemo(() => addDays(weekStart, 7), [weekStart])
+  const displayWeekStart = useMemo(() => addDays(weekStart, weekOffset * 7), [weekStart, weekOffset])
   const logsForDisplay = visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
   const hasOptimisticSchedule = Object.keys(optimisticScheduleByDate).length > 0
-  const thisWeekEntries = useMemo(() => {
-    if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
-      return scheduleEntries
-    }
 
+  // All available logs deduplicated — used to build past/future week entries.
+  const allLogs = useMemo(() => {
+    const seen = new Set<string>()
+    const combined: WorkoutLog[] = []
+    for (const log of [...historyLogs, ...visibleRecentLogs, ...visibleWeekLogs]) {
+      if (!seen.has(log.id)) {
+        seen.add(log.id)
+        combined.push(log)
+      }
+    }
+    return combined
+  }, [historyLogs, visibleRecentLogs, visibleWeekLogs])
+
+  const displayWeekEntries = useMemo(() => {
+    if (weekOffset === 0) {
+      if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
+        return scheduleEntries
+      }
+      return buildWeekEntries({
+        logs: logsForDisplay,
+        optimisticScheduleByDate,
+        weekStart,
+        workouts: visibleWorkouts,
+      })
+    }
     return buildWeekEntries({
-      logs: logsForDisplay,
-      optimisticScheduleByDate,
-      weekStart,
+      logs: allLogs,
+      optimisticScheduleByDate: {},
+      weekStart: displayWeekStart,
       workouts: visibleWorkouts,
     })
-  }, [hasOptimisticSchedule, logsForDisplay, optimisticScheduleByDate, scheduleEntries, visibleWorkouts, weekStart])
+  }, [weekOffset, hasOptimisticSchedule, scheduleEntries, logsForDisplay, allLogs, optimisticScheduleByDate, weekStart, displayWeekStart, visibleWorkouts])
+
   const nextWeekEntries = useMemo(() => {
-    if (!showNextWeekPreview) {
+    if (!showNextWeekPreview || weekOffset !== 0) {
       return []
     }
 
@@ -1324,7 +1362,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
       weekStart: nextWeekStart,
       workouts: visibleWorkouts,
     })
-  }, [nextWeekStart, optimisticScheduleByDate, showNextWeekPreview, visibleRecentLogs, visibleWorkouts])
+  }, [nextWeekStart, optimisticScheduleByDate, showNextWeekPreview, weekOffset, visibleRecentLogs, visibleWorkouts])
 
   const routineLibrary = useMemo(() => [
     ...extraRoutineLibrary,
@@ -1337,14 +1375,14 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
 
   const coachWorkouts = useMemo(() => visibleWorkouts.filter((workout) => !workout.isPersonal), [visibleWorkouts])
   const closeReviewLabel = locale === "vi" ? "Đóng" : "Close"
-  const plannedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [thisWeekEntries])
-  const completedCount = useMemo(() => thisWeekEntries.filter((entry) => entry.isCompleted).length, [thisWeekEntries])
-  const filteredThisWeek = useMemo(
-    () => thisWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource)),
-    [showSource, thisWeekEntries],
+  const plannedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [displayWeekEntries])
+  const completedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.isCompleted).length, [displayWeekEntries])
+  const filteredDisplayWeek = useMemo(
+    () => displayWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
+    [showSource, displayWeekEntries],
   )
   const filteredNextWeek = useMemo(
-    () => nextWeekEntries.filter((entry) => showSource === "all" || Boolean(entry.workout && entry.source === showSource)),
+    () => nextWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
     [nextWeekEntries, showSource],
   )
 
@@ -1554,11 +1592,46 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
     }
   }
 
+  const weekRangeLabel = (() => {
+    const range = formatWeekRangeLabel(displayWeekStart)
+    if (weekOffset === 0) return messages.schedule.thisWeekRange(range)
+    if (weekOffset === -1) return messages.schedule.lastWeekRange(range)
+    if (weekOffset === 1) return messages.schedule.nextWeekRange(range)
+    return range
+  })()
+
   return (
     <section className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-10 md:py-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="label-micro mb-2">{messages.schedule.thisWeekRange(formatWeekRangeLabel(weekStart))}</p>
+          <div className="mb-2 flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Previous week"
+              onClick={() => setWeekOffset((o) => o - 1)}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <p className="label-micro">{weekRangeLabel}</p>
+            <button
+              type="button"
+              aria-label="Next week"
+              onClick={() => setWeekOffset((o) => o + 1)}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            {weekOffset !== 0 ? (
+              <button
+                type="button"
+                onClick={() => setWeekOffset(0)}
+                className="ml-1 font-mono text-[10px] uppercase tracking-[0.08em] text-primary transition-colors hover:underline"
+              >
+                {messages.schedule.todayLabel}
+              </button>
+            ) : null}
+          </div>
           <h1 className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{messages.schedule.plannedSessions(plannedCount)}</h1>
           <p className="mt-2 font-mono text-[13px] text-muted-foreground tnum">
             {messages.schedule.doneToGo(completedCount, plannedCount, Math.max(0, plannedCount - completedCount))}
@@ -1567,12 +1640,15 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         <SourceFilters showSource={showSource} onChange={setShowSource} />
       </div>
 
-      <CoachProgramCard coachWorkouts={coachWorkouts} />
+      {weekOffset === 0 ? (
+        <CoachProgramCard coachWorkouts={coachWorkouts} completedCount={completedCount} plannedCount={plannedCount} />
+      ) : null}
 
-      <p className="label-micro mb-3">{messages.schedule.thisWeek}</p>
+      <p className="label-micro mb-3">{weekOffset === 0 ? messages.schedule.thisWeek : formatWeekRangeLabel(displayWeekStart)}</p>
       <div className="mb-8">
         <CalendarGrid
-          entries={filteredThisWeek}
+          entries={filteredDisplayWeek}
+          onPreviewWorkout={(workout, date) => void openWorkoutPreview(workout, date)}
           onRestDayClick={(date) => {
             setSelectedRestDate(date)
             setRoutineError(null)
@@ -1581,7 +1657,7 @@ export function WeeklyCalendar({ recentLogs, schedule, scheduleEntries = [], wee
         />
       </div>
 
-      {showNextWeekPreview ? (
+      {weekOffset === 0 && showNextWeekPreview ? (
         <NextWeekPreview
           entries={filteredNextWeek}
           nextWeekStart={nextWeekStart}
