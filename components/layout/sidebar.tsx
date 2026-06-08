@@ -12,7 +12,7 @@ import { useSearchParams } from "next/navigation"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useAuth } from "@/components/providers/auth-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
-import { fetchCoachDashboard, fetchCoachPrograms } from "@/lib/fitness/api"
+import { fetchCoachNavCounts } from "@/lib/fitness/api"
 import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
 
 interface SidebarProps {
@@ -210,15 +210,12 @@ function CoachSidebar({ pathname }: { pathname: string }) {
       }
 
       try {
-        const [dashboard, programs] = await Promise.all([
-          fetchCoachDashboard(session.access_token),
-          fetchCoachPrograms(session.access_token),
-        ])
+        const navCounts = await fetchCoachNavCounts(session.access_token)
 
         if (!cancelled) {
           setCounts({
-            programs: programs.length,
-            trainees: dashboard.summary.totalTrainees,
+            programs: navCounts.programs,
+            trainees: navCounts.trainees,
           })
         }
       } catch {
