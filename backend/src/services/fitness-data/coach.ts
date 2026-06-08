@@ -5,6 +5,7 @@ export {
   createWorkoutLogCommentForCoach,
   deleteWorkoutLogCommentForCoach,
   getCoachDashboard,
+  getCoachNavCounts,
   getCoachTraineeDetail,
   listAvailableCoachesForTrainee,
   listCoachTrainees,

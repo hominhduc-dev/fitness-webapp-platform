@@ -477,12 +477,35 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
   }
 
   const calculated = calculateItemNutrition(food, { amountUnit, amountValue })
-  const meal = await db.meal.upsert({
+  const newItem = {
+    amountLabel: calculated.amountLabel,
+    amountUnit: calculated.amountUnit,
+    amountValue,
+    calories: calculated.calories,
+    carbs: calculated.carbs,
+    fat: calculated.fat,
+    fiber: calculated.fiber,
+    foodId: food.id,
+    foodNameSnapshot: food.name,
+    protein: calculated.protein,
+    quantity: calculated.quantity,
+    sodium: calculated.sodium,
+    sugar: calculated.sugar,
+    weightGrams: calculated.weightGrams,
+  }
+
+  // Create the meal (if missing) and attach the new item in a single round-trip
+  // via a nested write, then recompute totals from the returned items — avoiding
+  // a separate item insert and a separate findMany.
+  const mealWithItems = await db.meal.upsert({
     create: {
       calories: 0,
       carbs: 0,
       fat: 0,
       fiber: 0,
+      items: {
+        create: newItem,
+      },
       loggedDate,
       name: MEAL_LABELS[type],
       protein: 0,
@@ -492,7 +515,11 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
       type,
       userId: profile.id,
     },
+    include: MEAL_WITH_FOOD_INCLUDE,
     update: {
+      items: {
+        create: newItem,
+      },
       name: MEAL_LABELS[type],
     },
     where: {
@@ -504,27 +531,27 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
     },
   })
 
-  await db.mealFoodItem.create({
-    data: {
-      amountLabel: calculated.amountLabel,
-      amountUnit: calculated.amountUnit,
-      amountValue,
-      calories: calculated.calories,
-      carbs: calculated.carbs,
-      fat: calculated.fat,
-      fiber: calculated.fiber,
-      foodId: food.id,
-      foodNameSnapshot: food.name,
-      mealId: meal.id,
-      protein: calculated.protein,
-      quantity: calculated.quantity,
-      sodium: calculated.sodium,
-      sugar: calculated.sugar,
-      weightGrams: calculated.weightGrams,
+  const totals = sumItems(mealWithItems.items)
+  const roundedTotals = {
+    calories: roundNutrition(totals.calories),
+    carbs: roundNutrition(totals.carbs),
+    fat: roundNutrition(totals.fat),
+    fiber: roundNutrition(totals.fiber),
+    protein: roundNutrition(totals.protein),
+    sodium: roundNutrition(totals.sodium, 0),
+    sugar: roundNutrition(totals.sugar),
+  }
+
+  // Persist the recomputed totals with a lightweight write (no include) and build
+  // the response from the already-fetched meal+items instead of re-querying.
+  await db.meal.update({
+    data: roundedTotals,
+    where: {
+      id: mealWithItems.id,
     },
   })
 
-  return serializeMealSection((await recalculateMeal(meal.id)) as MealWithFoodRecord)
+  return serializeMealSection({ ...mealWithItems, ...roundedTotals } as MealWithFoodRecord)
 }
 
 async function deleteMealItemForUser(profile: SerializedProfile, itemId: string) {
