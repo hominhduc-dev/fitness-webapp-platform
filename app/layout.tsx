@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { defaultLocale } from "@/lib/i18n/config"
 import iosSplashDevices from "@/lib/ios-splash-devices.json"
 import "./globals.css"
@@ -168,6 +169,7 @@ export default function RootLayout({
       <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         {children}
         {isVercelRuntime ? <Analytics /> : null}
+        {isVercelRuntime ? <SpeedInsights /> : null}
       </body>
     </html>
   )
