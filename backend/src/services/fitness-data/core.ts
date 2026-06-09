@@ -22,6 +22,12 @@ import { randomUUID } from "node:crypto"
 
 import { AuthServiceError, type SerializedProfile } from "../auth.service"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
+import {
+  CACHE_KEYS,
+  EXERCISE_LIBRARY_TTL_MS,
+  invalidateExerciseLibrary,
+  libraryCache,
+} from "../../lib/library-cache"
 import { prisma, retryTransaction } from "../../lib/prisma"
 
 // Narrow projections of the User relation so list queries don't drag the full
@@ -2371,7 +2377,16 @@ function normalizePhoneNumber(value?: string | null) {
   return (value ?? "").replace(/\D/g, "")
 }
 
-async function ensureDefaultExercises() {
+type VariationWithExercise = Prisma.VariationGetPayload<{ include: { exercise: true } }>
+
+// The default-seed scan only has work to do the very first time a process touches
+// an empty/under-seeded DB; afterwards the rows exist forever. Gate it behind a
+// cached flag so steady-state calls skip the scan + its round-trips entirely.
+async function seedDefaultExercisesIfNeeded() {
+  if (libraryCache.get<boolean>(CACHE_KEYS.exerciseDefaultsSeeded)) {
+    return
+  }
+
   const db = ensurePrisma()
   const systemExercises = await db.exercise.findMany({
     include: {
@@ -2432,14 +2447,24 @@ async function ensureDefaultExercises() {
 
   if (operations.length > 0) {
     await db.$transaction(operations)
+    invalidateExerciseLibrary()
   }
 
-  return db.variation.findMany({
-    include: {
-      exercise: true,
-    },
-    orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
-  })
+  libraryCache.set(CACHE_KEYS.exerciseDefaultsSeeded, true, EXERCISE_LIBRARY_TTL_MS)
+}
+
+async function ensureDefaultExercises(): Promise<VariationWithExercise[]> {
+  await seedDefaultExercisesIfNeeded()
+
+  const db = ensurePrisma()
+  return libraryCache.getOrLoad(CACHE_KEYS.exerciseVariations, EXERCISE_LIBRARY_TTL_MS, () =>
+    db.variation.findMany({
+      include: {
+        exercise: true,
+      },
+      orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
+    }),
+  )
 }
 
 async function listExercises(
@@ -2490,19 +2515,23 @@ async function listExerciseLibrary(
   const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
   const equipment = options?.equipment?.trim().toLowerCase()
 
-  const exercises = await db.exercise.findMany({
-    include: {
-      createdBy: {
-        select: {
-          name: true,
+  // Shared across all callers; per-profile visibility + the search/group/equipment
+  // filters below run in-memory over the cached set, so the cache key is global.
+  const exercises = await libraryCache.getOrLoad(CACHE_KEYS.exerciseLibrary, EXERCISE_LIBRARY_TTL_MS, () =>
+    db.exercise.findMany({
+      include: {
+        createdBy: {
+          select: {
+            name: true,
+          },
+        },
+        variations: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         },
       },
-      variations: {
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      },
-    },
-    orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
-  })
+      orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
+    }),
+  )
 
   return exercises
     .filter((exercise) => canProfileAccessExercise(exercise.createdById, profile))
@@ -2655,6 +2684,7 @@ async function createCoachExercise(
     },
   })
 
+  invalidateExerciseLibrary()
   return serializeCoachExercise(exercise as CoachExerciseRecord, profile)
 }
 
@@ -2766,6 +2796,7 @@ async function updateCoachExercise(
     })
   })
 
+  invalidateExerciseLibrary()
   return serializeCoachExercise(exercise as CoachExerciseRecord, profile)
 }
 
@@ -2807,6 +2838,7 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
     },
   })
 
+  invalidateExerciseLibrary()
   return {
     deleted: true,
     id: exerciseId,
