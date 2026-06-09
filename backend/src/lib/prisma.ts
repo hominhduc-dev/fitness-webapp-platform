@@ -51,8 +51,16 @@ function getPrismaDatasourceUrl() {
   }
 }
 
+// Slow-query instrumentation is opt-in via PRISMA_SLOW_QUERY_MS. When enabled we
+// switch the "query" log channel to event emission so we can time each statement
+// and only surface the slow ones (see the $on("query") handler below).
+const slowQueryMs = env.prismaSlowQueryMs
+
 function createPrismaClient() {
   const datasourceUrl = getPrismaDatasourceUrl()
+
+  const baseLog: Prisma.LogDefinition[] | Prisma.LogLevel[] =
+    env.nodeEnv === "development" ? ["error", "warn"] : ["error"]
 
   return new PrismaClient({
     datasources: datasourceUrl
@@ -62,7 +70,9 @@ function createPrismaClient() {
           },
         }
       : undefined,
-    log: env.nodeEnv === "development" ? ["error", "warn"] : ["error"],
+    log: slowQueryMs > 0
+      ? [{ emit: "event", level: "query" }, ...baseLog.map((level) => level as Prisma.LogLevel)]
+      : baseLog,
   })
 }
 
@@ -86,6 +96,19 @@ if (prisma) {
       return // swallow — Prisma will reconnect transparently
     }
     console.error("[prisma]", msg)
+  })
+}
+
+// Slow-query log: prints the DB execution time and SQL for any statement that
+// meets the PRISMA_SLOW_QUERY_MS threshold. `duration` is pure server-side
+// execution time and does NOT include time spent waiting for a free pool
+// connection — watch for P2024 / pool_timeout separately to spot pool contention.
+if (prisma && slowQueryMs > 0) {
+  prisma.$on("query" as never, (event: { duration: number; query: string; params: string }) => {
+    if (event.duration >= slowQueryMs) {
+      const sql = event.query.replace(/\s+/g, " ").trim().slice(0, 300)
+      console.warn(`[prisma:slow] ${event.duration}ms ${sql}`)
+    }
   })
 }
 

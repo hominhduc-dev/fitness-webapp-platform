@@ -25,7 +25,7 @@ jobs:
             set -e
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            cd /home/yeahbuddy/htdocs/backend.hominhduc.me/fitness-app
+            cd /home/yeahbuddy/htdocs/backend.hominhduc.me
 
             echo "==> Pulling latest code..."
             git fetch origin main

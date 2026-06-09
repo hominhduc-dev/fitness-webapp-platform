@@ -4,6 +4,7 @@ dotenv.config()
 
 const rawPort = Number(process.env.PORT ?? 4000)
 const rawUsdaTimeoutMs = Number(process.env.USDA_TIMEOUT_MS ?? 8000)
+const rawPrismaSlowQueryMs = Number(process.env.PRISMA_SLOW_QUERY_MS ?? 0)
 
 if (!Number.isInteger(rawPort) || rawPort <= 0) {
   throw new Error("PORT must be a positive integer")
@@ -11,6 +12,10 @@ if (!Number.isInteger(rawPort) || rawPort <= 0) {
 
 if (!Number.isFinite(rawUsdaTimeoutMs) || rawUsdaTimeoutMs <= 0) {
   throw new Error("USDA_TIMEOUT_MS must be a positive number")
+}
+
+if (!Number.isFinite(rawPrismaSlowQueryMs) || rawPrismaSlowQueryMs < 0) {
+  throw new Error("PRISMA_SLOW_QUERY_MS must be a non-negative number")
 }
 
 function hasValue(value?: string) {
@@ -83,6 +88,9 @@ export const env = {
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: rawPort,
+  // When > 0, Prisma logs every query whose DB execution time meets/exceeds this
+  // many milliseconds (set to 1 to log everything). 0 disables instrumentation.
+  prismaSlowQueryMs: rawPrismaSlowQueryMs > 0 ? rawPrismaSlowQueryMs : 0,
   usdaApiBaseUrl: process.env.USDA_API_BASE_URL ?? "https://api.nal.usda.gov/fdc/v1",
   usdaApiKey: process.env.USDA_API_KEY,
   usdaTimeoutMs: rawUsdaTimeoutMs,

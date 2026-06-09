@@ -1,5 +1,6 @@
 import { FoodCategory, FoodSource, MealType } from "@prisma/client"
 
+import { CACHE_KEYS, FOOD_CATALOG_TTL_MS, libraryCache } from "../lib/library-cache"
 import { buildFoodSlug, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
 import { prisma } from "../lib/prisma"
 import { AuthServiceError, type SerializedProfile } from "./auth.service"
@@ -299,36 +300,36 @@ async function listNutritionDayForUser(profile: SerializedProfile, rawDate?: unk
 
 async function listFoodsForUser(profile: SerializedProfile, options?: { category?: unknown; query?: unknown }) {
   const db = ensurePrisma()
-  const query = typeof options?.query === "string" ? options.query.trim() : ""
+  const query = typeof options?.query === "string" ? options.query.trim().toLowerCase() : ""
   const category = parseFoodCategory(options?.category)
-  const foods = await db.food.findMany({
-    orderBy: [{ source: "asc" }, { name: "asc" }],
-    take: 80,
+
+  // System foods are written only by the offline seed script, never at runtime,
+  // so the full catalog is cached with a pure TTL (no invalidation needed).
+  const systemFoods = await libraryCache.getOrLoad(CACHE_KEYS.systemFoods, FOOD_CATALOG_TTL_MS, () =>
+    db.food.findMany({
+      orderBy: { name: "asc" },
+      where: { source: FoodSource.system },
+    }),
+  )
+
+  // The user's own foods are few and mutable — fetch them live.
+  const userFoods = await db.food.findMany({
+    orderBy: { name: "asc" },
     where: {
-      AND: [
-        category ? { category } : {},
-        query
-          ? {
-              name: {
-                contains: query,
-                mode: "insensitive",
-              },
-            }
-          : {},
-        {
-          OR: [
-            { source: FoodSource.system },
-            {
-              createdById: profile.id,
-              source: FoodSource.user,
-            },
-          ],
-        },
-      ],
+      createdById: profile.id,
+      source: FoodSource.user,
     },
   })
 
-  return foods.map(serializeFood)
+  const matches = (food: { category: FoodCategory; name: string }) =>
+    (!category || food.category === category) && (!query || food.name.toLowerCase().includes(query))
+
+  // Mirror the original ordering exactly: source asc (system before user), then
+  // name asc, capped at 80. Both source lists are already name-sorted, so a plain
+  // system-then-user concat reproduces it.
+  const merged = [...systemFoods.filter(matches), ...userFoods.filter(matches)].slice(0, 80)
+
+  return merged.map(serializeFood)
 }
 
 async function createFoodForUser(profile: SerializedProfile, input: Record<string, unknown>) {
