@@ -42,6 +42,7 @@ jobs:
             npx prisma migrate deploy
 
             echo "==> Restarting PM2..."
-            pm2 restart yeahbuddy
+            cd ..
+            pm2 startOrRestart ecosystem.config.js --only yeahbuddy --update-env
 
             echo "==> Done!"
