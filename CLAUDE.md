@@ -39,6 +39,10 @@ Three roles: **trainee**, **coach**, **admin** — enforced server-side via `req
 @.claude/skills/git/README.md
 @.claude/skills/seo-content/README.md
 
+### Supabase (installed via `npx skills add supabase/agent-skills`)
+@.agents/skills/supabase/SKILL.md
+@.agents/skills/supabase-postgres-best-practices/SKILL.md
+
 ## Ground Rules
 1. All API responses use `{ data, error, meta }` format.
 2. Every API route uses `AppError` class — never throw raw `Error`.
