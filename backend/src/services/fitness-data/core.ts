@@ -1919,13 +1919,15 @@ function buildPreviousSetPerformanceMap(
   const previousPerformanceBySetNumber = new Map<number, PreviousExerciseSetPerformance>()
 
   ;(snapshotExercise.sets ?? []).forEach((snapshotSet, index) => {
-    if (!snapshotSet || snapshotSet.completed === false) {
+    if (!snapshotSet) {
       return
     }
 
     const parsedSetNumber = toFiniteNumber(snapshotSet.setNumber)
     const setNumber = parsedSetNumber != null ? Math.max(1, Math.round(parsedSetNumber)) : index + 1
-    const reps = toFiniteNumber(snapshotSet.actualReps) ?? toFiniteNumber(snapshotSet.targetReps)
+    const actualReps = toFiniteNumber(snapshotSet.actualReps)
+    const targetReps = toFiniteNumber(snapshotSet.targetReps)
+    const reps = actualReps ?? (snapshotSet.completed === false ? undefined : targetReps)
     const weight = toFiniteNumber(snapshotSet.weight)
 
     if (reps == null && weight == null) {
