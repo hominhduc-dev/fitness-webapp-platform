@@ -114,6 +114,7 @@ export interface Workout {
   exercises: WorkoutExercise[]
   scheduledDay?: number // 0-6 for days of week
   scheduledDate?: Date
+  weekIndex?: number
   duration?: number // minutes
   completedAt?: Date
   notes?: string

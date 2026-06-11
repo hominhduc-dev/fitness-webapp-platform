@@ -279,6 +279,13 @@ type CoachNutritionDailyLog = {
   carbs: number
   date: string
   fat: number
+  items: Array<{
+    amountLabel?: string
+    calories: number
+    id: string
+    mealType: Meal["type"]
+    name: string
+  }>
   protein: number
 }
 
@@ -322,6 +329,7 @@ type CreateCoachProgramInput = {
     name: string
     scheduledDay?: number
     scheduledDate?: string
+    weekIndex?: number
   }>
 }
 

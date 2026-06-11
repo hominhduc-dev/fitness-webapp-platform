@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
-import { fetchWorkoutLogsForExport } from "@/lib/fitness/api"
+import { exportWorkoutLogsToGoogleSheets, fetchWorkoutLogsForExport } from "@/lib/fitness/api"
 import { formatDateToISO, formatDisplayDate, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { TraineeProgram } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
@@ -55,9 +55,11 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [selectedProgramId, setSelectedProgramId] = useState<string>("")
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportingToSheets, setIsExportingToSheets] = useState(false)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [previewLogs, setPreviewLogs] = useState<WorkoutLog[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const selectedProgram = programs.find((p) => p.id === selectedProgramId)
 
@@ -88,6 +90,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   const handlePreview = async () => {
     if (!session?.access_token || isLoadingPreview) return
     setError(null)
+    setNotice(null)
     const range = resolveRange()
     if (!range) return
 
@@ -111,6 +114,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
     if (!session?.access_token || isExporting) return
     setIsExporting(true)
     setError(null)
+    setNotice(null)
 
     try {
       const range = resolveRange()
@@ -139,6 +143,33 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
     }
   }
 
+  const handleExportGoogleSheets = async () => {
+    if (!session?.access_token || isExportingToSheets) return
+    setIsExportingToSheets(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const range = resolveRange()
+      if (!range) {
+        setIsExportingToSheets(false)
+        return
+      }
+
+      const result = await exportWorkoutLogsToGoogleSheets(session.access_token, {
+        from: range.from,
+        label: range.label,
+        to: range.to,
+      })
+
+      setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể export workout logs sang Google Sheets.")
+    } finally {
+      setIsExportingToSheets(false)
+    }
+  }
+
   return (
     <Dialog
       open={open}
@@ -147,6 +178,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
         if (!next) {
           setPreviewLogs(null)
           setError(null)
+          setNotice(null)
         }
       }}
     >
@@ -238,6 +270,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
           )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {notice && <p className="text-sm text-primary">{notice}</p>}
 
           {previewLogs ? (
             <div className="flex flex-col gap-2">
@@ -259,11 +292,20 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
 
             <Button
               onClick={() => void handleExport()}
-              disabled={isExporting || (mode === "program" && !selectedProgramId)}
+              disabled={isExporting || isExportingToSheets || (mode === "program" && !selectedProgramId)}
               className="w-full gap-2"
             >
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               {isExporting ? messages.workoutPage.generatingFile : messages.workoutPage.exportDownloadExcel}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleExportGoogleSheets()}
+              disabled={isExporting || isExportingToSheets || (mode === "program" && !selectedProgramId)}
+              className="w-full gap-2"
+            >
+              {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExportingToSheets ? "Exporting to Google Sheets..." : "Export to Google Sheets"}
             </Button>
           </div>
         </div>

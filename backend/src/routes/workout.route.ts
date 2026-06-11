@@ -6,6 +6,7 @@ import {
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
   deleteWorkoutLogForTrainee,
+  exportWorkoutLogsToGoogleSheetsForTrainee,
   getWorkoutDetailForTrainee,
   listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
@@ -80,6 +81,25 @@ workoutRouter.get("/logs", async (req, res) => {
 
     const logs = await listWorkoutLogsForExportTrainee(profile.profile, { from, to })
     res.json({ data: logs })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+workoutRouter.post("/logs/export/google-sheets", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await exportWorkoutLogsToGoogleSheetsForTrainee(profile.profile, {
+      from: String(req.body.from ?? ""),
+      label: typeof req.body.label === "string" ? req.body.label : undefined,
+      to: String(req.body.to ?? ""),
+    })
+
+    res.json({
+      data: result,
+      error: null,
+      meta: null,
+    })
   } catch (error) {
     sendError(res, error)
   }

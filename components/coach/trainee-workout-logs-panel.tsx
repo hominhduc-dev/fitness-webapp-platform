@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   createCoachWorkoutLogComment,
   deleteCoachWorkoutLogComment,
+  exportCoachWorkoutLogsToGoogleSheets,
   fetchCoachWorkoutLogs,
   updateCoachWorkoutLogComment,
 } from "@/lib/fitness/api"
@@ -240,6 +241,8 @@ export function TraineeWorkoutLogsPanel({
     emptyWeek: locale === "en" ? "No workout logs in the selected week." : "Chưa có workout log nào trong tuần đã chọn.",
     expandAll: locale === "en" ? "Expand all" : "Mở rộng tất cả",
     exportWeeklyReport: locale === "en" ? "Export weekly report" : "Export báo cáo tuần",
+    exportGoogleSheets: locale === "en" ? "Export to Google Sheets" : "Export to Google Sheets",
+    exportingGoogleSheets: locale === "en" ? "Exporting to Google Sheets..." : "Đang export sang Google Sheets...",
     loadMore: locale === "en" ? "Load more" : "Tải thêm",
     loadingHistory: locale === "en" ? "Loading workout history..." : "Đang tải workout history...",
     noFeedback: locale === "en" ? "No feedback for this workout yet." : "Chưa có feedback nào cho buổi tập này.",
@@ -271,10 +274,12 @@ export function TraineeWorkoutLogsPanel({
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportingToSheets, setIsExportingToSheets] = useState(false)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewWorkbook, setPreviewWorkbook] = useState<CoachWorkoutLogsWorkbookPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [draftByLogId, setDraftByLogId] = useState<Record<string, string>>({})
   const [savingLogId, setSavingLogId] = useState<string | null>(null)
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
@@ -293,6 +298,7 @@ export function TraineeWorkoutLogsPanel({
     const loadLogs = async () => {
       setIsLoading(true)
       setError(null)
+      setNotice(null)
 
       try {
         const response = await fetchCoachWorkoutLogs(session.access_token, traineeId, {
@@ -376,6 +382,7 @@ export function TraineeWorkoutLogsPanel({
 
     setIsExporting(true)
     setError(null)
+    setNotice(null)
 
     try {
       const exportLogs = await loadAllCoachWorkoutLogsForExport(session.access_token, traineeId, weekStart)
@@ -394,6 +401,29 @@ export function TraineeWorkoutLogsPanel({
       setError(exportError instanceof Error ? exportError.message : "Không thể xuất Excel.")
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  const handleExportGoogleSheets = async () => {
+    if (!session?.access_token || isExportingToSheets) {
+      return
+    }
+
+    setIsExportingToSheets(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const result = await exportCoachWorkoutLogsToGoogleSheets(session.access_token, traineeId, {
+        label: `${traineeName ?? "Trainee"} week ${weekStart}`,
+        weekStart,
+      })
+
+      setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "Không thể export sang Google Sheets.")
+    } finally {
+      setIsExportingToSheets(false)
     }
   }
 
@@ -769,6 +799,11 @@ export function TraineeWorkoutLogsPanel({
           {error}
         </div>
       ) : null}
+      {notice ? (
+        <div className="rounded-xl border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
+          {notice}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/10 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -808,10 +843,20 @@ export function TraineeWorkoutLogsPanel({
             variant="outline"
             className="gap-2 bg-transparent"
             onClick={() => void handleExportExcel()}
-            disabled={isExporting || isLoading || logs.length === 0}
+            disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
           >
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {copy.exportWeeklyReport}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 bg-transparent"
+            onClick={() => void handleExportGoogleSheets()}
+            disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
+          >
+            {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExportingToSheets ? copy.exportingGoogleSheets : copy.exportGoogleSheets}
           </Button>
         </div>
       </div>
