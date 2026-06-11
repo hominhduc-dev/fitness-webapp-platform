@@ -253,6 +253,7 @@ model Workout {
   programId     String?           @db.Uuid
   name          String
   kind          WorkoutKind?
+  weekIndex     Int?
   scheduledDay  Int?
   scheduledDate DateTime?         @db.Date
   duration      Int?
@@ -264,6 +265,7 @@ model Workout {
   updatedAt     DateTime          @updatedAt
 
   @@index([programId])
+  @@index([programId, weekIndex])
   @@index([scheduledDate])
 }
 

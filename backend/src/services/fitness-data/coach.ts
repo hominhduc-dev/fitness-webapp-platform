@@ -4,6 +4,7 @@ export {
   createCoachRequestForTrainee,
   createWorkoutLogCommentForCoach,
   deleteWorkoutLogCommentForCoach,
+  exportCoachWorkoutLogsToGoogleSheetsForTrainee,
   getCoachDashboard,
   getCoachNavCounts,
   getCoachTraineeDetail,

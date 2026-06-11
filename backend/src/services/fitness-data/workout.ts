@@ -3,6 +3,7 @@ export {
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
   deleteWorkoutLogForTrainee,
+  exportWorkoutLogsToGoogleSheetsForTrainee,
   getWorkoutDetailForTrainee,
   listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,

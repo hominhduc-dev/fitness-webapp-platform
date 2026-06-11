@@ -326,6 +326,9 @@ FRONTEND_URL=http://localhost:3000
 USDA_API_KEY=<your-key>
 # USDA_API_BASE_URL=https://api.nal.usda.gov/fdc/v1
 # USDA_TIMEOUT_MS=8000
+
+# Optional: n8n webhook for exporting workout logs to Google Sheets
+N8N_LOGS_WEBHOOK_URL=
 ```
 
 > Never commit `.env` files or secrets. The service-role key must stay server-side only.
@@ -402,6 +405,20 @@ Open http://localhost:3000 and sign up / log in.
 - The backend **verifies the token**, syncs a local `User` profile (auto-provisioned from Supabase metadata on first sight), and **enforces the role** before running any handler. A short-lived per-token cache avoids re-verifying on every request in a burst.
 - Role guards: `requireAppSession({ role })` on the frontend redirects unauthorized users; `assertTrainee` / `assertCoach` / `assertAdmin` on the backend reject them with a typed error.
 - **OAuth** (Google/Apple) and **email/password** are both supported, plus password reset and avatar uploads to Supabase Storage.
+
+---
+
+## Export workout logs to Google Sheets (n8n)
+
+`N8N_LOGS_WEBHOOK_URL` is optional. When set, trainees and coaches can export workout logs to Google Sheets via n8n.
+
+1. Create an n8n workflow with a `Webhook` trigger using `POST`.
+2. Copy the production webhook URL into `backend/.env` as `N8N_LOGS_WEBHOOK_URL`.
+3. Add a `Split Out` node for `body.rows`.
+4. Add a `Google Sheets` node with `Append Row`.
+5. Map row fields: `startedAt`, `plannedDate`, `traineeName`, `coachName`, `workoutName`, `exerciseName`, `setNumber`, `targetReps`, `actualReps`, `weight`, `rir`, `completed`, `totalVolume`, `notes`.
+6. Activate the workflow and restart the backend.
+7. Open Progress export or Coach trainee workout logs and click **Export to Google Sheets**.
 
 ---
 
