@@ -3658,6 +3658,7 @@ async function createWorkoutLogForTrainee(
         exerciseSnapshot: input.exercises as Prisma.InputJsonValue,
         notes: input.notes?.trim() || undefined,
         plannedDate,
+        programId: workout.programId ?? undefined,
         startedAt,
         totalVolume,
         userId: profile.id,
@@ -3667,6 +3668,7 @@ async function createWorkoutLogForTrainee(
           id: serializedWorkout.id,
           name: serializedWorkout.name,
           notes: serializedWorkout.notes,
+          programId: workout.programId,
           scheduledDate: serializedWorkout.scheduledDate,
           scheduledDay: serializedWorkout.scheduledDay,
         } as Prisma.InputJsonObject,
@@ -5250,7 +5252,10 @@ async function listCoachWorkoutLogsForTrainee(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
-  const programFilter = options?.programId ? { workout: { programId: options.programId } } : {}
+  // Filter on the denormalized programId column (not a workout join): program
+  // edits delete & recreate Workout rows and null out WorkoutLog.workoutId, so a
+  // join-based filter would silently drop historical logs.
+  const programFilter = options?.programId ? { programId: options.programId } : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     cursor: options?.cursor ? { id: options.cursor } : undefined,
@@ -5309,7 +5314,10 @@ async function listCoachWorkoutLogsForExport(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
-  const programFilter = options?.programId ? { workout: { programId: options.programId } } : {}
+  // Filter on the denormalized programId column (not a workout join): program
+  // edits delete & recreate Workout rows and null out WorkoutLog.workoutId, so a
+  // join-based filter would silently drop historical logs.
+  const programFilter = options?.programId ? { programId: options.programId } : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     include: WORKOUT_LOG_INCLUDE,
