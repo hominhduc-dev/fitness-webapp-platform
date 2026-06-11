@@ -5279,10 +5279,19 @@ async function listCoachWorkoutLogsForTrainee(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
-  // Filter on the denormalized programId column (not a workout join): program
-  // edits delete & recreate Workout rows and null out WorkoutLog.workoutId, so a
-  // join-based filter would silently drop historical logs.
-  const programFilter = options?.programId ? { programId: options.programId } : {}
+
+  // When a date bound is present, also include logs where programId IS NULL —
+  // these are orphaned logs whose workout was deleted by a prior program edit
+  // (WorkoutLog.workoutId ON DELETE SET NULL clears the link). The date window
+  // already scopes them to this program's period, so including them is correct.
+  // Without this, any log created before the programId column was added would
+  // silently disappear from exports after a program edit.
+  const hasDateBound = !!((parsedFrom && parsedTo) || (parsedWeekStart && weekEnd))
+  const programFilter = options?.programId
+    ? hasDateBound
+      ? { OR: [{ programId: options.programId }, { programId: null }] }
+      : { programId: options.programId }
+    : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     cursor: options?.cursor ? { id: options.cursor } : undefined,
@@ -5341,10 +5350,17 @@ async function listCoachWorkoutLogsForExport(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
-  // Filter on the denormalized programId column (not a workout join): program
-  // edits delete & recreate Workout rows and null out WorkoutLog.workoutId, so a
-  // join-based filter would silently drop historical logs.
-  const programFilter = options?.programId ? { programId: options.programId } : {}
+
+  // When a date bound is present, also include logs where programId IS NULL —
+  // these are orphaned logs whose workout was deleted by a prior program edit
+  // (WorkoutLog.workoutId ON DELETE SET NULL clears the link). The date window
+  // already scopes them to this program's period.
+  const hasDateBound = !!((parsedFrom && parsedTo) || (parsedWeekStart && weekEnd))
+  const programFilter = options?.programId
+    ? hasDateBound
+      ? { OR: [{ programId: options.programId }, { programId: null }] }
+      : { programId: options.programId }
+    : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     include: WORKOUT_LOG_INCLUDE,
