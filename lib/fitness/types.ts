@@ -282,9 +282,12 @@ type CoachNutritionDailyLog = {
   items: Array<{
     amountLabel?: string
     calories: number
+    carbs?: number
+    fat?: number
     id: string
     mealType: Meal["type"]
     name: string
+    protein?: number
   }>
   protein: number
 }

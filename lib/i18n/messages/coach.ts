@@ -209,8 +209,6 @@ export const coachMessages = {
       workoutsLogged: "Workouts logged",
       // trainee-detail-client tabs
       tabOverview: "Overview",
-      tabProgress: "Progress",
-      tabBodyMetrics: "Body metrics",
       tabCheckIns: "Check-ins",
       tabNutrition: "Nutrition",
       tabWorkoutLogs: "Workout logs",
@@ -231,17 +229,9 @@ export const coachMessages = {
       sessionTypeCol: "Type",
       sessionVolumeCol: "Volume",
       sessionDoneCol: "Done",
-      // progress tab
-      progressLast7DaysLabel: "7-day",
-      progressWorkoutsLast7DaysDesc: "Workouts in the last 7 days",
+      // 30-day stats (overview tab)
       progress30DayVolumeLabel: "30-day volume",
-      progressTotalVolumeDesc: "Total logged volume",
       progress30DaySessionsLabel: "30-day sessions",
-      progressCompletedSessions: "Completed sessions",
-      progressLatestWorkoutLabel: "Latest workout",
-      progressMostRecentDesc: "Most recent completed workout",
-      weeklyCompliance: "Weekly compliance",
-      weeklyComplianceDesc: "Compare completed workouts with the currently assigned weekly plan.",
       // body metrics tab
       addBodyMetricTitle: "Add body metric",
       addBodyMetricDesc: "Log the latest measurement for this client.",
@@ -302,7 +292,6 @@ export const coachMessages = {
       avgFatLabel: "Avg fat",
       daysTrackedLabel: (days: number) => `${days} day${days !== 1 ? "s" : ""} tracked`,
       nutritionDateCol: "Date",
-      nutritionFoodsCol: "Foods",
       caloriesCol: "Calories",
       proteinCol: "Protein",
       carbsCol: "Carbs",
@@ -522,8 +511,6 @@ export const coachMessages = {
       workoutsLogged: "Buổi tập đã log",
       // trainee-detail-client tabs
       tabOverview: "Tổng quan",
-      tabProgress: "Tiến độ",
-      tabBodyMetrics: "Chỉ số cơ thể",
       tabCheckIns: "Check-in",
       tabNutrition: "Dinh dưỡng",
       tabWorkoutLogs: "Log buổi tập",
@@ -544,17 +531,9 @@ export const coachMessages = {
       sessionTypeCol: "Loại",
       sessionVolumeCol: "Volume",
       sessionDoneCol: "Hoàn thành",
-      // progress tab
-      progressLast7DaysLabel: "7 ngày",
-      progressWorkoutsLast7DaysDesc: "Buổi tập trong 7 ngày qua",
+      // 30-day stats (overview tab)
       progress30DayVolumeLabel: "Volume 30 ngày",
-      progressTotalVolumeDesc: "Tổng volume đã log",
       progress30DaySessionsLabel: "Buổi 30 ngày",
-      progressCompletedSessions: "Buổi đã hoàn thành",
-      progressLatestWorkoutLabel: "Buổi tập mới nhất",
-      progressMostRecentDesc: "Buổi tập hoàn thành gần nhất",
-      weeklyCompliance: "Tuân thủ tuần",
-      weeklyComplianceDesc: "So sánh buổi tập hoàn thành với plan tuần đã gán.",
       // body metrics tab
       addBodyMetricTitle: "Thêm chỉ số cơ thể",
       addBodyMetricDesc: "Ghi chỉ số đo mới nhất cho học viên này.",
@@ -615,7 +594,6 @@ export const coachMessages = {
       avgFatLabel: "Chất béo TB",
       daysTrackedLabel: (days: number) => `${days} ngày theo dõi`,
       nutritionDateCol: "Ngày",
-      nutritionFoodsCol: "Món ăn",
       caloriesCol: "Calo",
       proteinCol: "Protein",
       carbsCol: "Carbs",
