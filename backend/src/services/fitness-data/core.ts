@@ -565,7 +565,7 @@ function buildExerciseSetsWithHistory(
   previousPerformanceBySetNumber.forEach((performance, setNumber) => {
     if (setNumber > maxTemplateSetNumber) {
       extraSets.push({
-        actualReps: undefined,
+        actualReps: performance.reps,
         completed: false,
         id: `${workoutExerciseId}-xtra-${setNumber}`,
         notes: undefined,
@@ -574,7 +574,7 @@ function buildExerciseSetsWithHistory(
         setNumber,
         targetRepsMin: lastSet.targetRepsMin ?? undefined,
         targetReps: lastSet.targetReps,
-        weight: undefined,
+        weight: performance.weight,
       })
     }
   })
