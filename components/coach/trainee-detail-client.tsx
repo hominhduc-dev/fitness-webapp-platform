@@ -623,7 +623,7 @@ export function CoachTraineeDetailClient({
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-6 bg-muted/50">
+      <TabsList className="flex w-full justify-start overflow-x-auto bg-muted/50 [scrollbar-width:none] md:grid md:grid-cols-6 [&::-webkit-scrollbar]:hidden">
         <TabsTrigger value="overview">{messages.coach.tabOverview}</TabsTrigger>
         <TabsTrigger value="progress">{messages.coach.tabProgress}</TabsTrigger>
         <TabsTrigger value="metrics">{messages.coach.tabBodyMetrics}</TabsTrigger>
