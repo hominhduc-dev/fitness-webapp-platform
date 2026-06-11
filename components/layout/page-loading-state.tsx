@@ -7,6 +7,65 @@ type PageLoadingStateProps = {
   showMetrics?: boolean
 }
 
+type AppLoadingScreenProps = {
+  className?: string
+  fullScreen?: boolean
+}
+
+export function AppLoadingScreen({ className, fullScreen = true }: AppLoadingScreenProps) {
+  return (
+    <div
+      className={cn(
+        "flex w-full items-center justify-center bg-background px-4 text-foreground",
+        fullScreen
+          ? "min-h-[100dvh] pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(2rem+env(safe-area-inset-top))]"
+          : "min-h-[calc(100dvh-4rem)] py-10",
+        className,
+      )}
+    >
+      <div className="w-full max-w-[440px]">
+        <div className="mb-8 flex items-center justify-center gap-2.5">
+          <img src="/lift-mark.svg" alt="" className="h-7 w-8" />
+          <span className="text-[24px] font-semibold leading-none tracking-[-0.04em]">
+            yeahbuddy
+          </span>
+        </div>
+
+        <div className="mb-5 h-1 overflow-hidden rounded-full bg-primary-soft">
+          <div className="page-loading-bar h-full w-28 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
+        </div>
+
+        <div className="rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.16)]">
+          <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-3.5 w-52 max-w-[58vw]" />
+            </div>
+            <Skeleton className="h-10 w-10 rounded-[10px]" />
+          </div>
+
+          <div className="space-y-3 pt-4">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} className="grid grid-cols-[36px_1fr_54px] items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-[10px]" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-8 w-full rounded-[8px]" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-5 text-center font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+          Loading workspace
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function PageLoadingState({
   className,
   maxWidthClassName = "max-w-6xl",
