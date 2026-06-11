@@ -330,7 +330,11 @@ function mapProgramToSchedule(
   program.workouts.forEach((workout, index) => {
     const dayIndex = getDayIndexFromScheduledDay(workout.scheduledDay)
     const nextOccurrence = occurrenceByDay.get(dayIndex) ?? 0
-    const weekIndex = Math.min(nextOccurrence, weeks - 1)
+    const explicitWeekIndex =
+      typeof workout.weekIndex === "number" && Number.isFinite(workout.weekIndex)
+        ? Math.max(0, Math.min(weeks - 1, Math.round(workout.weekIndex)))
+        : undefined
+    const weekIndex = explicitWeekIndex ?? Math.min(nextOccurrence, weeks - 1)
 
     occurrenceByDay.set(dayIndex, nextOccurrence + 1)
     schedule[weekIndex][dayIndex] = { routine: routines[index] }
@@ -979,6 +983,7 @@ export function ProgramEditor({
             }),
             name: routine.name.trim() || messages.coach.weekDayFallback(weekIndex + 1, dayLabels[dayIndex] ?? DAY_OPTIONS[dayIndex].label),
             scheduledDay: DAY_OPTIONS[dayIndex].scheduledDay,
+            weekIndex,
           },
         ]
       }),
@@ -1143,6 +1148,7 @@ export function ProgramEditor({
                 <ExportProgramLogsDialog
                   assignedTrainees={assignedTrainees}
                   programDuration={Number(duration) || 8}
+                  programId={programId}
                   programName={programName || messages.coach.program}
                 />
               )}

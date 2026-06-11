@@ -27,6 +27,7 @@ import type {
   CoachExerciseImportRequest,
   CoachExerciseImportRow,
   CoachExerciseInput,
+  CoachNutritionSummary,
   CoachProgressSummary,
   CoachProgram,
   CoachTrainee,
@@ -114,6 +115,7 @@ type SerializedWorkout = {
   notes?: string
   scheduledDay?: number
   scheduledDate?: string
+  weekIndex?: number
 }
 
 type SerializedWorkoutLogComment = {
@@ -328,6 +330,31 @@ type SerializedCoachProgressSummary = {
   totalVolumeLast30Days: number
   workoutsLast30Days: number
   workoutsLast7Days: number
+}
+
+type SerializedCoachNutritionDailyLog = {
+  calories: number
+  carbs: number
+  date: string
+  fat: number
+  items?: Array<{
+    amountLabel?: string | null
+    calories: number
+    id: string
+    mealType: Meal["type"]
+    name: string
+  }>
+  protein: number
+}
+
+type SerializedCoachNutritionSummary = {
+  avgCalories: number
+  avgCarbs: number
+  avgFat: number
+  avgProtein: number
+  dailyLogs: SerializedCoachNutritionDailyLog[]
+  daysTracked: number
+  traineeCalorieGoal: number
 }
 
 type SerializedCoachDashboardSummary = {
@@ -597,6 +624,7 @@ function mapWorkout(workout: SerializedWorkout): Workout {
     notes: workout.notes,
     scheduledDay: workout.scheduledDay,
     scheduledDate: parseScheduledDate(workout.scheduledDate),
+    weekIndex: workout.weekIndex,
   }
 }
 
@@ -754,6 +782,31 @@ function mapCoachProgressSummary(summary: SerializedCoachProgressSummary): Coach
     totalVolumeLast30Days: summary.totalVolumeLast30Days,
     workoutsLast30Days: summary.workoutsLast30Days,
     workoutsLast7Days: summary.workoutsLast7Days,
+  }
+}
+
+function mapCoachNutritionSummary(summary: SerializedCoachNutritionSummary): CoachNutritionSummary {
+  return {
+    avgCalories: summary.avgCalories,
+    avgCarbs: summary.avgCarbs,
+    avgFat: summary.avgFat,
+    avgProtein: summary.avgProtein,
+    dailyLogs: (summary.dailyLogs ?? []).map((log) => ({
+      calories: log.calories,
+      carbs: log.carbs,
+      date: log.date,
+      fat: log.fat,
+      items: (log.items ?? []).map((item) => ({
+        amountLabel: item.amountLabel ?? undefined,
+        calories: item.calories,
+        id: item.id,
+        mealType: item.mealType,
+        name: item.name,
+      })),
+      protein: log.protein,
+    })),
+    daysTracked: summary.daysTracked,
+    traineeCalorieGoal: summary.traineeCalorieGoal,
   }
 }
 
@@ -1140,6 +1193,24 @@ async function fetchWorkoutLogsForExport(
   return response.data.map(mapWorkoutLog)
 }
 
+async function exportWorkoutLogsToGoogleSheets(
+  accessToken: string,
+  options: { from: string; label?: string; to: string },
+) {
+  const response = await request<{
+    data: { exported: boolean; logCount: number; rowCount: number; webhookStatusCode?: number }
+  }>(
+    "/api/workouts/logs/export/google-sheets",
+    accessToken,
+    {
+      body: JSON.stringify(options),
+      method: "POST",
+    },
+  )
+
+  return response.data
+}
+
 async function fetchWorkoutDetail(accessToken: string, workoutId: string) {
   const response = await request<{ workout: SerializedWorkout }>(`/api/workouts/${workoutId}`, accessToken)
   return mapWorkout(response.workout)
@@ -1278,6 +1349,7 @@ async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): 
   const response = await request<{
     bodyMetrics: SerializedBodyMetricEntry[]
     checkIns: SerializedCoachCheckIn[]
+    nutritionSummary?: SerializedCoachNutritionSummary
     programs: SerializedCoachProgram[]
     progressSummary: SerializedCoachProgressSummary
     recentLogs: SerializedWorkoutLog[]
@@ -1287,6 +1359,7 @@ async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): 
   return {
     bodyMetrics: response.bodyMetrics.map(mapBodyMetricEntry),
     checkIns: response.checkIns.map(mapCoachCheckIn),
+    nutritionSummary: response.nutritionSummary ? mapCoachNutritionSummary(response.nutritionSummary) : undefined,
     programs: response.programs.map(mapCoachProgram),
     progressSummary: mapCoachProgressSummary(response.progressSummary),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
@@ -1465,7 +1538,7 @@ async function createCoachCheckIn(
 async function fetchCoachWorkoutLogs(
   accessToken: string,
   traineeId: string,
-  options?: { cursor?: string; from?: string; limit?: number; to?: string; weekStart?: string },
+  options?: { cursor?: string; from?: string; limit?: number; programId?: string; to?: string; weekStart?: string },
 ): Promise<CoachWorkoutLogPage> {
   const searchParams = new URLSearchParams()
 
@@ -1485,6 +1558,10 @@ async function fetchCoachWorkoutLogs(
     searchParams.set("from", options.from)
   }
 
+  if (options?.programId) {
+    searchParams.set("programId", options.programId)
+  }
+
   if (options?.to) {
     searchParams.set("to", options.to)
   }
@@ -1500,6 +1577,25 @@ async function fetchCoachWorkoutLogs(
     logs: (response.logs ?? []).map(mapWorkoutLog),
     nextCursor: response.nextCursor,
   }
+}
+
+async function exportCoachWorkoutLogsToGoogleSheets(
+  accessToken: string,
+  traineeId: string,
+  options?: { from?: string; label?: string; programId?: string; to?: string; weekStart?: string },
+) {
+  const response = await request<{
+    data: { exported: boolean; logCount: number; rowCount: number; webhookStatusCode?: number }
+  }>(
+    `/api/coach/trainees/${traineeId}/workout-logs/export/google-sheets`,
+    accessToken,
+    {
+      body: JSON.stringify(options ?? {}),
+      method: "POST",
+    },
+  )
+
+  return response.data
 }
 
 async function createCoachWorkoutLogComment(accessToken: string, workoutLogId: string, content: string) {
@@ -1686,6 +1782,8 @@ export {
   deleteWorkoutLog,
   deleteMealItem,
   deleteCoachProgram,
+  exportCoachWorkoutLogsToGoogleSheets,
+  exportWorkoutLogsToGoogleSheets,
   fetchFoods,
   fetchCoachExercises,
   fetchProgressAnalytics,
