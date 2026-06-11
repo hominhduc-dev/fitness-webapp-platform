@@ -5696,9 +5696,12 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       items: Array<{
         amountLabel?: string
         calories: number
+        carbs?: number
+        fat?: number
         id: string
         mealType: Meal["type"]
         name: string
+        protein?: number
       }>
       protein: number
     }
@@ -5717,9 +5720,12 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
         ...meal.items.map((item) => ({
           amountLabel: item.amountLabel ?? undefined,
           calories: Math.round(item.calories ?? 0),
+          carbs: item.carbs ?? undefined,
+          fat: item.fat ?? undefined,
           id: item.id,
           mealType: meal.type,
           name: item.foodNameSnapshot ?? item.food.name,
+          protein: item.protein ?? undefined,
         })),
       ],
       protein: existing.protein + (meal.protein ?? 0),
