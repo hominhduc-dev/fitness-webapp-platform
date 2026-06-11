@@ -2,26 +2,45 @@
 
 import type React from "react"
 import Link from "next/link"
+import type { LucideIcon } from "lucide-react"
 import {
-  Award,
-  BarChart3,
+  ChevronRight,
   ClipboardCheck,
+  Cookie,
   Download,
+  ExternalLink,
+  FileSpreadsheet,
   Loader2,
+  MoreHorizontal,
   Scale,
   StickyNote,
+  Sun,
+  Sunrise,
+  Sunset,
   Trash2,
 } from "lucide-react"
 import { useState } from "react"
-import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,7 +55,15 @@ import {
 } from "@/lib/fitness/api"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
-import type { WorkoutLog } from "@/lib/types"
+import type { MealType, WorkoutLog } from "@/lib/types"
+
+/** Same meal order and icons as the trainee meals screen. */
+const MEAL_SECTIONS: Array<{ icon: LucideIcon; type: MealType }> = [
+  { icon: Sunrise, type: "breakfast" },
+  { icon: Sun, type: "lunch" },
+  { icon: Sunset, type: "dinner" },
+  { icon: Cookie, type: "snack" },
+]
 
 type CoachTraineeDetailClientProps = {
   coachPrograms: CoachProgram[]
@@ -200,7 +227,6 @@ type KeyLift = {
   name: string
   value: string | number
   delta?: string | number | null
-  isNew?: boolean
 }
 
 type KeyLiftCardProps = {
@@ -216,16 +242,9 @@ function KeyLiftCard({ lift }: KeyLiftCardProps) {
 
   return (
     <div className="rounded-lg border border-border p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-          {lift.name}
-        </span>
-        {lift.isNew && (
-          <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
-            PR
-          </Badge>
-        )}
-      </div>
+      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        {lift.name}
+      </span>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
           {lift.value}
@@ -252,7 +271,6 @@ type RecentSession = {
   date: string
   kind: string
   volume: number
-  prs: number
   complete: number
 }
 
@@ -274,32 +292,24 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       {/* Header */}
-      <div className="grid grid-cols-[80px_1fr_100px_80px_32px] gap-3 border-b border-border bg-muted/30 px-4 py-2">
+      <div className="grid grid-cols-[80px_1fr_100px_80px] gap-3 border-b border-border bg-muted/30 px-4 py-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDateCol}</span>
         <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionTypeCol}</span>
         <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionVolumeCol}</span>
         <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDoneCol}</span>
-        <span />
       </div>
       {sessions.map((s, i) => (
         <div
           key={i}
           className={cn(
-            "grid grid-cols-[80px_1fr_100px_80px_32px] items-center gap-3 px-4 py-3",
+            "grid grid-cols-[80px_1fr_100px_80px] items-center gap-3 px-4 py-3",
             i < sessions.length - 1 && "border-b border-border",
           )}
         >
           <span className="font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground">
             {s.date}
           </span>
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            {s.kind}
-            {s.prs > 0 && (
-              <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20">
-                {s.prs} PR
-              </Badge>
-            )}
-          </div>
+          <div className="text-sm font-medium text-foreground">{s.kind}</div>
           <span className="font-mono text-sm tabular-nums text-foreground">
             {(s.volume / 1000).toFixed(1)}k kg
           </span>
@@ -311,7 +321,6 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
           >
             {Math.round(s.complete * 100)}%
           </span>
-          <Award className="h-[14px] w-[14px] text-muted-foreground/40" />
         </div>
       ))}
     </div>
@@ -340,6 +349,7 @@ export function CoachTraineeDetailClient({
   const [exportingSheetsProgramId, setExportingSheetsProgramId] = useState<string | null>(null)
   const [isSavingMetric, setIsSavingMetric] = useState(false)
   const [isSavingCheckIn, setIsSavingCheckIn] = useState(false)
+  const [selectedNutritionDate, setSelectedNutritionDate] = useState<string | null>(null)
 
   const assignedProgramIds = new Set(detail.programs.map((program) => program.id))
   const assignablePrograms = coachPrograms.filter((program) => !assignedProgramIds.has(program.id))
@@ -353,10 +363,6 @@ export function CoachTraineeDetailClient({
     (sum, program) => sum + program.workoutsPerWeek,
     0,
   )
-  const completionRate =
-    plannedSessionsPerWeek > 0
-      ? Math.min(100, Math.round((detail.trainee.thisWeekWorkouts / plannedSessionsPerWeek) * 100))
-      : detail.progressSummary.completionRate
 
   // Build synthetic weekly activity from progressSummary data
   // We distribute workoutsLast7Days across a 7-day array (best-effort approximation)
@@ -411,7 +417,6 @@ export function CoachTraineeDetailClient({
       ),
       kind: log.workout?.name ?? "Workout",
       volume: Number(log.totalVolume ?? 0),
-      prs: 0,
       complete: totalSets > 0 ? completedSets / totalSets : 1,
     }
   })
@@ -620,13 +625,19 @@ export function CoachTraineeDetailClient({
   }
 
   const nutritionSummary = detail.nutritionSummary
+  const selectedNutritionDay =
+    nutritionSummary?.dailyLogs.find((log) => log.date === selectedNutritionDate) ?? null
+  const mealTypeLabels: Record<MealType, string> = {
+    breakfast: messages.meals.breakfast,
+    dinner: messages.meals.dinner,
+    lunch: messages.meals.lunch,
+    snack: messages.meals.snack,
+  }
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-6 bg-muted/50">
+      <TabsList className="flex w-full justify-start overflow-x-auto bg-muted/50 [scrollbar-width:none] md:grid md:grid-cols-4 [&::-webkit-scrollbar]:hidden">
         <TabsTrigger value="overview">{messages.coach.tabOverview}</TabsTrigger>
-        <TabsTrigger value="progress">{messages.coach.tabProgress}</TabsTrigger>
-        <TabsTrigger value="metrics">{messages.coach.tabBodyMetrics}</TabsTrigger>
         <TabsTrigger value="checkins">{messages.coach.tabCheckIns}</TabsTrigger>
         <TabsTrigger value="nutrition">{messages.coach.tabNutrition}</TabsTrigger>
         <TabsTrigger value="logs">{messages.coach.tabWorkoutLogs}</TabsTrigger>
@@ -659,6 +670,27 @@ export function CoachTraineeDetailClient({
             </span>
           </div>
           <WeeklyBarChart data={weeklyData} />
+        </div>
+
+        {/* 30-day stats (merged from the former Progress tab) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg border border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {messages.coach.progress30DaySessionsLabel}
+            </p>
+            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
+              {detail.progressSummary.workoutsLast30Days}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {messages.coach.progress30DayVolumeLabel}
+            </p>
+            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
+              {Math.round(detail.progressSummary.totalVolumeLast30Days).toLocaleString()}{" "}
+              <span className="text-sm font-normal text-muted-foreground">kg</span>
+            </p>
+          </div>
         </div>
 
         {/* Key lifts */}
@@ -741,48 +773,58 @@ export function CoachTraineeDetailClient({
                       {program.workoutsPerWeek} workouts/week · {program.duration} weeks · {program.difficulty}
                     </p>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent sm:w-auto"
-                      onClick={() => void handleExportProgramLogs(program)}
-                      disabled={exportingProgramId === program.id || exportingSheetsProgramId === program.id}
-                    >
-                      {exportingProgramId === program.id
-                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        : <Download className="mr-2 h-4 w-4" />}
-                      {messages.coach.exportLogs}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent sm:w-auto"
-                      onClick={() => void handleExportProgramLogsToGoogleSheets(program)}
-                      disabled={exportingProgramId === program.id || exportingSheetsProgramId === program.id}
-                    >
-                      {exportingSheetsProgramId === program.id
-                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        : <Download className="mr-2 h-4 w-4" />}
-                      Google Sheets
-                    </Button>
-                    <Link href={`/coach/programs/${program.id}`} className="w-full sm:w-auto">
-                      <Button variant="outline" className="w-full bg-transparent">
-                        {messages.coach.openPlan}
-                      </Button>
-                    </Link>
-                    <Link href={`/coach/programs/${program.id}?adjustTrainee=${detail.trainee.id}`} className="w-full sm:w-auto">
+                  <div className="flex items-center gap-2">
+                    <Link href={`/coach/programs/${program.id}?adjustTrainee=${detail.trainee.id}`} className="flex-1 sm:flex-none">
                       <Button className="w-full">
                         {messages.coach.adjustPlan}
                       </Button>
                     </Link>
-                    <Button
-                      variant="outline"
-                      className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive"
-                      onClick={() => void handleUnassignProgram(program.id)}
-                      disabled={removingProgramId === program.id}
-                    >
-                      {removingProgramId === program.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                      {messages.coach.removeProgram}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0 bg-transparent"
+                          disabled={
+                            exportingProgramId === program.id ||
+                            exportingSheetsProgramId === program.id ||
+                            removingProgramId === program.id
+                          }
+                        >
+                          {exportingProgramId === program.id ||
+                          exportingSheetsProgramId === program.id ||
+                          removingProgramId === program.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MoreHorizontal className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/coach/programs/${program.id}`}>
+                            <ExternalLink />
+                            {messages.coach.openPlan}
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => void handleExportProgramLogs(program)}>
+                          <Download />
+                          {messages.coach.exportLogs}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => void handleExportProgramLogsToGoogleSheets(program)}>
+                          <FileSpreadsheet />
+                          Google Sheets
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() => void handleUnassignProgram(program.id)}
+                        >
+                          <Trash2 />
+                          {messages.coach.removeProgram}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
@@ -791,76 +833,9 @@ export function CoachTraineeDetailClient({
         </div>
       </TabsContent>
 
-      {/* ── Progress ──────────────────────────────────────────────────────── */}
-      <TabsContent value="progress" className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progressLast7DaysLabel}</span>
-            </div>
-            <p className="mt-3 font-mono text-3xl font-semibold tabular-nums">
-              {detail.progressSummary.workoutsLast7Days}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressWorkoutsLast7DaysDesc}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progress30DayVolumeLabel}</span>
-            </div>
-            <p className="mt-3 font-mono text-3xl font-semibold tabular-nums">
-              {Math.round(detail.progressSummary.totalVolumeLast30Days).toLocaleString()}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressTotalVolumeDesc}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progress30DaySessionsLabel}</span>
-            </div>
-            <p className="mt-3 font-mono text-3xl font-semibold tabular-nums">
-              {detail.progressSummary.workoutsLast30Days}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressCompletedSessions}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <BarChart3 className="h-4 w-4" />
-              <span className="font-mono text-xs uppercase tracking-[0.08em]">{messages.coach.progressLatestWorkoutLabel}</span>
-            </div>
-            <p className="mt-3 font-mono text-lg font-semibold">
-              {detail.progressSummary.latestWorkoutAt
-                ? detail.progressSummary.latestWorkoutAt.toLocaleDateString(dateLocale)
-                : "--"}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.progressMostRecentDesc}</p>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold">{messages.coach.weeklyCompliance}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {messages.coach.weeklyComplianceDesc}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-3xl font-semibold tabular-nums">{completionRate}%</p>
-              <p className="font-mono text-xs text-muted-foreground">
-                {messages.coach.complianceSessions(detail.trainee.thisWeekWorkouts, plannedSessionsPerWeek || 0)}
-              </p>
-            </div>
-          </div>
-          <Progress value={completionRate} className="mt-5 h-2 bg-muted [&_[data-slot=progress-indicator]]:bg-primary" />
-        </div>
-
-        <RecentActivity logs={detail.recentLogs} />
-      </TabsContent>
-
-      {/* ── Body metrics ──────────────────────────────────────────────────── */}
-      <TabsContent value="metrics" className="space-y-6">
+      {/* ── Check-ins & body metrics ──────────────────────────────────────── */}
+      <TabsContent value="checkins" className="space-y-6">
+        {/* Body metrics section */}
         <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
           <form onSubmit={handleCreateBodyMetric} className="rounded-lg border border-border p-5">
             <div className="flex items-center gap-2">
@@ -968,68 +943,49 @@ export function CoachTraineeDetailClient({
             </div>
           </form>
 
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border border-border p-4">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.weightStatLabel}</p>
-                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{formatNumber(latestMetric?.weightKg, " kg")}</p>
-              </div>
-              <div className="rounded-lg border border-border p-4">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.bodyFatStatLabel}</p>
-                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{formatNumber(latestMetric?.bodyFatPct, "%")}</p>
-              </div>
-              <div className="rounded-lg border border-border p-4">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.waistStatLabel}</p>
-                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{formatNumber(latestMetric?.waistCm, " cm")}</p>
-              </div>
-            </div>
+          <div className="rounded-lg border border-border p-5">
+            <h2 className="text-base font-semibold">{messages.coach.measurementHistory}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.measurementHistoryDesc}</p>
 
-            <div className="rounded-lg border border-border p-5">
-              <h2 className="text-base font-semibold">{messages.coach.measurementHistory}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{messages.coach.measurementHistoryDesc}</p>
-
-              {detail.bodyMetrics.length === 0 ? (
-                <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  {messages.coach.noBodyMetrics}
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {detail.bodyMetrics.map((entry: BodyMetricEntry) => (
-                    <div key={entry.id} className="rounded-lg border border-border bg-muted/20 px-4 py-4">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            {detail.bodyMetrics.length === 0 ? (
+              <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                {messages.coach.noBodyMetrics}
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {detail.bodyMetrics.map((entry: BodyMetricEntry) => (
+                  <div key={entry.id} className="rounded-lg border border-border bg-muted/20 px-4 py-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-medium">{entry.recordedAt.toLocaleDateString(dateLocale)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {entry.coachName ? messages.coach.loggedBy(entry.coachName) : messages.coach.coachEntry}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-sm">
                         <div>
-                          <p className="font-medium">{entry.recordedAt.toLocaleDateString(dateLocale)}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {entry.coachName ? messages.coach.loggedBy(entry.coachName) : messages.coach.coachEntry}
-                          </p>
+                          <p className="text-muted-foreground">{messages.coach.weightStatLabel}</p>
+                          <p className="font-mono font-medium tabular-nums">{formatNumber(entry.weightKg, " kg")}</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">{messages.coach.weightStatLabel}</p>
-                            <p className="font-mono font-medium tabular-nums">{formatNumber(entry.weightKg, " kg")}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">{messages.coach.bodyFatStatLabel}</p>
-                            <p className="font-mono font-medium tabular-nums">{formatNumber(entry.bodyFatPct, "%")}</p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">{messages.coach.waistStatLabel}</p>
-                            <p className="font-mono font-medium tabular-nums">{formatNumber(entry.waistCm, " cm")}</p>
-                          </div>
+                        <div>
+                          <p className="text-muted-foreground">{messages.coach.bodyFatStatLabel}</p>
+                          <p className="font-mono font-medium tabular-nums">{formatNumber(entry.bodyFatPct, "%")}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{messages.coach.waistStatLabel}</p>
+                          <p className="font-mono font-medium tabular-nums">{formatNumber(entry.waistCm, " cm")}</p>
                         </div>
                       </div>
-                      {entry.note ? <p className="mt-3 text-sm text-muted-foreground">{entry.note}</p> : null}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {entry.note ? <p className="mt-3 text-sm text-muted-foreground">{entry.note}</p> : null}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </TabsContent>
 
-      {/* ── Check-ins ─────────────────────────────────────────────────────── */}
-      <TabsContent value="checkins" className="space-y-6">
+        {/* Check-in section */}
         <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
           <form onSubmit={handleCreateCheckIn} className="rounded-lg border border-border p-5">
             <div className="flex items-center gap-2">
@@ -1243,66 +1199,142 @@ export function CoachTraineeDetailClient({
                 {messages.coach.daysTrackedLabel(nutritionSummary.daysTracked)}
               </p>
 
-              {/* Daily log table */}
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left">
-                      <th className="label-micro pb-2 pr-4 font-medium text-muted-foreground">{messages.coach.nutritionDateCol}</th>
-                      <th className="label-micro min-w-[240px] pb-2 pr-4 font-medium text-muted-foreground">{messages.coach.nutritionFoodsCol}</th>
-                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.caloriesCol}</th>
-                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.proteinCol}</th>
-                      <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.carbsCol}</th>
-                      <th className="label-micro pb-2 text-right font-medium text-muted-foreground">{messages.coach.fatCol}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {nutritionSummary.dailyLogs.map((row) => {
-                      const goalPct = nutritionSummary.traineeCalorieGoal > 0
-                        ? Math.round((row.calories / nutritionSummary.traineeCalorieGoal) * 100)
-                        : null
-                      return (
-                        <tr key={row.date} className="border-b border-border/50 last:border-0">
-                          <td className="whitespace-nowrap py-2 pr-4 font-mono text-xs text-muted-foreground">{row.date}</td>
-                          <td className="py-2 pr-4">
-                            <div className="flex flex-wrap gap-1.5">
-                              {row.items.map((item) => (
-                                <span
-                                  key={item.id}
-                                  className="inline-flex max-w-[220px] items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-foreground"
-                                  title={`${item.name}${item.amountLabel ? ` ${item.amountLabel}` : ""}`}
-                                >
-                                  <span className="truncate">{item.name}</span>
-                                  {item.amountLabel ? (
-                                    <span className="shrink-0 text-muted-foreground">{item.amountLabel}</span>
-                                  ) : null}
-                                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground tnum">
-                                    {item.calories} kcal
-                                  </span>
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="py-2 pr-4 text-right font-mono text-xs tnum">
-                            {row.calories}
-                            {goalPct != null && (
-                              <span className={cn("ml-1.5 text-[10px]", goalPct >= 90 && goalPct <= 110 ? "text-success" : "text-muted-foreground")}>
-                                {goalPct}%
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2 pr-4 text-right font-mono text-xs tnum">{Math.round(row.protein)}g</td>
-                          <td className="py-2 pr-4 text-right font-mono text-xs tnum">{Math.round(row.carbs)}g</td>
-                          <td className="py-2 text-right font-mono text-xs tnum">{Math.round(row.fat)}g</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              {/* Daily log list — tap a day to see the logged foods */}
+              <div className="mt-4 overflow-hidden rounded-lg border border-border">
+                <div className="grid grid-cols-[80px_1fr_44px_44px_44px_16px] items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.nutritionDateCol}</span>
+                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.caloriesCol}</span>
+                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.proteinCol}</span>
+                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.carbsCol}</span>
+                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.fatCol}</span>
+                  <span />
+                </div>
+                {nutritionSummary.dailyLogs.map((row, i) => {
+                  const goalPct = nutritionSummary.traineeCalorieGoal > 0
+                    ? Math.round((row.calories / nutritionSummary.traineeCalorieGoal) * 100)
+                    : null
+                  return (
+                    <button
+                      key={row.date}
+                      type="button"
+                      onClick={() => setSelectedNutritionDate(row.date)}
+                      className={cn(
+                        "grid w-full grid-cols-[80px_1fr_44px_44px_44px_16px] items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40",
+                        i < nutritionSummary.dailyLogs.length - 1 && "border-b border-border/50",
+                      )}
+                    >
+                      <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">{row.date}</span>
+                      <span className="text-right font-mono text-xs tnum">
+                        {row.calories}
+                        {goalPct != null && (
+                          <span className={cn("ml-1.5 text-[10px]", goalPct >= 90 && goalPct <= 110 ? "text-success" : "text-muted-foreground")}>
+                            {goalPct}%
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-right font-mono text-xs tnum">{Math.round(row.protein)}g</span>
+                      <span className="text-right font-mono text-xs tnum">{Math.round(row.carbs)}g</span>
+                      <span className="text-right font-mono text-xs tnum">{Math.round(row.fat)}g</span>
+                      <ChevronRight className="h-3.5 w-3.5 justify-self-end text-muted-foreground/50" />
+                    </button>
+                  )
+                })}
               </div>
             </>
           )}
         </div>
+
+        {/* Day detail — logged foods grouped by meal, mirroring the trainee meals screen */}
+        <Dialog
+          open={selectedNutritionDay != null}
+          onOpenChange={(open) => {
+            if (!open) setSelectedNutritionDate(null)
+          }}
+        >
+          <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+            {selectedNutritionDay ? (
+              <>
+                <DialogHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
+                  <DialogTitle className="text-base font-semibold">
+                    {new Date(`${selectedNutritionDay.date}T00:00:00`).toLocaleDateString(dateLocale, {
+                      day: "numeric",
+                      month: "long",
+                      weekday: "long",
+                      year: "numeric",
+                    })}
+                  </DialogTitle>
+                  <DialogDescription className="font-mono text-xs tnum">
+                    {selectedNutritionDay.calories} kcal
+                    {nutritionSummary && nutritionSummary.traineeCalorieGoal > 0
+                      ? ` · ${messages.coach.calorieGoalLabel(nutritionSummary.traineeCalorieGoal)}`
+                      : ""}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                  {/* Day macro totals */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {(
+                      [
+                        [messages.coach.proteinCol, selectedNutritionDay.protein],
+                        [messages.coach.carbsCol, selectedNutritionDay.carbs],
+                        [messages.coach.fatCol, selectedNutritionDay.fat],
+                      ] as [string, number][]
+                    ).map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                        <p className="label-micro text-muted-foreground">{label}</p>
+                        <p className="mt-1 font-mono text-lg font-semibold tnum">{Math.round(value)}g</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Meal sections */}
+                  {MEAL_SECTIONS.map(({ icon: Icon, type }) => {
+                    const items = selectedNutritionDay.items.filter((item) => item.mealType === type)
+                    if (items.length === 0) return null
+                    const mealCalories = items.reduce((sum, item) => sum + item.calories, 0)
+                    return (
+                      <section key={type} className="overflow-hidden rounded-[10px] border border-border bg-card">
+                        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+                          <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <Icon className="h-[15px] w-[15px]" />
+                          </div>
+                          <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">
+                            {mealTypeLabels[type]}
+                          </h3>
+                          <span className="font-mono text-[13px] text-muted-foreground tnum">
+                            {Math.round(mealCalories)} kcal
+                          </span>
+                        </div>
+                        {items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-2.5 border-b border-border/50 px-4 py-2.5 last:border-b-0"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[13.5px] text-foreground">
+                                {item.name}
+                                {item.amountLabel ? (
+                                  <span className="text-muted-foreground"> {item.amountLabel}</span>
+                                ) : null}
+                              </p>
+                              <p className="mt-0.5 font-mono text-[11px] text-muted-foreground tnum">
+                                P{Math.round(item.protein ?? 0)} · C{Math.round(item.carbs ?? 0)} · F{Math.round(item.fat ?? 0)}
+                              </p>
+                            </div>
+                            <span className="font-mono text-[13px] text-muted-foreground tnum">
+                              {Math.round(item.calories)} kcal
+                            </span>
+                          </div>
+                        ))}
+                      </section>
+                    )
+                  })}
+                </div>
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </TabsContent>
 
       {/* ── Workout logs ──────────────────────────────────────────────────── */}

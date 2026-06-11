@@ -340,9 +340,12 @@ type SerializedCoachNutritionDailyLog = {
   items?: Array<{
     amountLabel?: string | null
     calories: number
+    carbs?: number | null
+    fat?: number | null
     id: string
     mealType: Meal["type"]
     name: string
+    protein?: number | null
   }>
   protein: number
 }
@@ -799,9 +802,12 @@ function mapCoachNutritionSummary(summary: SerializedCoachNutritionSummary): Coa
       items: (log.items ?? []).map((item) => ({
         amountLabel: item.amountLabel ?? undefined,
         calories: item.calories,
+        carbs: item.carbs ?? undefined,
+        fat: item.fat ?? undefined,
         id: item.id,
         mealType: item.mealType,
         name: item.name,
+        protein: item.protein ?? undefined,
       })),
       protein: log.protein,
     })),
