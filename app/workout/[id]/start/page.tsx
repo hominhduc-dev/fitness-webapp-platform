@@ -275,16 +275,20 @@ interface LiftSetRowProps {
 
 function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
   const { messages } = useLocale()
-  const [weight, setWeight] = useState(set.weight?.toString() ?? "")
-  const [reps, setReps] = useState(set.actualReps?.toString() ?? set.targetReps.toString())
+  const [weight, setWeight] = useState((set.weight ?? set.previousPerformance?.weight)?.toString() ?? "")
+  const [reps, setReps] = useState((set.actualReps ?? set.previousPerformance?.reps ?? set.targetReps).toString())
   const [rir, setRir] = useState(set.rir?.toString() ?? "")
   const [completed, setCompleted] = useState(set.completed)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(set.notes ?? "")
 
   useEffect(() => {
-    setWeight(set.weight?.toString() ?? "")
-  }, [set.id, set.weight])
+    setWeight((set.weight ?? set.previousPerformance?.weight)?.toString() ?? "")
+  }, [set.id, set.previousPerformance?.weight, set.weight])
+
+  useEffect(() => {
+    setReps((set.actualReps ?? set.previousPerformance?.reps ?? set.targetReps).toString())
+  }, [set.actualReps, set.id, set.previousPerformance?.reps, set.targetReps])
 
   const handleToggle = () => {
     const next = !completed
