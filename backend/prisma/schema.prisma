@@ -306,6 +306,7 @@ model WorkoutLog {
   id               String    @id @default(uuid()) @db.Uuid
   userId           String    @db.Uuid
   workoutId        String?   @db.Uuid
+  programId        String?   @db.Uuid
   workoutSnapshot  Json?
   exerciseSnapshot Json?
   plannedDate      DateTime? @db.Date
@@ -322,6 +323,7 @@ model WorkoutLog {
   @@index([userId, startedAt])
   @@index([userId, plannedDate])
   @@index([workoutId])
+  @@index([programId])
 }
 
 model WorkoutLogComment {

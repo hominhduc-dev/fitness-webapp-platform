@@ -3658,6 +3658,7 @@ async function createWorkoutLogForTrainee(
         exerciseSnapshot: input.exercises as Prisma.InputJsonValue,
         notes: input.notes?.trim() || undefined,
         plannedDate,
+        programId: workout.programId ?? undefined,
         startedAt,
         totalVolume,
         userId: profile.id,
@@ -3667,6 +3668,7 @@ async function createWorkoutLogForTrainee(
           id: serializedWorkout.id,
           name: serializedWorkout.name,
           notes: serializedWorkout.notes,
+          programId: workout.programId,
           scheduledDate: serializedWorkout.scheduledDate,
           scheduledDay: serializedWorkout.scheduledDay,
         } as Prisma.InputJsonObject,
@@ -4393,6 +4395,12 @@ async function updateCoachProgram(
     )
     const previouslyAssignedUserIds = new Set(existingProgram.assignments.map((assignment) => assignment.userId))
     const notifiedUserIds = assignToUserIds.filter((userId) => previouslyAssignedUserIds.has(userId))
+    // Preserve the original assignedAt for trainees who stay assigned: export
+    // date windows are anchored on assignedAt, so resetting it to now() on every
+    // program edit would push the window forward and exclude historical logs.
+    const assignedAtByUserId = new Map(
+      existingProgram.assignments.map((assignment) => [assignment.userId, assignment.assignedAt]),
+    )
 
     await tx.programAssignment.deleteMany({
       where: {
@@ -4403,6 +4411,8 @@ async function updateCoachProgram(
     if (assignToUserIds.length > 0) {
       await tx.programAssignment.createMany({
         data: assignToUserIds.map((userId) => ({
+          // Newly added trainees fall through to the column default (now()).
+          assignedAt: assignedAtByUserId.get(userId),
           programId: existingProgram.id,
           userId,
         })),
@@ -4589,6 +4599,10 @@ async function adjustCoachProgramForTrainee(
 
     await transaction.programAssignment.createMany({
       data: [{
+        // The adjusted program continues the same engagement, so keep the
+        // original assignedAt: export date windows are anchored on it and a
+        // reset to now() would exclude all logs recorded before the adjustment.
+        assignedAt: existingAssignment.assignedAt,
         programId,
         userId: traineeId,
       }],
@@ -4618,6 +4632,21 @@ async function adjustCoachProgramForTrainee(
           programId: existingProgram.id,
           userId: traineeId,
         },
+      },
+    })
+
+    // Adjusting forks the program under a new id, so carry this trainee's log
+    // history over to the adjusted program. Without this, program-scoped
+    // exports for the new program would come back empty even though the
+    // trainee trained the whole time. Other trainees still assigned to the
+    // original program keep their logs untouched.
+    await transaction.workoutLog.updateMany({
+      data: {
+        programId,
+      },
+      where: {
+        programId: existingProgram.id,
+        userId: traineeId,
       },
     })
 
@@ -5250,7 +5279,10 @@ async function listCoachWorkoutLogsForTrainee(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
-  const programFilter = options?.programId ? { workout: { programId: options.programId } } : {}
+  // Filter on the denormalized programId column (not a workout join): program
+  // edits delete & recreate Workout rows and null out WorkoutLog.workoutId, so a
+  // join-based filter would silently drop historical logs.
+  const programFilter = options?.programId ? { programId: options.programId } : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     cursor: options?.cursor ? { id: options.cursor } : undefined,
@@ -5309,7 +5341,10 @@ async function listCoachWorkoutLogsForExport(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
-  const programFilter = options?.programId ? { workout: { programId: options.programId } } : {}
+  // Filter on the denormalized programId column (not a workout join): program
+  // edits delete & recreate Workout rows and null out WorkoutLog.workoutId, so a
+  // join-based filter would silently drop historical logs.
+  const programFilter = options?.programId ? { programId: options.programId } : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     include: WORKOUT_LOG_INCLUDE,
