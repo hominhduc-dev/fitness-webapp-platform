@@ -408,7 +408,7 @@ function CalendarSection({
   const weekdayLabels = useMemo(
     () =>
       Array.from({ length: 7 }, (_, index) =>
-        new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { weekday: "short" }).format(new Date(2026, 1, index + 1)).toUpperCase(),
+        new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { weekday: "short" }).format(new Date(2026, 1, index + 2)).toUpperCase(),
       ),
     [locale],
   )
@@ -417,7 +417,7 @@ function CalendarSection({
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month
 
   const daysInMonth = new Date(year, month, 0).getDate()
-  const firstDayOfWeek = new Date(year, month - 1, 1).getDay()
+  const firstDayOfWeek = (new Date(year, month - 1, 1).getDay() + 6) % 7
 
   // Build a map: day → logs for that day
   const dayToLogs = useMemo(() => {
