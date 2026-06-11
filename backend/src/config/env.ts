@@ -86,6 +86,7 @@ export const env = {
   databaseUrl: inferDatabaseUrl(),
   directUrl: inferDirectUrl(),
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
+  n8nLogsWebhookUrl: process.env.N8N_LOGS_WEBHOOK_URL,
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: rawPort,
   // When > 0, Prisma logs every query whose DB execution time meets/exceeds this

@@ -30,6 +30,7 @@ import {
   assignCoachProgram,
   createCoachBodyMetric,
   createCoachCheckIn,
+  exportCoachWorkoutLogsToGoogleSheets,
   fetchCoachWorkoutLogs,
   unassignCoachProgram,
 } from "@/lib/fitness/api"
@@ -330,11 +331,13 @@ export function CoachTraineeDetailClient({
   const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
   const [checkInForm, setCheckInForm] = useState<CheckInFormState>(createDefaultCheckInForm)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [assignNotice, setAssignNotice] = useState<string | null>(null)
   const [metricError, setMetricError] = useState<string | null>(null)
   const [checkInError, setCheckInError] = useState<string | null>(null)
   const [isAssigning, setIsAssigning] = useState(false)
   const [removingProgramId, setRemovingProgramId] = useState<string | null>(null)
   const [exportingProgramId, setExportingProgramId] = useState<string | null>(null)
+  const [exportingSheetsProgramId, setExportingSheetsProgramId] = useState<string | null>(null)
   const [isSavingMetric, setIsSavingMetric] = useState(false)
   const [isSavingCheckIn, setIsSavingCheckIn] = useState(false)
 
@@ -423,6 +426,7 @@ export function CoachTraineeDetailClient({
 
     setIsAssigning(true)
     setAssignError(null)
+    setAssignNotice(null)
 
     try {
       await assignCoachProgram(session.access_token, selectedProgramId, detail.trainee.id)
@@ -446,6 +450,7 @@ export function CoachTraineeDetailClient({
   async function handleExportProgramLogs(program: CoachProgram) {
     if (!session?.access_token) return
     setExportingProgramId(program.id)
+    setAssignNotice(null)
 
     try {
       const assignment = program.assignedTrainees.find((t) => t.id === detail.trainee.id)
@@ -463,7 +468,13 @@ export function CoachTraineeDetailClient({
       const allLogs: WorkoutLog[] = []
       let cursor: string | undefined
       for (let page = 0; page < 20; page++) {
-        const result = await fetchCoachWorkoutLogs(session.access_token, detail.trainee.id, { cursor, from, limit: 50, to })
+        const result = await fetchCoachWorkoutLogs(session.access_token, detail.trainee.id, {
+          cursor,
+          from,
+          limit: 50,
+          programId: program.id,
+          to,
+        })
         allLogs.push(...result.logs)
         if (!result.nextCursor) break
         cursor = result.nextCursor
@@ -488,6 +499,36 @@ export function CoachTraineeDetailClient({
     }
   }
 
+  async function handleExportProgramLogsToGoogleSheets(program: CoachProgram) {
+    if (!session?.access_token) return
+    setExportingSheetsProgramId(program.id)
+    setAssignError(null)
+    setAssignNotice(null)
+
+    try {
+      const assignment = program.assignedTrainees.find((t) => t.id === detail.trainee.id)
+      const from = getProgramExportStartDate(program, assignment?.assignedAt)
+      const endDate = new Date(from)
+      endDate.setDate(endDate.getDate() + program.duration * 7)
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const toDate = endDate < tomorrow ? endDate : tomorrow
+      const to = toDate.toISOString().slice(0, 10)
+
+      await exportCoachWorkoutLogsToGoogleSheets(session.access_token, detail.trainee.id, {
+        from,
+        label: program.name,
+        programId: program.id,
+        to,
+      })
+      setAssignNotice(`Exported ${program.name} workout logs to Google Sheets.`)
+    } catch (error) {
+      setAssignError(error instanceof Error ? error.message : "Không thể export logs sang Google Sheets.")
+    } finally {
+      setExportingSheetsProgramId(null)
+    }
+  }
+
   async function handleUnassignProgram(programId: string) {
     if (!session?.access_token) {
       return
@@ -495,6 +536,7 @@ export function CoachTraineeDetailClient({
 
     setRemovingProgramId(programId)
     setAssignError(null)
+    setAssignNotice(null)
 
     try {
       await unassignCoachProgram(session.access_token, programId, detail.trainee.id)
@@ -676,6 +718,11 @@ export function CoachTraineeDetailClient({
               {assignError}
             </div>
           ) : null}
+          {assignNotice ? (
+            <div className="mt-4 rounded-lg border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
+              {assignNotice}
+            </div>
+          ) : null}
 
           {detail.programs.length === 0 ? (
             <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
@@ -699,12 +746,23 @@ export function CoachTraineeDetailClient({
                       variant="outline"
                       className="w-full bg-transparent sm:w-auto"
                       onClick={() => void handleExportProgramLogs(program)}
-                      disabled={exportingProgramId === program.id}
+                      disabled={exportingProgramId === program.id || exportingSheetsProgramId === program.id}
                     >
                       {exportingProgramId === program.id
                         ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         : <Download className="mr-2 h-4 w-4" />}
                       {messages.coach.exportLogs}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent sm:w-auto"
+                      onClick={() => void handleExportProgramLogsToGoogleSheets(program)}
+                      disabled={exportingProgramId === program.id || exportingSheetsProgramId === program.id}
+                    >
+                      {exportingSheetsProgramId === program.id
+                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        : <Download className="mr-2 h-4 w-4" />}
+                      Google Sheets
                     </Button>
                     <Link href={`/coach/programs/${program.id}`} className="w-full sm:w-auto">
                       <Button variant="outline" className="w-full bg-transparent">
@@ -1191,6 +1249,7 @@ export function CoachTraineeDetailClient({
                   <thead>
                     <tr className="border-b border-border text-left">
                       <th className="label-micro pb-2 pr-4 font-medium text-muted-foreground">{messages.coach.nutritionDateCol}</th>
+                      <th className="label-micro min-w-[240px] pb-2 pr-4 font-medium text-muted-foreground">{messages.coach.nutritionFoodsCol}</th>
                       <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.caloriesCol}</th>
                       <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.proteinCol}</th>
                       <th className="label-micro pb-2 pr-4 text-right font-medium text-muted-foreground">{messages.coach.carbsCol}</th>
@@ -1204,7 +1263,26 @@ export function CoachTraineeDetailClient({
                         : null
                       return (
                         <tr key={row.date} className="border-b border-border/50 last:border-0">
-                          <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">{row.date}</td>
+                          <td className="whitespace-nowrap py-2 pr-4 font-mono text-xs text-muted-foreground">{row.date}</td>
+                          <td className="py-2 pr-4">
+                            <div className="flex flex-wrap gap-1.5">
+                              {row.items.map((item) => (
+                                <span
+                                  key={item.id}
+                                  className="inline-flex max-w-[220px] items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-foreground"
+                                  title={`${item.name}${item.amountLabel ? ` ${item.amountLabel}` : ""}`}
+                                >
+                                  <span className="truncate">{item.name}</span>
+                                  {item.amountLabel ? (
+                                    <span className="shrink-0 text-muted-foreground">{item.amountLabel}</span>
+                                  ) : null}
+                                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground tnum">
+                                    {item.calories} kcal
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          </td>
                           <td className="py-2 pr-4 text-right font-mono text-xs tnum">
                             {row.calories}
                             {goalPct != null && (

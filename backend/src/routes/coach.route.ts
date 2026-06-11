@@ -14,6 +14,7 @@ import {
   deleteCoachExercise,
   deleteCoachProgram,
   deleteWorkoutLogCommentForCoach,
+  exportCoachWorkoutLogsToGoogleSheetsForTrainee,
   getCoachDashboard,
   getCoachNavCounts,
   getCoachProgramDetail,
@@ -77,6 +78,7 @@ function parseProgramInput(body: Record<string, unknown>) {
             name?: unknown
             scheduledDay?: unknown
             scheduledDate?: unknown
+            weekIndex?: unknown
           }
 
           return {
@@ -87,6 +89,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                   const safeExercise = exerciseRecord as {
                     repsMin?: unknown
                     rir?: unknown
+                    restTime?: unknown
                     variationId?: unknown
                     reps?: unknown
                     sets?: unknown
@@ -96,6 +99,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                   return {
                     repsMin: safeExercise.repsMin == null ? undefined : Number(safeExercise.repsMin),
                     rir: safeExercise.rir == null ? undefined : Number(safeExercise.rir),
+                    restTime: safeExercise.restTime == null ? undefined : Number(safeExercise.restTime),
                     variationId: String(safeExercise.variationId ?? ""),
                     reps: Number(safeExercise.reps ?? 0),
                     sets: Number(safeExercise.sets ?? 0),
@@ -106,6 +110,7 @@ function parseProgramInput(body: Record<string, unknown>) {
             name: String(safeRecord.name ?? ""),
             scheduledDate: typeof safeRecord.scheduledDate === "string" ? safeRecord.scheduledDate : undefined,
             scheduledDay: typeof safeRecord.scheduledDay === "number" ? safeRecord.scheduledDay : undefined,
+            weekIndex: typeof safeRecord.weekIndex === "number" ? safeRecord.weekIndex : undefined,
           }
         })
       : [],
@@ -366,16 +371,43 @@ coachRouter.get("/trainees/:traineeId/workout-logs", async (req, res) => {
     const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined
     const weekStart = typeof req.query.weekStart === "string" ? req.query.weekStart : undefined
     const from = typeof req.query.from === "string" ? req.query.from : undefined
+    const programId = typeof req.query.programId === "string" ? req.query.programId : undefined
     const to = typeof req.query.to === "string" ? req.query.to : undefined
     const result = await listCoachWorkoutLogsForTrainee(profile.profile, String(req.params.traineeId), {
       cursor,
       from,
       limit: Number.isFinite(limit) ? limit : undefined,
+      programId,
       to,
       weekStart,
     })
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/trainees/:traineeId/workout-logs/export/google-sheets", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await exportCoachWorkoutLogsToGoogleSheetsForTrainee(
+      profile.profile,
+      String(req.params.traineeId),
+      {
+        from: typeof req.body.from === "string" ? req.body.from : undefined,
+        label: typeof req.body.label === "string" ? req.body.label : undefined,
+        programId: typeof req.body.programId === "string" ? req.body.programId : undefined,
+        to: typeof req.body.to === "string" ? req.body.to : undefined,
+        weekStart: typeof req.body.weekStart === "string" ? req.body.weekStart : undefined,
+      },
+    )
+
+    res.json({
+      data: result,
+      error: null,
+      meta: null,
+    })
   } catch (error) {
     sendError(res, error)
   }

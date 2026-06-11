@@ -28,6 +28,7 @@ import {
   invalidateExerciseLibrary,
   libraryCache,
 } from "../../lib/library-cache"
+import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-export.service"
 import { prisma, retryTransaction } from "../../lib/prisma"
 
 // Narrow projections of the User relation so list queries don't drag the full
@@ -271,6 +272,7 @@ type CoachProgramInput = {
     exercises: Array<{
       repsMin?: number
       rir?: number
+      restTime?: number
       variationId: string
       reps: number
       sets: number
@@ -278,6 +280,7 @@ type CoachProgramInput = {
     }>
     name: string
     scheduledDay?: number
+    weekIndex?: number
   }>
 }
 
@@ -620,6 +623,7 @@ function serializeWorkout(
     notes: workout.notes ?? undefined,
     scheduledDay: workout.scheduledDay ?? undefined,
     scheduledDate: workout.scheduledDate ? formatUtcDateOnly(workout.scheduledDate) : undefined,
+    weekIndex: workout.weekIndex ?? undefined,
   }
 }
 
@@ -1182,7 +1186,10 @@ function serializeProgram(program: ProgramRecord) {
     name: program.name,
     workouts: program.workouts
       .slice()
-      .sort((left, right) => (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7))
+      .sort((left, right) => {
+        const weekDiff = (left.weekIndex ?? 0) - (right.weekIndex ?? 0)
+        return weekDiff !== 0 ? weekDiff : (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
+      })
       .map((workout) => serializeWorkout(workout)),
     workoutsPerWeek: program.workoutsPerWeek,
   }
@@ -1300,6 +1307,137 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
   }
 }
 
+type SerializedWorkoutLog = ReturnType<typeof serializeWorkoutLog>
+type WorkoutLogSheetUser = Pick<SerializedProfile, "email" | "id" | "name">
+
+function buildWorkoutLogSheetRows(
+  logs: SerializedWorkoutLog[],
+  options: { coachName?: string; trainee: WorkoutLogSheetUser },
+): Array<Record<string, unknown>> {
+  const sheetRows: Array<Record<string, unknown>> = []
+
+  logs.forEach((log) => {
+    const baseRow = {
+      coachName: options.coachName ?? "",
+      completedAt: log.completedAt?.toISOString() ?? "",
+      logId: log.id,
+      notes: log.notes ?? "",
+      plannedDate: log.plannedDate ?? "",
+      startedAt: log.startedAt.toISOString(),
+      totalVolume: log.totalVolume ?? 0,
+      traineeEmail: options.trainee.email,
+      traineeId: options.trainee.id,
+      traineeName: options.trainee.name,
+      workoutId: log.workout.id,
+      workoutKind: "kind" in log.workout ? log.workout.kind ?? "" : "",
+      workoutName: log.workout.name,
+    }
+
+    log.exercises.forEach((exercise, exerciseIndex) => {
+      const exerciseName = exercise.exercise?.name ?? ""
+      const variationName = exercise.variation?.name ?? ""
+      const muscleGroup = exercise.exercise?.muscleGroup ?? ""
+
+      if (!exercise.sets.length) {
+        sheetRows.push({
+          ...baseRow,
+          actualReps: "",
+          completed: "",
+          exerciseIndex: exerciseIndex + 1,
+          exerciseName,
+          muscleGroup,
+          rir: "",
+          setNumber: "",
+          targetReps: "",
+          targetRepsMin: "",
+          variationName,
+          weight: "",
+        })
+        return
+      }
+
+      exercise.sets.forEach((set) => {
+        sheetRows.push({
+        ...baseRow,
+        actualReps: set.actualReps ?? "",
+        completed: set.completed,
+        exerciseIndex: exerciseIndex + 1,
+        exerciseName,
+        muscleGroup,
+        rir: set.rir ?? "",
+        setNumber: set.setNumber,
+        targetReps: set.targetReps,
+        targetRepsMin: set.targetRepsMin ?? "",
+        variationName,
+        weight: set.weight ?? "",
+        })
+      })
+    })
+
+    if (!log.exercises.length) {
+      sheetRows.push({
+      ...baseRow,
+      actualReps: "",
+      completed: "",
+      exerciseIndex: "",
+      exerciseName: "",
+      muscleGroup: "",
+      rir: "",
+      setNumber: "",
+      targetReps: "",
+      targetRepsMin: "",
+      variationName: "",
+      weight: "",
+      })
+    }
+  })
+
+  return sheetRows
+}
+
+async function exportWorkoutLogsToN8n(input: {
+  event: "trainee_workout_logs_export" | "coach_trainee_workout_logs_export"
+  exportedBy: SerializedProfile
+  filters: Record<string, unknown>
+  logs: SerializedWorkoutLog[]
+  trainee: WorkoutLogSheetUser
+  coachName?: string
+}) {
+  if (!isN8nLogExportEnabled()) {
+    throw new AuthServiceError("Chưa cấu hình N8N_LOGS_WEBHOOK_URL cho backend.", 400)
+  }
+
+  const rows = buildWorkoutLogSheetRows(input.logs, {
+    coachName: input.coachName,
+    trainee: input.trainee,
+  })
+
+  const response = await sendWebhookPayloadToN8n({
+    timestamp: new Date().toISOString(),
+    source: "backend",
+    event: input.event,
+    exportedBy: {
+      email: input.exportedBy.email,
+      id: input.exportedBy.id,
+      name: input.exportedBy.name,
+    },
+    filters: input.filters,
+    rowCount: rows.length,
+    rows,
+  })
+
+  if (!response.ok) {
+    throw new AuthServiceError("Không thể gửi workout logs sang n8n webhook.", 502)
+  }
+
+  return {
+    exported: true,
+    logCount: input.logs.length,
+    rowCount: rows.length,
+    webhookStatusCode: response.statusCode,
+  }
+}
+
 function getScheduleEntryDurationLabel(
   workout: { duration?: number } | null,
   log: ReturnType<typeof serializeWorkoutLog> | null,
@@ -1363,6 +1501,27 @@ function getRecurringWorkoutPlannedDateKey(workout: { scheduledDate?: string; sc
   }
 
   return formatUtcDateOnly(addUtcDays(weekStart, displayIndex))
+}
+
+function getAssignmentWeekIndex(assignedAt: Date, weekStart: Date, duration: number) {
+  const assignmentWeekStart = startOfUtcWeek(assignedAt)
+  const elapsedWeeks = Math.floor((weekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
+  const lastWeekIndex = Math.max(0, Math.round(duration) - 1)
+
+  return Math.max(0, Math.min(lastWeekIndex, elapsedWeeks))
+}
+
+function isWorkoutVisibleForAssignmentWeek(
+  workout: Pick<WorkoutRecord, "scheduledDate" | "weekIndex">,
+  assignedAt: Date,
+  programDuration: number,
+  weekStart: Date,
+) {
+  if (workout.scheduledDate || typeof workout.weekIndex !== "number") {
+    return true
+  }
+
+  return workout.weekIndex === getAssignmentWeekIndex(assignedAt, weekStart, programDuration)
 }
 
 function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
@@ -1709,6 +1868,10 @@ function buildProgramTreeCreateManyData(programId: string, workouts: CoachProgra
       name: workoutName,
       programId,
       scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
+      weekIndex:
+        typeof workout.weekIndex === "number" && Number.isFinite(workout.weekIndex)
+          ? Math.max(0, Math.round(workout.weekIndex))
+          : undefined,
     })
 
     workout.exercises.forEach((exercise, exerciseIndex) => {
@@ -1722,6 +1885,10 @@ function buildProgramTreeCreateManyData(programId: string, workouts: CoachProgra
       exerciseRows.push({
         id: workoutExerciseId,
         order: exerciseIndex + 1,
+        restTime:
+          exercise.restTime != null && Number.isFinite(exercise.restTime)
+            ? Math.max(0, Math.round(exercise.restTime))
+            : undefined,
         variationId: exercise.variationId,
         workoutId,
       })
@@ -3122,11 +3289,16 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   const workoutMap = new Map<string, WorkoutRecord>()
   const personalWorkoutIds = new Set<string>()
+  const weekStart = startOfUtcWeek(new Date())
 
   assignments.forEach((assignment) => {
     const isPersonalProgram = assignment.program.createdById === profile.id
 
     ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
+      if (!isWorkoutVisibleForAssignmentWeek(workout, assignment.assignedAt, assignment.program.duration, weekStart)) {
+        return
+      }
+
       workoutMap.set(workout.id, workout)
 
       if (isPersonalProgram) {
@@ -3160,7 +3332,6 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
 
-  const weekStart = startOfUtcWeek(new Date())
   const todayStart = startOfUtcDay(new Date())
 
   const [recentLogs, historyLogs, weekLogs] = await Promise.all([
@@ -3310,6 +3481,10 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
     const isPersonalProgram = assignment.program.createdById === profile.id
 
     ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
+      if (!isWorkoutVisibleForAssignmentWeek(workout, assignment.assignedAt, assignment.program.duration, weekStart)) {
+        return
+      }
+
       workoutMap.set(workout.id, workout)
 
       if (isPersonalProgram) {
@@ -4013,6 +4188,7 @@ async function createCoachProgram(
       exercises: Array<{
         repsMin?: number
         rir?: number
+        restTime?: number
         variationId: string
         reps: number
         sets: number
@@ -4020,6 +4196,7 @@ async function createCoachProgram(
       }>
       name: string
       scheduledDay?: number
+      weekIndex?: number
     }>
   },
 ) {
@@ -4326,6 +4503,7 @@ async function adjustCoachProgramForTrainee(
       duration?: number
       exercises: Array<{
         repsMin?: number
+        restTime?: number
         variationId: string
         reps: number
         sets: number
@@ -4333,6 +4511,7 @@ async function adjustCoachProgramForTrainee(
       }>
       name: string
       scheduledDay?: number
+      weekIndex?: number
     }>
   },
 ) {
@@ -5011,14 +5190,40 @@ async function listWorkoutLogsForExportTrainee(
   return logs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
 }
 
+async function exportWorkoutLogsToGoogleSheetsForTrainee(
+  profile: SerializedProfile,
+  options: { from: string; label?: string; to: string },
+) {
+  const logs = await listWorkoutLogsForExportTrainee(profile, options)
+
+  if (logs.length === 0) {
+    throw new AuthServiceError("Không có workout log nào trong khoảng thời gian này.", 400)
+  }
+
+  return exportWorkoutLogsToN8n({
+    event: "trainee_workout_logs_export",
+    exportedBy: profile,
+    filters: {
+      from: options.from,
+      label: options.label,
+      to: options.to,
+    },
+    logs,
+    trainee: profile,
+  })
+}
+
 async function listCoachWorkoutLogsForTrainee(
   profile: SerializedProfile,
   traineeId: string,
-  options?: { cursor?: string; from?: string; limit?: number; to?: string; weekStart?: string },
+  options?: { cursor?: string; from?: string; limit?: number; programId?: string; to?: string; weekStart?: string },
 ) {
   const db = ensurePrisma()
   assertCoach(profile)
   await assertCoachOwnsTrainee(profile.id, traineeId)
+  if (options?.programId) {
+    await assertCoachOwnsProgram(profile.id, options.programId)
+  }
 
   const take = Math.min(Math.max(options?.limit ?? 20, 1), 50)
   const parsedWeekStart = options?.weekStart ? parseLocalDateInput(options.weekStart) : undefined
@@ -5045,6 +5250,7 @@ async function listCoachWorkoutLogsForTrainee(
     : parsedWeekStart && weekEnd
       ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
       : {}
+  const programFilter = options?.programId ? { workout: { programId: options.programId } } : {}
 
   const workoutLogs = await db.workoutLog.findMany({
     cursor: options?.cursor ? { id: options.cursor } : undefined,
@@ -5054,6 +5260,7 @@ async function listCoachWorkoutLogsForTrainee(
     take: take + 1,
     where: {
       ...dateFilter,
+      ...programFilter,
       userId: traineeId,
     },
   })
@@ -5065,6 +5272,85 @@ async function listCoachWorkoutLogsForTrainee(
     logs: visibleLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     nextCursor: hasMore ? visibleLogs[visibleLogs.length - 1]?.id : undefined,
   }
+}
+
+async function listCoachWorkoutLogsForExport(
+  profile: SerializedProfile,
+  traineeId: string,
+  options?: { from?: string; programId?: string; to?: string; weekStart?: string },
+) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+  await assertCoachOwnsTrainee(profile.id, traineeId)
+  if (options?.programId) {
+    await assertCoachOwnsProgram(profile.id, options.programId)
+  }
+
+  const parsedWeekStart = options?.weekStart ? parseLocalDateInput(options.weekStart) : undefined
+
+  if (options?.weekStart && !parsedWeekStart) {
+    throw new AuthServiceError("weekStart không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
+  const parsedFrom = options?.from ? parseLocalDateInput(options.from) : undefined
+  const parsedTo = options?.to ? parseLocalDateInput(options.to) : undefined
+
+  if (options?.from && !parsedFrom) {
+    throw new AuthServiceError("from không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
+  if (options?.to && !parsedTo) {
+    throw new AuthServiceError("to không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+  }
+
+  const weekEnd = parsedWeekStart ? addLocalDays(parsedWeekStart, 7) : undefined
+  const dateFilter = parsedFrom && parsedTo
+    ? { startedAt: { gte: parsedFrom, lt: parsedTo } }
+    : parsedWeekStart && weekEnd
+      ? { startedAt: { gte: parsedWeekStart, lt: weekEnd } }
+      : {}
+  const programFilter = options?.programId ? { workout: { programId: options.programId } } : {}
+
+  const workoutLogs = await db.workoutLog.findMany({
+    include: WORKOUT_LOG_INCLUDE,
+    orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+    where: {
+      ...dateFilter,
+      ...programFilter,
+      userId: traineeId,
+    },
+  })
+
+  return workoutLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
+}
+
+async function exportCoachWorkoutLogsToGoogleSheetsForTrainee(
+  profile: SerializedProfile,
+  traineeId: string,
+  options?: { from?: string; label?: string; programId?: string; to?: string; weekStart?: string },
+) {
+  assertCoach(profile)
+  const trainee = await assertCoachOwnsTrainee(profile.id, traineeId)
+  const logs = await listCoachWorkoutLogsForExport(profile, traineeId, options)
+
+  if (logs.length === 0) {
+    throw new AuthServiceError("Không có workout log nào trong khoảng thời gian này.", 400)
+  }
+
+  return exportWorkoutLogsToN8n({
+    event: "coach_trainee_workout_logs_export",
+    exportedBy: profile,
+    filters: {
+      from: options?.from,
+      label: options?.label,
+      programId: options?.programId,
+      to: options?.to,
+      weekStart: options?.weekStart,
+    },
+    logs,
+    trainee,
+    coachName: profile.name,
+  })
 }
 
 async function createWorkoutLogCommentForCoach(
@@ -5401,16 +5687,41 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     plannedSessionsPerWeek > 0 ? Math.min(100, Math.round((thisWeekWorkouts / plannedSessionsPerWeek) * 100)) : 0
 
   // Group meals by day and compute per-day totals
-  const mealsByDay = new Map<string, { calories: number; carbs: number; fat: number; protein: number }>()
+  const mealsByDay = new Map<
+    string,
+    {
+      calories: number
+      carbs: number
+      fat: number
+      items: Array<{
+        amountLabel?: string
+        calories: number
+        id: string
+        mealType: Meal["type"]
+        name: string
+      }>
+      protein: number
+    }
+  >()
   for (const meal of recentMeals) {
     const dateKey = meal.loggedDate instanceof Date
       ? meal.loggedDate.toISOString().slice(0, 10)
       : String(meal.loggedDate).slice(0, 10)
-    const existing = mealsByDay.get(dateKey) ?? { calories: 0, carbs: 0, fat: 0, protein: 0 }
+    const existing = mealsByDay.get(dateKey) ?? { calories: 0, carbs: 0, fat: 0, items: [], protein: 0 }
     mealsByDay.set(dateKey, {
       calories: existing.calories + (meal.calories ?? 0),
       carbs: existing.carbs + (meal.carbs ?? 0),
       fat: existing.fat + (meal.fat ?? 0),
+      items: [
+        ...existing.items,
+        ...meal.items.map((item) => ({
+          amountLabel: item.amountLabel ?? undefined,
+          calories: Math.round(item.calories ?? 0),
+          id: item.id,
+          mealType: meal.type,
+          name: item.foodNameSnapshot ?? item.food.name,
+        })),
+      ],
       protein: existing.protein + (meal.protein ?? 0),
     })
   }
@@ -5769,6 +6080,8 @@ export {
   deletePersonalWorkoutForTrainee,
   deleteWorkoutLogCommentForCoach,
   deleteWorkoutLogForTrainee,
+  exportCoachWorkoutLogsToGoogleSheetsForTrainee,
+  exportWorkoutLogsToGoogleSheetsForTrainee,
   getCoachDashboard,
   getCoachNavCounts,
   getDashboardForTrainee,
@@ -5785,6 +6098,7 @@ export {
   listExerciseLibrary,
   listCoachExercises,
   listCoachPrograms,
+  listCoachWorkoutLogsForExport,
   listCoachWorkoutLogsForTrainee,
   listCoachTrainees,
   listExercises,

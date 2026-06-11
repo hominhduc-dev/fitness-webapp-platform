@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
-import { fetchCoachWorkoutLogs } from "@/lib/fitness/api"
+import { exportCoachWorkoutLogsToGoogleSheets, fetchCoachWorkoutLogs } from "@/lib/fitness/api"
 import { formatDateToISO, formatDisplayDate, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { AssignedTrainee } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
@@ -22,6 +22,7 @@ import type { WorkoutLog } from "@/lib/types"
 type ExportProgramLogsDialogProps = {
   assignedTrainees: AssignedTrainee[]
   programDuration: number
+  programId: string
   programName: string
 }
 
@@ -29,6 +30,7 @@ async function loadAllLogsForProgramExport(
   accessToken: string,
   traineeId: string,
   from: string,
+  programId: string,
   to: string,
 ) {
   const allLogs: Awaited<ReturnType<typeof fetchCoachWorkoutLogs>>["logs"] = []
@@ -39,6 +41,7 @@ async function loadAllLogsForProgramExport(
       cursor,
       from,
       limit: 50,
+      programId,
       to,
     })
     allLogs.push(...result.logs)
@@ -53,6 +56,7 @@ async function loadAllLogsForProgramExport(
 export function ExportProgramLogsDialog({
   assignedTrainees,
   programDuration,
+  programId,
   programName,
 }: ExportProgramLogsDialogProps) {
   const { session } = useAuth()
@@ -60,9 +64,11 @@ export function ExportProgramLogsDialog({
   const [open, setOpen] = useState(false)
   const [selectedTraineeId, setSelectedTraineeId] = useState<string>("")
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportingToSheets, setIsExportingToSheets] = useState(false)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [previewLogs, setPreviewLogs] = useState<WorkoutLog[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const selectedTrainee = assignedTrainees.find((t) => t.id === selectedTraineeId)
 
@@ -86,10 +92,11 @@ export function ExportProgramLogsDialog({
   const handlePreview = async () => {
     if (!session?.access_token || isLoadingPreview || !selectedTrainee) return
     setError(null)
+    setNotice(null)
     setIsLoadingPreview(true)
     try {
       const { from, to } = getDateRange(selectedTrainee)
-      const logs = await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to)
+      const logs = await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, programId, to)
       if (logs.length === 0) {
         setPreviewLogs(null)
         setError(messages.workoutPage.exportTraineeEmptyProgram)
@@ -107,11 +114,12 @@ export function ExportProgramLogsDialog({
     if (!session?.access_token || isExporting || !selectedTrainee) return
     setIsExporting(true)
     setError(null)
+    setNotice(null)
 
     try {
       const { from, to } = getDateRange(selectedTrainee)
       // Reuse already-fetched preview logs when available (cleared on trainee change).
-      const logs = previewLogs ?? (await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, to))
+      const logs = previewLogs ?? (await loadAllLogsForProgramExport(session.access_token, selectedTrainee.id, from, programId, to))
 
       if (logs.length === 0) {
         setError(messages.workoutPage.exportTraineeEmptyProgram)
@@ -134,6 +142,29 @@ export function ExportProgramLogsDialog({
     }
   }
 
+  const handleExportGoogleSheets = async () => {
+    if (!session?.access_token || isExportingToSheets || !selectedTrainee) return
+    setIsExportingToSheets(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const { from, to } = getDateRange(selectedTrainee)
+      const result = await exportCoachWorkoutLogsToGoogleSheets(session.access_token, selectedTrainee.id, {
+        from,
+        label: programName,
+        programId,
+        to,
+      })
+
+      setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể export logs sang Google Sheets.")
+    } finally {
+      setIsExportingToSheets(false)
+    }
+  }
+
   if (assignedTrainees.length === 0) return null
 
   return (
@@ -144,6 +175,7 @@ export function ExportProgramLogsDialog({
         if (!next) {
           setPreviewLogs(null)
           setError(null)
+          setNotice(null)
         }
       }}
     >
@@ -192,6 +224,7 @@ export function ExportProgramLogsDialog({
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {notice && <p className="text-sm text-primary">{notice}</p>}
 
           {previewLogs ? (
             <div className="flex flex-col gap-2">
@@ -213,11 +246,20 @@ export function ExportProgramLogsDialog({
 
             <Button
               onClick={() => void handleExport()}
-              disabled={isExporting || !selectedTraineeId}
+              disabled={isExporting || isExportingToSheets || !selectedTraineeId}
               className="w-full gap-2"
             >
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               {isExporting ? messages.workoutPage.generatingFile : messages.workoutPage.exportDownloadExcel}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleExportGoogleSheets()}
+              disabled={isExporting || isExportingToSheets || !selectedTraineeId}
+              className="w-full gap-2"
+            >
+              {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExportingToSheets ? "Exporting to Google Sheets..." : "Export to Google Sheets"}
             </Button>
           </div>
         </div>
