@@ -4,7 +4,7 @@ import Link from "next/link"
 import { memo, useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, MessageSquare, Play, Plus, Search, Trash2, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Play, Plus, Search, Trash2, User } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -1067,67 +1067,6 @@ function RoutineBuilderDialog({
   )
 }
 
-function CoachProgramCard({
-  coachWorkouts,
-  completedCount,
-  plannedCount,
-}: {
-  coachWorkouts: Workout[]
-  completedCount: number
-  plannedCount: number
-}) {
-  const { messages } = useLocale()
-
-  if (coachWorkouts.length === 0) {
-    return null
-  }
-
-  const daysPerWeek = new Set(coachWorkouts.map((workout) => workout.scheduledDay).filter((day) => day != null)).size || coachWorkouts.length
-  const progressPct = plannedCount > 0 ? Math.round((completedCount / plannedCount) * 100) : 0
-
-  return (
-    <div className="mb-7 grid gap-5 rounded-[12px] bg-foreground px-5 py-5 text-background md:grid-cols-[1.35fr_1fr] md:px-7 md:py-6">
-      <div>
-        <p className="label-micro mb-2 text-background/55">{messages.schedule.yourCoachProgram}</p>
-        <h2 className="text-[26px] font-semibold leading-tight tracking-[-0.015em]">{messages.schedule.currentTrainingBlock}</h2>
-        <p className="mt-1.5 font-mono text-xs text-background/70 tnum">
-          {messages.schedule.assignedByCoach(daysPerWeek, coachWorkouts.length)}
-        </p>
-        <p className="mt-3 max-w-md text-[13px] leading-relaxed text-background/70">
-          {messages.schedule.coachAssignedCopy}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="secondary" className="border-background/15 bg-background/10 text-background hover:bg-background/15">
-            <Link href="/workout">{messages.schedule.viewProgram}</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost" className="text-background hover:bg-background/10 hover:text-background">
-            <Link href="/coach/find">
-              <MessageSquare className="h-3.5 w-3.5" />
-              {messages.schedule.messageCoach}
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      <div className="self-center">
-        <div className="mb-2 flex justify-between">
-          <span className="label-micro text-background/55">{messages.schedule.thisWeek}</span>
-          <span className="font-mono text-[11px] text-background tnum">
-            {completedCount}/{plannedCount}
-          </span>
-        </div>
-        <div className="h-1 overflow-hidden rounded-full bg-background/10">
-          <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${progressPct}%` }} />
-        </div>
-        <div className="mt-2 flex justify-between">
-          <span className="label-micro text-background/40">{messages.schedule.completion}</span>
-          <span className="font-mono text-[11px] text-background/60 tnum">{progressPct}%</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const SourceFilters = memo(function SourceFilters({
   showSource,
   onChange,
@@ -1373,7 +1312,6 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
       .map((workout, index) => mapWorkoutToRoutine(workout, index)),
   ], [extraRoutineLibrary, visibleWorkouts])
 
-  const coachWorkouts = useMemo(() => visibleWorkouts.filter((workout) => !workout.isPersonal), [visibleWorkouts])
   const closeReviewLabel = locale === "vi" ? "Đóng" : "Close"
   const plannedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [displayWeekEntries])
   const completedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.isCompleted).length, [displayWeekEntries])
@@ -1639,10 +1577,6 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
         </div>
         <SourceFilters showSource={showSource} onChange={setShowSource} />
       </div>
-
-      {weekOffset === 0 ? (
-        <CoachProgramCard coachWorkouts={coachWorkouts} completedCount={completedCount} plannedCount={plannedCount} />
-      ) : null}
 
       <p className="label-micro mb-3">{weekOffset === 0 ? messages.schedule.thisWeek : formatWeekRangeLabel(displayWeekStart)}</p>
       <div className="mb-8">
