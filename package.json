@@ -13,7 +13,10 @@
     "prisma:migrate": "npm --prefix backend run prisma:migrate",
     "prisma:push": "npm --prefix backend run prisma:push",
     "prisma:studio": "npm --prefix backend run prisma:studio",
+    "prisma:deploy": "npm --prefix backend run prisma:deploy",
     "prisma:validate": "npm --prefix backend run prisma:validate",
+    "seed:exercises": "npm --prefix backend run seed:exercises",
+    "seed:foods": "npm --prefix backend run seed:foods",
     "splash": "node scripts/generate-ios-splash.mjs",
     "start": "next start",
     "start:backend": "npm --prefix backend run start"
