@@ -8,6 +8,36 @@
   "orientation": "portrait",
   "background_color": "#f8fafc",
   "theme_color": "#f8fafc",
+  "shortcuts": [
+    {
+      "name": "Start Workout",
+      "short_name": "Workout",
+      "description": "Log a workout session",
+      "url": "/workout",
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Log Meal",
+      "short_name": "Meals",
+      "description": "Track your nutrition",
+      "url": "/meals",
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Progress",
+      "short_name": "Progress",
+      "description": "View your fitness progress",
+      "url": "/progress",
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Schedule",
+      "short_name": "Schedule",
+      "description": "View your weekly schedule",
+      "url": "/schedule",
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-light-32x32.png",
