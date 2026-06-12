@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "backend/**"
+      - "ecosystem.config.js"
       - ".github/workflows/deploy-backend.yml"
 
 jobs:
@@ -39,7 +40,7 @@ jobs:
             npm run build
 
             echo "==> Running migrations..."
-            npx prisma migrate deploy
+            npm run prisma:deploy
 
             echo "==> Restarting PM2..."
             cd ..
