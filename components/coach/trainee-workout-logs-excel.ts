@@ -723,11 +723,13 @@ async function downloadCoachWorkoutLogsWorkbook(
  * @param workbook  ExcelJS Workbook instance to add the sheet into.
  * @param logs      Workout logs to render.
  * @param fromDate  Reference start date in YYYY-MM-DD format (used as weekStart anchor).
+ * @param sheetName Worksheet name (defaults to "Weekly Report"; pass "Week 1" etc. for per-week splits).
  */
 async function addWeeklyReportSheet(
   workbook: import("exceljs").Workbook,
   logs: WorkoutLog[],
   fromDate: string,
+  sheetName = "Weekly Report",
 ): Promise<void> {
   if (logs.length === 0) return
 
@@ -747,7 +749,7 @@ async function addWeeklyReportSheet(
   }
 
   // Clone template sheet into the target workbook as first sheet
-  const reportSheet = workbook.addWorksheet("Weekly Report", { properties: { tabColor: { argb: "FF1A1A1A" } } })
+  const reportSheet = workbook.addWorksheet(sheetName, { properties: { tabColor: { argb: "FF1A1A1A" } } })
 
   // Copy row data & styles from template
   templateSheet.eachRow({ includeEmpty: true }, (srcRow, rowNumber) => {
@@ -771,7 +773,7 @@ async function addWeeklyReportSheet(
   })
 
   // Now fill in the data — same logic as buildCoachWorkoutLogsWorkbookFile
-  reportSheet.name = "Weekly Report"
+  reportSheet.name = sheetName
   reportSheet.getColumn(1).width = 18
 
   const styles = captureStyles(reportSheet)

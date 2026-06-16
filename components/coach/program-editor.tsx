@@ -97,7 +97,8 @@ type BuilderMode =
   | { kind: "edit-slot"; slot: PickerSlot }
   | { kind: "edit-library"; routineId: string }
 
-const WEEK_OPTIONS = [4, 6, 8, 10, 12, 16]
+const MIN_WEEKS = 1
+const MAX_WEEKS = 52
 const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
 const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
@@ -161,13 +162,11 @@ function createFormId() {
 }
 
 function clampWeeks(value: number) {
-  if (WEEK_OPTIONS.includes(value)) {
-    return value
+  if (!Number.isFinite(value)) {
+    return 8
   }
 
-  return WEEK_OPTIONS.reduce((nearest, option) =>
-    Math.abs(option - value) < Math.abs(nearest - value) ? option : nearest,
-  )
+  return Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, Math.round(value)))
 }
 
 function clampDaysPerWeek(value: number) {
@@ -695,6 +694,7 @@ export function ProgramEditor({
   const [programName, setProgramName] = useState("")
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
+  const [durationDraft, setDurationDraft] = useState("8")
   const [daysPerWeek, setDaysPerWeek] = useState("4")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
   const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
@@ -773,6 +773,7 @@ export function ProgramEditor({
           setProgramName(program.name)
           setDescription(program.description ?? "")
           setDuration(String(nextWeeks))
+          setDurationDraft(String(nextWeeks))
           setDaysPerWeek(String(nextDaysPerWeek))
           setDifficulty(program.difficulty)
           setSelectedTraineeIds(
@@ -827,10 +828,12 @@ export function ProgramEditor({
     )
   }, [clientQuery, traineeOptions])
 
-  const handleDurationChange = (nextValue: string) => {
-    const nextWeeks = Number(nextValue)
+  const commitDuration = (rawValue: string) => {
+    const parsed = Number(rawValue)
+    const nextWeeks = rawValue.trim() && Number.isFinite(parsed) ? clampWeeks(parsed) : totalWeeks
 
-    setDuration(nextValue)
+    setDuration(String(nextWeeks))
+    setDurationDraft(String(nextWeeks))
     setSchedule((current) => resizeSchedule(current, nextWeeks, totalDaysPerWeek))
     setActiveWeek((current) => Math.min(current, nextWeeks - 1))
   }
@@ -1098,23 +1101,34 @@ export function ProgramEditor({
               placeholder={messages.coach.programNamePlaceholder}
               className="bg-background"
             />
-            <Select value={duration} onValueChange={handleDurationChange}>
-              <SelectTrigger className="bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                {WEEK_OPTIONS.map((weekCount) => (
-                  <SelectItem key={weekCount} value={String(weekCount)}>
-                    {messages.coach.weeks(weekCount)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={MIN_WEEKS}
+                max={MAX_WEEKS}
+                value={durationDraft}
+                onChange={(event) => setDurationDraft(event.target.value)}
+                onBlur={(event) => commitDuration(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                    commitDuration(event.currentTarget.value)
+                    event.currentTarget.blur()
+                  }
+                }}
+                aria-label={messages.coach.weeks(totalWeeks)}
+                className="bg-background pr-14 tnum"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                {messages.coach.weeksUnit}
+              </span>
+            </div>
             <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
               <SelectTrigger className="bg-background">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="border-border bg-card">
+              <SelectContent className="z-[90] border-border bg-card">
                 {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
                   <SelectItem key={dayCount} value={String(dayCount)}>
                     {messages.coach.daysPerWeek(dayCount)}
@@ -1126,7 +1140,7 @@ export function ProgramEditor({
               <SelectTrigger className="bg-background capitalize">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="border-border bg-card">
+              <SelectContent className="z-[90] border-border bg-card">
                 {DIFFICULTY_OPTIONS.map((option) => (
                   <SelectItem key={option} value={option} className="capitalize">
                     {option}
