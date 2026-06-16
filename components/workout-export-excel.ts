@@ -16,6 +16,12 @@ export type WorkoutExportOptions = {
   to: string
   /** Optional: shown in filename and as "Client:" line */
   subjectName?: string
+  /**
+   * When set (YYYY-MM-DD = the trainee's program start date), the export splits
+   * logs into one "Week N" sheet per week that has logs, numbered relative to
+   * this start date. Weeks without any logs are skipped.
+   */
+  programStartDate?: string
 }
 
 type ExportFile = {
@@ -46,6 +52,60 @@ function formatDuration(mins?: number | null) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Parse a YYYY-MM-DD string as local noon (avoids DST off-by-one), or null. */
+function parseLocalDateNoon(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0)
+}
+
+function toLocalISODate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+type ProgramWeekGroup = {
+  logs: WorkoutLog[]
+  weekNumber: number
+  weekStart: string
+}
+
+/**
+ * Group logs into program weeks. Week N covers [start + (N-1)*7, start + N*7),
+ * numbered from `programStartDate`. Weeks with no logs are omitted; logs dated
+ * before the program start are skipped.
+ */
+function groupLogsByProgramWeek(logs: WorkoutLog[], programStartDate: string): ProgramWeekGroup[] {
+  const start = parseLocalDateNoon(programStartDate)
+  if (!start) return []
+
+  const byWeek = new Map<number, WorkoutLog[]>()
+
+  for (const log of logs) {
+    const logDate = new Date(log.startedAt)
+    const logNoon = new Date(logDate.getFullYear(), logDate.getMonth(), logDate.getDate(), 12, 0, 0, 0)
+    const diffDays = Math.round((logNoon.getTime() - start.getTime()) / DAY_MS)
+    if (diffDays < 0) continue
+
+    const weekIndex = Math.floor(diffDays / 7)
+    const bucket = byWeek.get(weekIndex) ?? []
+    bucket.push(log)
+    byWeek.set(weekIndex, bucket)
+  }
+
+  return Array.from(byWeek.entries())
+    .sort(([leftWeek], [rightWeek]) => leftWeek - rightWeek)
+    .map(([weekIndex, weekLogs]) => {
+      const weekStartDate = new Date(start)
+      weekStartDate.setDate(weekStartDate.getDate() + weekIndex * 7)
+      return { logs: weekLogs, weekNumber: weekIndex + 1, weekStart: toLocalISODate(weekStartDate) }
+    })
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function downloadWorkoutLogs(logs: WorkoutLog[], options: WorkoutExportOptions) {
@@ -67,14 +127,29 @@ export async function buildWorkoutLogsFile(logs: WorkoutLog[], options: WorkoutE
   workbook.creator = "YeahBuddy"
   workbook.created = new Date()
 
-  // Sheet 1: Weekly Report (template-based)
+  // Sheet 1+: Weekly Report (template-based)
   const { addWeeklyReportSheet } = await import("@/components/coach/trainee-workout-logs-excel")
-  await addWeeklyReportSheet(workbook, logs, options.from)
 
-  // Sheet 2: Sessions summary
+  if (options.programStartDate) {
+    // Program mode: one "Week N" sheet per week that has logs.
+    const weeks = groupLogsByProgramWeek(logs, options.programStartDate)
+
+    if (weeks.length > 0) {
+      for (const week of weeks) {
+        await addWeeklyReportSheet(workbook, week.logs, week.weekStart, `Week ${week.weekNumber}`)
+      }
+    } else {
+      // No logs fell on/after the program start — keep a single report as fallback.
+      await addWeeklyReportSheet(workbook, logs, options.from)
+    }
+  } else {
+    await addWeeklyReportSheet(workbook, logs, options.from)
+  }
+
+  // Sessions summary (whole range)
   buildSessionsSheet(workbook, logs, options)
 
-  // Sheet 3: Raw Sets
+  // Raw Sets (whole range)
   buildRawSetsSheet(workbook, logs)
 
   const safeLabel = sanitizeSegment(options.label) || "export"

@@ -4395,24 +4395,29 @@ async function updateCoachProgram(
     )
     const previouslyAssignedUserIds = new Set(existingProgram.assignments.map((assignment) => assignment.userId))
     const notifiedUserIds = assignToUserIds.filter((userId) => previouslyAssignedUserIds.has(userId))
-    // Preserve the original assignedAt for trainees who stay assigned: export
-    // date windows are anchored on assignedAt, so resetting it to now() on every
-    // program edit would push the window forward and exclude historical logs.
-    const assignedAtByUserId = new Map(
-      existingProgram.assignments.map((assignment) => [assignment.userId, assignment.assignedAt]),
+    // Preserve `assignedAt` for trainees who stay assigned: only remove dropped
+    // assignments and insert genuinely new ones. Deleting + recreating all of
+    // them would reset every trainee's program start date to now(), which
+    // corrupts weekly-schedule windowing and log-export date ranges.
+    const removedUserIds = Array.from(previouslyAssignedUserIds).filter(
+      (userId) => !assignToUserIds.includes(userId),
     )
+    const newlyAssignedUserIds = assignToUserIds.filter((userId) => !previouslyAssignedUserIds.has(userId))
 
-    await tx.programAssignment.deleteMany({
-      where: {
-        programId: existingProgram.id,
-      },
-    })
+    if (removedUserIds.length > 0) {
+      await tx.programAssignment.deleteMany({
+        where: {
+          programId: existingProgram.id,
+          userId: {
+            in: removedUserIds,
+          },
+        },
+      })
+    }
 
-    if (assignToUserIds.length > 0) {
+    if (newlyAssignedUserIds.length > 0) {
       await tx.programAssignment.createMany({
-        data: assignToUserIds.map((userId) => ({
-          // Newly added trainees fall through to the column default (now()).
-          assignedAt: assignedAtByUserId.get(userId),
+        data: newlyAssignedUserIds.map((userId) => ({
           programId: existingProgram.id,
           userId,
         })),
