@@ -1,16 +1,19 @@
 "use client"
 
+import { useRef } from "react"
+
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { buildPlannedSessions, type PlannedSession } from "@/components/workout-export-excel"
 import {
   WorkoutExportDialog,
   type ExportContext,
   type ExportSelection,
   type ResolvedExportRange,
 } from "@/components/workout/workout-export-dialog"
-import { exportCoachWorkoutLogsToGoogleSheets, fetchCoachWorkoutLogs } from "@/lib/fitness/api"
+import { exportCoachWorkoutLogsToGoogleSheets, fetchCoachProgram, fetchCoachWorkoutLogs } from "@/lib/fitness/api"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
-import type { AssignedTrainee } from "@/lib/fitness/types"
+import type { AssignedTrainee, CoachProgram } from "@/lib/fitness/types"
 
 type ExportProgramLogsDialogProps = {
   assignedTrainees: AssignedTrainee[]
@@ -47,10 +50,12 @@ async function loadAllCoachLogs(
 export function ExportProgramLogsDialog({
   assignedTrainees,
   programDuration,
+  programId,
   programName,
 }: ExportProgramLogsDialogProps) {
   const { session } = useAuth()
   const { messages } = useLocale()
+  const programRef = useRef<CoachProgram | null>(null)
 
   if (assignedTrainees.length === 0) return null
 
@@ -89,6 +94,20 @@ export function ExportProgramLogsDialog({
     })
   }
 
+  // Planned schedule from the program, anchored to the selected trainee's start.
+  const resolvePlannedSessions = async (selection: ExportSelection): Promise<PlannedSession[]> => {
+    if (!session?.access_token) return []
+    const trainee = assignedTrainees.find((candidate) => candidate.id === selection.subjectId)
+    if (!trainee) return []
+
+    if (!programRef.current) {
+      programRef.current = await fetchCoachProgram(session.access_token, programId)
+    }
+
+    const start = formatDateToISO(getProgramStartDate(trainee.assignedAt, programDuration))
+    return buildPlannedSessions(programRef.current.workouts, start)
+  }
+
   return (
     <WorkoutExportDialog
       defaultMode="program"
@@ -97,6 +116,7 @@ export function ExportProgramLogsDialog({
       dialogOverlayClassName="z-[85]"
       exportToSheets={exportToSheets}
       loadLogs={loadLogs}
+      resolvePlannedSessions={resolvePlannedSessions}
       resolveProgramRange={resolveProgramRange}
       subjectPlaceholder={messages.workoutPage.exportSelectTraineePlaceholder}
       subjectSelectLabel={messages.workoutPage.exportSelectTrainee}

@@ -4,6 +4,7 @@ export {
   createCoachProgram,
   deleteCoachProgram,
   getCoachProgramDetail,
+  getTraineeProgramDetail,
   listCoachPrograms,
   unassignCoachProgramFromTrainee,
   updateCoachProgram,
