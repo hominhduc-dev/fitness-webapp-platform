@@ -26,6 +26,7 @@ async function loadAllCoachLogs(
   accessToken: string,
   traineeId: string,
   from: string,
+  programId: string,
   to: string,
 ) {
   const allLogs: Awaited<ReturnType<typeof fetchCoachWorkoutLogs>>["logs"] = []
@@ -36,6 +37,7 @@ async function loadAllCoachLogs(
       cursor,
       from,
       limit: 50,
+      programId,
       to,
     })
     allLogs.push(...result.logs)
@@ -78,11 +80,12 @@ export function ExportProgramLogsDialog({
     return { from, label: programName, programStartDate: from, to }
   }
 
-  // Program export is scoped by the assignment date window rather than
-  // programId, because editing a program can orphan historical workout logs.
+  // Program export is scoped by both programId and the assignment date window.
+  // The backend still includes legacy null-program logs inside the date window,
+  // but logs from other programs are excluded.
   const loadLogs = async (context: ExportContext) => {
     if (!session?.access_token || !context.subjectId) return []
-    return loadAllCoachLogs(session.access_token, context.subjectId, context.range.from, context.range.to)
+    return loadAllCoachLogs(session.access_token, context.subjectId, context.range.from, programId, context.range.to)
   }
 
   const exportToSheets = async (context: ExportContext) => {
@@ -90,6 +93,7 @@ export function ExportProgramLogsDialog({
     return exportCoachWorkoutLogsToGoogleSheets(session.access_token, context.subjectId, {
       from: context.range.from,
       label: context.range.label,
+      programId,
       to: context.range.to,
     })
   }

@@ -16,6 +16,7 @@ import type { Workout, WorkoutLog } from "@/lib/types"
  */
 export type PlannedSession = {
   date: string
+  programId?: string
   workout: Workout
 }
 
@@ -90,6 +91,127 @@ function localDateKey(date: Date) {
   return toLocalISODate(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0))
 }
 
+function normalizeId(value?: string | null) {
+  return value?.trim() ?? ""
+}
+
+function normalizeName(value?: string | null) {
+  return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? ""
+}
+
+function workoutProgramId(workout?: Workout | null) {
+  return normalizeId(workout?.programId)
+}
+
+function logPlannedDateKey(log: WorkoutLog) {
+  return log.plannedDate ? localDateKey(new Date(log.plannedDate)) : localDateKey(new Date(log.startedAt))
+}
+
+function buildPlannedSessionMatchKey(planned: PlannedSession) {
+  return [
+    planned.date,
+    normalizeId(planned.workout.id),
+    normalizeId(planned.programId) || workoutProgramId(planned.workout),
+  ].join("|")
+}
+
+function buildWorkoutLogPlannedMatchKey(log: WorkoutLog) {
+  return [
+    logPlannedDateKey(log),
+    normalizeId(log.workout?.id),
+    normalizeId(log.programId) || workoutProgramId(log.workout),
+  ].join("|")
+}
+
+function buildPlannedSessionWorkoutDateKey(planned: PlannedSession) {
+  return [planned.date, normalizeId(planned.workout.id)].join("|")
+}
+
+function buildWorkoutLogWorkoutDateKey(log: WorkoutLog) {
+  return [logPlannedDateKey(log), normalizeId(log.workout?.id)].join("|")
+}
+
+function buildPlannedSessionNameDateKey(planned: PlannedSession) {
+  return [planned.date, normalizeName(planned.workout.name)].join("|")
+}
+
+function buildWorkoutLogNameDateKey(log: WorkoutLog) {
+  return [logPlannedDateKey(log), normalizeName(log.workout?.name)].join("|")
+}
+
+function plannedProgramId(planned: PlannedSession) {
+  return normalizeId(planned.programId) || workoutProgramId(planned.workout)
+}
+
+function logProgramId(log: WorkoutLog) {
+  return normalizeId(log.programId) || workoutProgramId(log.workout)
+}
+
+function buildPlannedOccurrenceKey(planned: PlannedSession) {
+  const programId = plannedProgramId(planned)
+  return programId ? `${planned.date}|${programId}` : ""
+}
+
+function buildWorkoutLogOccurrenceKey(log: WorkoutLog) {
+  const programId = logProgramId(log)
+  return programId ? `${logPlannedDateKey(log)}|${programId}` : ""
+}
+
+function buildPlannedOccurrenceCounts(plannedSessions: PlannedSession[]) {
+  return plannedSessions.reduce<Map<string, number>>((counts, planned) => {
+    const key = buildPlannedOccurrenceKey(planned)
+    if (!key) return counts
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+    return counts
+  }, new Map())
+}
+
+function buildPlannedNameDateCounts(plannedSessions: PlannedSession[]) {
+  return plannedSessions.reduce<Map<string, number>>((counts, planned) => {
+    const key = buildPlannedSessionNameDateKey(planned)
+    if (!key || key.endsWith("|")) return counts
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+    return counts
+  }, new Map())
+}
+
+function hasMatchingLogForPlannedSession(
+  planned: PlannedSession,
+  indexes: {
+    loggedExactKeys: Set<string>
+    loggedNameDateKeys: Set<string>
+    loggedOccurrenceKeys: Set<string>
+    loggedWorkoutDateKeys: Set<string>
+    plannedNameDateCounts: Map<string, number>
+    plannedOccurrenceCounts: Map<string, number>
+  },
+) {
+  if (indexes.loggedExactKeys.has(buildPlannedSessionMatchKey(planned))) return true
+  if (indexes.loggedWorkoutDateKeys.has(buildPlannedSessionWorkoutDateKey(planned))) return true
+
+  // Program updates can recreate workout IDs. When the program/date has exactly
+  // one planned session, a log with the same plannedDate + programId is the same
+  // occurrence even if the old snapshot workoutId differs from the current plan.
+  const occurrenceKey = buildPlannedOccurrenceKey(planned)
+  const matchedByOccurrence = Boolean(
+    occurrenceKey &&
+      indexes.plannedOccurrenceCounts.get(occurrenceKey) === 1 &&
+      indexes.loggedOccurrenceKeys.has(occurrenceKey),
+  )
+
+  if (matchedByOccurrence) return true
+
+  // Legacy logs from before programId preservation can have programId/workoutId
+  // cleared, but still carry the plannedDate and workout name snapshot.
+  const nameDateKey = buildPlannedSessionNameDateKey(planned)
+  return Boolean(
+    nameDateKey &&
+      !nameDateKey.endsWith("|") &&
+      indexes.plannedNameDateCounts.get(nameDateKey) === 1 &&
+      indexes.loggedNameDateKeys.has(nameDateKey),
+  )
+}
+
 /** Monday (local noon) of the week containing `date`. */
 function startOfMondayWeek(date: Date) {
   const result = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
@@ -124,7 +246,7 @@ export function buildPlannedSessions(workouts: Workout[], programStartISO: strin
       const offset = mondayOffset(workout.scheduledDay ?? 1)
       const date = new Date(baseMonday)
       date.setDate(date.getDate() + weekIndex * 7 + offset)
-      return { date: toLocalISODate(date), workout }
+      return { date: toLocalISODate(date), programId: workout.programId, workout }
     })
 }
 
@@ -146,8 +268,10 @@ function plannedSessionToSyntheticLog(planned: PlannedSession): WorkoutLog {
       })),
     })),
     id: `planned-${planned.date}-${planned.workout.id}`,
+    isPlannedPlaceholder: true,
     notes: "",
     plannedDate: startedAt,
+    programId: planned.programId ?? planned.workout.programId,
     startedAt,
     totalVolume: undefined,
     workout: planned.workout,
@@ -181,15 +305,21 @@ function buildProgramWeekSheets(
     return Math.round((monday.getTime() - baseMonday.getTime()) / (7 * DAY_MS))
   }
 
-  const byWeek = new Map<number, { loggedDays: Set<string>; logs: WorkoutLog[] }>()
+  const byWeek = new Map<number, { loggedPlannedKeys: Set<string>; logs: WorkoutLog[] }>()
+  const plannedOccurrenceCounts = buildPlannedOccurrenceCounts(plannedSessions)
+  const plannedNameDateCounts = buildPlannedNameDateCounts(plannedSessions)
   const ensureWeek = (weekIndex: number) => {
     let entry = byWeek.get(weekIndex)
     if (!entry) {
-      entry = { loggedDays: new Set(), logs: [] }
+      entry = { loggedPlannedKeys: new Set(), logs: [] }
       byWeek.set(weekIndex, entry)
     }
     return entry
   }
+
+  const loggedWorkoutDateKeysByWeek = new Map<number, Set<string>>()
+  const loggedOccurrenceKeysByWeek = new Map<number, Set<string>>()
+  const loggedNameDateKeysByWeek = new Map<number, Set<string>>()
 
   for (const log of logs) {
     const date = new Date(log.startedAt)
@@ -197,7 +327,22 @@ function buildProgramWeekSheets(
     if (weekIndex < 0) continue
     const entry = ensureWeek(weekIndex)
     entry.logs.push(log)
-    entry.loggedDays.add(localDateKey(date))
+    entry.loggedPlannedKeys.add(buildWorkoutLogPlannedMatchKey(log))
+
+    const workoutDateKeys = loggedWorkoutDateKeysByWeek.get(weekIndex) ?? new Set<string>()
+    workoutDateKeys.add(buildWorkoutLogWorkoutDateKey(log))
+    loggedWorkoutDateKeysByWeek.set(weekIndex, workoutDateKeys)
+
+    const nameDateKeys = loggedNameDateKeysByWeek.get(weekIndex) ?? new Set<string>()
+    nameDateKeys.add(buildWorkoutLogNameDateKey(log))
+    loggedNameDateKeysByWeek.set(weekIndex, nameDateKeys)
+
+    const occurrenceKey = buildWorkoutLogOccurrenceKey(log)
+    if (occurrenceKey) {
+      const occurrenceKeys = loggedOccurrenceKeysByWeek.get(weekIndex) ?? new Set<string>()
+      occurrenceKeys.add(occurrenceKey)
+      loggedOccurrenceKeysByWeek.set(weekIndex, occurrenceKeys)
+    }
   }
 
   for (const planned of plannedSessions) {
@@ -205,7 +350,18 @@ function buildProgramWeekSheets(
     const weekIndex = weekIndexOf(date)
     if (weekIndex < 0) continue
     const entry = ensureWeek(weekIndex)
-    if (entry.loggedDays.has(planned.date)) continue
+    if (
+      hasMatchingLogForPlannedSession(planned, {
+        loggedExactKeys: entry.loggedPlannedKeys,
+        loggedNameDateKeys: loggedNameDateKeysByWeek.get(weekIndex) ?? new Set(),
+        loggedOccurrenceKeys: loggedOccurrenceKeysByWeek.get(weekIndex) ?? new Set(),
+        loggedWorkoutDateKeys: loggedWorkoutDateKeysByWeek.get(weekIndex) ?? new Set(),
+        plannedNameDateCounts,
+        plannedOccurrenceCounts,
+      })
+    ) {
+      continue
+    }
     entry.logs.push(plannedSessionToSyntheticLog(planned))
   }
 
@@ -266,10 +422,26 @@ export async function buildWorkoutLogsFile(logs: WorkoutLog[], options: WorkoutE
       await addWeeklyReportSheet(workbook, logs, options.from)
     }
   } else {
-    // Single weekly report (e.g. Week mode): merge planned-but-unlogged days.
-    const loggedDays = new Set(logs.map((log) => localDateKey(new Date(log.startedAt))))
+    // Single weekly report (e.g. Week mode): merge planned sessions only when
+    // the actual log matches the same plannedDate + workoutId + programId.
+    const loggedPlannedKeys = new Set(logs.map(buildWorkoutLogPlannedMatchKey))
+    const loggedNameDateKeys = new Set(logs.map(buildWorkoutLogNameDateKey))
+    const loggedOccurrenceKeys = new Set(logs.map(buildWorkoutLogOccurrenceKey).filter(Boolean))
+    const loggedWorkoutDateKeys = new Set(logs.map(buildWorkoutLogWorkoutDateKey))
+    const plannedNameDateCounts = buildPlannedNameDateCounts(plannedInWindow)
+    const plannedOccurrenceCounts = buildPlannedOccurrenceCounts(plannedInWindow)
     const syntheticLogs = plannedInWindow
-      .filter((planned) => !loggedDays.has(planned.date))
+      .filter(
+        (planned) =>
+          !hasMatchingLogForPlannedSession(planned, {
+            loggedExactKeys: loggedPlannedKeys,
+            loggedNameDateKeys,
+            loggedOccurrenceKeys,
+            loggedWorkoutDateKeys,
+            plannedNameDateCounts,
+            plannedOccurrenceCounts,
+          }),
+      )
       .map(plannedSessionToSyntheticLog)
     await addWeeklyReportSheet(workbook, [...logs, ...syntheticLogs], options.from)
   }

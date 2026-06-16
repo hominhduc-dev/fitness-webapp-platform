@@ -113,6 +113,7 @@ type SerializedWorkout = {
   kind?: string
   name: string
   notes?: string
+  programId?: string | null
   scheduledDay?: number
   scheduledDate?: string
   weekIndex?: number
@@ -135,6 +136,7 @@ type SerializedWorkoutLog = {
   id: string
   notes?: string
   plannedDate?: string | null
+  programId?: string | null
   startedAt: string
   totalVolume?: number
   workout: SerializedWorkout
@@ -625,6 +627,7 @@ function mapWorkout(workout: SerializedWorkout): Workout {
     kind: workout.kind as Workout["kind"],
     name: workout.name,
     notes: workout.notes,
+    programId: workout.programId ?? undefined,
     scheduledDay: workout.scheduledDay,
     scheduledDate: parseScheduledDate(workout.scheduledDate),
     weekIndex: workout.weekIndex,
@@ -647,6 +650,7 @@ function mapWorkoutLog(log: SerializedWorkoutLog): WorkoutLog {
     id: log.id,
     notes: log.notes,
     plannedDate: parseScheduledDate(log.plannedDate ?? undefined),
+    programId: log.programId ?? undefined,
     startedAt: new Date(log.startedAt),
     totalVolume: log.totalVolume,
     workout: mapWorkout(log.workout),
