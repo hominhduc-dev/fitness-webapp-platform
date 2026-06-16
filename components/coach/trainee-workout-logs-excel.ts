@@ -211,9 +211,13 @@ function buildChunkNote(
   const parts: string[] = []
 
   if (options.isFirstSessionRow) {
-    parts.push(`Session ${formatSessionTimestamp(log.startedAt)}`)
+    if (log.isPlannedPlaceholder) {
+      parts.push("Planned - not logged")
+    } else {
+      parts.push(`Session ${formatSessionTimestamp(log.startedAt)}`)
+    }
 
-    if (log.notes?.trim()) {
+    if (!log.isPlannedPlaceholder && log.notes?.trim()) {
       parts.push(`Session note: ${log.notes.trim()}`)
     }
   }

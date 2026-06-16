@@ -109,6 +109,7 @@ export interface Workout {
   id: string
   hasCoachUpdate?: boolean
   isPersonal?: boolean
+  programId?: string
   kind?: WorkoutKind
   name: string
   exercises: WorkoutExercise[]
@@ -133,6 +134,8 @@ export interface WorkoutLogComment {
 export interface WorkoutLog {
   id: string
   workout: Workout
+  isPlannedPlaceholder?: boolean
+  programId?: string
   plannedDate?: Date
   startedAt: Date
   completedAt?: Date

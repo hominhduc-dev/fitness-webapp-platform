@@ -114,7 +114,7 @@ const PROGRAM_INCLUDE = {
   },
   workouts: {
     include: WORKOUT_INCLUDE,
-    orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ weekIndex: "asc" }, { scheduledDay: "asc" }, { createdAt: "asc" }],
   },
 } satisfies Prisma.ProgramInclude
 
@@ -280,6 +280,7 @@ type CoachProgramInput = {
     }>
     name: string
     scheduledDay?: number
+    scheduledDate?: string
     weekIndex?: number
   }>
 }
@@ -621,6 +622,7 @@ function serializeWorkout(
     kind: workout.kind ?? undefined,
     name: workout.name,
     notes: workout.notes ?? undefined,
+    programId: workout.programId ?? undefined,
     scheduledDay: workout.scheduledDay ?? undefined,
     scheduledDate: workout.scheduledDate ? formatUtcDateOnly(workout.scheduledDate) : undefined,
     weekIndex: workout.weekIndex ?? undefined,
@@ -697,19 +699,85 @@ function readCoachUpdatesByWorkoutIdFromMetadata(metadata: Prisma.JsonValue | nu
   return updatesByWorkoutId
 }
 
+function normalizeWorkoutWeekIndex(value?: number | null) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : null
+}
+
+function normalizeWorkoutScheduledDay(value?: number | null) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null
+}
+
+function normalizeWorkoutScheduledDate(value?: Date | string | null) {
+  if (!value) return null
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : formatUtcDateOnly(value)
+  }
+
+  const parsed = parseScheduledDateInput(value)
+  return parsed ? formatUtcDateOnly(parsed) : null
+}
+
+function getWorkoutOccurrenceKey(workout: { scheduledDay?: number | null; scheduledDate?: Date | string | null; weekIndex?: number | null }) {
+  const scheduledDate = normalizeWorkoutScheduledDate(workout.scheduledDate)
+  if (scheduledDate) return `date:${scheduledDate}`
+
+  const weekIndex = normalizeWorkoutWeekIndex(workout.weekIndex)
+  const scheduledDay = normalizeWorkoutScheduledDay(workout.scheduledDay)
+  if (weekIndex == null || scheduledDay == null) return undefined
+
+  return `week:${weekIndex}|day:${scheduledDay}`
+}
+
+function buildReusableWorkoutIdsForProgramInput(
+  previousProgram: ProgramRecord,
+  nextWorkouts: CoachProgramInput["workouts"],
+) {
+  const previousByOccurrence = previousProgram.workouts.reduce<Map<string, WorkoutRecord[]>>((map, workout) => {
+    const key = getWorkoutOccurrenceKey(workout)
+    if (!key) return map
+    const matches = map.get(key) ?? []
+    matches.push(workout as WorkoutRecord)
+    map.set(key, matches)
+    return map
+  }, new Map())
+
+  return nextWorkouts.map((workout) => {
+    const key = getWorkoutOccurrenceKey({
+      scheduledDay: workout.scheduledDay ?? null,
+      scheduledDate: workout.scheduledDate ?? null,
+      weekIndex: workout.weekIndex ?? null,
+    })
+    if (!key) return undefined
+
+    const matches = previousByOccurrence.get(key)
+    return matches?.shift()?.id
+  })
+}
+
 function findPreviousWorkoutForCoachUpdate(
-  currentWorkout: { name: string; scheduledDay: number | null },
+  currentWorkout: { name: string; scheduledDay: number | null; scheduledDate?: Date | string | null; weekIndex?: number | null },
   previousProgram: ProgramRecord,
 ) {
   const currentName = normalizeProgramMatchLabel(currentWorkout.name)
+  const currentOccurrenceKey = getWorkoutOccurrenceKey(currentWorkout)
+  const byOccurrence = currentOccurrenceKey
+    ? previousProgram.workouts.find((workout) => getWorkoutOccurrenceKey(workout) === currentOccurrenceKey)
+    : undefined
+  if (byOccurrence) return byOccurrence
+
   const byScheduleAndName = previousProgram.workouts.find(
     (workout) =>
+      (workout.weekIndex ?? null) === (currentWorkout.weekIndex ?? null) &&
       workout.scheduledDay === currentWorkout.scheduledDay &&
       normalizeProgramMatchLabel(workout.name) === currentName,
   )
   if (byScheduleAndName) return byScheduleAndName
 
-  const bySchedule = previousProgram.workouts.find((workout) => workout.scheduledDay === currentWorkout.scheduledDay)
+  const bySchedule = previousProgram.workouts.find(
+    (workout) =>
+      (workout.weekIndex ?? null) === (currentWorkout.weekIndex ?? null) &&
+      workout.scheduledDay === currentWorkout.scheduledDay,
+  )
   if (bySchedule) return bySchedule
 
   return previousProgram.workouts.find((workout) => normalizeProgramMatchLabel(workout.name) === currentName)
@@ -931,6 +999,8 @@ function hasWorkoutInputChanged(
   if ((previousWorkout.name.trim() || "") !== (nextWorkout.name.trim() || "")) return true
   if ((previousWorkout.duration ?? undefined) !== (nextWorkout.duration ? Math.max(1, Math.round(nextWorkout.duration)) : undefined)) return true
   if ((previousWorkout.scheduledDay ?? undefined) !== nextWorkout.scheduledDay) return true
+  if ((previousWorkout.weekIndex ?? undefined) !== (nextWorkout.weekIndex == null ? undefined : normalizeWorkoutWeekIndex(nextWorkout.weekIndex) ?? undefined)) return true
+  if (normalizeWorkoutScheduledDate(previousWorkout.scheduledDate) !== normalizeWorkoutScheduledDate(nextWorkout.scheduledDate ?? null)) return true
 
   const previousExercises = previousWorkout.exercises.slice().sort((left, right) => left.order - right.order)
   if (previousExercises.length !== nextWorkout.exercises.length) return true
@@ -971,6 +1041,8 @@ function buildUpdatedWorkoutIdsForProgramInput(
     const previousWorkout = findPreviousWorkoutForCoachUpdate({
       name: nextWorkout.name,
       scheduledDay: nextWorkout.scheduledDay ?? null,
+      scheduledDate: nextWorkout.scheduledDate ?? null,
+      weekIndex: nextWorkout.weekIndex ?? null,
     }, previousProgram)
 
     if (!previousWorkout || hasWorkoutInputChanged(previousWorkout as WorkoutRecord, nextWorkout)) {
@@ -996,6 +1068,8 @@ function buildCoachUpdatePayloadForProgramInput(
     const previousWorkout = findPreviousWorkoutForCoachUpdate({
       name: nextWorkout.name,
       scheduledDay: nextWorkout.scheduledDay ?? null,
+      scheduledDate: nextWorkout.scheduledDate ?? null,
+      weekIndex: nextWorkout.weekIndex ?? null,
     }, previousProgram)
     const previousExercises = previousWorkout
       ? previousWorkout.exercises.slice().sort((left, right) => left.order - right.order)
@@ -1274,6 +1348,7 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
           id?: string
           name?: string
           notes?: string
+          programId?: string
           scheduledDate?: string
           scheduledDay?: number
         })
@@ -1291,6 +1366,7 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
     id: log.id,
     notes: log.notes ?? undefined,
     plannedDate: log.plannedDate ? formatUtcDateOnly(log.plannedDate) : undefined,
+    programId: log.programId ?? snapshotWorkout?.programId,
     startedAt: log.startedAt,
     totalVolume: log.totalVolume ?? undefined,
     workout: log.workout
@@ -1301,6 +1377,7 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
           id: snapshotWorkout?.id ?? log.workoutId ?? log.id,
           name: snapshotWorkout?.name ?? "Workout",
           notes: snapshotWorkout?.notes,
+          programId: snapshotWorkout?.programId,
           scheduledDate: snapshotWorkout?.scheduledDate,
           scheduledDay: snapshotWorkout?.scheduledDay,
         },
@@ -1853,20 +1930,26 @@ function normalizeRepTarget(reps: number, repsMin?: number | null, contextLabel?
   }
 }
 
-function buildProgramTreeCreateManyData(programId: string, workouts: CoachProgramInput["workouts"]) {
+function buildProgramTreeCreateManyData(
+  programId: string,
+  workouts: CoachProgramInput["workouts"],
+  options?: { workoutIds?: Array<string | undefined> },
+) {
   const workoutRows: Prisma.WorkoutCreateManyInput[] = []
   const exerciseRows: Prisma.WorkoutExerciseCreateManyInput[] = []
   const setRows: Prisma.ExerciseSetCreateManyInput[] = []
 
   workouts.forEach((workout, workoutIndex) => {
-    const workoutId = randomUUID()
+    const workoutId = options?.workoutIds?.[workoutIndex] ?? randomUUID()
     const workoutName = workout.name.trim() || `Day ${workoutIndex + 1}`
+    const scheduledDate = workout.scheduledDate ? parseScheduledDateInput(workout.scheduledDate) : undefined
 
     workoutRows.push({
       duration: workout.duration ? Math.max(1, Math.round(workout.duration)) : undefined,
       id: workoutId,
       name: workoutName,
       programId,
+      scheduledDate,
       scheduledDay: typeof workout.scheduledDay === "number" ? workout.scheduledDay : undefined,
       weekIndex:
         typeof workout.weekIndex === "number" && Number.isFinite(workout.weekIndex)
@@ -1917,6 +2000,171 @@ function buildProgramTreeCreateManyData(programId: string, workouts: CoachProgra
     setRows,
     workoutRows,
   }
+}
+
+function addProgramIdToWorkoutSnapshot(snapshot: Prisma.JsonValue | null, programId: string) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return undefined
+  }
+
+  const snapshotObject = snapshot as Record<string, Prisma.JsonValue>
+  if (snapshotObject.programId === programId) {
+    return undefined
+  }
+
+  return {
+    ...snapshotObject,
+    programId,
+  } satisfies Prisma.InputJsonObject
+}
+
+function getWorkoutSnapshotName(snapshot: Prisma.JsonValue | null) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return undefined
+
+  const name = (snapshot as { name?: unknown }).name
+  return typeof name === "string" ? normalizeProgramMatchLabel(name) : undefined
+}
+
+async function backfillWorkoutLogProgramContextForWorkouts(
+  tx: Prisma.TransactionClient,
+  programId: string,
+  workoutIds: string[],
+) {
+  if (workoutIds.length === 0) return
+
+  const logs = await tx.workoutLog.findMany({
+    select: {
+      id: true,
+      programId: true,
+      workoutSnapshot: true,
+    },
+    where: {
+      workoutId: {
+        in: workoutIds,
+      },
+    },
+  })
+
+  await Promise.all(
+    logs.map((log) => {
+      const workoutSnapshot = addProgramIdToWorkoutSnapshot(log.workoutSnapshot, programId)
+      const data: Prisma.WorkoutLogUpdateInput = {}
+
+      if (!log.programId) {
+        data.programId = programId
+      }
+
+      if (workoutSnapshot) {
+        data.workoutSnapshot = workoutSnapshot
+      }
+
+      if (Object.keys(data).length === 0) {
+        return Promise.resolve()
+      }
+
+      return tx.workoutLog.update({
+        data,
+        where: {
+          id: log.id,
+        },
+      })
+    }),
+  )
+}
+
+async function backfillLegacyWorkoutLogProgramContextForAssignments(
+  tx: Prisma.TransactionClient,
+  programId: string,
+  assignments: ProgramRecord["assignments"],
+  workoutRows: Prisma.WorkoutCreateManyInput[],
+  durationWeeks: number,
+) {
+  if (assignments.length === 0 || workoutRows.length === 0) return
+
+  const plannedByUserAndDateName = new Map<string, true>()
+  const assignmentWindows = assignments.map((assignment) => {
+    const baseMonday = startOfUtcWeek(assignment.assignedAt)
+    const end = addUtcDays(baseMonday, Math.max(1, Math.round(durationWeeks)) * 7)
+
+    workoutRows.forEach((workout) => {
+      const workoutName = typeof workout.name === "string" ? normalizeProgramMatchLabel(workout.name) : ""
+      if (!workoutName) return
+
+      let plannedDate: Date | undefined
+      if (workout.scheduledDate instanceof Date) {
+        plannedDate = workout.scheduledDate
+      } else if (typeof workout.scheduledDate === "string") {
+        plannedDate = parseScheduledDateInput(workout.scheduledDate)
+      } else if (typeof workout.scheduledDay === "number") {
+        plannedDate = addUtcDays(
+          baseMonday,
+          (normalizeWorkoutWeekIndex(Number(workout.weekIndex)) ?? 0) * 7 +
+            (((workout.scheduledDay % 7) + 6) % 7),
+        )
+      }
+
+      if (!plannedDate) return
+      plannedByUserAndDateName.set(`${assignment.userId}|${formatUtcDateOnly(plannedDate)}|${workoutName}`, true)
+    })
+
+    return {
+      end,
+      start: baseMonday,
+      userId: assignment.userId,
+    }
+  })
+
+  const userIds = Array.from(new Set(assignmentWindows.map((window) => window.userId)))
+  const earliestStart = assignmentWindows.reduce<Date | undefined>(
+    (earliest, window) => (!earliest || window.start < earliest ? window.start : earliest),
+    undefined,
+  )
+  const latestEnd = assignmentWindows.reduce<Date | undefined>(
+    (latest, window) => (!latest || window.end > latest ? window.end : latest),
+    undefined,
+  )
+
+  if (!earliestStart || !latestEnd || userIds.length === 0) return
+
+  const logs = await tx.workoutLog.findMany({
+    select: {
+      id: true,
+      plannedDate: true,
+      userId: true,
+      workoutSnapshot: true,
+    },
+    where: {
+      plannedDate: {
+        gte: earliestStart,
+        lt: latestEnd,
+      },
+      programId: null,
+      userId: {
+        in: userIds,
+      },
+    },
+  })
+
+  await Promise.all(
+    logs.map((log) => {
+      if (!log.plannedDate) return Promise.resolve()
+      const snapshotName = getWorkoutSnapshotName(log.workoutSnapshot)
+      if (!snapshotName) return Promise.resolve()
+
+      const key = `${log.userId}|${formatUtcDateOnly(log.plannedDate)}|${snapshotName}`
+      if (!plannedByUserAndDateName.has(key)) return Promise.resolve()
+
+      return tx.workoutLog.update({
+        data: {
+          programId,
+          workoutSnapshot: addProgramIdToWorkoutSnapshot(log.workoutSnapshot, programId) ?? undefined,
+        },
+        where: {
+          id: log.id,
+        },
+      })
+    }),
+  )
 }
 
 function parseWorkoutLogSnapshotExercises(snapshot: Prisma.JsonValue | null) {
@@ -4401,7 +4649,12 @@ async function updateCoachProgram(
   }
 
   await retryTransaction(() => db.$transaction(async (tx) => {
-    const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(existingProgram.id, input.workouts)
+    const reusableWorkoutIds = buildReusableWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts)
+    const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(
+      existingProgram.id,
+      input.workouts,
+      { workoutIds: reusableWorkoutIds },
+    )
     const updatedWorkoutIds = buildUpdatedWorkoutIdsForProgramInput(
       existingProgram as ProgramRecord,
       input.workouts,
@@ -4423,6 +4676,13 @@ async function updateCoachProgram(
       (userId) => !assignToUserIds.includes(userId),
     )
     const newlyAssignedUserIds = assignToUserIds.filter((userId) => !previouslyAssignedUserIds.has(userId))
+    const existingWorkoutIds = existingProgram.workouts.map((workout) => workout.id)
+    const existingWorkoutIdSet = new Set(existingWorkoutIds)
+    const nextWorkoutIds = workoutRows.map((row) => String(row.id)).filter(Boolean)
+    const nextWorkoutIdSet = new Set(nextWorkoutIds)
+    const reusedWorkoutIds = nextWorkoutIds.filter((id) => existingWorkoutIdSet.has(id))
+    const obsoleteWorkoutIds = existingWorkoutIds.filter((id) => !nextWorkoutIdSet.has(id))
+    const newWorkoutRows = workoutRows.filter((row) => !existingWorkoutIdSet.has(String(row.id)))
 
     if (removedUserIds.length > 0) {
       await tx.programAssignment.deleteMany({
@@ -4444,11 +4704,35 @@ async function updateCoachProgram(
       })
     }
 
-    await tx.workout.deleteMany({
-      where: {
-        programId: existingProgram.id,
-      },
-    })
+    await backfillWorkoutLogProgramContextForWorkouts(tx, existingProgram.id, existingWorkoutIds)
+    await backfillLegacyWorkoutLogProgramContextForAssignments(
+      tx,
+      existingProgram.id,
+      existingProgram.assignments.filter((assignment) => !removedUserIds.includes(assignment.userId)),
+      workoutRows,
+      input.duration,
+    )
+
+    if (reusedWorkoutIds.length > 0) {
+      await tx.workoutExercise.deleteMany({
+        where: {
+          workoutId: {
+            in: reusedWorkoutIds,
+          },
+        },
+      })
+    }
+
+    if (obsoleteWorkoutIds.length > 0) {
+      await tx.workout.deleteMany({
+        where: {
+          id: {
+            in: obsoleteWorkoutIds,
+          },
+          programId: existingProgram.id,
+        },
+      })
+    }
 
     await tx.program.update({
       data: {
@@ -4463,9 +4747,28 @@ async function updateCoachProgram(
       },
     })
 
-    if (workoutRows.length > 0) {
+    await Promise.all(
+      workoutRows
+        .filter((row) => existingWorkoutIdSet.has(String(row.id)))
+        .map((row) =>
+          tx.workout.update({
+            data: {
+              duration: row.duration ?? null,
+              name: row.name,
+              scheduledDate: row.scheduledDate ?? null,
+              scheduledDay: row.scheduledDay ?? null,
+              weekIndex: row.weekIndex ?? null,
+            },
+            where: {
+              id: String(row.id),
+            },
+          }),
+        ),
+    )
+
+    if (newWorkoutRows.length > 0) {
       await tx.workout.createMany({
-        data: workoutRows,
+        data: newWorkoutRows,
       })
     }
 
