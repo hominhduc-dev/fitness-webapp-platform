@@ -4380,7 +4380,7 @@ async function updateCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
-  const program = await retryTransaction(() => db.$transaction(async (tx) => {
+  await retryTransaction(() => db.$transaction(async (tx) => {
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(existingProgram.id, input.workouts)
     const updatedWorkoutIds = buildUpdatedWorkoutIdsForProgramInput(
       existingProgram as ProgramRecord,
@@ -4484,23 +4484,15 @@ async function updateCoachProgram(
         })),
       })
     }
-
-    const updatedProgram = await tx.program.findUnique({
-      include: PROGRAM_INCLUDE,
-      where: {
-        id: existingProgram.id,
-      },
-    })
-
-    if (!updatedProgram) {
-      throw new AuthServiceError("Không tìm thấy chương trình.", 404)
-    }
-
-    return updatedProgram
   }, {
     maxWait: 15000,
     timeout: 60000,
   }))
+
+  const program = await db.program.findUniqueOrThrow({
+    include: PROGRAM_INCLUDE,
+    where: { id: existingProgram.id },
+  })
 
   return serializeProgram(program as ProgramRecord)
 }
