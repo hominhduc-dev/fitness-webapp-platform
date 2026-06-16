@@ -2951,7 +2951,7 @@ async function updateCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
-  const program = await db.$transaction(async (tx) => {
+  await db.$transaction(async (tx) => {
     await tx.programAssignment.deleteMany({
       where: {
         programId: existingProgram.id,
@@ -2967,7 +2967,7 @@ async function updateCoachProgram(
       })
     }
 
-    return tx.program.update({
+    await tx.program.update({
       data: {
         description: input.description?.trim() || undefined,
         difficulty: input.difficulty,
@@ -3008,14 +3008,19 @@ async function updateCoachProgram(
         },
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
-      include: PROGRAM_INCLUDE,
+      select: { id: true },
       where: {
         id: existingProgram.id,
       },
     })
   }, {
     maxWait: 15000,
-    timeout: 30000,
+    timeout: 60000,
+  })
+
+  const program = await db.program.findUniqueOrThrow({
+    include: PROGRAM_INCLUDE,
+    where: { id: existingProgram.id },
   })
 
   return serializeProgram(program as ProgramRecord)
