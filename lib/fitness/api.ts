@@ -1324,6 +1324,11 @@ async function fetchCoachProgram(accessToken: string, programId: string): Promis
   return mapCoachProgram(response.program)
 }
 
+async function fetchTraineeProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(`/api/workouts/programs/${programId}`, accessToken)
+  return mapCoachProgram(response.program)
+}
+
 async function updateCoachProgram(accessToken: string, programId: string, input: CreateCoachProgramInput) {
   const response = await request<{ program: SerializedCoachProgram }>(`/api/coach/programs/${programId}`, accessToken, {
     body: JSON.stringify(input),
@@ -1814,6 +1819,7 @@ export {
   submitCoachExerciseImportRequest,
   fetchWorkoutDetail,
   fetchWorkoutLogsForExport,
+  fetchTraineeProgram,
   fetchWorkouts,
   markAllNotificationsRead,
   markNotificationRead,

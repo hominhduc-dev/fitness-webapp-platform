@@ -4167,6 +4167,26 @@ async function getCoachProgramDetail(profile: SerializedProfile, programId: stri
   return serializeProgram(program as ProgramRecord)
 }
 
+async function getTraineeProgramDetail(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await db.program.findFirst({
+    include: PROGRAM_INCLUDE,
+    where: {
+      id: programId,
+      OR: [
+        { createdById: profile.id },
+        { assignments: { some: { userId: profile.id } } },
+      ],
+    },
+  })
+
+  if (!program) {
+    throw new AuthServiceError("Không tìm thấy chương trình.", 404)
+  }
+
+  return serializeProgram(program as ProgramRecord)
+}
+
 function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>) {
   const scheduledDays = new Set(
     workouts
@@ -6141,6 +6161,7 @@ export {
   getDashboardForTrainee,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  getTraineeProgramDetail,
   getCalendarForTrainee,
   getProgressAnalyticsForCurrentTrainee,
   getWorkoutDetailForTrainee,

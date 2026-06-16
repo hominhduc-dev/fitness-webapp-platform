@@ -97,8 +97,15 @@ type BuilderMode =
   | { kind: "edit-slot"; slot: PickerSlot }
   | { kind: "edit-library"; routineId: string }
 
+type CurrentWeekProgress =
+  | { kind: "active"; weekIndex: number }
+  | { kind: "not-started" }
+  | { kind: "completed" }
+  | null
+
 const MIN_WEEKS = 1
 const MAX_WEEKS = 52
+const DAY_IN_MS = 24 * 60 * 60 * 1000
 const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
 const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
@@ -175,6 +182,44 @@ function clampDaysPerWeek(value: number) {
   }
 
   return Math.min(6, Math.max(3, value || 4))
+}
+
+function parseValidDate(value: unknown) {
+  if (value == null) return null
+  const date = value instanceof Date ? value : new Date(value as string | number)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+function startOfUtcWeek(date: Date) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const day = start.getUTCDay()
+  const offset = day === 0 ? -6 : 1 - day
+  start.setUTCDate(start.getUTCDate() + offset)
+  return start
+}
+
+function resolveCurrentWeekProgress(assignedAt: unknown, totalWeeks: number, now = new Date()): CurrentWeekProgress {
+  const assignedDate = parseValidDate(assignedAt)
+  if (!assignedDate) return null
+  if (assignedDate.getTime() > now.getTime()) return { kind: "not-started" }
+
+  const assignmentWeekStart = startOfUtcWeek(assignedDate)
+  const currentWeekStart = startOfUtcWeek(now)
+  const elapsedWeeks = Math.floor((currentWeekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
+  const lastWeekIndex = Math.max(0, clampWeeks(totalWeeks) - 1)
+
+  if (elapsedWeeks > lastWeekIndex) return { kind: "completed" }
+  return { kind: "active", weekIndex: Math.max(0, Math.min(lastWeekIndex, elapsedWeeks)) }
+}
+
+function resolveInitialActiveWeek(assignedAt: unknown, totalWeeks: number) {
+  const progress = resolveCurrentWeekProgress(assignedAt, totalWeeks)
+
+  if (progress?.kind === "active") {
+    return progress.weekIndex
+  }
+
+  return progress?.kind === "completed" ? Math.max(0, clampWeeks(totalWeeks) - 1) : 0
 }
 
 function makeEmptySchedule(weeks: number, daysPerWeek: number): Schedule {
@@ -784,7 +829,12 @@ export function ProgramEditor({
           setAssignedTrainees(program.assignedTrainees)
           setRoutineLibrary(mapped.routines)
           setSchedule(mapped.schedule)
-          setActiveWeek(0)
+
+          // Default to the trainee's current week of progress so coaches land on the right week.
+          const targetTrainee = adjustForTraineeId
+            ? program.assignedTrainees.find((t) => t.id === adjustForTraineeId)
+            : program.assignedTrainees[0]
+          setActiveWeek(resolveInitialActiveWeek(targetTrainee?.assignedAt, nextWeeks))
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -815,6 +865,19 @@ export function ProgramEditor({
   const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving
   const activeWeekSlots = schedule[activeWeek] ?? schedule[0] ?? []
   const dayLabels = useMemo(() => getDayLabels(locale), [locale])
+
+  // Compute the trainee's progress through the program (which week they're "currently" in).
+  // Uses the adjust-mode trainee when set; otherwise the first assigned trainee.
+  // Returns null if no assignment / before start / after program end.
+  const currentWeekProgress = useMemo<CurrentWeekProgress>(() => {
+    const targetTrainee = adjustForTraineeId
+      ? assignedTrainees.find((t) => t.id === adjustForTraineeId)
+      : assignedTrainees[0]
+
+    return resolveCurrentWeekProgress(targetTrainee?.assignedAt, totalWeeks)
+  }, [assignedTrainees, adjustForTraineeId, totalWeeks])
+
+  const currentWeekIndex = currentWeekProgress?.kind === "active" ? currentWeekProgress.weekIndex : null
 
   const filteredTrainees = useMemo(() => {
     const normalized = clientQuery.trim().toLowerCase()
@@ -1051,12 +1114,21 @@ export function ProgramEditor({
     }
   }
 
+  const isModal = Boolean(onClose)
+
   if (isLoadingPage) {
     return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">{messages.coach.loadingProgram}</div>
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex min-h-screen items-start justify-center overflow-y-auto overscroll-contain bg-foreground/45 px-0 py-0 backdrop-blur-sm md:px-1 md:py-1" aria-busy={isSaving}>
+    <div
+      className={cn(
+        isModal
+          ? "fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain bg-foreground/45 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
+          : "mx-auto w-full max-w-[880px] pb-8",
+      )}
+      aria-busy={isSaving}
+    >
       {isSaving ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)]">
@@ -1067,7 +1139,12 @@ export function ProgramEditor({
         </div>
       ) : null}
 
-      <div className="flex w-full max-w-[880px] flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_24px_60px_-12px_rgba(13,13,11,0.18)]">
+      <div
+        className={cn(
+          "flex w-full max-w-[880px] flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_24px_60px_-12px_rgba(13,13,11,0.18)]",
+          isModal && "max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-4rem)]",
+        )}
+      >
         <div className="border-b border-border px-4 pb-[18px] pt-6 md:px-7">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
@@ -1080,6 +1157,15 @@ export function ProgramEditor({
               <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
                 {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}
               </p>
+              {currentWeekProgress ? (
+                <p className="mt-1 font-mono text-xs text-primary tnum">
+                  {currentWeekProgress.kind === "active"
+                    ? messages.coach.currentlyOnWeek(currentWeekProgress.weekIndex + 1, totalWeeks)
+                    : currentWeekProgress.kind === "not-started"
+                      ? messages.coach.currentWeekNotStarted
+                      : messages.coach.currentWeekCompleted}
+                </p>
+              ) : null}
             </div>
             {onClose ? (
               <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close editor">
@@ -1181,26 +1267,39 @@ export function ProgramEditor({
 
         <div className="flex min-h-[66px] flex-wrap items-center gap-3 border-b border-border bg-muted px-4 py-3 md:px-7">
           <p className="label-micro">{messages.coach.week}</p>
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5 pt-2">
             {Array.from({ length: totalWeeks }).map((_, index) => {
               const week = schedule[index] ?? []
               const weekTotal = week.filter((slot) => slot !== null).length
               const weekFilled = week.filter((slot) => Boolean(slot?.routine?.exercises.length)).length
               const isActive = activeWeek === index
               const isComplete = weekTotal > 0 && weekFilled === weekTotal
+              const isCurrentWeek = currentWeekIndex === index
 
               return (
                 <button
                   key={index}
                   type="button"
                   onClick={() => setActiveWeek(index)}
+                  title={isCurrentWeek ? messages.coach.currentlyOnWeek(index + 1, totalWeeks) : undefined}
                   className={cn(
-                    "flex min-w-[38px] flex-col items-center rounded border px-2.5 py-1 font-mono text-xs transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+                    "relative flex min-w-[38px] flex-col items-center rounded border px-2.5 py-1 font-mono text-xs transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
                     isActive
                       ? "border-foreground bg-foreground text-background"
                       : "border-input bg-background text-foreground hover:bg-muted",
+                    isCurrentWeek && "ring-1 ring-primary ring-offset-1 ring-offset-muted",
                   )}
                 >
+                  {isCurrentWeek ? (
+                    <span
+                      className={cn(
+                        "absolute -top-1.5 right-0 translate-x-1/3 rounded-sm px-1 py-px text-[8px] font-semibold tracking-[0.08em]",
+                        isActive ? "bg-primary text-primary-foreground" : "bg-primary text-primary-foreground",
+                      )}
+                    >
+                      {messages.coach.currentWeekBadge}
+                    </span>
+                  ) : null}
                   {messages.coach.weekShort(index + 1)}
                   <span
                     className={cn(
@@ -1218,7 +1317,7 @@ export function ProgramEditor({
           </Button>
         </div>
 
-        <div className="px-4 py-5 md:px-7">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-7">
           {error ? (
             <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
               {error}

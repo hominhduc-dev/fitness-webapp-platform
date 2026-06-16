@@ -7,6 +7,7 @@ import {
   deletePersonalWorkoutForTrainee,
   deleteWorkoutLogForTrainee,
   exportWorkoutLogsToGoogleSheetsForTrainee,
+  getTraineeProgramDetail,
   getWorkoutDetailForTrainee,
   listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
@@ -63,6 +64,16 @@ workoutRouter.get("/", async (req, res) => {
     const result = await listWorkoutsForTrainee(profile.profile)
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+workoutRouter.get("/programs/:programId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const program = await getTraineeProgramDetail(profile.profile, String(req.params.programId))
+    res.json({ program })
   } catch (error) {
     sendError(res, error)
   }

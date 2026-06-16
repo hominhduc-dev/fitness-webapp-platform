@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
+import type { PlannedSession } from "@/components/workout-export-excel"
 import { formatDisplayDate } from "@/lib/fitness/date-range"
 import { cn } from "@/lib/utils"
 import type { WorkoutLog } from "@/lib/types"
@@ -62,6 +63,11 @@ export type WorkoutExportDialogConfig = {
   programs?: ExportProgramOption[]
   /** Resolve the date range for Program mode (Week mode is handled internally). */
   resolveProgramRange: (selection: ExportSelection) => ResolvedExportRange | { error: string }
+  /**
+   * Resolve the program's planned sessions (with calendar dates) for the Excel
+   * export. Scheduled-but-unlogged days are then shown with blank actuals.
+   */
+  resolvePlannedSessions?: (selection: ExportSelection) => Promise<PlannedSession[]> | PlannedSession[]
   showProgramPicker?: boolean
   subjectPlaceholder?: string
   subjectSelectLabel?: string
@@ -174,10 +180,15 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
         return
       }
 
+      const plannedSessions = config.resolvePlannedSessions
+        ? await config.resolvePlannedSessions(selection)
+        : undefined
+
       const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
       await downloadWorkoutLogs(logs, {
         from: range.from,
         label: range.label,
+        plannedSessions,
         programStartDate: range.programStartDate,
         subjectName: selectedSubject?.name,
         to: range.to,
