@@ -239,6 +239,12 @@ type BodyMetricRecord = BodyMetricEntry & {
   coach: Pick<User, "name"> | null
 }
 
+type BodyMetricListOptions = {
+  days?: number
+  from?: string
+  to?: string
+}
+
 type CoachCheckInRecord = CoachCheckIn & {
   coach: Pick<User, "name">
 }
@@ -1251,6 +1257,7 @@ function serializeProgram(program: ProgramRecord) {
       id: assignment.user.id,
       name: assignment.user.name,
     })),
+    archivedAt: program.archivedAt ?? null,
     createdAt: program.createdAt,
     createdBy: program.createdById,
     description: program.description ?? undefined,
@@ -2280,6 +2287,47 @@ function parseLocalDateInput(value: string) {
   }
 
   return parsedDate
+}
+
+function resolveBodyMetricRecordedAtFilter(options?: BodyMetricListOptions) {
+  if (options?.from || options?.to) {
+    const parsedFrom = options.from ? parseLocalDateInput(options.from) : undefined
+    const parsedTo = options.to ? parseLocalDateInput(options.to) : undefined
+
+    if (options.from && !parsedFrom) {
+      throw new AuthServiceError("from không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+    }
+
+    if (options.to && !parsedTo) {
+      throw new AuthServiceError("to không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+    }
+
+    if (!parsedFrom || !parsedTo) {
+      throw new AuthServiceError("from và to là bắt buộc khi lọc body metrics theo range.", 400)
+    }
+
+    if (parsedTo <= parsedFrom) {
+      throw new AuthServiceError("to phải lớn hơn from.", 400)
+    }
+
+    return {
+      recordedAt: {
+        gte: parsedFrom,
+        lt: parsedTo,
+      },
+    }
+  }
+
+  const requestedDays = options?.days ?? 30
+  const normalizedDays = requestedDays === 90 || requestedDays === 365 ? requestedDays : 30
+  const window = toRecentWindow(normalizedDays)
+
+  return {
+    recordedAt: {
+      gte: window.start,
+      lte: window.end,
+    },
+  }
 }
 
 function addUtcDays(date: Date, days: number) {
@@ -3528,6 +3576,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     },
     where: {
       userId: profile.id,
+      program: { archivedAt: null },
     },
   })
   const coachUpdateWorkoutIds = await buildCoachUpdateWorkoutIdsForAssignments(
@@ -3682,6 +3731,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
       },
       where: {
         userId: profile.id,
+        program: { archivedAt: null },
       },
     }),
     db.workoutLog.findMany({
@@ -4359,7 +4409,10 @@ async function createCoachRequestForTrainee(profile: SerializedProfile, coachId:
   }
 }
 
-async function listCoachPrograms(profile: SerializedProfile) {
+async function listCoachPrograms(
+  profile: SerializedProfile,
+  options?: { includeArchived?: boolean },
+) {
   assertCoach(profile)
   const db = ensurePrisma()
   const programs = await db.program.findMany({
@@ -4369,6 +4422,7 @@ async function listCoachPrograms(profile: SerializedProfile) {
     },
     where: {
       createdById: profile.id,
+      ...(options?.includeArchived ? {} : { archivedAt: null }),
     },
   })
 
@@ -4600,6 +4654,10 @@ async function updateCoachProgram(
 
   if (!existingProgram) {
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
+  }
+
+  if (existingProgram.archivedAt) {
+    throw new AuthServiceError("Program đã archive — hãy restore trước khi chỉnh sửa.", 409)
   }
 
   if (!input.name.trim()) {
@@ -4861,6 +4919,10 @@ async function adjustCoachProgramForTrainee(
     assertCoachOwnsTrainee(profile.id, traineeId),
   ])
 
+  if (existingProgram.archivedAt) {
+    throw new AuthServiceError("Program đã archive — hãy restore trước khi điều chỉnh.", 409)
+  }
+
   const existingAssignment = await db.programAssignment.findUnique({
     where: {
       programId_userId: {
@@ -5018,9 +5080,7 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
   assertCoach(profile)
 
   const existingProgram = await db.program.findFirst({
-    select: {
-      id: true,
-    },
+    select: { id: true },
     where: {
       createdById: profile.id,
       id: programId,
@@ -5031,10 +5091,25 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
   }
 
+  // Hard-delete is only allowed when the program is a draft: no assignments AND
+  // no workout logs anywhere. WorkoutLog.programId is checked alongside the live
+  // workout FK so orphaned logs (created before workouts were deleted on edit)
+  // also block hard-delete.
+  const [assignmentCount, liveLogCount, orphanLogCount] = await Promise.all([
+    db.programAssignment.count({ where: { programId: existingProgram.id } }),
+    db.workoutLog.count({ where: { workout: { programId: existingProgram.id } } }),
+    db.workoutLog.count({ where: { programId: existingProgram.id } }),
+  ])
+
+  if (assignmentCount > 0 || liveLogCount > 0 || orphanLogCount > 0) {
+    throw new AuthServiceError(
+      "Program đã có assignment hoặc log — dùng Archive thay vì Delete.",
+      409,
+    )
+  }
+
   await db.program.delete({
-    where: {
-      id: existingProgram.id,
-    },
+    where: { id: existingProgram.id },
   })
 
   return {
@@ -5043,11 +5118,52 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
   }
 }
 
+async function archiveCoachProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await assertCoachOwnsProgram(profile.id, programId)
+
+  if (program.archivedAt) {
+    return serializeProgram(program as ProgramRecord)
+  }
+
+  const updated = await db.program.update({
+    data: { archivedAt: new Date() },
+    include: PROGRAM_INCLUDE,
+    where: { id: program.id },
+  })
+
+  return serializeProgram(updated as ProgramRecord)
+}
+
+async function restoreCoachProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await assertCoachOwnsProgram(profile.id, programId)
+
+  if (!program.archivedAt) {
+    return serializeProgram(program as ProgramRecord)
+  }
+
+  const updated = await db.program.update({
+    data: { archivedAt: null },
+    include: PROGRAM_INCLUDE,
+    where: { id: program.id },
+  })
+
+  return serializeProgram(updated as ProgramRecord)
+}
+
 async function assignCoachProgramToTrainee(profile: SerializedProfile, programId: string, traineeId: string) {
   const db = ensurePrisma()
   assertCoach(profile)
 
-  await Promise.all([assertCoachOwnsProgram(profile.id, programId), assertCoachOwnsTrainee(profile.id, traineeId)])
+  const [program] = await Promise.all([
+    assertCoachOwnsProgram(profile.id, programId),
+    assertCoachOwnsTrainee(profile.id, traineeId),
+  ])
+
+  if (program.archivedAt) {
+    throw new AuthServiceError("Program đã archive — hãy restore trước khi gán.", 409)
+  }
 
   const assignment = await db.programAssignment.upsert({
     create: {
@@ -5164,16 +5280,10 @@ async function createBodyMetricForTrainee(
 
 async function listBodyMetricsForCurrentTrainee(
   profile: SerializedProfile,
-  options?: {
-    days?: number
-  },
+  options?: BodyMetricListOptions,
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
-
-  const requestedDays = options?.days ?? 30
-  const normalizedDays = requestedDays === 90 || requestedDays === 365 ? requestedDays : 30
-  const window = toRecentWindow(normalizedDays)
 
   const entries = await db.bodyMetricEntry.findMany({
     include: {
@@ -5185,11 +5295,38 @@ async function listBodyMetricsForCurrentTrainee(
     },
     orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
     where: {
-      recordedAt: {
-        gte: window.start,
-        lte: window.end,
-      },
+      ...resolveBodyMetricRecordedAtFilter(options),
       traineeId: profile.id,
+      weightKg: {
+        not: null,
+      },
+    },
+  })
+
+  return entries.map((entry) => serializeBodyMetricEntry(entry as BodyMetricRecord))
+}
+
+async function listBodyMetricsForTrainee(
+  profile: SerializedProfile,
+  traineeId: string,
+  options?: BodyMetricListOptions,
+) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+  await assertCoachOwnsTrainee(profile.id, traineeId)
+
+  const entries = await db.bodyMetricEntry.findMany({
+    include: {
+      coach: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+    where: {
+      ...resolveBodyMetricRecordedAtFilter(options),
+      traineeId,
       weightKg: {
         not: null,
       },
@@ -6440,6 +6577,7 @@ async function updateCoachRequestStatus(
 
 export {
   adjustCoachProgramForTrainee,
+  archiveCoachProgram,
   assignCoachProgramToTrainee,
   createBodyMetricForTrainee,
   createBodyMetricForCurrentTrainee,
@@ -6472,6 +6610,7 @@ export {
   getYearViewForTrainee,
   listAvailableCoachesForTrainee,
   listBodyMetricsForCurrentTrainee,
+  listBodyMetricsForTrainee,
   listCoachExerciseImportRequests,
   listExerciseLibrary,
   listCoachExercises,
@@ -6488,6 +6627,7 @@ export {
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,
   resetCurrentTraineeData,
+  restoreCoachProgram,
   submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
   updateCoachExercise,

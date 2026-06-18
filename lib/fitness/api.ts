@@ -239,7 +239,8 @@ type SerializedAssignedTrainee = {
   name: string
 }
 
-type SerializedCoachProgram = Omit<Program, "createdAt" | "workouts"> & {
+type SerializedCoachProgram = Omit<Program, "archivedAt" | "createdAt" | "workouts"> & {
+  archivedAt?: string | null
   assignedTrainees: SerializedAssignedTrainee[]
   createdAt: string
   workouts: SerializedWorkout[]
@@ -712,6 +713,7 @@ function mapAssignedTrainee(t: SerializedAssignedTrainee): AssignedTrainee {
 
 function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
   return {
+    archivedAt: program.archivedAt ? new Date(program.archivedAt) : null,
     assignedTo: program.assignedTo,
     assignedTrainees: program.assignedTrainees.map(mapAssignedTrainee),
     createdAt: new Date(program.createdAt),
@@ -1093,8 +1095,33 @@ async function deleteMealItem(accessToken: string, itemId: string): Promise<Meal
   return mapMeal(response.data.meal)
 }
 
-async function fetchWeightEntries(accessToken: string, days = 30): Promise<BodyMetricEntry[]> {
-  const query = Number.isFinite(days) ? `?days=${encodeURIComponent(String(days))}` : ""
+type BodyMetricQueryOptions = {
+  days?: number
+  from?: string
+  to?: string
+}
+
+function buildBodyMetricQuery(options: BodyMetricQueryOptions) {
+  const searchParams = new URLSearchParams()
+  if (Number.isFinite(options.days)) {
+    searchParams.set("days", String(options.days))
+  }
+  if (options.from) {
+    searchParams.set("from", options.from)
+  }
+  if (options.to) {
+    searchParams.set("to", options.to)
+  }
+
+  return searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+}
+
+async function fetchWeightEntries(
+  accessToken: string,
+  options: number | BodyMetricQueryOptions = 30,
+): Promise<BodyMetricEntry[]> {
+  const queryOptions = typeof options === "number" ? { days: options } : options
+  const query = buildBodyMetricQuery(queryOptions)
   const response = await request<{ bodyMetrics: SerializedBodyMetricEntry[] }>(`/api/progress/weight${query}`, accessToken)
   return response.bodyMetrics.map(mapBodyMetricEntry)
 }
@@ -1305,8 +1332,15 @@ async function fetchExerciseLibrary(
   return response.exercises.map(mapExerciseLibraryExercise)
 }
 
-async function fetchCoachPrograms(accessToken: string): Promise<CoachProgram[]> {
-  const response = await request<{ programs: SerializedCoachProgram[] }>("/api/coach/programs", accessToken)
+async function fetchCoachPrograms(
+  accessToken: string,
+  options?: { includeArchived?: boolean },
+): Promise<CoachProgram[]> {
+  const query = options?.includeArchived ? "?includeArchived=1" : ""
+  const response = await request<{ programs: SerializedCoachProgram[] }>(
+    `/api/coach/programs${query}`,
+    accessToken,
+  )
   return response.programs.map(mapCoachProgram)
 }
 
@@ -1346,6 +1380,24 @@ async function deleteCoachProgram(accessToken: string, programId: string) {
   await request<{ deleted: boolean; id: string }>(`/api/coach/programs/${programId}`, accessToken, {
     method: "DELETE",
   })
+}
+
+async function archiveCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/programs/${programId}/archive`,
+    accessToken,
+    { method: "POST" },
+  )
+  return mapCoachProgram(response.program)
+}
+
+async function restoreCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/programs/${programId}/restore`,
+    accessToken,
+    { method: "POST" },
+  )
+  return mapCoachProgram(response.program)
 }
 
 async function fetchCoachTrainees(accessToken: string, options?: { phone?: string }): Promise<CoachTrainee[]> {
@@ -1522,6 +1574,20 @@ async function createCoachBodyMetric(
   )
 
   return mapBodyMetricEntry(response.bodyMetric)
+}
+
+async function fetchCoachBodyMetrics(
+  accessToken: string,
+  traineeId: string,
+  options: BodyMetricQueryOptions = {},
+): Promise<BodyMetricEntry[]> {
+  const query = buildBodyMetricQuery(options)
+  const response = await request<{ bodyMetrics: SerializedBodyMetricEntry[] }>(
+    `/api/coach/trainees/${traineeId}/body-metrics${query}`,
+    accessToken,
+  )
+
+  return response.bodyMetrics.map(mapBodyMetricEntry)
 }
 
 async function createCoachCheckIn(
@@ -1779,6 +1845,7 @@ async function markAllNotificationsRead(accessToken: string) {
 
 export {
   adjustCoachProgram,
+  archiveCoachProgram,
   assignCoachProgram,
   createCoachExerciseRequest,
   createCoachBodyMetric,
@@ -1812,6 +1879,7 @@ export {
   fetchCoachNavCounts,
   fetchCoachProgram,
   fetchCoachPrograms,
+  fetchCoachBodyMetrics,
   fetchCoachTraineeDetail,
   fetchCoachWorkoutLogs,
   fetchCoachTrainees,
@@ -1827,6 +1895,7 @@ export {
   fetchWorkouts,
   markAllNotificationsRead,
   markNotificationRead,
+  restoreCoachProgram,
   unassignCoachProgram,
   updateCoachExerciseRequest,
   updateCoachProgram,

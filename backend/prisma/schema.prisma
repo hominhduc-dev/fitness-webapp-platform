@@ -230,10 +230,12 @@ model Program {
   createdBy       User                @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Cascade)
   workouts        Workout[]
   assignments     ProgramAssignment[]
+  archivedAt      DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
   @@index([createdById])
+  @@index([createdById, archivedAt])
 }
 
 model ProgramAssignment {
