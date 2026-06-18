@@ -1095,8 +1095,33 @@ async function deleteMealItem(accessToken: string, itemId: string): Promise<Meal
   return mapMeal(response.data.meal)
 }
 
-async function fetchWeightEntries(accessToken: string, days = 30): Promise<BodyMetricEntry[]> {
-  const query = Number.isFinite(days) ? `?days=${encodeURIComponent(String(days))}` : ""
+type BodyMetricQueryOptions = {
+  days?: number
+  from?: string
+  to?: string
+}
+
+function buildBodyMetricQuery(options: BodyMetricQueryOptions) {
+  const searchParams = new URLSearchParams()
+  if (Number.isFinite(options.days)) {
+    searchParams.set("days", String(options.days))
+  }
+  if (options.from) {
+    searchParams.set("from", options.from)
+  }
+  if (options.to) {
+    searchParams.set("to", options.to)
+  }
+
+  return searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+}
+
+async function fetchWeightEntries(
+  accessToken: string,
+  options: number | BodyMetricQueryOptions = 30,
+): Promise<BodyMetricEntry[]> {
+  const queryOptions = typeof options === "number" ? { days: options } : options
+  const query = buildBodyMetricQuery(queryOptions)
   const response = await request<{ bodyMetrics: SerializedBodyMetricEntry[] }>(`/api/progress/weight${query}`, accessToken)
   return response.bodyMetrics.map(mapBodyMetricEntry)
 }
@@ -1551,6 +1576,20 @@ async function createCoachBodyMetric(
   return mapBodyMetricEntry(response.bodyMetric)
 }
 
+async function fetchCoachBodyMetrics(
+  accessToken: string,
+  traineeId: string,
+  options: BodyMetricQueryOptions = {},
+): Promise<BodyMetricEntry[]> {
+  const query = buildBodyMetricQuery(options)
+  const response = await request<{ bodyMetrics: SerializedBodyMetricEntry[] }>(
+    `/api/coach/trainees/${traineeId}/body-metrics${query}`,
+    accessToken,
+  )
+
+  return response.bodyMetrics.map(mapBodyMetricEntry)
+}
+
 async function createCoachCheckIn(
   accessToken: string,
   traineeId: string,
@@ -1840,6 +1879,7 @@ export {
   fetchCoachNavCounts,
   fetchCoachProgram,
   fetchCoachPrograms,
+  fetchCoachBodyMetrics,
   fetchCoachTraineeDetail,
   fetchCoachWorkoutLogs,
   fetchCoachTrainees,

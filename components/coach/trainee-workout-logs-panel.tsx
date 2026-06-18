@@ -23,6 +23,7 @@ import {
   createCoachWorkoutLogComment,
   deleteCoachWorkoutLogComment,
   exportCoachWorkoutLogsToGoogleSheets,
+  fetchCoachBodyMetrics,
   fetchCoachWorkoutLogs,
   updateCoachWorkoutLogComment,
 } from "@/lib/fitness/api"
@@ -83,6 +84,15 @@ function isLogInSelectedWeek(log: WorkoutLog, weekStart: string) {
   end.setDate(end.getDate() + 7)
 
   return log.startedAt >= start && log.startedAt < end
+}
+
+function getWeekEndDateInput(weekStart: string) {
+  const start = parseDateInputAsLocalDate(weekStart)
+  if (!start) return weekStart
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + 7)
+  return formatDateInputValue(end)
 }
 
 function formatDaySectionLabel(date: Date) {
@@ -391,8 +401,14 @@ export function TraineeWorkoutLogsPanel({
         throw new Error("Không có workout log nào để xuất.")
       }
 
+      const bodyMetrics = await fetchCoachBodyMetrics(session.access_token, traineeId, {
+        from: weekStart,
+        to: getWeekEndDateInput(weekStart),
+      })
+
       const { downloadCoachWorkoutLogsWorkbook } = await import("@/components/coach/trainee-workout-logs-excel")
       await downloadCoachWorkoutLogsWorkbook(exportLogs, {
+        bodyMetrics,
         traineeId,
         traineeName,
         weekStart,
@@ -444,8 +460,14 @@ export function TraineeWorkoutLogsPanel({
         throw new Error("Không có workout log nào để preview.")
       }
 
+      const bodyMetrics = await fetchCoachBodyMetrics(session.access_token, traineeId, {
+        from: weekStart,
+        to: getWeekEndDateInput(weekStart),
+      })
+
       const { createCoachWorkoutLogsWorkbookPreview } = await import("@/components/coach/trainee-workout-logs-excel")
       const preview = await createCoachWorkoutLogsWorkbookPreview(exportLogs, {
+        bodyMetrics,
         traineeId,
         traineeName,
         weekStart,

@@ -1,10 +1,13 @@
 import type { Cell, Worksheet } from "exceljs"
 
+import { addWeightTrackingSheet } from "@/components/weight-tracking-export-excel"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+import type { BodyMetricEntry } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
 import { formatRepTarget } from "@/lib/workout-reps"
 
 type DownloadCoachWorkoutLogsWorkbookOptions = {
+  bodyMetrics?: BodyMetricEntry[]
   traineeId: string
   traineeName?: string
   weekStart: string
@@ -678,6 +681,14 @@ async function buildCoachWorkoutLogsWorkbookFile(
   setRawSheetWidths(rawSheet)
   buildAndFillRawSheet(rawSheet, logs, options.weekStart)
 
+  const selectedWeekStart = parseDateInputAsLocalDate(options.weekStart, 12)
+  const weekEnd = selectedWeekStart ? formatDateInputValue(addDays(selectedWeekStart, 7)) : options.weekStart
+  addWeightTrackingSheet(workbook, options.bodyMetrics ?? [], {
+    from: options.weekStart,
+    subjectName: options.traineeName,
+    to: weekEnd,
+  })
+
   const safeTraineeName =
     sanitizeFileNameSegment(options.traineeName ?? "") ||
     sanitizeFileNameSegment(options.traineeId) ||
@@ -830,6 +841,10 @@ async function addWeeklyReportSheet(
   })
 
   rebuildSummary(reportSheet, styles, summaryLabels, REPORT_START_ROW + rows.length - 1)
+
+  // Freeze the title/meta + column header rows so they stay visible while
+  // scrolling. REPORT_START_ROW is the first data row, so ySplit = that - 1.
+  reportSheet.views = [{ state: "frozen", ySplit: REPORT_START_ROW - 1 }]
 }
 
 export {
