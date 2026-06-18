@@ -239,7 +239,8 @@ type SerializedAssignedTrainee = {
   name: string
 }
 
-type SerializedCoachProgram = Omit<Program, "createdAt" | "workouts"> & {
+type SerializedCoachProgram = Omit<Program, "archivedAt" | "createdAt" | "workouts"> & {
+  archivedAt?: string | null
   assignedTrainees: SerializedAssignedTrainee[]
   createdAt: string
   workouts: SerializedWorkout[]
@@ -712,6 +713,7 @@ function mapAssignedTrainee(t: SerializedAssignedTrainee): AssignedTrainee {
 
 function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
   return {
+    archivedAt: program.archivedAt ? new Date(program.archivedAt) : null,
     assignedTo: program.assignedTo,
     assignedTrainees: program.assignedTrainees.map(mapAssignedTrainee),
     createdAt: new Date(program.createdAt),
@@ -1305,8 +1307,15 @@ async function fetchExerciseLibrary(
   return response.exercises.map(mapExerciseLibraryExercise)
 }
 
-async function fetchCoachPrograms(accessToken: string): Promise<CoachProgram[]> {
-  const response = await request<{ programs: SerializedCoachProgram[] }>("/api/coach/programs", accessToken)
+async function fetchCoachPrograms(
+  accessToken: string,
+  options?: { includeArchived?: boolean },
+): Promise<CoachProgram[]> {
+  const query = options?.includeArchived ? "?includeArchived=1" : ""
+  const response = await request<{ programs: SerializedCoachProgram[] }>(
+    `/api/coach/programs${query}`,
+    accessToken,
+  )
   return response.programs.map(mapCoachProgram)
 }
 
@@ -1346,6 +1355,24 @@ async function deleteCoachProgram(accessToken: string, programId: string) {
   await request<{ deleted: boolean; id: string }>(`/api/coach/programs/${programId}`, accessToken, {
     method: "DELETE",
   })
+}
+
+async function archiveCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/programs/${programId}/archive`,
+    accessToken,
+    { method: "POST" },
+  )
+  return mapCoachProgram(response.program)
+}
+
+async function restoreCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/programs/${programId}/restore`,
+    accessToken,
+    { method: "POST" },
+  )
+  return mapCoachProgram(response.program)
 }
 
 async function fetchCoachTrainees(accessToken: string, options?: { phone?: string }): Promise<CoachTrainee[]> {
@@ -1779,6 +1806,7 @@ async function markAllNotificationsRead(accessToken: string) {
 
 export {
   adjustCoachProgram,
+  archiveCoachProgram,
   assignCoachProgram,
   createCoachExerciseRequest,
   createCoachBodyMetric,
@@ -1827,6 +1855,7 @@ export {
   fetchWorkouts,
   markAllNotificationsRead,
   markNotificationRead,
+  restoreCoachProgram,
   unassignCoachProgram,
   updateCoachExerciseRequest,
   updateCoachProgram,

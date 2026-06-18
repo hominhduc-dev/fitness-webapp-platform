@@ -32,6 +32,7 @@ import {
   fetchCoachTrainees,
   fetchExerciseLibrary,
   fetchExercises,
+  restoreCoachProgram,
   updateCoachProgram,
 } from "@/lib/fitness/api"
 import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
@@ -746,6 +747,7 @@ export function ProgramEditor({
   const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>(initialTraineeOptions)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
   const [assignedTrainees, setAssignedTrainees] = useState<AssignedTrainee[]>([])
+  const [archivedAt, setArchivedAt] = useState<Date | null>(null)
   const [routineLibrary, setRoutineLibrary] = useState<Routine[]>([])
   const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8, 4))
   const [activeWeek, setActiveWeek] = useState(0)
@@ -769,6 +771,7 @@ export function ProgramEditor({
   const [clientQuery, setClientQuery] = useState("")
   const [isLoadingPage, setIsLoadingPage] = useState(programId ? true : !hasInitialEditorData)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -827,6 +830,7 @@ export function ProgramEditor({
               : (program.assignedTo ?? program.assignedTrainees.map((trainee) => trainee.id)),
           )
           setAssignedTrainees(program.assignedTrainees)
+          setArchivedAt(program.archivedAt ?? null)
           setRoutineLibrary(mapped.routines)
           setSchedule(mapped.schedule)
 
@@ -862,7 +866,8 @@ export function ProgramEditor({
   )
   const totalProgramSlots = schedule.reduce((sum, week) => sum + week.filter((slot) => slot !== null).length, 0)
   const completion = totalProgramSlots > 0 ? Math.min(100, Math.round((filledSessions / totalProgramSlots) * 100)) : 0
-  const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving
+  const isArchived = archivedAt !== null
+  const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving && !isArchived
   const activeWeekSlots = schedule[activeWeek] ?? schedule[0] ?? []
   const dayLabels = useMemo(() => getDayLabels(locale), [locale])
 
@@ -1065,6 +1070,21 @@ export function ProgramEditor({
     }
   }
 
+  const handleRestoreFromEditor = async () => {
+    if (!session?.access_token || !programId || !isArchived || isRestoring) return
+    setIsRestoring(true)
+    setError(null)
+    try {
+      const restored = await restoreCoachProgram(session.access_token, programId)
+      setArchivedAt(restored.archivedAt ?? null)
+      router.refresh()
+    } catch (restoreError) {
+      setError(restoreError instanceof Error ? restoreError.message : messages.coach.programSaveError)
+    } finally {
+      setIsRestoring(false)
+    }
+  }
+
   const handleSaveProgram = async () => {
     if (!session?.access_token || !canSave) {
       return
@@ -1180,7 +1200,7 @@ export function ProgramEditor({
             )}
           </div>
 
-          <div className="grid gap-2.5 md:grid-cols-[1.35fr_0.82fr_0.9fr_1fr]">
+          <div className={cn("grid gap-2.5 md:grid-cols-[1.35fr_0.82fr_0.9fr_1fr]", isArchived && "pointer-events-none opacity-60")}>
             <Input
               value={programName}
               onChange={(event) => setProgramName(event.target.value)}
@@ -1242,6 +1262,7 @@ export function ProgramEditor({
               onChange={(event) => setDescription(event.target.value)}
               placeholder={messages.coach.descriptionPlaceholder}
               className="h-9 bg-background text-[13px]"
+              disabled={isArchived}
             />
             <div className="flex items-center gap-2">
               {programId && assignedTrainees.length > 0 && (
@@ -1252,7 +1273,7 @@ export function ProgramEditor({
                   programName={programName || messages.coach.program}
                 />
               )}
-              <Button type="button" variant="outline" className="bg-transparent" onClick={() => setIsAssignDialogOpen(true)}>
+              <Button type="button" variant="outline" className="bg-transparent" disabled={isArchived} onClick={() => setIsAssignDialogOpen(true)}>
                 <UserPlus className="h-4 w-4" />
                 {messages.coach.assignClients}
                 {selectedTraineeIds.length > 0 ? (
@@ -1311,13 +1332,18 @@ export function ProgramEditor({
               )
             })}
           </div>
-          <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={copyActiveWeekToAll}>
+          <Button type="button" variant="ghost" size="sm" className="gap-1.5" disabled={isArchived} onClick={copyActiveWeekToAll}>
             <Copy className="h-3.5 w-3.5" />
             {messages.coach.copyWeekToAll(activeWeek + 1)}
           </Button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-7">
+          {isArchived ? (
+            <div className="mb-4 rounded-[10px] border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+              Program này đã archive (chỉ đọc). Restore để chỉnh sửa.
+            </div>
+          ) : null}
           {error ? (
             <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
               {error}
@@ -1329,7 +1355,7 @@ export function ProgramEditor({
             </div>
           ) : null}
 
-          <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-7">
+          <div className={cn("grid gap-2.5 sm:grid-cols-2 md:grid-cols-7", isArchived && "pointer-events-none opacity-70")}>
             {DAY_OPTIONS.map((day, dayIndex) => (
               <SessionSlot
                 key={day.scheduledDay}
@@ -1380,10 +1406,22 @@ export function ProgramEditor({
               <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>{messages.common.cancel}</Link>
             </Button>
           )}
-          <Button type="button" className="w-full sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isSaving ? messages.common.saving : programId ? messages.common.saveChanges : messages.coach.saveProgram}
-          </Button>
+          {isArchived ? (
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              disabled={isRestoring}
+              onClick={() => void handleRestoreFromEditor()}
+            >
+              {isRestoring ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Restore
+            </Button>
+          ) : (
+            <Button type="button" className="w-full sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isSaving ? messages.common.saving : programId ? messages.common.saveChanges : messages.coach.saveProgram}
+            </Button>
+          )}
         </div>
       </div>
 
