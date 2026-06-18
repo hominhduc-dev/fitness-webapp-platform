@@ -1,12 +1,16 @@
 /**
  * Shared workout log Excel export — used by both trainee and coach.
  *
- * Output: 2-sheet workbook
- *   Sheet 1 "Sessions"  — one row per session (summary)
- *   Sheet 2 "Raw Sets"  — one row per set, Date & Workout merged per session
+ * Output workbook:
+ *   Sheet 1+ weekly report(s) — template-based
+ *   Sheet "Weight Tracking"  — body weight entries in the export range
+ *   Sheet "Sessions"         — one row per real session (summary)
+ *   Sheet "Raw Sets"         — one row per set, Date & Workout merged per session
  */
 import type { Workbook, Worksheet } from "exceljs"
 
+import { addWeightTrackingSheet } from "@/components/weight-tracking-export-excel"
+import type { BodyMetricEntry } from "@/lib/fitness/types"
 import type { Workout, WorkoutLog } from "@/lib/types"
 
 /**
@@ -34,6 +38,8 @@ export type WorkoutExportOptions = {
    * and only for the weekly-report sheets (never Sessions / Raw Sets).
    */
   plannedSessions?: PlannedSession[]
+  /** Body weight entries in the same export window; rendered in "Weight Tracking". */
+  bodyMetrics?: BodyMetricEntry[]
   /**
    * When set (YYYY-MM-DD = the trainee's program start date), the export splits
    * logs into one "Week N" sheet per week (Monday-aligned). Weeks with neither a
@@ -445,6 +451,12 @@ export async function buildWorkoutLogsFile(logs: WorkoutLog[], options: WorkoutE
       .map(plannedSessionToSyntheticLog)
     await addWeeklyReportSheet(workbook, [...logs, ...syntheticLogs], options.from)
   }
+
+  addWeightTrackingSheet(workbook, options.bodyMetrics ?? [], {
+    from: options.from,
+    subjectName: options.subjectName,
+    to: options.to,
+  })
 
   // Sessions summary (real logs only)
   buildSessionsSheet(workbook, logs, options)

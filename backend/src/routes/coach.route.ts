@@ -12,6 +12,7 @@ import {
   createCoachProgram,
   createWorkoutLogCommentForCoach,
   deleteCoachExercise,
+  archiveCoachProgram,
   deleteCoachProgram,
   deleteWorkoutLogCommentForCoach,
   exportCoachWorkoutLogsToGoogleSheetsForTrainee,
@@ -19,12 +20,14 @@ import {
   getCoachNavCounts,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  listBodyMetricsForTrainee,
   listCoachExerciseImportRequests,
   listCoachExercises,
   listAvailableCoachesForTrainee,
   listCoachPrograms,
   listCoachWorkoutLogsForTrainee,
   listCoachTrainees,
+  restoreCoachProgram,
   submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
   updateCoachExercise,
@@ -166,7 +169,8 @@ coachRouter.post("/requests", async (req, res) => {
 coachRouter.get("/programs", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
-    const programs = await listCoachPrograms(profile.profile)
+    const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true"
+    const programs = await listCoachPrograms(profile.profile, { includeArchived })
 
     res.json({
       programs,
@@ -239,6 +243,28 @@ coachRouter.delete("/programs/:programId", async (req, res) => {
     const result = await deleteCoachProgram(profile.profile, String(req.params.programId))
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/programs/:programId/archive", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const program = await archiveCoachProgram(profile.profile, String(req.params.programId))
+
+    res.json({ program })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/programs/:programId/restore", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const program = await restoreCoachProgram(profile.profile, String(req.params.programId))
+
+    res.json({ program })
   } catch (error) {
     sendError(res, error)
   }
@@ -476,6 +502,26 @@ coachRouter.get("/trainees/:traineeId", async (req, res) => {
     const result = await getCoachTraineeDetail(profile.profile, String(req.params.traineeId))
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.get("/trainees/:traineeId/body-metrics", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const days = typeof req.query.days === "string" ? Number(req.query.days) : undefined
+    const from = typeof req.query.from === "string" ? req.query.from : undefined
+    const to = typeof req.query.to === "string" ? req.query.to : undefined
+    const bodyMetrics = await listBodyMetricsForTrainee(profile.profile, String(req.params.traineeId), {
+      days: Number.isFinite(days) ? days : undefined,
+      from,
+      to,
+    })
+
+    res.json({
+      bodyMetrics,
+    })
   } catch (error) {
     sendError(res, error)
   }

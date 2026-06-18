@@ -11,7 +11,7 @@ import {
   type ExportSelection,
   type ResolvedExportRange,
 } from "@/components/workout/workout-export-dialog"
-import { exportCoachWorkoutLogsToGoogleSheets, fetchCoachProgram, fetchCoachWorkoutLogs } from "@/lib/fitness/api"
+import { exportCoachWorkoutLogsToGoogleSheets, fetchCoachBodyMetrics, fetchCoachProgram, fetchCoachWorkoutLogs } from "@/lib/fitness/api"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { AssignedTrainee, CoachProgram } from "@/lib/fitness/types"
 
@@ -88,6 +88,14 @@ export function ExportProgramLogsDialog({
     return loadAllCoachLogs(session.access_token, context.subjectId, context.range.from, programId, context.range.to)
   }
 
+  const loadBodyMetrics = async (context: ExportContext) => {
+    if (!session?.access_token || !context.subjectId) return []
+    return fetchCoachBodyMetrics(session.access_token, context.subjectId, {
+      from: context.range.from,
+      to: context.range.to,
+    })
+  }
+
   const exportToSheets = async (context: ExportContext) => {
     if (!session?.access_token || !context.subjectId) throw new Error("No trainee selected.")
     return exportCoachWorkoutLogsToGoogleSheets(session.access_token, context.subjectId, {
@@ -119,6 +127,7 @@ export function ExportProgramLogsDialog({
       dialogContentClassName="z-[90]"
       dialogOverlayClassName="z-[85]"
       exportToSheets={exportToSheets}
+      loadBodyMetrics={loadBodyMetrics}
       loadLogs={loadLogs}
       resolvePlannedSessions={resolvePlannedSessions}
       resolveProgramRange={resolveProgramRange}

@@ -30,8 +30,12 @@ progressRouter.get("/weight", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
     const days = typeof req.query.days === "string" ? Number(req.query.days) : undefined
+    const from = typeof req.query.from === "string" ? req.query.from : undefined
+    const to = typeof req.query.to === "string" ? req.query.to : undefined
     const bodyMetrics = await listBodyMetricsForCurrentTrainee(profile.profile, {
       days: Number.isFinite(days) ? days : undefined,
+      from,
+      to,
     })
 
     res.json({

@@ -105,6 +105,11 @@ function getTrendDirection(currentWeightKg?: number, weeklyAverageKg?: number): 
   return delta > 0 ? "up" : "down"
 }
 
+function getDeltaDirection(deltaKg?: number | null): TrendDirection {
+  if (!isFiniteNumber(deltaKg) || Math.abs(deltaKg) <= 0.05) return "stable"
+  return deltaKg > 0 ? "up" : "down"
+}
+
 function getWeeklyTargetKg(direction: GoalDirection) {
   if (direction === "down") return 0.4
   if (direction === "up") return 0.25
@@ -425,6 +430,7 @@ export function WeightTrackingClient() {
   )
 
   const currentDeltaTone = getDeltaTone(summary.currentDeltaKg, summary.goalDirection)
+  const currentDeltaDirection = getDeltaDirection(summary.currentDeltaKg)
   const weeklyTrendDirection = getTrendDirection(summary.currentWeightKg, summary.weeklyAverageKg)
   const bmi = useMemo(() => calculateBmi(summary.currentWeightKg, heightCm), [heightCm, summary.currentWeightKg])
   const bmiCategory = getBmiCategory(bmi)
@@ -493,6 +499,7 @@ export function WeightTrackingClient() {
 
   const rangeChangeDisplay = formatSignedWeight(rangeChangeKg, weightUnit)
   const rangeChangeTone = getDeltaTone(rangeChangeKg, summary.goalDirection)
+  const rangeChangeDirection = getDeltaDirection(rangeChangeKg)
 
   // Only show chart points that have data (or all, Recharts handles nulls)
   const hasChartData = chartPoints.some((p) => p.value !== null)
@@ -504,9 +511,9 @@ export function WeightTrackingClient() {
         {/* ---- Header ---- */}
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <span className="label-micro mb-2 block">Body</span>
+            <span className="label-micro mb-2 block">{messages.progressPage.logIntro}</span>
             <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
-              Body weight
+              {messages.progressPage.title}
             </h1>
           </div>
 
@@ -541,7 +548,7 @@ export function WeightTrackingClient() {
           {/* Hero row */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <span className="label-micro mb-1 block">Body weight</span>
+              <span className="label-micro mb-1 block">{messages.progressPage.currentWeight}</span>
               <div className="flex items-baseline gap-3">
                 <span className="font-mono text-[4rem] font-semibold leading-none tnum text-foreground">
                   {currentWeightDisplay}
@@ -550,13 +557,20 @@ export function WeightTrackingClient() {
                 {rangeChangeDisplay ? (
                   <span
                     className={cn(
-                      "font-mono text-sm tnum",
+                      "inline-flex items-center gap-1 font-mono text-sm tnum",
                       rangeChangeTone === "success" && "text-[var(--success)]",
                       rangeChangeTone === "danger" && "text-destructive",
                       rangeChangeTone === "neutral" && "text-muted-foreground",
                     )}
                   >
-                    {Number(rangeChangeKg ?? 0) < 0 ? "↓" : "↑"} {Math.abs(Number(rangeChangeKg ?? 0)).toFixed(1)} {weightUnit}
+                    {rangeChangeDirection === "down" ? (
+                      <TrendingDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : rangeChangeDirection === "up" ? (
+                      <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    {rangeChangeDisplay} {weightUnit}
                   </span>
                 ) : null}
               </div>
@@ -633,7 +647,7 @@ export function WeightTrackingClient() {
 
         {/* ---- Log weight input ---- */}
         <section className="rounded-[10px] border border-border bg-card p-4 sm:p-5">
-          <span className="label-micro mb-4 block">Log weight</span>
+          <span className="label-micro mb-4 block">{messages.progressPage.logTitle}</span>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Input
@@ -644,7 +658,7 @@ export function WeightTrackingClient() {
                 type="number"
                 step="0.1"
                 min="0"
-                placeholder="0.0"
+                placeholder={messages.progressPage.entryPlaceholder}
                 className="h-14 rounded-[8px] border-input bg-background pr-14 text-center font-mono text-2xl font-semibold tnum shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-primary"
               />
               <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
@@ -662,7 +676,7 @@ export function WeightTrackingClient() {
               ) : (
                 <Plus className="h-4 w-4" aria-hidden="true" />
               )}
-              {isSaving ? messages.progressPage.savingEntry : "Log weight"}
+              {isSaving ? messages.progressPage.savingEntry : messages.progressPage.saveEntry}
             </Button>
           </div>
         </section>
@@ -686,9 +700,9 @@ export function WeightTrackingClient() {
                     currentDeltaTone === "neutral" && "text-muted-foreground",
                   )}
                 >
-                  {currentDeltaTone === "success" ? (
+                  {currentDeltaDirection === "down" ? (
                     <TrendingDown className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : currentDeltaTone === "danger" ? (
+                  ) : currentDeltaDirection === "up" ? (
                     <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : (
                     <Minus className="h-3.5 w-3.5" aria-hidden="true" />
