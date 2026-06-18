@@ -11,7 +11,7 @@ import {
   type ExportSelection,
   type ResolvedExportRange,
 } from "@/components/workout/workout-export-dialog"
-import { exportWorkoutLogsToGoogleSheets, fetchTraineeProgram, fetchWorkoutLogsForExport } from "@/lib/fitness/api"
+import { exportWorkoutLogsToGoogleSheets, fetchTraineeProgram, fetchWeightEntries, fetchWorkoutLogsForExport } from "@/lib/fitness/api"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { CoachProgram, TraineeProgram } from "@/lib/fitness/types"
 
@@ -53,6 +53,11 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
     return fetchWorkoutLogsForExport(session.access_token, { from: context.range.from, to: context.range.to })
   }
 
+  const loadBodyMetrics = async (context: ExportContext) => {
+    if (!session?.access_token) return []
+    return fetchWeightEntries(session.access_token, { from: context.range.from, to: context.range.to })
+  }
+
   const exportToSheets = async (context: ExportContext) => {
     if (!session?.access_token) throw new Error("No active session.")
     return exportWorkoutLogsToGoogleSheets(session.access_token, {
@@ -84,6 +89,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
     <WorkoutExportDialog
       defaultMode="week"
       exportToSheets={exportToSheets}
+      loadBodyMetrics={loadBodyMetrics}
       loadLogs={loadLogs}
       programs={programs.map((program) => ({
         id: program.id,

@@ -239,6 +239,12 @@ type BodyMetricRecord = BodyMetricEntry & {
   coach: Pick<User, "name"> | null
 }
 
+type BodyMetricListOptions = {
+  days?: number
+  from?: string
+  to?: string
+}
+
 type CoachCheckInRecord = CoachCheckIn & {
   coach: Pick<User, "name">
 }
@@ -2281,6 +2287,47 @@ function parseLocalDateInput(value: string) {
   }
 
   return parsedDate
+}
+
+function resolveBodyMetricRecordedAtFilter(options?: BodyMetricListOptions) {
+  if (options?.from || options?.to) {
+    const parsedFrom = options.from ? parseLocalDateInput(options.from) : undefined
+    const parsedTo = options.to ? parseLocalDateInput(options.to) : undefined
+
+    if (options.from && !parsedFrom) {
+      throw new AuthServiceError("from không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+    }
+
+    if (options.to && !parsedTo) {
+      throw new AuthServiceError("to không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+    }
+
+    if (!parsedFrom || !parsedTo) {
+      throw new AuthServiceError("from và to là bắt buộc khi lọc body metrics theo range.", 400)
+    }
+
+    if (parsedTo <= parsedFrom) {
+      throw new AuthServiceError("to phải lớn hơn from.", 400)
+    }
+
+    return {
+      recordedAt: {
+        gte: parsedFrom,
+        lt: parsedTo,
+      },
+    }
+  }
+
+  const requestedDays = options?.days ?? 30
+  const normalizedDays = requestedDays === 90 || requestedDays === 365 ? requestedDays : 30
+  const window = toRecentWindow(normalizedDays)
+
+  return {
+    recordedAt: {
+      gte: window.start,
+      lte: window.end,
+    },
+  }
 }
 
 function addUtcDays(date: Date, days: number) {
@@ -5233,16 +5280,10 @@ async function createBodyMetricForTrainee(
 
 async function listBodyMetricsForCurrentTrainee(
   profile: SerializedProfile,
-  options?: {
-    days?: number
-  },
+  options?: BodyMetricListOptions,
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
-
-  const requestedDays = options?.days ?? 30
-  const normalizedDays = requestedDays === 90 || requestedDays === 365 ? requestedDays : 30
-  const window = toRecentWindow(normalizedDays)
 
   const entries = await db.bodyMetricEntry.findMany({
     include: {
@@ -5254,11 +5295,38 @@ async function listBodyMetricsForCurrentTrainee(
     },
     orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
     where: {
-      recordedAt: {
-        gte: window.start,
-        lte: window.end,
-      },
+      ...resolveBodyMetricRecordedAtFilter(options),
       traineeId: profile.id,
+      weightKg: {
+        not: null,
+      },
+    },
+  })
+
+  return entries.map((entry) => serializeBodyMetricEntry(entry as BodyMetricRecord))
+}
+
+async function listBodyMetricsForTrainee(
+  profile: SerializedProfile,
+  traineeId: string,
+  options?: BodyMetricListOptions,
+) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+  await assertCoachOwnsTrainee(profile.id, traineeId)
+
+  const entries = await db.bodyMetricEntry.findMany({
+    include: {
+      coach: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+    where: {
+      ...resolveBodyMetricRecordedAtFilter(options),
+      traineeId,
       weightKg: {
         not: null,
       },
@@ -6542,6 +6610,7 @@ export {
   getYearViewForTrainee,
   listAvailableCoachesForTrainee,
   listBodyMetricsForCurrentTrainee,
+  listBodyMetricsForTrainee,
   listCoachExerciseImportRequests,
   listExerciseLibrary,
   listCoachExercises,

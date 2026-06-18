@@ -16,6 +16,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import type { PlannedSession } from "@/components/workout-export-excel"
 import { formatDisplayDate } from "@/lib/fitness/date-range"
+import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
 import type { WorkoutLog } from "@/lib/types"
 
@@ -58,6 +59,7 @@ export type WorkoutExportDialogConfig = {
   dialogContentClassName?: string
   dialogOverlayClassName?: string
   exportToSheets: (context: ExportContext) => Promise<{ logCount: number; rowCount: number }>
+  loadBodyMetrics?: (context: ExportContext) => Promise<BodyMetricEntry[]>
   loadLogs: (context: ExportContext) => Promise<WorkoutLog[]>
   /** Programs offered in the Program-mode picker. Omit when the program is fixed. */
   programs?: ExportProgramOption[]
@@ -183,9 +185,13 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
       const plannedSessions = config.resolvePlannedSessions
         ? await config.resolvePlannedSessions(selection)
         : undefined
+      const bodyMetrics = config.loadBodyMetrics
+        ? await config.loadBodyMetrics({ ...selection, range })
+        : undefined
 
       const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
       await downloadWorkoutLogs(logs, {
+        bodyMetrics,
         from: range.from,
         label: range.label,
         plannedSessions,

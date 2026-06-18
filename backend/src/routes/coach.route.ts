@@ -20,6 +20,7 @@ import {
   getCoachNavCounts,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  listBodyMetricsForTrainee,
   listCoachExerciseImportRequests,
   listCoachExercises,
   listAvailableCoachesForTrainee,
@@ -501,6 +502,26 @@ coachRouter.get("/trainees/:traineeId", async (req, res) => {
     const result = await getCoachTraineeDetail(profile.profile, String(req.params.traineeId))
 
     res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.get("/trainees/:traineeId/body-metrics", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const days = typeof req.query.days === "string" ? Number(req.query.days) : undefined
+    const from = typeof req.query.from === "string" ? req.query.from : undefined
+    const to = typeof req.query.to === "string" ? req.query.to : undefined
+    const bodyMetrics = await listBodyMetricsForTrainee(profile.profile, String(req.params.traineeId), {
+      days: Number.isFinite(days) ? days : undefined,
+      from,
+      to,
+    })
+
+    res.json({
+      bodyMetrics,
+    })
   } catch (error) {
     sendError(res, error)
   }

@@ -50,6 +50,7 @@ import {
   createCoachBodyMetric,
   createCoachCheckIn,
   exportCoachWorkoutLogsToGoogleSheets,
+  fetchCoachBodyMetrics,
   fetchCoachWorkoutLogs,
   unassignCoachProgram,
 } from "@/lib/fitness/api"
@@ -490,8 +491,14 @@ export function CoachTraineeDetailClient({
         return
       }
 
+      const bodyMetrics = await fetchCoachBodyMetrics(session.access_token, detail.trainee.id, {
+        from,
+        to,
+      })
+
       const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
       await downloadWorkoutLogs(allLogs, {
+        bodyMetrics,
         from,
         label: program.name,
         subjectName: detail.trainee.name,
