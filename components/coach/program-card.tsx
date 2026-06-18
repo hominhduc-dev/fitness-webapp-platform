@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Copy, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
+import { Archive, ArchiveRestore, Copy, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
 import {
@@ -31,6 +32,8 @@ interface ProgramCardProps {
   onEdit: () => void
   onAssign: () => void
   onDuplicate: () => void
+  onArchive: () => void
+  onRestore: () => void
   onDelete: () => void
 }
 
@@ -48,24 +51,45 @@ function formatEditedAt(value: Date, messages: ReturnType<typeof useLocale>["mes
 
 /**
  * Lift-styled program card: hairline border, no shadow, 10px radius.
- * Kebab (top-right) opens Edit / Assign / Duplicate / Delete.
+ * Kebab (top-right) opens Edit / Assign / Duplicate / Archive / Delete.
+ * Archived programs are dimmed, edit/assign/duplicate are hidden; the menu
+ * exposes Restore + Delete (Delete only when no assignments — proxy for draft).
  */
-export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDelete }: ProgramCardProps) {
+export function ProgramCard({
+  program,
+  busy,
+  onEdit,
+  onAssign,
+  onDuplicate,
+  onArchive,
+  onRestore,
+  onDelete,
+}: ProgramCardProps) {
   const { messages } = useLocale()
   const [menuOpen, setMenuOpen] = useState(false)
   const assigned = program.assignedTrainees ?? []
+  const isArchived = Boolean(program.archivedAt)
+  const canHardDelete = assigned.length === 0
 
   return (
     <div
       className={cn(
         "flex min-h-[276px] flex-col gap-3.5 rounded-[10px] border border-border bg-card p-5 transition-colors hover:border-input",
         busy && "pointer-events-none opacity-60",
+        isArchived && "opacity-70",
       )}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[17px] font-semibold leading-snug tracking-[-0.01em]">{program.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-[17px] font-semibold leading-snug tracking-[-0.01em]">{program.name}</h3>
+            {isArchived ? (
+              <Badge variant="micro" className="shrink-0 bg-muted text-muted-foreground">
+                Archived
+              </Badge>
+            ) : null}
+          </div>
           <p className="label-micro mt-1 text-muted-foreground">
             {messages.coach.weeks(program.duration)} · {messages.coach.daysPerWeek(program.workoutsPerWeek)}
           </p>
@@ -77,23 +101,40 @@ export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDe
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onSelect={onEdit}>
-              <Pencil className="h-4 w-4" />
-              {messages.coach.editProgram}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onAssign}>
-              <UserPlus className="h-4 w-4" />
-              {messages.coach.assign}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onDuplicate}>
-              <Copy className="h-4 w-4" />
-              {messages.coach.duplicate}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+          <DropdownMenuContent align="end" className="w-52">
+            {isArchived ? (
+              <DropdownMenuItem onSelect={onRestore}>
+                <ArchiveRestore className="h-4 w-4" />
+                Restore
+              </DropdownMenuItem>
+            ) : (
+              <>
+                <DropdownMenuItem onSelect={onEdit}>
+                  <Pencil className="h-4 w-4" />
+                  {messages.coach.editProgram}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={onAssign}>
+                  <UserPlus className="h-4 w-4" />
+                  {messages.coach.assign}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={onDuplicate}>
+                  <Copy className="h-4 w-4" />
+                  {messages.coach.duplicate}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onArchive}>
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={!canHardDelete}
+              onSelect={canHardDelete ? onDelete : undefined}
+            >
               <Trash2 className="h-4 w-4" />
-              {messages.common.delete}
+              Delete permanently
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -129,14 +170,23 @@ export function ProgramCard({ program, busy, onEdit, onAssign, onDuplicate, onDe
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button className="flex-1 gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={onAssign}>
-          <UserPlus className="h-3.5 w-3.5" />
-          {messages.coach.assign}
-        </Button>
-        <Button variant="outline" className="gap-1.5" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5" />
-          {messages.common.edit}
-        </Button>
+        {isArchived ? (
+          <Button variant="outline" className="flex-1 gap-1.5" onClick={onRestore}>
+            <ArchiveRestore className="h-3.5 w-3.5" />
+            Restore
+          </Button>
+        ) : (
+          <>
+            <Button className="flex-1 gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={onAssign}>
+              <UserPlus className="h-3.5 w-3.5" />
+              {messages.coach.assign}
+            </Button>
+            <Button variant="outline" className="gap-1.5" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5" />
+              {messages.common.edit}
+            </Button>
+          </>
+        )}
       </div>
 
       <p className="label-micro">{messages.coach.edited(formatEditedAt(program.createdAt, messages))}</p>

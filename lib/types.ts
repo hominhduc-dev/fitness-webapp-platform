@@ -242,6 +242,7 @@ export interface Program {
   workoutsPerWeek: number
   workouts: Workout[]
   assignedTo?: string[] // trainee IDs
+  archivedAt?: Date | null
   createdAt: Date
   createdBy: string // coach ID
 }

@@ -1251,6 +1251,7 @@ function serializeProgram(program: ProgramRecord) {
       id: assignment.user.id,
       name: assignment.user.name,
     })),
+    archivedAt: program.archivedAt ?? null,
     createdAt: program.createdAt,
     createdBy: program.createdById,
     description: program.description ?? undefined,
@@ -3528,6 +3529,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     },
     where: {
       userId: profile.id,
+      program: { archivedAt: null },
     },
   })
   const coachUpdateWorkoutIds = await buildCoachUpdateWorkoutIdsForAssignments(
@@ -3682,6 +3684,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
       },
       where: {
         userId: profile.id,
+        program: { archivedAt: null },
       },
     }),
     db.workoutLog.findMany({
@@ -4359,7 +4362,10 @@ async function createCoachRequestForTrainee(profile: SerializedProfile, coachId:
   }
 }
 
-async function listCoachPrograms(profile: SerializedProfile) {
+async function listCoachPrograms(
+  profile: SerializedProfile,
+  options?: { includeArchived?: boolean },
+) {
   assertCoach(profile)
   const db = ensurePrisma()
   const programs = await db.program.findMany({
@@ -4369,6 +4375,7 @@ async function listCoachPrograms(profile: SerializedProfile) {
     },
     where: {
       createdById: profile.id,
+      ...(options?.includeArchived ? {} : { archivedAt: null }),
     },
   })
 
@@ -4600,6 +4607,10 @@ async function updateCoachProgram(
 
   if (!existingProgram) {
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
+  }
+
+  if (existingProgram.archivedAt) {
+    throw new AuthServiceError("Program đã archive — hãy restore trước khi chỉnh sửa.", 409)
   }
 
   if (!input.name.trim()) {
@@ -4861,6 +4872,10 @@ async function adjustCoachProgramForTrainee(
     assertCoachOwnsTrainee(profile.id, traineeId),
   ])
 
+  if (existingProgram.archivedAt) {
+    throw new AuthServiceError("Program đã archive — hãy restore trước khi điều chỉnh.", 409)
+  }
+
   const existingAssignment = await db.programAssignment.findUnique({
     where: {
       programId_userId: {
@@ -5018,9 +5033,7 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
   assertCoach(profile)
 
   const existingProgram = await db.program.findFirst({
-    select: {
-      id: true,
-    },
+    select: { id: true },
     where: {
       createdById: profile.id,
       id: programId,
@@ -5031,10 +5044,25 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
   }
 
+  // Hard-delete is only allowed when the program is a draft: no assignments AND
+  // no workout logs anywhere. WorkoutLog.programId is checked alongside the live
+  // workout FK so orphaned logs (created before workouts were deleted on edit)
+  // also block hard-delete.
+  const [assignmentCount, liveLogCount, orphanLogCount] = await Promise.all([
+    db.programAssignment.count({ where: { programId: existingProgram.id } }),
+    db.workoutLog.count({ where: { workout: { programId: existingProgram.id } } }),
+    db.workoutLog.count({ where: { programId: existingProgram.id } }),
+  ])
+
+  if (assignmentCount > 0 || liveLogCount > 0 || orphanLogCount > 0) {
+    throw new AuthServiceError(
+      "Program đã có assignment hoặc log — dùng Archive thay vì Delete.",
+      409,
+    )
+  }
+
   await db.program.delete({
-    where: {
-      id: existingProgram.id,
-    },
+    where: { id: existingProgram.id },
   })
 
   return {
@@ -5043,11 +5071,52 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
   }
 }
 
+async function archiveCoachProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await assertCoachOwnsProgram(profile.id, programId)
+
+  if (program.archivedAt) {
+    return serializeProgram(program as ProgramRecord)
+  }
+
+  const updated = await db.program.update({
+    data: { archivedAt: new Date() },
+    include: PROGRAM_INCLUDE,
+    where: { id: program.id },
+  })
+
+  return serializeProgram(updated as ProgramRecord)
+}
+
+async function restoreCoachProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await assertCoachOwnsProgram(profile.id, programId)
+
+  if (!program.archivedAt) {
+    return serializeProgram(program as ProgramRecord)
+  }
+
+  const updated = await db.program.update({
+    data: { archivedAt: null },
+    include: PROGRAM_INCLUDE,
+    where: { id: program.id },
+  })
+
+  return serializeProgram(updated as ProgramRecord)
+}
+
 async function assignCoachProgramToTrainee(profile: SerializedProfile, programId: string, traineeId: string) {
   const db = ensurePrisma()
   assertCoach(profile)
 
-  await Promise.all([assertCoachOwnsProgram(profile.id, programId), assertCoachOwnsTrainee(profile.id, traineeId)])
+  const [program] = await Promise.all([
+    assertCoachOwnsProgram(profile.id, programId),
+    assertCoachOwnsTrainee(profile.id, traineeId),
+  ])
+
+  if (program.archivedAt) {
+    throw new AuthServiceError("Program đã archive — hãy restore trước khi gán.", 409)
+  }
 
   const assignment = await db.programAssignment.upsert({
     create: {
@@ -6440,6 +6509,7 @@ async function updateCoachRequestStatus(
 
 export {
   adjustCoachProgramForTrainee,
+  archiveCoachProgram,
   assignCoachProgramToTrainee,
   createBodyMetricForTrainee,
   createBodyMetricForCurrentTrainee,
@@ -6488,6 +6558,7 @@ export {
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,
   resetCurrentTraineeData,
+  restoreCoachProgram,
   submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
   updateCoachExercise,
