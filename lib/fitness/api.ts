@@ -76,6 +76,7 @@ type SerializedExerciseSet = {
   previousPerformance?: {
     completedAt: string
     reps?: number
+    rir?: number
     source: "most_recent" | "same_weekday_last_week"
     weight?: number
   }
@@ -541,6 +542,7 @@ function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
       ? {
           completedAt: new Date(set.previousPerformance.completedAt),
           reps: set.previousPerformance.reps,
+          rir: set.previousPerformance.rir,
           source: set.previousPerformance.source,
           weight: set.previousPerformance.weight,
         }
