@@ -66,6 +66,7 @@ export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday
 export interface PreviousExerciseSetPerformance {
   completedAt: Date
   reps?: number
+  rir?: number
   source: PreviousExerciseSetPerformanceSource
   weight?: number
 }
