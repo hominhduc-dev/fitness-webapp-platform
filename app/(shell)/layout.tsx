@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { AIChatBubble } from "@/components/ai/chat-bubble"
 import { ShellHeader } from "@/components/layout/shell-header"
 import { SidebarClient } from "@/components/layout/sidebar-client"
 import { PullToRefresh } from "@/components/pull-to-refresh"
@@ -21,6 +22,8 @@ export default async function AppShellLayout({ children }: { children: ReactNode
             <PullToRefresh>{children}</PullToRefresh>
           </main>
         </div>
+
+        {profile.role === "trainee" && <AIChatBubble />}
       </div>
     </AppProviders>
   )
