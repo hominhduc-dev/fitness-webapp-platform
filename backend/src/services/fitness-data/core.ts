@@ -208,6 +208,7 @@ type PreviousSetPerformanceSource = "most_recent" | "same_weekday_last_week"
 type PreviousExerciseSetPerformance = {
   completedAt: Date
   reps?: number
+  rir?: number
   source: PreviousSetPerformanceSource
   weight?: number
 }
@@ -215,6 +216,7 @@ type PreviousExerciseSetPerformance = {
 type WorkoutLogSnapshotSet = {
   actualReps?: number | null
   completed?: boolean
+  rir?: number | null
   setNumber?: number | null
   targetRepsMin?: number | null
   targetReps?: number | null
@@ -534,6 +536,7 @@ function serializePreviousSetPerformance(previousPerformance: PreviousExerciseSe
   return {
     completedAt: previousPerformance.completedAt,
     reps: previousPerformance.reps,
+    rir: previousPerformance.rir,
     source: previousPerformance.source,
     weight: previousPerformance.weight,
   }
@@ -580,7 +583,7 @@ function buildExerciseSetsWithHistory(
         id: `${workoutExerciseId}-xtra-${setNumber}`,
         notes: undefined,
         previousPerformance: serializePreviousSetPerformance(performance),
-        rir: undefined,
+        rir: performance.rir,
         setNumber,
         targetRepsMin: lastSet.targetRepsMin ?? undefined,
         targetReps: lastSet.targetReps,
@@ -1595,6 +1598,17 @@ function getAssignmentWeekIndex(assignedAt: Date, weekStart: Date, duration: num
   return Math.max(0, Math.min(lastWeekIndex, elapsedWeeks))
 }
 
+// A program ends once the trainee is past its final week. After that, recurring
+// program workouts no longer appear (no infinite repeat of the last week) — the
+// coach must extend or assign a new program.
+function isAssignmentProgramFinished(assignedAt: Date, weekStart: Date, duration: number) {
+  const assignmentWeekStart = startOfUtcWeek(assignedAt)
+  const elapsedWeeks = Math.floor((weekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
+  const lastWeekIndex = Math.max(0, Math.round(duration) - 1)
+
+  return elapsedWeeks > lastWeekIndex
+}
+
 function isWorkoutVisibleForAssignmentWeek(
   workout: Pick<WorkoutRecord, "scheduledDate" | "weekIndex">,
   assignedAt: Date,
@@ -1603,6 +1617,10 @@ function isWorkoutVisibleForAssignmentWeek(
 ) {
   if (workout.scheduledDate || typeof workout.weekIndex !== "number") {
     return true
+  }
+
+  if (isAssignmentProgramFinished(assignedAt, weekStart, programDuration)) {
+    return false
   }
 
   return workout.weekIndex === getAssignmentWeekIndex(assignedAt, weekStart, programDuration)
@@ -2392,6 +2410,7 @@ function buildPreviousSetPerformanceMap(
     const targetReps = toFiniteNumber(snapshotSet.targetReps)
     const reps = actualReps ?? (snapshotSet.completed === false ? undefined : targetReps)
     const weight = toFiniteNumber(snapshotSet.weight)
+    const rir = toFiniteNumber(snapshotSet.rir)
 
     if (reps == null && weight == null) {
       return
@@ -2400,6 +2419,7 @@ function buildPreviousSetPerformanceMap(
     previousPerformanceBySetNumber.set(setNumber, {
       completedAt: log.completedAt ?? log.startedAt,
       reps,
+      rir: rir ?? undefined,
       source,
       weight,
     })

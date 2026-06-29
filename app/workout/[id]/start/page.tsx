@@ -231,6 +231,15 @@ function formatDateInputValue(date: Date) {
   return `${year}-${month}-${day}`
 }
 
+/** Parses a `yyyy-MM-dd` query value into a local-midnight Date, or null if invalid. */
+function parseLogDateParam(value: string | null): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [year, month, day] = value.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setHours(0, 0, 0, 0)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 function resolvePlannedDateForWorkout(workout: Workout, actualDate: Date) {
   if (workout.scheduledDate) {
     return formatDateInputValue(workout.scheduledDate)
@@ -278,7 +287,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
   const { messages } = useLocale()
   const [weight, setWeight] = useState((set.weight ?? set.previousPerformance?.weight)?.toString() ?? "")
   const [reps, setReps] = useState((set.actualReps ?? set.previousPerformance?.reps ?? set.targetReps).toString())
-  const [rir, setRir] = useState(set.rir?.toString() ?? "")
+  const [rir, setRir] = useState((set.rir ?? set.previousPerformance?.rir)?.toString() ?? "")
   const [completed, setCompleted] = useState(set.completed)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(set.notes ?? "")
@@ -290,6 +299,10 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
   useEffect(() => {
     setReps((set.actualReps ?? set.previousPerformance?.reps ?? set.targetReps).toString())
   }, [set.actualReps, set.id, set.previousPerformance?.reps, set.targetReps])
+
+  useEffect(() => {
+    setRir((set.rir ?? set.previousPerformance?.rir)?.toString() ?? "")
+  }, [set.id, set.previousPerformance?.rir, set.rir])
 
   const handleToggle = () => {
     const next = !completed
@@ -390,7 +403,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
           setRir(e.target.value)
           onChange({ rir: e.target.value.trim() ? Number.parseInt(e.target.value) : undefined })
         }}
-        placeholder={set.rir != null ? String(set.rir) : "—"}
+        placeholder={(set.rir ?? set.previousPerformance?.rir) != null ? String(set.rir ?? set.previousPerformance?.rir) : "—"}
         aria-label="RIR"
         min={0}
         max={10}
@@ -786,6 +799,9 @@ export default function WorkoutStartPage() {
     today.setHours(0, 0, 0, 0)
     return today
   })
+  // When opened from a past schedule cell (`?logDate=yyyy-MM-dd`), the log is saved
+  // directly to that date on finish — bypassing the recent-days picker entirely.
+  const [presetLogDate, setPresetLogDate] = useState<Date | null>(null)
   const [restEvent, setRestEvent] = useState<RestEvent>(null)
   // Add exercise dialog
   const [showAddExercise, setShowAddExercise] = useState(false)
@@ -836,6 +852,13 @@ export default function WorkoutStartPage() {
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(interval)
+  }, [])
+
+  // ── Read `?logDate=` once on mount (back-logging a past session) ────────────
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("logDate")
+    const parsed = parseLogDateParam(param)
+    if (parsed) setPresetLogDate(parsed)
   }, [])
 
   // ── Persist session to localStorage ────────────────────────────────────────
@@ -890,7 +913,7 @@ export default function WorkoutStartPage() {
       day: "numeric",
       month: "long",
       weekday: "long",
-    }).format(now)
+    }).format(presetLogDate ?? now)
   })()
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -1060,6 +1083,10 @@ export default function WorkoutStartPage() {
 
   const handleFinishWorkout = () => {
     if (!workout) return
+    if (presetLogDate) {
+      void performSave(presetLogDate)
+      return
+    }
     const today = new Date()
     const isToday =
       (workout.scheduledDay !== undefined && workout.scheduledDay === today.getDay()) ||

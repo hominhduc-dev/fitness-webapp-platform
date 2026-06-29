@@ -508,6 +508,7 @@ function DayCard({
   const badge = getStatusBadge(entry, messages)
   const hasCoachUpdate = showCoachUpdateDot && Boolean(workout?.hasCoachUpdate)
   const tag = getRoutineTag(workout)
+  const isPastDay = getDateKey(entry.date) < getDateKey(startOfDay(new Date()))
 
   return (
     <div
@@ -585,6 +586,13 @@ function DayCard({
               <Link href={`/workout/${workout.id}/start`}>
                 <Play className="h-3.5 w-3.5 fill-current" />
                 {entry.log && !entry.log.completedAt ? messages.schedule.resume : messages.workoutPage.start}
+              </Link>
+            </Button>
+          ) : isPastDay ? (
+            <Button asChild variant="ghost" size="sm" className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary">
+              <Link href={`/workout/${workout.id}/start?logDate=${getDateKey(entry.date)}`}>
+                <Plus className="h-3.5 w-3.5" />
+                {messages.schedule.logWorkout}
               </Link>
             </Button>
           ) : onPreviewWorkout ? (
@@ -1182,39 +1190,6 @@ const CalendarGrid = memo(function CalendarGrid({
   )
 })
 
-const NextWeekPreview = memo(function NextWeekPreview({
-  entries,
-  nextWeekStart,
-  onPreviewWorkout,
-  onRestDayClick,
-  onReviewLog,
-}: {
-  entries: ScheduleEntry[]
-  nextWeekStart: Date
-  onPreviewWorkout: (workout: Workout, date: Date) => void
-  onRestDayClick: (date: Date) => void
-  onReviewLog: (log: WorkoutLog) => void
-}) {
-  const { messages } = useLocale()
-
-  return (
-    <>
-      <div className="mb-3 flex items-baseline justify-between">
-        <p className="label-micro">{messages.schedule.nextWeekRange(formatWeekRangeLabel(nextWeekStart))}</p>
-        <span className="label-micro text-muted-foreground">{messages.schedule.previewWorkout}</span>
-      </div>
-      <div className="opacity-70">
-        <CalendarGrid
-          entries={entries}
-          onPreviewWorkout={onPreviewWorkout}
-          onRestDayClick={onRestDayClick}
-          onReviewLog={onReviewLog}
-        />
-      </div>
-    </>
-  )
-})
-
 function RoutineDialogs({
   date,
   error,
@@ -1273,7 +1248,6 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
-  const [showNextWeekPreview, setShowNextWeekPreview] = useState(false)
   const [weekOffset, setWeekOffset] = useState(0)
   const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
   const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
@@ -1300,20 +1274,7 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
     setVisibleWeekLogs(weekLogs ?? [])
   }, [recentLogs, weekLogs])
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return
-    }
-
-    const requestIdleCallback = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(callback, 1))
-    const cancelIdleCallback = window.cancelIdleCallback ?? window.clearTimeout
-    const idleId = requestIdleCallback(() => setShowNextWeekPreview(true))
-
-    return () => cancelIdleCallback(idleId)
-  }, [])
-
   const weekStart = useMemo(() => startOfUtcWeekAsLocal(new Date()), [])
-  const nextWeekStart = useMemo(() => addDays(weekStart, 7), [weekStart])
   const displayWeekStart = useMemo(() => addDays(weekStart, weekOffset * 7), [weekStart, weekOffset])
   const logsForDisplay = visibleWeekLogs.length > 0 ? visibleWeekLogs : visibleRecentLogs
   const hasOptimisticSchedule = Object.keys(optimisticScheduleByDate).length > 0
@@ -1351,19 +1312,6 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
     })
   }, [weekOffset, hasOptimisticSchedule, scheduleEntries, logsForDisplay, allLogs, optimisticScheduleByDate, weekStart, displayWeekStart, visibleWorkouts])
 
-  const nextWeekEntries = useMemo(() => {
-    if (!showNextWeekPreview || weekOffset !== 0) {
-      return []
-    }
-
-    return buildWeekEntries({
-      logs: visibleRecentLogs,
-      optimisticScheduleByDate,
-      weekStart: nextWeekStart,
-      workouts: visibleWorkouts,
-    })
-  }, [nextWeekStart, optimisticScheduleByDate, showNextWeekPreview, weekOffset, visibleRecentLogs, visibleWorkouts])
-
   const routineLibrary = useMemo(() => [
     ...extraRoutineLibrary,
     ...visibleWorkouts
@@ -1380,10 +1328,6 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
   const filteredDisplayWeek = useMemo(
     () => displayWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
     [showSource, displayWeekEntries],
-  )
-  const filteredNextWeek = useMemo(
-    () => nextWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
-    [nextWeekEntries, showSource],
   )
 
   const handleWorkoutSaved = (workout: Workout, previousWorkout?: Workout, referenceDate?: Date) => {
@@ -1604,29 +1548,33 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
     <section className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-10 md:py-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="Previous week"
-              onClick={() => setWeekOffset((o) => o - 1)}
-              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <p className="label-micro">{weekRangeLabel}</p>
-            <button
-              type="button"
-              aria-label="Next week"
-              onClick={() => setWeekOffset((o) => o + 1)}
-              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+          <div className="mb-2.5 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center rounded-full border border-border bg-background">
+              <button
+                type="button"
+                aria-label={messages.schedule.previousWeek}
+                onClick={() => setWeekOffset((o) => o - 1)}
+                className="flex h-8 w-8 items-center justify-center rounded-l-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="whitespace-nowrap px-2 font-mono text-[11px] uppercase tracking-[0.08em] text-foreground tnum">
+                {weekRangeLabel}
+              </span>
+              <button
+                type="button"
+                aria-label={messages.schedule.nextWeek}
+                onClick={() => setWeekOffset((o) => o + 1)}
+                className="flex h-8 w-8 items-center justify-center rounded-r-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
             {weekOffset !== 0 ? (
               <button
                 type="button"
                 onClick={() => setWeekOffset(0)}
-                className="ml-1 font-mono text-[10px] uppercase tracking-[0.08em] text-primary transition-colors hover:underline"
+                className="rounded-full border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary transition-colors hover:bg-muted"
               >
                 {messages.schedule.todayLabel}
               </button>
@@ -1656,19 +1604,6 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
           onReviewLog={setSelectedReviewLog}
         />
       </div>
-
-      {weekOffset === 0 && showNextWeekPreview ? (
-        <NextWeekPreview
-          entries={filteredNextWeek}
-          nextWeekStart={nextWeekStart}
-          onPreviewWorkout={(workout, date) => void openWorkoutPreview(workout, date)}
-          onRestDayClick={(date) => {
-            setSelectedRestDate(date)
-            setRoutineError(null)
-          }}
-          onReviewLog={setSelectedReviewLog}
-        />
-      ) : null}
 
       <div className="mt-7 text-center">
         <Button asChild variant="ghost">
