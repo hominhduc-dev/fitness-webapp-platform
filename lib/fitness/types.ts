@@ -504,5 +504,102 @@ export type {
   WorkoutLogInput,
 }
 
+// ---------------------------------------------------------------------------
+// AI Generation Types
+// ---------------------------------------------------------------------------
+
+type AIGenerateProgramInput = {
+  goal: string
+  experienceLevel: string
+  daysPerWeek: number
+  sessionDuration: number
+  availableEquipment: string
+  focusAreas?: string[]
+  injuries?: string
+  durationWeeks: number
+}
+
+type AIGeneratedProgramExercise = {
+  variationId: string
+  sets: number
+  reps: number
+  repsMin?: number
+  rir?: number
+  restTime?: number
+  weight?: number
+}
+
+type AIGeneratedWorkout = {
+  name: string
+  kind: string
+  weekIndex: number
+  scheduledDay: number
+  duration: number
+  exercises: AIGeneratedProgramExercise[]
+}
+
+type AIGeneratedProgram = {
+  name: string
+  description: string
+  difficulty: string
+  duration: number
+  workoutsPerWeek: number
+  workouts: AIGeneratedWorkout[]
+}
+
+type AIGenerateProgramResult = {
+  generationId: string
+  program: AIGeneratedProgram
+  mappingRate: number
+}
+
+type AIGenerateMealPlanInput = {
+  date: string
+  preferences?: string
+  budget?: string
+  cookingTime?: string
+}
+
+type AIGeneratedMealItem = {
+  foodId: string
+  foodName: string
+  amountValue: number
+  amountUnit: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+type AIGeneratedMeal = {
+  type: string
+  suggestion: string
+  items: AIGeneratedMealItem[]
+}
+
+type AIGenerateMealPlanResult = {
+  generationId: string
+  meals: AIGeneratedMeal[]
+  totals: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
+  notes: string
+}
+
+export type {
+  AIGenerateMealPlanInput,
+  AIGenerateMealPlanResult,
+  AIGenerateProgramInput,
+  AIGenerateProgramResult,
+  AIGeneratedMeal,
+  AIGeneratedMealItem,
+  AIGeneratedProgram,
+  AIGeneratedProgramExercise,
+  AIGeneratedWorkout,
+}
+
 export type Exercise = ExerciseVariationOption
 export type { ExerciseBase, ExerciseLibraryExercise, ExerciseSource, ExerciseVariation, ExerciseVariationOption, WorkoutLogComment }

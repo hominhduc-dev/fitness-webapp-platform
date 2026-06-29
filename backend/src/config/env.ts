@@ -83,11 +83,16 @@ function inferDirectUrl() {
 }
 
 export const env = {
+  aiBaseUrl: process.env.AI_BASE_URL,
+  aiModel: process.env.AI_MODEL ?? "claude-haiku-4-5-20251001",
+  aiProvider: (process.env.AI_PROVIDER ?? "anthropic") as "anthropic" | "openai",
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   databaseUrl: inferDatabaseUrl(),
   directUrl: inferDirectUrl(),
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   n8nLogsWebhookUrl: process.env.N8N_LOGS_WEBHOOK_URL,
   nodeEnv: process.env.NODE_ENV ?? "development",
+  openaiApiKey: process.env.OPENAI_API_KEY,
   port: rawPort,
   // When > 0, Prisma logs every query whose DB execution time meets/exceeds this
   // many milliseconds (set to 1 to log everything). 0 disables instrumentation.

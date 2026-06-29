@@ -9,6 +9,7 @@ import {
   FileText,
   MoreHorizontal,
   Plus,
+  Search,
   Trash2,
   TrendingUp,
   X,
@@ -612,6 +613,16 @@ function LiftExerciseBlock({
             </div>
           ) : null}
         </div>
+        <a
+          href={`https://www.google.com/search?q=${encodeURIComponent(`${exercise.exercise.name} exercise`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={messages.workoutPage.searchExercise}
+          title={messages.workoutPage.searchExercise}
+          className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Search className="h-4 w-4" />
+        </a>
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}

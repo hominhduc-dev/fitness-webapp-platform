@@ -1843,7 +1843,121 @@ async function markAllNotificationsRead(accessToken: string) {
   })
 }
 
+// ---------------------------------------------------------------------------
+// AI Generation
+// ---------------------------------------------------------------------------
+
+async function generateAIProgram(accessToken: string, input: {
+  goal: string
+  experienceLevel: string
+  daysPerWeek: number
+  sessionDuration: number
+  availableEquipment: string
+  focusAreas?: string[]
+  injuries?: string
+  durationWeeks: number
+}) {
+  const response = await request<ApiEnvelope<{
+    generationId: string
+    program: {
+      name: string
+      description: string
+      difficulty: string
+      duration: number
+      workoutsPerWeek: number
+      workouts: Array<{
+        name: string
+        kind: string
+        weekIndex: number
+        scheduledDay: number
+        duration: number
+        exercises: Array<{
+          variationId: string
+          sets: number
+          reps: number
+          repsMin?: number
+          rir?: number
+          restTime?: number
+          weight?: number
+        }>
+      }>
+    }
+    mappingRate: number
+  }>>("/api/ai/generate-program", accessToken, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+
+  return response.data
+}
+
+async function acceptAIProgram(accessToken: string, generationId: string) {
+  const response = await request<ApiEnvelope<unknown>>("/api/ai/accept-program", accessToken, {
+    method: "POST",
+    body: JSON.stringify({ generationId }),
+  })
+
+  return response.data
+}
+
+async function generateAIMealPlan(accessToken: string, input: {
+  date: string
+  preferences?: string
+  budget?: string
+  cookingTime?: string
+}) {
+  const response = await request<ApiEnvelope<{
+    generationId: string
+    meals: Array<{
+      type: string
+      suggestion: string
+      items: Array<{
+        foodId: string
+        foodName: string
+        amountValue: number
+        amountUnit: string
+        calories: number
+        protein: number
+        carbs: number
+        fat: number
+      }>
+    }>
+    totals: {
+      calories: number
+      protein: number
+      carbs: number
+      fat: number
+    }
+    notes: string
+  }>>("/api/ai/generate-meal-plan", accessToken, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+
+  return response.data
+}
+
+async function acceptAIMealPlan(accessToken: string, generationId: string, date: string) {
+  const response = await request<ApiEnvelope<{ accepted: boolean }>>("/api/ai/accept-meal-plan", accessToken, {
+    method: "POST",
+    body: JSON.stringify({ generationId, date }),
+  })
+
+  return response.data
+}
+
+async function sendAIChatMessage(accessToken: string, message: string, history: Array<{ role: "user" | "assistant"; content: string }>) {
+  const response = await request<ApiEnvelope<{ reply: string }>>("/api/ai/chat", accessToken, {
+    method: "POST",
+    body: JSON.stringify({ message, history }),
+  })
+
+  return response.data
+}
+
 export {
+  acceptAIMealPlan,
+  acceptAIProgram,
   adjustCoachProgram,
   archiveCoachProgram,
   assignCoachProgram,
@@ -1886,6 +2000,9 @@ export {
   fetchExerciseLibrary,
   fetchExercises,
   fetchDashboard,
+  generateAIMealPlan,
+  generateAIProgram,
+  sendAIChatMessage,
   fetchNutritionDay,
   fetchNotifications,
   submitCoachExerciseImportRequest,

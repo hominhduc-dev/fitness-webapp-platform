@@ -68,6 +68,18 @@ enum FoodCategory {
   other
 }
 
+enum AIGenerationType {
+  workout_program
+  meal_plan
+}
+
+enum AIGenerationStatus {
+  pending
+  completed
+  failed
+  accepted
+}
+
 enum NotificationType {
   workout_reminder
   meal_reminder
@@ -129,6 +141,7 @@ model User {
   coachRequestsAsCoach   CoachRequest[]      @relation("CoachRequestCoach")
   coachRequestsAsTrainee CoachRequest[]      @relation("CoachRequestTrainee")
   adminAuditLogs         AdminAuditLog[]     @relation("AdminAuditActor")
+  aiGenerations          AIGeneration[]
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
 
@@ -226,6 +239,7 @@ model Program {
   duration        Int
   difficulty      ProgramDifficulty
   workoutsPerWeek Int
+  isAIGenerated   Boolean             @default(false)
   createdById     String              @db.Uuid
   createdBy       User                @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Cascade)
   workouts        Workout[]
@@ -485,4 +499,20 @@ model AdminAuditLog {
 
   @@index([adminId, createdAt])
   @@index([entityType, createdAt])
+}
+
+model AIGeneration {
+  id         String               @id @default(uuid()) @db.Uuid
+  userId     String               @db.Uuid
+  type       AIGenerationType
+  status     AIGenerationStatus   @default(pending)
+  input      Json
+  output     Json?
+  programId  String?              @db.Uuid
+  tokenUsage Int?
+  errorMsg   String?
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime             @default(now())
+
+  @@index([userId, type, createdAt])
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Calendar, Scale, TrendingUp, Utensils } from "lucide-react"
+import { Calendar, Scale, Sparkles, TrendingUp, Utensils } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
@@ -34,10 +34,16 @@ export function QuickActions() {
       label: messages.dashboard.progress,
       tone: "neutral",
     },
+    {
+      href: "/workout/ai-generate",
+      icon: Sparkles,
+      label: "AI Coach",
+      tone: "primary",
+    },
   ] as const
 
   return (
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       {actions.map((action) => (
         <Link
           key={action.href}

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { MoreHorizontal, Pencil, Play, Plus, User } from "lucide-react"
+import { MoreHorizontal, Pencil, Play, Plus, Sparkles, User } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
@@ -279,7 +279,15 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
             {messages.workoutPage.savedRoutines(reusableWorkouts.length)}
           </h1>
         </div>
-        <CreateRoutineButton />
+        <div className="flex gap-2">
+          <Link href="/workout/ai-generate">
+            <Button variant="outline" className="h-10 gap-2 rounded-[8px] px-4 text-sm font-semibold">
+              <Sparkles className="h-4 w-4" />
+              AI tạo lịch tập
+            </Button>
+          </Link>
+          <CreateRoutineButton />
+        </div>
       </div>
 
       <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">

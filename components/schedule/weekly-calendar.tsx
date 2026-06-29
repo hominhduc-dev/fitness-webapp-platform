@@ -512,7 +512,7 @@ function DayCard({
   return (
     <div
       className={cn(
-        "relative flex min-h-[130px] flex-col gap-2.5 rounded-[10px] border bg-card p-4 transition-colors duration-150",
+        "relative flex min-h-[130px] flex-col gap-2.5 overflow-hidden rounded-[10px] border bg-card p-4 transition-colors duration-150",
         entry.isToday ? "border-primary" : workout ? "border-border hover:border-input" : "border-border",
         entry.isCompleted && "bg-muted/60",
       )}
@@ -523,8 +523,8 @@ function DayCard({
           className="absolute right-4 top-[18px] h-2 w-2 rounded-full bg-primary"
         />
       ) : null}
-      <div className={cn("flex items-start justify-between gap-2", hasCoachUpdate && "pr-5")}>
-        <div>
+      <div className={cn("flex flex-wrap items-start justify-between gap-x-2 gap-y-1", hasCoachUpdate && "pr-5")}>
+        <div className="min-w-0">
           <div className={cn("label-micro", entry.isToday ? "text-primary" : "text-muted-foreground")}>
             {format(entry.date, "EEE", { locale: dateLocale })}
           </div>

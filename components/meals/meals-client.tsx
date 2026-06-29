@@ -3,6 +3,7 @@
 import { addDays, format } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
 import {
+  Bot,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
+import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -726,6 +728,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAIMealPlan, setShowAIMealPlan] = useState(false)
   const selectedDateKey = formatDateKey(selectedDate)
 
   async function loadDay(dateKey = selectedDateKey) {
@@ -878,10 +881,16 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
               : messages.meals.caloriesOverHeadline(Math.abs(Math.round(remaining)))}
           </h1>
         </div>
-        <Button className="self-start bg-foreground text-background hover:bg-ink-900" type="button" onClick={() => setAddTo("snack")}>
-          <Plus className="h-4 w-4" />
-          {messages.meals.quickAdd}
-        </Button>
+        <div className="flex gap-2 self-start">
+          <Button variant="outline" className="gap-1.5" type="button" onClick={() => setShowAIMealPlan(true)}>
+            <Bot className="h-4 w-4" />
+            AI gợi ý
+          </Button>
+          <Button className="bg-foreground text-background hover:bg-ink-900" type="button" onClick={() => setAddTo("snack")}>
+            <Plus className="h-4 w-4" />
+            {messages.meals.quickAdd}
+          </Button>
+        </div>
       </div>
 
       <div className="mb-5 flex items-center justify-center gap-3">
@@ -968,6 +977,18 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
           onAdd={(input) => void handleAddFood(input)}
           onClose={() => setAddTo(null)}
           onCreateFood={handleCreateFood}
+        />
+      ) : null}
+
+      {showAIMealPlan && session?.access_token ? (
+        <MealPlanGenerator
+          accessToken={session.access_token}
+          date={selectedDateKey}
+          onAccepted={() => {
+            setShowAIMealPlan(false)
+            void loadDay()
+          }}
+          onClose={() => setShowAIMealPlan(false)}
         />
       ) : null}
     </div>
