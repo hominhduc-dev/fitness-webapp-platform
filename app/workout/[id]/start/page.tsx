@@ -36,10 +36,12 @@ import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { AppMessages } from "@/lib/i18n/messages"
+import { formatRepTarget } from "@/lib/workout-reps"
 
 // ─── Session storage helpers (unchanged) ──────────────────────────────────────
 
 const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
+const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 4
 
 /** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
 const DEFAULT_REST_SECONDS = 90
@@ -50,6 +52,8 @@ type StoredWorkoutSession = {
     id: string
     sets: Array<{
       actualReps?: number
+      addedDuringSession?: boolean
+      clientAddedToken?: string
       completed: boolean
       id: string
       notes?: string
@@ -57,7 +61,14 @@ type StoredWorkoutSession = {
       weight?: number
     }>
   }>
+  schemaVersion?: number
   startedAt: string
+}
+
+type ProgramSetTarget = {
+  reps: number
+  repsMin?: number
+  weight?: number
 }
 
 function getWorkoutSessionStorageKey(workoutId: string) {
@@ -66,6 +77,44 @@ function getWorkoutSessionStorageKey(workoutId: string) {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
+}
+
+function isGeneratedHistorySetId(exerciseId: string, setId: string) {
+  return setId.startsWith(`${exerciseId}-xtra-`)
+}
+
+function buildProgramSetTargetMap(exercises: Workout["exercises"]) {
+  const targets = new Map<string, ProgramSetTarget>()
+
+  exercises.forEach((exercise) => {
+    exercise.sets.forEach((set) => {
+      targets.set(set.id, {
+        reps: set.targetReps,
+        repsMin: set.targetRepsMin,
+        weight: set.weight,
+      })
+    })
+  })
+
+  return targets
+}
+
+function buildStoredAddedSetTokenMap(storedSession: StoredWorkoutSession | null) {
+  if (storedSession?.schemaVersion !== WORKOUT_SESSION_STORAGE_SCHEMA_VERSION) {
+    return new Map<string, string>()
+  }
+
+  const tokens = new Map<string, string>()
+
+  storedSession.exercises.forEach((exercise) => {
+    exercise.sets.forEach((set) => {
+      if (set.addedDuringSession === true && typeof set.clientAddedToken === "string" && set.clientAddedToken.trim()) {
+        tokens.set(set.id, set.clientAddedToken)
+      }
+    })
+  })
+
+  return tokens
 }
 
 function hasSessionProgress(exercises: Workout["exercises"]) {
@@ -96,6 +145,8 @@ function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSes
           if (typeof set !== "object" || set === null) return []
           const setRecord = set as {
             actualReps?: unknown
+            addedDuringSession?: unknown
+            clientAddedToken?: unknown
             completed?: unknown
             id?: unknown
             notes?: unknown
@@ -106,6 +157,8 @@ function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSes
           return [
             {
               actualReps: isFiniteNumber(setRecord.actualReps) ? setRecord.actualReps : undefined,
+              addedDuringSession: setRecord.addedDuringSession === true,
+              clientAddedToken: typeof setRecord.clientAddedToken === "string" ? setRecord.clientAddedToken : undefined,
               completed: Boolean(setRecord.completed),
               id: setRecord.id,
               notes: typeof setRecord.notes === "string" ? setRecord.notes : undefined,
@@ -129,9 +182,10 @@ function readStoredWorkoutSession(workoutId: string) {
       return null
     }
     const currentExerciseIndex = isFiniteNumber(parsed.currentExerciseIndex) ? parsed.currentExerciseIndex : 0
+    const schemaVersion = isFiniteNumber(parsed.schemaVersion) ? parsed.schemaVersion : undefined
     const startedAt = typeof parsed.startedAt === "string" ? parsed.startedAt : new Date().toISOString()
     const exercises = sanitizeStoredWorkoutExercises(parsed.exercises)
-    return { currentExerciseIndex, exercises, startedAt } satisfies StoredWorkoutSession
+    return { currentExerciseIndex, exercises, schemaVersion, startedAt } satisfies StoredWorkoutSession
   } catch {
     window.localStorage.removeItem(getWorkoutSessionStorageKey(workoutId))
     return null
@@ -142,6 +196,7 @@ function createStoredWorkoutSession(
   exercises: Workout["exercises"],
   startedAt: Date,
   currentExerciseIndex: number,
+  addedSetTokens: ReadonlyMap<string, string>,
 ): StoredWorkoutSession {
   return {
     currentExerciseIndex,
@@ -149,6 +204,8 @@ function createStoredWorkoutSession(
       id: exercise.id,
       sets: exercise.sets.map((set) => ({
         actualReps: set.actualReps,
+        addedDuringSession: addedSetTokens.has(set.id),
+        clientAddedToken: addedSetTokens.get(set.id),
         completed: set.completed,
         id: set.id,
         notes: set.notes,
@@ -156,6 +213,7 @@ function createStoredWorkoutSession(
         weight: set.weight,
       })),
     })),
+    schemaVersion: WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
     startedAt: startedAt.toISOString(),
   }
 }
@@ -163,6 +221,7 @@ function createStoredWorkoutSession(
 function restoreWorkoutSessionExercises(
   baseExercises: Workout["exercises"],
   storedExercises: StoredWorkoutSession["exercises"],
+  canRestoreAddedSets: boolean,
 ) {
   const storedExercisesById = new Map(storedExercises.map((exercise) => [exercise.id, exercise]))
   return baseExercises.map((exercise) => {
@@ -187,7 +246,15 @@ function restoreWorkoutSessionExercises(
     const baseSetIds = new Set(exercise.sets.map((s) => s.id))
     const lastSet = exercise.sets[exercise.sets.length - 1]
     const sessionAddedSets: Workout["exercises"][number]["sets"] = storedExercise.sets
-      .filter((storedSet) => !baseSetIds.has(storedSet.id))
+      .filter(
+        (storedSet) =>
+          !baseSetIds.has(storedSet.id) &&
+          canRestoreAddedSets &&
+          storedSet.addedDuringSession === true &&
+          typeof storedSet.clientAddedToken === "string" &&
+          storedSet.clientAddedToken.trim().length > 0 &&
+          !isGeneratedHistorySetId(exercise.id, storedSet.id),
+      )
       .map((storedSet, i) => ({
         id: storedSet.id,
         setNumber: exercise.sets.length + i + 1,
@@ -274,6 +341,7 @@ function getDayLabel(date: Date, messages: AppMessages, locale: string): { prima
 // ─── Set row (Lift spec) ───────────────────────────────────────────────────────
 
 interface LiftSetRowProps {
+  programTarget?: ProgramSetTarget
   set: ExerciseSet
   setIndex: number
   weightUnit: "kg" | "lbs"
@@ -283,26 +351,35 @@ interface LiftSetRowProps {
   onRemove: () => void
 }
 
-function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
+function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
   const { messages } = useLocale()
-  const [weight, setWeight] = useState((set.weight ?? set.previousPerformance?.weight)?.toString() ?? "")
-  const [reps, setReps] = useState((set.actualReps ?? set.previousPerformance?.reps ?? set.targetReps).toString())
-  const [rir, setRir] = useState((set.rir ?? set.previousPerformance?.rir)?.toString() ?? "")
+  const [weight, setWeight] = useState(set.weight?.toString() ?? "")
+  const [reps, setReps] = useState((set.actualReps ?? set.targetReps).toString())
+  const [rir, setRir] = useState(set.rir?.toString() ?? "")
   const [completed, setCompleted] = useState(set.completed)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(set.notes ?? "")
+  const previousSetIdRef = useRef(set.id)
 
   useEffect(() => {
-    setWeight((set.weight ?? set.previousPerformance?.weight)?.toString() ?? "")
-  }, [set.id, set.previousPerformance?.weight, set.weight])
+    setWeight(set.weight?.toString() ?? "")
+  }, [set.id, set.weight])
 
   useEffect(() => {
-    setReps((set.actualReps ?? set.previousPerformance?.reps ?? set.targetReps).toString())
-  }, [set.actualReps, set.id, set.previousPerformance?.reps, set.targetReps])
+    if (previousSetIdRef.current !== set.id) {
+      previousSetIdRef.current = set.id
+      setReps((set.actualReps ?? set.targetReps).toString())
+      return
+    }
+
+    if (set.actualReps != null) {
+      setReps(set.actualReps.toString())
+    }
+  }, [set.actualReps, set.id, set.targetReps])
 
   useEffect(() => {
-    setRir((set.rir ?? set.previousPerformance?.rir)?.toString() ?? "")
-  }, [set.id, set.previousPerformance?.rir, set.rir])
+    setRir(set.rir?.toString() ?? "")
+  }, [set.id, set.rir])
 
   const handleToggle = () => {
     const next = !completed
@@ -315,8 +392,8 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
     })
   }
 
-  const prevLabel = set.previousPerformance
-    ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
+  const prevLabel = programTarget
+    ? `${programTarget.weight ?? "—"} × ${formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })}`
     : "— · —"
 
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
@@ -403,7 +480,7 @@ function LiftSetRow({ set, setIndex, weightUnit, canRemove, onToggle, onChange, 
           setRir(e.target.value)
           onChange({ rir: e.target.value.trim() ? Number.parseInt(e.target.value) : undefined })
         }}
-        placeholder={(set.rir ?? set.previousPerformance?.rir) != null ? String(set.rir ?? set.previousPerformance?.rir) : "—"}
+        placeholder={set.rir != null ? String(set.rir) : "—"}
         aria-label="RIR"
         min={0}
         max={10}
@@ -524,6 +601,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
 
 interface LiftExerciseBlockProps {
   exercise: WorkoutExercise
+  programSetTargets: Map<string, ProgramSetTarget>
   weightUnit: "kg" | "lbs"
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
   onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
@@ -536,6 +614,7 @@ interface LiftExerciseBlockProps {
 
 function LiftExerciseBlock({
   exercise,
+  programSetTargets,
   weightUnit,
   onSetUpdate,
   onSetComplete,
@@ -711,6 +790,7 @@ function LiftExerciseBlock({
           {exercise.sets.map((set, idx) => (
             <LiftSetRow
               key={set.id}
+              programTarget={programSetTargets.get(set.id)}
               set={set}
               setIndex={idx}
               weightUnit={weightUnit}
@@ -790,6 +870,8 @@ export default function WorkoutStartPage() {
   const [now, setNow] = useState(new Date())
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
   const exerciseRefs = useRef<(HTMLDivElement | null)[]>([])
+  const addedSetTokensRef = useRef<Map<string, string>>(new Map())
+  const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -826,10 +908,16 @@ export default function WorkoutStartPage() {
         const nextWorkout = await fetchWorkoutDetail(session.access_token, workoutId)
         if (cancelled) return
         const storedSession = readStoredWorkoutSession(workoutId)
+        addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
+        programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.exercises)
         setWorkout(nextWorkout)
         setExercises(
           storedSession
-            ? restoreWorkoutSessionExercises(nextWorkout.exercises, storedSession.exercises)
+            ? restoreWorkoutSessionExercises(
+                nextWorkout.exercises,
+                storedSession.exercises,
+                storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
+              )
             : nextWorkout.exercises,
         )
         setCurrentExerciseIndex(
@@ -871,7 +959,12 @@ export default function WorkoutStartPage() {
     }
     window.localStorage.setItem(
       storageKey,
-      JSON.stringify(createStoredWorkoutSession(exercises, startTime, currentExerciseIndex)),
+      JSON.stringify(createStoredWorkoutSession(
+        exercises,
+        startTime,
+        currentExerciseIndex,
+        addedSetTokensRef.current,
+      )),
     )
   }, [currentExerciseIndex, exercises, startTime, workout, workoutId])
 
@@ -1047,6 +1140,7 @@ export default function WorkoutStartPage() {
           weight: last?.weight,
           completed: false,
         }
+        addedSetTokensRef.current.set(newSet.id, `${Date.now()}-${Math.random().toString(36).slice(2)}`)
         return { ...ex, sets: [...ex.sets, newSet] }
       }),
     )
@@ -1207,6 +1301,7 @@ export default function WorkoutStartPage() {
           >
             <LiftExerciseBlock
               exercise={exercise}
+              programSetTargets={programSetTargetsRef.current}
               weightUnit={weightUnit}
               onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
               onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}

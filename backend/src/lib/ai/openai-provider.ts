@@ -1,6 +1,16 @@
 import OpenAI from "openai"
 
+import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
 import type { AIProvider, AIResponse } from "./types"
+
+type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh"
+
+const REASONING_EFFORT_VALUES: ReasoningEffort[] = ["none", "minimal", "low", "medium", "high", "xhigh"]
+
+function getReasoningEffort(): ReasoningEffort | undefined {
+  const effort = process.env.AI_REASONING_EFFORT?.trim()
+  return REASONING_EFFORT_VALUES.includes(effort as ReasoningEffort) ? (effort as ReasoningEffort) : undefined
+}
 
 /**
  * Removes reasoning blocks that thinking models (e.g. Gemma via Google AI Studio)
@@ -53,6 +63,7 @@ function createOpenAIProvider(
   jsonMode = true,
 ): AIProvider {
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
+  const reasoningEffort = getReasoningEffort()
 
   return {
     async generateStructuredJSON<T>({
@@ -64,17 +75,23 @@ function createOpenAIProvider(
       userPrompt: string
       maxTokens?: number
     }): Promise<AIResponse<T>> {
-      const response = await client.chat.completions.create({
-        model,
-        max_tokens: maxTokens,
-        // Some OpenAI-compatible models (e.g. Gemma via Google AI Studio) reject
-        // response_format. Disable json mode via AI_JSON_MODE=false for those.
-        ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      })
+      const response = await withAIRequestTimeout(
+        client.chat.completions.create(
+          {
+            model,
+            max_tokens: maxTokens,
+            // Some OpenAI-compatible models (e.g. Gemma via Google AI Studio) reject
+            // response_format. Disable json mode via AI_JSON_MODE=false for those.
+            ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+            ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          },
+          { timeout: getAIRequestTimeoutMs() },
+        ),
+      )
 
       const text = response.choices[0]?.message?.content
 
@@ -99,14 +116,20 @@ function createOpenAIProvider(
       userPrompt: string
       maxTokens?: number
     }): Promise<AIResponse<string>> {
-      const response = await client.chat.completions.create({
-        model,
-        max_tokens: maxTokens,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      })
+      const response = await withAIRequestTimeout(
+        client.chat.completions.create(
+          {
+            model,
+            max_tokens: maxTokens,
+            ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          },
+          { timeout: getAIRequestTimeoutMs() },
+        ),
+      )
 
       const text = response.choices[0]?.message?.content
 

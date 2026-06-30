@@ -40,6 +40,7 @@ type RoutineExercise = {
   fallbackMuscleGroup?: string
   fallbackVariationName?: string
   id: string
+  notes?: string
   reps: string
   rir?: string
   restTime?: string
@@ -251,6 +252,7 @@ function mapWorkoutExerciseToRoutineExercise(workoutExercise: Workout["exercises
     fallbackMuscleGroup: workoutExercise.exercise.muscleGroup,
     fallbackVariationName: workoutExercise.variation.name,
     id: workoutExercise.id || createDraftId(),
+    notes: workoutExercise.notes ?? "",
     reps: formatRepTarget({
       reps: workoutExercise.sets[0]?.targetReps ?? 1,
       repsMin: workoutExercise.sets[0]?.targetRepsMin,
@@ -513,7 +515,7 @@ function DayCard({
   return (
     <div
       className={cn(
-        "relative flex min-h-[130px] flex-col gap-2.5 overflow-hidden rounded-[10px] border bg-card p-4 transition-colors duration-150",
+        "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-[10px] border bg-card p-4 transition-colors duration-150",
         entry.isToday ? "border-primary" : workout ? "border-border hover:border-input" : "border-border",
         entry.isCompleted && "bg-muted/60",
       )}
@@ -739,6 +741,12 @@ function RoutinePickerDialog({
   )
 }
 
+const routineFieldInputClass = cn(
+  "h-9 w-full rounded border border-border bg-background px-2 text-center font-mono text-sm text-foreground",
+  "focus:outline-none focus:ring-1 focus:ring-ring",
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+)
+
 function RoutineFieldNum({
   allowDecimals,
   label,
@@ -765,27 +773,16 @@ function RoutineFieldNum({
         value={value}
         placeholder={placeholder ?? ""}
         onChange={(event) => onChange(event.target.value)}
-        className={cn(
-          "h-9 w-full rounded border border-border bg-background px-2 text-center font-mono text-sm text-foreground",
-          "focus:outline-none focus:ring-1 focus:ring-ring",
-          "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-        )}
+        className={routineFieldInputClass}
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
     </div>
   )
 }
 
+
 function getRoutineExerciseTitle(exercise: RoutineExercise) {
-  if (!exercise.fallbackExerciseName) {
-    return exercise.variationId
-  }
-
-  if (exercise.fallbackVariationName && !exercise.fallbackIsDefault) {
-    return `${exercise.fallbackExerciseName} - ${exercise.fallbackVariationName}`
-  }
-
-  return exercise.fallbackExerciseName
+  return exercise.fallbackExerciseName || exercise.variationId
 }
 
 function getRoutineExerciseMeta(exercise: RoutineExercise) {
@@ -831,9 +828,13 @@ function RoutineBuilderDialog({
   const canSave = name.trim().length > 0 && exercises.length > 0 && exercises.every((exercise) => exercise.variationId) && !isSaving
 
   const updateExercise = (exerciseId: string, patch: Partial<RoutineExercise>) => {
-    setExercises((current) =>
-      current.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...patch } : exercise)),
-    )
+    setExercises((current) => {
+      const isFirst = current.length > 0 && current[0].id === exerciseId
+      if (isFirst && patch.rir !== undefined) {
+        return current.map((exercise) => ({ ...exercise, rir: patch.rir ?? exercise.rir, ...(exercise.id === exerciseId ? patch : {}) }))
+      }
+      return current.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...patch } : exercise))
+    })
   }
 
   const moveExercise = (index: number, direction: -1 | 1) => {
@@ -1017,6 +1018,17 @@ function RoutineBuilderDialog({
                     placeholder="90"
                   />
                 </div>
+
+                <textarea
+                  value={exercise.notes ?? ""}
+                  onChange={(event) => updateExercise(exercise.id, { notes: event.target.value })}
+                  placeholder={messages.workoutPage.addNote}
+                  rows={1}
+                  className={cn(
+                    "mt-2 w-full resize-none rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60",
+                    "focus:outline-none focus:ring-1 focus:ring-ring",
+                  )}
+                />
               </div>
             ))}
           </div>
@@ -1052,6 +1064,7 @@ function RoutineBuilderDialog({
 
         {pickerTarget ? (
           <AddExerciseModal
+            currentVariationId={pickerTarget !== "add" ? exercises.find((exercise) => exercise.id === pickerTarget)?.variationId : undefined}
             existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
             exercises={exerciseOptions}
             onClose={() => setPickerTarget(null)}

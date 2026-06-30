@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  ArrowDownUp,
   ChevronDown,
   ChevronRight,
   Check,
@@ -12,11 +13,13 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -60,7 +63,12 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     delete: locale === "en" ? "Delete" : "Xóa",
     deleteConfirm: (name: string, variation: string) =>
       locale === "en" ? `Delete "${name} · ${variation}"?` : `Xóa "${name} · ${variation}"?`,
+    deleteSelected: (count: number) =>
+      locale === "en" ? `Delete ${count} selected` : `Xóa ${count} đã chọn`,
+    deselectAll: locale === "en" ? "Deselect all" : "Bỏ chọn tất cả",
     downloadTemplate: locale === "en" ? "Download template" : "Tải file mẫu",
+    exportAll: locale === "en" ? "Export Excel" : "Export Excel",
+    syncImport: locale === "en" ? "Sync from Excel" : "Sync từ Excel",
     editExercise: locale === "en" ? "Edit exercise" : "Sửa bài tập",
     equipment: locale === "en" ? "Equipment" : "Thiết bị",
     exercise: locale === "en" ? "Exercise" : "Bài tập",
@@ -74,6 +82,9 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     rows: locale === "en" ? "rows" : "dòng",
     save: locale === "en" ? "Save" : "Lưu",
     searchExercises: locale === "en" ? "Search exercises..." : "Tìm bài tập...",
+    selected: (count: number) =>
+      locale === "en" ? `${count} selected` : `${count} đã chọn`,
+    selectAll: locale === "en" ? "Select all" : "Chọn tất cả",
     submittedBy: locale === "en" ? "Submitted by" : "Gửi bởi",
     untitledImport: locale === "en" ? "Untitled import" : "File import chưa đặt tên",
     usageCount: (count: number) =>
@@ -99,7 +110,7 @@ type ExerciseFormModalProps = {
 function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: ExerciseFormModalProps) {
   const copy = getExercisePanelCopy(locale)
   const [name, setName] = useState(initial?.name ?? "")
-  const [variationName, setVariation] = useState(initial?.variationName ?? "Default")
+  const [variationName, setVariation] = useState(initial?.variationName === "Default" ? "" : (initial?.variationName ?? ""))
   const [muscleGroup, setMuscle] = useState(initial?.muscleGroup ?? MUSCLES[0])
   const [equipment, setEquipment] = useState(initial?.equipment ?? EQUIP[0])
 
@@ -107,7 +118,7 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
 
   function handleSave() {
     if (!canSave) return
-    onSave({ id: initial?.id, name: name.trim(), variationName, muscleGroup, equipment })
+    onSave({ id: initial?.id, name: name.trim(), variationName: variationName.trim() || "Default", muscleGroup, equipment })
   }
 
   return (
@@ -148,7 +159,7 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
               className="mt-1.5"
               value={variationName}
               onChange={(e) => setVariation(e.target.value)}
-              placeholder="e.g. Wide Grip"
+              placeholder={locale === "en" ? "e.g. Wide Grip" : "VD: Wide Grip"}
             />
           </div>
 
@@ -220,46 +231,60 @@ type GroupBlockProps = {
   group: string
   exercises: AdminExerciseItem[]
   open: boolean
+  selected: Set<string>
   onToggle: () => void
+  onToggleSelect: (id: string) => void
+  onToggleGroupSelect: (ids: string[]) => void
   onEdit: (e: AdminExerciseItem) => void
   onDelete: (e: AdminExerciseItem) => void
   deletingId: string | null
   locale: "en" | "vi"
 }
 
-function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deletingId, locale }: GroupBlockProps) {
+function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, deletingId, locale }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
   const totalUses = exercises.reduce((a, e) => a + e.usageCount, 0)
+  const selectableIds = exercises.filter((e) => e.usageCount === 0 && ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
+  const someSelected = selectableIds.some((id) => selected.has(id))
 
   return (
     <div className="overflow-hidden rounded-[10px] border border-border bg-card">
       {/* Group header */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn(
-          "flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-muted/40",
-          open && "bg-muted/30",
+      <div className={cn("flex w-full items-center gap-2.5 px-4 py-3 transition-colors", open && "bg-muted/30")}>
+        {open && selectableIds.length > 0 && (
+          <Checkbox
+            checked={allSelected ? true : someSelected ? "indeterminate" : false}
+            onCheckedChange={() => onToggleGroupSelect(selectableIds)}
+            className="shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          />
         )}
-      >
-        {open
-          ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-          : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-        }
-        <span className="flex-1 text-[15px] font-semibold text-foreground">{group}</span>
-        <span className="font-mono text-[11px] text-muted-foreground tnum">
-          {copy.variationCount(exercises.length)}
-        </span>
-        <Badge variant="outline" className="font-mono text-[11px] tnum">
-          {copy.usageCount(totalUses)}
-        </Badge>
-      </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex flex-1 items-center gap-2.5 text-left hover:opacity-80"
+        >
+          {open
+            ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          }
+          <span className="flex-1 text-[15px] font-semibold text-foreground">{group}</span>
+          <span className="font-mono text-[11px] text-muted-foreground tnum">
+            {copy.variationCount(exercises.length)}
+          </span>
+          <Badge variant="outline" className="font-mono text-[11px] tnum">
+            {copy.usageCount(totalUses)}
+          </Badge>
+        </button>
+      </div>
 
       {/* Exercise rows */}
       {open && (
         <div className="border-t border-border">
           {/* Column header */}
-          <div className="grid grid-cols-[minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]">
+          <div className="grid grid-cols-[24px_minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]">
+            <span />
             <span className="label-micro text-muted-foreground">{copy.exercise}</span>
             <span className="label-micro hidden text-muted-foreground sm:block">{copy.variation}</span>
             <span className="label-micro hidden text-muted-foreground sm:block">{copy.equipment}</span>
@@ -269,30 +294,42 @@ function GroupBlock({ group, exercises, open, onToggle, onEdit, onDelete, deleti
 
           {exercises.map((e) => {
             const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
+            const canSelect = canManage && e.usageCount === 0
+            const isSelected = selected.has(e.id)
             return (
             <div
               key={e.id}
-              className="grid grid-cols-[minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 hover:bg-muted/20 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]"
+              className={cn(
+                "grid grid-cols-[24px_minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]",
+                isSelected ? "bg-primary/5" : "hover:bg-muted/20",
+              )}
             >
-              {/* Name + default badge (+ variation/equipment inline on mobile) */}
+              {/* Checkbox */}
+              <div className="flex items-center justify-center">
+                {canSelect ? (
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(e.id)}
+                  />
+                ) : (
+                  <span className="h-4 w-4" />
+                )}
+              </div>
+
+              {/* Name (+ variation/equipment inline on mobile) */}
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
-                  {e.isDefault && (
-                    <Badge variant="micro" className="bg-primary-soft text-primary border-primary/20 shrink-0">
-                      {copy.default}
-                    </Badge>
-                  )}
                 </div>
                 {/* Mobile-only: show variation + equipment under the name */}
                 <span className="truncate text-[11px] text-muted-foreground sm:hidden">
-                  {e.variationName}
-                  {e.equipment ? ` · ${e.equipment}` : ""}
+                  {e.variationName !== "Default" ? e.variationName : ""}
+                  {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
                 </span>
               </div>
 
               {/* Variation name (desktop column) */}
-              <span className="hidden truncate text-[12px] text-muted-foreground sm:block">{e.variationName}</span>
+              <span className="hidden truncate text-[12px] text-muted-foreground sm:block">{e.variationName !== "Default" ? e.variationName : ""}</span>
 
               {/* Equipment (desktop column) */}
               <span className="hidden text-[12px] text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
@@ -364,8 +401,11 @@ type Props = {
   locale: "en" | "vi"
   onSave: (data: ExerciseSaveData) => Promise<void>
   onDelete: (exercise: AdminExerciseItem) => Promise<void>
+  onBulkDelete: (ids: string[]) => Promise<void>
   onImport: () => void
   onDownloadTemplate: () => void
+  onExportAll: () => void
+  onSyncImport: () => void
   onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
 }
 
@@ -376,15 +416,29 @@ export function AdminExercisesPanel({
   locale,
   onSave,
   onDelete,
+  onBulkDelete,
   onImport,
   onDownloadTemplate,
+  onExportAll,
+  onSyncImport,
   onReviewImportRequest,
 }: Props) {
   const copy = getExercisePanelCopy(locale)
+  const [rawQ, setRawQ] = useState("")
   const [q, setQ] = useState("")
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const [openGroups, setOpenGroups] = useState<string[]>([])
   const [modal, setModal] = useState<"new" | AdminExerciseItem | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  function handleSearchChange(value: string) {
+    setRawQ(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setQ(value), 200)
+  }
+
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
 
   /* Derived: filter + group */
   const filtered = useMemo(
@@ -409,6 +463,28 @@ export function AdminExercisesPanel({
     setOpenGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
   }
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleGroupSelect(ids: string[]) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      const allIn = ids.every((id) => next.has(id))
+      if (allIn) {
+        ids.forEach((id) => next.delete(id))
+      } else {
+        ids.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }
+
   async function handleSave(data: FormData) {
     await onSave(data)
     setModal(null)
@@ -424,9 +500,22 @@ export function AdminExercisesPanel({
     }
   }
 
+  async function handleBulkDelete() {
+    const ids = Array.from(selected)
+    if (!ids.length) return
+    const msg = locale === "en"
+      ? `Delete ${ids.length} selected exercise(s)? Exercises in use will be skipped.`
+      : `Xóa ${ids.length} bài tập đã chọn? Bài tập đang dùng sẽ được bỏ qua.`
+    if (!confirm(msg)) return
+    await onBulkDelete(ids)
+    setSelected(new Set())
+  }
+
   const isSaving =
     actionKey === "exercise-create" ||
     (typeof modal === "object" && modal !== null && actionKey === `exercise-update-${modal.id}`)
+
+  const isBulkDeleting = actionKey === "exercise-bulk-delete"
 
   return (
     <div className="space-y-5">
@@ -509,18 +598,59 @@ export function AdminExercisesPanel({
           <FileSpreadsheet className="mr-1.5 h-4 w-4" />
           {copy.importExcel}
         </Button>
+        <Button
+          variant="outline"
+          onClick={onExportAll}
+          disabled={actionKey === "exercise-export" || exercises.length === 0}
+        >
+          {actionKey === "exercise-export"
+            ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            : <Upload className="mr-1.5 h-4 w-4" />
+          }
+          {copy.exportAll}
+        </Button>
+        <Button variant="outline" onClick={onSyncImport}>
+          <ArrowDownUp className="mr-1.5 h-4 w-4" />
+          {copy.syncImport}
+        </Button>
         <Button onClick={() => setModal("new")}>
           <Plus className="mr-1.5 h-4 w-4" />
           {copy.newExercise}
         </Button>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <span className="text-sm font-medium text-foreground">
+            {copy.selected(selected.size)}
+          </span>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelected(new Set())}
+          >
+            {copy.deselectAll}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={isBulkDeleting}
+            onClick={() => void handleBulkDelete()}
+          >
+            {isBulkDeleting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
+            {copy.deleteSelected(selected.size)}
+          </Button>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative max-w-[360px]">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
         <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={rawQ}
+          onChange={(e) => handleSearchChange(e.target.value)}
           placeholder={copy.searchExercises}
           className="pl-9"
         />
@@ -534,7 +664,10 @@ export function AdminExercisesPanel({
             group={group}
             exercises={items}
             open={forceOpen || openGroups.includes(group)}
+            selected={selected}
             onToggle={() => toggle(group)}
+            onToggleSelect={toggleSelect}
+            onToggleGroupSelect={toggleGroupSelect}
             onEdit={(e) => setModal(e)}
             onDelete={handleDelete}
             deletingId={deletingId}
