@@ -22,6 +22,7 @@ function parsePersonalWorkoutInput(body: unknown) {
   const requestBody = payload as {
     duration?: unknown
     exercises?: Array<{
+      notes?: unknown
       repsMin?: unknown
       rir?: unknown
       variationId?: unknown
@@ -41,6 +42,7 @@ function parsePersonalWorkoutInput(body: unknown) {
     duration: typeof requestBody.duration === "number" ? requestBody.duration : undefined,
     exercises: Array.isArray(requestBody.exercises)
       ? requestBody.exercises.map((exercise) => ({
+          notes: typeof exercise?.notes === "string" ? exercise.notes : undefined,
           repsMin: typeof exercise?.repsMin === "number" ? exercise.repsMin : undefined,
           rir: typeof exercise?.rir === "number" ? exercise.rir : undefined,
           variationId: typeof exercise?.variationId === "string" ? exercise.variationId : "",

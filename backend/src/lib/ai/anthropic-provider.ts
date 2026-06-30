@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
+import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
 import type { AIProvider, AIResponse } from "./types"
 
 function createAnthropicProvider(apiKey: string, model: string): AIProvider {
@@ -15,12 +16,17 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
       userPrompt: string
       maxTokens?: number
     }): Promise<AIResponse<T>> {
-      const response = await client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      })
+      const response = await withAIRequestTimeout(
+        client.messages.create(
+          {
+            model,
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+          },
+          { timeout: getAIRequestTimeoutMs() },
+        ),
+      )
 
       const textBlock = response.content.find((b) => b.type === "text")
 
@@ -47,12 +53,17 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
       userPrompt: string
       maxTokens?: number
     }): Promise<AIResponse<string>> {
-      const response = await client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      })
+      const response = await withAIRequestTimeout(
+        client.messages.create(
+          {
+            model,
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+          },
+          { timeout: getAIRequestTimeoutMs() },
+        ),
+      )
 
       const textBlock = response.content.find((b) => b.type === "text")
 

@@ -702,7 +702,10 @@ QUY TẮC BẮT BUỘC:
 3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
 4. type phải là: breakfast, lunch, dinner, hoặc snack.
 5. Tổng calories phải gần với mục tiêu (±10%).
-6. Ưu tiên đa dạng protein, rau, trái cây.`
+6. Tạo đúng 4 bữa: breakfast, lunch, dinner, snack.
+7. Mỗi bữa chỉ có 2-3 items. Dùng amountValue để tăng khẩu phần thay vì thêm quá nhiều món.
+8. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
+9. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
 
   const userPrompt = `## Mục tiêu dinh dưỡng
 - Calories: ${profile.dailyCalorieGoal} kcal
@@ -720,22 +723,22 @@ ${recentFoodNames.length > 0 ? recentFoodNames.join(", ") : "Chưa có dữ li�
 ## Food Catalog (CHỈ dùng foods trong list này)
 ${JSON.stringify(catalogForPrompt, null, 0)}
 
-## Output JSON Schema
+## Output JSON Shape
 {
   "meals": [{
-    "type": "breakfast|lunch|dinner|snack",
-    "suggestion": "string - mô tả ngắn bữa ăn",
+    "type": "breakfast",
+    "suggestion": "mô tả ngắn bữa ăn",
     "items": [{
-      "foodName": "string - tên chính xác từ catalog",
-      "amountValue": "number",
-      "amountUnit": "serving|g|ml"
+      "foodName": "tên chính xác từ catalog",
+      "amountValue": 1,
+      "amountUnit": "serving"
     }]
   }],
-  "totalCalories": "number",
-  "totalProtein": "number",
-  "totalCarbs": "number",
-  "totalFat": "number",
-  "notes": "string - ghi chú dinh dưỡng bằng tiếng Việt"
+  "totalCalories": 2500,
+  "totalProtein": 150,
+  "totalCarbs": 280,
+  "totalFat": 70,
+  "notes": "ghi chú dinh dưỡng ngắn bằng tiếng Việt"
 }`
 
   const generation = await db.aIGeneration.create({

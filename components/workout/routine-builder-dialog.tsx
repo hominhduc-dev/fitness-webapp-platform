@@ -30,6 +30,7 @@ export type RoutineExerciseDraft = {
   weight: string
   rir: string
   restTime?: string
+  notes?: string
 }
 
 export type RoutineDraftData = {
@@ -99,8 +100,7 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
   return {
     id: draftId(),
     variationId: exercise.variation.id,
-    displayName: [exercise.exercise.name, exercise.variation.isDefault ? "" : exercise.variation.name]
-      .filter(Boolean).join(" — "),
+    displayName: exercise.exercise.name,
     muscleGroup: exercise.exercise.muscleGroup,
     equipment: exercise.variation.equipment,
     sets: exercise.sets.length,
@@ -108,10 +108,17 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     weight: set0?.weight != null ? String(set0.weight) : "",
     rir: set0?.rir != null ? String(set0.rir) : "",
     restTime: exercise.restTime != null ? String(exercise.restTime) : "",
+    notes: exercise.notes ?? "",
   }
 }
 
 // ─── FieldNum ────────────────────────────────────────────────────────────────
+
+const fieldInputClass = cn(
+  "w-full rounded border border-border bg-background px-2 py-1.5 text-center font-mono text-sm text-foreground",
+  "focus:outline-none focus:ring-1 focus:ring-ring",
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+)
 
 function FieldNum({
   label,
@@ -139,16 +146,13 @@ function FieldNum({
         min="0"
         placeholder={placeholder ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "w-full rounded border border-border bg-background px-2 py-1.5 text-center font-mono text-sm text-foreground",
-          "focus:outline-none focus:ring-1 focus:ring-ring",
-          "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-        )}
+        className={fieldInputClass}
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
     </div>
   )
 }
+
 
 // ─── RoutineBuilderDialog ─────────────────────────────────────────────────────
 
@@ -239,7 +243,7 @@ export function RoutineBuilderDialog({
         {
           id: draftId(),
           variationId: ex.id,
-          displayName: ex.name,
+          displayName: ex.exerciseName,
           muscleGroup: ex.muscleGroup,
           equipment: ex.equipment,
           sets: 3,
@@ -247,6 +251,7 @@ export function RoutineBuilderDialog({
           weight: "",
           rir: "",
           restTime: "",
+          notes: "",
         },
       ])
     } else if (pickerTarget) {
@@ -257,7 +262,7 @@ export function RoutineBuilderDialog({
             ? {
                 ...item,
                 variationId: ex.id,
-                displayName: ex.name,
+                displayName: ex.exerciseName,
                 muscleGroup: ex.muscleGroup,
                 equipment: ex.equipment,
               }
@@ -269,7 +274,13 @@ export function RoutineBuilderDialog({
   }
 
   const updateExercise = (id: string, patch: Partial<RoutineExerciseDraft>) => {
-    setExercises((prev) => prev.map((ex) => ex.id === id ? { ...ex, ...patch } : ex))
+    setExercises((prev) => {
+      const isFirst = prev.length > 0 && prev[0].id === id
+      if (isFirst && patch.rir !== undefined) {
+        return prev.map((ex) => ({ ...ex, rir: patch.rir ?? ex.rir, ...(ex.id === id ? patch : {}) }))
+      }
+      return prev.map((ex) => (ex.id === id ? { ...ex, ...patch } : ex))
+    })
   }
 
   const removeExercise = (id: string) => {
@@ -311,6 +322,7 @@ export function RoutineBuilderDialog({
           const parsedRir = Number(ex.rir)
           const parsedRest = Number(ex.restTime)
           return {
+            notes: ex.notes?.trim() || undefined,
             reps: repTarget.reps,
             repsMin: repTarget.repsMin,
             rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
@@ -522,6 +534,17 @@ export function RoutineBuilderDialog({
                       placeholder="90"
                     />
                   </div>
+
+                  <textarea
+                    value={ex.notes ?? ""}
+                    onChange={(e) => updateExercise(ex.id, { notes: e.target.value })}
+                    placeholder={messages.workoutPage.addNote}
+                    rows={1}
+                    className={cn(
+                      "mt-2 w-full resize-none rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60",
+                      "focus:outline-none focus:ring-1 focus:ring-ring",
+                    )}
+                  />
                 </div>
               ))}
 
@@ -562,6 +585,7 @@ export function RoutineBuilderDialog({
         <AddExerciseModal
           exercises={loadingLibrary ? [] : library}
           loading={loadingLibrary}
+          currentVariationId={pickerTarget !== "add" ? exercises.find((e) => e.id === pickerTarget)?.variationId : undefined}
           existingVariationIds={
             // When swapping: exclude the exercise being swapped so it shows as pickable
             (pickerTarget === "add"

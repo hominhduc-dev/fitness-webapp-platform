@@ -212,6 +212,62 @@ type AdminDashboardData = {
   topCoaches: AdminCoachOverview[]
 }
 
+type ExerciseSyncRow = {
+  id?: string
+  exerciseName: string
+  equipment?: string
+  muscleGroup: string
+  variationName: string
+}
+
+type ExerciseSyncFieldChange<T = string> = { from: T; to: T }
+
+type ExerciseSyncModifiedItem = {
+  id: string
+  exerciseName: string
+  variationName: string
+  changes: {
+    exerciseName?: ExerciseSyncFieldChange
+    equipment?: ExerciseSyncFieldChange<string | undefined>
+    muscleGroup?: ExerciseSyncFieldChange
+    variationName?: ExerciseSyncFieldChange
+  }
+  usageCount: number
+  hasConflict?: boolean
+}
+
+type ExerciseSyncAddedItem = {
+  exerciseName: string
+  equipment?: string
+  muscleGroup: string
+  variationName: string
+}
+
+type ExerciseSyncDeletedItem = {
+  id: string
+  exerciseName: string
+  muscleGroup: string
+  variationName: string
+  equipment?: string
+  usageCount: number
+  canDelete: boolean
+}
+
+type ExerciseSyncPreview = {
+  added: ExerciseSyncAddedItem[]
+  modified: ExerciseSyncModifiedItem[]
+  deleted: ExerciseSyncDeletedItem[]
+  unchangedCount: number
+}
+
+type ExerciseSyncResult = {
+  addedCount: number
+  modifiedCount: number
+  deletedCount: number
+  skippedModifyCount: number
+  skippedDeleteCount: number
+}
+
 export type {
   AdminAuditLogItem,
   AdminCoachOverview,
@@ -230,6 +286,13 @@ export type {
   AdminExerciseGroupDeleteResult,
   AdminExerciseGroupDeleteSkippedItem,
   AdminMiniUser,
+  ExerciseSyncAddedItem,
+  ExerciseSyncDeletedItem,
+  ExerciseSyncFieldChange,
+  ExerciseSyncModifiedItem,
+  ExerciseSyncPreview,
+  ExerciseSyncResult,
+  ExerciseSyncRow,
   AdminProgramSummary,
   AdminUserDetail,
   AdminUserListItem,
