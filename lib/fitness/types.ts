@@ -339,6 +339,7 @@ type CreateCoachProgramInput = {
 type CreateWorkoutInput = {
   duration?: number
   exercises: Array<{
+    notes?: string
     repsMin?: number
     rir?: number
     variationId: string
