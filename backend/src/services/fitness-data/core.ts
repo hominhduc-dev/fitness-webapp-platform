@@ -254,6 +254,7 @@ type CoachCheckInRecord = CoachCheckIn & {
 type PersonalWorkoutInput = {
   duration?: number
   exercises: Array<{
+    notes?: string
     repsMin?: number
     rir?: number
     variationId: string
@@ -296,6 +297,7 @@ type CoachProgramInput = {
 type NormalizedPersonalWorkoutInput = {
   duration?: number
   exercises: Array<{
+    notes?: string
     repsMin?: number
     rir?: number
     variationId: string
@@ -560,42 +562,11 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
 }
 
 function buildExerciseSetsWithHistory(
-  workoutExerciseId: string,
   templateSets: ExerciseSet[],
   previousPerformanceBySetNumber: Map<number, PreviousExerciseSetPerformance> | undefined,
 ): ReturnType<typeof serializeExerciseSet>[] {
   const sorted = templateSets.slice().sort((a, b) => a.setNumber - b.setNumber)
-  const serialized = sorted.map((set) => serializeExerciseSet(set, previousPerformanceBySetNumber))
-
-  if (!previousPerformanceBySetNumber || sorted.length === 0) {
-    return serialized
-  }
-
-  const maxTemplateSetNumber = sorted[sorted.length - 1].setNumber
-  const lastSet = sorted[sorted.length - 1]
-  const extraSets: ReturnType<typeof serializeExerciseSet>[] = []
-
-  previousPerformanceBySetNumber.forEach((performance, setNumber) => {
-    if (setNumber > maxTemplateSetNumber) {
-      extraSets.push({
-        actualReps: performance.reps,
-        completed: false,
-        id: `${workoutExerciseId}-xtra-${setNumber}`,
-        notes: undefined,
-        previousPerformance: serializePreviousSetPerformance(performance),
-        rir: performance.rir,
-        setNumber,
-        targetRepsMin: lastSet.targetRepsMin ?? undefined,
-        targetReps: lastSet.targetReps,
-        weight: performance.weight,
-      })
-    }
-  })
-
-  if (extraSets.length === 0) return serialized
-
-  extraSets.sort((a, b) => a.setNumber - b.setNumber)
-  return [...serialized, ...extraSets]
+  return sorted.map((set) => serializeExerciseSet(set, previousPerformanceBySetNumber))
 }
 
 function serializeWorkout(
@@ -619,7 +590,6 @@ function serializeWorkout(
         notes: workoutExercise.notes ?? undefined,
         restTime: workoutExercise.restTime ?? undefined,
         sets: buildExerciseSetsWithHistory(
-          workoutExercise.id,
           workoutExercise.sets,
           options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id),
         ),
@@ -4085,6 +4055,7 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
       const repTarget = normalizeRepTarget(exercise.reps, exercise.repsMin, `Bài tập ${exerciseIndex + 1}`)
 
       return {
+        notes: exercise.notes?.trim() || undefined,
         reps: repTarget.reps,
         repsMin: repTarget.repsMin,
         rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
@@ -4109,6 +4080,7 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
 
 function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWorkoutInput["exercises"]) {
   return exercises.map((exercise, exerciseIndex) => ({
+    notes: exercise.notes,
     order: exerciseIndex + 1,
     restTime: exercise.restTime,
     sets: {

@@ -358,6 +358,32 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     }
   }
 
+  async function handleBulkDeleteExercises(ids: string[]) {
+    if (!session?.access_token || !ids.length) return
+    setActionKey("exercise-bulk-delete")
+    setError(null)
+    setNotice(null)
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) => deleteCoachExerciseRequest(session.access_token, id)),
+      )
+      const deletedCount = results.filter((r) => r.status === "fulfilled").length
+      const skippedCount = results.length - deletedCount
+      const deletedIds = ids.filter((_, i) => results[i].status === "fulfilled")
+      const deletedSet = new Set(deletedIds)
+      setExercises((current) => current.filter((item) => !deletedSet.has(item.id)))
+      setNotice(
+        locale === "en"
+          ? `Deleted ${deletedCount} exercise(s)${skippedCount ? `, skipped ${skippedCount} in use` : ""}.`
+          : `Đã xóa ${deletedCount} bài tập${skippedCount ? `, bỏ qua ${skippedCount} đang dùng` : ""}.`,
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : copy.deleteExerciseError)
+    } finally {
+      setActionKey(null)
+    }
+  }
+
   async function handleDeleteExercise(exercise: AdminExerciseItem) {
     if (!session?.access_token) return
 
@@ -405,9 +431,12 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         exercises={panelExercises}
         locale={locale}
         onDelete={handleDeleteExercise}
+        onBulkDelete={handleBulkDeleteExercises}
         onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
+        onExportAll={() => {}}
         onImport={() => setIsImportDialogOpen(true)}
         onSave={handleSaveExercise}
+        onSyncImport={() => {}}
       />
 
       <Dialog

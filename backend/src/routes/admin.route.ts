@@ -3,7 +3,9 @@ import { Router } from "express"
 
 import { AuthServiceError, requireCurrentProfile } from "../services/auth.service"
 import {
+  applyExerciseSync,
   assignAdminCoachToTrainee,
+  bulkDeleteAdminExercises,
   createAdminExercise,
   deleteAdminCoachRequest,
   deleteAdminExercise,
@@ -19,6 +21,7 @@ import {
   listAdminExerciseImportRequests,
   listAdminPrograms,
   listAdminUsers,
+  previewExerciseSync,
   removeAdminCoachFromTrainee,
   resetAdminUserPassword,
   reviewExerciseImportRequest,
@@ -337,6 +340,55 @@ adminRouter.patch("/exercises/:exerciseId", async (req, res) => {
     res.json({
       exercise,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.post("/exercises/sync-preview", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const rows = Array.isArray(req.body.rows)
+      ? req.body.rows.map((row: Record<string, unknown>) => ({
+          id: getOptionalString(row.id),
+          exerciseName: getOptionalString(row.exerciseName) ?? getOptionalString(row.name),
+          equipment: getOptionalString(row.equipment),
+          muscleGroup: getOptionalString(row.muscleGroup),
+          variationName: getOptionalString(row.variationName),
+        }))
+      : []
+    const preview = await previewExerciseSync(profile, rows)
+    res.json({ data: preview })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.post("/exercises/sync-apply", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const rows = Array.isArray(req.body.rows)
+      ? req.body.rows.map((row: Record<string, unknown>) => ({
+          id: getOptionalString(row.id),
+          exerciseName: getOptionalString(row.exerciseName) ?? getOptionalString(row.name),
+          equipment: getOptionalString(row.equipment),
+          muscleGroup: getOptionalString(row.muscleGroup),
+          variationName: getOptionalString(row.variationName),
+        }))
+      : []
+    const result = await applyExerciseSync(profile, rows)
+    res.json({ data: result })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.post("/exercises/bulk-delete", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.filter((id: unknown) => typeof id === "string") : []
+    const result = await bulkDeleteAdminExercises(profile, ids)
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }

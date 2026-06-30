@@ -21,6 +21,7 @@ import { useEffect, useState, type ChangeEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +42,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   assignAdminCoachConnection,
+  bulkDeleteAdminExercisesRequest,
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
   deleteAdminExerciseGroupRequest,
@@ -55,7 +57,9 @@ import {
   fetchAdminPrograms,
   fetchAdminUserDetail,
   fetchAdminUsers,
+  applyExerciseSyncRequest,
   importAdminExercisesRequest,
+  previewExerciseSyncRequest,
   removeAdminCoachConnection,
   resetAdminUserPasswordRequest,
   reviewAdminExerciseImportRequest,
@@ -75,6 +79,8 @@ import type {
   AdminProgramSummary,
   AdminUserDetail,
   AdminUserListItem,
+  ExerciseSyncPreview,
+  ExerciseSyncRow,
 } from "@/lib/admin/types"
 import { matchesExerciseSearch, scoreExerciseSearch, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
@@ -556,6 +562,10 @@ export function AdminConsole() {
   const [importRows, setImportRows] = useState<AdminExerciseImportRow[]>([])
   const [importIssues, setImportIssues] = useState<ExerciseImportIssue[]>([])
   const [importInputKey, setImportInputKey] = useState(0)
+  const [syncPreview, setSyncPreview] = useState<ExerciseSyncPreview | null>(null)
+  const [syncRows, setSyncRows] = useState<ExerciseSyncRow[]>([])
+  const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false)
+  const [syncInputKey, setSyncInputKey] = useState(0)
 
   useEffect(() => {
     if (!userDetail) {
@@ -1074,6 +1084,298 @@ export function AdminConsole() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
       throw err
+    }
+  }
+
+  async function handleBulkDeleteExercises(ids: string[]) {
+    if (!session?.access_token || !ids.length) return
+    setActionKey("exercise-bulk-delete")
+    setError(null)
+    setNotice(null)
+    try {
+      const result = await bulkDeleteAdminExercisesRequest(session.access_token, ids)
+      const deletedSet = new Set(result.deletedIds)
+      setExercises((current) => current.filter((item) => !deletedSet.has(item.id)))
+      const msg =
+        locale === "en"
+          ? `Deleted ${result.deletedCount} exercise(s)${result.skippedCount ? `, skipped ${result.skippedCount} in use` : ""}.`
+          : `Đã xóa ${result.deletedCount} bài tập${result.skippedCount ? `, bỏ qua ${result.skippedCount} đang dùng` : ""}.`
+      setNotice(msg)
+      void refreshExercises()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  async function handleExportAllExercises() {
+    if (exercises.length === 0) return
+    setActionKey("exercise-export")
+    setError(null)
+    setNotice(null)
+
+    try {
+      const ExcelJS = await import("exceljs")
+      const wb = new ExcelJS.Workbook()
+      wb.creator = "YeahBuddy Fitness"
+
+      const muscleGroups = [...EXERCISE_TEMPLATE_MUSCLE_GROUPS]
+      const equipmentList = [...EXERCISE_TEMPLATE_EQUIPMENT]
+
+      // --- Exercises sheet ---
+      const ws = wb.addWorksheet("Exercises")
+      ws.columns = [
+        { header: "id", key: "id", width: 8, hidden: true },
+        { header: "exercise_name", key: "exercise_name", width: 30 },
+        { header: "muscle_group", key: "muscle_group", width: 20 },
+        { header: "variation_name", key: "variation_name", width: 22 },
+        { header: "equipment", key: "equipment", width: 20 },
+        { header: "usage_count", key: "usage_count", width: 14 },
+      ]
+
+      const headerRow = ws.getRow(1)
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } }
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } }
+      headerRow.alignment = { vertical: "middle" }
+
+      for (const e of exercises) {
+        ws.addRow({
+          id: e.id,
+          exercise_name: e.name,
+          muscle_group: e.muscleGroup,
+          variation_name: e.variationName === "Default" ? "" : e.variationName,
+          equipment: e.equipment ?? "",
+          usage_count: e.usageCount,
+        })
+      }
+
+      const dataRowCount = exercises.length
+      const lastDataRow = dataRowCount + 1
+
+      // Protect sheet — id column locked, other columns editable
+      ws.protect("", {
+        selectLockedCells: true,
+        selectUnlockedCells: true,
+        formatColumns: true,
+        autoFilter: true,
+        sort: true,
+      })
+
+      // Unlock editable columns (B–F) for all rows
+      for (let row = 1; row <= lastDataRow + 100; row++) {
+        for (const col of ["B", "C", "D", "E", "F"]) {
+          ws.getCell(`${col}${row}`).protection = { locked: false }
+        }
+      }
+
+      // Data validation: muscle_group (column C) dropdown
+      for (let row = 2; row <= lastDataRow + 100; row++) {
+        ws.getCell(`C${row}`).dataValidation = {
+          type: "list",
+          allowBlank: false,
+          formulae: [`"${muscleGroups.join(",")}"`],
+          showErrorMessage: true,
+          errorTitle: "Invalid",
+          error: "Please select from the list.",
+        }
+      }
+
+      // Data validation: equipment (column E) dropdown — suggestion only, custom values allowed
+      for (let row = 2; row <= lastDataRow + 100; row++) {
+        ws.getCell(`E${row}`).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [`"${equipmentList.join(",")}"`],
+          showErrorMessage: false,
+        }
+      }
+
+      // Style: usage_count column gray
+      for (let row = 2; row <= lastDataRow; row++) {
+        ws.getCell(`F${row}`).fill = {
+          type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" },
+        }
+        ws.getCell(`F${row}`).font = { color: { argb: "FF999999" } }
+      }
+
+      // Auto-filter
+      ws.autoFilter = { from: "A1", to: `F${lastDataRow}` }
+
+      // Freeze header row
+      ws.views = [{ state: "frozen", ySplit: 1 }]
+
+      // --- Instructions sheet ---
+      const instrWs = wb.addWorksheet("Instructions")
+      const instrLines = locale === "en"
+        ? [
+            "Exercise Sync — Instructions",
+            "Edit the Exercises sheet, then re-import using 'Sync from Excel' to review changes before applying.",
+            "Delete a row to remove that exercise. Add a new row to create a new exercise.",
+            "Edit exercise_name, variation_name, muscle_group, or equipment to modify an existing exercise.",
+            "Columns 'muscle_group' and 'equipment' have dropdown lists — select from the options.",
+            "Column 'usage_count' is informational only and is ignored on re-import.",
+          ]
+        : [
+            "Hướng dẫn Sync bài tập",
+            "Chỉnh sửa sheet Exercises, sau đó import lại bằng 'Sync từ Excel' để xem lại thay đổi trước khi áp dụng.",
+            "Xoá dòng để xoá bài tập. Thêm dòng mới để tạo bài tập mới.",
+            "Sửa exercise_name, variation_name, muscle_group hoặc equipment để thay đổi bài tập.",
+            "Cột 'muscle_group' và 'equipment' có dropdown — chọn từ danh sách.",
+            "Cột 'usage_count' chỉ để tham khảo, không ảnh hưởng khi import lại.",
+          ]
+
+      instrLines.forEach((line, i) => {
+        const row = instrWs.addRow([line])
+        if (i === 0) row.font = { bold: true, size: 14 }
+      })
+      instrWs.getColumn(1).width = 110
+
+      // Write file
+      const buffer = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const today = new Date().toISOString().slice(0, 10)
+      a.download = `exercises-${today}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      setNotice(locale === "en" ? "Exported all exercises to Excel." : "Đã export tất cả bài tập ra Excel.")
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error
+          ? exportError.message
+          : locale === "en"
+            ? "Unable to export exercises."
+            : "Không thể export bài tập.",
+      )
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  function handleSyncImportClick() {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".xlsx,.xls,.csv"
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) handleSyncImportFile(file)
+    }
+    input.click()
+    setSyncInputKey((k) => k + 1)
+  }
+
+  async function handleSyncImportFile(file: File) {
+    if (!session?.access_token) return
+    setActionKey("exercise-sync-preview")
+    setError(null)
+    setNotice(null)
+
+    try {
+      const XLSX = await import("xlsx")
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: "array" })
+      const sheetName = workbook.SheetNames.find((n) => n.toLowerCase() === "exercises") ?? workbook.SheetNames[0]
+      const sheet = workbook.Sheets[sheetName]
+
+      if (!sheet) {
+        setError(locale === "en" ? "No data sheet found." : "Không tìm thấy sheet dữ liệu.")
+        return
+      }
+
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+
+      const headerMap: Record<string, string> = {}
+      if (raw.length > 0) {
+        for (const key of Object.keys(raw[0] as object)) {
+          const lower = key.toLowerCase().replace(/[_\s]+/g, "_").trim()
+          if (lower === "id") headerMap[key] = "id"
+          else if (["exercise_name", "exercise", "name", "ten_bai_tap", "ten"].includes(lower)) headerMap[key] = "exerciseName"
+          else if (["muscle_group", "musclegroup", "body_part", "bodypart", "nhom_co"].includes(lower)) headerMap[key] = "muscleGroup"
+          else if (["variation_name", "variation", "bien_the"].includes(lower)) headerMap[key] = "variationName"
+          else if (["equipment", "gear", "device", "dung_cu", "thiet_bi"].includes(lower)) headerMap[key] = "equipment"
+        }
+      }
+
+      const rows: ExerciseSyncRow[] = []
+      for (const row of raw) {
+        const mapped: Record<string, string> = {}
+        for (const [originalKey, mappedKey] of Object.entries(headerMap)) {
+          const val = row[originalKey]
+          if (val !== undefined && val !== null && val !== "") {
+            mapped[mappedKey] = String(val).trim()
+          }
+        }
+        if (!mapped.exerciseName || !mapped.muscleGroup) continue
+        const syncRow: ExerciseSyncRow = {
+          exerciseName: mapped.exerciseName,
+          muscleGroup: mapped.muscleGroup,
+          variationName: mapped.variationName || (mapped.id ? "" : "Default"),
+        }
+        if (mapped.id) syncRow.id = mapped.id
+        if (mapped.equipment) syncRow.equipment = mapped.equipment
+        rows.push(syncRow)
+      }
+
+      if (rows.length === 0) {
+        setError(locale === "en" ? "No valid exercise rows found." : "Không tìm thấy dòng bài tập hợp lệ.")
+        return
+      }
+
+      const preview = await previewExerciseSyncRequest(session.access_token, rows)
+      setSyncRows(rows)
+      setSyncPreview(preview)
+      setIsSyncReviewOpen(true)
+    } catch (syncError) {
+      setError(
+        syncError instanceof Error
+          ? syncError.message
+          : locale === "en"
+            ? "Unable to process sync file."
+            : "Không thể xử lý file sync.",
+      )
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  async function handleApplySyncChanges() {
+    if (!session?.access_token || syncRows.length === 0) return
+    setActionKey("exercise-sync-apply")
+    setError(null)
+    setNotice(null)
+
+    try {
+      const result = await applyExerciseSyncRequest(session.access_token, syncRows)
+      const parts: string[] = []
+      if (result.addedCount > 0) parts.push(locale === "en" ? `+${result.addedCount} added` : `+${result.addedCount} thêm`)
+      if (result.modifiedCount > 0) parts.push(locale === "en" ? `${result.modifiedCount} modified` : `${result.modifiedCount} sửa`)
+      if (result.deletedCount > 0) parts.push(locale === "en" ? `${result.deletedCount} deleted` : `${result.deletedCount} xoá`)
+      if (result.skippedModifyCount > 0) parts.push(locale === "en" ? `${result.skippedModifyCount} skipped (conflict)` : `${result.skippedModifyCount} bỏ qua (trùng tên)`)
+      if (result.skippedDeleteCount > 0) parts.push(locale === "en" ? `${result.skippedDeleteCount} skipped (in use)` : `${result.skippedDeleteCount} bỏ qua (đang dùng)`)
+
+      setNotice(
+        locale === "en"
+          ? `Sync completed: ${parts.join(", ")}.`
+          : `Sync hoàn tất: ${parts.join(", ")}.`,
+      )
+      setIsSyncReviewOpen(false)
+      setSyncPreview(null)
+      setSyncRows([])
+      void refreshExercises()
+    } catch (applyError) {
+      setError(
+        applyError instanceof Error
+          ? applyError.message
+          : locale === "en"
+            ? "Unable to apply sync changes."
+            : "Không thể áp dụng thay đổi sync.",
+      )
+    } finally {
+      setActionKey(null)
     }
   }
 
@@ -1900,9 +2202,25 @@ export function AdminConsole() {
               locale={locale}
               onSave={handleSaveExerciseData}
               onDelete={handleDeleteExerciseDirect}
+              onBulkDelete={handleBulkDeleteExercises}
               onImport={() => setIsImportDialogOpen(true)}
               onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
+              onExportAll={() => void handleExportAllExercises()}
+              onSyncImport={handleSyncImportClick}
               onReviewImportRequest={handleReviewExerciseImportRequest}
+            />
+
+            <ExerciseSyncReviewModal
+              locale={locale}
+              open={isSyncReviewOpen}
+              preview={syncPreview}
+              applying={actionKey === "exercise-sync-apply"}
+              onApply={() => void handleApplySyncChanges()}
+              onClose={() => {
+                setIsSyncReviewOpen(false)
+                setSyncPreview(null)
+                setSyncRows([])
+              }}
             />
           </TabsContent>
 

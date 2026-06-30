@@ -15,6 +15,9 @@ import type {
   AdminProgramSummary,
   AdminUserDetail,
   AdminUserListItem,
+  ExerciseSyncPreview,
+  ExerciseSyncResult,
+  ExerciseSyncRow,
 } from "./types"
 
 type SerializedAdminMiniUser = AdminMiniUser
@@ -424,6 +427,14 @@ async function deleteAdminExerciseRequest(accessToken: string, exerciseId: strin
   })
 }
 
+async function bulkDeleteAdminExercisesRequest(accessToken: string, ids: string[]) {
+  return request<{ deletedCount: number; deletedIds: string[]; skippedCount: number }>(
+    `/api/admin/exercises/bulk-delete`,
+    accessToken,
+    { body: JSON.stringify({ ids }), method: "POST" },
+  )
+}
+
 async function deleteAdminExerciseGroupRequest(accessToken: string, muscleGroup: string) {
   return request<SerializedAdminExerciseGroupDeleteResult>(`/api/admin/exercise-groups`, accessToken, {
     body: JSON.stringify({
@@ -446,6 +457,24 @@ async function importAdminExercisesRequest(accessToken: string, rows: AdminExerc
   )
 
   return response.result
+}
+
+async function previewExerciseSyncRequest(accessToken: string, rows: ExerciseSyncRow[]) {
+  const response = await request<{ data: ExerciseSyncPreview }>(
+    `/api/admin/exercises/sync-preview`,
+    accessToken,
+    { body: JSON.stringify({ rows }), method: "POST" },
+  )
+  return response.data
+}
+
+async function applyExerciseSyncRequest(accessToken: string, rows: ExerciseSyncRow[]) {
+  const response = await request<{ data: ExerciseSyncResult }>(
+    `/api/admin/exercises/sync-apply`,
+    accessToken,
+    { body: JSON.stringify({ rows }), method: "POST" },
+  )
+  return response.data
 }
 
 async function fetchAdminExerciseImportRequests(accessToken: string, status?: AdminExerciseImportRequest["status"]) {
@@ -491,7 +520,9 @@ async function fetchAdminAuditLogs(accessToken: string, options?: { entityType?:
 }
 
 export {
+  applyExerciseSyncRequest,
   assignAdminCoachConnection,
+  bulkDeleteAdminExercisesRequest,
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
   deleteAdminExerciseRequest,
@@ -507,6 +538,7 @@ export {
   fetchAdminUserDetail,
   fetchAdminUsers,
   importAdminExercisesRequest,
+  previewExerciseSyncRequest,
   removeAdminCoachConnection,
   resetAdminUserPasswordRequest,
   reviewAdminExerciseImportRequest,

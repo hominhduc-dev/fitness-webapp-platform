@@ -1527,10 +1527,10 @@ async function createAdminExercise(
   const name = sanitizeText(input.name)
   const muscleGroup = sanitizeText(input.muscleGroup)
   const equipment = sanitizeText(input.equipment)
-  const variationName = sanitizeText(input.variationName)
+  const variationName = sanitizeText(input.variationName) || "Default"
 
-  if (!name || !muscleGroup || !variationName) {
-    throw new AuthServiceError("Tên bài tập, nhóm cơ và variation không được để trống.", 400)
+  if (!name || !muscleGroup) {
+    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
   }
 
   let exercise
@@ -1547,7 +1547,7 @@ async function createAdminExercise(
         variations: {
           create: {
             equipment,
-            isDefault: true,
+            isDefault: variationName === "Default",
             name: variationName,
             sortOrder: 0,
           },
@@ -2074,10 +2074,10 @@ async function updateAdminExercise(
   const name = sanitizeText(input.name)
   const muscleGroup = sanitizeText(input.muscleGroup)
   const equipment = sanitizeText(input.equipment)
-  const variationName = sanitizeText(input.variationName)
+  const variationName = sanitizeText(input.variationName) || "Default"
 
-  if (!name || !muscleGroup || !variationName) {
-    throw new AuthServiceError("Tên bài tập, nhóm cơ và variation không được để trống.", 400)
+  if (!name || !muscleGroup) {
+    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
   }
 
   const existingExercise = await db.variation.findUnique({
@@ -2108,6 +2108,7 @@ async function updateAdminExercise(
       return transaction.variation.update({
         data: {
           equipment,
+          isDefault: variationName === "Default",
           name: variationName,
         },
         include: ADMIN_VARIATION_INCLUDE,
@@ -2185,6 +2186,421 @@ async function deleteAdminExercise(profile: SerializedProfile, exerciseId: strin
     deleted: true,
     id: exercise.id,
   }
+}
+
+async function bulkDeleteAdminExercises(profile: SerializedProfile, ids: string[]) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+
+  if (!ids.length) {
+    return { deletedCount: 0, deletedIds: [] as string[], skippedCount: 0 }
+  }
+
+  const variations = await db.variation.findMany({
+    where: { id: { in: ids } },
+    include: {
+      _count: { select: { workoutExercises: true } },
+      exercise: { select: { id: true, name: true } },
+    },
+  })
+
+  const deletable = variations.filter((v) => v._count.workoutExercises === 0)
+  const skippedCount = variations.length - deletable.length
+
+  if (!deletable.length) {
+    return { deletedCount: 0, deletedIds: [] as string[], skippedCount }
+  }
+
+  const deletableIds = deletable.map((v) => v.id)
+  const exerciseIds = [...new Set(deletable.map((v) => v.exercise.id))]
+
+  await db.$transaction(async (tx) => {
+    await tx.variation.deleteMany({ where: { id: { in: deletableIds } } })
+    await tx.exercise.deleteMany({
+      where: { id: { in: exerciseIds }, variations: { none: {} } },
+    })
+  })
+
+  void logAdminAudit(db, profile.id, {
+    action: "exercise.bulk_deleted",
+    entityId: deletableIds[0],
+    entityLabel: `${deletable.length} exercises`,
+    entityType: "exercise",
+  })
+
+  return { deletedCount: deletable.length, deletedIds: deletableIds, skippedCount }
+}
+
+type ExerciseSyncRowInput = {
+  id?: string
+  exerciseName?: string
+  equipment?: string
+  muscleGroup?: string
+  variationName?: string
+}
+
+type SyncFieldChange<T = string> = { from: T; to: T }
+
+type SyncModifiedItem = {
+  id: string
+  exerciseName: string
+  variationName: string
+  changes: {
+    exerciseName?: SyncFieldChange
+    equipment?: SyncFieldChange<string | undefined>
+    muscleGroup?: SyncFieldChange
+    variationName?: SyncFieldChange
+  }
+  usageCount: number
+  hasConflict?: boolean
+}
+
+type SyncAddedItem = {
+  exerciseName: string
+  equipment?: string
+  muscleGroup: string
+  variationName: string
+}
+
+type SyncDeletedItem = {
+  id: string
+  exerciseName: string
+  muscleGroup: string
+  variationName: string
+  equipment?: string
+  usageCount: number
+  canDelete: boolean
+}
+
+type ExerciseSyncPreview = {
+  added: SyncAddedItem[]
+  modified: SyncModifiedItem[]
+  deleted: SyncDeletedItem[]
+  unchangedCount: number
+}
+
+function parseSyncRows(rows: ExerciseSyncRowInput[]) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new AuthServiceError("File không có dữ liệu bài tập hợp lệ.", 400)
+  }
+
+  if (rows.length > 5000) {
+    throw new AuthServiceError("Chỉ hỗ trợ tối đa 5000 dòng mỗi lần.", 400)
+  }
+
+  return rows
+    .map((row) => {
+      const exerciseName = sanitizeText(row.exerciseName)
+      const muscleGroup = sanitizeText(row.muscleGroup)
+      const equipment = sanitizeText(row.equipment)
+      const id = typeof row.id === "string" && row.id.trim().length > 0 ? row.id.trim() : undefined
+      const rawVarName = sanitizeText(row.variationName)
+      const variationName = rawVarName || (id ? "" : "Default")
+
+      if (!exerciseName || !muscleGroup) return null
+
+      return { id, exerciseName, muscleGroup, variationName, equipment }
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+}
+
+async function computeExerciseSyncDiff(db: PrismaClient, rows: ReturnType<typeof parseSyncRows>): Promise<ExerciseSyncPreview> {
+  const allVariations = await db.variation.findMany({
+    include: ADMIN_VARIATION_INCLUDE,
+  })
+
+  const dbMap = new Map<string, ExerciseSummaryRecord>()
+  for (const v of allVariations) {
+    dbMap.set(v.id, v)
+  }
+
+  // Build variation name lookup per exercise + exercise (name+muscleGroup) → id lookup.
+  // Conflict detection treats each row's target exercise as the one matching its
+  // (exercise_name, muscle_group); changing the name/group MOVES the variation to
+  // that target instead of renaming the shared parent.
+  const varNamesPerExercise = new Map<string, Map<string, string>>()
+  const exerciseKeyToId = new Map<string, string>()
+  for (const v of allVariations) {
+    const map = varNamesPerExercise.get(v.exerciseId) ?? new Map()
+    map.set(v.id, v.name.toLowerCase())
+    varNamesPerExercise.set(v.exerciseId, map)
+    exerciseKeyToId.set(`${v.exercise.name.trim().toLowerCase()}::${v.exercise.muscleGroup.trim().toLowerCase()}`, v.exerciseId)
+  }
+
+  const added: SyncAddedItem[] = []
+  const modified: SyncModifiedItem[] = []
+  const seenIds = new Set<string>()
+  let unchangedCount = 0
+
+  for (const row of rows) {
+    if (row.id && dbMap.has(row.id)) {
+      seenIds.add(row.id)
+      const dbVar = dbMap.get(row.id)!
+      const dbExName = dbVar.exercise.name
+      const dbMg = dbVar.exercise.muscleGroup
+      const dbVarName = dbVar.name
+      const dbEquip = dbVar.equipment ?? undefined
+
+      // Empty variationName for existing rows means "keep current"
+      const effectiveVarName = row.variationName || dbVarName
+
+      const changes: SyncModifiedItem["changes"] = {}
+      if (row.exerciseName !== dbExName) changes.exerciseName = { from: dbExName, to: row.exerciseName }
+      if (row.muscleGroup !== dbMg) changes.muscleGroup = { from: dbMg, to: row.muscleGroup }
+      if (effectiveVarName !== dbVarName) changes.variationName = { from: dbVarName, to: effectiveVarName }
+      if ((row.equipment ?? undefined) !== dbEquip) changes.equipment = { from: dbEquip, to: row.equipment }
+
+      if (Object.keys(changes).length > 0) {
+        // Conflict = the variation would land in a target exercise that already has
+        // another variation with the same name (unique on exerciseId+name).
+        let hasConflict = false
+        if (changes.variationName || changes.exerciseName || changes.muscleGroup) {
+          const targetExName = changes.exerciseName?.to ?? dbExName
+          const targetMg = changes.muscleGroup?.to ?? dbMg
+          const targetKey = `${targetExName.trim().toLowerCase()}::${targetMg.trim().toLowerCase()}`
+          const targetExId = exerciseKeyToId.get(targetKey)
+          // No conflict if the target exercise doesn't exist yet (will be created fresh)
+          if (targetExId) {
+            const nameMap = varNamesPerExercise.get(targetExId)
+            if (nameMap) {
+              const targetLower = effectiveVarName.toLowerCase()
+              for (const [vid, vname] of nameMap) {
+                if (vid !== row.id && vname === targetLower) {
+                  hasConflict = true
+                  break
+                }
+              }
+            }
+          }
+        }
+
+        modified.push({
+          id: row.id,
+          exerciseName: dbExName,
+          variationName: dbVarName,
+          changes,
+          usageCount: dbVar._count.workoutExercises,
+          hasConflict,
+        })
+      } else {
+        unchangedCount++
+      }
+    } else {
+      added.push({
+        exerciseName: row.exerciseName,
+        equipment: row.equipment,
+        muscleGroup: row.muscleGroup,
+        variationName: row.variationName,
+      })
+    }
+  }
+
+  const deleted: SyncDeletedItem[] = []
+  for (const [id, dbVar] of dbMap) {
+    if (!seenIds.has(id)) {
+      const usageCount = dbVar._count.workoutExercises
+      deleted.push({
+        id,
+        exerciseName: dbVar.exercise.name,
+        muscleGroup: dbVar.exercise.muscleGroup,
+        variationName: dbVar.name,
+        equipment: dbVar.equipment ?? undefined,
+        usageCount,
+        canDelete: usageCount === 0,
+      })
+    }
+  }
+
+  return { added, modified, deleted, unchangedCount }
+}
+
+async function previewExerciseSync(profile: SerializedProfile, rawRows: ExerciseSyncRowInput[]) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const rows = parseSyncRows(rawRows)
+  return computeExerciseSyncDiff(db, rows)
+}
+
+async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSyncRowInput[]) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const rows = parseSyncRows(rawRows)
+  const diff = await computeExerciseSyncDiff(db, rows)
+
+  const skippedDeleteCount = diff.deleted.filter((d) => !d.canDelete).length
+  const actionableChanges = diff.added.length + diff.modified.length + diff.deleted.filter((d) => d.canDelete).length
+  if (actionableChanges === 0) {
+    return { addedCount: 0, modifiedCount: 0, deletedCount: 0, skippedModifyCount: 0, skippedDeleteCount }
+  }
+
+  // --- Read everything we need up front, then compute the full plan in memory. ---
+  // Updates are dispatched as a single batched ($transaction array) call so we don't pay
+  // a network round-trip (backend → Supabase) per row, which is what caused statement
+  // timeouts at thousands of modifications.
+  const allEx = await db.exercise.findMany({ select: { id: true, name: true, muscleGroup: true } })
+  const exerciseKeyToId = new Map<string, string>()
+  const exById = new Map(allEx.map((e) => [e.id, e]))
+  for (const e of allEx) {
+    exerciseKeyToId.set(`${e.name.trim().toLowerCase()}::${e.muscleGroup.trim().toLowerCase()}`, e.id)
+  }
+
+  const allVars = await db.variation.findMany({ select: { id: true, exerciseId: true, name: true } })
+  const varNamesByExercise = new Map<string, Map<string, string>>() // exerciseId → (variationId → nameLower)
+  const varCurrent = new Map<string, { exerciseId: string; name: string }>()
+  for (const v of allVars) {
+    const map = varNamesByExercise.get(v.exerciseId) ?? new Map<string, string>()
+    map.set(v.id, v.name.toLowerCase())
+    varNamesByExercise.set(v.exerciseId, map)
+    varCurrent.set(v.id, { exerciseId: v.exerciseId, name: v.name })
+  }
+
+  const newExercises: Array<{ id: string; name: string; muscleGroup: string }> = []
+  let skippedModifyCount = 0
+
+  // 1. Deletes — drop from the in-memory maps too so conflict checks stay accurate.
+  const deletable = diff.deleted.filter((d) => d.canDelete)
+  const deleteIds = deletable.map((d) => d.id)
+  for (const id of deleteIds) {
+    const cur = varCurrent.get(id)
+    if (cur) {
+      varNamesByExercise.get(cur.exerciseId)?.delete(id)
+      varCurrent.delete(id)
+    }
+  }
+
+  // 2a. Equipment-only modifications → grouped updateMany (one op per distinct value).
+  const equipOnlyMods = diff.modified.filter(
+    (m) => m.changes.equipment && !m.changes.variationName && !m.changes.exerciseName && !m.changes.muscleGroup,
+  )
+  const equipGroups = new Map<string, string[]>()
+  for (const mod of equipOnlyMods) {
+    const val = mod.changes.equipment!.to ?? ""
+    const ids = equipGroups.get(val) ?? []
+    ids.push(mod.id)
+    equipGroups.set(val, ids)
+  }
+
+  // 2b. Modifications that change grouping or variation name → resolve target exercise
+  // (find-or-create by name+muscleGroup) and MOVE the variation there.
+  const complexMods = diff.modified.filter(
+    (m) => m.changes.variationName || m.changes.exerciseName || m.changes.muscleGroup,
+  )
+  const variationUpdates: Array<{ id: string; data: Record<string, unknown> }> = []
+  for (const mod of complexMods) {
+    const cur = varCurrent.get(mod.id)
+    if (!cur) continue
+    const curEx = exById.get(cur.exerciseId)
+
+    const targetExName = mod.changes.exerciseName?.to ?? curEx?.name ?? mod.exerciseName
+    const targetExMg = mod.changes.muscleGroup?.to ?? curEx?.muscleGroup ?? ""
+    const newVariationName = mod.changes.variationName?.to ?? cur.name
+    const newNameLower = newVariationName.toLowerCase()
+    const targetKey = `${targetExName.trim().toLowerCase()}::${targetExMg.trim().toLowerCase()}`
+
+    let targetExId = exerciseKeyToId.get(targetKey)
+    if (!targetExId) {
+      targetExId = randomUUID()
+      newExercises.push({ id: targetExId, name: targetExName, muscleGroup: targetExMg })
+      exerciseKeyToId.set(targetKey, targetExId)
+      varNamesByExercise.set(targetExId, new Map())
+    }
+
+    // Skip if the target exercise already has a different variation with this name.
+    const targetNameMap = varNamesByExercise.get(targetExId)!
+    let conflict = false
+    for (const [vid, vname] of targetNameMap) {
+      if (vid !== mod.id && vname === newNameLower) {
+        conflict = true
+        break
+      }
+    }
+    if (conflict) {
+      skippedModifyCount++
+      continue
+    }
+
+    const data: Record<string, unknown> = {}
+    if (targetExId !== cur.exerciseId) data.exerciseId = targetExId
+    if (mod.changes.variationName) {
+      data.name = newVariationName
+      data.isDefault = newVariationName === "Default"
+    }
+    if (mod.changes.equipment !== undefined) {
+      data.equipment = mod.changes.equipment.to ?? null
+    }
+    if (Object.keys(data).length > 0) {
+      variationUpdates.push({ id: mod.id, data })
+    }
+
+    // Move the variation between exercises in the in-memory maps.
+    varNamesByExercise.get(cur.exerciseId)?.delete(mod.id)
+    targetNameMap.set(mod.id, newNameLower)
+    cur.exerciseId = targetExId
+    cur.name = newVariationName
+  }
+
+  // 3. Additions → find-or-create parent exercise, then bulk create variations.
+  const variationsToCreate = diff.added.map((add) => {
+    const key = `${add.exerciseName.trim().toLowerCase()}::${add.muscleGroup.trim().toLowerCase()}`
+    let exId = exerciseKeyToId.get(key)
+    if (!exId) {
+      exId = randomUUID()
+      newExercises.push({ id: exId, name: add.exerciseName, muscleGroup: add.muscleGroup })
+      exerciseKeyToId.set(key, exId)
+    }
+    return {
+      equipment: add.equipment ?? null,
+      exerciseId: exId,
+      isDefault: add.variationName === "Default",
+      name: add.variationName,
+      sortOrder: 0,
+    }
+  })
+
+  // --- Build a single batched transaction (no per-row round-trips). ---
+  const ops: Prisma.PrismaPromise<unknown>[] = []
+  if (deleteIds.length > 0) {
+    ops.push(db.variation.deleteMany({ where: { id: { in: deleteIds } } }))
+  }
+  if (newExercises.length > 0) {
+    ops.push(db.exercise.createMany({
+      data: newExercises.map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscleGroup, createdById: profile.id })),
+    }))
+  }
+  for (const [val, ids] of equipGroups) {
+    ops.push(db.variation.updateMany({ where: { id: { in: ids } }, data: { equipment: val || null } }))
+  }
+  for (const u of variationUpdates) {
+    ops.push(db.variation.update({ where: { id: u.id }, data: u.data }))
+  }
+  let addIdx = -1
+  if (variationsToCreate.length > 0) {
+    addIdx = ops.length
+    ops.push(db.variation.createMany({ data: variationsToCreate, skipDuplicates: true }))
+  }
+  // Remove exercises left empty after deletes/moves.
+  ops.push(db.exercise.deleteMany({ where: { variations: { none: {} } } }))
+
+  const results = await db.$transaction(ops)
+
+  const addedCount = addIdx >= 0 ? (results[addIdx] as { count: number }).count : 0
+  const modifiedCount = equipOnlyMods.length + variationUpdates.length
+  const deletedCount = deleteIds.length
+  const result = { addedCount, modifiedCount, deletedCount, skippedModifyCount }
+
+  await logAdminAudit(db, profile.id, {
+    action: "exercise.synced",
+    entityLabel: `Synced: +${result.addedCount} ~${result.modifiedCount} -${result.deletedCount}`,
+    entityType: "exercise",
+    metadata: {
+      addedCount: result.addedCount,
+      modifiedCount: result.modifiedCount,
+      deletedCount: result.deletedCount,
+      skippedDeleteCount,
+    },
+  })
+
+  return { ...result, skippedDeleteCount }
 }
 
 async function deleteAdminExerciseGroup(profile: SerializedProfile, muscleGroupInput: string) {
@@ -2299,10 +2715,12 @@ async function listAdminAuditLogs(
 }
 
 export {
+  applyExerciseSync,
   assignAdminCoachToTrainee,
   createAdminExercise,
   importAdminExercises,
   deleteAdminCoachRequest,
+  bulkDeleteAdminExercises,
   deleteAdminExercise,
   deleteAdminExerciseGroup,
   deleteAdminProgram,
@@ -2315,6 +2733,7 @@ export {
   listAdminExerciseImportRequests,
   listAdminPrograms,
   listAdminUsers,
+  previewExerciseSync,
   removeAdminCoachFromTrainee,
   resetAdminUserPassword,
   reviewExerciseImportRequest,
