@@ -37,42 +37,23 @@ import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { formatRepTarget } from "@/lib/workout-reps"
+import {
+  WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
+  clearStoredWorkoutSession,
+  getWorkoutSessionStorageKey,
+  readStoredWorkoutSession,
+  type StoredWorkoutSession,
+} from "@/lib/workout/session-storage"
 
-// ─── Session storage helpers (unchanged) ──────────────────────────────────────
-
-const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
-const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 4
+// ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
 
 /** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
 const DEFAULT_REST_SECONDS = 90
-
-type StoredWorkoutSession = {
-  currentExerciseIndex: number
-  exercises: Array<{
-    id: string
-    sets: Array<{
-      actualReps?: number
-      addedDuringSession?: boolean
-      clientAddedToken?: string
-      completed: boolean
-      id: string
-      notes?: string
-      rir?: number
-      weight?: number
-    }>
-  }>
-  schemaVersion?: number
-  startedAt: string
-}
 
 type ProgramSetTarget = {
   reps: number
   repsMin?: number
   weight?: number
-}
-
-function getWorkoutSessionStorageKey(workoutId: string) {
-  return `${WORKOUT_SESSION_STORAGE_PREFIX}:${workoutId}`
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -130,73 +111,12 @@ function hasSessionProgress(exercises: Workout["exercises"]) {
   )
 }
 
-function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSession["exercises"] {
-  if (!Array.isArray(rawExercises)) return []
-
-  return rawExercises.flatMap((exercise: unknown) => {
-    if (typeof exercise !== "object" || exercise === null) return []
-    const exerciseRecord = exercise as { id?: unknown; sets?: unknown }
-    if (typeof exerciseRecord.id !== "string") return []
-    const rawSets = Array.isArray(exerciseRecord.sets) ? exerciseRecord.sets : []
-    return [
-      {
-        id: exerciseRecord.id,
-        sets: rawSets.flatMap((set: unknown) => {
-          if (typeof set !== "object" || set === null) return []
-          const setRecord = set as {
-            actualReps?: unknown
-            addedDuringSession?: unknown
-            clientAddedToken?: unknown
-            completed?: unknown
-            id?: unknown
-            notes?: unknown
-            rir?: unknown
-            weight?: unknown
-          }
-          if (typeof setRecord.id !== "string") return []
-          return [
-            {
-              actualReps: isFiniteNumber(setRecord.actualReps) ? setRecord.actualReps : undefined,
-              addedDuringSession: setRecord.addedDuringSession === true,
-              clientAddedToken: typeof setRecord.clientAddedToken === "string" ? setRecord.clientAddedToken : undefined,
-              completed: Boolean(setRecord.completed),
-              id: setRecord.id,
-              notes: typeof setRecord.notes === "string" ? setRecord.notes : undefined,
-              rir: isFiniteNumber(setRecord.rir) ? setRecord.rir : undefined,
-              weight: isFiniteNumber(setRecord.weight) ? setRecord.weight : undefined,
-            },
-          ]
-        }),
-      },
-    ]
-  })
-}
-
-function readStoredWorkoutSession(workoutId: string) {
-  const rawValue = window.localStorage.getItem(getWorkoutSessionStorageKey(workoutId))
-  if (!rawValue) return null
-  try {
-    const parsed = JSON.parse(rawValue)
-    if (typeof parsed !== "object" || parsed === null) {
-      window.localStorage.removeItem(getWorkoutSessionStorageKey(workoutId))
-      return null
-    }
-    const currentExerciseIndex = isFiniteNumber(parsed.currentExerciseIndex) ? parsed.currentExerciseIndex : 0
-    const schemaVersion = isFiniteNumber(parsed.schemaVersion) ? parsed.schemaVersion : undefined
-    const startedAt = typeof parsed.startedAt === "string" ? parsed.startedAt : new Date().toISOString()
-    const exercises = sanitizeStoredWorkoutExercises(parsed.exercises)
-    return { currentExerciseIndex, exercises, schemaVersion, startedAt } satisfies StoredWorkoutSession
-  } catch {
-    window.localStorage.removeItem(getWorkoutSessionStorageKey(workoutId))
-    return null
-  }
-}
-
 function createStoredWorkoutSession(
   exercises: Workout["exercises"],
   startedAt: Date,
   currentExerciseIndex: number,
   addedSetTokens: ReadonlyMap<string, string>,
+  workoutName: string,
 ): StoredWorkoutSession {
   return {
     currentExerciseIndex,
@@ -215,6 +135,7 @@ function createStoredWorkoutSession(
     })),
     schemaVersion: WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
     startedAt: startedAt.toISOString(),
+    workoutName,
   }
 }
 
@@ -964,6 +885,7 @@ export default function WorkoutStartPage() {
         startTime,
         currentExerciseIndex,
         addedSetTokensRef.current,
+        workout.name,
       )),
     )
   }, [currentExerciseIndex, exercises, startTime, workout, workoutId])
@@ -1165,7 +1087,7 @@ export default function WorkoutStartPage() {
         startedAt: loggedStartedAt.toISOString(),
       })
       markDashboardForRefresh()
-      window.localStorage.removeItem(getWorkoutSessionStorageKey(workout.id))
+      clearStoredWorkoutSession(workout.id)
       router.push("/dashboard")
       router.refresh()
     } catch (saveError) {
@@ -1200,7 +1122,7 @@ export default function WorkoutStartPage() {
 
   const handleCancelWorkout = () => {
     if (workout?.id) {
-      window.localStorage.removeItem(getWorkoutSessionStorageKey(workout.id))
+      clearStoredWorkoutSession(workout.id)
     }
 
     router.back()

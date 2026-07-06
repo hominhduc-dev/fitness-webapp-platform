@@ -5,6 +5,7 @@ import { ShellHeader } from "@/components/layout/shell-header"
 import { SidebarClient } from "@/components/layout/sidebar-client"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { AppProviders } from "@/components/providers/app-providers"
+import { ResumeWorkoutCard } from "@/components/workout/resume-workout-card"
 import { requireAppUser } from "@/lib/auth/server"
 import { getServerLocale } from "@/lib/i18n/server"
 
@@ -24,6 +25,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
         </div>
 
         {profile.role === "trainee" && <AIChatBubble />}
+        {profile.role === "trainee" && <ResumeWorkoutCard />}
       </div>
     </AppProviders>
   )
