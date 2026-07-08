@@ -1,57 +1,20 @@
 # Sequence Diagrams - YeahBuddy Fitness
 
-Tài liệu này mô tả sơ đồ tuần tự cho các use case chính của hệ thống YeahBuddy Fitness bằng Mermaid `sequenceDiagram`.
+Tài liệu này mô tả 6 sơ đồ tuần tự chính tương ứng 6 use case chính của hệ thống YeahBuddy Fitness bằng Mermaid `sequenceDiagram`. Các luồng profile, resume workout, notification, AI, export và exercise import được mô tả bằng `opt` / `alt` trong UC liên quan, không tách thành sequence chính riêng.
 
-Nguồn đối chiếu: `README.md`, `docs/use-case-diagrams.md`, `backend/prisma/schema.prisma`, các route trong `backend/src/routes/*`.
+Nguồn đối chiếu: `docs/use-case-diagrams.md`, `backend/prisma/schema.prisma`, `backend/src/routes/*`, `lib/*/api.ts`.
 
 Quy ước participant:
 
 - `Browser`: người dùng thao tác trên UI Next.js.
 - `Next.js`: App Router, client components, server components, route guards và proxy `/backend/*`.
-- `Express API`: backend Express chạy tại port `4000`.
+- `Express API`: backend Express mount route dưới `/api`.
 - `Service`: lớp business logic trong `backend/src/services/*`.
 - `Prisma`: Prisma Client.
 - `PostgreSQL`: database Supabase Postgres.
 - `Supabase Auth` và `Supabase Storage`: dịch vụ ngoài của Supabase.
 
-## 1. Đăng nhập và điều hướng theo role
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor User as Người dùng
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant SupabaseAuth as Supabase Auth
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  User->>Browser: Nhập identifier và password
-  Browser->>Next: Submit login form
-  Next->>API: POST /api/auth/login
-  API->>AuthService: loginUser(identifier, password)
-  AuthService->>SupabaseAuth: signInWithPassword()
-  SupabaseAuth-->>AuthService: session, auth user
-  AuthService->>Prisma: find/upsert User profile
-  Prisma->>DB: SELECT/INSERT/UPDATE users
-  DB-->>Prisma: profile
-  Prisma-->>AuthService: profile
-  AuthService-->>API: profile, session
-  API-->>Next: Login response
-  Next->>Browser: Lưu Supabase session cookie
-  Next->>Next: Đọc profile.role
-  alt role = trainee
-    Next-->>Browser: Redirect /dashboard
-  else role = coach
-    Next-->>Browser: Redirect /coach
-  else role = admin
-    Next-->>Browser: Redirect /admin
-  end
-```
-
-## 2. Đăng ký tài khoản
+## UC-01 - Đăng ký tài khoản
 
 ```mermaid
 sequenceDiagram
@@ -65,168 +28,204 @@ sequenceDiagram
   participant Prisma as Prisma
   participant DB as PostgreSQL
 
-  Visitor->>Browser: Nhập name, email, phone, username, password, role
+  Visitor->>Browser: Nhập name, email, username, phone, password, role
   Browser->>Next: Submit register form
   Next->>API: POST /api/auth/register
   API->>AuthService: registerUser(payload)
+  AuthService->>AuthService: Validate role, unique fields, password input
   AuthService->>SupabaseAuth: signUp(email, password, metadata)
-  alt Cần xác nhận email
-    SupabaseAuth-->>AuthService: requiresEmailConfirmation = true
-    AuthService-->>API: pending registration response
+  alt Supabase yêu cầu xác nhận email
+    SupabaseAuth-->>AuthService: auth user, no active session
+    AuthService-->>API: requiresEmailConfirmation = true
     API-->>Next: 202 Accepted
     Next-->>Browser: Hiển thị yêu cầu kiểm tra email
-  else Tạo session ngay
+  else Có session ngay
     SupabaseAuth-->>AuthService: session, auth user
-    AuthService->>Prisma: create local User profile
+    AuthService->>Prisma: create User profile
     Prisma->>DB: INSERT users
-    DB-->>Prisma: created profile
+    DB-->>Prisma: created user
     Prisma-->>AuthService: profile
     AuthService-->>API: profile, session
     API-->>Next: 201 Created
-    Next-->>Browser: Redirect theo role
+    Next->>Next: Đọc profile.role
+    alt role = trainee
+      Next-->>Browser: Redirect /dashboard
+    else role = coach
+      Next-->>Browser: Redirect /coach
+    else role = admin
+      Next-->>Browser: Redirect /admin
+    end
   end
 ```
 
-## 3. Bảo vệ route và tải dashboard theo role
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor User as Người dùng đã đăng nhập
-  participant Browser as Browser
-  participant Next as Next.js App Router
-  participant SupabaseSSR as Supabase SSR Client
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant FitnessService as Fitness Data Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  User->>Browser: Truy cập /dashboard, /coach hoặc /admin
-  Browser->>Next: Request page
-  Next->>SupabaseSSR: Đọc session từ cookie
-  SupabaseSSR-->>Next: access token
-  Next->>API: GET endpoint dashboard tương ứng
-  API->>AuthService: requireCurrentProfile(accessToken)
-  AuthService->>AuthService: Verify token và role
-  AuthService->>Prisma: Load local User profile
-  Prisma->>DB: SELECT users
-  DB-->>Prisma: profile
-  Prisma-->>AuthService: profile
-  alt Đúng role
-    API->>FitnessService: Build dashboard payload
-    FitnessService->>Prisma: Query workouts, meals, logs, metrics
-    Prisma->>DB: SELECT domain data
-    DB-->>Prisma: rows
-    Prisma-->>FitnessService: data
-    FitnessService-->>API: dashboard
-    API-->>Next: data
-    Next-->>Browser: Render page
-  else Sai role hoặc session hết hạn
-    API-->>Next: 401/403 error
-    Next-->>Browser: Redirect login hoặc role landing page
-  end
-```
-
-## 4. Cập nhật profile và upload avatar
+## UC-02 - Đăng nhập
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor User as Người dùng
   participant Browser as Browser
-  participant Next as Next.js Frontend
+  participant Next as Next.js App Router
+  participant SupabaseSSR as Supabase SSR Client
   participant API as Express API
   participant AuthService as Auth Service
+  participant SupabaseAuth as Supabase Auth
   participant Storage as Supabase Storage
+  participant FitnessService as Fitness Data Service
+  participant AdminService as Admin Service
   participant Prisma as Prisma
   participant DB as PostgreSQL
 
-  User->>Browser: Sửa hồ sơ, mục tiêu, đơn vị cân nặng
-  Browser->>Next: Submit profile form
-  Next->>API: PATCH /api/auth/me
-  API->>AuthService: updateCurrentProfile(accessToken, payload)
-  AuthService->>AuthService: requireCurrentProfile()
-  AuthService->>Prisma: Update User fields
-  Prisma->>DB: UPDATE users
-  DB-->>Prisma: updated profile
+  User->>Browser: Nhập email, username hoặc phone và password
+  Browser->>Next: Submit login form
+  Next->>API: POST /api/auth/login
+  API->>AuthService: loginUser(identifier, password)
+  AuthService->>SupabaseAuth: signInWithPassword()
+  SupabaseAuth-->>AuthService: session, auth user
+  AuthService->>Prisma: find/upsert User profile
+  Prisma->>DB: SELECT/INSERT/UPDATE users
+  DB-->>Prisma: profile
+  Prisma-->>AuthService: profile
+  AuthService-->>API: profile, session
+  API-->>Next: login response
+  Next->>Browser: Lưu Supabase session cookie
+
+  User->>Browser: Truy cập route được bảo vệ
+  Browser->>Next: Request /dashboard, /coach hoặc /admin
+  Next->>SupabaseSSR: Đọc session từ cookie
+  SupabaseSSR-->>Next: access token
+  Next->>API: GET /api/auth/me
+  API->>AuthService: getCurrentProfile(accessToken)
+  AuthService->>Prisma: Load local User profile
+  Prisma->>DB: SELECT users
+  DB-->>Prisma: profile
   Prisma-->>AuthService: profile
   AuthService-->>API: profile
-  API-->>Next: updated profile
-  Next-->>Browser: Refresh profile UI
+  API-->>Next: profile
+  alt role = trainee
+    Next->>API: GET /api/dashboard
+    API->>FitnessService: getDashboardForTrainee(profile)
+    FitnessService->>Prisma: Query trainee dashboard data
+    Prisma->>DB: SELECT workouts, logs, meals, metrics
+    DB-->>Prisma: rows
+    Prisma-->>FitnessService: dashboard
+    FitnessService-->>API: dashboard
+    API-->>Next: dashboard
+    Next-->>Browser: Render /dashboard
+  else role = coach
+    Next->>API: GET /api/coach/dashboard
+    API->>FitnessService: getCoachDashboard(profile)
+    FitnessService->>Prisma: Query trainees, logs, requests
+    Prisma->>DB: SELECT coach domain data
+    DB-->>Prisma: rows
+    FitnessService-->>API: dashboard
+    API-->>Next: dashboard
+    Next-->>Browser: Render /coach
+  else role = admin
+    Next->>API: GET /api/admin/dashboard
+    API->>AdminService: getAdminDashboard(profile)
+    AdminService->>Prisma: Query platform metrics
+    Prisma->>DB: SELECT users, programs, requests, logs
+    DB-->>Prisma: rows
+    AdminService-->>API: dashboard
+    API-->>Next: dashboard
+    Next-->>Browser: Render /admin
+  end
 
-  opt Người dùng upload avatar
-    Browser->>Next: Chọn ảnh avatar
-    Next->>API: POST /api/auth/me/avatar
-    API->>AuthService: uploadCurrentProfileAvatar(dataUrl)
-    AuthService->>Storage: Upload avatar file
-    Storage-->>AuthService: public URL
-    AuthService->>Prisma: Save avatar URL
-    Prisma->>DB: UPDATE users.avatar
-    DB-->>Prisma: updated profile
+  opt Người dùng cập nhật profile hoặc avatar sau đăng nhập
+    Browser->>Next: Submit profile form
+    Next->>API: PATCH /api/auth/me
+    API->>AuthService: updateCurrentProfile(accessToken, payload)
+    AuthService->>Prisma: UPDATE users
+    Prisma->>DB: updated profile
     Prisma-->>AuthService: profile
     AuthService-->>API: profile
-    API-->>Next: avatar URL
-    Next-->>Browser: Hiển thị avatar mới
+    API-->>Next: profile
+    Browser->>Next: Upload avatar image
+    Next->>API: POST /api/auth/me/avatar
+    API->>AuthService: uploadCurrentProfileAvatar(dataUrl)
+    AuthService->>Storage: Upload avatar
+    Storage-->>AuthService: public URL
+    AuthService->>Prisma: UPDATE users.avatar
+    Prisma->>DB: updated profile
+    AuthService-->>API: profile
+    API-->>Next: profile
+  end
+
+  opt Session phụ trợ
+    Next->>API: POST /api/auth/refresh
+    API->>AuthService: refreshAuthSession(accessToken, refreshToken)
+    AuthService->>SupabaseAuth: refresh session
+    SupabaseAuth-->>AuthService: new session
+    AuthService-->>API: session
+    API-->>Next: session
+  end
+
+  opt App shell tải notification sau đăng nhập
+    Next->>API: GET /api/notifications?limit=20
+    API->>AuthService: requireCurrentProfile()
+    AuthService-->>API: profile
+    API->>FitnessService: listNotificationsForUser()
+    FitnessService->>Prisma: SELECT notifications by userId
+    Prisma->>DB: notifications
+    FitnessService-->>API: notifications and unread count
+    API-->>Next: data
+    alt Đánh dấu một notification đã đọc
+      Next->>API: PATCH /api/notifications/:notificationId/read
+      API->>FitnessService: markNotificationAsReadForUser()
+      FitnessService->>Prisma: UPDATE notifications.readAt
+      Prisma->>DB: notification
+      FitnessService-->>API: notification
+      API-->>Next: notification
+    else Đánh dấu tất cả đã đọc
+      Next->>API: POST /api/notifications/read-all
+      API->>FitnessService: markAllNotificationsAsReadForUser()
+      FitnessService->>Prisma: UPDATE notifications where userId
+      Prisma->>DB: update count
+      FitnessService-->>API: result
+      API-->>Next: result
+    end
   end
 ```
 
-## 5. Trainee tạo workout cá nhân
+## UC-03 - Trainee thực hiện và ghi log buổi tập
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor Trainee as Trainee
   participant Browser as Browser
+  participant LocalStorage as Browser localStorage
+  participant Shell as App Shell
   participant Next as Next.js Frontend
   participant API as Express API
   participant AuthService as Auth Service
   participant FitnessService as Fitness Data Service
+  participant ExportService as n8n Export Service
   participant Prisma as Prisma
   participant DB as PostgreSQL
+  participant N8N as n8n Webhook
 
-  Trainee->>Browser: Mở /workout và tạo workout
-  Browser->>Next: Nhập tên, kind, ngày, bài tập, sets
-  Next->>API: GET /api/exercises/library
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: trainee profile
-  API->>FitnessService: listExerciseLibrary()
-  FitnessService->>Prisma: Query Exercise và Variation
-  Prisma->>DB: SELECT exercises, variations
-  DB-->>Prisma: exercise library
-  Prisma-->>FitnessService: exercise library
-  FitnessService-->>API: exercises
-  API-->>Next: exercise options
-  Next-->>Browser: Hiển thị exercise picker
-
-  Trainee->>Browser: Lưu workout
-  Browser->>Next: Submit workout builder
-  Next->>API: POST /api/workouts
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: trainee profile
-  API->>FitnessService: createPersonalWorkoutForTrainee()
-  FitnessService->>Prisma: Transaction create Workout, WorkoutExercise, ExerciseSet
-  Prisma->>DB: INSERT workouts and related sets
-  DB-->>Prisma: created records
-  Prisma-->>FitnessService: workout detail
-  FitnessService-->>API: workout
-  API-->>Next: 201 Created
-  Next-->>Browser: Thêm workout vào danh sách
-```
-
-## 6. Trainee bắt đầu và hoàn tất buổi tập
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Trainee as Trainee
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant FitnessService as Fitness Data Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
+  opt Trainee tạo workout cá nhân trước khi tập
+    Trainee->>Browser: Mở /workout và tạo workout
+    Next->>API: GET /api/exercises/library
+    API->>AuthService: requireCurrentProfile()
+    AuthService-->>API: trainee profile
+    API->>FitnessService: listExerciseLibrary()
+    FitnessService->>Prisma: Query Exercise và Variation
+    Prisma->>DB: SELECT exercises, variations
+    DB-->>Prisma: exercise library
+    FitnessService-->>API: exercises
+    API-->>Next: exercise options
+    Trainee->>Browser: Submit workout builder
+    Next->>API: POST /api/workouts
+    API->>FitnessService: createPersonalWorkoutForTrainee()
+    FitnessService->>Prisma: Transaction create Workout tree
+    Prisma->>DB: INSERT workouts, workout_exercises, exercise_sets
+    DB-->>Prisma: created workout
+    FitnessService-->>API: workout
+    API-->>Next: 201 Created
+  end
 
   Trainee->>Browser: Chọn workout và bấm Start
   Browser->>Next: Navigate /workout/[id]/start
@@ -237,14 +236,41 @@ sequenceDiagram
   FitnessService->>Prisma: Load workout, exercises, sets
   Prisma->>DB: SELECT workout tree
   DB-->>Prisma: workout detail
-  Prisma-->>FitnessService: workout detail
-  FitnessService-->>API: workout
+  FitnessService-->>API: workout detail
   API-->>Next: workout detail
   Next-->>Browser: Render workout logger
+  Browser->>LocalStorage: readStoredWorkoutSession(workoutId)
+  alt Có session cùng schemaVersion
+    LocalStorage-->>Browser: stored exercises, index, startedAt
+    Browser->>Browser: Restore set progress và current exercise
+  else Không có session hợp lệ
+    Browser->>Browser: Khởi tạo session mới
+  end
 
   loop Mỗi set trong buổi tập
-    Trainee->>Browser: Nhập actual reps, weight, RIR, completed
-    Browser->>Browser: Tính volume tạm thời và rest timer
+    Trainee->>Browser: Nhập reps, weight, RIR, completed
+    Browser->>Browser: Tính volume tạm thời, rest timer, PR hint
+    Browser->>LocalStorage: setItem(workout-session:workoutId)
+  end
+
+  opt Trainee rời route khi đang tập
+    Shell->>LocalStorage: scanActiveSessions()
+    LocalStorage-->>Shell: active session mới nhất
+    Shell-->>Browser: Hiển thị floating resume card
+    alt Trainee bấm Resume
+      Browser->>Next: router.push(/workout/:workoutId/start)
+      Next->>API: GET /api/workouts/:workoutId
+      API->>FitnessService: getWorkoutDetailForTrainee()
+      FitnessService->>Prisma: SELECT workout tree
+      Prisma->>DB: workout detail
+      API-->>Next: workout detail
+      Browser->>LocalStorage: readStoredWorkoutSession(workoutId)
+      LocalStorage-->>Browser: stored progress
+      Browser->>Browser: Restore để tập tiếp
+    else Trainee bấm Discard
+      Browser->>LocalStorage: clearStoredWorkoutSession(workoutId)
+      Browser->>Shell: Ẩn resume card
+    end
   end
 
   Trainee->>Browser: Hoàn tất buổi tập
@@ -253,17 +279,39 @@ sequenceDiagram
   API->>AuthService: requireCurrentProfile()
   AuthService-->>API: trainee profile
   API->>FitnessService: createWorkoutLogForTrainee()
-  FitnessService->>FitnessService: Tạo workoutSnapshot, exerciseSnapshot, totalVolume
+  FitnessService->>FitnessService: Build workoutSnapshot, exerciseSnapshot, totalVolume
   FitnessService->>Prisma: Transaction create WorkoutLog
   Prisma->>DB: INSERT workout_logs
   DB-->>Prisma: workout log
-  Prisma-->>FitnessService: log
   FitnessService-->>API: log
   API-->>Next: 201 Created
+  Browser->>LocalStorage: clearStoredWorkoutSession(workoutId)
   Next-->>Browser: Cập nhật history và progress
+
+  opt Xem detail, xóa log hoặc export
+    Next->>API: GET /api/progress/workout-log/:logId
+    API->>FitnessService: getWorkoutLogDetailForTrainee()
+    FitnessService->>Prisma: SELECT workout_log detail
+    Prisma->>DB: log detail
+    API-->>Next: log detail
+    Next->>API: DELETE /api/workouts/:workoutId/logs/:logId
+    API->>FitnessService: deleteWorkoutLogForTrainee()
+    FitnessService->>Prisma: DELETE workout_logs
+    Prisma->>DB: delete result
+    Next->>API: POST /api/workouts/logs/export/google-sheets
+    API->>FitnessService: exportWorkoutLogsToGoogleSheetsForTrainee()
+    FitnessService->>Prisma: SELECT logs for export
+    Prisma->>DB: export rows
+    FitnessService->>ExportService: Format rows
+    ExportService->>N8N: POST webhook payload
+    N8N-->>ExportService: webhook response
+    ExportService-->>FitnessService: result
+    FitnessService-->>API: export result
+    API-->>Next: data
+  end
 ```
 
-## 7. Trainee log meal item và tính macro ngày
+## UC-04 - Trainee ghi nhận dinh dưỡng và theo dõi tiến độ
 
 ```mermaid
 sequenceDiagram
@@ -274,12 +322,14 @@ sequenceDiagram
   participant API as Express API
   participant AuthService as Auth Service
   participant NutritionService as Nutrition Service
+  participant FitnessService as Fitness Data Service
+  participant AIService as AI Service
+  participant AIProvider as OpenAI or Anthropic
   participant USDA as USDA API
   participant Prisma as Prisma
   participant DB as PostgreSQL
 
   Trainee->>Browser: Mở /meals theo ngày
-  Browser->>Next: Request daily nutrition
   Next->>API: GET /api/meals?date=YYYY-MM-DD
   API->>AuthService: requireCurrentProfile()
   AuthService-->>API: trainee profile
@@ -287,14 +337,12 @@ sequenceDiagram
   NutritionService->>Prisma: Query meals, meal items, user targets
   Prisma->>DB: SELECT meals, foods, users
   DB-->>Prisma: nutrition rows
-  Prisma-->>NutritionService: rows
   NutritionService->>NutritionService: Tính totals và calories left
   NutritionService-->>API: nutrition day
   API-->>Next: data
-  Next-->>Browser: Render meal dashboard
+  Next-->>Browser: Render daily nutrition
 
-  Trainee->>Browser: Tìm food và thêm vào bữa ăn
-  Browser->>Next: Search food query
+  Trainee->>Browser: Tìm food
   Next->>API: GET /api/foods?query=...
   API->>NutritionService: listFoodsForUser()
   NutritionService->>Prisma: Search local foods
@@ -306,76 +354,93 @@ sequenceDiagram
   end
   NutritionService-->>API: foods
   API-->>Next: foods
-  Next-->>Browser: Hiển thị kết quả
+  Next-->>Browser: Hiển thị food picker
 
-  Trainee->>Browser: Chọn food, quantity, meal type
-  Browser->>Next: Submit meal item
+  alt Trainee tạo food cá nhân
+    Trainee->>Browser: Nhập food custom
+    Next->>API: POST /api/foods
+    API->>NutritionService: createFoodForUser()
+    NutritionService->>Prisma: INSERT foods
+    Prisma->>DB: created food
+    NutritionService-->>API: food
+    API-->>Next: 201 Created
+  else Trainee chọn food có sẵn
+    Trainee->>Browser: Chọn food, quantity, meal type
+  end
+
   Next->>API: POST /api/meals/items
   API->>NutritionService: addMealItemForUser()
   NutritionService->>Prisma: Upsert Meal và create MealFoodItem
   Prisma->>DB: INSERT/UPDATE meals, meal_food_items
   DB-->>Prisma: updated meal
-  Prisma-->>NutritionService: meal
   NutritionService-->>API: meal
   API-->>Next: 201 Created
   Next-->>Browser: Refresh totals và meal list
-```
 
-## 8. Trainee ghi cân nặng và xem progress analytics
+  opt Xóa meal item hoặc cập nhật nutrition targets
+    Next->>API: DELETE /api/meals/items/:itemId
+    API->>NutritionService: deleteMealItemForUser()
+    NutritionService->>Prisma: DELETE meal_food_items
+    Prisma->>DB: updated meal
+    API-->>Next: meal
+    Next->>API: PATCH /api/auth/me
+    API->>AuthService: updateCurrentProfile(dailyCalorieGoal, dailyProteinGoal, dailyCarbsGoal, dailyFatGoal)
+    AuthService->>Prisma: UPDATE users
+    Prisma->>DB: updated targets
+  end
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Trainee as Trainee
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant FitnessService as Fitness Data Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
+  opt AI meal plan
+    Trainee->>Browser: Nhập mục tiêu meal plan
+    Next->>API: POST /api/ai/generate-meal-plan
+    API->>AIService: generateMealPlan(profile, input)
+    AIService->>Prisma: INSERT ai_generations pending
+    Prisma->>DB: generation
+    AIService->>AIProvider: Generate structured meal plan
+    AIProvider-->>AIService: meal plan output and token usage
+    AIService->>Prisma: UPDATE ai_generations completed
+    Prisma->>DB: completed generation
+    AIService-->>API: preview
+    API-->>Next: 201 Created
+    Trainee->>Browser: Accept meal plan
+    Next->>API: POST /api/ai/accept-meal-plan
+    API->>AIService: acceptAIMealPlan(generationId, date)
+    AIService->>Prisma: Transaction create meals and meal items
+    Prisma->>DB: INSERT meals, meal_food_items, foods if needed
+    AIService->>Prisma: UPDATE ai_generations accepted
+    Prisma->>DB: accepted generation
+    AIService-->>API: nutrition day
+    API-->>Next: data
+  end
 
   Trainee->>Browser: Mở /trackweight hoặc /progress
-  Browser->>Next: Load body metrics
   Next->>API: GET /api/progress/weight
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: trainee profile
   API->>FitnessService: listBodyMetricsForCurrentTrainee()
-  FitnessService->>Prisma: Query BodyMetricEntry
-  Prisma->>DB: SELECT body_metric_entries
-  DB-->>Prisma: metrics
-  Prisma-->>FitnessService: metrics
+  FitnessService->>Prisma: SELECT body_metric_entries
+  Prisma->>DB: metrics
   FitnessService-->>API: bodyMetrics
   API-->>Next: bodyMetrics
-  Next-->>Browser: Render chart
-
   Trainee->>Browser: Nhập cân nặng mới
-  Browser->>Next: Submit weight entry
   Next->>API: POST /api/progress/weight
   API->>FitnessService: createBodyMetricForCurrentTrainee()
-  FitnessService->>Prisma: Create BodyMetricEntry
-  Prisma->>DB: INSERT body_metric_entries
-  DB-->>Prisma: bodyMetric
-  Prisma-->>FitnessService: bodyMetric
+  FitnessService->>Prisma: INSERT body_metric_entries
+  Prisma->>DB: bodyMetric
   FitnessService-->>API: bodyMetric
   API-->>Next: 201 Created
-  Next-->>Browser: Cập nhật chart
-
-  Trainee->>Browser: Xem analytics
-  Browser->>Next: Request analytics
   Next->>API: GET /api/progress/analytics
   API->>FitnessService: getProgressAnalyticsForCurrentTrainee()
-  FitnessService->>Prisma: Query workout logs, sets, body metrics
-  Prisma->>DB: SELECT logs and metrics
-  DB-->>Prisma: analytics rows
-  Prisma-->>FitnessService: rows
+  FitnessService->>Prisma: Query workout logs and metrics
+  Prisma->>DB: analytics rows
   FitnessService->>FitnessService: Tính volume, frequency, estimated 1RM
   FitnessService-->>API: analytics
   API-->>Next: analytics
-  Next-->>Browser: Render progress charts
+  Next->>API: GET /api/progress/calendar?year=YYYY&month=MM
+  API->>FitnessService: getCalendarForTrainee()
+  FitnessService->>Prisma: Query calendar rows
+  Prisma->>DB: rows
+  API-->>Next: calendar
 ```
 
-## 9. Trainee tìm coach và coach duyệt yêu cầu
+## UC-05 - Coach quản lý giáo án và trainee
 
 ```mermaid
 sequenceDiagram
@@ -387,226 +452,163 @@ sequenceDiagram
   participant API as Express API
   participant AuthService as Auth Service
   participant FitnessService as Fitness Data Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  Trainee->>Browser: Mở /coach/find
-  Browser->>Next: Load available coaches
-  Next->>API: GET /api/coach/discover
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: trainee profile
-  API->>FitnessService: listAvailableCoachesForTrainee()
-  FitnessService->>Prisma: Query active coaches
-  Prisma->>DB: SELECT users where role = coach
-  DB-->>Prisma: coach list
-  Prisma-->>FitnessService: coaches
-  FitnessService-->>API: coaches
-  API-->>Next: coaches
-  Next-->>Browser: Hiển thị danh sách coach
-
-  Trainee->>Browser: Gửi request tới coach
-  Browser->>Next: Submit coachId
-  Next->>API: POST /api/coach/requests
-  API->>FitnessService: createCoachRequestForTrainee()
-  FitnessService->>Prisma: Create CoachRequest pending
-  Prisma->>DB: INSERT coach_requests
-  DB-->>Prisma: request
-  Prisma-->>FitnessService: request
-  FitnessService-->>API: request
-  API-->>Next: 201 Created
-  Next-->>Browser: Hiển thị trạng thái pending
-
-  Coach->>Browser: Mở coach dashboard
-  Browser->>Next: Load pending requests
-  Next->>API: GET /api/coach/dashboard
-  API->>FitnessService: getCoachDashboard()
-  FitnessService->>Prisma: Query pending CoachRequest
-  Prisma->>DB: SELECT coach_requests
-  DB-->>Prisma: requests
-  Prisma-->>FitnessService: requests
-  FitnessService-->>API: dashboard
-  API-->>Next: dashboard
-  Next-->>Browser: Hiển thị request
-
-  Coach->>Browser: Approve hoặc reject request
-  Browser->>Next: Submit status
-  Next->>API: PATCH /api/coach/requests/:requestId
-  API->>FitnessService: updateCoachRequestStatus()
-  alt Approved
-    FitnessService->>Prisma: Update request and set User.coachId
-    Prisma->>DB: UPDATE coach_requests, users
-    DB-->>Prisma: updated connection
-  else Rejected
-    FitnessService->>Prisma: Update request status rejected
-    Prisma->>DB: UPDATE coach_requests
-    DB-->>Prisma: updated request
-  end
-  Prisma-->>FitnessService: result
-  FitnessService-->>API: request
-  API-->>Next: request
-  Next-->>Browser: Cập nhật UI
-```
-
-## 10. Coach tạo giáo án và gán cho trainee
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Coach as Coach
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant FitnessService as Fitness Data Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  Coach->>Browser: Mở /coach/programs/new
-  Browser->>Next: Load exercise library và trainee list
-  Next->>API: GET /api/coach/exercises
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: coach profile
-  API->>FitnessService: listCoachExercises()
-  FitnessService->>Prisma: Query exercises created by coach and shared library
-  Prisma->>DB: SELECT exercises, variations
-  DB-->>Prisma: exercise options
-  Prisma-->>FitnessService: exercises
-  FitnessService-->>API: exercises
-  API-->>Next: exercises
-  Next->>API: GET /api/coach/trainees
-  API->>FitnessService: listCoachTrainees()
-  FitnessService->>Prisma: Query trainees where coachId = current coach
-  Prisma->>DB: SELECT users
-  DB-->>Prisma: trainees
-  Prisma-->>FitnessService: trainees
-  FitnessService-->>API: trainees
-  API-->>Next: trainees
-  Next-->>Browser: Render program builder
-
-  Coach->>Browser: Nhập program, workouts, exercises, sets
-  Browser->>Next: Submit program
-  Next->>API: POST /api/coach/programs
-  API->>FitnessService: createCoachProgram()
-  FitnessService->>Prisma: Transaction create Program tree
-  Prisma->>DB: INSERT programs, workouts, workout_exercises, exercise_sets
-  DB-->>Prisma: program
-  opt Coach chọn trainee để assign ngay
-    Prisma->>DB: INSERT program_assignments
-    DB-->>Prisma: assignments
-  end
-  Prisma-->>FitnessService: program detail
-  FitnessService-->>API: program
-  API-->>Next: 201 Created
-  Next-->>Browser: Redirect program detail
-
-  opt Gán hoặc hủy gán sau khi tạo
-    Coach->>Browser: Chọn trainee assign/unassign
-    Browser->>Next: Submit assignment
-    Next->>API: POST or DELETE /api/coach/programs/:programId/assignments
-    API->>FitnessService: assignCoachProgramToTrainee() hoặc unassign()
-    FitnessService->>Prisma: Create/delete ProgramAssignment
-    Prisma->>DB: INSERT/DELETE program_assignments
-    DB-->>Prisma: result
-    Prisma-->>FitnessService: result
-    FitnessService-->>API: result
-    API-->>Next: result
-    Next-->>Browser: Cập nhật danh sách assigned trainees
-  end
-```
-
-## 11. Coach theo dõi trainee, comment log, check-in và export
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Coach as Coach
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant FitnessService as Fitness Data Service
+  participant AIService as AI Service
+  participant AIProvider as OpenAI or Anthropic
   participant ExportService as n8n Export Service
   participant Prisma as Prisma
   participant DB as PostgreSQL
   participant N8N as n8n Webhook
   participant Sheets as Google Sheets
 
-  Coach->>Browser: Mở /coach/trainees/:id
-  Browser->>Next: Load trainee detail
-  Next->>API: GET /api/coach/trainees/:traineeId
+  Trainee->>Browser: Mở /coach/find
+  Next->>API: GET /api/coach/discover
+  API->>AuthService: requireCurrentProfile()
+  AuthService-->>API: trainee profile
+  API->>FitnessService: listAvailableCoachesForTrainee()
+  FitnessService->>Prisma: SELECT users where role = coach
+  Prisma->>DB: coach list
+  FitnessService-->>API: coaches
+  API-->>Next: coaches
+  Trainee->>Browser: Gửi request tới coach
+  Next->>API: POST /api/coach/requests
+  API->>FitnessService: createCoachRequestForTrainee()
+  FitnessService->>Prisma: INSERT coach_requests
+  Prisma->>DB: pending request
+  FitnessService-->>API: request
+  API-->>Next: 201 Created
+
+  Coach->>Browser: Mở coach dashboard
+  Next->>API: GET /api/coach/dashboard
   API->>AuthService: requireCurrentProfile()
   AuthService-->>API: coach profile
+  API->>FitnessService: getCoachDashboard()
+  FitnessService->>Prisma: Query trainees, pending requests, recent logs
+  Prisma->>DB: dashboard rows
+  FitnessService-->>API: dashboard
+  API-->>Next: dashboard
+  Coach->>Browser: Approve hoặc reject request
+  Next->>API: PATCH /api/coach/requests/:requestId
+  API->>FitnessService: updateCoachRequestStatus()
+  alt Approved
+    FitnessService->>Prisma: Update request and set trainee.coachId
+    Prisma->>DB: UPDATE coach_requests, users
+  else Rejected
+    FitnessService->>Prisma: Update request status rejected
+    Prisma->>DB: UPDATE coach_requests
+  end
+  FitnessService-->>API: request
+  API-->>Next: request
+
+  Coach->>Browser: Tạo hoặc chỉnh giáo án
+  Next->>API: GET /api/coach/exercises
+  API->>FitnessService: listCoachExercises()
+  FitnessService->>Prisma: SELECT exercises, variations
+  Prisma->>DB: exercises
+  Next->>API: GET /api/coach/trainees
+  API->>FitnessService: listCoachTrainees()
+  FitnessService->>Prisma: SELECT users where coachId = coach.id
+  Prisma->>DB: trainees
+  Coach->>Browser: Submit program builder
+  Next->>API: POST /api/coach/programs
+  API->>FitnessService: createCoachProgram()
+  FitnessService->>Prisma: Transaction create Program tree
+  Prisma->>DB: INSERT programs, workouts, workout_exercises, exercise_sets
+  opt Coach assign trainee ngay
+    Prisma->>DB: INSERT program_assignments
+  end
+  FitnessService-->>API: program
+  API-->>Next: 201 Created
+
+  opt Gán, hủy gán, archive, restore hoặc adjust giáo án
+    Next->>API: POST /api/coach/programs/:programId/assignments
+    API->>FitnessService: assignCoachProgramToTrainee()
+    FitnessService->>Prisma: INSERT program_assignments
+    Prisma->>DB: assignment
+    Next->>API: DELETE /api/coach/programs/:programId/assignments/:traineeId
+    API->>FitnessService: unassignCoachProgramFromTrainee()
+    FitnessService->>Prisma: DELETE program_assignments
+    Prisma->>DB: delete result
+    Next->>API: POST /api/coach/programs/:programId/adjustments
+    API->>FitnessService: adjustCoachProgramForTrainee()
+    FitnessService->>Prisma: Transaction create adjusted Program tree
+    Prisma->>DB: adjusted program
+    Next->>API: POST /api/coach/programs/:programId/archive
+    Next->>API: POST /api/coach/programs/:programId/restore
+  end
+
+  opt AI generate workout program
+    Coach->>Browser: Nhập goal, level, schedule, constraints
+    Next->>API: POST /api/ai/generate-program
+    API->>AIService: generateWorkoutProgram(profile, input)
+    AIService->>Prisma: INSERT ai_generations pending
+    Prisma->>DB: generation
+    AIService->>AIProvider: Generate structured workout program
+    AIProvider-->>AIService: program output and token usage
+    AIService->>Prisma: UPDATE ai_generations completed
+    Prisma->>DB: completed generation
+    AIService-->>API: preview
+    API-->>Next: 201 Created
+    Coach->>Browser: Accept program
+    Next->>API: POST /api/ai/accept-program
+    API->>AIService: acceptAIProgram(generationId)
+    AIService->>Prisma: Transaction create Program tree
+    Prisma->>DB: INSERT programs, workouts, workout_exercises, exercise_sets
+    AIService->>Prisma: UPDATE ai_generations accepted
+    Prisma->>DB: accepted generation
+    AIService-->>API: program
+    API-->>Next: program
+  end
+
+  Coach->>Browser: Mở /coach/trainees/:id
+  Next->>API: GET /api/coach/trainees/:traineeId
   API->>FitnessService: getCoachTraineeDetail()
-  FitnessService->>Prisma: Query trainee, assignments, metrics, recent logs
-  Prisma->>DB: SELECT related trainee data
-  DB-->>Prisma: trainee detail
-  Prisma-->>FitnessService: trainee detail
+  FitnessService->>Prisma: Query trainee, programs, metrics, recent logs, nutrition summary
+  Prisma->>DB: trainee detail
   FitnessService-->>API: detail
   API-->>Next: detail
-  Next-->>Browser: Render trainee profile
-
-  Coach->>Browser: Xem workout logs
-  Browser->>Next: Request logs with filters
   Next->>API: GET /api/coach/trainees/:traineeId/workout-logs
   API->>FitnessService: listCoachWorkoutLogsForTrainee()
-  FitnessService->>Prisma: Query paginated WorkoutLog
-  Prisma->>DB: SELECT workout_logs
-  DB-->>Prisma: logs
-  Prisma-->>FitnessService: logs
+  FitnessService->>Prisma: SELECT workout_logs
+  Prisma->>DB: logs
   FitnessService-->>API: logs
   API-->>Next: logs
-  Next-->>Browser: Render logs
 
-  opt Coach comment vào workout log
-    Coach->>Browser: Nhập feedback
-    Browser->>Next: Submit comment
+  opt Coach comment, ghi metrics hoặc check-in
     Next->>API: POST /api/coach/workout-logs/:workoutLogId/comments
     API->>FitnessService: createWorkoutLogCommentForCoach()
-    FitnessService->>Prisma: Create WorkoutLogComment
-    Prisma->>DB: INSERT workout_log_comments
-    DB-->>Prisma: comment
-    Prisma-->>FitnessService: comment
-    FitnessService-->>API: comment
-    API-->>Next: 201 Created
-    Next-->>Browser: Hiển thị comment
-  end
-
-  opt Coach tạo check-in
-    Coach->>Browser: Nhập scores, feedback, next focus
-    Browser->>Next: Submit check-in
+    FitnessService->>Prisma: INSERT workout_log_comments
+    Prisma->>DB: comment
+    Next->>API: POST /api/coach/trainees/:traineeId/body-metrics
+    API->>FitnessService: createBodyMetricForTrainee()
+    FitnessService->>Prisma: INSERT body_metric_entries
+    Prisma->>DB: bodyMetric
     Next->>API: POST /api/coach/trainees/:traineeId/check-ins
     API->>FitnessService: createCoachCheckInForTrainee()
-    FitnessService->>Prisma: Create CoachCheckIn
-    Prisma->>DB: INSERT coach_check_ins
-    DB-->>Prisma: check-in
-    Prisma-->>FitnessService: check-in
-    FitnessService-->>API: check-in
-    API-->>Next: 201 Created
-    Next-->>Browser: Cập nhật check-in timeline
+    FitnessService->>Prisma: INSERT coach_check_ins
+    Prisma->>DB: checkIn
   end
 
-  opt Coach export logs sang Google Sheets
-    Coach->>Browser: Chọn date range và export
-    Browser->>Next: Submit export request
+  opt Coach export logs hoặc gửi import request exercise
     Next->>API: POST /api/coach/trainees/:traineeId/workout-logs/export/google-sheets
     API->>FitnessService: exportCoachWorkoutLogsToGoogleSheetsForTrainee()
-    FitnessService->>Prisma: Query logs for export
-    Prisma->>DB: SELECT logs and set snapshots
-    DB-->>Prisma: rows
-    Prisma-->>FitnessService: rows
+    FitnessService->>Prisma: SELECT logs for export
+    Prisma->>DB: export rows
     FitnessService->>ExportService: Format rows
     ExportService->>N8N: POST webhook payload
     N8N->>Sheets: Append rows
     Sheets-->>N8N: success
-    N8N-->>ExportService: webhook response
-    ExportService-->>FitnessService: export result
+    ExportService-->>FitnessService: result
     FitnessService-->>API: export result
-    API-->>Next: data
-    Next-->>Browser: Hiển thị kết quả export
+    Next->>API: POST /api/coach/exercise-import-requests
+    API->>FitnessService: submitCoachExerciseImportRequest()
+    FitnessService->>Prisma: INSERT exercise_import_requests
+    Prisma->>DB: request pending
+    FitnessService-->>API: request
+    API-->>Next: 201 Created
   end
 ```
 
-## 12. Admin quản lý user và kết nối coach - trainee
+## UC-06 - Admin quản trị hệ thống
 
 ```mermaid
 sequenceDiagram
@@ -622,278 +624,125 @@ sequenceDiagram
   participant DB as PostgreSQL
 
   Admin->>Browser: Mở /admin
-  Browser->>Next: Load users and dashboard
   Next->>API: GET /api/admin/dashboard
   API->>AuthService: requireCurrentProfile()
   AuthService-->>API: admin profile
   API->>AdminService: getAdminDashboard()
-  AdminService->>Prisma: Query metrics
+  AdminService->>Prisma: Query platform metrics
   Prisma->>DB: SELECT users, programs, requests, logs
   DB-->>Prisma: metrics rows
-  Prisma-->>AdminService: metrics
   AdminService-->>API: dashboard
   API-->>Next: dashboard
   Next-->>Browser: Render admin console
 
-  Admin->>Browser: Cập nhật role hoặc active state
-  Browser->>Next: Submit user patch
+  Admin->>Browser: Tìm kiếm và cập nhật user
+  Next->>API: GET /api/admin/users?role=...&search=...
+  API->>AdminService: listAdminUsers()
+  AdminService->>Prisma: SELECT users
+  Prisma->>DB: users
+  AdminService-->>API: users
+  API-->>Next: users
   Next->>API: PATCH /api/admin/users/:userId
   API->>AdminService: updateAdminUser()
-  AdminService->>Prisma: Update User and write AdminAuditLog
-  Prisma->>DB: UPDATE users và INSERT admin_audit_logs
-  DB-->>Prisma: updated user
-  Prisma-->>AdminService: user
+  AdminService->>Prisma: UPDATE users and INSERT admin_audit_logs
+  Prisma->>DB: updated user, audit log
   AdminService-->>API: user
   API-->>Next: user
-  Next-->>Browser: Cập nhật user table
 
-  opt Admin reset password user
-    Admin->>Browser: Nhập password mới
-    Browser->>Next: Submit reset password
+  opt Reset password user
     Next->>API: POST /api/admin/users/:userId/reset-password
     API->>AdminService: resetAdminUserPassword()
     AdminService->>SupabaseAuth: Update auth user password
     SupabaseAuth-->>AdminService: success
-    AdminService->>Prisma: Write AdminAuditLog
-    Prisma->>DB: INSERT admin_audit_logs
-    DB-->>Prisma: audit log
+    AdminService->>Prisma: INSERT admin_audit_logs
+    Prisma->>DB: audit log
     AdminService-->>API: result
     API-->>Next: result
-    Next-->>Browser: Hiển thị kết quả
   end
 
-  opt Admin gán coach cho trainee
-    Admin->>Browser: Chọn coach và trainee
-    Browser->>Next: Submit connection
+  opt Quản lý kết nối coach - trainee và coach request
+    Next->>API: GET /api/admin/connections
+    API->>AdminService: listAdminConnections()
+    AdminService->>Prisma: SELECT coaches, trainees, connections
+    Prisma->>DB: connection rows
     Next->>API: POST /api/admin/connections
     API->>AdminService: assignAdminCoachToTrainee()
-    AdminService->>Prisma: Set trainee.coachId and write audit
-    Prisma->>DB: UPDATE users và INSERT admin_audit_logs
-    DB-->>Prisma: connection
-    Prisma-->>AdminService: result
-    AdminService-->>API: result
-    API-->>Next: result
-    Next-->>Browser: Cập nhật connection list
+    AdminService->>Prisma: UPDATE users.coachId and INSERT admin_audit_logs
+    Prisma->>DB: connection, audit log
+    Next->>API: DELETE /api/admin/connections/:traineeId
+    API->>AdminService: removeAdminCoachFromTrainee()
+    AdminService->>Prisma: UPDATE users.coachId null and INSERT admin_audit_logs
+    Prisma->>DB: removal, audit log
+    Next->>API: GET /api/admin/coach-requests
+    API->>AdminService: listAdminCoachRequests()
+    AdminService->>Prisma: SELECT coach_requests
+    Prisma->>DB: requests
+    Next->>API: PATCH /api/admin/coach-requests/:requestId
+    API->>AdminService: updateAdminCoachRequest()
+    AdminService->>Prisma: UPDATE coach_requests, users and INSERT admin_audit_logs
+    Prisma->>DB: request result, audit log
   end
-```
 
-## 13. Admin duyệt import exercise từ coach
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Coach as Coach
-  actor Admin as Admin
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant FitnessService as Fitness Data Service
-  participant AdminService as Admin Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  Coach->>Browser: Import danh sách exercise trong /coach/exercises
-  Browser->>Next: Submit parsed rows
-  Next->>API: POST /api/coach/exercise-import-requests
-  API->>FitnessService: submitCoachExerciseImportRequest()
-  FitnessService->>Prisma: Create ExerciseImportRequest pending
-  Prisma->>DB: INSERT exercise_import_requests
-  DB-->>Prisma: request
-  Prisma-->>FitnessService: request
-  FitnessService-->>API: request
-  API-->>Next: 201 Created
-  Next-->>Browser: Hiển thị request pending
-
-  Admin->>Browser: Mở admin exercise import requests
-  Browser->>Next: Load requests
-  Next->>API: GET /api/admin/exercise-import-requests
-  API->>AdminService: listAdminExerciseImportRequests()
-  AdminService->>Prisma: Query pending requests
-  Prisma->>DB: SELECT exercise_import_requests
-  DB-->>Prisma: requests
-  Prisma-->>AdminService: requests
-  AdminService-->>API: requests
-  API-->>Next: requests
-  Next-->>Browser: Render review queue
-
-  Admin->>Browser: Approve hoặc reject
-  Browser->>Next: Submit review status
-  Next->>API: PATCH /api/admin/exercise-import-requests/:requestId
-  API->>AdminService: reviewExerciseImportRequest()
-  alt Approved
-    AdminService->>Prisma: Transaction create Exercise and Variation from rows
-    Prisma->>DB: INSERT exercises, variations
-    DB-->>Prisma: imported rows
-  else Rejected
-    AdminService->>Prisma: Update request status rejected
-    Prisma->>DB: UPDATE exercise_import_requests
-    DB-->>Prisma: rejected request
+  opt Quản lý program và exercise library
+    Next->>API: GET /api/admin/programs
+    API->>AdminService: listAdminPrograms()
+    AdminService->>Prisma: SELECT programs
+    Prisma->>DB: programs
+    Next->>API: DELETE /api/admin/programs/:programId
+    API->>AdminService: deleteAdminProgram()
+    AdminService->>Prisma: DELETE programs and INSERT admin_audit_logs
+    Prisma->>DB: delete result
+    Next->>API: GET /api/admin/exercises
+    API->>AdminService: listAdminExercises()
+    AdminService->>Prisma: SELECT exercises, variations
+    Prisma->>DB: exercises
+    Next->>API: POST /api/admin/exercises
+    API->>AdminService: createAdminExercise()
+    AdminService->>Prisma: INSERT exercises, variations and audit
+    Prisma->>DB: exercise, audit log
+    Next->>API: PATCH /api/admin/exercises/:exerciseId
+    API->>AdminService: updateAdminExercise()
+    AdminService->>Prisma: UPDATE exercises, variations and audit
+    Prisma->>DB: exercise, audit log
+    Next->>API: DELETE /api/admin/exercises/:exerciseId
+    API->>AdminService: deleteAdminExercise()
+    AdminService->>Prisma: DELETE exercise and INSERT admin_audit_logs
+    Prisma->>DB: delete result
   end
-  AdminService->>Prisma: Write reviewedBy, reviewedAt, result, audit log
-  Prisma->>DB: UPDATE request và INSERT admin_audit_logs
-  DB-->>Prisma: review result
-  Prisma-->>AdminService: result
-  AdminService-->>API: result
-  API-->>Next: result
-  Next-->>Browser: Cập nhật review queue
-```
 
-## 14. AI generate và accept workout program
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Coach as Coach
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant AIService as AI Service
-  participant AIProvider as OpenAI or Anthropic
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  Coach->>Browser: Mở AI program generator
-  Browser->>Next: Nhập goal, level, schedule, constraints
-  Next->>API: POST /api/ai/generate-program
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: user profile
-  API->>AIService: generateWorkoutProgram(profile, input)
-  AIService->>Prisma: Create AIGeneration pending
-  Prisma->>DB: INSERT ai_generations
-  DB-->>Prisma: generation
-  AIService->>AIProvider: Generate structured workout program
-  AIProvider-->>AIService: program output and token usage
-  AIService->>Prisma: Update AIGeneration completed
-  Prisma->>DB: UPDATE ai_generations
-  DB-->>Prisma: completed generation
-  Prisma-->>AIService: generation result
-  AIService-->>API: preview output
-  API-->>Next: 201 Created
-  Next-->>Browser: Hiển thị preview giáo án AI
-
-  Coach->>Browser: Accept program
-  Browser->>Next: Submit generationId
-  Next->>API: POST /api/ai/accept-program
-  API->>AIService: acceptAIProgram(profile, generationId)
-  AIService->>Prisma: Load generation and validate owner/status
-  Prisma->>DB: SELECT ai_generations
-  DB-->>Prisma: generation output
-  AIService->>Prisma: Transaction create Program tree
-  Prisma->>DB: INSERT programs, workouts, workout_exercises, exercise_sets
-  DB-->>Prisma: created program
-  AIService->>Prisma: Update AIGeneration accepted and programId
-  Prisma->>DB: UPDATE ai_generations
-  DB-->>Prisma: accepted generation
-  Prisma-->>AIService: program
-  AIService-->>API: program
-  API-->>Next: data
-  Next-->>Browser: Redirect tới program editor
-```
-
-## 15. AI generate meal plan và accept vào meal log
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Trainee as Trainee
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant AIService as AI Service
-  participant AIProvider as OpenAI or Anthropic
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  Trainee->>Browser: Nhập mục tiêu meal plan
-  Browser->>Next: Submit meal-plan prompt
-  Next->>API: POST /api/ai/generate-meal-plan
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: trainee profile
-  API->>AIService: generateMealPlan(profile, input)
-  AIService->>Prisma: Create AIGeneration pending
-  Prisma->>DB: INSERT ai_generations
-  DB-->>Prisma: generation
-  AIService->>AIProvider: Generate structured meal plan
-  AIProvider-->>AIService: meal plan output and token usage
-  AIService->>Prisma: Update generation completed
-  Prisma->>DB: UPDATE ai_generations
-  DB-->>Prisma: completed generation
-  AIService-->>API: meal plan preview
-  API-->>Next: 201 Created
-  Next-->>Browser: Hiển thị preview meal plan
-
-  Trainee->>Browser: Accept meal plan vào ngày cụ thể
-  Browser->>Next: Submit generationId and date
-  Next->>API: POST /api/ai/accept-meal-plan
-  API->>AIService: acceptAIMealPlan(profile, generationId, date)
-  AIService->>Prisma: Load generation
-  Prisma->>DB: SELECT ai_generations
-  DB-->>Prisma: generation output
-  AIService->>Prisma: Transaction create meals and meal items
-  Prisma->>DB: INSERT meals, meal_food_items, foods if needed
-  DB-->>Prisma: meal records
-  AIService->>Prisma: Update generation accepted
-  Prisma->>DB: UPDATE ai_generations
-  DB-->>Prisma: accepted generation
-  Prisma-->>AIService: nutrition day
-  AIService-->>API: data
-  API-->>Next: data
-  Next-->>Browser: Refresh /meals
-```
-
-## 16. Notification: đọc và đánh dấu đã đọc
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor User as Người dùng
-  participant Browser as Browser
-  participant Next as Next.js Frontend
-  participant API as Express API
-  participant AuthService as Auth Service
-  participant FitnessService as Fitness Data Service
-  participant Prisma as Prisma
-  participant DB as PostgreSQL
-
-  User->>Browser: Mở app shell
-  Browser->>Next: Load notifications
-  Next->>API: GET /api/notifications
-  API->>AuthService: requireCurrentProfile()
-  AuthService-->>API: profile
-  API->>FitnessService: listNotificationsForUser()
-  FitnessService->>Prisma: Query notifications by userId
-  Prisma->>DB: SELECT notifications
-  DB-->>Prisma: notifications
-  Prisma-->>FitnessService: notifications
-  FitnessService-->>API: notifications and unread count
-  API-->>Next: data
-  Next-->>Browser: Hiển thị notification menu
-
-  alt Đọc một thông báo
-    User->>Browser: Click notification
-    Browser->>Next: Mark one as read
-    Next->>API: PATCH /api/notifications/:notificationId/read
-    API->>FitnessService: markNotificationAsReadForUser()
-    FitnessService->>Prisma: Set readAt
-    Prisma->>DB: UPDATE notifications
-    DB-->>Prisma: notification
-    Prisma-->>FitnessService: notification
-    FitnessService-->>API: notification
-    API-->>Next: notification
-    Next-->>Browser: Cập nhật unread count
-  else Đọc tất cả
-    User->>Browser: Click mark all read
-    Browser->>Next: Mark all as read
-    Next->>API: POST /api/notifications/read-all
-    API->>FitnessService: markAllNotificationsAsReadForUser()
-    FitnessService->>Prisma: Bulk update readAt
-    Prisma->>DB: UPDATE notifications where userId
-    DB-->>Prisma: update count
-    Prisma-->>FitnessService: result
-    FitnessService-->>API: result
-    API-->>Next: result
-    Next-->>Browser: Unread count về 0
+  opt Import, sync, bulk delete và review exercise import request
+    Next->>API: POST /api/admin/exercises/import
+    API->>AdminService: importAdminExercises()
+    AdminService->>Prisma: Transaction create Exercise and Variation rows
+    Prisma->>DB: imported rows, audit log
+    Next->>API: POST /api/admin/exercises/sync-preview
+    API->>AdminService: previewExerciseSync()
+    AdminService->>Prisma: SELECT exercises, variations
+    Prisma->>DB: preview rows
+    Next->>API: POST /api/admin/exercises/sync-apply
+    API->>AdminService: applyExerciseSync()
+    AdminService->>Prisma: Transaction upsert/delete exercise library rows
+    Prisma->>DB: sync result, audit log
+    Next->>API: POST /api/admin/exercises/bulk-delete
+    API->>AdminService: bulkDeleteAdminExercises()
+    AdminService->>Prisma: DELETE selected exercises and audit
+    Prisma->>DB: bulk delete result
+    Next->>API: GET /api/admin/exercise-import-requests
+    API->>AdminService: listAdminExerciseImportRequests()
+    AdminService->>Prisma: SELECT exercise_import_requests
+    Prisma->>DB: pending requests
+    Next->>API: PATCH /api/admin/exercise-import-requests/:requestId
+    API->>AdminService: reviewExerciseImportRequest()
+    AdminService->>Prisma: Update request, create Exercise/Variation if approved, write audit
+    Prisma->>DB: review result, audit log
   end
+
+  Admin->>Browser: Mở audit logs
+  Next->>API: GET /api/admin/audit-logs
+  API->>AdminService: listAdminAuditLogs()
+  AdminService->>Prisma: SELECT admin_audit_logs
+  Prisma->>DB: audit logs
+  AdminService-->>API: logs
+  API-->>Next: logs
+  Next-->>Browser: Render audit table
 ```
