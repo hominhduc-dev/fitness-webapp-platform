@@ -313,9 +313,13 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     })
   }
 
-  const prevLabel = programTarget
+  const prevFromLog = set.previousPerformance
+    ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
+    : null
+  const prevFromTarget = programTarget
     ? `${programTarget.weight ?? "—"} × ${formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })}`
-    : "— · —"
+    : null
+  const prevLabel = prevFromLog ?? prevFromTarget ?? "— · —"
 
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
