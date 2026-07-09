@@ -10,9 +10,19 @@ type PageLoadingStateProps = {
 type AppLoadingScreenProps = {
   className?: string
   fullScreen?: boolean
+  variant?: "workspace" | "minimal"
+  label?: string
 }
 
-export function AppLoadingScreen({ className, fullScreen = true }: AppLoadingScreenProps) {
+export function AppLoadingScreen({
+  className,
+  fullScreen = true,
+  variant = "workspace",
+  label,
+}: AppLoadingScreenProps) {
+  const isMinimal = variant === "minimal"
+  const displayLabel = label ?? (isMinimal ? "Loading" : "Loading workspace")
+
   return (
     <div
       className={cn(
@@ -23,43 +33,50 @@ export function AppLoadingScreen({ className, fullScreen = true }: AppLoadingScr
         className,
       )}
     >
-      <div className="w-full max-w-[440px]">
-        <div className="mb-8 flex items-center justify-center gap-2.5">
+      <div className={cn("w-full", isMinimal ? "max-w-[280px]" : "max-w-[440px]")}>
+        <div className={cn("flex items-center justify-center gap-2.5", isMinimal ? "mb-6" : "mb-8")}>
           <img src="/lift-mark.svg" alt="" className="h-7 w-8" />
           <span className="text-[24px] font-semibold leading-none tracking-[-0.04em]">
             yeahbuddy
           </span>
         </div>
 
-        <div className="mb-5 h-1 overflow-hidden rounded-full bg-primary-soft">
+        <div className={cn("h-1 overflow-hidden rounded-full bg-primary-soft", isMinimal ? "mb-4" : "mb-5")}>
           <div className="page-loading-bar h-full w-28 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
         </div>
 
-        <div className="rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.16)]">
-          <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-36" />
-              <Skeleton className="h-3.5 w-52 max-w-[58vw]" />
-            </div>
-            <Skeleton className="h-10 w-10 rounded-[10px]" />
-          </div>
-
-          <div className="space-y-3 pt-4">
-            {Array.from({ length: 3 }, (_, index) => (
-              <div key={index} className="grid grid-cols-[36px_1fr_54px] items-center gap-3">
-                <Skeleton className="h-9 w-9 rounded-[10px]" />
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-3 w-24" />
-                </div>
-                <Skeleton className="h-8 w-full rounded-[8px]" />
+        {!isMinimal && (
+          <div className="rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.16)]">
+            <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-36" />
+                <Skeleton className="h-3.5 w-52 max-w-[58vw]" />
               </div>
-            ))}
-          </div>
-        </div>
+              <Skeleton className="h-10 w-10 rounded-[10px]" />
+            </div>
 
-        <p className="mt-5 text-center font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-          Loading workspace
+            <div className="space-y-3 pt-4">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} className="grid grid-cols-[36px_1fr_54px] items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-[10px]" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-full rounded-[8px]" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p
+          className={cn(
+            "text-center font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground",
+            isMinimal ? "mt-2" : "mt-5",
+          )}
+        >
+          {displayLabel}
         </p>
       </div>
     </div>
