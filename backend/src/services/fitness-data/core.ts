@@ -2401,6 +2401,7 @@ function buildPreviousSetPerformanceMap(
 async function buildPreviousSetPerformanceByWorkoutExercise(
   profileId: string,
   workoutExercises: WorkoutExerciseRecord[],
+  scope: { programId: string | null; workoutId: string },
   referenceDate = new Date(),
 ) {
   if (workoutExercises.length === 0) {
@@ -2414,6 +2415,14 @@ async function buildPreviousSetPerformanceByWorkoutExercise(
   const preferredByWorkoutExerciseId = new Map<string, Map<number, PreviousExerciseSetPerformance>>()
   let skip = 0
 
+  // Scope prev-performance lookup to the same program (or, for personal workouts
+  // with no program, to the same workout template). This keeps "prev" meaningful
+  // for the current program instead of leaking numbers from other programs the
+  // trainee happened to run the same exercise in.
+  const scopeFilter = scope.programId != null
+    ? { programId: scope.programId }
+    : { workoutId: scope.workoutId }
+
   while (true) {
     const logs = await db.workoutLog.findMany({
       orderBy: [{ startedAt: "desc" }, { createdAt: "desc" }],
@@ -2425,6 +2434,7 @@ async function buildPreviousSetPerformanceByWorkoutExercise(
       skip,
       take: 50,
       where: {
+        ...scopeFilter,
         startedAt: {
           lt: referenceDate,
         },
@@ -3886,6 +3896,7 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
   const previousPerformanceByWorkoutExerciseId = await buildPreviousSetPerformanceByWorkoutExercise(
     profile.id,
     workout.exercises as WorkoutExerciseRecord[],
+    { programId: workout.programId, workoutId: workout.id },
   )
   const coachUpdatesByWorkoutExerciseId = await buildCoachUpdatesForAdjustedWorkout(
     profile,
