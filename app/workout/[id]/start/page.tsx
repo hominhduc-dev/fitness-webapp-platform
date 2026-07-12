@@ -195,6 +195,30 @@ function restoreWorkoutSessionExercises(
   })
 }
 
+// On a fresh workout load (no in-progress session in localStorage), pre-fill each
+// set's weight/reps/RIR from the trainee's last logged performance (same program,
+// see backend scope filter). If the coach just adjusted the exercise's target
+// (`coachUpdate` present), respect the new target instead — those numbers are
+// the coach's fresh instruction, not stale prev data.
+function seedFromPreviousPerformance(exercises: Workout["exercises"]) {
+  return exercises.map((exercise) => {
+    if (exercise.coachUpdate) return exercise
+    return {
+      ...exercise,
+      sets: exercise.sets.map((set) => {
+        const pp = set.previousPerformance
+        if (!pp) return set
+        return {
+          ...set,
+          weight: pp.weight ?? set.weight,
+          actualReps: set.actualReps ?? pp.reps,
+          rir: pp.rir ?? set.rir,
+        }
+      }),
+    }
+  })
+}
+
 function restoreWorkoutSessionStartTime(startedAt: string) {
   const parsedTime = new Date(startedAt)
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
@@ -843,7 +867,7 @@ export default function WorkoutStartPage() {
                 storedSession.exercises,
                 storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
               )
-            : nextWorkout.exercises,
+            : seedFromPreviousPerformance(nextWorkout.exercises),
         )
         setCurrentExerciseIndex(
           storedSession
