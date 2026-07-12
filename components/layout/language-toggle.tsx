@@ -1,7 +1,5 @@
 "use client"
 
-import { Languages } from "lucide-react"
-
 import { useLocale } from "@/components/providers/locale-provider"
 import type { AppLocale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
@@ -23,24 +21,23 @@ export function LanguageToggle({ compact = false, className }: LanguageTogglePro
     <div
       aria-label={messages.common.language}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border border-border bg-background p-1",
-        compact ? "w-full justify-between" : "w-auto",
+        "inline-flex rounded-[7px] bg-muted/70 p-0.5",
+        compact ? "w-full" : "w-auto",
         className,
       )}
       role="group"
     >
-      {compact ? <Languages className="ml-1 h-4 w-4 shrink-0 text-muted-foreground" /> : null}
-      <div className="inline-flex gap-1">
+      <div className={cn("gap-0.5", compact ? "grid w-full grid-cols-2" : "inline-flex")}>
         {options.map((option) => (
           <button
             key={option.value}
             type="button"
             aria-pressed={locale === option.value}
             className={cn(
-              "rounded px-2 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors",
+              "h-7 rounded-[6px] px-2.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-colors",
               locale === option.value
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-background text-foreground shadow-[0_1px_2px_rgba(13,13,11,0.08)] ring-1 ring-border/60"
+                : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => setLocale(option.value)}
           >
