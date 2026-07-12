@@ -328,7 +328,10 @@ function buildProgramWeekSheets(
   const loggedNameDateKeysByWeek = new Map<number, Set<string>>()
 
   for (const log of logs) {
-    const date = new Date(log.startedAt)
+    // Anchor week bucket on plannedDate so a log done a day/week late still
+    // groups with the week it was planned for. Falls back to startedAt for
+    // legacy logs without a plannedDate.
+    const date = new Date(log.plannedDate ?? log.startedAt)
     const weekIndex = weekIndexOf(date)
     if (weekIndex < 0) continue
     const entry = ensureWeek(weekIndex)
