@@ -49,6 +49,8 @@ import {
 
 /** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
 const DEFAULT_REST_SECONDS = 90
+const SET_ROW_GRID_CLASS =
+  "grid-cols-[28px_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_50px] gap-1.5 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_54px] sm:gap-2 sm:px-4 md:px-5"
 
 type ProgramSetTarget = {
   reps: number
@@ -350,16 +352,16 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     <div className={cn(completed ? "bg-muted" : "bg-transparent")}>
       <div
         className={cn(
-          "grid items-center",
-          "grid-cols-[36px_1fr_1fr_1fr_1fr_54px] gap-2",
-          "px-4 py-[10px] md:px-5",
+          "grid min-w-0 items-center",
+          SET_ROW_GRID_CLASS,
+          "py-[10px]",
           "transition-colors duration-[180ms]",
         )}
       >
         {/* Set number */}
         <span
           className={cn(
-            "font-mono text-[15px] font-semibold text-center",
+            "min-w-0 text-center font-mono text-[15px] font-semibold",
             completed ? "text-muted-foreground" : "text-foreground",
           )}
           style={{ fontFeatureSettings: '"tnum" 1' }}
@@ -368,7 +370,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         </span>
 
         {/* Previous */}
-        <span className="text-[11px] text-muted-foreground font-mono text-center leading-tight" style={{ fontFeatureSettings: '"tnum" 1' }}>
+        <span className="min-w-0 truncate text-center font-mono text-[11px] leading-tight text-muted-foreground" style={{ fontFeatureSettings: '"tnum" 1' }}>
           {prevLabel}
         </span>
 
@@ -384,7 +386,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         placeholder="—"
         aria-label={messages.workoutPage.weightInUnit(weightUnit)}
         className={cn(
-          "w-full font-mono text-[14px] text-center rounded-md",
+          "min-w-0 w-full rounded-md text-center font-mono text-[14px]",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 px-1",
@@ -408,7 +410,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         placeholder="—"
         aria-label={messages.workoutPage.reps}
         className={cn(
-          "w-full font-mono text-[14px] text-center rounded-md",
+          "min-w-0 w-full rounded-md text-center font-mono text-[14px]",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 px-1",
@@ -434,7 +436,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         min={0}
         max={10}
         className={cn(
-          "w-full font-mono text-[14px] text-center rounded-md",
+          "min-w-0 w-full rounded-md text-center font-mono text-[14px]",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 px-1",
@@ -615,7 +617,7 @@ function LiftExerciseBlock({
   }, [collapsed])
 
   return (
-    <div className="border border-border rounded-[10px] bg-card overflow-hidden mb-4">
+    <div className="mb-4 min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
       {/* Block header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-4 md:px-5">
         <div className="min-w-0 flex-1">
@@ -721,17 +723,17 @@ function LiftExerciseBlock({
           {/* Column headers */}
           <div
             className={cn(
-              "grid items-center border-b border-border",
-              "grid-cols-[36px_1fr_1fr_1fr_1fr_54px] gap-2",
-              "px-4 py-2 md:px-5",
+              "grid min-w-0 items-center border-b border-border",
+              SET_ROW_GRID_CLASS,
+              "py-2",
               "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
             )}
           >
-            <span className="text-center">{messages.workoutPage.set}</span>
-            <span className="text-center">{messages.workoutPage.previous}</span>
-            <span className="text-center">{weightUnit}</span>
-            <span className="text-center">{messages.workoutPage.reps}</span>
-            <span className="text-center">RIR</span>
+            <span className="min-w-0 text-center">{messages.workoutPage.set}</span>
+            <span className="min-w-0 truncate text-center">{messages.workoutPage.previous}</span>
+            <span className="min-w-0 text-center">{weightUnit}</span>
+            <span className="min-w-0 text-center">{messages.workoutPage.reps}</span>
+            <span className="min-w-0 text-center">RIR</span>
             <span />
           </div>
 
@@ -786,7 +788,7 @@ function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
   return (
     <div
       className={cn(
-        "p-4",
+        "min-w-0 p-4",
         !last && "border-r border-border",
         !lastRow && "border-b border-border md:border-b-0",
       )}
@@ -795,7 +797,7 @@ function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
         {label}
       </p>
       <p
-        className="font-mono text-[22px] font-medium leading-none text-foreground"
+        className="truncate font-mono text-[22px] font-medium leading-none text-foreground"
         style={{ fontFeatureSettings: '"tnum" 1' }}
       >
         {value}
@@ -1183,9 +1185,9 @@ export default function WorkoutStartPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-background">
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-[880px] px-4 pt-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:px-10 md:pt-8">
+      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-10 md:pt-8">
         {/* Header */}
         <div className="mb-7">
           {/* Mobile back button */}

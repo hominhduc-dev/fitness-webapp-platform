@@ -138,7 +138,7 @@ function CreateRoutineButton() {
   return (
     <RoutineBuilderDialog
       trigger={
-        <Button className="h-10 w-full gap-2 rounded-[8px] bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
+        <Button className="h-10 w-full justify-center gap-2 rounded-[8px] bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
           <Plus className="h-4 w-4" />
           {messages.workoutPage.createRoutine}
         </Button>
@@ -228,7 +228,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         ) : null}
       </div>
 
-      <div className="mt-auto flex gap-2">
+      <div className="mt-auto flex min-w-0 flex-col gap-2 sm:flex-row">
         <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
           <Button className="h-10 w-full justify-center gap-2 rounded-[8px] bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
             <Play className="h-4 w-4" />
@@ -236,11 +236,11 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           </Button>
         </Link>
         {workout.isPersonal ? (
-          <>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
             <RoutineBuilderDialog
               workoutToEdit={workout}
               trigger={
-                <Button variant="outline" size="sm" className="h-10 gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium">
+                <Button variant="outline" size="sm" className="h-10 w-full justify-center gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium sm:w-auto">
                   <Pencil className="h-4 w-4" />
                   {messages.workoutPage.edit}
                 </Button>
@@ -254,7 +254,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
               confirmTitle={messages.workoutPage.deleteRoutineTitle}
               confirmDescription={messages.workoutPage.deleteRoutineDescription}
             />
-          </>
+          </div>
         ) : null}
       </div>
     </article>
@@ -279,9 +279,9 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
             {messages.workoutPage.savedRoutines(reusableWorkouts.length)}
           </h1>
         </div>
-        <div className="flex gap-2">
-          <Link href="/workout/ai-generate">
-            <Button variant="outline" className="h-10 gap-2 rounded-[8px] px-4 text-sm font-semibold">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
+          <Link href="/workout/ai-generate" className="min-w-0 sm:w-auto">
+            <Button variant="outline" className="h-10 w-full justify-center gap-2 rounded-[8px] px-4 text-sm font-semibold sm:w-auto">
               <Sparkles className="h-4 w-4" />
               AI tạo lịch tập
             </Button>
