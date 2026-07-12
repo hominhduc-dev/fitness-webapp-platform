@@ -4,38 +4,48 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   Lift design tokens — warm neutrals, electric blue accent,
-   Geist + Geist Mono, hairline borders.
+   YeahBuddy design tokens — light/dark palette, semantic colors,
+   Geist + Geist Mono, 12px base radius.
    ============================================================ */
 
 :root {
   color-scheme: light;
 
-  /* ── Ink ramp — warm-neutral grayscale (design system source of truth) ── */
-  --ink-0:   #fcfcfa;    /* page background — warm paper white */
-  --ink-50:  #f5f5f1;    /* card / raised surface */
-  --ink-100: #ebebe6;    /* hairline / strong divider */
-  --ink-150: #e0e0db;    /* divider */
-  --ink-200: #c9c9c2;    /* disabled background */
-  --ink-400: #8a8a82;    /* muted text */
-  --ink-600: #4a4a44;    /* secondary text */
-  --ink-800: #1a1a17;    /* primary text */
-  --ink-900: #0d0d0b;    /* display / extreme */
+  /* ── Brand palette ─────────────────────────────────────────────────────── */
+  --brand-primary:       #1349ec;
+  --brand-primary-hover: #0f3bcc;
+  --brand-primary-press: #0a2fb3;
+  --brand-primary-soft:  #eff3ff;
+  --brand-secondary:     #22c55e;
+  --brand-accent:        #3b82f6;
 
-  /* ── Accent — single electric blue ─────────────────────────────────────── */
-  --accent-color:        #3a5fff;   /* design-system --accent alias */
-  --accent-hover-color:  #2a4ff0;
-  --accent-press-color:  #1f3fd9;
-  --accent-soft-color:   #eaeeff;
-  --accent-ink-color:    #0a1a8a;  /* text on --accent-soft */
+  /* ── Neutral ramp ──────────────────────────────────────────────────────── */
+  --ink-0:   #ffffff;    /* page background */
+  --ink-50:  #ffffff;    /* card / raised surface */
+  --ink-100: #e5e5e5;    /* border / input */
+  --ink-150: #e5e5e5;    /* strong divider */
+  --ink-200: #d4d4d4;    /* disabled background */
+  --ink-400: #6b6b6b;    /* muted text */
+  --ink-600: #525252;    /* secondary text */
+  --ink-800: #171717;    /* primary text */
+  --ink-900: #0a0a0a;    /* display / extreme */
 
-  /* ── Semantic — ok / warn / danger + soft tints ────────────────────────── */
-  --ok:          #2a8a5f;
-  --ok-soft:     #e6f3ec;
-  --warn:        #b56a1a;
-  --warn-soft:   #faefdb;
-  --danger:      #c0341a;
-  --danger-soft: #faeae6;
+  /* ── Accent aliases ────────────────────────────────────────────────────── */
+  --accent-color:        var(--brand-primary);
+  --accent-hover-color:  var(--brand-primary-hover);
+  --accent-press-color:  var(--brand-primary-press);
+  --accent-soft-color:   var(--brand-primary-soft);
+  --accent-ink-color:    var(--brand-primary);
+
+  /* ── Semantic — ok / warn / info / danger + soft tints ─────────────────── */
+  --ok:          var(--brand-secondary);
+  --ok-soft:     #dcfce7;
+  --warn:        #f59e0b;
+  --warn-soft:   #fef3c7;
+  --info-token:  var(--brand-accent);
+  --info-soft:   #dbeafe;
+  --danger:      #ef4444;
+  --danger-soft: #fee2e2;
 
   /* ── shadcn / Radix semantic tokens (mapped from ink ramp + accent above) */
   --primary: var(--accent-color);
@@ -43,25 +53,25 @@
   --primary-pressed: var(--accent-press-color);
   --primary-foreground: #ffffff;
 
-  --secondary: var(--accent-soft-color);
-  --secondary-hover: #dde3ff;
+  --secondary: var(--surface);
+  --secondary-hover: var(--ink-100);
   --secondary-foreground: var(--ink-800);
 
-  --accent: var(--accent-soft-color);
-  --accent-foreground: var(--accent-ink-color);
+  --accent: var(--info-soft);
+  --accent-foreground: #1d4ed8;
 
   --background: var(--ink-0);
   --foreground: var(--ink-800);
 
-  --card: var(--ink-0);
+  --card: var(--ink-50);
   --card-foreground: var(--ink-800);
-  --surface: var(--ink-50);
+  --surface: #f5f5f5;
 
-  --popover: var(--ink-0);
+  --popover: var(--ink-50);
   --popover-foreground: var(--ink-800);
 
-  --muted: var(--ink-50);
-  --muted-foreground: var(--ink-600);
+  --muted: var(--surface);
+  --muted-foreground: var(--ink-400);
 
   --text-primary: var(--ink-800);
   --text-secondary: var(--ink-600);
@@ -70,10 +80,10 @@
   --success-soft: var(--ok-soft);
   --warning: var(--warn);
   --warning-soft: var(--warn-soft);
-  --info: var(--accent-color);
+  --info: var(--info-token);
   --destructive: var(--danger);
   --destructive-soft: var(--danger-soft);
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: #0f172a;
   --primary-soft: var(--accent-soft-color);   /* soft accent bg tint */
 
   --border: var(--ink-100);
@@ -81,17 +91,17 @@
   --ring: var(--accent-color);
 
   /* ── Charts ─────────────────────────────────────────────────────────────── */
-  --chart-1: var(--accent-color);    /* primary series */
-  --chart-2: var(--ink-400);         /* secondary / neutral */
-  --chart-3: var(--ok);              /* success / PR / volume */
-  --chart-4: var(--warn);            /* warning */
-  --chart-5: var(--ink-200);         /* bar track / disabled */
+  --chart-1: var(--brand-primary);
+  --chart-2: var(--brand-secondary);
+  --chart-3: var(--warn);
+  --chart-4: var(--brand-accent);
+  --chart-5: #8b5cf6;
 
   /* ── Radius ──────────────────────────────────────────────────────────────── */
-  --radius: 0.625rem;   /* 10px → sm 6px, md 8px, lg 10px, xl 14px */
+  --radius: 0.75rem;   /* 12px base radius */
 
   /* ── Sidebar ─────────────────────────────────────────────────────────────── */
-  --sidebar: var(--ink-0);
+  --sidebar: var(--ink-50);
   --sidebar-foreground: var(--ink-800);
   --sidebar-primary: var(--accent-color);
   --sidebar-primary-foreground: #ffffff;
@@ -261,58 +271,68 @@
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #c9c9c2;            /* ink-200 */
+  background: var(--input);
 }
 
 ::selection {
-  background: var(--secondary);   /* accent-soft */
-  color: var(--accent-foreground);
+  background: var(--primary-soft);
+  color: var(--foreground);
 }
 
 /* ============================================================
-   Dark mode — approximate Lift dark palette
-   Apply by adding class="dark" to <html> (next-themes)
+   Dark mode
+   Apply by adding class="dark" to <html>.
    ============================================================ */
 .dark {
   color-scheme: dark;
 
-  /* ── Ink ramp (dark — inverted warmth) ─────────────────────────────────── */
-  --ink-0:   #0d0d0b;    /* page background */
-  --ink-50:  #1a1a17;    /* card / raised surface */
-  --ink-100: #2a2a25;    /* hairline / strong divider */
-  --ink-150: #333330;    /* divider */
-  --ink-200: #3a3a35;    /* disabled background */
-  --ink-400: #8a8a82;    /* muted text (same as light) */
-  --ink-600: #c9c9c2;    /* secondary text (inverted) */
-  --ink-800: #f5f5f1;    /* primary text */
-  --ink-900: #fcfcfa;    /* display / extreme */
+  /* ── Brand palette ─────────────────────────────────────────────────────── */
+  --brand-primary:       #38bdf8;
+  --brand-primary-hover: #7dd3fc;
+  --brand-primary-press: #0ea5e9;
+  --brand-primary-soft:  #082f49;
+  --brand-secondary:     #34d399;
+  --brand-accent:        #60a5fa;
 
-  /* ── Accent ─────────────────────────────────────────────────────────────── */
-  --accent-color:       #5a7fff;
-  --accent-hover-color: #6a8fff;
-  --accent-press-color: #4a6fff;
-  --accent-soft-color:  #1a2340;
-  --accent-ink-color:   #a0b0ff;
+  /* ── Neutral ramp ──────────────────────────────────────────────────────── */
+  --ink-0:   #0b0d12;    /* page background */
+  --ink-50:  #12151d;    /* card / raised surface */
+  --ink-100: #2a3040;    /* border / input */
+  --ink-150: #2a3040;    /* strong divider */
+  --ink-200: #3a4252;    /* disabled background */
+  --ink-400: #9aa4b2;    /* muted text */
+  --ink-600: #c2cad6;    /* secondary text */
+  --ink-800: #e6eaf2;    /* primary text */
+  --ink-900: #f8fafc;    /* display / strongest text */
+
+  /* ── Accent aliases ────────────────────────────────────────────────────── */
+  --accent-color:       var(--brand-primary);
+  --accent-hover-color: var(--brand-primary-hover);
+  --accent-press-color: var(--brand-primary-press);
+  --accent-soft-color:  var(--brand-primary-soft);
+  --accent-ink-color:   #bae6fd;
 
   /* ── Semantic soft tints (dark) ─────────────────────────────────────────── */
-  --ok:          #3aaa77;
-  --ok-soft:     #0d2218;
-  --warn:        #d48a35;
-  --warn-soft:   #271a08;
-  --danger:      #e04a30;
-  --danger-soft: #2a0e08;
+  --ok:          var(--brand-secondary);
+  --ok-soft:     #052e24;
+  --warn:        #fbbf24;
+  --warn-soft:   #713f12;
+  --info-token:  var(--brand-accent);
+  --info-soft:   #0b2a4a;
+  --danger:      #fb7185;
+  --danger-soft: #4c0519;
 
   /* ── shadcn / Radix tokens ── */
   --primary: var(--accent-color);
   --primary-hover: var(--accent-hover-color);
   --primary-pressed: var(--accent-press-color);
-  --primary-foreground: #ffffff;
+  --primary-foreground: #06111f;
 
-  --secondary: var(--accent-soft-color);
-  --secondary-hover: #222d4f;
-  --secondary-foreground: var(--ink-600);
+  --secondary: var(--surface);
+  --secondary-hover: var(--ink-100);
+  --secondary-foreground: var(--ink-800);
 
-  --accent: var(--accent-soft-color);
+  --accent: var(--info-soft);
   --accent-foreground: var(--accent-ink-color);
 
   --background: var(--ink-0);
@@ -320,12 +340,12 @@
 
   --card: var(--ink-50);
   --card-foreground: var(--ink-800);
-  --surface: #222220;
+  --surface: #171b24;
 
   --popover: var(--ink-50);
   --popover-foreground: var(--ink-800);
 
-  --muted: var(--ink-50);
+  --muted: var(--surface);
   --muted-foreground: var(--ink-400);
 
   --text-primary: var(--ink-800);
@@ -335,27 +355,32 @@
   --success-soft: var(--ok-soft);
   --warning: var(--warn);
   --warning-soft: var(--warn-soft);
-  --info: var(--accent-color);
+  --info: var(--info-token);
   --destructive: var(--danger);
   --destructive-soft: var(--danger-soft);
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: #06111f;
 
   --border: var(--ink-100);
   --input: var(--ink-150);
   --ring: var(--accent-color);
 
-  --chart-1: var(--accent-color);
-  --chart-2: var(--ink-400);
-  --chart-3: var(--ok);
-  --chart-4: var(--warn);
-  --chart-5: var(--ink-200);
+  --chart-1: var(--brand-primary);
+  --chart-2: var(--brand-secondary);
+  --chart-3: var(--warn);
+  --chart-4: #a78bfa;
+  --chart-5: var(--danger);
 
-  --sidebar: #111110;
+  --sidebar: #0f131b;
   --sidebar-foreground: var(--ink-800);
   --sidebar-primary: var(--accent-color);
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--ink-100);
   --sidebar-accent-foreground: var(--ink-800);
   --sidebar-border: var(--ink-100);
   --sidebar-ring: var(--accent-color);
+}
+
+.dark .bg-primary-soft.text-primary,
+.dark .bg-primary-soft .text-primary {
+  color: var(--accent-ink-color);
 }

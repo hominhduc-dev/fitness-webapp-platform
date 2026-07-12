@@ -42,6 +42,24 @@ const geistMono = Geist_Mono({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://yeahbuddy.fit"
 const isVercelRuntime = process.env.VERCEL === "1"
+const themeInitScript = `
+(function() {
+  try {
+    var storageKey = "yeahbuddy-theme";
+    var storedTheme = window.localStorage.getItem(storageKey);
+    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "system";
+    var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
+    var root = document.documentElement;
+    root.classList.toggle("dark", resolvedTheme === "dark");
+    root.style.colorScheme = resolvedTheme;
+    var themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) {
+      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0b0d12" : "#ffffff");
+    }
+  } catch (error) {}
+})();
+`
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -144,7 +162,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#fcfcfa", // warm paper white — matches --background
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -158,8 +176,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang={defaultLocale}>
+    <html lang={defaultLocale} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="dns-prefetch" href="https://bljmubatdtvuomucqmoj.supabase.co" />
         <link rel="preconnect" href="https://bljmubatdtvuomucqmoj.supabase.co" crossOrigin="anonymous" />
         {appleSplashLinks.map((link) => (
