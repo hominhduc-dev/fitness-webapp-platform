@@ -55,7 +55,7 @@ const themeInitScript = `
     root.style.colorScheme = resolvedTheme;
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0f172a" : "#f8fafc");
+      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0b0d12" : "#f8fafc");
     }
   } catch (error) {}
 })();
