@@ -3,121 +3,155 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ============================================================
-   Lift design tokens — warm neutrals, electric blue accent,
-   Geist + Geist Mono, hairline borders.
-   ============================================================ */
-
+/* Light Theme - Modern SaaS Dashboard */
 :root {
-  color-scheme: light;
-
-  /* ── Ink ramp — warm-neutral grayscale (design system source of truth) ── */
-  --ink-0:   #fcfcfa;    /* page background — warm paper white */
-  --ink-50:  #f5f5f1;    /* card / raised surface */
-  --ink-100: #ebebe6;    /* hairline / strong divider */
-  --ink-150: #e0e0db;    /* divider */
-  --ink-200: #c9c9c2;    /* disabled background */
-  --ink-400: #8a8a82;    /* muted text */
-  --ink-600: #4a4a44;    /* secondary text */
-  --ink-800: #1a1a17;    /* primary text */
-  --ink-900: #0d0d0b;    /* display / extreme */
-
-  /* ── Accent — single electric blue ─────────────────────────────────────── */
-  --accent-color:        #3a5fff;   /* design-system --accent alias */
-  --accent-hover-color:  #2a4ff0;
-  --accent-press-color:  #1f3fd9;
-  --accent-soft-color:   #eaeeff;
-  --accent-ink-color:    #0a1a8a;  /* text on --accent-soft */
-
-  /* ── Semantic — ok / warn / danger + soft tints ────────────────────────── */
-  --ok:          #2a8a5f;
-  --ok-soft:     #e6f3ec;
-  --warn:        #b56a1a;
-  --warn-soft:   #faefdb;
-  --danger:      #c0341a;
-  --danger-soft: #faeae6;
-
-  /* ── shadcn / Radix semantic tokens (mapped from ink ramp + accent above) */
-  --primary: var(--accent-color);
-  --primary-hover: var(--accent-hover-color);
-  --primary-pressed: var(--accent-press-color);
+  /* Primary - Modern Blue */
+  --primary: #1349ec;
+  --primary-hover: #0f3bcc;
+  --primary-pressed: #0a2fb3;
   --primary-foreground: #ffffff;
 
-  --secondary: var(--accent-soft-color);
-  --secondary-hover: #dde3ff;
-  --secondary-foreground: var(--ink-800);
+  /* Primary Light - Light Blue Background */
+  --primary-light: #eff3ff;
+  
+  /* Secondary - Success Green */
+  --secondary: #22c55e;
+  --secondary-hover: #16a34a;
+  --secondary-foreground: #ffffff;
 
-  --accent: var(--accent-soft-color);
-  --accent-foreground: var(--accent-ink-color);
+  /* Accent - Info Blue */
+  --accent: #3b82f6;
+  --accent-foreground: #ffffff;
 
-  --background: var(--ink-0);
-  --foreground: var(--ink-800);
+  /* Backgrounds */
+  --background: #f8fafc;
+  --foreground: #1e293b;
 
-  --card: var(--ink-0);
-  --card-foreground: var(--ink-800);
-  --surface: var(--ink-50);
+  /* Surface & Cards */
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --surface: #f1f5f9;
 
-  --popover: var(--ink-0);
-  --popover-foreground: var(--ink-800);
+  /* Popover */
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
 
-  --muted: var(--ink-50);
-  --muted-foreground: var(--ink-600);
+  /* Muted */
+  --muted: #cbd5e1;
+  --muted-foreground: #64748b;
 
-  --text-primary: var(--ink-800);
-  --text-secondary: var(--ink-600);
+  /* Text */
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
 
-  --success: var(--ok);
-  --success-soft: var(--ok-soft);
-  --warning: var(--warn);
-  --warning-soft: var(--warn-soft);
-  --info: var(--accent-color);
-  --destructive: var(--danger);
-  --destructive-soft: var(--danger-soft);
+  /* Status Colors */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --primary-soft: var(--accent-soft-color);   /* soft accent bg tint */
 
-  --border: var(--ink-100);
-  --input: var(--ink-150);
-  --ring: var(--accent-color);
+  /* Border & Input */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #1349ec;
 
-  /* ── Charts ─────────────────────────────────────────────────────────────── */
-  --chart-1: var(--accent-color);    /* primary series */
-  --chart-2: var(--ink-400);         /* secondary / neutral */
-  --chart-3: var(--ok);              /* success / PR / volume */
-  --chart-4: var(--warn);            /* warning */
-  --chart-5: var(--ink-200);         /* bar track / disabled */
+  /* Chart Colors */
+  --chart-1: #1349ec;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #3b82f6;
+  --chart-5: #8b5cf6;
 
-  /* ── Radius ──────────────────────────────────────────────────────────────── */
-  --radius: 0.625rem;   /* 10px → sm 6px, md 8px, lg 10px, xl 14px */
+  --radius: 0.75rem;
 
-  /* ── Sidebar ─────────────────────────────────────────────────────────────── */
-  --sidebar: var(--ink-0);
-  --sidebar-foreground: var(--ink-800);
-  --sidebar-primary: var(--accent-color);
+  /* Sidebar */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #1349ec;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--ink-100);
-  --sidebar-accent-foreground: var(--ink-800);
-  --sidebar-border: var(--ink-100);
-  --sidebar-ring: var(--accent-color);
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #1349ec;
+}
+
+/* Dark Theme */
+.dark {
+  /* Primary - Modern Blue (brighter for dark) */
+  --primary: #3366ff;
+  --primary-hover: #254ce6;
+  --primary-pressed: #1d3bcc;
+  --primary-foreground: #ffffff;
+
+  /* Primary Light - Light Blue Background */
+  --primary-light: #1e3a8a;
+  
+  /* Secondary - Success Green (brighter for dark) */
+  --secondary: #4ade80;
+  --secondary-hover: #22c55e;
+  --secondary-foreground: #ffffff;
+
+  /* Accent - Info Blue */
+  --accent: #60a5fa;
+  --accent-foreground: #ffffff;
+
+  /* Backgrounds */
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+
+  /* Surface & Cards */
+  --card: #1e293b;
+  --card-foreground: #f1f5f9;
+  --surface: #1a202c;
+
+  /* Popover */
+  --popover: #1e293b;
+  --popover-foreground: #f1f5f9;
+
+  /* Muted */
+  --muted: #334155;
+  --muted-foreground: #cbd5e1;
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+
+  /* Status Colors */
+  --success: #4ade80;
+  --warning: #fcd34d;
+  --info: #60a5fa;
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+
+  /* Border & Input */
+  --border: #334155;
+  --input: #334155;
+  --ring: #3366ff;
+
+  /* Chart Colors */
+  --chart-1: #3366ff;
+  --chart-2: #4ade80;
+  --chart-3: #fcd34d;
+  --chart-4: #60a5fa;
+  --chart-5: #a78bfa;
+
+  --radius: 0.75rem;
+
+  /* Sidebar */
+  --sidebar: #1a202c;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #3366ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f1f5f9;
+  --sidebar-border: #334155;
+  --sidebar-ring: #3366ff;
 }
 
 @theme inline {
-  /* Geist + Geist Mono — wired via next/font in app/layout.tsx */
-  --font-sans: var(--font-geist), "Inter Fallback", system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  /* ── Ink ramp — available as bg-ink-0, text-ink-600, etc. ── */
-  --color-ink-0:   var(--ink-0);
-  --color-ink-50:  var(--ink-50);
-  --color-ink-100: var(--ink-100);
-  --color-ink-150: var(--ink-150);
-  --color-ink-200: var(--ink-200);
-  --color-ink-400: var(--ink-400);
-  --color-ink-600: var(--ink-600);
-  --color-ink-800: var(--ink-800);
-  --color-ink-900: var(--ink-900);
-
-  /* ── shadcn / Radix tokens ── */
+  --font-sans: "Inter", "Inter Fallback", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -134,7 +168,6 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-destructive-soft: var(--destructive-soft);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -156,206 +189,49 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-surface: var(--surface);
-
-  /* ── Semantic ── */
   --color-success: var(--success);
-  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
-  --color-warning-soft: var(--warning-soft);
   --color-info: var(--info);
-  --color-ok: var(--ok);
-  --color-ok-soft: var(--ok-soft);
-  --color-warn: var(--warn);
-  --color-warn-soft: var(--warn-soft);
-  --color-danger: var(--danger);
-  --color-danger-soft: var(--danger-soft);
-  --color-primary-soft: var(--primary-soft);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-
-  html {
-    @apply bg-background;
-    /* iOS Safari: don't auto-inflate text on orientation change */
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-  }
-
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "ss01" 1, "cv11" 1;
-    text-rendering: optimizeLegibility;
-    /* iOS Safari: kill the grey tap flash + rubber-band scroll on the page */
-    -webkit-tap-highlight-color: transparent;
-    overscroll-behavior-y: none;
-  }
-
-
-  /* Numbers always tabular — Lift's signature */
-  .tnum,
-  [class*="font-mono"],
-  .text-mono {
-    font-feature-settings: "tnum" 1, "lnum" 1;
-  }
-
-  /* Micro labels — UPPERCASE mono tags ("SET 1", "WORKING", "PR") */
-  .label-micro {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;        /* 11px */
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
   }
 }
 
-@keyframes skeleton-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-@keyframes page-loading-bar {
-  0%   { transform: translateX(-120%); }
-  50%  { transform: translateX(120%); }
-  100% { transform: translateX(360%); }
-}
-
-.page-loading-bar {
-  animation: page-loading-bar 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-  will-change: transform;
-}
-
-/* ============================================================
-   iOS / safe-area helpers
-   ============================================================ */
-
-/* Reusable safe-area padding helpers (notch + Home indicator) */
-.pt-safe { padding-top: env(safe-area-inset-top); }
-.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-.pl-safe { padding-left: env(safe-area-inset-left); }
-.pr-safe { padding-right: env(safe-area-inset-right); }
-
-/* iOS Safari auto-zooms any focused field whose font is < 16px.
-   Scope the 16px floor to iOS only so other platforms keep their sizing. */
-@supports (-webkit-touch-callout: none) {
-  input,
-  select,
-  textarea {
-    font-size: 16px;
-  }
-}
-
-/* Quiet scrollbars — match the warm neutral palette */
+/* Custom scrollbar for light theme */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: #f1f5f9;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: #cbd5e1;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #c9c9c2;            /* ink-200 */
+  background: #94a3b8;
 }
 
-::selection {
-  background: var(--secondary);   /* accent-soft */
-  color: var(--accent-foreground);
+/* Custom scrollbar for dark theme */
+.dark ::-webkit-scrollbar-track {
+  background: #1a202c;
 }
 
-/* ============================================================
-   Dark mode — approximate Lift dark palette
-   Apply by adding class="dark" to <html> (next-themes)
-   ============================================================ */
-.dark {
-  color-scheme: dark;
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
 
-  /* ── Ink ramp (dark — inverted warmth) ─────────────────────────────────── */
-  --ink-0:   #0d0d0b;    /* page background */
-  --ink-50:  #1a1a17;    /* card / raised surface */
-  --ink-100: #2a2a25;    /* hairline / strong divider */
-  --ink-150: #333330;    /* divider */
-  --ink-200: #3a3a35;    /* disabled background */
-  --ink-400: #8a8a82;    /* muted text (same as light) */
-  --ink-600: #c9c9c2;    /* secondary text (inverted) */
-  --ink-800: #f5f5f1;    /* primary text */
-  --ink-900: #fcfcfa;    /* display / extreme */
-
-  /* ── Accent ─────────────────────────────────────────────────────────────── */
-  --accent-color:       #5a7fff;
-  --accent-hover-color: #6a8fff;
-  --accent-press-color: #4a6fff;
-  --accent-soft-color:  #1a2340;
-  --accent-ink-color:   #a0b0ff;
-
-  /* ── Semantic soft tints (dark) ─────────────────────────────────────────── */
-  --ok:          #3aaa77;
-  --ok-soft:     #0d2218;
-  --warn:        #d48a35;
-  --warn-soft:   #271a08;
-  --danger:      #e04a30;
-  --danger-soft: #2a0e08;
-
-  /* ── shadcn / Radix tokens ── */
-  --primary: var(--accent-color);
-  --primary-hover: var(--accent-hover-color);
-  --primary-pressed: var(--accent-press-color);
-  --primary-foreground: #ffffff;
-
-  --secondary: var(--accent-soft-color);
-  --secondary-hover: #222d4f;
-  --secondary-foreground: var(--ink-600);
-
-  --accent: var(--accent-soft-color);
-  --accent-foreground: var(--accent-ink-color);
-
-  --background: var(--ink-0);
-  --foreground: var(--ink-800);
-
-  --card: var(--ink-50);
-  --card-foreground: var(--ink-800);
-  --surface: #222220;
-
-  --popover: var(--ink-50);
-  --popover-foreground: var(--ink-800);
-
-  --muted: var(--ink-50);
-  --muted-foreground: var(--ink-400);
-
-  --text-primary: var(--ink-800);
-  --text-secondary: var(--ink-400);
-
-  --success: var(--ok);
-  --success-soft: var(--ok-soft);
-  --warning: var(--warn);
-  --warning-soft: var(--warn-soft);
-  --info: var(--accent-color);
-  --destructive: var(--danger);
-  --destructive-soft: var(--danger-soft);
-  --destructive-foreground: #ffffff;
-
-  --border: var(--ink-100);
-  --input: var(--ink-150);
-  --ring: var(--accent-color);
-
-  --chart-1: var(--accent-color);
-  --chart-2: var(--ink-400);
-  --chart-3: var(--ok);
-  --chart-4: var(--warn);
-  --chart-5: var(--ink-200);
-
-  --sidebar: #111110;
-  --sidebar-foreground: var(--ink-800);
-  --sidebar-primary: var(--accent-color);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--ink-100);
-  --sidebar-accent-foreground: var(--ink-800);
-  --sidebar-border: var(--ink-100);
-  --sidebar-ring: var(--accent-color);
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }

@@ -1,1 +1,0 @@
-export { getDashboardForTrainee } from "./core"

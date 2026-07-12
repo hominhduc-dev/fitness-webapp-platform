@@ -1,42 +1,11 @@
-"use client"
-
-import type { LucideIcon } from "lucide-react"
-import {
-  BellRing,
-  Calendar,
-  ClipboardList,
-  Dumbbell,
-  Flame,
-  ShieldCheck,
-  Target,
-  TrendingUp,
-  UserPlus,
-  Users,
-} from "lucide-react"
-
 import { cn } from "@/lib/utils"
-
-const iconMap = {
-  "bell-ring": BellRing,
-  calendar: Calendar,
-  "clipboard-list": ClipboardList,
-  dumbbell: Dumbbell,
-  flame: Flame,
-  "shield-check": ShieldCheck,
-  target: Target,
-  "trending-up": TrendingUp,
-  "user-plus": UserPlus,
-  users: Users,
-} satisfies Record<string, LucideIcon>
-
-type StatsCardIconName = keyof typeof iconMap
+import type { LucideIcon } from "lucide-react"
 
 interface StatsCardProps {
   title: string
   value: string | number
   subtitle?: string
-  icon?: LucideIcon
-  iconName?: StatsCardIconName
+  icon: LucideIcon
   trend?: {
     value: number
     positive: boolean
@@ -44,61 +13,63 @@ interface StatsCardProps {
   variant?: "default" | "primary" | "accent"
 }
 
-export function StatsCard({ title, value, subtitle, icon, iconName, trend, variant = "default" }: StatsCardProps) {
-  const Icon = icon ?? (iconName ? iconMap[iconName] : undefined)
-
+export function StatsCard({ title, value, subtitle, icon: Icon, trend, variant = "default" }: StatsCardProps) {
   return (
     <div
       className={cn(
-        "rounded-[10px] border bg-card p-4 transition-colors hover:border-primary/25 md:p-5",
-        variant === "default" && "border-border",
-        variant === "primary" && "border-primary/20 bg-primary-soft",
-        variant === "accent"  && "border-success/20 bg-ok-soft",
+        "relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30",
+        variant === "primary" && "border-primary/20 bg-primary/5",
+        variant === "accent" && "border-accent/20 bg-accent/5",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <p className="label-micro">{title}</p>
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <p
             className={cn(
-              "font-mono text-2xl font-semibold leading-none tracking-tight tnum",
-              variant === "default" && "text-foreground",
+              "text-2xl font-bold tracking-tight",
               variant === "primary" && "text-primary",
-              variant === "accent"  && "text-success",
+              variant === "accent" && "text-accent",
             )}
           >
             {value}
           </p>
-          {subtitle && (
-            <p className="text-xs leading-snug text-muted-foreground">{subtitle}</p>
-          )}
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           {trend && (
-            <span
-              className={cn(
-                "inline-flex rounded-sm px-1.5 py-0.5 font-mono text-[10px] tnum",
-                trend.positive
-                  ? "bg-ok-soft text-success"
-                  : "bg-warn-soft text-warning",
-              )}
-            >
-              {trend.positive ? "+" : ""}{trend.value}%
-            </span>
+            <p className={cn("text-xs font-medium", trend.positive ? "text-success" : "text-accent")}>
+              {trend.positive ? "+" : ""}
+              {trend.value}% from last week
+            </p>
           )}
         </div>
-
-        {Icon && (
-          <div
+        <div
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-lg",
+            variant === "default" && "bg-muted",
+            variant === "primary" && "bg-primary/10",
+            variant === "accent" && "bg-accent/10",
+          )}
+        >
+          <Icon
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
-              variant === "default" && "bg-muted text-muted-foreground",
-              variant === "primary" && "bg-primary-soft text-primary",
-              variant === "accent"  && "bg-ok-soft text-success",
+              "h-5 w-5",
+              variant === "default" && "text-muted-foreground",
+              variant === "primary" && "text-primary",
+              variant === "accent" && "text-accent",
             )}
-          >
-            <Icon className="h-4 w-4" />
-          </div>
-        )}
+          />
+        </div>
       </div>
+
+      {/* Decorative gradient */}
+      <div
+        className={cn(
+          "absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 blur-2xl",
+          variant === "default" && "bg-foreground",
+          variant === "primary" && "bg-primary",
+          variant === "accent" && "bg-accent",
+        )}
+      />
     </div>
   )
 }

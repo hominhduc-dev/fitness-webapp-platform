@@ -2,301 +2,110 @@
 
 import type React from "react"
 
-import { startTransition, useEffect, useState } from "react"
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle, Phone } from "lucide-react"
-
+import { useState } from "react"
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from "@/components/ui/drawer"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useLocale } from "@/components/providers/locale-provider"
-import {
-  ApiError,
-  forgotPasswordRequest,
-  loginRequest,
-  registerRequest,
-} from "@/lib/auth/api"
-import type { AppRole } from "@/lib/auth/types"
-import { getRoleLandingPath } from "@/lib/auth/roles"
-import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
-import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { mockCredentials } from "@/lib/mock-data"
+import { useRouter } from "next/navigation"
 
 interface AuthModalProps {
-  defaultTab?: "login" | "register"
-  onOpenChange: (open: boolean) => void
   open: boolean
-  redirectToPath?: string | null
+  onOpenChange: (open: boolean) => void
+  defaultTab?: "login" | "register"
 }
 
-const REMEMBERED_IDENTIFIER_KEY = "yeahbuddy:remembered-identifier"
-
-function sanitizeRedirectPath(path?: string | null) {
-  if (!path || !path.startsWith("/")) {
-    return null
-  }
-
-  return path
-}
-
-function createCallbackRedirect(nextPath?: string | null) {
-  const redirectUrl = new URL("/auth/callback", getAppBaseUrl())
-  const sanitizedPath = sanitizeRedirectPath(nextPath)
-
-  if (sanitizedPath) {
-    redirectUrl.searchParams.set("next", sanitizedPath)
-  }
-
-  return redirectUrl.toString()
-}
-
-export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectToPath }: AuthModalProps) {
-  const { messages } = useLocale()
-  const supabaseConfigError = getSupabasePublicConfigError()
-  const isSupabaseConfigured = supabaseConfigError === null
+export function AuthModal({ open, onOpenChange, defaultTab = "login" }: AuthModalProps) {
   const [activeTab, setActiveTab] = useState<"login" | "register">(defaultTab)
-  const [showLoginPassword, setShowLoginPassword] = useState(false)
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [oauthLoadingProvider, setOauthLoadingProvider] = useState<"google" | "apple" | null>(null)
+  const isMobile = useIsMobile()
+  const router = useRouter()
+
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [loginIdentifier, setLoginIdentifier] = useState("")
+
+  const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
+
   const [registerName, setRegisterName] = useState("")
   const [registerEmail, setRegisterEmail] = useState("")
-  const [registerPhone, setRegisterPhone] = useState("")
-  const [registerUsername, setRegisterUsername] = useState("")
   const [registerPassword, setRegisterPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
-  const finalRedirectPath = sanitizeRedirectPath(redirectToPath)
 
-  useEffect(() => {
-    setActiveTab(defaultTab)
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
     setError(null)
     setSuccess(null)
-  }, [defaultTab])
-
-  useEffect(() => {
-    const rememberedIdentifier = window.localStorage.getItem(REMEMBERED_IDENTIFIER_KEY)
-
-    if (!rememberedIdentifier) {
-      return
-    }
-
-    startTransition(() => {
-      setLoginIdentifier(rememberedIdentifier)
-      setRememberMe(true)
-    })
-  }, [])
-
-  function getSupabaseClientOrThrow() {
-    const supabase = getOptionalBrowserSupabaseClient()
-
-    if (!supabase) {
-      throw new Error(supabaseConfigError ?? "Supabase browser client is unavailable.")
-    }
-
-    return supabase
-  }
-
-  async function applyBrowserSession(session?: {
-    accessToken: string
-    refreshToken: string
-  } | null) {
-    if (!session) {
-      return
-    }
-
-    const supabase = getSupabaseClientOrThrow()
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: session.accessToken,
-      refresh_token: session.refreshToken,
-    })
-
-    if (sessionError) {
-      throw sessionError
-    }
-
-    const {
-      data: { session: currentSession },
-      error: getSessionError,
-    } = await supabase.auth.getSession()
-
-    if (getSessionError) {
-      throw getSessionError
-    }
-
-    if (!currentSession?.access_token) {
-      throw new Error(messages.auth.backendMissingSession)
-    }
-  }
-
-  async function finalizeAuthentication(role?: AppRole | null, session?: { accessToken: string; refreshToken: string } | null) {
-    await applyBrowserSession(session)
-
-    if (rememberMe) {
-      window.localStorage.setItem(REMEMBERED_IDENTIFIER_KEY, loginIdentifier.trim())
-    } else {
-      window.localStorage.removeItem(REMEMBERED_IDENTIFIER_KEY)
-    }
-
-    window.location.replace(finalRedirectPath ?? getRoleLandingPath(role))
-  }
-
-  const handleLogin = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setError(null)
-    setSuccess(null)
-
-    if (!isSupabaseConfigured) {
-      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
-      return
-    }
-
     setIsLoading(true)
 
-    try {
-      const response = await loginRequest({
-        identifier: loginIdentifier,
-        password: loginPassword,
-      })
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      if (!response.session) {
-        throw new Error(messages.auth.backendMissingSession)
+    const credential = mockCredentials.find((cred) => cred.email === loginEmail && cred.password === loginPassword)
+
+    if (credential) {
+      setSuccess("Đăng nhập thành công!")
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      setIsLoading(false)
+      onOpenChange(false)
+
+      if (credential.userId === "2") {
+        router.push("/coach")
+      } else {
+        router.push("/dashboard")
       }
-
-      setSuccess(messages.auth.loginSuccess)
-      await finalizeAuthentication(response.profile?.role, response.session)
-    } catch (rawError) {
-      const message =
-        rawError instanceof ApiError || rawError instanceof Error
-          ? rawError.message
-          : messages.auth.loginFailed
-      setError(message)
-    } finally {
+    } else {
+      setError("Email hoặc mật khẩu không đúng. Vui lòng thử lại.")
       setIsLoading(false)
     }
   }
 
-  const handleRegister = async (event: React.FormEvent) => {
-    event.preventDefault()
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
     setError(null)
     setSuccess(null)
 
-    if (!isSupabaseConfigured) {
-      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
-      return
-    }
-
     if (registerPassword !== confirmPassword) {
-      setError(messages.auth.passwordMismatch)
+      setError("Mật khẩu xác nhận không khớp.")
       return
     }
 
     if (registerPassword.length < 6) {
-      setError(messages.auth.passwordTooShort)
+      setError("Mật khẩu phải có ít nhất 6 ký tự.")
+      return
+    }
+
+    const existingUser = mockCredentials.find((cred) => cred.email === registerEmail)
+    if (existingUser) {
+      setError("Email này đã được sử dụng.")
       return
     }
 
     setIsLoading(true)
+    await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    try {
-      const response = await registerRequest({
-        email: registerEmail,
-        name: registerName,
-        password: registerPassword,
-        phone: registerPhone,
-        redirectTo: createCallbackRedirect(finalRedirectPath),
-        role: "trainee",
-        username: registerUsername,
-      })
+    setSuccess("Đăng ký thành công! Đang chuyển hướng...")
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      if (response.requiresEmailConfirmation || !response.session) {
-        setSuccess(response.message ?? messages.auth.registerPending)
-        setActiveTab("login")
-        setLoginIdentifier(registerUsername.trim())
-        setLoginPassword("")
-        return
-      }
-
-      setSuccess(messages.auth.registerSuccess)
-      await finalizeAuthentication(response.profile?.role, response.session)
-    } catch (rawError) {
-      const message =
-        rawError instanceof ApiError || rawError instanceof Error
-          ? rawError.message
-          : messages.auth.registerFailed
-      setError(message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleForgotPassword = async () => {
-    setError(null)
-    setSuccess(null)
-
-    if (!isSupabaseConfigured) {
-      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
-      return
-    }
-
-    const targetIdentifier = loginIdentifier.trim()
-
-    if (!targetIdentifier) {
-      setError(messages.auth.missingResetIdentifier)
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      const response = await forgotPasswordRequest({
-        identifier: targetIdentifier,
-        redirectTo: createCallbackRedirect("/reset-password"),
-      })
-
-      setSuccess(response.message ?? messages.auth.resetEmailSent)
-    } catch (rawError) {
-      const message =
-        rawError instanceof ApiError || rawError instanceof Error
-          ? rawError.message
-          : messages.auth.resetEmailFailed
-      setError(message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleOAuthLogin = async (provider: "google" | "apple") => {
-    setError(null)
-    setSuccess(null)
-
-    const supabase = getOptionalBrowserSupabaseClient()
-
-    if (!supabase) {
-      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
-      return
-    }
-
-    setOauthLoadingProvider(provider)
-
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      options: {
-        redirectTo: createCallbackRedirect(finalRedirectPath),
-      },
-      provider,
-    })
-
-    if (oauthError) {
-      setError(oauthError.message)
-      setOauthLoadingProvider(null)
-    }
+    setIsLoading(false)
+    onOpenChange(false)
+    router.push("/dashboard")
   }
 
   const handleTabChange = (value: string) => {
@@ -305,36 +114,29 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setSuccess(null)
   }
 
-  const renderOAuthButton = (provider: "google" | "apple", label: string, icon: React.ReactNode) => (
-    <Button
-      variant="outline"
-      type="button"
-      onClick={() => void handleOAuthLogin(provider)}
-      disabled={isLoading || oauthLoadingProvider !== null || !isSupabaseConfigured}
-      className="bg-card border-border hover:bg-card/80 h-11 sm:h-10 text-sm"
-    >
-      {oauthLoadingProvider === provider ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : icon}
-      {label}
-    </Button>
-  )
-
-  const renderAuthContent = () => (
+  const AuthContent = () => (
     <>
-      {!isSupabaseConfigured && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
-          <p className="text-sm text-amber-700">{messages.auth.authDisabledConfig}</p>
-        </div>
-      )}
+      <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
+        <p className="text-xs text-primary font-medium mb-1">Tài khoản test:</p>
+        <p className="text-xs text-muted-foreground">
+          Trainee: <span className="text-foreground font-mono">alex@example.com</span> /{" "}
+          <span className="text-foreground font-mono">123456</span>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Coach: <span className="text-foreground font-mono">mike@example.com</span> /{" "}
+          <span className="text-foreground font-mono">123456</span>
+        </p>
+      </div>
+
       {error && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive-soft p-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+        <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
       {success && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary-soft p-3">
-          <CheckCircle className="h-4 w-4 shrink-0 text-primary" />
+        <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/20 flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-primary shrink-0" />
           <p className="text-sm text-primary">{success}</p>
         </div>
       )}
@@ -345,13 +147,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             value="login"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
           >
-            {messages.auth.login}
+            Đăng nhập
           </TabsTrigger>
           <TabsTrigger
             value="register"
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
           >
-            {messages.auth.register}
+            Đăng ký
           </TabsTrigger>
         </TabsList>
 
@@ -359,16 +161,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
           <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="login-email" className="text-sm">
-                {messages.auth.identifierLabel}
+                Email
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="login-email"
-                  type="text"
-                  placeholder={messages.auth.identifierPlaceholder}
-                  value={loginIdentifier}
-                  onChange={(event) => setLoginIdentifier(event.target.value)}
+                  type="email"
+                  placeholder="email@example.com"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
                   className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
@@ -377,59 +179,58 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="login-password" className="text-sm">
-                {messages.auth.passwordLabel}
+                Mật khẩu
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="login-password"
-                  type={showLoginPassword ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={loginPassword}
-                  onChange={(event) => setLoginPassword(event.target.value)}
+                  onChange={(e) => setLoginPassword(e.target.value)}
                   className="pl-10 pr-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowLoginPassword((current) => !current)}
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
-                  {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Checkbox id="remember" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(Boolean(checked))} />
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
                 <Label htmlFor="remember" className="text-xs sm:text-sm font-normal cursor-pointer">
-                  {messages.auth.rememberMe}
+                  Ghi nhớ đăng nhập
                 </Label>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleForgotPassword()}
-                disabled={!isSupabaseConfigured}
-                className="text-xs sm:text-sm text-primary hover:text-primary/80 transition-colors"
-              >
-                {messages.auth.forgotPassword}
+              <button type="button" className="text-xs sm:text-sm text-primary hover:text-primary/80 transition-colors">
+                Quên mật khẩu?
               </button>
             </div>
 
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 sm:h-11 text-base sm:text-sm"
-              disabled={isLoading || oauthLoadingProvider !== null || !isSupabaseConfigured}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {messages.auth.processing}
+                  Đang xử lý...
                 </>
               ) : (
                 <>
-                  {messages.auth.login}
+                  Đăng nhập
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -440,13 +241,27 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-surface px-2 text-muted-foreground">{messages.auth.continueWith}</span>
+                <span className="bg-surface px-2 text-muted-foreground">Hoặc tiếp tục với</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              {renderOAuthButton("google", "Google", <GoogleIcon className="mr-2 h-4 w-4" />)}
-              {renderOAuthButton("apple", "Apple", <AppleIcon className="mr-2 h-4 w-4" />)}
+              <Button
+                variant="outline"
+                type="button"
+                className="bg-card border-border hover:bg-card/80 h-11 sm:h-10 text-sm"
+              >
+                <GoogleIcon className="mr-2 h-4 w-4" />
+                Google
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                className="bg-card border-border hover:bg-card/80 h-11 sm:h-10 text-sm"
+              >
+                <AppleIcon className="mr-2 h-4 w-4" />
+                Apple
+              </Button>
             </div>
           </form>
         </TabsContent>
@@ -455,52 +270,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
           <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-name" className="text-sm">
-                {messages.auth.fullName}
+                Họ và tên
               </Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="register-name"
                   type="text"
-                  placeholder={messages.auth.fullNamePlaceholder}
+                  placeholder="Nguyễn Văn A"
                   value={registerName}
-                  onChange={(event) => setRegisterName(event.target.value)}
-                  className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="register-username" className="text-sm">
-                {messages.auth.username}
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="register-username"
-                  type="text"
-                  placeholder={messages.auth.usernamePlaceholder}
-                  value={registerUsername}
-                  onChange={(event) => setRegisterUsername(event.target.value)}
-                  className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="register-phone" className="text-sm">
-                {messages.auth.phone}
-              </Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="register-phone"
-                  type="tel"
-                  placeholder={messages.auth.phonePlaceholder}
-                  value={registerPhone}
-                  onChange={(event) => setRegisterPhone(event.target.value)}
+                  onChange={(e) => setRegisterName(e.target.value)}
                   className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
@@ -509,16 +288,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-email" className="text-sm">
-                {messages.auth.email}
+                Email
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="register-email"
                   type="email"
-                  placeholder={messages.auth.emailPlaceholder}
+                  placeholder="email@example.com"
                   value={registerEmail}
-                  onChange={(event) => setRegisterEmail(event.target.value)}
+                  onChange={(e) => setRegisterEmail(e.target.value)}
                   className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
@@ -527,32 +306,32 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-password" className="text-sm">
-                {messages.auth.passwordLabel}
+                Mật khẩu
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="register-password"
-                  type={showRegisterPassword ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={registerPassword}
-                  onChange={(event) => setRegisterPassword(event.target.value)}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
                   className="pl-10 pr-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowRegisterPassword((current) => !current)}
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
-                  {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
             <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="confirm-password" className="text-sm">
-                {messages.auth.confirmPasswordLabel}
+                Xác nhận mật khẩu
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -561,13 +340,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="pl-10 pr-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword((current) => !current)}
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -579,17 +358,17 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               <Checkbox
                 id="terms"
                 checked={acceptTerms}
-                onCheckedChange={(checked) => setAcceptTerms(Boolean(checked))}
+                onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
                 className="mt-0.5"
               />
               <Label htmlFor="terms" className="text-xs sm:text-sm font-normal cursor-pointer leading-relaxed">
-                {messages.auth.termsPrefix}{" "}
+                Tôi đồng ý với{" "}
                 <button type="button" className="text-primary hover:underline">
-                  {messages.auth.terms}
+                  Điều khoản dịch vụ
                 </button>{" "}
-                {messages.auth.and}{" "}
+                và{" "}
                 <button type="button" className="text-primary hover:underline">
-                  {messages.auth.privacy}
+                  Chính sách bảo mật
                 </button>
               </Label>
             </div>
@@ -597,16 +376,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 sm:h-11 text-base sm:text-sm"
-              disabled={isLoading || oauthLoadingProvider !== null || !acceptTerms || !isSupabaseConfigured}
+              disabled={isLoading || !acceptTerms}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {messages.auth.createAccountLoading}
+                  Đang tạo tài khoản...
                 </>
               ) : (
                 <>
-                  {messages.auth.createAccount}
+                  Tạo tài khoản
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -617,13 +396,27 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-surface px-2 text-muted-foreground">{messages.auth.signUpWith}</span>
+                <span className="bg-surface px-2 text-muted-foreground">Hoặc đăng ký với</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              {renderOAuthButton("google", "Google", <GoogleIcon className="mr-2 h-4 w-4" />)}
-              {renderOAuthButton("apple", "Apple", <AppleIcon className="mr-2 h-4 w-4" />)}
+              <Button
+                variant="outline"
+                type="button"
+                className="bg-card border-border hover:bg-card/80 h-11 sm:h-10 text-sm"
+              >
+                <GoogleIcon className="mr-2 h-4 w-4" />
+                Google
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                className="bg-card border-border hover:bg-card/80 h-11 sm:h-10 text-sm"
+              >
+                <AppleIcon className="mr-2 h-4 w-4" />
+                Apple
+              </Button>
             </div>
           </form>
         </TabsContent>
@@ -631,41 +424,72 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     </>
   )
 
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="bg-surface border-border max-h-[90vh] flex flex-col">
+          <div className="mx-auto w-full max-w-md flex flex-col flex-1 overflow-hidden">
+            <div className="relative bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-4 pt-4 pb-3 shrink-0">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
+              <DrawerHeader className="relative p-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
+                      <Dumbbell className="h-4 w-4 text-primary-foreground" />
+                    </div>
+                    <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+                  </div>
+                  <DrawerClose asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </DrawerClose>
+                </div>
+                <DrawerTitle className="text-lg mt-3 text-left">
+                  {activeTab === "login" ? "Chào mừng trở lại!" : "Tạo tài khoản"}
+                </DrawerTitle>
+                <DrawerDescription className="text-muted-foreground text-sm text-left">
+                  {activeTab === "login"
+                    ? "Đăng nhập để tiếp tục hành trình fitness"
+                    : "Bắt đầu hành trình fitness của bạn"}
+                </DrawerDescription>
+              </DrawerHeader>
+            </div>
+
+            <div className="px-4 pb-8 pt-2 overflow-y-auto flex-1">
+              <AuthContent />
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className="!bottom-0 !left-0 !right-0 !top-auto !grid !max-h-[90vh] !w-full !max-w-none !translate-x-0 !translate-y-0 !gap-0 !overflow-hidden !rounded-b-none !rounded-t-[28px] !border-x-0 !border-b-0 !border-border !bg-surface !p-0 sm:!bottom-auto sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!w-full sm:!max-w-[425px] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!rounded-2xl sm:!border"
-      >
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col overflow-hidden sm:max-w-none">
-          <div className="relative shrink-0 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
-            <DialogHeader className="relative gap-0 p-0 text-left">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25 sm:h-10 sm:w-10">
-                    <Dumbbell className="h-4 w-4 text-primary-foreground sm:h-5 sm:w-5" />
-                  </div>
-                  <span className="text-lg font-bold tracking-tight sm:text-xl">YeahBuddy</span>
-                </div>
-                <DialogClose asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </DialogClose>
+      <DialogContent className="sm:max-w-[425px] bg-surface border-border p-0 overflow-hidden">
+        <div className="relative bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-6 pt-6 pb-4">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
+          <DialogHeader className="relative">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
+                <Dumbbell className="h-5 w-5 text-primary-foreground" />
               </div>
-              <DialogTitle className="mt-3 text-left text-lg sm:text-xl">
-                {activeTab === "login" ? messages.auth.loginWelcome : messages.auth.registerWelcome}
-              </DialogTitle>
-              <DialogDescription className="mt-1 text-left text-sm text-muted-foreground">
-                {activeTab === "login"
-                  ? messages.auth.loginDescription
-                  : messages.auth.registerDescription}
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+              <span className="text-xl font-bold tracking-tight">YeahBuddy</span>
+            </div>
+            <DialogTitle className="text-xl">
+              {activeTab === "login" ? "Chào mừng trở lại!" : "Tạo tài khoản"}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {activeTab === "login"
+                ? "Đăng nhập để tiếp tục hành trình fitness của bạn"
+                : "Bắt đầu hành trình fitness của bạn ngay hôm nay"}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-8 pt-2 sm:px-6 sm:pb-6">{renderAuthContent()}</div>
+        <div className="px-6 pb-6">
+          <AuthContent />
         </div>
       </DialogContent>
     </Dialog>

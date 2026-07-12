@@ -1,9 +1,7 @@
 "use client"
 
+import { Flame } from "lucide-react"
 import Link from "next/link"
-import { Utensils } from "lucide-react"
-
-import { useLocale } from "@/components/providers/locale-provider"
 import type { DailyNutrition } from "@/lib/types"
 
 interface NutritionSummaryProps {
@@ -11,95 +9,78 @@ interface NutritionSummaryProps {
 }
 
 export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
-  const { messages } = useLocale()
-  const percentage =
-    nutrition.targetCalories > 0
-      ? Math.min(100, Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100))
-      : 0
-  const remaining = Math.max(0, nutrition.targetCalories - nutrition.totalCalories)
-
-  // SVG donut params
-  const radius = 46
-  const circumference = 2 * Math.PI * radius
-  const arc = (percentage / 100) * circumference
+  const percentage = Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100)
+  const remaining = nutrition.targetCalories - nutrition.totalCalories
 
   return (
-    <Link href="/meals" className="block h-full">
-      <div className="flex h-full flex-col rounded-[10px] border border-border bg-card p-5 transition-colors hover:border-primary/25">
-        <span className="label-micro mb-4 block">{messages.dashboard.todaysNutrition}</span>
+    <Link href="/meals" className="block">
+      <div className="rounded-xl border border-border bg-card p-6 transition-all hover:border-primary/30">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Today's Nutrition</h3>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+            <Flame className="h-5 w-5 text-accent" />
+          </div>
+        </div>
 
-        <div className="flex flex-1 flex-col justify-between gap-5">
-          {/* Donut + calories */}
+        <div className="space-y-4">
+          {/* Calorie ring visualization */}
           <div className="flex items-center gap-6">
-            {/* Donut */}
-            <div className="relative h-24 w-24 shrink-0">
-              <svg className="h-24 w-24 -rotate-90">
+            <div className="relative h-24 w-24">
+              <svg className="h-24 w-24 -rotate-90 transform">
                 <circle
-                  cx="48" cy="48" r={radius}
-                  stroke="currentColor" strokeWidth="7" fill="transparent"
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
                   className="text-muted"
                 />
                 <circle
-                  cx="48" cy="48" r={radius}
-                  stroke="currentColor" strokeWidth="7" fill="transparent"
-                  strokeDasharray={`${arc} ${circumference}`}
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray={`${percentage * 2.51} 251`}
                   className="text-primary transition-all duration-500"
                   strokeLinecap="round"
                 />
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="font-mono text-[1.1rem] font-semibold tnum text-foreground">
-                  {percentage}%
-                </span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold">{percentage}%</span>
               </div>
             </div>
-
-            {/* Numbers */}
-            <div className="space-y-3">
+            <div className="flex-1 space-y-2">
               <div>
-                <p className="label-micro mb-0.5">{messages.dashboard.consumed}</p>
-                <p className="font-mono text-[1.5rem] font-semibold leading-none tnum text-foreground">
-                  {nutrition.totalCalories.toLocaleString()}
-                  <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
+                <p className="text-sm text-muted-foreground">Consumed</p>
+                <p className="text-xl font-bold">
+                  {nutrition.totalCalories} <span className="text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
               <div>
-                <p className="label-micro mb-0.5">{messages.dashboard.remaining}</p>
-                <p className="font-mono text-[1.25rem] font-semibold leading-none tnum text-primary">
-                  {remaining.toLocaleString()}
-                  <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
+                <p className="text-sm text-muted-foreground">Remaining</p>
+                <p className="text-lg font-semibold text-primary">
+                  {remaining} <span className="text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Meal slots */}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { key: "breakfast", label: messages.dashboard.breakfast },
-              { key: "lunch",     label: messages.dashboard.lunch },
-              { key: "dinner",    label: messages.dashboard.dinner },
-              { key: "snack",     label: messages.dashboard.snack },
-            ].map((mealType) => {
-              const meal = nutrition.meals.find((entry) => entry.type === mealType.key)
+          {/* Meals summary */}
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {["breakfast", "lunch", "dinner", "snack"].map((mealType) => {
+              const meal = nutrition.meals.find((m) => m.type === mealType)
               return (
-                <div
-                  key={mealType.key}
-                  className="flex items-center justify-between rounded-[8px] border border-border bg-muted px-3 py-2"
-                >
-                  <span className="text-[12px] text-muted-foreground">{mealType.label}</span>
-                  <span className={meal ? "font-mono text-[12px] font-medium tnum text-foreground" : "font-mono text-[12px] text-muted-foreground"}>
-                    {meal ? meal.calories : "—"}
+                <div key={mealType} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                  <span className="capitalize text-muted-foreground">{mealType}</span>
+                  <span className={meal ? "font-medium" : "text-muted-foreground"}>
+                    {meal ? `${meal.calories}` : "—"}
                   </span>
                 </div>
               )
             })}
-          </div>
-
-          {/* Log meal hint */}
-          <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-            <Utensils className="h-3.5 w-3.5 shrink-0" />
-            <span>Tap to log a meal</span>
           </div>
         </div>
       </div>

@@ -1,200 +1,71 @@
-export type UserRole = "trainee" | "coach" | "admin"
+export type UserRole = "trainee" | "coach"
 
 export interface User {
   id: string
   name: string
   email: string
-  username?: string
-  phone?: string
   role: UserRole
   avatar?: string
   fitnessGoals?: string[]
-  preferredWeightUnit?: "kg" | "lbs"
-  dailyCalorieGoal?: number
-  heightCm?: number
-  targetWeightKg?: number
   coachId?: string
   createdAt: Date
 }
 
-export interface ExerciseBase {
+export interface Exercise {
   id: string
   name: string
   muscleGroup: string
-}
-
-export type ExerciseSource = "system" | "coach"
-
-export interface ExerciseVariation {
-  id: string
-  name: string
   equipment?: string
-  isDefault: boolean
-  metadata?: Record<string, unknown>
-  sortOrder: number
-  canManage?: boolean
-  createdById?: string
-  source?: ExerciseSource
-}
-
-export interface ExerciseVariationOption {
-  id: string
-  exerciseId: string
-  exerciseName: string
-  variationName: string
-  name: string
-  muscleGroup: string
-  equipment?: string
-  isDefault: boolean
-  metadata?: Record<string, unknown>
-  sortOrder: number
-  canManage?: boolean
-  createdById?: string
-  source?: ExerciseSource
-}
-
-export interface ExerciseLibraryExercise extends ExerciseBase {
-  canManage?: boolean
-  createdById?: string
-  createdByName?: string
-  source?: ExerciseSource
-  variations: ExerciseVariation[]
-}
-
-export type PreviousExerciseSetPerformanceSource = "most_recent" | "same_weekday_last_week"
-
-export interface PreviousExerciseSetPerformance {
-  completedAt: Date
-  reps?: number
-  rir?: number
-  source: PreviousExerciseSetPerformanceSource
-  weight?: number
 }
 
 export interface ExerciseSet {
   id: string
   setNumber: number
-  targetRepsMin?: number
   targetReps: number
   actualReps?: number
   weight?: number
   rir?: number // Reps in Reserve
   notes?: string
-  previousPerformance?: PreviousExerciseSetPerformance
   completed: boolean
-}
-
-export type CoachUpdateType = "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"
-
-export interface CoachUpdate {
-  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
-  newValue?: number | string
-  oldValue?: number | string
-  text: string
-  type: CoachUpdateType
 }
 
 export interface WorkoutExercise {
   id: string
-  exercise: ExerciseBase
-  variation: ExerciseVariation
+  exercise: Exercise
   sets: ExerciseSet[]
-  coachUpdate?: CoachUpdate
   restTime?: number // seconds
   notes?: string
 }
 
-export type WorkoutKind = "push" | "pull" | "legs" | "full_body" | "cardio" | "other"
-
 export interface Workout {
   id: string
-  hasCoachUpdate?: boolean
-  isPersonal?: boolean
-  programId?: string
-  kind?: WorkoutKind
   name: string
   exercises: WorkoutExercise[]
   scheduledDay?: number // 0-6 for days of week
-  scheduledDate?: Date
-  weekIndex?: number
   duration?: number // minutes
   completedAt?: Date
   notes?: string
 }
 
-export interface WorkoutLogComment {
-  id: string
-  authorId: string
-  authorName: string
-  authorAvatar?: string
-  content: string
-  createdAt: Date
-  updatedAt: Date
-}
-
 export interface WorkoutLog {
   id: string
   workout: Workout
-  isPlannedPlaceholder?: boolean
-  programId?: string
-  plannedDate?: Date
   startedAt: Date
   completedAt?: Date
   exercises: WorkoutExercise[]
-  comments: WorkoutLogComment[]
   totalVolume?: number
   notes?: string
 }
 
-export interface WorkoutScheduleEntry {
-  date: Date
-  durationLabel?: string
-  isCatchUp?: boolean
-  isCompleted: boolean
-  isMissed: boolean
-  isRolledOver?: boolean
-  isToday: boolean
-  log: WorkoutLog | null
-  source: "coach" | "self"
-  weekday: number
-  workout: Workout | null
-}
-
-export type MealType = "breakfast" | "lunch" | "dinner" | "snack"
-
-export type FoodCategory = "staple" | "protein" | "veg" | "fruit" | "dish" | "drink" | "other"
-
-export interface MealItem {
-  amountLabel?: string
-  amountUnit: string
-  amountValue: number
-  calories: number
-  carbs?: number
-  fat?: number
-  fiber?: number
-  foodId: string
-  id: string
-  name: string
-  protein?: number
-  sodium?: number
-  sugar?: number
-  weightGrams?: number
-}
-
 export interface Meal {
-  id?: string
-  type: MealType
+  id: string
+  type: "breakfast" | "lunch" | "dinner" | "snack"
   name: string
   calories: number
-  items?: MealItem[]
-  loggedDate?: Date
   protein?: number
   carbs?: number
   fat?: number
-  fiber?: number
-  sugar?: number
-  sodium?: number
-  time?: Date
+  time: Date
 }
 
 export interface DailyNutrition {
@@ -202,24 +73,6 @@ export interface DailyNutrition {
   meals: Meal[]
   totalCalories: number
   targetCalories: number
-}
-
-export interface NutritionFood {
-  calories: number
-  carbs: number
-  category: FoodCategory
-  fat: number
-  fiber?: number
-  id: string
-  name: string
-  protein: number
-  servingAmount: number
-  servingLabel: string
-  servingUnit: string
-  slug: string
-  sodium?: number
-  source: "system" | "user"
-  sugar?: number
 }
 
 export interface CoachRequest {
@@ -243,9 +96,6 @@ export interface Program {
   workoutsPerWeek: number
   workouts: Workout[]
   assignedTo?: string[] // trainee IDs
-  archivedAt?: Date | null
   createdAt: Date
   createdBy: string // coach ID
 }
-
-export type Exercise = ExerciseVariationOption

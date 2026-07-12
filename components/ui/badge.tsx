@@ -14,12 +14,9 @@ const badgeVariants = cva(
         secondary:
           'border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90',
         destructive:
-          'border-transparent bg-destructive text-white [a&]:hover:bg-destructive-soft focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive-soft',
+          'border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
         outline:
           'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
-        // Lift micro-tag: SET 1 · WORKING · WARM-UP · PR · BEST
-        micro:
-          'border-transparent bg-muted text-muted-foreground font-mono text-[11px] uppercase tracking-[0.08em] font-medium px-1.5 py-0.5 rounded-sm',
       },
     },
     defaultVariants: {

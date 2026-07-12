@@ -1,75 +1,62 @@
 "use client"
 
 import Link from "next/link"
-import { Calendar, Scale, Sparkles, TrendingUp, Utensils } from "lucide-react"
-
-import { useLocale } from "@/components/providers/locale-provider"
+import { Dumbbell, Utensils, Calendar, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+const actions = [
+  {
+    href: "/workout/quick",
+    icon: Dumbbell,
+    label: "Quick Workout",
+    color: "primary",
+  },
+  {
+    href: "/meals/add",
+    icon: Utensils,
+    label: "Log Meal",
+    color: "secondary",
+  },
+  {
+    href: "/schedule",
+    icon: Calendar,
+    label: "Schedule",
+    color: "accent",
+  },
+  {
+    href: "/progress",
+    icon: TrendingUp,
+    label: "Progress",
+    color: "info",
+  },
+]
+
 export function QuickActions() {
-  const { messages } = useLocale()
-
-  const actions = [
-    {
-      href: "/trackweight",
-      icon: Scale,
-      label: messages.dashboard.quickLogWeight,
-      tone: "primary",
-    },
-    {
-      href: "/meals",
-      icon: Utensils,
-      label: messages.dashboard.logMeal,
-      tone: "success",
-    },
-    {
-      href: "/schedule",
-      icon: Calendar,
-      label: messages.dashboard.schedule,
-      tone: "primary",
-    },
-    {
-      href: "/progress",
-      icon: TrendingUp,
-      label: messages.dashboard.progress,
-      tone: "neutral",
-    },
-    {
-      href: "/workout/ai-generate",
-      icon: Sparkles,
-      label: "AI Coach",
-      tone: "primary",
-    },
-  ] as const
-
   return (
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
           className={cn(
-            "group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-colors md:min-h-[132px]",
-            action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
-            action.tone === "primary" && "border-border bg-card hover:border-primary/25",
-            action.tone === "neutral" && "border-border bg-card hover:border-border/80",
+            "group flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
+            "active:scale-[0.98]",
           )}
         >
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-[8px] md:h-12 md:w-12",
-              action.tone === "primary" && "bg-primary-soft text-primary",
-              action.tone === "success" && "bg-ok-soft text-success",
-              action.tone === "neutral" && "bg-muted text-muted-foreground",
+              "flex h-12 w-12 items-center justify-center rounded-xl transition-colors",
+              action.color === "primary" && "bg-primary/10 text-primary group-hover:bg-primary/20",
+              action.color === "secondary" && "bg-secondary/10 text-secondary group-hover:bg-secondary/20",
+              action.color === "accent" && "bg-accent/10 text-accent group-hover:bg-accent/20",
+              action.color === "info" && "bg-info/10 text-info group-hover:bg-info/20",
             )}
           >
-            <action.icon className="h-5 w-5" />
+            <action.icon className="h-6 w-6" />
           </div>
-          <p className="mt-3 text-[13px] font-medium tracking-tight text-foreground md:mt-4 md:text-sm">
-            {action.label}
-          </p>
+          <span className="text-sm font-medium">{action.label}</span>
         </Link>
       ))}
-    </section>
+    </div>
   )
 }
