@@ -55,7 +55,7 @@ const themeInitScript = `
     root.style.colorScheme = resolvedTheme;
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0b0d12" : "#f8fafc");
+      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0b0d12" : "#fafafa");
     }
   } catch (error) {}
 })();
@@ -162,7 +162,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#f8fafc",
+  themeColor: "#fafafa",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
