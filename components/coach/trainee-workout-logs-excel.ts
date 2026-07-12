@@ -25,6 +25,8 @@ type CoachWorkoutLogsWorkbookPreview = CoachWorkoutLogsWorkbookFile & {
   }>
 }
 
+type RowKind = "logged" | "synthetic" | "rest"
+
 type ReportRow = {
   completedSets: number
   dayNumber: number
@@ -37,6 +39,7 @@ type ReportRow = {
   targetSummary: string
   variationName: string
   weightSummary: string
+  rowKind: RowKind
 }
 
 type DayMergeRange = {
@@ -254,26 +257,44 @@ function buildReportRows(logs: WorkoutLog[], weekStart: string) {
 
   const logsByDay = new Map<string, WorkoutLog[]>()
 
+  // Group by plannedDate when available so a workout logged a day late still
+  // appears under its planned slot. Falls back to startedAt for legacy logs
+  // without a plannedDate.
   orderedLogs.forEach((log) => {
-    const dayKey = formatDateInputValue(log.startedAt)
+    const dayKey = formatDateInputValue(log.plannedDate ?? log.startedAt)
     const dayLogs = logsByDay.get(dayKey) ?? []
     dayLogs.push(log)
     logsByDay.set(dayKey, dayLogs)
   })
 
-  Array.from(logsByDay.entries())
-    .sort(([leftDay], [rightDay]) => leftDay.localeCompare(rightDay))
-    .forEach(([dayKey, dayLogs]) => {
-      const dayDate = parseDateInputAsLocalDate(dayKey, 12)
+  // Iterate all 7 days of the week so rest days (no plan, no log) appear as an
+  // empty row instead of being omitted. This keeps the sheet's week layout
+  // consistent regardless of which weekdays the program schedules.
+  for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
+    const dayDate = new Date(selectedWeekStart)
+    dayDate.setDate(dayDate.getDate() + dayIdx)
+    const dayKey = formatDateInputValue(dayDate)
+    const dayLogs = logsByDay.get(dayKey) ?? []
+    const dayNumber = dayIdx + 1
+    const dayLabel = `${String(dayDate.getDate()).padStart(2, "0")}/${String(dayDate.getMonth() + 1).padStart(2, "0")}`
+    const dayStartRow = REPORT_START_ROW + rows.length
 
-      if (!dayDate) {
-        return
-      }
-
-      const dayNumber = Math.floor((dayDate.getTime() - selectedWeekStart.getTime()) / (24 * 60 * 60 * 1000)) + 1
-      const dayLabel = dayDate.toLocaleDateString("en-US", { weekday: "long", day: "2-digit", month: "2-digit" })
-      const dayStartRow = REPORT_START_ROW + rows.length
-
+    if (dayLogs.length === 0) {
+      rows.push({
+        completedSets: 0,
+        dayNumber,
+        exerciseName: "",
+        isFirstRowInDay: true,
+        muscleGroup: "",
+        note: "",
+        repCells: [null, null, null, null],
+        rirSummary: "",
+        targetSummary: "",
+        variationName: "",
+        weightSummary: "",
+        rowKind: "rest",
+      })
+    } else {
       dayLogs.forEach((log, logIndex) => {
         log.exercises.forEach((exercise, exerciseIndex) => {
           const chunks = splitIntoChunks(exercise.sets, 4)
@@ -310,19 +331,21 @@ function buildReportRows(logs: WorkoutLog[], weekStart: string) {
                   ? ""
                   : exercise.variation.name,
               weightSummary: joinChunkMetricValues(chunk.map((set) => formatNumericValue(set.weight))),
+              rowKind: log.isPlannedPlaceholder ? "synthetic" : "logged",
             })
           })
         })
       })
+    }
 
-      const dayEndRow = REPORT_START_ROW + rows.length - 1
-      mergeRanges.push({
-        dayLabel,
-        dayNumber,
-        endRow: dayEndRow,
-        startRow: dayStartRow,
-      })
+    const dayEndRow = REPORT_START_ROW + rows.length - 1
+    mergeRanges.push({
+      dayLabel,
+      dayNumber,
+      endRow: dayEndRow,
+      startRow: dayStartRow,
     })
+  }
 
   return { mergeRanges, rows }
 }
@@ -365,6 +388,34 @@ function applyStylesToRange(
   columns.forEach((column) => {
     worksheet.getCell(rowNumber, column).style = cloneStyle(styleMap[column] ?? {})
   })
+}
+
+// Row shading: alternating day tint for scannability, plus explicit highlights
+// for rows the coach should notice (planned-but-not-logged, and rest days that
+// have no plan at all).
+const DAY_ODD_TINT_ARGB = "FFF7F7F7"          // light gray on odd day numbers
+const SYNTHETIC_HIGHLIGHT_ARGB = "FFFFF3CD"   // soft yellow — "Planned - not logged"
+const REST_HIGHLIGHT_ARGB = "FFE9ECEF"        // soft gray — rest day (no plan)
+
+function resolveRowFillArgb(row: ReportRow): string | null {
+  if (row.rowKind === "synthetic") return SYNTHETIC_HIGHLIGHT_ARGB
+  if (row.rowKind === "rest") return REST_HIGHLIGHT_ARGB
+  return row.dayNumber % 2 === 1 ? DAY_ODD_TINT_ARGB : null
+}
+
+function applyRowFill(
+  worksheet: Worksheet,
+  rowNumber: number,
+  columns: number[],
+  argb: string,
+) {
+  for (const column of columns) {
+    worksheet.getCell(rowNumber, column).fill = {
+      fgColor: { argb },
+      pattern: "solid",
+      type: "pattern",
+    }
+  }
 }
 
 function clearReportArea(worksheet: Worksheet, maxRow: number) {
@@ -640,12 +691,15 @@ async function buildCoachWorkoutLogsWorkbookFile(
       reportSheet.getRow(rowNumber).height = rowHeight
     }
 
+    const dataColumns = Array.from({ length: DATA_END_COLUMN }, (_value, columnIndex) => columnIndex + 1)
     applyStylesToRange(
       reportSheet,
       rowNumber,
       row.isFirstRowInDay ? styles.firstDataStyles : styles.continuationDataStyles,
-      Array.from({ length: DATA_END_COLUMN }, (_value, columnIndex) => columnIndex + 1),
+      dataColumns,
     )
+    const fillArgb = resolveRowFillArgb(row)
+    if (fillArgb) applyRowFill(reportSheet, rowNumber, dataColumns, fillArgb)
 
     reportSheet.getCell(rowNumber, 2).value = row.muscleGroup
     reportSheet.getCell(rowNumber, 3).value = row.exerciseName
@@ -812,12 +866,15 @@ async function addWeeklyReportSheet(
     const rowHeight = row.isFirstRowInDay ? styles.firstDataHeight : styles.continuationDataHeight
     if (typeof rowHeight === "number") reportSheet.getRow(rowNumber).height = rowHeight
 
+    const dataColumns = Array.from({ length: DATA_END_COLUMN }, (_v, i) => i + 1)
     applyStylesToRange(
       reportSheet,
       rowNumber,
       row.isFirstRowInDay ? styles.firstDataStyles : styles.continuationDataStyles,
-      Array.from({ length: DATA_END_COLUMN }, (_v, i) => i + 1),
+      dataColumns,
     )
+    const fillArgb = resolveRowFillArgb(row)
+    if (fillArgb) applyRowFill(reportSheet, rowNumber, dataColumns, fillArgb)
 
     reportSheet.getCell(rowNumber, 2).value = row.muscleGroup
     reportSheet.getCell(rowNumber, 3).value = row.exerciseName

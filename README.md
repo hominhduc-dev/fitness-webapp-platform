@@ -28,6 +28,8 @@ Authentication is handled by **Supabase Auth**, and all application data lives i
 - [Scripts](#scripts)
 - [Conventions & ground rules](#conventions--ground-rules)
 - [Auth & access model](#auth--access-model)
+- [Known gotchas](#known-gotchas)
+- [Deployment](#deployment)
 
 ---
 
@@ -50,7 +52,7 @@ Three roles are defined in the `UserRole` enum and enforced **server-side** via 
 
 | Role | Landing page | Can do |
 |---|---|---|
-| **trainee** | `/dashboard` | Log workouts & meals, track body weight, follow assigned programs, view progress analytics, discover and request a coach |
+| **trainee** | `/dashboard` | Log workouts & meals, track body weight, follow assigned programs, view progress analytics, discover and request a coach, generate AI workout programs & meal plans |
 | **coach** | `/coach` | Author & assign programs, manage an exercise library, monitor trainees, comment on logged workouts, run check-ins, approve coach requests |
 | **admin** | `/admin` | Manage users & roles, coach↔trainee connections, the global exercise/food library, and review audit logs |
 
@@ -64,9 +66,10 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 - **Nutrition** — Daily meal logging backed by a food database (Vietnamese foods + USDA FoodData Central), per-meal items, and calorie/macro targets with a live "calories left" view.
 - **Body metrics** — Weekly weigh-ins plus optional measurements (waist, arms, body fat, etc.).
 - **Progress analytics** — Volume, frequency, estimated 1RM, a training calendar, and a year view.
+- **AI generation** — Trainees can generate a workout program or a meal plan from a chat-style prompt (`components/ai/`), preview it, and accept it to turn the AI draft into a real `Program` (flagged `isAIGenerated`) or logged meal. Backed by a pluggable provider (Anthropic or OpenAI) — see [AI generation](#ai-generation-1).
 - **Coaching** — Program authoring & assignment, trainee compliance dashboards, at-risk flagging, workout-log comments, and structured check-ins.
 - **Admin** — Platform health metrics, user/role management, connection management, library curation, and audit logging.
-- **Cross-cutting** — Supabase email/password + OAuth (Google/Apple), password reset, avatar uploads to Supabase Storage, in-app notifications, and EN/VI localization.
+- **Cross-cutting** — Supabase email/password + OAuth (Google/Apple), password reset, avatar uploads to Supabase Storage, in-app notifications, EN/VI localization, and CSV/Excel export of workout & weight history.
 
 ---
 
@@ -75,7 +78,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 ### Frontend
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript 5
 - **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
-- **Forms:** Controlled React components (no React Hook Form/Zod on the client)
+- **Forms:** Controlled React components (no React Hook Form/Zod on the client — see [Known gotchas](#known-gotchas) about `AGENTS.md` disagreeing with this)
 - **Charts:** Recharts · **Drag & drop:** @dnd-kit
 - **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
 - **Auth client:** `@supabase/ssr` (cookie-based SSR sessions)
@@ -84,7 +87,11 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 - **Runtime:** Node.js + Express 4 + TypeScript
 - **ORM:** Prisma 6 · **Database:** PostgreSQL (Supabase, via PgBouncer pooler)
 - **Auth:** Supabase Auth (token verification + user-metadata sync)
+- **AI:** Pluggable provider layer (`backend/src/lib/ai/`) — Anthropic (`claude-haiku-4-5-20251001` by default) or OpenAI, switchable via `AI_PROVIDER`
 - **External data:** USDA FoodData Central API
+
+### Deployment
+- **Process manager:** PM2 (`ecosystem.config.js`) runs the backend as the `yeahbuddy` process in production
 
 ---
 
@@ -108,6 +115,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 - The browser calls `/backend/api/...`, which Next.js rewrites to the Express server (`NEXT_PUBLIC_API_URL`).
 - Every authenticated request carries the Supabase access token; the backend verifies it, syncs a local `User` profile, and enforces role before running a handler.
 - API responses follow a consistent `{ data, error, meta }` envelope (auth endpoints return a flatter `{ profile, session, user }` payload).
+- AI endpoints call out to Anthropic or OpenAI (`backend/src/lib/ai/ai-client.ts`), persist the request/response as an `AIGeneration` row, and only materialize a real `Program`/meal once the trainee explicitly accepts the draft.
 
 ---
 
@@ -121,19 +129,25 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 │   ├── reset-password/       # Password reset page
 │   └── page.tsx              # Public landing page
 ├── components/               # Feature UI + shared shadcn/ui primitives
-│   ├── auth/  landing/  layout/  coach/  dashboard/  ...
+│   ├── auth/  landing/  layout/  coach/  dashboard/  ai/  ...
 ├── hooks/                    # Reusable React hooks
-├── lib/                      # Frontend auth, API clients, i18n, types
+├── lib/                      # Frontend auth, API clients, i18n, types, Excel export helpers
 ├── public/                   # Static assets
+├── docs/                     # Class/ERD/sequence diagrams + use-case specs (design reference)
+├── lift-design-system/       # Standalone design-system sub-project (own README)
 ├── backend/
-│   ├── prisma/               # schema.prisma + migrations
+│   ├── prisma/                # schema.prisma + migrations (canonical — see Known gotchas)
+│   ├── README.md              # Short backend-only setup notes
 │   └── src/
-│       ├── routes/           # Express routers (one per resource)
-│       ├── services/         # Business logic (auth, fitness-data, admin, nutrition…)
-│       ├── lib/              # Prisma client, Supabase clients
+│       ├── routes/           # Express routers (one per resource, incl. ai.route.ts)
+│       ├── services/         # Business logic (auth, fitness-data, admin, nutrition, ai…)
+│       ├── lib/               # Prisma client, Supabase clients, AI provider layer
 │       ├── config/           # env parsing
 │       └── scripts/          # create-admin, seed-* scripts
-├── CLAUDE.md                 # Project config & ground rules for AI/dev tooling
+├── prisma/migrations/         # ⚠️ stray duplicate — see Known gotchas
+├── ecosystem.config.js       # PM2 process definition for production
+├── AGENTS.md                 # Older/alternate project-config doc — see Known gotchas
+├── CLAUDE.md                 # Project config & ground rules for AI/dev tooling (source of truth)
 └── README.md
 ```
 
@@ -220,6 +234,20 @@ All endpoints are mounted under `/api`. Auth is required for everything except `
 </details>
 
 <details>
+<summary><b>AI generation</b> — <code>/api/ai</code> (trainee)</summary>
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/generate-program` | Generate an AI workout program draft from a prompt (creates an `AIGeneration` row) |
+| POST | `/accept-program` | Turn an accepted AI draft into a real `Program` (`isAIGenerated: true`) |
+| POST | `/generate-meal-plan` | Generate an AI meal plan draft |
+| POST | `/accept-meal-plan` | Log the accepted AI meal plan for a given date |
+| POST | `/chat` | Free-form chat turn with the configured AI provider |
+
+Provider is selected by `AI_PROVIDER` (`anthropic` default or `openai`); requires `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` respectively.
+</details>
+
+<details>
 <summary><b>Coach</b> — <code>/api/coach</code></summary>
 
 | Method | Path | Access | Purpose |
@@ -263,19 +291,20 @@ All endpoints are mounted under `/api`. Auth is required for everything except `
 
 ## Data model
 
-The Prisma schema lives in [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma). Core models:
+The Prisma schema lives in [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma) — this is the **only** schema that matters; see [Known gotchas](#known-gotchas) for the stray root-level `prisma/` folder. Core models:
 
 | Domain | Models |
 |---|---|
 | **Identity** | `User` (role, profile, goals, coach link) |
 | **Exercise library** | `Exercise`, `Variation`, `ExerciseImportRequest` |
-| **Programs** | `Program`, `ProgramAssignment`, `Workout`, `WorkoutExercise`, `ExerciseSet` |
+| **Programs** | `Program` (incl. `isAIGenerated`), `ProgramAssignment`, `Workout`, `WorkoutExercise`, `ExerciseSet` |
 | **Training logs** | `WorkoutLog`, `WorkoutLogComment` |
 | **Body & coaching** | `BodyMetricEntry`, `CoachCheckIn`, `CoachRequest` |
 | **Nutrition** | `Food`, `Meal`, `MealFoodItem` |
+| **AI** | `AIGeneration` (`AIGenerationType`: `workout_program` \| `meal_plan`; `AIGenerationStatus`: `pending` → `completed`/`failed` → `accepted`) |
 | **Platform** | `Notification`, `AdminAuditLog` |
 
-Enums: `UserRole`, `ProgramDifficulty`, `MealType`, `WorkoutKind`, `CoachRequestStatus`, `ExerciseImportRequestStatus`, `WeightUnit`, `FoodSource`, `FoodCategory`, `NotificationType`, `NotificationChannel`, `NotificationStatus`.
+Enums: `UserRole`, `ProgramDifficulty`, `MealType`, `WorkoutKind`, `CoachRequestStatus`, `ExerciseImportRequestStatus`, `WeightUnit`, `FoodSource`, `FoodCategory`, `NotificationType`, `NotificationChannel`, `NotificationStatus`, `AIGenerationType`, `AIGenerationStatus`.
 
 Every schema change ships with a migration file under `backend/prisma/migrations/`.
 
@@ -287,6 +316,7 @@ Every schema change ships with a migration file under `backend/prisma/migrations
 
 - **Node.js** 20+ and **npm**
 - A **Supabase** project (Auth + PostgreSQL). You need the project URL, anon key, and service-role key, plus the database connection strings.
+- An **Anthropic** or **OpenAI** API key if you want to exercise the AI generation features locally (optional — the rest of the app works without it).
 
 ### 1. Install dependencies
 
@@ -306,7 +336,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon-key>
 ```
 
-**Backend** — create `backend/.env`:
+**Backend** — create `backend/.env` (see `backend/.env.example`):
 
 ```bash
 # Database (Supabase Postgres)
@@ -327,6 +357,14 @@ USDA_API_KEY=<your-key>
 # USDA_API_BASE_URL=https://api.nal.usda.gov/fdc/v1
 # USDA_TIMEOUT_MS=8000
 
+# Optional: AI program/meal-plan generation + chat
+AI_PROVIDER=anthropic              # "anthropic" (default) or "openai"
+AI_MODEL=claude-haiku-4-5-20251001 # defaults shown; any provider-supported model id works
+ANTHROPIC_API_KEY=<your-key>       # required when AI_PROVIDER=anthropic
+OPENAI_API_KEY=<your-key>          # required when AI_PROVIDER=openai
+# AI_BASE_URL=                     # optional override, e.g. an OpenAI-compatible proxy
+# AI_JSON_MODE=true                # OpenAI provider only
+
 # Optional: n8n webhook for exporting workout logs to Google Sheets
 N8N_LOGS_WEBHOOK_URL=
 ```
@@ -337,11 +375,11 @@ N8N_LOGS_WEBHOOK_URL=
 
 ```bash
 npm run prisma:generate            # generate Prisma client
-npm run prisma:migrate             # apply migrations (dev)
+npm run prisma:migrate             # apply migrations (dev) — run from repo root or backend/, NOT the stray root prisma/ folder
 
 # Seed reference data (optional):
-npm --prefix backend run seed:exercises
-npm --prefix backend run seed:foods
+npm run seed:exercises
+npm run seed:foods
 
 # Create the first admin user:
 npm run create:admin
@@ -370,8 +408,9 @@ Open http://localhost:3000 and sign up / log in.
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run lint` | ESLint |
 | `npm run dev:backend` · `build:backend` · `start:backend` | Proxy to backend scripts |
-| `npm run create:admin` | Create an admin account |
-| `npm run prisma:generate` · `migrate` · `push` · `studio` · `validate` | Prisma (proxied to backend) |
+| `npm run create:admin` | Create an admin account (proxies to backend) |
+| `npm run seed:exercises` · `seed:foods` | Seed reference data (proxies to backend) |
+| `npm run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma (proxied to backend) |
 | `npm run splash` | Generate iOS splash assets |
 
 ### Backend
@@ -382,7 +421,8 @@ Open http://localhost:3000 and sign up / log in.
 | `npm --prefix backend run build` / `start` | Compile / run `dist` |
 | `npm --prefix backend run seed:exercises` / `seed:foods` | Seed reference data |
 | `npm --prefix backend run create:admin` | Create an admin user |
-| `npm --prefix backend run prisma:*` | `generate` · `migrate` · `push` · `studio` · `validate` |
+| `npm --prefix backend run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma commands |
+| `npm --prefix backend run prisma:resolve:baseline` | One-off: mark the initial baseline migration as applied without running it |
 
 ---
 
@@ -392,10 +432,12 @@ Open http://localhost:3000 and sign up / log in.
 2. Every route raises a typed `AppError` / `AuthServiceError` — never a raw `Error`.
 3. Prisma for all database access — no raw SQL except in migration files.
 4. Frontend components use **named** exports, not default exports.
-5. Every database change ships with a migration file.
+5. Every database change ships with a migration file **in `backend/prisma/migrations/`**.
 6. Commits follow **Conventional Commits** (`type(scope): description`).
 7. Never commit `.env`, credentials, or secrets.
 8. Server components fetch via server-side API calls; the service-role key is never exposed to the client.
+
+`CLAUDE.md` at the repo root is the authoritative, actively-maintained source for these rules and the current tech stack — treat it as the source of truth over this README or `AGENTS.md` if the three ever disagree.
 
 ---
 
@@ -405,6 +447,31 @@ Open http://localhost:3000 and sign up / log in.
 - The backend **verifies the token**, syncs a local `User` profile (auto-provisioned from Supabase metadata on first sight), and **enforces the role** before running any handler. A short-lived per-token cache avoids re-verifying on every request in a burst.
 - Role guards: `requireAppSession({ role })` on the frontend redirects unauthorized users; `assertTrainee` / `assertCoach` / `assertAdmin` on the backend reject them with a typed error.
 - **OAuth** (Google/Apple) and **email/password** are both supported, plus password reset and avatar uploads to Supabase Storage.
+
+---
+
+## Known gotchas
+
+A few things that will trip up a new dev exploring this repo for the first time:
+
+- **Two `prisma/` folders.** `backend/prisma/` is canonical — it holds `schema.prisma` and the real migration history. There is also a stray top-level `prisma/migrations/20260628_add_ai_generation/` folder left over from a migration that was run from the wrong working directory. The `AIGeneration` model it describes **is** present in `backend/prisma/schema.prisma`, but don't add new migrations to the root folder — always run Prisma commands against `backend/prisma/`.
+- **`AGENTS.md` vs `CLAUDE.md` disagree on forms.** `AGENTS.md` (root) claims the frontend uses React Hook Form + Zod; it doesn't — there are zero `react-hook-form` imports in the codebase and neither package is a dependency. `CLAUDE.md` is correct: forms are plain controlled React components. Treat `CLAUDE.md` as authoritative and consider deleting/updating `AGENTS.md`.
+- **`lift-design-system/`** is a separate sub-project with its own `README.md` — it isn't wired into the main app's build and can generally be ignored unless you're working on shared design tokens/components.
+- **`docs/`** holds UML-style class/ERD/sequence diagrams and use-case specs. These are design references, not guaranteed to be in sync with the current schema — cross-check against `backend/prisma/schema.prisma` for anything load-bearing.
+- **AI generation requires a live API key.** Without `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` + `AI_PROVIDER=openai`), the `/api/ai/*` routes throw on first call — everything else in the app runs fine without them.
+
+---
+
+## Deployment
+
+Production runs the backend under **PM2** via `ecosystem.config.js` (process name `yeahbuddy`, deployed to `backend.hominhduc.me`). From the repo root:
+
+```bash
+pm2 start ecosystem.config.js
+pm2 save && pm2 startup   # survive reboots
+```
+
+The process `cwd` is `backend/`, so `backend/.env` is what gets read in production — the values in `ecosystem.config.js` pin a few runtime defaults and override stale PM2-cached env vars. The frontend is deployed separately (see `.vercelignore` — Vercel-oriented).
 
 ---
 
@@ -419,6 +486,8 @@ Open http://localhost:3000 and sign up / log in.
 5. Map row fields: `startedAt`, `plannedDate`, `traineeName`, `coachName`, `workoutName`, `exerciseName`, `setNumber`, `targetReps`, `actualReps`, `weight`, `rir`, `completed`, `totalVolume`, `notes`.
 6. Activate the workflow and restart the backend.
 7. Open Progress export or Coach trainee workout logs and click **Export to Google Sheets**.
+
+> Workouts and body-weight history can also be exported directly to Excel from the UI (`lib/workout-export-excel.ts`, `components/weight-tracking-export-excel.ts`) without any n8n setup.
 
 ---
 
