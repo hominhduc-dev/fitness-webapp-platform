@@ -38,7 +38,7 @@ async function RoutinesContent() {
 
 export default function WorkoutPage() {
   return (
-    <main className="mx-auto max-w-[1100px] px-4 py-5 sm:px-6 sm:py-8 md:px-10">
+    <main className="mx-auto w-full max-w-[1100px] min-w-0 overflow-x-hidden px-4 py-5 sm:px-6 sm:py-8 md:px-10">
       <Suspense fallback={<RoutinesPageSkeleton />}>
         <RoutinesContent />
       </Suspense>
