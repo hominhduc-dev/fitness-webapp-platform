@@ -1221,9 +1221,10 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
 
 async function fetchWorkoutLogsForExport(
   accessToken: string,
-  options: { from: string; to: string },
+  options: { from: string; programId?: string; to: string },
 ): Promise<WorkoutLog[]> {
   const params = new URLSearchParams({ from: options.from, to: options.to })
+  if (options.programId) params.set("programId", options.programId)
   const response = await request<{ data: SerializedWorkoutLog[] }>(
     `/api/workouts/logs?${params.toString()}`,
     accessToken,
