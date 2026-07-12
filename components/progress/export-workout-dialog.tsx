@@ -50,7 +50,14 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
 
   const loadLogs = async (context: ExportContext) => {
     if (!session?.access_token) return []
-    return fetchWorkoutLogsForExport(session.access_token, { from: context.range.from, to: context.range.to })
+    // Scope to the picked program (or the sole assigned program in Week mode) so
+    // logs from other programs the trainee was on don't leak into this export.
+    const scopedProgramId = resolveProgram(context)?.id
+    return fetchWorkoutLogsForExport(session.access_token, {
+      from: context.range.from,
+      programId: scopedProgramId,
+      to: context.range.to,
+    })
   }
 
   const loadBodyMetrics = async (context: ExportContext) => {

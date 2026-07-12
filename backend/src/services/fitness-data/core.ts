@@ -5651,7 +5651,7 @@ async function createCoachCheckInForTrainee(
 
 async function listWorkoutLogsForExportTrainee(
   profile: SerializedProfile,
-  options: { from: string; to: string },
+  options: { from: string; programId?: string; to: string },
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -5667,12 +5667,21 @@ async function listWorkoutLogsForExportTrainee(
     throw new AuthServiceError("to phải sau from.", 400)
   }
 
+  // When a programId is provided, scope to that program's logs. Also include
+  // logs with programId=NULL — those are legacy or orphaned logs (workout link
+  // cleared by a program edit) that fall inside the date window and belong to
+  // this program semantically. Same pattern as the coach export.
+  const programFilter = options.programId
+    ? { OR: [{ programId: options.programId }, { programId: null }] }
+    : {}
+
   const logs = await db.workoutLog.findMany({
     include: WORKOUT_LOG_INCLUDE,
     orderBy: [{ startedAt: "asc" }, { id: "asc" }],
     where: {
       startedAt: { gte: parsedFrom, lt: parsedTo },
       userId: profile.id,
+      ...programFilter,
     },
   })
 
