@@ -20,15 +20,15 @@
   --brand-accent:        #3b82f6;
 
   /* ── Neutral ramp ──────────────────────────────────────────────────────── */
-  --ink-0:   #fafafa;    /* page background */
+  --ink-0:   #ffffff;    /* page background */
   --ink-50:  #ffffff;    /* card / raised surface */
-  --ink-100: #e2e8f0;    /* border / input */
-  --ink-150: #e2e8f0;    /* strong divider */
-  --ink-200: #cbd5e1;    /* disabled background */
-  --ink-400: #71717a;    /* muted text */
-  --ink-600: #475569;    /* secondary text */
-  --ink-800: #1e293b;    /* primary text */
-  --ink-900: #0f172a;    /* display / extreme */
+  --ink-100: #e5e5e5;    /* border / input */
+  --ink-150: #e5e5e5;    /* strong divider */
+  --ink-200: #d4d4d4;    /* disabled background */
+  --ink-400: #6b6b6b;    /* muted text */
+  --ink-600: #525252;    /* secondary text */
+  --ink-800: #171717;    /* primary text */
+  --ink-900: #0a0a0a;    /* display / extreme */
 
   /* ── Accent aliases ────────────────────────────────────────────────────── */
   --accent-color:        var(--brand-primary);
@@ -65,7 +65,7 @@
 
   --card: var(--ink-50);
   --card-foreground: var(--ink-800);
-  --surface: #f4f4f5;
+  --surface: #f5f5f5;
 
   --popover: var(--ink-50);
   --popover-foreground: var(--ink-800);
