@@ -441,7 +441,7 @@ export function RoutineBuilderDialog({
             </div>
 
             {/* ── Exercise list ─────────────────────────────────────────── */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-7">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-7">
               {error && (
                 <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
                   {error}
@@ -471,7 +471,7 @@ export function RoutineBuilderDialog({
                       className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
                     >
                       <p className="truncate text-sm font-medium text-foreground">{ex.displayName}</p>
-                      <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                      <p className="mt-0.5 truncate font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
                         {ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}
                         <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
                       </p>
@@ -503,7 +503,7 @@ export function RoutineBuilderDialog({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <FieldNum
                       label={messages.workoutPage.set}
                       value={String(ex.sets)}
@@ -564,12 +564,12 @@ export function RoutineBuilderDialog({
             </div>
 
             {/* ── Footer ───────────────────────────────────────────────── */}
-            <div className="flex justify-end gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:pb-3">
-              <Button variant="ghost" onClick={() => setOpen(false)}>
+            <div className="flex flex-col-reverse gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:flex-row sm:justify-end sm:px-7 sm:pb-3">
+              <Button variant="ghost" className="w-full sm:w-auto" onClick={() => setOpen(false)}>
                 {messages.common.cancel}
               </Button>
               <Button
-                className="bg-foreground text-background hover:bg-foreground/90"
+                className="w-full bg-foreground text-background hover:bg-foreground/90 sm:w-auto"
                 onClick={() => void handleSave()}
                 disabled={!canSave}
               >
