@@ -45,7 +45,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange storageKey="yeahbuddy-theme">
+        <ThemeProvider>
           {children}
         </ThemeProvider>
         <Analytics />
