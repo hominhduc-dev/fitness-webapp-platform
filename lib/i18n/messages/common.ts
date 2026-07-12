@@ -2,6 +2,10 @@ export const commonMessages = {
   en: {
     common: {
       language: "Language",
+      theme: "Theme",
+      themeLight: "Light",
+      themeDark: "Dark",
+      themeSystem: "System",
       english: "EN",
       vietnamese: "VI",
       openNavigation: "Open navigation",
@@ -62,6 +66,10 @@ export const commonMessages = {
   vi: {
     common: {
       language: "Ngôn ngữ",
+      theme: "Giao diện",
+      themeLight: "Sáng",
+      themeDark: "Tối",
+      themeSystem: "Hệ thống",
       english: "EN",
       vietnamese: "VI",
       openNavigation: "Mở điều hướng",

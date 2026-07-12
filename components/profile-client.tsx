@@ -3,10 +3,11 @@
 import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Bell, Camera, Flame, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
+import { AlertTriangle, Bell, Camera, Flame, Loader2, Lock, Monitor, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -636,6 +637,18 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             </div>
             <p className="text-sm text-muted-foreground">{messages.profile.dailyCalorieGoalCopy}</p>
           </div>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-6 flex items-center gap-2">
+          <Monitor className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">{messages.profile.appearance}</h2>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">{messages.profile.appearanceCopy}</p>
+          <ThemeToggle className="w-full sm:w-auto" />
         </div>
       </div>
 
