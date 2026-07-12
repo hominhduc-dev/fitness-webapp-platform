@@ -287,46 +287,46 @@
   color-scheme: dark;
 
   /* ── Brand palette ─────────────────────────────────────────────────────── */
-  --brand-primary:       #3366ff;
-  --brand-primary-hover: #254ce6;
-  --brand-primary-press: #1e40af;
-  --brand-primary-soft:  #1e3a8a;
-  --brand-secondary:     #4ade80;
+  --brand-primary:       #38bdf8;
+  --brand-primary-hover: #7dd3fc;
+  --brand-primary-press: #0ea5e9;
+  --brand-primary-soft:  #082f49;
+  --brand-secondary:     #34d399;
   --brand-accent:        #60a5fa;
 
   /* ── Neutral ramp ──────────────────────────────────────────────────────── */
-  --ink-0:   #0f172a;    /* page background */
-  --ink-50:  #1e293b;    /* card / raised surface */
-  --ink-100: #334155;    /* border / input */
-  --ink-150: #334155;    /* strong divider */
-  --ink-200: #475569;    /* disabled background */
-  --ink-400: #cbd5e1;    /* muted text */
-  --ink-600: #e2e8f0;    /* secondary text */
-  --ink-800: #f1f5f9;    /* primary text */
-  --ink-900: #ffffff;    /* display / strongest text */
+  --ink-0:   #0b0d12;    /* page background */
+  --ink-50:  #12151d;    /* card / raised surface */
+  --ink-100: #2a3040;    /* border / input */
+  --ink-150: #2a3040;    /* strong divider */
+  --ink-200: #3a4252;    /* disabled background */
+  --ink-400: #9aa4b2;    /* muted text */
+  --ink-600: #c2cad6;    /* secondary text */
+  --ink-800: #e6eaf2;    /* primary text */
+  --ink-900: #f8fafc;    /* display / strongest text */
 
   /* ── Accent aliases ────────────────────────────────────────────────────── */
   --accent-color:       var(--brand-primary);
   --accent-hover-color: var(--brand-primary-hover);
   --accent-press-color: var(--brand-primary-press);
   --accent-soft-color:  var(--brand-primary-soft);
-  --accent-ink-color:   #dbeafe;
+  --accent-ink-color:   #bae6fd;
 
   /* ── Semantic soft tints (dark) ─────────────────────────────────────────── */
   --ok:          var(--brand-secondary);
-  --ok-soft:     #14532d;
-  --warn:        #fcd34d;
+  --ok-soft:     #052e24;
+  --warn:        #fbbf24;
   --warn-soft:   #713f12;
   --info-token:  var(--brand-accent);
-  --info-soft:   #1e3a8a;
-  --danger:      #f87171;
-  --danger-soft: #450a0a;
+  --info-soft:   #0b2a4a;
+  --danger:      #fb7185;
+  --danger-soft: #4c0519;
 
   /* ── shadcn / Radix tokens ── */
   --primary: var(--accent-color);
   --primary-hover: var(--accent-hover-color);
   --primary-pressed: var(--accent-press-color);
-  --primary-foreground: #ffffff;
+  --primary-foreground: #06111f;
 
   --secondary: var(--surface);
   --secondary-hover: var(--ink-100);
@@ -340,7 +340,7 @@
 
   --card: var(--ink-50);
   --card-foreground: var(--ink-800);
-  --surface: #1a202c;
+  --surface: #171b24;
 
   --popover: var(--ink-50);
   --popover-foreground: var(--ink-800);
@@ -358,7 +358,7 @@
   --info: var(--info-token);
   --destructive: var(--danger);
   --destructive-soft: var(--danger-soft);
-  --destructive-foreground: #0f172a;
+  --destructive-foreground: #06111f;
 
   --border: var(--ink-100);
   --input: var(--ink-150);
@@ -367,13 +367,13 @@
   --chart-1: var(--brand-primary);
   --chart-2: var(--brand-secondary);
   --chart-3: var(--warn);
-  --chart-4: var(--brand-accent);
-  --chart-5: #a78bfa;
+  --chart-4: #a78bfa;
+  --chart-5: var(--danger);
 
-  --sidebar: var(--surface);
+  --sidebar: #0f131b;
   --sidebar-foreground: var(--ink-800);
   --sidebar-primary: var(--accent-color);
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: var(--ink-100);
   --sidebar-accent-foreground: var(--ink-800);
   --sidebar-border: var(--ink-100);
