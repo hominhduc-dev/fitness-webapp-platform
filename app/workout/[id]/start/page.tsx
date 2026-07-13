@@ -409,6 +409,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         type="number"
         inputMode="decimal"
         value={weight}
+        disabled={completed}
         onChange={(e) => {
           setWeight(e.target.value)
           onChange({ weight: Number.parseFloat(e.target.value) || undefined })
@@ -421,6 +422,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          "disabled:cursor-not-allowed",
           completed
             ? "border-transparent bg-transparent text-muted-foreground"
             : "border-border bg-background text-foreground",
@@ -433,6 +435,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         type="number"
         inputMode="numeric"
         value={reps}
+        disabled={completed}
         onChange={(e) => {
           setReps(e.target.value)
           onChange({ actualReps: Number.parseInt(e.target.value) || undefined })
@@ -445,6 +448,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          "disabled:cursor-not-allowed",
           completed
             ? "border-transparent bg-transparent text-muted-foreground"
             : "border-border bg-background text-foreground",
@@ -457,6 +461,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         type="number"
         inputMode="numeric"
         value={rir}
+        disabled={completed}
         onChange={(e) => {
           setRir(e.target.value)
           onChange({ rir: e.target.value.trim() ? Number.parseInt(e.target.value) : undefined })
@@ -471,6 +476,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+          "disabled:cursor-not-allowed",
           completed
             ? "border-transparent bg-transparent text-muted-foreground"
             : "border-border bg-background text-foreground",
@@ -584,6 +590,7 @@ interface LiftExerciseBlockProps {
   exercise: WorkoutExercise
   programSetTargets: Map<string, ProgramSetTarget>
   weightUnit: "kg" | "lbs"
+  isCurrent: boolean
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
   onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
   onCollapse?: () => void
@@ -597,6 +604,7 @@ function LiftExerciseBlock({
   exercise,
   programSetTargets,
   weightUnit,
+  isCurrent,
   onSetUpdate,
   onSetComplete,
   onCollapse,
@@ -608,7 +616,7 @@ function LiftExerciseBlock({
   const { messages } = useLocale()
   const completedCount = exercise.sets.filter((s) => s.completed).length
   const allSetsCompleted = exercise.sets.length > 0 && completedCount === exercise.sets.length
-  const [collapsed, setCollapsed] = useState(allSetsCompleted)
+  const [collapsed, setCollapsed] = useState(allSetsCompleted || !isCurrent)
   const [coachUpdateOpen, setCoachUpdateOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(exercise.notes ?? "")
@@ -628,8 +636,12 @@ function LiftExerciseBlock({
   }, [onCollapse])
 
   useEffect(() => {
-    setCollapsed(allSetsCompleted)
-  }, [allSetsCompleted])
+    if (allSetsCompleted) {
+      setCollapsed(true)
+      return
+    }
+    setCollapsed(!isCurrent)
+  }, [allSetsCompleted, isCurrent])
 
   useEffect(() => {
     if (!hasRenderedRef.current) {
@@ -647,7 +659,14 @@ function LiftExerciseBlock({
   }, [collapsed])
 
   return (
-    <div className="mb-4 min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
+    <div
+      className={cn(
+        "mb-4 min-w-0 overflow-hidden rounded-[10px] border transition-colors duration-[180ms]",
+        allSetsCompleted
+          ? "border-[color-mix(in_srgb,var(--success)_45%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)]"
+          : "border-border bg-card",
+      )}
+    >
       {/* Block header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-4 md:px-5">
         <div className="min-w-0 flex-1">
@@ -1285,6 +1304,7 @@ export default function WorkoutStartPage() {
               exercise={exercise}
               programSetTargets={programSetTargetsRef.current}
               weightUnit={weightUnit}
+              isCurrent={index === currentExerciseIndex}
               onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
               onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
               onCollapse={() => {
