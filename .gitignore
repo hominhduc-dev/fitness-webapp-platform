@@ -1,5 +1,6 @@
 node_modules/
 .next/
+outputs/
 backend/node_modules/
 backend/dist/
 .env

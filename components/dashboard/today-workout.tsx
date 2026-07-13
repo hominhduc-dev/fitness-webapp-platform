@@ -18,7 +18,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
   if (!workout) {
     return (
-      <div className="flex flex-col rounded-[10px] border border-border bg-card p-5">
+      <div className="flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
         <div className="flex flex-1 min-h-[220px] flex-col items-center justify-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-[10px] bg-muted">
@@ -32,13 +32,13 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
   }
 
   return (
-    <div className="flex flex-col rounded-[10px] border border-border bg-card p-5">
+    <div className="flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
       <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
 
-      <div className="flex flex-1 flex-col justify-between gap-5">
+      <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">
         {/* Workout header */}
-        <div>
-          <h3 className="text-[1.35rem] font-semibold leading-snug tracking-[-0.02em] text-foreground">
+        <div className="min-w-0">
+          <h3 className="truncate text-[1.35rem] font-semibold leading-snug text-foreground">
             {workout.name}
           </h3>
           <p className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
@@ -48,9 +48,9 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
         </div>
 
         {/* Exercise list */}
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           {workout.exercises.slice(0, 4).map((exercise) => (
-            <div key={exercise.id} className="flex items-baseline justify-between gap-3">
+            <div key={exercise.id} className="flex min-w-0 items-baseline justify-between gap-3">
               <span className="min-w-0 truncate text-[13px] text-foreground">
                 {formatExerciseVariationLabel({
                   exerciseName: exercise.exercise.name,
