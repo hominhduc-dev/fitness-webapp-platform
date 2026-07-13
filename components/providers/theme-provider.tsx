@@ -15,6 +15,7 @@ export const themeStorageKey = "yeahbuddy-theme"
 const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#ffffff"
 const darkThemeColor = "#0b0d12"
+const defaultTheme: ThemeMode = "light"
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
@@ -25,9 +26,9 @@ function isThemeMode(value: string | null): value is ThemeMode {
 function getStoredTheme(): ThemeMode {
   try {
     const storedTheme = window.localStorage.getItem(themeStorageKey)
-    return isThemeMode(storedTheme) ? storedTheme : "system"
+    return isThemeMode(storedTheme) ? storedTheme : defaultTheme
   } catch {
-    return "system"
+    return defaultTheme
   }
 }
 
@@ -49,9 +50,9 @@ function applyThemeToDocument(resolvedTheme: ResolvedTheme) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>("system")
+  const [theme, setThemeState] = useState<ThemeMode>(defaultTheme)
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light")
-  const themeRef = useRef<ThemeMode>("system")
+  const themeRef = useRef<ThemeMode>(defaultTheme)
 
   const applyTheme = useCallback((nextTheme: ThemeMode) => {
     const nextResolvedTheme = resolveTheme(nextTheme)
