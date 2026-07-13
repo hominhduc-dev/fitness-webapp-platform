@@ -339,13 +339,19 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     })
   }
 
-  const prevFromLog = set.previousPerformance
-    ? `${set.previousPerformance.weight ?? "—"} × ${set.previousPerformance.reps ?? "—"}`
-    : null
-  const prevFromTarget = programTarget
-    ? `${programTarget.weight ?? "—"} × ${formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })}`
-    : null
-  const prevLabel = prevFromLog ?? prevFromTarget ?? "— · —"
+  // Prev column mixes two sources: weight from the trainee's last logged set of
+  // this exercise in the same program, and reps from the coach's programmed rep
+  // range for this program. Weight shows progression; the range shows today's
+  // target. Each side falls back to the other source when one is missing.
+  const prevWeight = set.previousPerformance?.weight ?? programTarget?.weight
+  const repsPart = programTarget
+    ? formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })
+    : set.previousPerformance?.reps != null
+      ? String(set.previousPerformance.reps)
+      : null
+  const weightPart = prevWeight != null ? String(prevWeight) : null
+  const prevLabel =
+    weightPart || repsPart ? `${weightPart ?? "—"} × ${repsPart ?? "—"}` : "— · —"
 
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
