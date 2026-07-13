@@ -1301,6 +1301,22 @@ async function deleteWorkoutLog(accessToken: string, workoutId: string, logId: s
   })
 }
 
+async function swapWorkoutExercise(
+  accessToken: string,
+  workoutId: string,
+  workoutExerciseId: string,
+  newVariationId: string,
+): Promise<{ forkedProgramId: string | null; workoutId: string }> {
+  return request<{ forkedProgramId: string | null; workoutId: string }>(
+    `/api/workouts/${workoutId}/exercises/${workoutExerciseId}/swap`,
+    accessToken,
+    {
+      body: JSON.stringify({ variationId: newVariationId }),
+      method: "POST",
+    },
+  )
+}
+
 async function fetchExercises(
   accessToken: string,
   options?: { equipment?: string; muscleGroup?: string; search?: string },
@@ -2016,6 +2032,7 @@ export {
   markAllNotificationsRead,
   markNotificationRead,
   restoreCoachProgram,
+  swapWorkoutExercise,
   unassignCoachProgram,
   updateCoachExerciseRequest,
   updateCoachProgram,
