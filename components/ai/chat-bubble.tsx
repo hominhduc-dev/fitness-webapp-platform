@@ -78,7 +78,7 @@ function AIChatBubble() {
       <button
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "fixed bottom-5 right-5 z-50 flex size-14 items-center justify-center rounded-full shadow-lg transition-all hover:scale-105",
+          "fixed bottom-5 right-5 z-40 flex size-14 items-center justify-center rounded-full shadow-lg transition-all hover:scale-105",
           open
             ? "bg-muted text-muted-foreground"
             : "bg-primary text-primary-foreground",
@@ -89,7 +89,7 @@ function AIChatBubble() {
 
       {/* Chat Panel */}
       {open && (
-        <div className="fixed bottom-24 right-5 z-50 flex h-[min(520px,calc(100vh-120px))] w-[min(380px,calc(100vw-40px))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+        <div className="fixed bottom-24 right-5 z-40 flex h-[min(520px,calc(100vh-120px))] w-[min(380px,calc(100vw-40px))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
           {/* Header */}
           <div className="flex items-center gap-2.5 border-b bg-primary/5 px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
