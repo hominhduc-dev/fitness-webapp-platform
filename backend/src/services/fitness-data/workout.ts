@@ -8,5 +8,6 @@ export {
   listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
   resetCurrentTraineeData,
+  swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
 } from "./core"

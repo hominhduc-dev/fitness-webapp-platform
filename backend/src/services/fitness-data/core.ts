@@ -5078,6 +5078,322 @@ async function adjustCoachProgramForTrainee(
   return serializeProgram(adjustedProgram as ProgramRecord)
 }
 
+// ─── Swap exercise for a trainee ─────────────────────────────────────────────
+//
+// Trainee (mid-workout) asks to replace one exercise with a same-movement
+// alternative. Scope of the change: this workoutExercise + every subsequent
+// workoutExercise in this workout using the same OLD variation + every
+// workoutExercise in future workouts of the same program using that variation.
+// Past workouts and already-logged sessions are untouched.
+//
+// If the workout belongs to a program the trainee doesn't own (i.e. a coach's
+// program), we fork the whole program into a new one owned by the coach, move
+// the trainee's assignment + logs to the fork, then apply the swap on the
+// fork. The coach's original stays pristine so their other trainees are
+// unaffected. A metadata-tagged notification tells the coach it happened.
+//
+// If it's the trainee's own personal workout program, we patch in-place with
+// no fork and no notification.
+async function swapExerciseForTraineeFromWorkout(
+  profile: SerializedProfile,
+  input: {
+    newVariationId: string
+    workoutExerciseId: string
+    workoutId: string
+  },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const workout = await db.workout.findFirst({
+    include: {
+      exercises: {
+        include: WORKOUT_EXERCISE_INCLUDE,
+        orderBy: { order: "asc" },
+      },
+      program: true,
+    },
+    where: {
+      id: input.workoutId,
+      program: {
+        assignments: {
+          some: { userId: profile.id },
+        },
+      },
+    },
+  })
+
+  if (!workout) {
+    throw new AuthServiceError("Không tìm thấy workout.", 404)
+  }
+
+  const targetExercise = workout.exercises.find((exercise) => exercise.id === input.workoutExerciseId)
+  if (!targetExercise) {
+    throw new AuthServiceError("Không tìm thấy bài tập trong workout.", 404)
+  }
+
+  const oldVariationId = targetExercise.variationId
+  if (oldVariationId === input.newVariationId) {
+    throw new AuthServiceError("Variation mới trùng variation hiện tại.", 400)
+  }
+
+  const newVariation = await db.variation.findUnique({
+    include: { exercise: true },
+    where: { id: input.newVariationId },
+  })
+  if (!newVariation) {
+    throw new AuthServiceError("Không tìm thấy variation mới.", 400)
+  }
+
+  const targetOrder = targetExercise.order
+
+  // Personal workout (trainee owns the program) — no fork, no notification.
+  if (!workout.program || workout.program.createdById === profile.id) {
+    const workoutIds = workout.programId
+      ? (await db.workout.findMany({
+          select: { id: true, scheduledDay: true, weekIndex: true },
+          where: { programId: workout.programId },
+        })).filter((candidate) =>
+          candidate.id === workout.id ||
+          isFutureWorkout(candidate, workout),
+        ).map((candidate) => candidate.id)
+      : [workout.id]
+
+    await db.workoutExercise.updateMany({
+      data: { variationId: input.newVariationId },
+      where: {
+        variationId: oldVariationId,
+        workoutId: { in: workoutIds },
+        ...(workout.programId
+          ? {}
+          : { workoutId: workout.id }),
+        // For the current workout only apply from targetOrder onward; for
+        // other workouts, apply to every matching variation.
+      },
+    })
+
+    // updateMany can't express "in current workout: order >= targetOrder,
+    // elsewhere: all". Correct that after the fact by re-checking earlier
+    // rows in the current workout: any occurrence of oldVariationId before
+    // targetOrder must be reverted.
+    if (workoutIds.length > 0) {
+      await db.workoutExercise.updateMany({
+        data: { variationId: oldVariationId },
+        where: {
+          order: { lt: targetOrder },
+          variationId: input.newVariationId,
+          workoutId: workout.id,
+        },
+      })
+    }
+
+    return {
+      forkedProgramId: null,
+      workoutId: workout.id,
+    }
+  }
+
+  // Coach's program — fork.
+  const originalProgram = workout.program
+  const originalProgramId = originalProgram.id
+
+  const [existingAssignment, fullProgram] = await Promise.all([
+    db.programAssignment.findUnique({
+      where: { programId_userId: { programId: originalProgramId, userId: profile.id } },
+    }),
+    db.program.findUnique({
+      include: {
+        workouts: {
+          include: {
+            exercises: {
+              include: { sets: true },
+              orderBy: { order: "asc" },
+            },
+          },
+          orderBy: [{ weekIndex: "asc" }, { scheduledDay: "asc" }, { createdAt: "asc" }],
+        },
+      },
+      where: { id: originalProgramId },
+    }),
+  ])
+
+  if (!existingAssignment || !fullProgram) {
+    throw new AuthServiceError("Không tìm thấy assignment gốc.", 404)
+  }
+
+  const workoutIdMap = new Map<string, string>()
+  const workoutExerciseIdMap = new Map<string, string>()
+
+  const workoutRows: Prisma.WorkoutCreateManyInput[] = []
+  const exerciseRows: Prisma.WorkoutExerciseCreateManyInput[] = []
+  const setRows: Prisma.ExerciseSetCreateManyInput[] = []
+
+  const forkedProgramId = randomUUID()
+
+  for (const sourceWorkout of fullProgram.workouts) {
+    const newWorkoutId = randomUUID()
+    workoutIdMap.set(sourceWorkout.id, newWorkoutId)
+
+    workoutRows.push({
+      duration: sourceWorkout.duration ?? undefined,
+      id: newWorkoutId,
+      kind: sourceWorkout.kind ?? undefined,
+      name: sourceWorkout.name,
+      notes: sourceWorkout.notes ?? undefined,
+      programId: forkedProgramId,
+      scheduledDate: sourceWorkout.scheduledDate ?? undefined,
+      scheduledDay: sourceWorkout.scheduledDay ?? undefined,
+      weekIndex: sourceWorkout.weekIndex ?? undefined,
+    })
+
+    const shouldSwapWholeWorkout = isFutureWorkout(sourceWorkout, workout)
+    const isCurrentWorkout = sourceWorkout.id === workout.id
+
+    for (const sourceExercise of sourceWorkout.exercises) {
+      const newExerciseId = randomUUID()
+      workoutExerciseIdMap.set(sourceExercise.id, newExerciseId)
+
+      const shouldSwap =
+        sourceExercise.variationId === oldVariationId &&
+        (shouldSwapWholeWorkout || (isCurrentWorkout && sourceExercise.order >= targetOrder))
+
+      exerciseRows.push({
+        id: newExerciseId,
+        notes: sourceExercise.notes ?? undefined,
+        order: sourceExercise.order,
+        restTime: sourceExercise.restTime ?? undefined,
+        variationId: shouldSwap ? input.newVariationId : sourceExercise.variationId,
+        workoutId: newWorkoutId,
+      })
+
+      for (const sourceSet of sourceExercise.sets) {
+        setRows.push({
+          actualReps: sourceSet.actualReps ?? undefined,
+          completed: sourceSet.completed,
+          id: randomUUID(),
+          notes: sourceSet.notes ?? undefined,
+          rir: sourceSet.rir ?? undefined,
+          setNumber: sourceSet.setNumber,
+          targetReps: sourceSet.targetReps,
+          targetRepsMin: sourceSet.targetRepsMin ?? undefined,
+          weight: sourceSet.weight ?? undefined,
+          workoutExerciseId: newExerciseId,
+        })
+      }
+    }
+  }
+
+  const swappedWorkoutIds = Array.from(workoutIdMap.entries())
+    .filter(([sourceWorkoutId]) => {
+      const source = fullProgram.workouts.find((candidate) => candidate.id === sourceWorkoutId)
+      if (!source) return false
+      if (source.id === workout.id) return true
+      return isFutureWorkout(source, workout)
+    })
+    .map(([, newWorkoutId]) => newWorkoutId)
+
+  await retryTransaction(() => db.$transaction(async (transaction) => {
+    await transaction.program.create({
+      data: {
+        createdById: originalProgram.createdById,
+        description: originalProgram.description ?? undefined,
+        difficulty: originalProgram.difficulty,
+        duration: originalProgram.duration,
+        id: forkedProgramId,
+        isAIGenerated: originalProgram.isAIGenerated,
+        name: originalProgram.name,
+        workoutsPerWeek: originalProgram.workoutsPerWeek,
+      },
+    })
+
+    await transaction.programAssignment.createMany({
+      data: [{
+        assignedAt: existingAssignment.assignedAt,
+        programId: forkedProgramId,
+        userId: profile.id,
+      }],
+    })
+
+    if (workoutRows.length > 0) {
+      await transaction.workout.createMany({ data: workoutRows })
+    }
+    if (exerciseRows.length > 0) {
+      await transaction.workoutExercise.createMany({ data: exerciseRows })
+    }
+    if (setRows.length > 0) {
+      await transaction.exerciseSet.createMany({ data: setRows })
+    }
+
+    await transaction.programAssignment.delete({
+      where: {
+        programId_userId: {
+          programId: originalProgramId,
+          userId: profile.id,
+        },
+      },
+    })
+
+    // Carry log history over so program-scoped queries (prev-performance,
+    // exports) still see this trainee's past sessions after the fork.
+    await transaction.workoutLog.updateMany({
+      data: { programId: forkedProgramId },
+      where: {
+        programId: originalProgramId,
+        userId: profile.id,
+      },
+    })
+
+    await transaction.notification.create({
+      data: {
+        channel: "in_app",
+        message: `Trainee ${profile.name} swapped an exercise in ${originalProgram.name}.`,
+        metadata: {
+          forkedProgramId,
+          kind: "trainee_swapped_exercise",
+          newExerciseName: newVariation.exercise.name,
+          newVariationId: input.newVariationId,
+          oldExerciseName: targetExercise.variation.exercise.name,
+          oldVariationId,
+          originalProgramId,
+          swappedAt: new Date().toISOString(),
+          swappedWorkoutIds,
+          traineeId: profile.id,
+          traineeName: profile.name,
+        },
+        relatedEntityId: forkedProgramId,
+        relatedEntityType: "program",
+        scheduledFor: new Date(),
+        sentAt: new Date(),
+        status: NotificationStatus.sent,
+        title: "Trainee replaced an exercise",
+        type: NotificationType.general,
+        userId: originalProgram.createdById,
+      },
+    })
+  }, {
+    maxWait: 15000,
+    timeout: 60000,
+  }))
+
+  return {
+    forkedProgramId,
+    workoutId: workoutIdMap.get(workout.id) ?? workout.id,
+  }
+}
+
+function isFutureWorkout(
+  candidate: { scheduledDay: number | null; weekIndex: number | null },
+  reference: { scheduledDay: number | null; weekIndex: number | null },
+) {
+  const candidateWeek = candidate.weekIndex ?? 0
+  const referenceWeek = reference.weekIndex ?? 0
+  if (candidateWeek > referenceWeek) return true
+  if (candidateWeek < referenceWeek) return false
+  const candidateDay = candidate.scheduledDay ?? 0
+  const referenceDay = reference.scheduledDay ?? 0
+  return candidateDay > referenceDay
+}
+
 async function deleteCoachProgram(profile: SerializedProfile, programId: string) {
   const db = ensurePrisma()
   assertCoach(profile)
@@ -6641,6 +6957,7 @@ export {
   resetCurrentTraineeData,
   restoreCoachProgram,
   submitCoachExerciseImportRequest,
+  swapExerciseForTraineeFromWorkout,
   unassignCoachProgramFromTrainee,
   updateCoachExercise,
   updateCoachProgram,

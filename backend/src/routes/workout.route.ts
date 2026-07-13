@@ -11,6 +11,7 @@ import {
   getWorkoutDetailForTrainee,
   listWorkoutLogsForExportTrainee,
   listWorkoutsForTrainee,
+  swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
 } from "../services/fitness-data.service"
 import { getAccessToken, sendError } from "./route.utils"
@@ -176,6 +177,30 @@ workoutRouter.post("/:workoutId/logs", async (req, res) => {
     res.status(201).json({
       log,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+workoutRouter.post("/:workoutId/exercises/:workoutExerciseId/swap", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const body = typeof req.body === "object" && req.body !== null ? req.body : {}
+    const newVariationId = typeof (body as { variationId?: unknown }).variationId === "string"
+      ? String((body as { variationId: string }).variationId)
+      : ""
+    if (!newVariationId) {
+      res.status(400).json({ error: { message: "variationId là bắt buộc." } })
+      return
+    }
+
+    const result = await swapExerciseForTraineeFromWorkout(profile.profile, {
+      newVariationId,
+      workoutExerciseId: String(req.params.workoutExerciseId),
+      workoutId: String(req.params.workoutId),
+    })
+
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }

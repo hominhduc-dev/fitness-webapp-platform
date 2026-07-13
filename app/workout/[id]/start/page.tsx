@@ -9,6 +9,7 @@ import {
   FileText,
   MoreHorizontal,
   Plus,
+  Repeat,
   Search,
   Trash2,
   TrendingUp,
@@ -29,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
-import { createWorkoutLog, fetchExercises, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { createWorkoutLog, fetchExercises, fetchWorkoutDetail, swapWorkoutExercise } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"
 import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
@@ -597,6 +598,7 @@ interface LiftExerciseBlockProps {
   onAddSet: (exerciseId: string) => void
   onRemoveSet: (exerciseId: string, setId: string) => void
   onRemoveExercise: (exerciseId: string) => void
+  onRequestReplace: (exercise: WorkoutExercise) => void
   onExerciseNoteChange: (exerciseId: string, note: string) => void
 }
 
@@ -611,6 +613,7 @@ function LiftExerciseBlock({
   onAddSet,
   onRemoveSet,
   onRemoveExercise,
+  onRequestReplace,
   onExerciseNoteChange,
 }: LiftExerciseBlockProps) {
   const { messages } = useLocale()
@@ -738,6 +741,10 @@ function LiftExerciseBlock({
             <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
               <FileText className="mr-2 h-4 w-4" />
               {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRequestReplace(exercise)}>
+              <Repeat className="mr-2 h-4 w-4" />
+              {messages.workoutPage.swapExercise}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -889,6 +896,11 @@ export default function WorkoutStartPage() {
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVariationOption[]>([])
   const [loadingLibrary, setLoadingLibrary] = useState(false)
+  // Replace exercise dialog — tracks which exercise the trainee wants to swap.
+  const [replacingExercise, setReplacingExercise] = useState<WorkoutExercise | null>(null)
+  const [replacementCandidates, setReplacementCandidates] = useState<ExerciseVariationOption[]>([])
+  const [loadingReplacements, setLoadingReplacements] = useState(false)
+  const [swapInFlight, setSwapInFlight] = useState(false)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -1081,6 +1093,75 @@ export default function WorkoutStartPage() {
     }
     setExercises((prev) => [...prev, newExercise])
     setShowAddExercise(false)
+  }
+
+  const handleOpenReplace = async (exercise: WorkoutExercise) => {
+    setReplacingExercise(exercise)
+    setReplacementCandidates([])
+    if (!session?.access_token) return
+    setLoadingReplacements(true)
+    try {
+      const list = await fetchExercises(session.access_token, { muscleGroup: exercise.exercise.muscleGroup })
+      setReplacementCandidates(list)
+    } catch {
+      // Non-critical — user will see empty list.
+    } finally {
+      setLoadingReplacements(false)
+    }
+  }
+
+  const handleReplacePick = async (variation: ExerciseVariationOption) => {
+    if (!replacingExercise || !session?.access_token || !workoutId) return
+    if (variation.id === replacingExercise.variation.id) {
+      setReplacingExercise(null)
+      return
+    }
+
+    setSwapInFlight(true)
+    setError(null)
+    try {
+      const response = await swapWorkoutExercise(
+        session.access_token,
+        workoutId,
+        replacingExercise.id,
+        variation.id,
+      )
+
+      // Patch the current card client-side so the label flips immediately.
+      const patchExercise = (list: Workout["exercises"]) =>
+        list.map((ex) =>
+          ex.id === replacingExercise.id
+            ? {
+                ...ex,
+                exercise: {
+                  id: variation.exerciseId,
+                  muscleGroup: variation.muscleGroup,
+                  name: variation.exerciseName,
+                },
+                variation: {
+                  id: variation.id,
+                  isDefault: variation.isDefault,
+                  name: variation.variationName,
+                  equipment: variation.equipment,
+                  sortOrder: variation.sortOrder,
+                },
+              }
+            : ex,
+        )
+      setExercises(patchExercise)
+      setWorkout((prev) => (prev ? { ...prev, exercises: patchExercise(prev.exercises) } : prev))
+      setReplacingExercise(null)
+
+      // If the swap forked the coach's program, the workoutId changed.
+      // Redirect so subsequent refetches / logs hit the trainee's fork.
+      if (response.forkedProgramId && response.workoutId !== workoutId) {
+        router.replace(`/workout/${response.workoutId}/start`)
+      }
+    } catch (swapError) {
+      setError(swapError instanceof Error ? swapError.message : "Không thể đổi bài tập.")
+    } finally {
+      setSwapInFlight(false)
+    }
   }
 
   const handleRemoveSet = (exerciseId: string, setId: string) => {
@@ -1316,6 +1397,7 @@ export default function WorkoutStartPage() {
               onAddSet={handleAddSet}
               onRemoveSet={handleRemoveSet}
               onRemoveExercise={handleRemoveExercise}
+              onRequestReplace={handleOpenReplace}
               onExerciseNoteChange={handleExerciseNoteChange}
             />
           </div>
@@ -1435,6 +1517,25 @@ export default function WorkoutStartPage() {
           existingVariationIds={exercises.map((ex) => ex.variation.id)}
           onPick={handleAddExercise}
           onClose={() => setShowAddExercise(false)}
+        />
+      ) : null}
+
+      {/* ── Replace Exercise dialog ────────────────────────────────────────
+         Picker filtered to same muscle group. On pick, `handleReplacePick`
+         calls the swap API — if the workout belongs to a coach's program,
+         the backend forks the program for this trainee and returns the new
+         workout id, which we redirect to. */}
+      {replacingExercise ? (
+        <AddExerciseModal
+          exercises={replacementCandidates}
+          loading={loadingReplacements || swapInFlight}
+          currentVariationId={replacingExercise.variation.id}
+          existingVariationIds={exercises
+            .filter((ex) => ex.id !== replacingExercise.id)
+            .map((ex) => ex.variation.id)}
+          title={messages.workoutPage.swapExercise}
+          onPick={(pick) => { void handleReplacePick(pick) }}
+          onClose={() => { if (!swapInFlight) setReplacingExercise(null) }}
         />
       ) : null}
     </div>
