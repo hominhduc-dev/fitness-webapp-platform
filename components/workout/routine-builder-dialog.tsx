@@ -503,7 +503,7 @@ export function RoutineBuilderDialog({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
                     <FieldNum
                       label={messages.workoutPage.set}
                       value={String(ex.sets)}
