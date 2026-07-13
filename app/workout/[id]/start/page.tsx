@@ -352,6 +352,13 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
   const weightPart = prevWeight != null ? String(prevWeight) : null
   const prevLabel =
     weightPart || repsPart ? `${weightPart ?? "—"} × ${repsPart ?? "—"}` : "— · —"
+  // Passive progression hint: if last session's reps exceeded the coach's upper
+  // bound, tint the cell green and append a ↗ so trainee sees they've earned a
+  // weight bump. No auto-adjustment — trainee decides.
+  const exceededRange =
+    set.previousPerformance?.reps != null &&
+    programTarget?.reps != null &&
+    set.previousPerformance.reps > programTarget.reps
 
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
@@ -376,8 +383,25 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         </span>
 
         {/* Previous */}
-        <span className="min-w-0 truncate text-center font-mono text-[11px] leading-tight text-muted-foreground" style={{ fontFeatureSettings: '"tnum" 1' }}>
-          {prevLabel}
+        <span
+          className={cn(
+            "min-w-0 font-mono text-[11px] leading-tight",
+            exceededRange
+              ? "inline-flex items-center justify-center gap-1 text-success"
+              : "block truncate text-center text-muted-foreground",
+          )}
+          style={{ fontFeatureSettings: '"tnum" 1' }}
+          title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
+          aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
+        >
+          {exceededRange ? (
+            <>
+              <span className="truncate">{prevLabel}</span>
+              <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
+            </>
+          ) : (
+            prevLabel
+          )}
         </span>
 
       {/* Weight input */}
