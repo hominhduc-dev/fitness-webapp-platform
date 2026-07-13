@@ -166,7 +166,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "rounded-[10px] border p-4 transition-colors md:p-5",
+                "min-w-0 rounded-[10px] border p-4 transition-colors md:p-5",
                 card.tone === "primary" && "border-primary/20 bg-primary-soft",
                 card.tone === "blue"    && "border-primary/20 bg-primary-soft",
                 card.tone === "neutral" && "border-border bg-card",
@@ -206,7 +206,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
         })}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid min-w-0 gap-4 md:grid-cols-2">
         <TodayWorkout workout={dashboard.todayWorkout} />
         <NutritionSummary nutrition={dashboard.dailyNutrition} />
       </section>

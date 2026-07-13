@@ -24,13 +24,13 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
   const arc = (percentage / 100) * circumference
 
   return (
-    <Link href="/meals" className="block h-full">
-      <div className="flex h-full flex-col rounded-[10px] border border-border bg-card p-5 transition-colors hover:border-primary/25">
+    <Link href="/meals" className="block h-full min-w-0">
+      <div className="flex h-full min-w-0 flex-col rounded-[10px] border border-border bg-card p-5 transition-colors hover:border-primary/25">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysNutrition}</span>
 
-        <div className="flex flex-1 flex-col justify-between gap-5">
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">
           {/* Donut + calories */}
-          <div className="flex items-center gap-6">
+          <div className="flex min-w-0 items-center gap-6">
             {/* Donut */}
             <div className="relative h-24 w-24 shrink-0">
               <svg className="h-24 w-24 -rotate-90">
@@ -55,7 +55,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
             </div>
 
             {/* Numbers */}
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.consumed}</p>
                 <p className="font-mono text-[1.5rem] font-semibold leading-none tnum text-foreground">
@@ -74,7 +74,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
           </div>
 
           {/* Meal slots */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid min-w-0 grid-cols-2 gap-2">
             {[
               { key: "breakfast", label: messages.dashboard.breakfast },
               { key: "lunch",     label: messages.dashboard.lunch },
@@ -85,9 +85,9 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
               return (
                 <div
                   key={mealType.key}
-                  className="flex items-center justify-between rounded-[8px] border border-border bg-muted px-3 py-2"
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-[8px] border border-border bg-muted px-3 py-2"
                 >
-                  <span className="text-[12px] text-muted-foreground">{mealType.label}</span>
+                  <span className="min-w-0 truncate text-[12px] text-muted-foreground">{mealType.label}</span>
                   <span className={meal ? "font-mono text-[12px] font-medium tnum text-foreground" : "font-mono text-[12px] text-muted-foreground"}>
                     {meal ? meal.calories : "—"}
                   </span>
