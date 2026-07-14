@@ -7,7 +7,6 @@ export const coachMessages = {
       pendingRequests: "Pending Requests",
       workoutsThisWeek: "Workouts This Week",
       acrossAllTrainees: "across all trainees",
-      compliance: "Avg. Compliance",
       yourTrainees: "Your Trainees",
       viewAll: "View All",
       noTrainees: "No trainees assigned yet.",
@@ -88,9 +87,6 @@ export const coachMessages = {
       clientTotal: (count: number) => `${count} total`,
       clients: "Clients",
       coachControls: "Coach controls",
-      coachDashboardHeadline: "Track every trainee's progress in one screen.",
-      coachDashboardIntro: (name: string) =>
-        `${name}, this is a quick view of compliance, newly logged sessions, trainees needing intervention, and fresh inbox activity.`,
       coachWorkspaceAggregate: "Coach workspace aggregate",
       completedPercent: "100%",
       completion: "Completion",
@@ -189,13 +185,11 @@ export const coachMessages = {
       thisWeekSessions: (done: number, planned: number) => `${done}/${planned}`,
       totalPlannedSessionsThisWeek: (count: number) => `${count} planned sessions this week`,
       totalTrainees: "Total trainees",
-      trainees: "Trainees",
       traineeProgramCount: (count: number) => `${count} program${count === 1 ? "" : "s"}`,
       traineeWorkoutSummary: (count: number, lastSeen?: string) =>
         `· ${count} workout${count === 1 ? "" : "s"} this week${lastSeen ? ` · last seen ${lastSeen}` : ""}`,
       traineesOverviewCopy:
         "Use this table to scan completion rate, workload, and jump into plan adjustments when needed.",
-      unreadInbox: "Unread inbox",
       unreadNotifications: (count: number) => `${count} unread notifications`,
       unknown: "unknown",
       untitledProgram: "Untitled program",
@@ -313,7 +307,6 @@ export const coachMessages = {
       pendingRequests: "Yêu cầu chờ xử lý",
       workoutsThisWeek: "Buổi tập tuần này",
       acrossAllTrainees: "trên toàn bộ học viên",
-      compliance: "Mức tuân thủ TB",
       yourTrainees: "Học viên của bạn",
       viewAll: "Xem tất cả",
       noTrainees: "Chưa có học viên nào được gán.",
@@ -394,9 +387,6 @@ export const coachMessages = {
       clientTotal: (count: number) => `${count} tổng`,
       clients: "Học viên",
       coachControls: "Điều khiển coach",
-      coachDashboardHeadline: "Theo dõi tiến độ tất cả học viên trong một màn hình.",
-      coachDashboardIntro: (name: string) =>
-        `${name}, đây là tổng quan nhanh về mức tuân thủ, buổi tập mới log, học viên cần can thiệp và thông báo mới.`,
       coachWorkspaceAggregate: "Tổng hợp không gian coach",
       completedPercent: "100%",
       completion: "Hoàn thành",
@@ -495,13 +485,11 @@ export const coachMessages = {
       thisWeekSessions: (done: number, planned: number) => `${done}/${planned}`,
       totalPlannedSessionsThisWeek: (count: number) => `${count} buổi đã lên lịch tuần này`,
       totalTrainees: "Tổng học viên",
-      trainees: "Học viên",
       traineeProgramCount: (count: number) => `${count} program`,
       traineeWorkoutSummary: (count: number, lastSeen?: string) =>
         `· ${count} buổi tuần này${lastSeen ? ` · lần cuối ${lastSeen}` : ""}`,
       traineesOverviewCopy:
         "Dùng bảng này để quét nhanh completion rate, workload và vào điều chỉnh plan khi cần.",
-      unreadInbox: "Inbox chưa đọc",
       unreadNotifications: (count: number) => `${count} thông báo chưa đọc`,
       unknown: "không rõ",
       untitledProgram: "Program chưa đặt tên",
