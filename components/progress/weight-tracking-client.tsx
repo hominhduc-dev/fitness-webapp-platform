@@ -76,6 +76,66 @@ function calculateBmi(weightKg?: number, heightCm?: number) {
   return weightKg / (heightMeters * heightMeters)
 }
 
+const ACTIVITY_MULTIPLIERS = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  very_active: 1.9,
+} as const
+
+type ActivityLevelKey = keyof typeof ACTIVITY_MULTIPLIERS
+
+function calculateAge(birthDateIso?: string | null) {
+  if (!birthDateIso) return undefined
+  const birth = new Date(birthDateIso)
+  if (Number.isNaN(birth.getTime())) return undefined
+  const now = new Date()
+  let age = now.getUTCFullYear() - birth.getUTCFullYear()
+  const monthDelta = now.getUTCMonth() - birth.getUTCMonth()
+  if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < birth.getUTCDate())) {
+    age -= 1
+  }
+  return age >= 0 && age <= 120 ? age : undefined
+}
+
+// Mifflin-St Jeor: widely used, ~10% more accurate than Harris-Benedict for
+// the general population according to peer-reviewed comparisons.
+function calculateBmr(params: {
+  weightKg?: number
+  heightCm?: number
+  age?: number
+  sex?: "male" | "female" | null
+}) {
+  const { age, heightCm, sex, weightKg } = params
+  if (
+    !isFiniteNumber(weightKg) ||
+    !isFiniteNumber(heightCm) ||
+    !isFiniteNumber(age) ||
+    (sex !== "male" && sex !== "female")
+  ) {
+    return undefined
+  }
+  const base = 10 * weightKg + 6.25 * heightCm - 5 * age
+  return sex === "male" ? base + 5 : base - 161
+}
+
+function calculateTdee(bmr: number | undefined, activityLevel?: ActivityLevelKey | null) {
+  if (!isFiniteNumber(bmr) || !activityLevel) return undefined
+  const multiplier = ACTIVITY_MULTIPLIERS[activityLevel]
+  if (!multiplier) return undefined
+  return bmr * multiplier
+}
+
+// Standard rule of thumb: ~500 kcal/day deficit ≈ 0.45 kg (1 lb) per week loss,
+// ~300 kcal/day surplus for lean gain. Floor at 1200 kcal (safety guardrail).
+function suggestedIntake(tdee: number | undefined, direction: GoalDirection) {
+  if (!isFiniteNumber(tdee)) return undefined
+  if (direction === "down") return Math.max(1200, Math.round(tdee - 500))
+  if (direction === "up") return Math.round(tdee + 300)
+  return Math.round(tdee)
+}
+
 function getBmiCategory(bmi?: number): BmiCategory | null {
   if (!isFiniteNumber(bmi)) return null
   if (bmi < 18.5) return "underweight"
@@ -170,7 +230,11 @@ function buildChartPoints(entries: BodyMetricEntry[], days: RangeValue, unit: "k
   })
 }
 
-function buildWeightSummary(entries: BodyMetricEntry[], targetWeightKg?: number | null) {
+function buildWeightSummary(
+  entries: BodyMetricEntry[],
+  targetWeightKg?: number | null,
+  goalStartWeightKgFromProfile?: number | null,
+) {
   const weightedEntries = entries.filter((e) => isFiniteNumber(e.weightKg))
   const currentWeightKg = weightedEntries[0]?.weightKg
   const previousWeightKg = weightedEntries[1]?.weightKg
@@ -196,8 +260,14 @@ function buildWeightSummary(entries: BodyMetricEntry[], targetWeightKg?: number 
   const resolvedCurrentWeightKg = isFiniteNumber(currentWeightKg) ? currentWeightKg : undefined
   const canTrackGoal = hasTargetWeight && resolvedCurrentWeightKg != null
   const goalDirection = getGoalDirection(resolvedCurrentWeightKg, targetWeightKg ?? undefined)
-  const goalStartWeightKg =
-    canTrackGoal && isFiniteNumber(oldestLoggedWeightKg) ? oldestLoggedWeightKg : resolvedCurrentWeightKg
+  // Prefer the persisted anchor set when the user chose their target so progress
+  // stays stable across chart ranges (30/90/365d). Fall back to the oldest logged
+  // weight for legacy users who don't have the anchor set yet.
+  const goalStartWeightKg = isFiniteNumber(goalStartWeightKgFromProfile)
+    ? goalStartWeightKgFromProfile
+    : canTrackGoal && isFiniteNumber(oldestLoggedWeightKg)
+      ? oldestLoggedWeightKg
+      : resolvedCurrentWeightKg
   const targetDeltaKg = canTrackGoal ? resolvedCurrentWeightKg - (targetWeightKg as number) : undefined
   const isTargetMet = isFiniteNumber(targetDeltaKg) ? Math.abs(targetDeltaKg) <= 0.15 : false
   const totalGoalDirection =
@@ -379,6 +449,10 @@ export function WeightTrackingClient() {
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
   const heightCm = profile?.heightCm ?? undefined
   const targetWeightKg = profile?.targetWeightKg ?? undefined
+  const goalStartWeightKg = profile?.goalStartWeightKg ?? undefined
+  const birthDate = profile?.birthDate ?? undefined
+  const sex = profile?.sex ?? undefined
+  const activityLevel = profile?.activityLevel ?? undefined
 
   const [entries, setEntries] = useState<BodyMetricEntry[]>([])
   const [selectedRange, setSelectedRange] = useState<RangeValue>(30)
@@ -423,7 +497,10 @@ export function WeightTrackingClient() {
     return () => { cancelled = true }
   }, [authLoading, messages.progressPage.loadFailed, selectedRange, session?.access_token])
 
-  const summary = useMemo(() => buildWeightSummary(entries, targetWeightKg), [entries, targetWeightKg])
+  const summary = useMemo(
+    () => buildWeightSummary(entries, targetWeightKg, goalStartWeightKg),
+    [entries, targetWeightKg, goalStartWeightKg],
+  )
   const chartPoints = useMemo(
     () => buildChartPoints(entries, selectedRange, weightUnit, localeCode),
     [entries, selectedRange, weightUnit, localeCode],
@@ -434,6 +511,17 @@ export function WeightTrackingClient() {
   const weeklyTrendDirection = getTrendDirection(summary.currentWeightKg, summary.weeklyAverageKg)
   const bmi = useMemo(() => calculateBmi(summary.currentWeightKg, heightCm), [heightCm, summary.currentWeightKg])
   const bmiCategory = getBmiCategory(bmi)
+  const age = useMemo(() => calculateAge(birthDate), [birthDate])
+  const bmr = useMemo(
+    () => calculateBmr({ age, heightCm, sex, weightKg: summary.currentWeightKg }),
+    [age, heightCm, sex, summary.currentWeightKg],
+  )
+  const tdee = useMemo(() => calculateTdee(bmr, activityLevel), [bmr, activityLevel])
+  const suggestedKcal = useMemo(
+    () => suggestedIntake(tdee, summary.goalDirection),
+    [summary.goalDirection, tdee],
+  )
+  const hasTdee = isFiniteNumber(tdee)
   const historyEntries = showAllHistory ? entries : entries.slice(0, 5)
 
   const dateFormatter = useMemo(
@@ -788,6 +876,74 @@ export function WeightTrackingClient() {
               )
             }
           />
+        </section>
+
+        {/* ---- TDEE / Energy card ---- */}
+        <section className="rounded-[10px] border border-border bg-card p-5 sm:p-6">
+          <span className="label-micro mb-4 block">{messages.progressPage.tdeeTitle}</span>
+
+          {!hasTdee ? (
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {messages.progressPage.tdeeNeedsInputs}
+            </p>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <span className="label-micro block">{messages.progressPage.tdeeBmrLabel}</span>
+                  <div className="mt-2 flex items-end gap-1.5">
+                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-foreground">
+                      {Math.round(bmr as number)}
+                    </span>
+                    <span className="mb-0.5 text-sm text-muted-foreground">
+                      {messages.progressPage.tdeeUnit}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs tnum text-muted-foreground">
+                    {messages.progressPage.tdeeBmrHint}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="label-micro block">{messages.progressPage.tdeeTdeeLabel}</span>
+                  <div className="mt-2 flex items-end gap-1.5">
+                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-foreground">
+                      {Math.round(tdee as number)}
+                    </span>
+                    <span className="mb-0.5 text-sm text-muted-foreground">
+                      {messages.progressPage.tdeeUnit}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs tnum text-muted-foreground">
+                    {messages.progressPage.tdeeTdeeHint}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="label-micro block">{messages.progressPage.tdeeSuggestedLabel}</span>
+                  <div className="mt-2 flex items-end gap-1.5">
+                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-primary">
+                      {suggestedKcal ?? "--"}
+                    </span>
+                    <span className="mb-0.5 text-sm text-muted-foreground">
+                      {messages.progressPage.tdeeUnit}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs tnum text-muted-foreground">
+                    {summary.goalDirection === "down" && suggestedKcal != null
+                      ? messages.progressPage.tdeeSuggestedLose(Math.round((tdee as number) - suggestedKcal))
+                      : summary.goalDirection === "up" && suggestedKcal != null
+                        ? messages.progressPage.tdeeSuggestedGain(Math.round(suggestedKcal - (tdee as number)))
+                        : messages.progressPage.tdeeSuggestedMaintain}
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 font-mono text-[10px] tnum uppercase tracking-[0.08em] text-muted-foreground">
+                {messages.progressPage.tdeeMifflinNote}
+              </p>
+            </>
+          )}
         </section>
 
         {/* ---- History + weekly goal row ---- */}

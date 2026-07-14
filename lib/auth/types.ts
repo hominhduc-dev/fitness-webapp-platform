@@ -1,12 +1,19 @@
 export type AppRole = "trainee" | "coach" | "admin"
 
+export type AppSex = "male" | "female"
+
+export type AppActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active"
+
 export interface AppProfile {
+  activityLevel?: AppActivityLevel | null
   avatar?: string | null
+  birthDate?: string | null
   coachId?: string | null
   createdAt: string
   dailyCalorieGoal: number
   email: string
   fitnessGoals: string[]
+  goalStartWeightKg?: number | null
   heightCm?: number | null
   id: string
   isActive: boolean
@@ -14,6 +21,7 @@ export interface AppProfile {
   phone?: string | null
   preferredWeightUnit: "kg" | "lbs"
   role: AppRole
+  sex?: AppSex | null
   supabaseAuthUserId?: string | null
   targetWeightKg?: number | null
   updatedAt: string
@@ -47,12 +55,15 @@ export interface UploadAvatarInput {
 }
 
 export interface UpdateProfileInput {
+  activityLevel?: AppActivityLevel | null
   avatar?: string | null
+  birthDate?: string | null
   dailyCalorieGoal?: number | null
   fitnessGoals?: string[]
   heightCm?: number | null
   name?: string | null
   phone?: string | null
   preferredWeightUnit?: "kg" | "lbs"
+  sex?: AppSex | null
   targetWeightKg?: number | null
 }
