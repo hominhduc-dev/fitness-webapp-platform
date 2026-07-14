@@ -21,52 +21,8 @@ import {
   listExerciseLibrary,
 } from "../services/fitness-data"
 
-type SerializedProfile = {
-  avatar: string | null
-  coachId: string | null
-  createdAt: Date
-  dailyCalorieGoal: number
-  dailyCarbsGoal: number
-  dailyFatGoal: number
-  dailyProteinGoal: number
-  email: string
-  fitnessGoals: string[]
-  heightCm: number | null
-  id: string
-  isActive: boolean
-  name: string
-  phone: string | null
-  preferredWeightUnit: User["preferredWeightUnit"]
-  role: UserRole
-  supabaseAuthUserId: string | null
-  targetWeightKg: number | null
-  updatedAt: Date
-  username: string | null
-}
-
-function toProfile(user: User): SerializedProfile {
-  return {
-    avatar: user.avatar,
-    coachId: user.coachId,
-    createdAt: user.createdAt,
-    dailyCalorieGoal: user.dailyCalorieGoal,
-    dailyCarbsGoal: user.dailyCarbsGoal,
-    dailyFatGoal: user.dailyFatGoal,
-    dailyProteinGoal: user.dailyProteinGoal,
-    email: user.email,
-    fitnessGoals: user.fitnessGoals,
-    heightCm: user.heightCm,
-    id: user.id,
-    isActive: user.isActive,
-    name: user.name,
-    phone: user.phone,
-    preferredWeightUnit: user.preferredWeightUnit,
-    role: user.role,
-    supabaseAuthUserId: user.supabaseAuthUserId,
-    targetWeightKg: user.targetWeightKg,
-    updatedAt: user.updatedAt,
-    username: user.username,
-  }
+function toProfile(user: User): User {
+  return user
 }
 
 async function time<T>(label: string, fn: () => Promise<T>): Promise<T> {
