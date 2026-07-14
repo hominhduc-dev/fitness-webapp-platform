@@ -117,13 +117,12 @@ function AdminSidebar({ pathname }: { pathname: string }) {
     <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         {/* Brand */}
-        <div className="mb-4 flex items-center gap-2.5 px-1">
-          <img src="/lift-mark.svg" alt="" className="h-5 w-[22px] text-foreground" />
-          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">yeahbuddy</span>
-          <span className="ml-auto rounded-[3px] bg-foreground px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-background">
-            Admin
-          </span>
-        </div>
+        <Link href={getRoleLandingPath("admin")} className="mb-4 flex items-center gap-2 px-1">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <Dumbbell className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+        </Link>
 
         <Link
           href="/dashboard"
@@ -239,13 +238,12 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
-        <div className="mb-4 flex items-center gap-2.5 px-1">
-          <img src="/lift-mark.svg" alt="" className="h-5 w-[22px] text-foreground" />
-          <span className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-foreground">yeahbuddy</span>
-          <span className="ml-auto rounded-[3px] bg-foreground px-1.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-background">
-            Coach
-          </span>
-        </div>
+        <Link href={getRoleLandingPath("coach")} className="mb-4 flex items-center gap-2 px-1">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <Dumbbell className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+        </Link>
 
         <Link href="/dashboard" className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
           ← {messages.shell.backToAthleteView}

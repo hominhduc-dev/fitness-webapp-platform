@@ -98,7 +98,13 @@ authRouter.post("/me/avatar", async (req, res) => {
 authRouter.patch("/me", async (req, res) => {
   try {
     const result = await updateCurrentProfile(getAccessToken(req), {
+      activityLevel:
+        typeof req.body.activityLevel === "string" || req.body.activityLevel === null
+          ? req.body.activityLevel
+          : undefined,
       avatar: typeof req.body.avatar === "string" || req.body.avatar === null ? req.body.avatar : undefined,
+      birthDate:
+        typeof req.body.birthDate === "string" || req.body.birthDate === null ? req.body.birthDate : undefined,
       dailyCalorieGoal:
         req.body.dailyCalorieGoal == null ? req.body.dailyCalorieGoal : Number(req.body.dailyCalorieGoal),
       fitnessGoals: Array.isArray(req.body.fitnessGoals)
@@ -111,6 +117,7 @@ authRouter.patch("/me", async (req, res) => {
         typeof req.body.preferredWeightUnit === "string" || req.body.preferredWeightUnit === null
           ? req.body.preferredWeightUnit
           : undefined,
+      sex: typeof req.body.sex === "string" || req.body.sex === null ? req.body.sex : undefined,
       targetWeightKg: req.body.targetWeightKg == null ? req.body.targetWeightKg : Number(req.body.targetWeightKg),
     })
 
