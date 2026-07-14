@@ -54,7 +54,7 @@ function getAdjustHref(trainee: Awaited<ReturnType<typeof fetchCoachDashboard>>[
 }
 
 export default async function CoachDashboardPage() {
-  const [{ accessToken, profile }, locale, messages] = await Promise.all([
+  const [{ accessToken }, locale, messages] = await Promise.all([
     requireAppSession({ role: "coach" }),
     getServerLocale(),
     getServerMessages(),
@@ -66,39 +66,6 @@ export default async function CoachDashboardPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
       <div className="space-y-6">
-        {/* Hero - flat dark band */}
-        <section className="rounded-[10px] border border-border bg-foreground px-6 py-7 text-background">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-                {coachMessages.coachDashboardHeadline}
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-background/70 md:text-base">
-                {coachMessages.coachDashboardIntro(profile.name)}
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[10px] border border-background/15 bg-background/8 px-4 py-3">
-                <p className="label-micro text-background/60">{coachMessages.trainees}</p>
-                <p className="mt-2 font-mono text-3xl font-semibold tnum">{dashboard.summary.totalTrainees}</p>
-              </div>
-              <div className="rounded-[10px] border border-background/15 bg-background/8 px-4 py-3">
-                <p className="label-micro text-background/60">{coachMessages.compliance}</p>
-                <p className="mt-2 font-mono text-3xl font-semibold tnum">
-                  {formatPercent(dashboard.summary.averageCompletionRate)}
-                </p>
-              </div>
-              <div className="rounded-[10px] border border-background/15 bg-background/8 px-4 py-3">
-                <p className="label-micro text-background/60">{coachMessages.unreadInbox}</p>
-                <p className="mt-2 font-mono text-3xl font-semibold tnum">
-                  {dashboard.summary.unreadNotificationCount}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatsCard
             title={coachMessages.totalTrainees}
