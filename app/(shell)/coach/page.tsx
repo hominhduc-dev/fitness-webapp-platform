@@ -70,8 +70,7 @@ export default async function CoachDashboardPage() {
         <section className="rounded-[10px] border border-border bg-foreground px-6 py-7 text-background">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
-              <p className="label-micro text-background/60">{coachMessages.coachWorkspace}</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
+              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 {coachMessages.coachDashboardHeadline}
               </h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-background/70 md:text-base">

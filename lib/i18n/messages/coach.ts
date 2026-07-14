@@ -91,7 +91,6 @@ export const coachMessages = {
       coachDashboardHeadline: "Track every trainee's progress in one screen.",
       coachDashboardIntro: (name: string) =>
         `${name}, this is a quick view of compliance, newly logged sessions, trainees needing intervention, and fresh inbox activity.`,
-      coachWorkspace: "Coach workspace",
       coachWorkspaceAggregate: "Coach workspace aggregate",
       completedPercent: "100%",
       completion: "Completion",
@@ -398,7 +397,6 @@ export const coachMessages = {
       coachDashboardHeadline: "Theo dõi tiến độ tất cả học viên trong một màn hình.",
       coachDashboardIntro: (name: string) =>
         `${name}, đây là tổng quan nhanh về mức tuân thủ, buổi tập mới log, học viên cần can thiệp và thông báo mới.`,
-      coachWorkspace: "Không gian coach",
       coachWorkspaceAggregate: "Tổng hợp không gian coach",
       completedPercent: "100%",
       completion: "Hoàn thành",
