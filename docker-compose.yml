@@ -1,9 +1,12 @@
+name: yeahbuddy
+
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fitness-backend
+    image: yeahbuddy-backend:latest
+    container_name: yeahbuddy-backend
     ports:
       - "4000:4000"
     env_file:
