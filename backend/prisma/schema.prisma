@@ -103,6 +103,19 @@ enum NotificationStatus {
   cancelled
 }
 
+enum UserSex {
+  male
+  female
+}
+
+enum ActivityLevel {
+  sedentary
+  light
+  moderate
+  active
+  very_active
+}
+
 model User {
   id                     String              @id @default(uuid()) @db.Uuid
   supabaseAuthUserId     String?             @unique @db.Uuid
@@ -121,6 +134,10 @@ model User {
   dailyFatGoal           Int                 @default(70)
   heightCm               Float?
   targetWeightKg         Float?
+  goalStartWeightKg      Float?
+  birthDate              DateTime?           @db.Date
+  sex                    UserSex?
+  activityLevel          ActivityLevel?
   coachId                String?             @db.Uuid
   coach                  User?               @relation("CoachTrainees", fields: [coachId], references: [id], onDelete: SetNull)
   trainees               User[]              @relation("CoachTrainees")

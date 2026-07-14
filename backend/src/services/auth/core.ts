@@ -35,13 +35,16 @@ type AuthenticatedProfileContext = {
 }
 
 type ProfileUpdateInput = {
+  activityLevel?: string | null
   avatar?: string | null
+  birthDate?: string | null
   dailyCalorieGoal?: number | null
   fitnessGoals?: string[]
   heightCm?: number | null
   name?: string | null
   phone?: string | null
   preferredWeightUnit?: string | null
+  sex?: string | null
   targetWeightKg?: number | null
 }
 
@@ -347,6 +350,61 @@ function normalizeTargetWeightKg(value?: number | null) {
   return roundMetric(value, 2)
 }
 
+const SEX_VALUES = new Set(["male", "female"])
+const ACTIVITY_LEVEL_VALUES = new Set(["sedentary", "light", "moderate", "active", "very_active"])
+
+function normalizeSex(value?: string | null) {
+  if (value == null || value === "") {
+    return null
+  }
+
+  if (SEX_VALUES.has(value)) {
+    return value as "male" | "female"
+  }
+
+  throw new AuthServiceError("Giới tính không hợp lệ.")
+}
+
+function normalizeActivityLevel(value?: string | null) {
+  if (value == null || value === "") {
+    return null
+  }
+
+  if (ACTIVITY_LEVEL_VALUES.has(value)) {
+    return value as "sedentary" | "light" | "moderate" | "active" | "very_active"
+  }
+
+  throw new AuthServiceError("Mức độ vận động không hợp lệ.")
+}
+
+function normalizeBirthDate(value?: string | null): Date | null {
+  if (value == null || value === "") {
+    return null
+  }
+
+  // Accept ISO date-only (YYYY-MM-DD) or full ISO datetime. We store the day
+  // in UTC to avoid the timestamp drifting across timezones.
+  const trimmed = value.trim()
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(trimmed)
+  const parsed = dateOnly ? new Date(`${trimmed}T00:00:00.000Z`) : new Date(trimmed)
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new AuthServiceError("Ngày sinh không hợp lệ.")
+  }
+
+  const now = new Date()
+  if (parsed > now) {
+    throw new AuthServiceError("Ngày sinh không thể ở tương lai.")
+  }
+
+  const minYear = now.getUTCFullYear() - 120
+  if (parsed.getUTCFullYear() < minYear) {
+    throw new AuthServiceError("Ngày sinh không hợp lệ.")
+  }
+
+  return parsed
+}
+
 function parseMetadataHeightCm(value: unknown) {
   const parsed = parseOptionalFiniteNumber(value)
 
@@ -457,7 +515,9 @@ function serializeProfile(profile: AppUser | null) {
   }
 
   return {
+    activityLevel: profile.activityLevel,
     avatar: profile.avatar,
+    birthDate: profile.birthDate,
     coachId: profile.coachId,
     createdAt: profile.createdAt,
     dailyCarbsGoal: profile.dailyCarbsGoal,
@@ -466,6 +526,7 @@ function serializeProfile(profile: AppUser | null) {
     dailyProteinGoal: profile.dailyProteinGoal,
     email: profile.email,
     fitnessGoals: profile.fitnessGoals,
+    goalStartWeightKg: profile.goalStartWeightKg,
     heightCm: profile.heightCm,
     id: profile.id,
     isActive: profile.isActive,
@@ -473,6 +534,7 @@ function serializeProfile(profile: AppUser | null) {
     phone: profile.phone,
     preferredWeightUnit: profile.preferredWeightUnit,
     role: profile.role,
+    sex: profile.sex,
     supabaseAuthUserId: profile.supabaseAuthUserId,
     targetWeightKg: profile.targetWeightKg,
     updatedAt: profile.updatedAt,
@@ -981,6 +1043,31 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
   const nextTargetWeightKg = hasTargetWeightUpdate
     ? normalizeTargetWeightKg(updates.targetWeightKg)
     : profile.targetWeightKg
+  const hasBirthDateUpdate = updates.birthDate !== undefined
+  const hasSexUpdate = updates.sex !== undefined
+  const hasActivityLevelUpdate = updates.activityLevel !== undefined
+  const nextBirthDate = hasBirthDateUpdate ? normalizeBirthDate(updates.birthDate) : profile.birthDate
+  const nextSex = hasSexUpdate ? normalizeSex(updates.sex) : profile.sex
+  const nextActivityLevel = hasActivityLevelUpdate
+    ? normalizeActivityLevel(updates.activityLevel)
+    : profile.activityLevel
+
+  // Snapshot the user's current weight as the goal starting point whenever the
+  // target weight changes. This anchors goal progress to a real baseline that
+  // stays stable regardless of which chart range the user is viewing.
+  let nextGoalStartWeightKg = profile.goalStartWeightKg
+  if (hasTargetWeightUpdate && nextTargetWeightKg !== profile.targetWeightKg) {
+    if (nextTargetWeightKg == null) {
+      nextGoalStartWeightKg = null
+    } else {
+      const latest = await db.bodyMetricEntry.findFirst({
+        orderBy: { recordedAt: "desc" },
+        select: { weightKg: true },
+        where: { traineeId: profile.id, weightKg: { not: null } },
+      })
+      nextGoalStartWeightKg = latest?.weightKg ?? profile.goalStartWeightKg ?? null
+    }
+  }
 
   if (nextPhone) {
     const existingPhoneOwner = await db.user.findFirst({
@@ -1002,13 +1089,17 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
 
   const updatedProfile = await db.user.update({
     data: {
+      activityLevel: nextActivityLevel,
       avatar: nextAvatar,
+      birthDate: nextBirthDate,
       dailyCalorieGoal: nextDailyCalorieGoal,
       fitnessGoals: nextGoals,
+      goalStartWeightKg: nextGoalStartWeightKg,
       heightCm: nextHeightCm,
       name: nextName,
       phone: nextPhone,
       preferredWeightUnit: nextWeightUnit,
+      sex: nextSex,
       targetWeightKg: nextTargetWeightKg,
     },
     where: {
