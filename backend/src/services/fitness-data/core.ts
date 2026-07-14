@@ -5689,6 +5689,26 @@ async function createBodyMetricForCurrentTrainee(
     },
   })
 
+  // Seed goal starting weight for users who already have a target but never
+  // logged a weight when they set it. Only fires when this is the user's very
+  // first weighted entry so it doesn't overwrite an established anchor.
+  if (weightKg != null && profile.targetWeightKg != null && profile.goalStartWeightKg == null) {
+    const otherWeightedEntries = await db.bodyMetricEntry.count({
+      where: {
+        id: { not: entry.id },
+        traineeId: profile.id,
+        weightKg: { not: null },
+      },
+    })
+
+    if (otherWeightedEntries === 0) {
+      await db.user.update({
+        data: { goalStartWeightKg: weightKg },
+        where: { id: profile.id },
+      })
+    }
+  }
+
   return serializeBodyMetricEntry(entry as BodyMetricRecord)
 }
 

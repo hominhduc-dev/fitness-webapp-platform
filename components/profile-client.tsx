@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { forgotPasswordRequest, resetCurrentTraineeDataRequest } from "@/lib/auth/api"
-import type { AppProfile } from "@/lib/auth/types"
+import type { AppActivityLevel, AppProfile, AppSex } from "@/lib/auth/types"
 import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { getAppBaseUrl } from "@/lib/supabase/config"
@@ -87,6 +87,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [targetWeight, setTargetWeight] = useState("")
   const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null)
   const [dailyCalorieGoal, setDailyCalorieGoal] = useState(String(DEFAULT_DAILY_CALORIE_GOAL))
+  const [birthDate, setBirthDate] = useState("")
+  const [sex, setSex] = useState<AppSex | "">("")
+  const [activityLevel, setActivityLevel] = useState<AppActivityLevel | "">("")
   const [notifications, setNotifications] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
@@ -119,6 +122,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       profile.targetWeightKg != null ? formatNumericInput(convertWeightFromKg(profile.targetWeightKg, nextWeightUnit)) : "",
     )
     setDailyCalorieGoal(String(profile.dailyCalorieGoal ?? DEFAULT_DAILY_CALORIE_GOAL))
+    setBirthDate(profile.birthDate ? profile.birthDate.slice(0, 10) : "")
+    setSex(profile.sex ?? "")
+    setActivityLevel(profile.activityLevel ?? "")
   }, [profile])
 
   useEffect(() => {
@@ -300,6 +306,17 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       return
     }
 
+    const trimmedBirthDate = birthDate.trim()
+    if (trimmedBirthDate !== "") {
+      const parsedBirthDate = new Date(`${trimmedBirthDate}T00:00:00.000Z`)
+      const now = new Date()
+      if (Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate > now) {
+        setError(messages.profile.invalidBirthDate)
+        setSuccess(null)
+        return
+      }
+    }
+
     setError(null)
     setSuccess(null)
     setIsSaving(true)
@@ -310,12 +327,15 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       }
 
       const updatedProfile = await updateProfile({
+        activityLevel: activityLevel === "" ? null : activityLevel,
+        birthDate: trimmedBirthDate === "" ? null : trimmedBirthDate,
         dailyCalorieGoal: parsedDailyCalorieGoal,
         fitnessGoals: selectedGoals,
         heightCm: parsedHeightCm,
         name,
         phone: phone.trim() || null,
         preferredWeightUnit,
+        sex: sex === "" ? null : sex,
         targetWeightKg: parsedTargetWeightKg,
       })
 
@@ -333,6 +353,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             : "",
         )
         setDailyCalorieGoal(String(updatedProfile.dailyCalorieGoal ?? DEFAULT_DAILY_CALORIE_GOAL))
+        setBirthDate(updatedProfile.birthDate ? updatedProfile.birthDate.slice(0, 10) : "")
+        setSex(updatedProfile.sex ?? "")
+        setActivityLevel(updatedProfile.activityLevel ?? "")
       }
 
       const shouldCreateWeightEntry =
@@ -636,6 +659,59 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               />
             </div>
             <p className="text-sm text-muted-foreground">{messages.profile.dailyCalorieGoalCopy}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="birth-date">{messages.profile.birthDate}</Label>
+            <Input
+              id="birth-date"
+              type="date"
+              value={birthDate}
+              onChange={(event) => setBirthDate(event.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
+            />
+            <p className="text-sm text-muted-foreground">{messages.profile.birthDateCopy}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sex">{messages.profile.sex}</Label>
+            <Select
+              value={sex === "" ? "unspecified" : sex}
+              onValueChange={(value) => setSex(value === "unspecified" ? "" : (value as AppSex))}
+            >
+              <SelectTrigger id="sex" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card">
+                <SelectItem value="unspecified">{messages.profile.sexUnspecified}</SelectItem>
+                <SelectItem value="male">{messages.profile.sexMale}</SelectItem>
+                <SelectItem value="female">{messages.profile.sexFemale}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">{messages.profile.sexCopy}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="activity-level">{messages.profile.activityLevel}</Label>
+            <Select
+              value={activityLevel === "" ? "unspecified" : activityLevel}
+              onValueChange={(value) =>
+                setActivityLevel(value === "unspecified" ? "" : (value as AppActivityLevel))
+              }
+            >
+              <SelectTrigger id="activity-level" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card">
+                <SelectItem value="unspecified">{messages.profile.activityLevelUnspecified}</SelectItem>
+                <SelectItem value="sedentary">{messages.profile.activitySedentary}</SelectItem>
+                <SelectItem value="light">{messages.profile.activityLight}</SelectItem>
+                <SelectItem value="moderate">{messages.profile.activityModerate}</SelectItem>
+                <SelectItem value="active">{messages.profile.activityActive}</SelectItem>
+                <SelectItem value="very_active">{messages.profile.activityVeryActive}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">{messages.profile.activityLevelCopy}</p>
           </div>
         </div>
       </div>
