@@ -3,6 +3,9 @@ import { randomUUID } from "crypto"
 
 import { getAIProvider } from "../lib/ai/ai-client"
 import { prisma, retryTransaction } from "../lib/prisma"
+import { buildTraineeChatContext } from "./ai/context/builder"
+import { buildAIChatSystemPrompt } from "./ai/context/prompt"
+import type { ChatMessage } from "./ai/context/types"
 import { AuthServiceError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 import { addMealItemForUser } from "./nutrition.service"
@@ -902,171 +905,6 @@ type MappedMealOutput = {
 // AI Chat — one-shot fitness Q&A
 // ---------------------------------------------------------------------------
 
-type ChatMessage = { role: "user" | "assistant"; content: string }
-
-// Build a compact snapshot of the trainee's recent activity so the chat can
-// answer "how am I doing?" questions with real data (weight trend, today's
-// macros, weekly training load, per-exercise progression) instead of guessing.
-async function buildChatContext(profile: SerializedProfile): Promise<string> {
-  const db = ensurePrisma()
-  const now = new Date()
-  const startOfDay = new Date(now)
-  startOfDay.setHours(0, 0, 0, 0)
-  const startOfWeek = new Date(startOfDay)
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-
-  const [latestBodyMetric, previousBodyMetric, todayMeals, weekLogs, recentSets] = await Promise.all([
-    db.bodyMetricEntry.findFirst({
-      where: { traineeId: profile.id, weightKg: { not: null } },
-      orderBy: { recordedAt: "desc" },
-    }),
-    db.bodyMetricEntry.findFirst({
-      where: {
-        traineeId: profile.id,
-        weightKg: { not: null },
-        recordedAt: { lte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
-      },
-      orderBy: { recordedAt: "desc" },
-    }),
-    db.meal.findMany({
-      where: { userId: profile.id, loggedDate: { gte: startOfDay } },
-      select: { calories: true, protein: true, carbs: true, fat: true },
-    }),
-    db.workoutLog.findMany({
-      where: { userId: profile.id, startedAt: { gte: startOfWeek } },
-      select: { totalVolume: true, completedAt: true },
-    }),
-    db.exerciseSet.findMany({
-      where: {
-        completed: true,
-        weight: { not: null },
-        workoutExercise: {
-          workout: {
-            logs: {
-              some: { userId: profile.id, startedAt: { gte: thirtyDaysAgo } },
-            },
-          },
-        },
-      },
-      select: {
-        weight: true,
-        actualReps: true,
-        targetReps: true,
-        workoutExercise: {
-          select: {
-            variation: {
-              select: { name: true, exercise: { select: { name: true } } },
-            },
-            workout: {
-              select: {
-                logs: {
-                  where: { userId: profile.id },
-                  select: { startedAt: true },
-                  orderBy: { startedAt: "desc" },
-                  take: 1,
-                },
-              },
-            },
-          },
-        },
-      },
-      take: 300,
-    }),
-  ])
-
-  const lines: string[] = []
-
-  // Body metrics
-  const currentWeight = latestBodyMetric?.weightKg
-  const target = profile.targetWeightKg
-  if (currentWeight != null) {
-    const parts = [`- Cân nặng hiện tại: ${currentWeight.toFixed(1)}kg`]
-    if (target != null) {
-      const diff = currentWeight - target
-      const direction = diff > 0 ? `còn ${diff.toFixed(1)}kg để giảm` : diff < 0 ? `dưới mục tiêu ${Math.abs(diff).toFixed(1)}kg` : "đúng mục tiêu"
-      parts.push(`mục tiêu ${target}kg (${direction})`)
-    }
-    const prevWeight = previousBodyMetric?.weightKg
-    if (prevWeight != null && previousBodyMetric) {
-      const delta = currentWeight - prevWeight
-      const sign = delta > 0 ? "+" : ""
-      const days = Math.round((now.getTime() - previousBodyMetric.recordedAt.getTime()) / (24 * 60 * 60 * 1000))
-      parts.push(`thay đổi ${sign}${delta.toFixed(1)}kg trong ${days} ngày qua`)
-    }
-    lines.push(parts.join(", "))
-  } else if (target != null) {
-    lines.push(`- Cân nặng mục tiêu: ${target}kg (chưa có dữ liệu cân nặng hiện tại)`)
-  }
-
-  // Today's nutrition
-  if (todayMeals.length > 0) {
-    const totals = todayMeals.reduce<{ calories: number; protein: number; carbs: number; fat: number }>(
-      (acc, m) => ({
-        calories: acc.calories + (m.calories ?? 0),
-        protein: acc.protein + (m.protein ?? 0),
-        carbs: acc.carbs + (m.carbs ?? 0),
-        fat: acc.fat + (m.fat ?? 0),
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    )
-    const goal = profile.dailyCalorieGoal
-    const pct = goal ? Math.round((totals.calories / goal) * 100) : null
-    lines.push(
-      `- Đã ăn hôm nay: ${Math.round(totals.calories)} kcal${pct != null ? ` (${pct}% mục tiêu ${goal})` : ""}, ` +
-        `P ${Math.round(totals.protein)}g / C ${Math.round(totals.carbs)}g / F ${Math.round(totals.fat)}g`,
-    )
-  } else {
-    lines.push(`- Hôm nay chưa log bữa ăn nào`)
-  }
-
-  // Weekly training
-  const completedWeekLogs = weekLogs.filter((l) => l.completedAt != null)
-  if (completedWeekLogs.length > 0) {
-    const totalVolume = completedWeekLogs.reduce((sum, l) => sum + (l.totalVolume ?? 0), 0)
-    lines.push(`- Tuần này: ${completedWeekLogs.length} buổi hoàn thành, tổng volume ${Math.round(totalVolume)}kg`)
-  } else {
-    lines.push(`- Tuần này chưa hoàn thành buổi tập nào`)
-  }
-
-  // Progression per exercise (top 5 by frequency)
-  type SetEntry = { weight: number; reps: number; startedAt: Date }
-  const byExercise = new Map<string, SetEntry[]>()
-  for (const set of recentSets) {
-    const exName = set.workoutExercise?.variation?.exercise?.name
-    const varName = set.workoutExercise?.variation?.name
-    const startedAt = set.workoutExercise?.workout?.logs[0]?.startedAt
-    if (!exName || set.weight == null || !startedAt) continue
-    const key = varName && varName.toLowerCase() !== "default" ? `${exName} (${varName})` : exName
-    const list = byExercise.get(key) ?? []
-    list.push({ weight: set.weight, reps: set.actualReps ?? set.targetReps, startedAt })
-    byExercise.set(key, list)
-  }
-
-  const progression = Array.from(byExercise.entries())
-    .map(([name, entries]) => {
-      const sorted = entries.slice().sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
-      const first = sorted[0]
-      const last = sorted[sorted.length - 1]
-      return { name, count: entries.length, first, last }
-    })
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-
-  if (progression.length > 0) {
-    lines.push(`- Tiến độ tạ 30 ngày qua:`)
-    for (const p of progression) {
-      const delta = p.last.weight - p.first.weight
-      const trend = delta > 0 ? `↑ +${delta.toFixed(1)}kg` : delta < 0 ? `↓ ${delta.toFixed(1)}kg` : "→ đứng yên"
-      lines.push(
-        `  • ${p.name}: ${p.first.weight}kg×${p.first.reps} → ${p.last.weight}kg×${p.last.reps} (${trend}, ${p.count} set)`,
-      )
-    }
-  }
-
-  return lines.join("\n")
-}
-
 async function chatWithAI(
   profile: SerializedProfile,
   message: string,
@@ -1082,29 +920,14 @@ async function chatWithAI(
 
   checkChatRateLimit(profile.id)
 
-  let contextBlock = ""
+  let systemPrompt: string
   try {
-    const snapshot = await buildChatContext(profile)
-    if (snapshot) {
-      contextBlock = `\n\nDữ liệu người dùng gần đây (dùng để trả lời các câu hỏi cá nhân hoá):\n${snapshot}`
-    }
+    const chatContext = await buildTraineeChatContext({ history, message, profile })
+    systemPrompt = buildAIChatSystemPrompt(profile, chatContext)
   } catch {
     // Never let context building break chat — fall back to generic advice.
+    systemPrompt = buildAIChatSystemPrompt(profile, null)
   }
-
-  const systemPrompt = `Bạn là AI huấn luyện viên cá nhân và chuyên gia dinh dưỡng. Trả lời ngắn gọn, hữu ích bằng tiếng Việt.
-
-Thông tin người dùng:
-- Tên: ${profile.name ?? "Trainee"}
-- Chiều cao: ${profile.heightCm ?? "chưa cập nhật"}cm
-- Mục tiêu calories: ${profile.dailyCalorieGoal ?? "chưa cập nhật"} kcal/ngày${contextBlock}
-
-QUY TẮC:
-1. Trả lời bằng tiếng Việt.
-2. CHỈ trả lời về fitness, dinh dưỡng, tập luyện, sức khoẻ. Đây là phạm vi DUY NHẤT.
-3. Nếu câu hỏi KHÔNG liên quan fitness/sức khoẻ (toán học, lập trình, kiến thức chung, code, công nghệ, v.v.), từ chối ngắn gọn: "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪" và KHÔNG trả lời nội dung đó.
-4. Không đưa ra lời khuyên y tế chuyên sâu, khuyên người dùng gặp bác sĩ khi cần.
-5. Trả lời ngắn gọn (dưới 250 từ), plain text, không markdown.`
 
   const conversationHistory = history.slice(-6)
   const userPrompt = conversationHistory.length > 0
