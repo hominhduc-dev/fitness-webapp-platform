@@ -91,7 +91,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 - **External data:** USDA FoodData Central API
 
 ### Deployment
-- **Process manager:** PM2 (`ecosystem.config.js`) runs the backend as the `yeahbuddy` process in production
+- **Runtime:** Docker Compose runs the backend as the `yeahbuddy-backend` container in production (`docker-compose.yml` at repo root)
 
 ---
 
@@ -145,7 +145,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 │       ├── config/           # env parsing
 │       └── scripts/          # create-admin, seed-* scripts
 ├── prisma/migrations/         # ⚠️ stray duplicate — see Known gotchas
-├── ecosystem.config.js       # PM2 process definition for production
+├── docker-compose.yml        # Docker Compose service definition for production
 ├── AGENTS.md                 # Older/alternate project-config doc — see Known gotchas
 ├── CLAUDE.md                 # Project config & ground rules for AI/dev tooling (source of truth)
 └── README.md
@@ -464,14 +464,15 @@ A few things that will trip up a new dev exploring this repo for the first time:
 
 ## Deployment
 
-Production runs the backend under **PM2** via `ecosystem.config.js` (process name `yeahbuddy`, deployed to `backend.hominhduc.me`). From the repo root:
+Production runs the backend as a **Docker Compose** service (`yeahbuddy-backend`, deployed to `backend.hominhduc.me`). Nginx reverse-proxies HTTPS traffic to `127.0.0.1:4000` inside the container. From the repo root on the VPS:
 
 ```bash
-pm2 start ecosystem.config.js
-pm2 save && pm2 startup   # survive reboots
+docker compose build backend
+docker compose run --rm backend npx prisma migrate deploy
+docker compose up -d backend
 ```
 
-The process `cwd` is `backend/`, so `backend/.env` is what gets read in production — the values in `ecosystem.config.js` pin a few runtime defaults and override stale PM2-cached env vars. The frontend is deployed separately (see `.vercelignore` — Vercel-oriented).
+CI/CD is wired up in `.github/workflows/deploy-backend.yml` — pushes to `main` that touch `backend/**` or `docker-compose.yml` SSH into the VPS and run the three commands above. `backend/.env` is mounted via `env_file:` in Compose, and `PORT`/`NODE_ENV` are pinned in `environment:` so they can't drift. The frontend is deployed separately (see `.vercelignore` — Vercel-oriented).
 
 ---
 
