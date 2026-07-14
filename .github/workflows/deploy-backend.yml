@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "backend/**"
-      - "ecosystem.config.js"
+      - "docker-compose.yml"
       - ".github/workflows/deploy-backend.yml"
 
 jobs:
@@ -24,26 +24,27 @@ jobs:
           port: 22
           script: |
             set -e
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /home/yeahbuddy/htdocs/backend.hominhduc.me
 
             echo "==> Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
 
-            echo "==> Installing dependencies..."
-            cd backend
-            npm ci
+            echo "==> Building Docker image..."
+            docker compose build backend
 
-            echo "==> Building..."
-            npm run build
+            echo "==> Running Prisma migrations..."
+            docker compose run --rm backend npx prisma migrate deploy
 
-            echo "==> Running migrations..."
-            npm run prisma:deploy
+            echo "==> Restarting backend container..."
+            docker compose up -d backend
 
-            echo "==> Restarting PM2..."
-            cd ..
-            pm2 startOrRestart ecosystem.config.js --only yeahbuddy --update-env
+            echo "==> Cleaning up dangling images..."
+            docker image prune -f
+
+            echo "==> Waiting for healthcheck..."
+            sleep 10
+            docker compose ps
+            docker compose logs --tail=20 backend
 
             echo "==> Done!"
