@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { LogOut, Menu, Settings, X } from "lucide-react"
+import { Dumbbell, LogOut, Menu, Settings, X } from "lucide-react"
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
@@ -121,10 +121,10 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
       {/* ── Top bar ── */}
       <header className="relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
         <div className="flex items-center gap-2">
-          <img src="/lift-mark.svg" alt="" className="h-5 w-[22px]" />
-          <span className="text-[18px] font-semibold leading-none tracking-[-0.04em] text-foreground">
-            yeahbuddy
-          </span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <Dumbbell className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
           {badge ? (
             <span className="rounded-[3px] bg-foreground px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-background">
               {badge}
