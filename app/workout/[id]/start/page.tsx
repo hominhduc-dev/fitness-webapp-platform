@@ -1232,13 +1232,22 @@ export default function WorkoutStartPage() {
     if (!session?.access_token || !workout) return
     setIsSaving(true)
     setError(null)
-    const todayMidnight = new Date()
-    todayMidnight.setHours(0, 0, 0, 0)
+    // Anchor the log to `logDate`, preserving startTime's time-of-day. Computing the shift
+    // from startTime (not today) matters when a session was started on a previous day and
+    // resumed — otherwise selecting startTime's actual date would double-shift startedAt
+    // backwards by (today − startTime) days.
     const selectedMidnight = new Date(logDate)
     selectedMidnight.setHours(0, 0, 0, 0)
-    const dayDiff = Math.round((todayMidnight.getTime() - selectedMidnight.getTime()) / (24 * 60 * 60 * 1000))
-    const loggedStartedAt = new Date(startTime.getTime() - dayDiff * 24 * 60 * 60 * 1000)
-    const loggedCompletedAt = new Date(Date.now() - dayDiff * 24 * 60 * 60 * 1000)
+    const startMidnight = new Date(startTime)
+    startMidnight.setHours(0, 0, 0, 0)
+    const dayShiftMs = selectedMidnight.getTime() - startMidnight.getTime()
+    const loggedStartedAt = new Date(startTime.getTime() + dayShiftMs)
+    // Cap workout duration when the session spans real days (forgot to finish yesterday),
+    // so we don't record a 44-hour workout on the past date.
+    const MAX_WORKOUT_DURATION_MS = 4 * 60 * 60 * 1000
+    const rawElapsedMs = Math.max(60_000, Date.now() - startTime.getTime())
+    const cappedElapsedMs = Math.min(rawElapsedMs, MAX_WORKOUT_DURATION_MS)
+    const loggedCompletedAt = new Date(loggedStartedAt.getTime() + cappedElapsedMs)
     try {
       await createWorkoutLog(session.access_token, workout.id, {
         completedAt: loggedCompletedAt.toISOString(),
@@ -1264,6 +1273,17 @@ export default function WorkoutStartPage() {
       return
     }
     const today = new Date()
+    const todayMidnight = new Date(today)
+    todayMidnight.setHours(0, 0, 0, 0)
+    const startMidnight = new Date(startTime)
+    startMidnight.setHours(0, 0, 0, 0)
+    const startedBeforeToday = startMidnight.getTime() < todayMidnight.getTime()
+    // Session resumed from a previous day (user forgot to finish) — the workout was done
+    // on startTime's date, so log it there directly and skip the date picker.
+    if (startedBeforeToday) {
+      void performSave(startMidnight)
+      return
+    }
     const isToday =
       (workout.scheduledDay !== undefined && workout.scheduledDay === today.getDay()) ||
       (workout.scheduledDate !== undefined &&
@@ -1274,9 +1294,7 @@ export default function WorkoutStartPage() {
       void performSave(new Date())
       return
     }
-    const defaultLogDate = new Date(today)
-    defaultLogDate.setHours(0, 0, 0, 0)
-    setSelectedDate(defaultLogDate)
+    setSelectedDate(todayMidnight)
     setShowDateDialog(true)
   }
 
