@@ -45,6 +45,7 @@ import {
   readStoredWorkoutSession,
   type StoredWorkoutSession,
 } from "@/lib/workout/session-storage"
+import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 
 // ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
 
@@ -225,6 +226,35 @@ function seedFromPreviousPerformance(exercises: Workout["exercises"]) {
 function restoreWorkoutSessionStartTime(startedAt: string) {
   const parsedTime = new Date(startedAt)
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
+}
+
+// After a coach-program fork, every workoutExercise and set gets a fresh UUID.
+// Re-key the stored session under the new workoutId and remap each exercise/set
+// id via the server-provided mapping; unmapped ids (e.g. sets the user added
+// mid-session, or exercises from a workout that wasn't the current one) fall
+// through unchanged.
+function migrateStoredWorkoutSession(oldWorkoutId: string, response: SwapWorkoutExerciseResponse) {
+  if (typeof window === "undefined") return
+  const stored = readStoredWorkoutSession(oldWorkoutId)
+  if (!stored) return
+  const exerciseIdMap = response.currentWorkoutExerciseIdMap
+  const setIdMap = response.currentSetIdMap
+  const migrated: StoredWorkoutSession = {
+    ...stored,
+    exercises: stored.exercises.map((exercise) => ({
+      ...exercise,
+      id: exerciseIdMap[exercise.id] ?? exercise.id,
+      sets: exercise.sets.map((set) => ({
+        ...set,
+        id: setIdMap[set.id] ?? set.id,
+      })),
+    })),
+  }
+  window.localStorage.setItem(
+    getWorkoutSessionStorageKey(response.workoutId),
+    JSON.stringify(migrated),
+  )
+  clearStoredWorkoutSession(oldWorkoutId)
 }
 
 function getRecentDays(): Date[] {
@@ -1127,34 +1157,58 @@ export default function WorkoutStartPage() {
         variation.id,
       )
 
-      // Patch the current card client-side so the label flips immediately.
+      // On a coach-program fork every workoutExercise + set gets a fresh UUID;
+      // remap in-memory state (and the in-progress addedSetTokens map) so the
+      // persist effect writes the new IDs — otherwise the pre-remount save would
+      // overwrite our migrated localStorage with stale old-IDs.
+      const isForkedSwap = Boolean(response.forkedProgramId && response.workoutId !== workoutId)
+      const exerciseIdMap = response.currentWorkoutExerciseIdMap
+      const setIdMap = response.currentSetIdMap
+
       const patchExercise = (list: Workout["exercises"]) =>
-        list.map((ex) =>
-          ex.id === replacingExercise.id
-            ? {
-                ...ex,
-                exercise: {
-                  id: variation.exerciseId,
-                  muscleGroup: variation.muscleGroup,
-                  name: variation.exerciseName,
-                },
-                variation: {
-                  id: variation.id,
-                  isDefault: variation.isDefault,
-                  name: variation.variationName,
-                  equipment: variation.equipment,
-                  sortOrder: variation.sortOrder,
-                },
-              }
-            : ex,
-        )
+        list.map((ex) => {
+          const remappedExerciseId = isForkedSwap ? (exerciseIdMap[ex.id] ?? ex.id) : ex.id
+          const remappedSets = isForkedSwap
+            ? ex.sets.map((set) => ({ ...set, id: setIdMap[set.id] ?? set.id }))
+            : ex.sets
+          if (ex.id === replacingExercise.id) {
+            return {
+              ...ex,
+              id: remappedExerciseId,
+              sets: remappedSets,
+              exercise: {
+                id: variation.exerciseId,
+                muscleGroup: variation.muscleGroup,
+                name: variation.exerciseName,
+              },
+              variation: {
+                id: variation.id,
+                isDefault: variation.isDefault,
+                name: variation.variationName,
+                equipment: variation.equipment,
+                sortOrder: variation.sortOrder,
+              },
+            }
+          }
+          return { ...ex, id: remappedExerciseId, sets: remappedSets }
+        })
       setExercises(patchExercise)
       setWorkout((prev) => (prev ? { ...prev, exercises: patchExercise(prev.exercises) } : prev))
       setReplacingExercise(null)
 
-      // If the swap forked the coach's program, the workoutId changed.
-      // Redirect so subsequent refetches / logs hit the trainee's fork.
-      if (response.forkedProgramId && response.workoutId !== workoutId) {
+      if (isForkedSwap) {
+        // Rewire client-added-set tokens under their new set IDs so restored sessions
+        // can still tell "added mid-session" vs "part of the program".
+        const nextTokens = new Map<string, string>()
+        addedSetTokensRef.current.forEach((token, setId) => {
+          nextTokens.set(setIdMap[setId] ?? setId, token)
+        })
+        addedSetTokensRef.current = nextTokens
+
+        // Migrate the in-progress localStorage session under the new workoutId with
+        // remapped exercise/set IDs so completed sets and entered weights survive
+        // the redirect (and clear the old key so it doesn't linger).
+        migrateStoredWorkoutSession(workoutId, response)
         router.replace(`/workout/${response.workoutId}/start`)
       }
     } catch (swapError) {
@@ -1232,13 +1286,22 @@ export default function WorkoutStartPage() {
     if (!session?.access_token || !workout) return
     setIsSaving(true)
     setError(null)
-    const todayMidnight = new Date()
-    todayMidnight.setHours(0, 0, 0, 0)
+    // Anchor the log to `logDate`, preserving startTime's time-of-day. Computing the shift
+    // from startTime (not today) matters when a session was started on a previous day and
+    // resumed — otherwise selecting startTime's actual date would double-shift startedAt
+    // backwards by (today − startTime) days.
     const selectedMidnight = new Date(logDate)
     selectedMidnight.setHours(0, 0, 0, 0)
-    const dayDiff = Math.round((todayMidnight.getTime() - selectedMidnight.getTime()) / (24 * 60 * 60 * 1000))
-    const loggedStartedAt = new Date(startTime.getTime() - dayDiff * 24 * 60 * 60 * 1000)
-    const loggedCompletedAt = new Date(Date.now() - dayDiff * 24 * 60 * 60 * 1000)
+    const startMidnight = new Date(startTime)
+    startMidnight.setHours(0, 0, 0, 0)
+    const dayShiftMs = selectedMidnight.getTime() - startMidnight.getTime()
+    const loggedStartedAt = new Date(startTime.getTime() + dayShiftMs)
+    // Cap workout duration when the session spans real days (forgot to finish yesterday),
+    // so we don't record a 44-hour workout on the past date.
+    const MAX_WORKOUT_DURATION_MS = 4 * 60 * 60 * 1000
+    const rawElapsedMs = Math.max(60_000, Date.now() - startTime.getTime())
+    const cappedElapsedMs = Math.min(rawElapsedMs, MAX_WORKOUT_DURATION_MS)
+    const loggedCompletedAt = new Date(loggedStartedAt.getTime() + cappedElapsedMs)
     try {
       await createWorkoutLog(session.access_token, workout.id, {
         completedAt: loggedCompletedAt.toISOString(),
@@ -1264,6 +1327,17 @@ export default function WorkoutStartPage() {
       return
     }
     const today = new Date()
+    const todayMidnight = new Date(today)
+    todayMidnight.setHours(0, 0, 0, 0)
+    const startMidnight = new Date(startTime)
+    startMidnight.setHours(0, 0, 0, 0)
+    const startedBeforeToday = startMidnight.getTime() < todayMidnight.getTime()
+    // Session resumed from a previous day (user forgot to finish) — the workout was done
+    // on startTime's date, so log it there directly and skip the date picker.
+    if (startedBeforeToday) {
+      void performSave(startMidnight)
+      return
+    }
     const isToday =
       (workout.scheduledDay !== undefined && workout.scheduledDay === today.getDay()) ||
       (workout.scheduledDate !== undefined &&
@@ -1274,9 +1348,7 @@ export default function WorkoutStartPage() {
       void performSave(new Date())
       return
     }
-    const defaultLogDate = new Date(today)
-    defaultLogDate.setHours(0, 0, 0, 0)
-    setSelectedDate(defaultLogDate)
+    setSelectedDate(todayMidnight)
     setShowDateDialog(true)
   }
 

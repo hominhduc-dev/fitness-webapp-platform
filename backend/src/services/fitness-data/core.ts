@@ -5188,6 +5188,8 @@ async function swapExerciseForTraineeFromWorkout(
     }
 
     return {
+      currentSetIdMap: {} as Record<string, string>,
+      currentWorkoutExerciseIdMap: {} as Record<string, string>,
       forkedProgramId: null,
       workoutId: workout.id,
     }
@@ -5223,6 +5225,11 @@ async function swapExerciseForTraineeFromWorkout(
 
   const workoutIdMap = new Map<string, string>()
   const workoutExerciseIdMap = new Map<string, string>()
+  // ID mappings scoped to the workout the user is actively swapping in — the client
+  // needs these to migrate its in-progress localStorage session (keyed by workoutId
+  // and referencing exercise/set IDs) across the fork without losing completed sets.
+  const currentWorkoutExerciseIdMap: Record<string, string> = {}
+  const currentSetIdMap: Record<string, string> = {}
 
   const workoutRows: Prisma.WorkoutCreateManyInput[] = []
   const exerciseRows: Prisma.WorkoutExerciseCreateManyInput[] = []
@@ -5252,6 +5259,9 @@ async function swapExerciseForTraineeFromWorkout(
     for (const sourceExercise of sourceWorkout.exercises) {
       const newExerciseId = randomUUID()
       workoutExerciseIdMap.set(sourceExercise.id, newExerciseId)
+      if (isCurrentWorkout) {
+        currentWorkoutExerciseIdMap[sourceExercise.id] = newExerciseId
+      }
 
       const shouldSwap =
         sourceExercise.variationId === oldVariationId &&
@@ -5267,10 +5277,14 @@ async function swapExerciseForTraineeFromWorkout(
       })
 
       for (const sourceSet of sourceExercise.sets) {
+        const newSetId = randomUUID()
+        if (isCurrentWorkout) {
+          currentSetIdMap[sourceSet.id] = newSetId
+        }
         setRows.push({
           actualReps: sourceSet.actualReps ?? undefined,
           completed: sourceSet.completed,
-          id: randomUUID(),
+          id: newSetId,
           notes: sourceSet.notes ?? undefined,
           rir: sourceSet.rir ?? undefined,
           setNumber: sourceSet.setNumber,
@@ -5376,6 +5390,8 @@ async function swapExerciseForTraineeFromWorkout(
   }))
 
   return {
+    currentSetIdMap,
+    currentWorkoutExerciseIdMap,
     forkedProgramId,
     workoutId: workoutIdMap.get(workout.id) ?? workout.id,
   }
