@@ -84,10 +84,10 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Client header */}
-      <div className="mb-6 flex flex-wrap items-start gap-4">
-        <Avatar className="h-14 w-14 shrink-0">
+      <div className="mb-6 flex flex-wrap items-center gap-4">
+        <Avatar className="h-14 w-14 shrink-0 md:h-16 md:w-16">
           <AvatarImage src={detail.trainee.avatar ?? undefined} />
-          <AvatarFallback className="bg-muted text-lg font-medium text-foreground">
+          <AvatarFallback className="bg-muted text-lg font-medium text-foreground md:text-xl">
             {getInitials(detail.trainee.name)}
           </AvatarFallback>
         </Avatar>
@@ -98,7 +98,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
               {activeProgram.name}
             </p>
           )}
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-[32px] md:leading-[1.15]">
             {detail.trainee.name}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
