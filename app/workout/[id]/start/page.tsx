@@ -228,6 +228,27 @@ function restoreWorkoutSessionStartTime(startedAt: string) {
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
 }
 
+// The "actual workout date" picker defaults to the workout's planned occurrence in the
+// past week (this week's Wed for a Wed workout finished on Fri), so accepting the
+// default lands the log on the same cell the workout was scheduled for. Falls back to
+// today when the workout isn't recurring, isn't tied to a specific date, or its
+// planned date is still in the future.
+function resolveDefaultFinishLogDate(workout: Workout, todayMidnight: Date): Date {
+  if (workout.scheduledDate) {
+    const scheduled = new Date(workout.scheduledDate)
+    scheduled.setHours(0, 0, 0, 0)
+    return scheduled.getTime() <= todayMidnight.getTime() ? scheduled : todayMidnight
+  }
+  if (typeof workout.scheduledDay === "number") {
+    const target = new Date(todayMidnight)
+    const dayOffset = (target.getDay() - workout.scheduledDay + 7) % 7
+    if (dayOffset === 0) return target
+    target.setDate(target.getDate() - dayOffset)
+    return target
+  }
+  return todayMidnight
+}
+
 // After a coach-program fork, every workoutExercise and set gets a fresh UUID.
 // Re-key the stored session under the new workoutId and remap each exercise/set
 // id via the server-provided mapping; unmapped ids (e.g. sets the user added
@@ -1286,22 +1307,38 @@ export default function WorkoutStartPage() {
     if (!session?.access_token || !workout) return
     setIsSaving(true)
     setError(null)
-    // Anchor the log to `logDate`, preserving startTime's time-of-day. Computing the shift
-    // from startTime (not today) matters when a session was started on a previous day and
-    // resumed — otherwise selecting startTime's actual date would double-shift startedAt
-    // backwards by (today − startTime) days.
     const selectedMidnight = new Date(logDate)
     selectedMidnight.setHours(0, 0, 0, 0)
     const startMidnight = new Date(startTime)
     startMidnight.setHours(0, 0, 0, 0)
-    const dayShiftMs = selectedMidnight.getTime() - startMidnight.getTime()
-    const loggedStartedAt = new Date(startTime.getTime() + dayShiftMs)
-    // Cap workout duration when the session spans real days (forgot to finish yesterday),
-    // so we don't record a 44-hour workout on the past date.
+    const todayMidnight = new Date()
+    todayMidnight.setHours(0, 0, 0, 0)
+    // Only preserve the real startTime / now when the whole workflow (start + finish +
+    // selected log date) is TODAY. In every other case anchor to noon UTC of the
+    // selected local date. The schedule cell placement uses `formatUtcDateOnly(startedAt)`
+    // server-side and `getDateKey(startedAt)` client-side; noon UTC is the only anchor
+    // whose UTC and local calendar dates agree across common timezones (e.g. Wed 22:00
+    // in a UTC-5 zone would otherwise be Thu UTC and land on the wrong cell, while the
+    // Wed cell goes empty because completedOccurrenceKeys already claimed that slot).
+    const isFinishingLiveToday =
+      selectedMidnight.getTime() === todayMidnight.getTime() &&
+      startMidnight.getTime() === todayMidnight.getTime()
+    const loggedStartedAt = isFinishingLiveToday
+      ? startTime
+      : new Date(Date.UTC(
+          selectedMidnight.getFullYear(),
+          selectedMidnight.getMonth(),
+          selectedMidnight.getDate(),
+          12,
+          0,
+          0,
+        ))
     const MAX_WORKOUT_DURATION_MS = 4 * 60 * 60 * 1000
     const rawElapsedMs = Math.max(60_000, Date.now() - startTime.getTime())
     const cappedElapsedMs = Math.min(rawElapsedMs, MAX_WORKOUT_DURATION_MS)
-    const loggedCompletedAt = new Date(loggedStartedAt.getTime() + cappedElapsedMs)
+    const loggedCompletedAt = isFinishingLiveToday
+      ? new Date()
+      : new Date(loggedStartedAt.getTime() + cappedElapsedMs)
     try {
       await createWorkoutLog(session.access_token, workout.id, {
         completedAt: loggedCompletedAt.toISOString(),
@@ -1348,7 +1385,13 @@ export default function WorkoutStartPage() {
       void performSave(new Date())
       return
     }
-    setSelectedDate(todayMidnight)
+    // Not today: default the picker to the workout's planned date instead of today, so
+    // just accepting the default lands the log on the scheduled day. Leaving it on today
+    // would send startedAt=today and plannedDate=<scheduled day>, which removes the
+    // scheduled day from the "remaining" list AND places the log on today's cell —
+    // leaving the scheduled cell visibly empty.
+    const defaultLogDate = resolveDefaultFinishLogDate(workout, todayMidnight)
+    setSelectedDate(defaultLogDate)
     setShowDateDialog(true)
   }
 
