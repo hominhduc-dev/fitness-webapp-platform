@@ -362,8 +362,12 @@ function buildWeekEntries({
 
     if (plannedDateKey >= weekStartKey && plannedDateKey < weekEndKey) {
       completedOccurrenceKeys.add(getScheduleOccurrenceKey(log.workout.id, plannedDateKey))
-      getWorkoutCompletionMatchKeys(log.workout).forEach((key) => completedWorkoutMatchKeysForWeek.add(key))
     }
+    // A workout started in this week counts as this week's completion for its
+    // recurring signature, even when plannedDate spilled into a previous week
+    // (catch-up sessions) — prevents the same recurring session from also being
+    // rolled forward onto a later day this week.
+    getWorkoutCompletionMatchKeys(log.workout).forEach((key) => completedWorkoutMatchKeysForWeek.add(key))
   }
 
   // One-off workouts pinned to a date stay on that date; optimistic edits override.
