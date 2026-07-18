@@ -59,14 +59,14 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.consumed}</p>
                 <p className="font-mono text-[1.5rem] font-semibold leading-none tnum text-foreground">
-                  {nutrition.totalCalories.toLocaleString()}
+                  {nutrition.totalCalories.toLocaleString("en-US")}
                   <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.remaining}</p>
                 <p className="font-mono text-[1.25rem] font-semibold leading-none tnum text-primary">
-                  {remaining.toLocaleString()}
+                  {remaining.toLocaleString("en-US")}
                   <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
