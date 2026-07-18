@@ -312,10 +312,15 @@ function resolvePlannedDateForWorkout(workout: Workout, actualDate: Date) {
   }
 
   if (typeof workout.scheduledDay === "number") {
-    const plannedDate = new Date(actualDate)
-    plannedDate.setHours(0, 0, 0, 0)
-    const dayOffset = (plannedDate.getDay() - workout.scheduledDay + 7) % 7
-    plannedDate.setDate(plannedDate.getDate() - dayOffset)
+    // Snap plannedDate to the SAME Mon–Sun week as actualDate. Doing Day 3 (Wed)
+    // on Monday counts as this week's Wed, not last week's — catch-up scenarios
+    // used to land plannedDate in the previous week and cause the recurring cell
+    // in the current week to appear as a duplicate to-do.
+    const anchor = new Date(actualDate)
+    anchor.setHours(0, 0, 0, 0)
+    const daysFromMonday = (anchor.getDay() + 6) % 7
+    const plannedDate = new Date(anchor)
+    plannedDate.setDate(anchor.getDate() - daysFromMonday + ((workout.scheduledDay + 6) % 7))
     return formatDateInputValue(plannedDate)
   }
 
