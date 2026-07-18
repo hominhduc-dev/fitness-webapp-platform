@@ -4,12 +4,11 @@ import type React from "react"
 import Link from "next/link"
 import type { LucideIcon } from "lucide-react"
 import {
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   Cookie,
-  Download,
   ExternalLink,
-  FileSpreadsheet,
   Loader2,
   MoreHorizontal,
   Scale,
@@ -25,13 +24,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,14 +41,10 @@ import {
   assignCoachProgram,
   createCoachBodyMetric,
   createCoachCheckIn,
-  exportCoachWorkoutLogsToGoogleSheets,
-  fetchCoachBodyMetrics,
-  fetchCoachWorkoutLogs,
   unassignCoachProgram,
 } from "@/lib/fitness/api"
-import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
 import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
-import type { MealType, WorkoutLog } from "@/lib/types"
+import type { MealType } from "@/lib/types"
 
 /** Same meal order and icons as the trainee meals screen. */
 const MEAL_SECTIONS: Array<{ icon: LucideIcon; type: MealType }> = [
@@ -97,10 +85,6 @@ function toDateInputValue(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value)
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
   return local.toISOString().slice(0, 10)
-}
-
-function getProgramExportStartDate(program: CoachProgram, assignedAt: unknown) {
-  return formatDateToISO(getProgramStartDate(assignedAt, program.duration))
 }
 
 function formatNumber(value?: number, suffix = "") {
@@ -279,6 +263,24 @@ type RecentSessionsTableProps = {
   sessions: RecentSession[]
 }
 
+/** 5-dot scale used in check-in row headers to visualise 1–5 scores. */
+function DotScale({ value, max = 5 }: { value: number | null | undefined; max?: number }) {
+  const v = value ?? 0
+  return (
+    <span className="inline-flex items-center gap-[3px]">
+      {Array.from({ length: max }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            i < v ? "bg-primary" : "bg-border",
+          )}
+        />
+      ))}
+    </span>
+  )
+}
+
 function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
   const { messages } = useLocale()
 
@@ -336,6 +338,7 @@ export function CoachTraineeDetailClient({
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
+  const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
   const [detail, setDetail] = useState(initialDetail)
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
@@ -346,11 +349,9 @@ export function CoachTraineeDetailClient({
   const [checkInError, setCheckInError] = useState<string | null>(null)
   const [isAssigning, setIsAssigning] = useState(false)
   const [removingProgramId, setRemovingProgramId] = useState<string | null>(null)
-  const [exportingProgramId, setExportingProgramId] = useState<string | null>(null)
-  const [exportingSheetsProgramId, setExportingSheetsProgramId] = useState<string | null>(null)
   const [isSavingMetric, setIsSavingMetric] = useState(false)
   const [isSavingCheckIn, setIsSavingCheckIn] = useState(false)
-  const [selectedNutritionDate, setSelectedNutritionDate] = useState<string | null>(null)
+  const [expandedNutritionDate, setExpandedNutritionDate] = useState<string | null>(null)
 
   const assignedProgramIds = new Set(detail.programs.map((program) => program.id))
   const assignablePrograms = coachPrograms.filter((program) => !assignedProgramIds.has(program.id))
@@ -453,94 +454,6 @@ export function CoachTraineeDetailClient({
     }
   }
 
-  async function handleExportProgramLogs(program: CoachProgram) {
-    if (!session?.access_token) return
-    setExportingProgramId(program.id)
-    setAssignNotice(null)
-
-    try {
-      const assignment = program.assignedTrainees.find((t) => t.id === detail.trainee.id)
-      const from = getProgramExportStartDate(program, assignment?.assignedAt)
-
-      // Upper bound: program end date OR tomorrow — always exclusive (+1 day)
-      // so that logs recorded *today* (same day as assignedAt or today) are included.
-      const endDate = new Date(from)
-      endDate.setDate(endDate.getDate() + program.duration * 7)
-      const tomorrow = new Date()
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      const toDate = endDate < tomorrow ? endDate : tomorrow
-      const to = toDate.toISOString().slice(0, 10)
-
-      const allLogs: WorkoutLog[] = []
-      let cursor: string | undefined
-      for (let page = 0; page < 20; page++) {
-        const result = await fetchCoachWorkoutLogs(session.access_token, detail.trainee.id, {
-          cursor,
-          from,
-          limit: 50,
-          programId: program.id,
-          to,
-        })
-        allLogs.push(...result.logs)
-        if (!result.nextCursor) break
-        cursor = result.nextCursor
-      }
-
-      if (allLogs.length === 0) {
-        setAssignError(`${detail.trainee.name} chưa có buổi tập nào trong program này.`)
-        return
-      }
-
-      const bodyMetrics = await fetchCoachBodyMetrics(session.access_token, detail.trainee.id, {
-        from,
-        to,
-      })
-
-      const { downloadWorkoutLogs } = await import("@/components/workout-export-excel")
-      await downloadWorkoutLogs(allLogs, {
-        bodyMetrics,
-        from,
-        label: program.name,
-        subjectName: detail.trainee.name,
-        to,
-      })
-    } catch (error) {
-      setAssignError(error instanceof Error ? error.message : "Không thể export logs.")
-    } finally {
-      setExportingProgramId(null)
-    }
-  }
-
-  async function handleExportProgramLogsToGoogleSheets(program: CoachProgram) {
-    if (!session?.access_token) return
-    setExportingSheetsProgramId(program.id)
-    setAssignError(null)
-    setAssignNotice(null)
-
-    try {
-      const assignment = program.assignedTrainees.find((t) => t.id === detail.trainee.id)
-      const from = getProgramExportStartDate(program, assignment?.assignedAt)
-      const endDate = new Date(from)
-      endDate.setDate(endDate.getDate() + program.duration * 7)
-      const tomorrow = new Date()
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      const toDate = endDate < tomorrow ? endDate : tomorrow
-      const to = toDate.toISOString().slice(0, 10)
-
-      await exportCoachWorkoutLogsToGoogleSheets(session.access_token, detail.trainee.id, {
-        from,
-        label: program.name,
-        programId: program.id,
-        to,
-      })
-      setAssignNotice(`Exported ${program.name} workout logs to Google Sheets.`)
-    } catch (error) {
-      setAssignError(error instanceof Error ? error.message : "Không thể export logs sang Google Sheets.")
-    } finally {
-      setExportingSheetsProgramId(null)
-    }
-  }
-
   async function handleUnassignProgram(programId: string) {
     if (!session?.access_token) {
       return
@@ -632,8 +545,6 @@ export function CoachTraineeDetailClient({
   }
 
   const nutritionSummary = detail.nutritionSummary
-  const selectedNutritionDay =
-    nutritionSummary?.dailyLogs.find((log) => log.date === selectedNutritionDate) ?? null
   const mealTypeLabels: Record<MealType, string> = {
     breakfast: messages.meals.breakfast,
     dinner: messages.meals.dinner,
@@ -643,11 +554,31 @@ export function CoachTraineeDetailClient({
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
-      <TabsList className="flex w-full justify-start overflow-x-auto bg-muted/50 [scrollbar-width:none] md:grid md:grid-cols-4 [&::-webkit-scrollbar]:hidden">
-        <TabsTrigger value="overview">{messages.coach.tabOverview}</TabsTrigger>
-        <TabsTrigger value="checkins">{messages.coach.tabCheckIns}</TabsTrigger>
-        <TabsTrigger value="nutrition">{messages.coach.tabNutrition}</TabsTrigger>
-        <TabsTrigger value="logs">{messages.coach.tabWorkoutLogs}</TabsTrigger>
+      <TabsList
+        className={cn(
+          "flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0",
+          "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        {[
+          ["overview", messages.coach.tabOverview],
+          ["checkins", messages.coach.tabCheckIns],
+          ["nutrition", messages.coach.tabNutrition],
+          ["logs", messages.coach.tabWorkoutLogs],
+        ].map(([value, label]) => (
+          <TabsTrigger
+            key={value}
+            value={value}
+            className={cn(
+              "-mb-px flex-none rounded-none border-b-2 border-transparent bg-transparent px-3 pb-2.5 pt-2 text-sm font-normal text-muted-foreground shadow-none transition-colors",
+              "hover:text-foreground",
+              "data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none",
+              "dark:data-[state=active]:bg-transparent",
+            )}
+          >
+            {label}
+          </TabsTrigger>
+        ))}
       </TabsList>
 
       {/* ── Overview ──────────────────────────────────────────────────────── */}
@@ -694,7 +625,7 @@ export function CoachTraineeDetailClient({
               {messages.coach.progress30DayVolumeLabel}
             </p>
             <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
-              {Math.round(detail.progressSummary.totalVolumeLast30Days).toLocaleString()}{" "}
+              {integerFormatter.format(Math.round(detail.progressSummary.totalVolumeLast30Days))}{" "}
               <span className="text-sm font-normal text-muted-foreground">kg</span>
             </p>
           </div>
@@ -792,15 +723,9 @@ export function CoachTraineeDetailClient({
                           variant="outline"
                           size="icon"
                           className="shrink-0 bg-transparent"
-                          disabled={
-                            exportingProgramId === program.id ||
-                            exportingSheetsProgramId === program.id ||
-                            removingProgramId === program.id
-                          }
+                          disabled={removingProgramId === program.id}
                         >
-                          {exportingProgramId === program.id ||
-                          exportingSheetsProgramId === program.id ||
-                          removingProgramId === program.id ? (
+                          {removingProgramId === program.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <MoreHorizontal className="h-4 w-4" />
@@ -813,14 +738,6 @@ export function CoachTraineeDetailClient({
                             <ExternalLink />
                             {messages.coach.openPlan}
                           </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => void handleExportProgramLogs(program)}>
-                          <Download />
-                          {messages.coach.exportLogs}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => void handleExportProgramLogsToGoogleSheets(program)}>
-                          <FileSpreadsheet />
-                          Google Sheets
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -1107,59 +1024,78 @@ export function CoachTraineeDetailClient({
                 {messages.coach.noCheckIns}
               </div>
             ) : (
-              <div className="mt-4 space-y-4">
-                {detail.checkIns.map((checkIn) => (
-                  <div key={checkIn.id} className="rounded-lg border border-border bg-muted/20 px-4 py-4">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-medium">{checkIn.checkInDate.toLocaleDateString(dateLocale)}</p>
-                        <p className="text-sm text-muted-foreground">{messages.coach.coachByName(checkIn.coachName)}</p>
+              <div className="mt-4 flex flex-col gap-3">
+                {detail.checkIns.map((checkIn) => {
+                  const avg = averageScore(checkIn)
+                  const dateShort = checkIn.checkInDate.toLocaleDateString(dateLocale, {
+                    day: "numeric",
+                    month: "short",
+                  })
+                  return (
+                    <div key={checkIn.id} className="rounded-[10px] border border-border bg-card p-4">
+                      {/* Compact header: date · avg · adherence/energy/recovery/mood dot scales */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                          {dateShort}
+                        </span>
+                        {avg != null && (
+                          <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                            {avg}
+                            <span className="text-muted-foreground">/5</span>
+                          </span>
+                        )}
+                        <span className="flex-1" />
+                        {(
+                          [
+                            [messages.coach.adherenceStatLabel, checkIn.adherenceScore],
+                            [messages.coach.energyStatLabel, checkIn.energyScore],
+                            [messages.coach.recoveryStatLabel, checkIn.recoveryScore],
+                            [messages.coach.moodStatLabel, checkIn.moodScore],
+                          ] as [string, number | undefined][]
+                        ).map(([label, val]) => (
+                          <span
+                            key={label}
+                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                          >
+                            <span className="uppercase tracking-[0.06em]">{label}</span>
+                            <DotScale value={val} />
+                          </span>
+                        ))}
                       </div>
-                      <Badge variant="micro" className="self-start">
-                        {messages.coach.avgScoreLabel(averageScore(checkIn) ?? "--")}
-                      </Badge>
-                    </div>
 
-                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                      {(
-                        [
-                          [messages.coach.adherenceStatLabel, checkIn.adherenceScore],
-                          [messages.coach.energyStatLabel, checkIn.energyScore],
-                          [messages.coach.recoveryStatLabel, checkIn.recoveryScore],
-                          [messages.coach.moodStatLabel, checkIn.moodScore],
-                        ] as [string, number | undefined][]
-                      ).map(([label, val]) => (
-                        <div key={label} className="rounded-md bg-muted/40 px-3 py-2">
-                          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                            {label}
+                      <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+                        {messages.coach.coachByName(checkIn.coachName)}
+                      </p>
+
+                      {checkIn.summary ? (
+                        <div className="mt-3 rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
+                          <p className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                            {messages.coach.checkInSummarySection}
                           </p>
-                          <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
-                            {formatNumber(val)}
-                          </p>
+                          {checkIn.summary}
                         </div>
-                      ))}
-                    </div>
+                      ) : null}
 
-                    {checkIn.summary ? (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium">{messages.coach.checkInSummarySection}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{checkIn.summary}</p>
+                      <div className="mt-3 border-l-2 border-primary pl-3">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                          {messages.coach.checkInFeedbackSection}
+                        </p>
+                        <p className="mt-0.5 text-sm leading-relaxed text-foreground">
+                          {checkIn.feedback}
+                        </p>
                       </div>
-                    ) : null}
 
-                    <div className="mt-4">
-                      <p className="text-sm font-medium">{messages.coach.checkInFeedbackSection}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{checkIn.feedback}</p>
+                      {checkIn.nextFocus ? (
+                        <div className="mt-3 rounded-md border border-primary/20 bg-primary-soft px-3 py-2 text-sm">
+                          <span className="font-medium text-primary">
+                            {messages.coach.nextFocusSection}
+                          </span>{" "}
+                          {checkIn.nextFocus}
+                        </div>
+                      ) : null}
                     </div>
-
-                    {checkIn.nextFocus ? (
-                      <div className="mt-4 rounded-md border border-primary/20 bg-primary-soft px-3 py-3 text-sm">
-                        <span className="font-medium text-primary">{messages.coach.nextFocusSection}</span>{" "}
-                        {checkIn.nextFocus}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1206,142 +1142,136 @@ export function CoachTraineeDetailClient({
                 {messages.coach.daysTrackedLabel(nutritionSummary.daysTracked)}
               </p>
 
-              {/* Daily log list — tap a day to see the logged foods */}
-              <div className="mt-4 overflow-hidden rounded-lg border border-border">
-                <div className="grid grid-cols-[80px_1fr_44px_44px_44px_16px] items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.nutritionDateCol}</span>
-                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.caloriesCol}</span>
-                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.proteinCol}</span>
-                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.carbsCol}</span>
-                  <span className="text-right font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.fatCol}</span>
-                  <span />
-                </div>
-                {nutritionSummary.dailyLogs.map((row, i) => {
-                  const goalPct = nutritionSummary.traineeCalorieGoal > 0
-                    ? Math.round((row.calories / nutritionSummary.traineeCalorieGoal) * 100)
-                    : null
+              {/* Daily log accordion — tap a day to expand meal-by-meal breakdown */}
+              <div className="mt-4 flex flex-col gap-2.5">
+                {nutritionSummary.dailyLogs.map((row) => {
+                  const goal = nutritionSummary.traineeCalorieGoal
+                  const goalPct = goal > 0 ? Math.round((row.calories / goal) * 100) : null
+                  const over = goal > 0 && row.calories > goal
+                  const onTrack = goalPct != null && goalPct >= 90 && goalPct <= 110
+                  const isOpen = expandedNutritionDate === row.date
                   return (
-                    <button
+                    <div
                       key={row.date}
-                      type="button"
-                      onClick={() => setSelectedNutritionDate(row.date)}
-                      className={cn(
-                        "grid w-full grid-cols-[80px_1fr_44px_44px_44px_16px] items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40",
-                        i < nutritionSummary.dailyLogs.length - 1 && "border-b border-border/50",
-                      )}
+                      className="overflow-hidden rounded-[10px] border border-border bg-card"
                     >
-                      <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">{row.date}</span>
-                      <span className="text-right font-mono text-xs tnum">
-                        {row.calories}
-                        {goalPct != null && (
-                          <span className={cn("ml-1.5 text-[10px]", goalPct >= 90 && goalPct <= 110 ? "text-success" : "text-muted-foreground")}>
-                            {goalPct}%
-                          </span>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedNutritionDate(isOpen ? null : row.date)}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
-                      </span>
-                      <span className="text-right font-mono text-xs tnum">{Math.round(row.protein)}g</span>
-                      <span className="text-right font-mono text-xs tnum">{Math.round(row.carbs)}g</span>
-                      <span className="text-right font-mono text-xs tnum">{Math.round(row.fat)}g</span>
-                      <ChevronRight className="h-3.5 w-3.5 justify-self-end text-muted-foreground/50" />
-                    </button>
+                        <span className="w-14 shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                          {row.date}
+                        </span>
+                        <span
+                          className={cn(
+                            "flex-1 truncate font-mono text-[13px] tabular-nums",
+                            over ? "text-amber-600" : "text-foreground",
+                          )}
+                        >
+                          {integerFormatter.format(row.calories)}{" "}
+                          {goal > 0 && (
+                            <span className="text-muted-foreground">
+                              / {integerFormatter.format(goal)} kcal
+                            </span>
+                          )}
+                        </span>
+                        <span className="hidden font-mono text-xs tabular-nums text-muted-foreground sm:inline">
+                          P {Math.round(row.protein)}g
+                        </span>
+                        {goal > 0 && (
+                          <Badge
+                            variant="micro"
+                            className={cn(
+                              "shrink-0",
+                              over
+                                ? "border-amber-500/20 bg-amber-500/10 text-amber-600"
+                                : onTrack
+                                  ? "border-success/20 bg-success/10 text-success"
+                                  : "border-border bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {over ? "Over" : messages.coach.statusOnTrack}
+                          </Badge>
+                        )}
+                      </button>
+
+                      {isOpen && (
+                        <div className="border-t border-border">
+                          {/* Day macro totals */}
+                          <div className="grid grid-cols-3 gap-3 border-b border-border bg-muted/20 px-4 py-3">
+                            {(
+                              [
+                                [messages.coach.proteinCol, row.protein],
+                                [messages.coach.carbsCol, row.carbs],
+                                [messages.coach.fatCol, row.fat],
+                              ] as [string, number][]
+                            ).map(([label, value]) => (
+                              <div key={label}>
+                                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                                  {label}
+                                </p>
+                                <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums text-foreground">
+                                  {Math.round(value)}g
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Meal sections */}
+                          {MEAL_SECTIONS.map(({ icon: Icon, type }) => {
+                            const items = row.items.filter((item) => item.mealType === type)
+                            if (items.length === 0) return null
+                            const mealCalories = items.reduce((sum, item) => sum + item.calories, 0)
+                            return (
+                              <div key={type} className="border-t border-border/50 first:border-t-0">
+                                <div className="flex items-center gap-2.5 bg-muted/10 px-4 py-2 pl-11">
+                                  <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+                                    {mealTypeLabels[type]}
+                                  </span>
+                                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                                    {Math.round(mealCalories)} kcal
+                                  </span>
+                                </div>
+                                {items.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center gap-3 border-t border-border/40 px-4 py-2 pl-11"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-[13px] text-foreground">
+                                        {item.name}
+                                        {item.amountLabel ? (
+                                          <span className="text-muted-foreground"> {item.amountLabel}</span>
+                                        ) : null}
+                                      </p>
+                                      <p className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+                                        P{Math.round(item.protein ?? 0)} · C{Math.round(item.carbs ?? 0)} · F{Math.round(item.fat ?? 0)}
+                                      </p>
+                                    </div>
+                                    <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                                      {Math.round(item.calories)} kcal
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
             </>
           )}
         </div>
-
-        {/* Day detail — logged foods grouped by meal, mirroring the trainee meals screen */}
-        <Dialog
-          open={selectedNutritionDay != null}
-          onOpenChange={(open) => {
-            if (!open) setSelectedNutritionDate(null)
-          }}
-        >
-          <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-            {selectedNutritionDay ? (
-              <>
-                <DialogHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
-                  <DialogTitle className="text-base font-semibold">
-                    {new Date(`${selectedNutritionDay.date}T00:00:00`).toLocaleDateString(dateLocale, {
-                      day: "numeric",
-                      month: "long",
-                      weekday: "long",
-                      year: "numeric",
-                    })}
-                  </DialogTitle>
-                  <DialogDescription className="font-mono text-xs tnum">
-                    {selectedNutritionDay.calories} kcal
-                    {nutritionSummary && nutritionSummary.traineeCalorieGoal > 0
-                      ? ` · ${messages.coach.calorieGoalLabel(nutritionSummary.traineeCalorieGoal)}`
-                      : ""}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-                  {/* Day macro totals */}
-                  <div className="grid grid-cols-3 gap-3">
-                    {(
-                      [
-                        [messages.coach.proteinCol, selectedNutritionDay.protein],
-                        [messages.coach.carbsCol, selectedNutritionDay.carbs],
-                        [messages.coach.fatCol, selectedNutritionDay.fat],
-                      ] as [string, number][]
-                    ).map(([label, value]) => (
-                      <div key={label} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-                        <p className="label-micro text-muted-foreground">{label}</p>
-                        <p className="mt-1 font-mono text-lg font-semibold tnum">{Math.round(value)}g</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Meal sections */}
-                  {MEAL_SECTIONS.map(({ icon: Icon, type }) => {
-                    const items = selectedNutritionDay.items.filter((item) => item.mealType === type)
-                    if (items.length === 0) return null
-                    const mealCalories = items.reduce((sum, item) => sum + item.calories, 0)
-                    return (
-                      <section key={type} className="overflow-hidden rounded-[10px] border border-border bg-card">
-                        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-                          <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <Icon className="h-[15px] w-[15px]" />
-                          </div>
-                          <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">
-                            {mealTypeLabels[type]}
-                          </h3>
-                          <span className="font-mono text-[13px] text-muted-foreground tnum">
-                            {Math.round(mealCalories)} kcal
-                          </span>
-                        </div>
-                        {items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center gap-2.5 border-b border-border/50 px-4 py-2.5 last:border-b-0"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[13.5px] text-foreground">
-                                {item.name}
-                                {item.amountLabel ? (
-                                  <span className="text-muted-foreground"> {item.amountLabel}</span>
-                                ) : null}
-                              </p>
-                              <p className="mt-0.5 font-mono text-[11px] text-muted-foreground tnum">
-                                P{Math.round(item.protein ?? 0)} · C{Math.round(item.carbs ?? 0)} · F{Math.round(item.fat ?? 0)}
-                              </p>
-                            </div>
-                            <span className="font-mono text-[13px] text-muted-foreground tnum">
-                              {Math.round(item.calories)} kcal
-                            </span>
-                          </div>
-                        ))}
-                      </section>
-                    )
-                  })}
-                </div>
-              </>
-            ) : null}
-          </DialogContent>
-        </Dialog>
       </TabsContent>
 
       {/* ── Workout logs ──────────────────────────────────────────────────── */}
