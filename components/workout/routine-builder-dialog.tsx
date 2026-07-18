@@ -125,22 +125,28 @@ function FieldNum({
   value,
   onChange,
   allowDecimals,
+  allowRange,
   placeholder,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   allowDecimals?: boolean
+  allowRange?: boolean
   placeholder?: string
 }) {
+  const inputType = allowDecimals ? "number" : "text"
+  // allowRange fields (reps / RIR) accept values like "8-12" — mobile numeric
+  // keypads have no "-" key, so fall back to the full text keyboard for those.
+  const inputMode = allowRange ? "text" : allowDecimals ? "decimal" : "numeric"
   return (
     <div className="flex flex-col gap-1">
       <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </span>
       <input
-        type={allowDecimals ? "number" : "text"}
-        inputMode={allowDecimals ? "decimal" : "numeric"}
+        type={inputType}
+        inputMode={inputMode}
         value={value}
         step={allowDecimals ? "0.5" : "1"}
         min="0"
@@ -514,6 +520,7 @@ export function RoutineBuilderDialog({
                       value={ex.reps}
                       onChange={(v) => updateExercise(ex.id, { reps: v })}
                       placeholder="8-12"
+                      allowRange
                     />
                     <FieldNum
                       label="kg"
@@ -526,6 +533,7 @@ export function RoutineBuilderDialog({
                       value={ex.rir}
                       onChange={(v) => updateExercise(ex.id, { rir: v })}
                       placeholder="0-4"
+                      allowRange
                     />
                     <FieldNum
                       label="REST"
