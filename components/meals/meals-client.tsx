@@ -322,8 +322,9 @@ function CategoryChips({
       {FOOD_CATEGORIES.map((category) => (
         <button
           key={category.id}
+          data-active={active === category.id}
           className={cn(
-            "shrink-0 rounded-full border px-3.5 py-2 text-[12px] font-semibold transition-all",
+            "meal-food-sheet__category shrink-0 rounded-full border px-3.5 py-2 text-[12px] font-semibold transition-all",
             active === category.id
               ? "border-primary bg-primary text-primary-foreground shadow-[0_6px_18px_-10px_var(--primary)]"
               : "border-border/80 bg-background/55 text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground",
@@ -562,7 +563,7 @@ function AddFoodModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/25 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
@@ -657,7 +658,7 @@ function AddFoodModal({
                         "flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-3 text-left transition-all",
                         active
                           ? "border-primary bg-primary-soft shadow-[0_8px_24px_-20px_var(--primary)]"
-                          : "meal-food-sheet__row border-transparent bg-card/35 hover:border-border hover:bg-muted/60",
+                          : "meal-food-sheet__row border-border/40 bg-card/35 hover:border-border hover:bg-muted/60",
                       )}
                       type="button"
                       onClick={() => pickFood(food)}
