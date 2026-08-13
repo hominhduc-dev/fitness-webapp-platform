@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { defaultLocale, localeCookieName, type AppLocale } from "@/lib/i18n/config"
 import { getMessages, type AppMessages } from "@/lib/i18n/messages"
@@ -20,6 +21,7 @@ export function LocaleProvider({
   children: React.ReactNode
   initialLocale?: AppLocale
 }) {
+  const router = useRouter()
   const [locale, setLocaleState] = useState<AppLocale>(initialLocale)
 
   useEffect(() => {
@@ -33,9 +35,10 @@ export function LocaleProvider({
       setLocale: (nextLocale) => {
         setLocaleState(nextLocale)
         document.cookie = `${localeCookieName}=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`
+        router.refresh()
       },
     }),
-    [locale],
+    [locale, router],
   )
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
