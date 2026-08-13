@@ -119,7 +119,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <div className="relative z-50 md:hidden">
-      <nav className="glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 grid grid-cols-5 rounded-[22px] border border-border px-1.5 py-1.5 shadow-2xl">
+      <nav className="mobile-floating-nav glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 grid grid-cols-5 rounded-[22px] border border-border bg-background/75 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl">
         {primaryItems.map((item) => {
           const active = isNavItemActive(pathname, item)
           return (
