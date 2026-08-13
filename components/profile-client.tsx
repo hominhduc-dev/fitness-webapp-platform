@@ -3,10 +3,11 @@
 import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Bell, Camera, Flame, Loader2, Lock, Monitor, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
+import { AlertTriangle, Bell, Camera, ChevronDown, Flame, Loader2, Lock, Monitor, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { maxGlassTransparency, minGlassTransparency, useTheme } from "@/components/providers/theme-provider"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ import type { AppActivityLevel, AppProfile, AppSex } from "@/lib/auth/types"
 import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { getAppBaseUrl } from "@/lib/supabase/config"
+import { cn } from "@/lib/utils"
 
 const availableGoalValues = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"] as const
 const DEFAULT_DAILY_CALORIE_GOAL = 2500
@@ -73,6 +75,7 @@ export type ProfileClientInitialData = {
 
 export function ProfileClient({ initialData }: { initialData: ProfileClientInitialData }) {
   const { messages } = useLocale()
+  const { glassTransparency, setGlassTransparency, theme } = useTheme()
   const { isLoading, profile: authProfile, session, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
   const hasConsumedInitialWeight = useRef(false)
@@ -469,10 +472,10 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     resetConfirmation.trim().toUpperCase() === messages.profile.resetDataConfirmationWord.toUpperCase()
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 md:px-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold md:text-3xl">{messages.profile.title}</h1>
-        <p className="mt-1 text-muted-foreground">{messages.profile.subtitle}</p>
+    <div className="mx-auto max-w-6xl px-4 py-5 md:px-6 md:py-7">
+      <div className="mb-5">
+        <h1 className="text-[28px] font-semibold leading-none tracking-[-0.025em] md:text-[34px]">{messages.profile.title}</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">{messages.profile.subtitle}</p>
       </div>
 
       {error ? (
@@ -487,13 +490,15 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       ) : null}
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)] lg:items-start lg:gap-5">
+        <div className="min-w-0 space-y-4">
+      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
           <User className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.profile}</h2>
         </div>
 
-        <div className="mb-6 flex flex-col items-center gap-3">
+        <div className="mb-5 flex items-center gap-4 rounded-xl border border-border/70 bg-muted/30 p-3.5">
           <input
             ref={avatarInputRef}
             id="avatar-upload"
@@ -505,7 +510,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           />
 
           <div className="relative">
-            <Avatar className="h-24 w-24 border-4 border-primary/20">
+            <Avatar className="h-16 w-16 border-[3px] border-primary/20 sm:h-20 sm:w-20">
               <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
               <AvatarFallback className="bg-primary-soft text-2xl text-primary">{initials || "YB"}</AvatarFallback>
             </Avatar>
@@ -522,7 +527,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             </Button>
           </div>
 
-          <div className="text-center">
+          <div className="min-w-0 text-left">
             <p className="text-sm font-medium">{messages.profile.changeAvatar}</p>
             <p className="text-xs text-muted-foreground">
               {isUploadingAvatar ? messages.profile.avatarUploading : messages.profile.avatarRequirements}
@@ -530,7 +535,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3.5">
           <div className="space-y-2">
             <Label htmlFor="name">{messages.profile.fullName}</Label>
             <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
@@ -551,20 +556,20 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             </div>
           </div>
 
-          <div className="space-y-2 md:col-span-2">
+          <div className="col-span-2 space-y-2">
             <Label htmlFor="email">{messages.profile.email}</Label>
             <Input id="email" type="email" value={profile.email} disabled className="cursor-not-allowed opacity-80" />
           </div>
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
+      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
           <Scale className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.preferences}</h2>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3.5 [&_p]:hidden [&_p]:text-xs [&_p]:leading-relaxed sm:[&_p]:block">
           <div className="space-y-2">
             <Label htmlFor="weight-unit">{messages.profile.weightUnit}</Label>
             <Select value={preferredWeightUnit} onValueChange={(value: "kg" | "lbs") => setPreferredWeightUnit(value)}>
@@ -716,20 +721,51 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
+        </div>
+
+        <div className="min-w-0 space-y-4">
+      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
           <Monitor className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.appearance}</h2>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">{messages.profile.appearanceCopy}</p>
-          <ThemeToggle className="w-full sm:w-auto" />
+          <ThemeToggle className="w-full" />
+        </div>
+
+        <div className={cn("mt-4 rounded-xl border border-border bg-muted/35 p-3.5 transition-opacity", theme !== "glass" && "opacity-50")}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Label htmlFor="glass-transparency">{messages.profile.glassTransparency}</Label>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{messages.profile.glassTransparencyCopy}</p>
+            </div>
+            <span className="shrink-0 rounded-full border border-border bg-background px-2.5 py-1 font-mono text-[11px] font-semibold text-foreground tnum">
+              {messages.profile.glassTransparencyValue(glassTransparency)}
+            </span>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Solid</span>
+            <input
+              id="glass-transparency"
+              type="range"
+              min={minGlassTransparency}
+              max={maxGlassTransparency}
+              step={1}
+              value={glassTransparency}
+              disabled={theme !== "glass"}
+              onChange={(event) => setGlassTransparency(Number(event.target.value))}
+              className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary disabled:cursor-not-allowed [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:bg-primary [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-md"
+            />
+            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Clear</span>
+          </div>
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
+      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
           <Palette className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.fitnessGoals}</h2>
         </div>
@@ -743,7 +779,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                 key={goal}
                 type="button"
                 onClick={() => toggleGoal(goal)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
               >
@@ -754,8 +790,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
+      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
           <Bell className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.notifications}</h2>
         </div>
@@ -771,8 +807,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-2">
+      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
           <Lock className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.security}</h2>
         </div>
@@ -795,40 +831,43 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       </div>
 
       {profile.role === "trainee" ? (
-        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive-soft p-6">
-          <div className="mb-4 flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            <h2 className="text-lg font-semibold">{messages.profile.resetData}</h2>
+        <details className="group rounded-[18px] border border-destructive/30 bg-destructive-soft">
+          <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-destructive marker:hidden sm:p-5 [&::-webkit-details-marker]:hidden">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <span className="flex-1 text-base font-semibold">{messages.profile.resetData}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+
+          <div className="border-t border-destructive/20 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+            <p className="mb-4 text-sm text-muted-foreground">{messages.profile.resetDataCopy}</p>
+
+            <div className="space-y-2">
+              <Label htmlFor="reset-trainee-data">{messages.profile.resetDataConfirmationLabel}</Label>
+              <Input
+                id="reset-trainee-data"
+                value={resetConfirmation}
+                onChange={(event) => setResetConfirmation(event.target.value)}
+                placeholder={messages.profile.resetDataConfirmationWord}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={isResettingData}
+                className="border-destructive/20 bg-background"
+              />
+              <p className="text-xs text-muted-foreground">{messages.profile.resetDataConfirmationHint}</p>
+            </div>
+
+            <Button
+              variant="destructive"
+              className="mt-4 w-full"
+              onClick={() => void handleResetTraineeData()}
+              disabled={isResettingData || !isResetConfirmationValid}
+            >
+              {isResettingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {isResettingData ? messages.profile.resetDataInProgress : messages.profile.resetDataAction}
+            </Button>
           </div>
-
-          <p className="mb-4 text-sm text-muted-foreground">{messages.profile.resetDataCopy}</p>
-
-          <div className="space-y-2">
-            <Label htmlFor="reset-trainee-data">{messages.profile.resetDataConfirmationLabel}</Label>
-            <Input
-              id="reset-trainee-data"
-              value={resetConfirmation}
-              onChange={(event) => setResetConfirmation(event.target.value)}
-              placeholder={messages.profile.resetDataConfirmationWord}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={isResettingData}
-              className="max-w-xs border-destructive/20 bg-background"
-            />
-            <p className="text-sm text-muted-foreground">{messages.profile.resetDataConfirmationHint}</p>
-          </div>
-
-          <Button
-            variant="destructive"
-            className="mt-4 w-full md:w-auto"
-            onClick={() => void handleResetTraineeData()}
-            disabled={isResettingData || !isResetConfirmationValid}
-          >
-            {isResettingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            {isResettingData ? messages.profile.resetDataInProgress : messages.profile.resetDataAction}
-          </Button>
-        </div>
+        </details>
       ) : null}
 
       <Button
@@ -839,6 +878,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         {isSaving ? messages.common.saving : messages.common.saveChanges}
       </Button>
+        </div>
+      </div>
     </div>
   )
 }

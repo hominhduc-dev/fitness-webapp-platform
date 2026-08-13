@@ -46,6 +46,7 @@ const themeInitScript = `
 (function() {
   try {
     var storageKey = "yeahbuddy-theme";
+    var glassTransparencyKey = "yeahbuddy-glass-transparency";
     var storedTheme = window.localStorage.getItem(storageKey);
     var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "glass" || storedTheme === "system" ? storedTheme : "light";
     if (window.location.pathname === "/") theme = "light";
@@ -54,6 +55,10 @@ const themeInitScript = `
     var root = document.documentElement;
     root.classList.toggle("dark", resolvedTheme === "dark");
     root.classList.toggle("glass", theme === "glass");
+    var rawStoredTransparency = window.localStorage.getItem(glassTransparencyKey);
+    var storedTransparency = rawStoredTransparency === null ? NaN : Number(rawStoredTransparency);
+    var transparency = Number.isFinite(storedTransparency) ? Math.min(70, Math.max(10, Math.round(storedTransparency))) : 42;
+    root.style.setProperty("--glass-opacity", ((100 - transparency) / 100).toFixed(2));
     root.style.colorScheme = resolvedTheme;
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
