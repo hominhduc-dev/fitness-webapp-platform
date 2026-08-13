@@ -57,11 +57,11 @@ function TopBar() {
         <div className="flex shrink-0 items-center gap-2">
           <span className="landing-brand-mark grid size-9 place-items-center overflow-hidden rounded-full border border-border/70 bg-foreground text-background shadow-sm">
             <Image
-              src="/icon.svg"
+              src="/android-icon-192x192.png"
               alt="YeahBuddy"
               width={36}
               height={36}
-              className="size-full rounded-full object-cover"
+              className="size-full scale-[1.35] rounded-full object-cover"
             />
           </span>
           <span className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.04em] text-foreground md:text-[19px]">
