@@ -4,9 +4,8 @@ import { Check, Dumbbell, Loader2 } from "lucide-react"
 import { useCallback, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { useLocale } from "@/components/providers/locale-provider"
 import { acceptAIProgram, type AIChatAction } from "@/lib/fitness/api"
-
-const WEEKDAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"]
 
 /**
  * Draft program the assistant built during a chat turn. Nothing is persisted
@@ -20,6 +19,9 @@ function ChatProgramCard({
   action: AIChatAction
   accessToken: string
 }) {
+  const { locale } = useLocale()
+  const isVi = locale === "vi"
+  const weekdayLabels = isVi ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [error, setError] = useState<string | null>(null)
 
@@ -31,9 +33,9 @@ function ChatProgramCard({
       setStatus("saved")
     } catch (err) {
       setStatus("error")
-      setError(err instanceof Error ? err.message : "Không lưu được chương trình.")
+      setError(err instanceof Error ? err.message : isVi ? "Không lưu được chương trình." : "Unable to save the program.")
     }
-  }, [accessToken, action.generationId])
+  }, [accessToken, action.generationId, isVi])
 
   const { program } = action
 
@@ -46,7 +48,7 @@ function ChatProgramCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug">{program.name}</p>
           <p className="text-[11px] text-muted-foreground">
-            {program.duration} tuần · {program.workoutsPerWeek} buổi/tuần · {action.mappingRate}% bài tập khớp
+            {program.duration} {isVi ? "tuần" : "weeks"} · {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"} · {action.mappingRate}% {isVi ? "bài tập khớp" : "exercises matched"}
           </p>
         </div>
       </div>
@@ -55,10 +57,10 @@ function ChatProgramCard({
         {program.workouts.map((workout, i) => (
           <li key={i} className="flex items-center justify-between gap-2 text-xs">
             <span className="min-w-0 truncate">
-              <span className="text-muted-foreground">{WEEKDAY_LABELS[workout.scheduledDay] ?? "—"}</span>{" "}
+              <span className="text-muted-foreground">{weekdayLabels[workout.scheduledDay] ?? "—"}</span>{" "}
               {workout.name}
             </span>
-            <span className="shrink-0 text-muted-foreground">{workout.exercises.length} bài</span>
+            <span className="shrink-0 text-muted-foreground">{workout.exercises.length} {isVi ? "bài" : "exercises"}</span>
           </li>
         ))}
       </ul>
@@ -66,7 +68,7 @@ function ChatProgramCard({
       {status === "saved" ? (
         <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
           <Check className="size-3.5" />
-          Đã lưu vào chương trình của bạn
+          {isVi ? "Đã lưu vào chương trình của bạn" : "Saved to your programs"}
         </div>
       ) : (
         <Button
@@ -78,10 +80,10 @@ function ChatProgramCard({
           {status === "saving" ? (
             <>
               <Loader2 className="size-3.5 animate-spin" />
-              Đang lưu...
+              {isVi ? "Đang lưu..." : "Saving..."}
             </>
           ) : (
-            "Dùng chương trình này"
+            isVi ? "Dùng chương trình này" : "Use this program"
           )}
         </Button>
       )}

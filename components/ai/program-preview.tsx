@@ -3,6 +3,7 @@
 import { AlertTriangle, Check, Loader2, RefreshCw, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
 
 type PreviewExercise = {
@@ -33,23 +34,6 @@ type PreviewProgram = {
   workouts: PreviewWorkout[]
 }
 
-const DAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"]
-
-const DIFFICULTY_LABELS: Record<string, string> = {
-  beginner: "Mới bắt đầu",
-  intermediate: "Trung cấp",
-  advanced: "Nâng cao",
-}
-
-const KIND_LABELS: Record<string, string> = {
-  push: "Push",
-  pull: "Pull",
-  legs: "Legs",
-  full_body: "Full Body",
-  cardio: "Cardio",
-  other: "Khác",
-}
-
 function ProgramPreview({
   program,
   exerciseNames,
@@ -65,31 +49,39 @@ function ProgramPreview({
   onRegenerate: () => void
   isAccepting: boolean
 }) {
+  const { locale } = useLocale()
+  const isVi = locale === "vi"
+  const dayLabels = isVi ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const difficultyLabels: Record<string, string> = isVi
+    ? { beginner: "Mới bắt đầu", intermediate: "Trung cấp", advanced: "Nâng cao" }
+    : { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" }
+  const kindLabels: Record<string, string> = { push: "Push", pull: "Pull", legs: "Legs", full_body: "Full Body", cardio: "Cardio", other: isVi ? "Khác" : "Other" }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="glass-card rounded-[22px] border border-primary/20 bg-gradient-to-br from-primary-soft/80 via-card to-card p-5 sm:p-6">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-4" />Chương trình AI đề xuất</div>
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-4" />{isVi ? "Chương trình AI đề xuất" : "AI-recommended program"}</div>
         <h2 className="text-xl font-semibold">{program.name}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{program.description}</p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-primary">
-            {DIFFICULTY_LABELS[program.difficulty] ?? program.difficulty}
+            {difficultyLabels[program.difficulty] ?? program.difficulty}
           </span>
           <span className="rounded-full bg-muted px-2.5 py-1">
-            {program.duration} tuần
+            {program.duration} {isVi ? "tuần" : "weeks"}
           </span>
           <span className="rounded-full bg-muted px-2.5 py-1">
-            {program.workoutsPerWeek} buổi/tuần
+            {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"}
           </span>
           <span className={cn("rounded-full px-2.5 py-1", mappingRate >= 80 ? "bg-ok-soft text-success" : "bg-warning-soft text-warning")}>
-            {mappingRate}% bài tập khả dụng
+            {mappingRate}% {isVi ? "bài tập khả dụng" : "exercises available"}
           </span>
         </div>
         {mappingRate < 80 && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-warning/20 bg-warning-soft p-3 text-xs text-warning">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            Một số bài AI đề xuất chưa có trong thư viện. Hãy kiểm tra kỹ trước khi lưu hoặc tạo lại cấu hình.
+            {isVi ? "Một số bài AI đề xuất chưa có trong thư viện. Hãy kiểm tra kỹ trước khi lưu hoặc tạo lại cấu hình." : "Some AI-recommended exercises are not in the library. Review them before saving or adjust the setup."}
           </div>
         )}
       </div>
@@ -102,19 +94,19 @@ function ProgramPreview({
               <div>
                 <span className="text-sm font-semibold">{workout.name}</span>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  {DAY_LABELS[workout.scheduledDay]} · {workout.duration} phút
+                  {dayLabels[workout.scheduledDay]} · {workout.duration} {isVi ? "phút" : "min"}
                 </span>
               </div>
               <span className={cn(
                 "rounded-full px-2 py-0.5 text-xs font-medium",
                 "bg-muted text-muted-foreground",
               )}>
-                {KIND_LABELS[workout.kind] ?? workout.kind}
+                {kindLabels[workout.kind] ?? workout.kind}
               </span>
             </div>
             <div className="divide-y">
               {workout.exercises.map((exercise, j) => {
-                const name = exerciseNames.get(exercise.variationId) ?? "Bài tập"
+                const name = exerciseNames.get(exercise.variationId) ?? (isVi ? "Bài tập" : "Exercise")
                 const repsLabel = exercise.repsMin
                   ? `${exercise.repsMin}-${exercise.reps}`
                   : `${exercise.reps}`
@@ -131,7 +123,7 @@ function ProgramPreview({
               })}
               {workout.exercises.length === 0 && (
                 <div className="px-4 py-3 text-sm text-muted-foreground">
-                  Không có bài tập (lỗi mapping)
+                  {isVi ? "Không có bài tập (lỗi mapping)" : "No exercises (mapping error)"}
                 </div>
               )}
             </div>
@@ -148,7 +140,7 @@ function ProgramPreview({
           disabled={isAccepting}
         >
           <RefreshCw className="size-4" />
-          Chỉnh cấu hình
+          {isVi ? "Chỉnh cấu hình" : "Adjust setup"}
         </Button>
         <Button
           className="flex-1 gap-2 rounded-xl"
@@ -158,12 +150,12 @@ function ProgramPreview({
           {isAccepting ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              Đang lưu...
+              {isVi ? "Đang lưu..." : "Saving..."}
             </>
           ) : (
             <>
               <Check className="size-4" />
-              Lưu chương trình
+              {isVi ? "Lưu chương trình" : "Save program"}
             </>
           )}
         </Button>

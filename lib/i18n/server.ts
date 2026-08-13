@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers"
+import { cookies } from "next/headers"
 import { cache } from "react"
 
 import { defaultLocale, isAppLocale, localeCookieName } from "@/lib/i18n/config"
@@ -10,19 +10,6 @@ export const getServerLocale = cache(async () => {
 
   if (isAppLocale(cookieLocale)) {
     return cookieLocale
-  }
-
-  const acceptLanguage = (await headers()).get("accept-language")?.toLowerCase()
-
-  if (acceptLanguage) {
-    const preferredLocale = acceptLanguage
-      .split(",")
-      .map((entry) => entry.trim().split(";")[0]?.split("-")[0])
-      .find(isAppLocale)
-
-    if (preferredLocale) {
-      return preferredLocale
-    }
   }
 
   return defaultLocale

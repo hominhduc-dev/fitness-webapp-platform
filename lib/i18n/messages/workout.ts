@@ -3,6 +3,7 @@ export const workoutMessages = {
     workoutPage: {
       add30Seconds: "Add 30 seconds",
       addExercise: "Add exercise",
+      aiCreateWorkout: "AI workout builder",
       added: "added",
       addNote: "Add note",
       addSet: "Add set",
@@ -147,6 +148,7 @@ export const workoutMessages = {
     workoutPage: {
       add30Seconds: "Thêm 30 giây",
       addExercise: "Thêm bài tập",
+      aiCreateWorkout: "AI tạo lịch tập",
       added: "đã thêm",
       addNote: "Thêm ghi chú",
       addSet: "Thêm set",
