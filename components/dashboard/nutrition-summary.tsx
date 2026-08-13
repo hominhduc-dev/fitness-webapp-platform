@@ -19,7 +19,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
   const remaining = Math.max(0, nutrition.targetCalories - nutrition.totalCalories)
 
   // SVG donut params
-  const radius = 46
+  const radius = 42
   const circumference = 2 * Math.PI * radius
   const arc = (percentage / 100) * circumference
 
@@ -32,20 +32,27 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
           {/* Donut + calories */}
           <div className="flex min-w-0 items-center gap-6">
             {/* Donut */}
-            <div className="relative h-24 w-24 shrink-0">
-              <svg className="h-24 w-24 -rotate-90">
+            <div className="relative aspect-square size-24 shrink-0 rounded-full">
+              <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="xMidYMid meet"
+                aria-label={`${percentage}%`}
+                className="block aspect-square size-full -rotate-90 overflow-visible"
+              >
                 <circle
-                  cx="48" cy="48" r={radius}
-                  stroke="currentColor" strokeWidth="7" fill="transparent"
+                  cx="50" cy="50" r={radius}
+                  stroke="currentColor" strokeWidth="8" fill="none"
                   className="text-muted"
                 />
-                <circle
-                  cx="48" cy="48" r={radius}
-                  stroke="currentColor" strokeWidth="7" fill="transparent"
-                  strokeDasharray={`${arc} ${circumference}`}
-                  className="text-primary transition-all duration-500"
-                  strokeLinecap="round"
-                />
+                {percentage > 0 && (
+                  <circle
+                    cx="50" cy="50" r={radius}
+                    stroke="currentColor" strokeWidth="8" fill="none"
+                    strokeDasharray={`${arc} ${circumference}`}
+                    className="text-primary transition-all duration-500"
+                    strokeLinecap="round"
+                  />
+                )}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="font-mono text-[1.1rem] font-semibold tnum text-foreground">
