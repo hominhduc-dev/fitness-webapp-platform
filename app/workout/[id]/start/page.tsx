@@ -1273,7 +1273,7 @@ export default function WorkoutStartPage() {
         exercise: exerciseLabel,
         set: {
           id: set.id,
-          kg: data.weight ?? set.weight ?? 0,
+          kg: data.weight ?? set.weight ?? null,
           reps: data.actualReps ?? set.actualReps ?? null,
         },
       })
