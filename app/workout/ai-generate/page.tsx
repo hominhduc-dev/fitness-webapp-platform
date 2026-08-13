@@ -7,10 +7,13 @@ import { useCallback, useEffect, useState } from "react"
 
 import { ProgramGeneratorForm, type FormValues } from "@/components/ai/program-generator-form"
 import { ProgramPreview } from "@/components/ai/program-preview"
+import { DailyWorkoutGeneratorForm, type DailyWorkoutFormValues } from "@/components/ai/daily-workout-generator-form"
+import { DailyWorkoutPreview } from "@/components/ai/daily-workout-preview"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
-import { acceptAIProgram, fetchExerciseLibrary, generateAIProgram } from "@/lib/fitness/api"
+import { acceptAIDailyWorkout, acceptAIProgram, fetchExerciseLibrary, generateAIDailyWorkout, generateAIProgram, type AIDailyWorkout } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
+import { cn } from "@/lib/utils"
 
 type GenerateResult = {
   generationId: string
@@ -40,10 +43,25 @@ type GenerateResult = {
   mappingRate: number
 }
 
+type DailyGenerateResult = {
+  generationId: string
+  workout: AIDailyWorkout
+  mappingRate: number
+}
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export default function AIGeneratePage() {
   const { session } = useAuth()
   const router = useRouter()
+  const [mode, setMode] = useState<"daily" | "program">("daily")
   const [result, setResult] = useState<GenerateResult | null>(null)
+  const [dailyResult, setDailyResult] = useState<DailyGenerateResult | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isAccepting, setIsAccepting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -105,6 +123,48 @@ export default function AIGeneratePage() {
     }
   }, [session?.access_token, result, router])
 
+  const handleGenerateDaily = useCallback(async (values: DailyWorkoutFormValues) => {
+    if (!session?.access_token) return
+    setIsGenerating(true)
+    setError(null)
+    setDailyResult(null)
+    try {
+      const data = await generateAIDailyWorkout(session.access_token, {
+        ...values,
+        date: formatLocalDate(new Date()),
+        focusAreas: values.focusAreas.length ? values.focusAreas : undefined,
+        injuries: values.injuries || undefined,
+      })
+      setDailyResult(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tạo buổi tập hôm nay. Vui lòng thử lại.")
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [session?.access_token])
+
+  const handleAcceptDaily = useCallback(async () => {
+    if (!session?.access_token || !dailyResult) return
+    setIsAccepting(true)
+    setError(null)
+    try {
+      const accepted = await acceptAIDailyWorkout(session.access_token, dailyResult.generationId)
+      markDashboardForRefresh()
+      router.push(`/workout/${accepted.workoutId}/start`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể lưu buổi tập hôm nay. Vui lòng thử lại.")
+    } finally {
+      setIsAccepting(false)
+    }
+  }, [dailyResult, router, session?.access_token])
+
+  function changeMode(nextMode: "daily" | "program") {
+    setMode(nextMode)
+    setError(null)
+    setResult(null)
+    setDailyResult(null)
+  }
+
   return (
     <main className="mx-auto max-w-[880px] px-4 pb-28 pt-5 sm:px-6 sm:py-8 md:px-10">
       <div className="mb-6 sm:mb-8">
@@ -118,15 +178,20 @@ export default function AIGeneratePage() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold sm:text-2xl">AI Tạo Chương Trình</h1>
+              <h1 className="text-xl font-bold sm:text-2xl">AI Workout Builder</h1>
               <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />Cá nhân hoá</span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cá nhân hoá lịch tập dựa trên mục tiêu và trình độ của bạn
+              Tạo một buổi tập hôm nay hoặc chương trình nhiều tuần
             </p>
             <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success" />Có kiểm tra thiết bị và giới hạn vận động</p>
           </div>
         </div>
+      </div>
+
+      <div className="auth-theme-tabs mb-6 grid grid-cols-2 rounded-full border bg-muted/50 p-1">
+        <button type="button" onClick={() => changeMode("daily")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "daily" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>Buổi tập hôm nay</button>
+        <button type="button" onClick={() => changeMode("program")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "program" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>Chương trình nhiều tuần</button>
       </div>
 
       {error && (
@@ -135,7 +200,18 @@ export default function AIGeneratePage() {
         </div>
       )}
 
-      {result ? (
+      {mode === "daily" && dailyResult ? (
+        <DailyWorkoutPreview
+          workout={dailyResult.workout}
+          exerciseNames={exerciseNames}
+          mappingRate={dailyResult.mappingRate}
+          onAccept={() => void handleAcceptDaily()}
+          onRegenerate={() => setDailyResult(null)}
+          isAccepting={isAccepting}
+        />
+      ) : mode === "daily" ? (
+        <DailyWorkoutGeneratorForm onSubmit={handleGenerateDaily} isLoading={isGenerating} />
+      ) : result ? (
         <ProgramPreview
           program={result.program}
           exerciseNames={exerciseNames}
