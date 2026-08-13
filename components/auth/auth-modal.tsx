@@ -635,7 +635,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="!bottom-0 !left-0 !right-0 !top-auto !flex !h-[min(640px,calc(100dvh-env(safe-area-inset-top)-0.5rem))] !max-h-none !w-full !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !overflow-hidden !rounded-b-none !rounded-t-[28px] !border-x-0 !border-b-0 !border-border !bg-surface !p-0 sm:!bottom-auto sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!h-[min(640px,calc(100dvh-2rem))] sm:!w-full sm:!max-w-[425px] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!rounded-2xl sm:!border"
+        className="auth-floating-panel !bottom-[calc(0.75rem+env(safe-area-inset-bottom))] !left-3 !right-3 !top-auto !flex !h-[min(640px,calc(100dvh-env(safe-area-inset-top)-1.5rem-env(safe-area-inset-bottom)))] !max-h-none !w-auto !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !overflow-hidden !rounded-[28px] !border !border-border !bg-surface !p-0 sm:!bottom-auto sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!h-[min(640px,calc(100dvh-2rem))] sm:!w-full sm:!max-w-[425px] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!rounded-2xl"
       >
         <div className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-hidden sm:max-w-none">
           <div className="relative shrink-0 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
