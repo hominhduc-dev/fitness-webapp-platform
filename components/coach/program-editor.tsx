@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   Pencil,
@@ -744,6 +745,7 @@ export function ProgramEditor({
   const isAdjustMode = Boolean(programId && adjustForTraineeId)
 
   const [programName, setProgramName] = useState("")
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
   const [durationDraft, setDurationDraft] = useState("8")
@@ -1206,7 +1208,28 @@ export function ProgramEditor({
             )}
           </div>
 
-          <div className={cn("rounded-[18px] border border-border/70 bg-background/30 p-3.5 sm:p-4", isArchived && "pointer-events-none opacity-60")}>
+          <button
+            type="button"
+            className="mb-3 flex w-full items-center justify-between gap-3 rounded-[14px] border border-border/70 bg-background/35 px-3.5 py-3 text-left md:hidden"
+            aria-expanded={isDetailsExpanded}
+            onClick={() => setIsDetailsExpanded((current) => !current)}
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-foreground">{messages.coach.programDetails}</span>
+              <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isDetailsExpanded && "rotate-180")}
+            />
+          </button>
+
+          <div className={cn(
+            "rounded-[18px] border border-border/70 bg-background/30 p-3.5 sm:p-4",
+            !isDetailsExpanded && "hidden md:block",
+            isArchived && "pointer-events-none opacity-60",
+          )}>
             <p className="label-micro mb-3 text-muted-foreground">{messages.coach.programDetails}</p>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.45fr_0.65fr_0.9fr_0.9fr]">
               <label className="col-span-2 space-y-1.5 md:col-span-1">
@@ -1287,7 +1310,7 @@ export function ProgramEditor({
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className={cn("mt-3 flex flex-wrap items-center gap-2", !isDetailsExpanded && "hidden md:flex")}>
             <div className="flex flex-wrap items-center gap-2">
               {programId && assignedTrainees.length > 0 && (
                 <ExportProgramLogsDialog
