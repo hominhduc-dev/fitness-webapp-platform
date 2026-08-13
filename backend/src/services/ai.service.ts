@@ -8,7 +8,8 @@ import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
 import { AuthServiceError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
-import { addMealItemForUser } from "./nutrition.service"
+import { addMealItemForUser, calculateItemNutrition, normalizeAmountUnit, type AmountUnit } from "./nutrition.service"
+import { roundNutrition } from "../lib/nutrition/food-utils"
 
 // ---------------------------------------------------------------------------
 // Rate Limits
@@ -141,9 +142,12 @@ type FoodCatalogItem = {
   protein: number
   carbs: number
   fat: number
-  servingLabel: string | null
+  fiber: number | null
+  sodium: number | null
+  sugar: number | null
+  servingLabel: string
   servingAmount: number
-  servingUnit: string | null
+  servingUnit: string
 }
 
 function mapFoodToId(
@@ -153,6 +157,19 @@ function mapFoodToId(
   const normName = normalizeForMatch(foodName)
   const food = catalog.find((f) => normalizeForMatch(f.name) === normName)
   return food?.id ?? null
+}
+
+// addMealItemForUser rejects non-positive amounts and anything above 5000, and
+// acceptAIMealPlan swallows those failures. Drop them at generation time instead
+// so the preview only ever shows items that will really be logged.
+const MAX_MEAL_AMOUNT = 5000
+
+function normalizeAmountValue(value: unknown): number | null {
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MEAL_AMOUNT) {
+    return null
+  }
+  return amount
 }
 
 // ---------------------------------------------------------------------------
@@ -664,6 +681,9 @@ async function generateMealPlan(profile: SerializedProfile, input: GenerateMealP
     protein: f.protein ?? 0,
     carbs: f.carbs ?? 0,
     fat: f.fat ?? 0,
+    fiber: f.fiber,
+    sodium: f.sodium,
+    sugar: f.sugar,
     servingLabel: f.servingLabel,
     servingAmount: f.servingAmount ?? 1,
     servingUnit: f.servingUnit,
@@ -707,8 +727,9 @@ QUY TẮC BẮT BUỘC:
 5. Tổng calories phải gần với mục tiêu (±10%).
 6. Tạo đúng 4 bữa: breakfast, lunch, dinner, snack.
 7. Mỗi bữa chỉ có 2-3 items. Dùng amountValue để tăng khẩu phần thay vì thêm quá nhiều món.
-8. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
-9. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
+8. amountUnit CHỈ được là "serving", "g" hoặc "ml". TUYỆT ĐỐI không dùng đơn vị khác (ly, tô, dĩa, quả, chén, muỗng...) — dùng "serving" cho khẩu phần và đặt số lượng vào amountValue.
+9. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
+10. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
 
   const userPrompt = `## Mục tiêu dinh dưỡng
 - Calories: ${profile.dailyCalorieGoal} kcal
@@ -772,22 +793,33 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
           const foodId = mapFoodToId(item.foodName, foodCatalog)
           if (!foodId) return null
           const food = foodCatalog.find((f) => f.id === foodId)
+          if (!food) return null
+
+          const amountValue = normalizeAmountValue(item.amountValue)
+          if (amountValue === null) return null
+
+          // Models routinely invent units ("ly", "tô", "100 g"), so normalize
+          // here and scale with the exact same helper the accept path uses —
+          // otherwise the preview totals disagree with what actually gets logged.
+          const amountUnit = normalizeAmountUnit(item.amountUnit)
+          const nutrition = calculateItemNutrition(food, { amountUnit, amountValue })
+
           return {
             foodId,
-            foodName: food?.name ?? item.foodName,
-            amountValue: item.amountValue,
-            amountUnit: item.amountUnit,
-            calories: food?.calories ?? 0,
-            protein: food?.protein ?? 0,
-            carbs: food?.carbs ?? 0,
-            fat: food?.fat ?? 0,
+            foodName: food.name,
+            amountValue,
+            amountUnit,
+            calories: nutrition.calories,
+            protein: nutrition.protein,
+            carbs: nutrition.carbs,
+            fat: nutrition.fat,
           }
         })
         .filter(Boolean) as Array<{
           foodId: string
           foodName: string
           amountValue: number
-          amountUnit: string
+          amountUnit: AmountUnit
           calories: number
           protein: number
           carbs: number
@@ -800,6 +832,22 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         items: mappedItems,
       }
     })
+
+    // Totals come from the mapped items, not from the model's own arithmetic —
+    // the model can't know which items dropped out of the catalog mapping, and
+    // its self-reported sums were drifting from the logged values.
+    const totals = mappedMeals.reduce(
+      (acc, meal) => {
+        for (const item of meal.items) {
+          acc.calories += item.calories
+          acc.protein += item.protein
+          acc.carbs += item.carbs
+          acc.fat += item.fat
+        }
+        return acc
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    )
 
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -817,10 +865,10 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       generationId: generation.id,
       meals: mappedMeals,
       totals: {
-        calories: aiOutput.totalCalories,
-        protein: aiOutput.totalProtein,
-        carbs: aiOutput.totalCarbs,
-        fat: aiOutput.totalFat,
+        calories: roundNutrition(totals.calories),
+        protein: roundNutrition(totals.protein),
+        carbs: roundNutrition(totals.carbs),
+        fat: roundNutrition(totals.fat),
       },
       notes: aiOutput.notes,
     }

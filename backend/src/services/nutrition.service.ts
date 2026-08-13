@@ -379,6 +379,18 @@ async function createFoodForUser(profile: SerializedProfile, input: Record<strin
   return serializeFood(food)
 }
 
+type AmountUnit = "serving" | "g" | "ml"
+
+/**
+ * Coerces a caller-supplied unit to one the nutrition math understands.
+ * Anything else — including free-form units an AI model invents ("ly", "tô",
+ * "100 g") — falls back to "serving".
+ */
+function normalizeAmountUnit(value: unknown): AmountUnit {
+  const unit = typeof value === "string" ? value.trim().toLowerCase() : ""
+  return unit === "g" || unit === "ml" ? unit : "serving"
+}
+
 function calculateItemNutrition(
   food: {
     calories: number
@@ -396,7 +408,7 @@ function calculateItemNutrition(
     amountValue: number
   },
 ) {
-  const amountUnit = input.amountUnit === "g" || input.amountUnit === "ml" ? input.amountUnit : "serving"
+  const amountUnit = normalizeAmountUnit(input.amountUnit)
   const multiplier =
     amountUnit !== "serving" && food.servingUnit === amountUnit && food.servingAmount > 0
       ? input.amountValue / food.servingAmount
@@ -459,7 +471,7 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
   const type = parseMealType(input.mealType)
   const foodId = sanitizeText(input.foodId, "foodId")
   const amountValue = parsePositiveNumber(input.amountValue, "amountValue", 5000)
-  const amountUnit = typeof input.amountUnit === "string" ? input.amountUnit.trim().toLowerCase() : "serving"
+  const amountUnit = normalizeAmountUnit(input.amountUnit)
   const food = await db.food.findFirst({
     where: {
       id: foodId,
@@ -584,8 +596,11 @@ async function deleteMealItemForUser(profile: SerializedProfile, itemId: string)
 
 export {
   addMealItemForUser,
+  calculateItemNutrition,
   createFoodForUser,
   deleteMealItemForUser,
   listFoodsForUser,
   listNutritionDayForUser,
+  normalizeAmountUnit,
+  type AmountUnit,
 }
