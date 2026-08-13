@@ -119,17 +119,17 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <div className="relative z-50 md:hidden">
-      <nav className="mobile-floating-nav glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 grid grid-cols-5 rounded-[22px] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl">
+      <nav className="mobile-floating-nav glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-1.5 shadow-2xl backdrop-blur-xl">
         {primaryItems.map((item) => {
           const active = isNavItemActive(pathname, item)
           return (
-            <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-[16px] px-1 py-2.5", active ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
+            <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", active ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
               <item.icon className="h-5 w-5" strokeWidth={1.7} />
               <span className="sr-only">{item.label}</span>
             </Link>
           )
         })}
-        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-[16px] px-1 py-2.5", open ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
+        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
           <MoreHorizontal className="h-5 w-5" />
           <span className="sr-only">More</span>
         </button>
