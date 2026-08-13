@@ -562,11 +562,11 @@ function AddFoodModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-background/55 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/25 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
-        className="glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-[28px] border border-border/80 bg-background/88 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.55)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-[24px]"
+        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-[28px] border border-border/80 bg-card shadow-[0_28px_90px_-28px_rgba(0,0,0,0.55)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-[24px]"
         onClick={(event) => event.stopPropagation()}
       >
         {creating ? (
@@ -579,7 +579,7 @@ function AddFoodModal({
           />
         ) : (
           <>
-            <div className="shrink-0 border-b border-border/70 bg-background/45 px-4 pb-3.5 pt-2 backdrop-blur-xl sm:px-5 sm:pb-4 sm:pt-4">
+            <div className="meal-food-sheet__chrome shrink-0 border-b border-border/70 bg-card/90 px-4 pb-3.5 pt-2 backdrop-blur-xl sm:px-5 sm:pb-4 sm:pt-4">
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-foreground/15 sm:hidden" />
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-3">
@@ -593,7 +593,7 @@ function AddFoodModal({
                 </div>
                 <button
                   aria-label={labels.cancel}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/55 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="meal-food-sheet__control flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   type="button"
                   onClick={onClose}
                 >
@@ -603,7 +603,7 @@ function AddFoodModal({
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="h-11 rounded-full border-border/80 bg-background/60 pl-10 pr-4 shadow-none focus-visible:ring-primary/25"
+                  className="meal-food-sheet__control h-11 rounded-full border-border/80 bg-muted/55 pl-10 pr-4 shadow-none focus-visible:ring-primary/25"
                   value={query}
                   placeholder={labels.searchFoodPlaceholder}
                   onChange={(event) => setQuery(event.target.value)}
@@ -628,7 +628,7 @@ function AddFoodModal({
                         <button
                           key={food.id}
                           className={cn(
-                            "min-w-[156px] max-w-[200px] shrink-0 rounded-[14px] border bg-background/65 px-3 py-2.5 text-left transition-all",
+                            "meal-food-sheet__control min-w-[156px] max-w-[200px] shrink-0 rounded-[14px] border bg-card/75 px-3 py-2.5 text-left transition-all",
                             active
                               ? "border-primary bg-primary-soft shadow-[0_8px_24px_-18px_var(--primary)]"
                               : "border-border/80 hover:border-primary/25 hover:bg-muted",
@@ -657,7 +657,7 @@ function AddFoodModal({
                         "flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-3 text-left transition-all",
                         active
                           ? "border-primary bg-primary-soft shadow-[0_8px_24px_-20px_var(--primary)]"
-                          : "border-transparent bg-background/35 hover:border-border hover:bg-muted/60",
+                          : "meal-food-sheet__row border-transparent bg-card/35 hover:border-border hover:bg-muted/60",
                       )}
                       type="button"
                       onClick={() => pickFood(food)}
@@ -685,7 +685,7 @@ function AddFoodModal({
             </div>
 
             {!selectedFood ? (
-              <div className="shrink-0 border-t border-border/70 bg-background/55 px-4 py-3 backdrop-blur-xl sm:px-5">
+              <div className="meal-food-sheet__chrome shrink-0 border-t border-border/70 bg-card/90 px-4 py-3 backdrop-blur-xl sm:px-5">
                 <button
                   className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-[13px] font-semibold text-primary transition-colors hover:bg-primary-soft"
                   type="button"
@@ -698,7 +698,7 @@ function AddFoodModal({
             ) : null}
 
             {selectedFood ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-border/70 bg-background/80 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:px-5 sm:pb-4">
+              <div className="meal-food-sheet__chrome flex shrink-0 flex-wrap items-center gap-3 border-t border-border/70 bg-card/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:px-5 sm:pb-4">
                 <div className="min-w-[130px] flex-1">
                   <p className="text-sm font-semibold text-foreground">{selectedFood.name}</p>
                   <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">
