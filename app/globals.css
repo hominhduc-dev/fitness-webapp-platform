@@ -552,6 +552,12 @@
   backdrop-filter: blur(16px) saturate(135%);
 }
 
+.auth-modal-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 35%) transparent;
+}
+
 .glass .auth-theme-tab {
   border-radius: 999px;
   color: var(--muted-foreground);
