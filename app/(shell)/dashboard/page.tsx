@@ -166,7 +166,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "min-w-0 rounded-[10px] border p-4 transition-colors md:p-5",
+                "glass-card min-w-0 rounded-[10px] border p-4 transition-all md:p-5",
                 card.tone === "primary" && "border-primary/20 bg-primary-soft",
                 card.tone === "blue"    && "border-primary/20 bg-primary-soft",
                 card.tone === "neutral" && "border-border bg-card",

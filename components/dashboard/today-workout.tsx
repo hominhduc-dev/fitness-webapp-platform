@@ -18,7 +18,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
   if (!workout) {
     return (
-      <div className="flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
+      <div className="glass-card flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
         <div className="flex flex-1 min-h-[220px] flex-col items-center justify-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-[10px] bg-muted">
@@ -32,7 +32,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
   }
 
   return (
-    <div className="flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
+    <div className="glass-card flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
       <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
 
       <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">

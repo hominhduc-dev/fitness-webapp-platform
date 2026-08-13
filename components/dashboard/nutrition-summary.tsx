@@ -26,7 +26,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
 
   return (
     <Link href="/meals" className="block h-full min-w-0">
-      <div className="flex h-full min-w-0 flex-col rounded-[10px] border border-border bg-card p-5 transition-colors hover:border-primary/25">
+      <div className="glass-card flex h-full min-w-0 flex-col rounded-[10px] border border-border bg-card p-5 transition-all hover:border-primary/25">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysNutrition}</span>
 
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">

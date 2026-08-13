@@ -49,7 +49,7 @@ export function QuickActions() {
           key={action.href}
           href={action.href}
           className={cn(
-            "group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-colors md:min-h-[132px]",
+            "glass-card group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-all md:min-h-[132px]",
             action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
             action.tone === "primary" && "border-border bg-card hover:border-primary/25",
             action.tone === "neutral" && "border-border bg-card hover:border-border/80",
