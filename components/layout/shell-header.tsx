@@ -164,7 +164,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.common.language}
               </p>
-              <LanguageToggle compact />
+              <LanguageToggle variant="select" />
             </div>
 
             <div className="px-3 py-2">
