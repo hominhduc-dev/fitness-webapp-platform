@@ -14,7 +14,6 @@ import {
 } from "lucide-react"
 
 import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
-import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -78,8 +77,6 @@ function TopBar() {
           >
             {messages.landing.navTrainers}
           </Link>
-          <LanguageToggle className="landing-language-toggle" />
-
           <Button
             variant="ghost"
             size="sm"
