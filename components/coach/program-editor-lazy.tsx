@@ -1,6 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { createPortal } from "react-dom"
 
 import type { CoachProgram, CoachTrainee } from "@/lib/fitness/types"
 import type { ExerciseVariationOption } from "@/lib/types"
@@ -22,5 +23,11 @@ const ProgramEditor = dynamic(
 )
 
 export function ProgramEditorLazy(props: ProgramEditorLazyProps) {
-  return <ProgramEditor {...props} />
+  const editor = <ProgramEditor {...props} />
+
+  if (props.onClose && typeof document !== "undefined") {
+    return createPortal(editor, document.body)
+  }
+
+  return editor
 }

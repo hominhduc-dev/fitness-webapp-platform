@@ -1,21 +1,43 @@
 "use client"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { AppLocale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 
 type LanguageToggleProps = {
   compact?: boolean
   className?: string
+  variant?: "select" | "toggle"
 }
 
-export function LanguageToggle({ compact = false, className }: LanguageToggleProps) {
+export function LanguageToggle({ compact = false, className, variant = "toggle" }: LanguageToggleProps) {
   const { locale, messages, setLocale } = useLocale()
 
-  const options: Array<{ label: string; value: AppLocale }> = [
-    { label: messages.common.english, value: "en" },
-    { label: messages.common.vietnamese, value: "vi" },
+  const options: Array<{ fullLabel: string; label: string; value: AppLocale }> = [
+    { fullLabel: "English", label: messages.common.english, value: "en" },
+    { fullLabel: "Tiếng Việt", label: messages.common.vietnamese, value: "vi" },
   ]
+
+  if (variant === "select") {
+    return (
+      <Select value={locale} onValueChange={(value) => setLocale(value as AppLocale)}>
+        <SelectTrigger
+          aria-label={messages.common.language}
+          className={cn("glass-language-select w-full bg-muted/50", className)}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="glass-surface">
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.fullLabel}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
 
   return (
     <div

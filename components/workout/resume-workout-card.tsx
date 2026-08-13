@@ -108,8 +108,8 @@ export function ResumeWorkoutCard() {
   return (
     <div
       className={cn(
-        "fixed z-40 pointer-events-auto",
-        "left-3 right-3 bottom-20",
+        "workout-floating-chip fixed z-40 pointer-events-auto",
+        "left-3 right-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))]",
         "md:left-[280px] md:right-24 md:bottom-6",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",

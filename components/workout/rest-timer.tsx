@@ -79,9 +79,9 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
   return (
     <div
       className={cn(
-        "fixed z-50 pointer-events-auto",
+        "workout-floating-chip fixed z-50 pointer-events-auto",
         // Desktop: offset left by sidebar width (280px)
-        "left-3 right-3 bottom-20",
+        "left-3 right-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))]",
         "md:left-[280px] md:right-10 md:bottom-6",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",

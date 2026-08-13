@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Dumbbell, LogOut, Menu, Settings, X } from "lucide-react"
+import { Dumbbell, LogOut, MoreHorizontal, Settings, X } from "lucide-react"
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
@@ -103,6 +103,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         : getTraineeNavItems(messages)
 
   const badge = ROLE_BADGE[role]
+  const primaryItems = navItems.slice(0, 4)
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -118,29 +119,21 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <div className="relative z-50 md:hidden">
-      {/* ── Top bar ── */}
-      <header className="relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Dumbbell className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
-          {badge ? (
-            <span className="rounded-[3px] bg-foreground px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-background">
-              {badge}
-            </span>
-          ) : null}
-        </div>
-
-        <button
-          type="button"
-          aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
-          onClick={() => setOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      <nav className="mobile-floating-nav glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
+        {primaryItems.map((item) => {
+          const active = isNavItemActive(pathname, item)
+          return (
+            <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", active ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+              <item.icon className="h-5 w-5" strokeWidth={1.7} />
+              <span className="sr-only">{item.label}</span>
+            </Link>
+          )
+        })}
+        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+          <MoreHorizontal className="h-5 w-5" />
+          <span className="sr-only">More</span>
         </button>
-      </header>
+      </nav>
 
       {/* ── Dropdown ── */}
       {open ? (
@@ -149,9 +142,13 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             type="button"
             aria-label={messages.common.closeNavigation}
             onClick={() => setOpen(false)}
-            className="fixed inset-x-0 bottom-0 top-[calc(57px+env(safe-area-inset-top))] z-40 bg-background/45 backdrop-blur-[1px]"
+            className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[2px]"
           />
-          <nav className="fixed left-3 right-3 top-[calc(65px+env(safe-area-inset-top))] z-50 max-h-[calc(100dvh-80px-env(safe-area-inset-top))] overflow-y-auto rounded-lg border border-border bg-background p-2.5 shadow-lg">
+          <nav className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-[22px] border border-border bg-background p-2.5 shadow-2xl">
+            <div className="mb-2 flex items-center justify-between px-2 py-1.5">
+              <div className="flex items-center gap-2"><Dumbbell className="h-4 w-4" /><span className="font-semibold">YeahBuddy</span>{badge ? <span className="label-micro">{badge}</span> : null}</div>
+              <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
             {/* Role nav items */}
             <Suspense fallback={null}>
               <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />
@@ -164,14 +161,14 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.common.language}
               </p>
-              <LanguageToggle compact />
+              <LanguageToggle variant="select" />
             </div>
 
             <div className="px-3 py-2">
               <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.common.theme}
               </p>
-              <ThemeToggle compact />
+              <ThemeToggle variant="select" />
             </div>
 
             <Link
