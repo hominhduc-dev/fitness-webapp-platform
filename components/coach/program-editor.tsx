@@ -1333,15 +1333,9 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="shrink-0 border-b border-border/70 bg-background/35 px-4 py-3.5 sm:px-6 md:px-8">
-          <div className="mb-2.5 flex items-center justify-between gap-3">
-            <p className="label-micro">{messages.coach.week}</p>
-            <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 rounded-full px-3" disabled={isArchived} onClick={copyActiveWeekToAll}>
-              <Copy className="h-3.5 w-3.5" />
-              {messages.coach.copyWeekToAll(activeWeek + 1)}
-            </Button>
-          </div>
-          <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-background/35 px-4 py-2.5 sm:px-6 md:px-8">
+          <p className="label-micro hidden shrink-0 sm:block">{messages.coach.week}</p>
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {Array.from({ length: totalWeeks }).map((_, index) => {
               const week = schedule[index] ?? []
               const weekTotal = week.filter((slot) => slot !== null).length
@@ -1357,7 +1351,7 @@ export function ProgramEditor({
                   onClick={() => setActiveWeek(index)}
                   title={isCurrentWeek ? messages.coach.currentlyOnWeek(index + 1, totalWeeks) : undefined}
                   className={cn(
-                    "relative flex h-9 min-w-[52px] items-center justify-center gap-1.5 rounded-full border px-3 font-mono text-xs transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+                    "relative flex h-8 min-w-[44px] items-center justify-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)] sm:min-w-[48px]",
                     isActive
                       ? "border-foreground bg-foreground text-background"
                       : "border-input bg-background text-foreground hover:bg-muted",
@@ -1385,6 +1379,10 @@ export function ProgramEditor({
               )
             })}
           </div>
+          <Button type="button" variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 text-xs sm:px-3" disabled={isArchived} onClick={copyActiveWeekToAll}>
+            <Copy className="h-3.5 w-3.5" />
+            {messages.coach.copyWeekToAll(activeWeek + 1)}
+          </Button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-background/10 px-4 py-5 sm:px-6 md:px-8">
