@@ -1666,10 +1666,19 @@ function buildSerializedScheduleEntriesForWeek({
     .forEach((workout) => getWorkoutCompletionMatchKeys(workout).forEach((key) => coachUpdatedWorkoutMatchKeys.add(key)))
 
   for (const log of logs) {
+    const startedKey = formatUtcDateOnly(log.startedAt)
+    const startedInWeek = startedKey >= weekStartKey && startedKey < weekEndKey
     const plannedDateKey = getLogPlannedDateKey(log)
+    const plannedInWeek = plannedDateKey >= weekStartKey && plannedDateKey < weekEndKey
 
-    if (plannedDateKey >= weekStartKey && plannedDateKey < weekEndKey) {
+    if (plannedInWeek) {
       completedOccurrenceKeys.add(getScheduleOccurrenceKey(log.workout.id, plannedDateKey))
+    }
+    // A workout started in this week counts as this week's completion for its
+    // recurring signature, even when plannedDate spilled into a previous week
+    // (catch-up sessions) — prevents the same recurring session from also being
+    // rolled forward onto a later day this week.
+    if (startedInWeek || plannedInWeek) {
       getWorkoutCompletionMatchKeys(log.workout).forEach((key) => completedWorkoutMatchKeysForWeek.add(key))
     }
   }
