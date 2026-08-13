@@ -43,13 +43,13 @@ export function QuickActions() {
   ] as const
 
   return (
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <section aria-label="Quick actions" className="-mx-4 flex snap-x gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-5 md:overflow-visible md:px-0">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
           className={cn(
-            "glass-card group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-all md:min-h-[132px]",
+            "glass-card group flex min-w-[104px] snap-start flex-col items-center justify-center rounded-[18px] border px-3 py-3.5 text-center transition-all hover:-translate-y-0.5 md:min-h-[108px] md:min-w-0 md:rounded-[20px] md:py-4",
             action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
             action.tone === "primary" && "border-border bg-card hover:border-primary/25",
             action.tone === "neutral" && "border-border bg-card hover:border-border/80",
@@ -57,7 +57,7 @@ export function QuickActions() {
         >
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-[8px] md:h-12 md:w-12",
+              "flex h-10 w-10 items-center justify-center rounded-full md:h-11 md:w-11",
               action.tone === "primary" && "bg-primary-soft text-primary",
               action.tone === "success" && "bg-ok-soft text-success",
               action.tone === "neutral" && "bg-muted text-muted-foreground",
@@ -65,7 +65,7 @@ export function QuickActions() {
           >
             <action.icon className="h-5 w-5" />
           </div>
-          <p className="mt-3 text-[13px] font-medium tracking-tight text-foreground md:mt-4 md:text-sm">
+          <p className="mt-2.5 text-[12px] font-medium leading-tight tracking-tight text-foreground md:mt-3 md:text-[13px]">
             {action.label}
           </p>
         </Link>

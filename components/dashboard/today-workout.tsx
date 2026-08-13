@@ -18,10 +18,10 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
   if (!workout) {
     return (
-      <div className="glass-card flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
+      <div className="glass-card flex min-w-0 flex-col rounded-[24px] border border-border bg-card p-5 md:p-6">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
-        <div className="flex flex-1 min-h-[220px] flex-col items-center justify-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[10px] bg-muted">
+        <div className="flex min-h-[190px] flex-1 flex-col items-center justify-center text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-soft">
             <Dumbbell className="h-7 w-7 text-muted-foreground" />
           </div>
           <p className="mt-4 text-base font-semibold text-foreground">{messages.dashboard.restDay}</p>
@@ -32,7 +32,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
   }
 
   return (
-    <div className="glass-card flex min-w-0 flex-col rounded-[10px] border border-border bg-card p-5">
+    <div className="glass-card flex min-w-0 flex-col rounded-[24px] border border-primary/20 bg-gradient-to-br from-primary-soft/80 via-card to-card p-5 shadow-[0_18px_50px_-32px_var(--primary)] md:p-6">
       <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
 
       <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">
