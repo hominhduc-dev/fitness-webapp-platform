@@ -80,7 +80,7 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <AppProviders initialLocale={locale} withAuth={false}>
+      <AppProviders initialLocale={locale} initialTheme="light" withAuth={false}>
         <LandingPage locale={locale} />
       </AppProviders>
     </>
