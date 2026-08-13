@@ -10,6 +10,7 @@ import { ProgramPreview } from "@/components/ai/program-preview"
 import { DailyWorkoutGeneratorForm, type DailyWorkoutFormValues } from "@/components/ai/daily-workout-generator-form"
 import { DailyWorkoutPreview } from "@/components/ai/daily-workout-preview"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { acceptAIDailyWorkout, acceptAIProgram, fetchExerciseLibrary, generateAIDailyWorkout, generateAIProgram, type AIDailyWorkout } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
@@ -58,6 +59,8 @@ function formatLocalDate(date: Date) {
 
 export default function AIGeneratePage() {
   const { session } = useAuth()
+  const { locale } = useLocale()
+  const isVi = locale === "vi"
   const router = useRouter()
   const [mode, setMode] = useState<"daily" | "program">("daily")
   const [result, setResult] = useState<GenerateResult | null>(null)
@@ -101,11 +104,11 @@ export default function AIGeneratePage() {
       })
       setResult(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tạo chương trình. Vui lòng thử lại.")
+      setError(err instanceof Error ? err.message : isVi ? "Không thể tạo chương trình. Vui lòng thử lại." : "Unable to generate a program. Please try again.")
     } finally {
       setIsGenerating(false)
     }
-  }, [session?.access_token])
+  }, [isVi, session?.access_token])
 
   const handleAccept = useCallback(async () => {
     if (!session?.access_token || !result) return
@@ -117,11 +120,11 @@ export default function AIGeneratePage() {
       markDashboardForRefresh()
       router.push("/workout")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể lưu chương trình. Vui lòng thử lại.")
+      setError(err instanceof Error ? err.message : isVi ? "Không thể lưu chương trình. Vui lòng thử lại." : "Unable to save the program. Please try again.")
     } finally {
       setIsAccepting(false)
     }
-  }, [session?.access_token, result, router])
+  }, [isVi, session?.access_token, result, router])
 
   const handleGenerateDaily = useCallback(async (values: DailyWorkoutFormValues) => {
     if (!session?.access_token) return
@@ -137,11 +140,11 @@ export default function AIGeneratePage() {
       })
       setDailyResult(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể tạo buổi tập hôm nay. Vui lòng thử lại.")
+      setError(err instanceof Error ? err.message : isVi ? "Không thể tạo buổi tập hôm nay. Vui lòng thử lại." : "Unable to generate today's workout. Please try again.")
     } finally {
       setIsGenerating(false)
     }
-  }, [session?.access_token])
+  }, [isVi, session?.access_token])
 
   const handleAcceptDaily = useCallback(async () => {
     if (!session?.access_token || !dailyResult) return
@@ -152,11 +155,11 @@ export default function AIGeneratePage() {
       markDashboardForRefresh()
       router.push(`/workout/${accepted.workoutId}/start`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể lưu buổi tập hôm nay. Vui lòng thử lại.")
+      setError(err instanceof Error ? err.message : isVi ? "Không thể lưu buổi tập hôm nay. Vui lòng thử lại." : "Unable to save today's workout. Please try again.")
     } finally {
       setIsAccepting(false)
     }
-  }, [dailyResult, router, session?.access_token])
+  }, [dailyResult, isVi, router, session?.access_token])
 
   function changeMode(nextMode: "daily" | "program") {
     setMode(nextMode)
@@ -170,7 +173,7 @@ export default function AIGeneratePage() {
       <div className="mb-6 sm:mb-8">
         <Link href="/workout" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
           <ArrowLeft className="size-4" />
-          Quay lại
+          {isVi ? "Quay lại" : "Back"}
         </Link>
         <div className="glass-card flex items-start gap-3 rounded-[22px] border bg-gradient-to-br from-primary-soft/70 via-card to-card p-4 sm:p-5">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20">
@@ -179,19 +182,19 @@ export default function AIGeneratePage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold sm:text-2xl">AI Workout Builder</h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />Cá nhân hoá</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />{isVi ? "Cá nhân hoá" : "Personalized"}</span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tạo một buổi tập hôm nay hoặc chương trình nhiều tuần
+              {isVi ? "Tạo một buổi tập hôm nay hoặc chương trình nhiều tuần" : "Build today's workout or a multi-week program"}
             </p>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success" />Có kiểm tra thiết bị và giới hạn vận động</p>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success" />{isVi ? "Có kiểm tra thiết bị và giới hạn vận động" : "Accounts for equipment and movement limitations"}</p>
           </div>
         </div>
       </div>
 
       <div className="auth-theme-tabs mb-6 grid grid-cols-2 rounded-full border bg-muted/50 p-1">
-        <button type="button" onClick={() => changeMode("daily")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "daily" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>Buổi tập hôm nay</button>
-        <button type="button" onClick={() => changeMode("program")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "program" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>Chương trình nhiều tuần</button>
+        <button type="button" onClick={() => changeMode("daily")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "daily" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>{isVi ? "Buổi tập hôm nay" : "Today's workout"}</button>
+        <button type="button" onClick={() => changeMode("program")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "program" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>{isVi ? "Chương trình nhiều tuần" : "Multi-week program"}</button>
       </div>
 
       {error && (

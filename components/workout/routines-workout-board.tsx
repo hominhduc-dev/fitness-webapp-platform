@@ -323,7 +323,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
           <Link href="/workout/ai-generate" className="min-w-0 sm:w-auto">
             <Button variant="outline" className="h-10 w-full justify-center gap-2 rounded-[8px] px-4 text-sm font-semibold sm:w-auto">
               <Sparkles className="h-4 w-4" />
-              AI tạo lịch tập
+              {messages.workoutPage.aiCreateWorkout}
             </Button>
           </Link>
           <CreateRoutineButton />
