@@ -123,15 +123,15 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         {primaryItems.map((item) => {
           const active = isNavItemActive(pathname, item)
           return (
-            <Link key={item.href} href={item.href} className={cn("flex min-w-0 flex-col items-center gap-1 rounded-[16px] px-1 py-2 text-[10px]", active ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
-              <item.icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
-              <span className="max-w-full truncate">{item.label}</span>
+            <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-[16px] px-1 py-2.5", active ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
+              <item.icon className="h-5 w-5" strokeWidth={1.7} />
+              <span className="sr-only">{item.label}</span>
             </Link>
           )
         })}
-        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 flex-col items-center gap-1 rounded-[16px] px-1 py-2 text-[10px]", open ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
-          <MoreHorizontal className="h-[18px] w-[18px]" />
-          <span>More</span>
+        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-[16px] px-1 py-2.5", open ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
+          <MoreHorizontal className="h-5 w-5" />
+          <span className="sr-only">More</span>
         </button>
       </nav>
 
