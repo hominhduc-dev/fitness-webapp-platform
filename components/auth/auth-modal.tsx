@@ -340,16 +340,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4 sm:mb-6 bg-card">
+        <TabsList className="auth-theme-tabs grid w-full grid-cols-2 mb-4 sm:mb-6 bg-card">
           <TabsTrigger
             value="login"
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
+            className="auth-theme-tab data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
           >
             {messages.auth.login}
           </TabsTrigger>
           <TabsTrigger
             value="register"
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
+            className="auth-theme-tab data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-sm sm:text-base"
           >
             {messages.auth.register}
           </TabsTrigger>

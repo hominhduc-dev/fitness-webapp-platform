@@ -88,7 +88,7 @@ function TopBar() {
             variant="ghost"
             size="sm"
             asChild
-            className="text-sm font-medium"
+            className="landing-auth-link text-sm font-medium"
           >
             <Link href="/?auth=login" scroll={false}>
               {messages.landing.signIn}
@@ -98,7 +98,7 @@ function TopBar() {
           <Button
             size="sm"
             asChild
-            className="bg-foreground text-background text-sm font-medium hover:bg-foreground/90"
+            className="landing-auth-cta bg-foreground text-background text-sm font-medium hover:bg-foreground/90"
           >
             <Link href="/?auth=register" scroll={false}>
               {messages.landing.getStarted}
