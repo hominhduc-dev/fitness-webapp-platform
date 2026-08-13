@@ -86,7 +86,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
         </div>
 
         {/* CTA */}
-        <Link href={`/workout/${workout.id}/start`}>
+        <Link href={`/workout/${workout.id}/start`} scroll>
           <Button className="w-full gap-1.5">
             <Play className="h-3.5 w-3.5" />
             {messages.dashboard.start}
