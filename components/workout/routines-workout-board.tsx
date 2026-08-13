@@ -163,6 +163,9 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
   const lastUsed = getLastUsed(workout, historyLogs, messages)
+  const cardMeta = workout.scheduledDate
+    ? messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))
+    : messages.workoutPage.lastUsed(lastUsed)
 
   return (
     <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
@@ -188,13 +191,8 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs leading-snug text-muted-foreground tnum">
             <span>{messages.workoutPage.exerciseCount(workout.exercises.length)}</span>
             <span>{messages.workoutPage.setCount(totalSets)}</span>
-            <span>{messages.workoutPage.lastUsed(lastUsed)}</span>
+            <span>{cardMeta}</span>
           </div>
-          {workout.scheduledDate ? (
-            <p className="mt-2 inline-flex rounded-full bg-primary-soft px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-primary">
-              {messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))}
-            </p>
-          ) : null}
         </div>
 
         {workout.isPersonal ? (
