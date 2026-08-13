@@ -103,6 +103,17 @@ function formatRelativeCompact(date: Date, messages: AppMessages) {
   return messages.workoutPage.monthsAgo(Math.floor(diffDays / 30))
 }
 
+function formatScheduledDate(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
+
 function RoutineDot({ tag }: { tag: Exclude<RoutineTag, "all"> }) {
   return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TAG_DOT_COLOR[tag] }} />
 }
@@ -179,6 +190,11 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             <span>{messages.workoutPage.setCount(totalSets)}</span>
             <span>{messages.workoutPage.lastUsed(lastUsed)}</span>
           </div>
+          {workout.scheduledDate ? (
+            <p className="mt-2 inline-flex rounded-full bg-primary-soft px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-primary">
+              {messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))}
+            </p>
+          ) : null}
         </div>
 
         {workout.isPersonal ? (
@@ -265,6 +281,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
+  const scheduledWorkouts = useMemo(() => workouts.filter((workout) => Boolean(workout.scheduledDate)), [workouts])
   const visibleWorkouts = useMemo(
     () => reusableWorkouts.filter((workout) => filter === "all" || inferRoutineTag(workout) === filter),
     [filter, reusableWorkouts],
@@ -289,6 +306,22 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
           <CreateRoutineButton />
         </div>
       </div>
+
+      {scheduledWorkouts.length > 0 ? (
+        <section className="mb-7 sm:mb-9">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <span className="label-micro block">{messages.workoutPage.scheduledWorkouts}</span>
+              <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.sessionCount(scheduledWorkouts.length)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {scheduledWorkouts.map((workout) => (
+              <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((tag) => (
