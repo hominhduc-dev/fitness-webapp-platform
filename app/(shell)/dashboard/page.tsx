@@ -158,7 +158,14 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
   return (
     <>
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="grid min-w-0 gap-4 md:grid-cols-[1.15fr_0.85fr]">
+        <TodayWorkout workout={dashboard.todayWorkout} />
+        <NutritionSummary nutrition={dashboard.dailyNutrition} />
+      </section>
+
+      <QuickActions />
+
+      <section className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
         {statCards.map((card) => {
           const isHelperAccent = "helperTone" in card && card.helperTone === "accent"
 
@@ -166,9 +173,9 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "glass-card min-w-0 rounded-[10px] border p-4 transition-all md:p-5",
+                "glass-card min-w-[168px] snap-start rounded-[20px] border p-4 transition-all md:min-w-0 md:p-5",
                 card.tone === "primary" && "border-primary/20 bg-primary-soft",
-                card.tone === "blue"    && "border-primary/20 bg-primary-soft",
+                card.tone === "blue" && "border-primary/20 bg-primary-soft",
                 card.tone === "neutral" && "border-border bg-card",
               )}
             >
@@ -178,37 +185,17 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
                   <p className="font-mono text-2xl font-semibold leading-none tracking-tight tnum text-foreground md:text-[1.75rem]">
                     {card.value}
                   </p>
-                  <p
-                    className={cn(
-                      "mt-2 text-[13px] leading-snug",
-                      isHelperAccent
-                        ? "font-medium text-success"
-                        : "text-muted-foreground",
-                    )}
-                  >
+                  <p className={cn("mt-2 text-[13px] leading-snug", isHelperAccent ? "font-medium text-success" : "text-muted-foreground")}>
                     {card.helper}
                   </p>
                 </div>
-
-                <div
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
-                    card.tone === "primary" && "bg-primary-soft text-primary",
-                    card.tone === "blue"    && "bg-primary-soft text-primary",
-                    card.tone === "neutral" && "bg-muted text-muted-foreground",
-                  )}
-                >
+                <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", card.tone === "neutral" ? "bg-muted text-muted-foreground" : "bg-primary-soft text-primary")}>
                   <card.icon className="h-4 w-4" />
                 </div>
               </div>
             </div>
           )
         })}
-      </section>
-
-      <section className="grid min-w-0 gap-4 md:grid-cols-2">
-        <TodayWorkout workout={dashboard.todayWorkout} />
-        <NutritionSummary nutrition={dashboard.dailyNutrition} />
       </section>
 
       <RecentActivity logs={dashboard.recentLogs} />
@@ -219,7 +206,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 function DashboardOverviewSkeleton() {
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="-mx-4 flex gap-3 overflow-hidden px-4 md:mx-0 md:grid md:grid-cols-4 md:px-0">
         {Array.from({ length: 4 }, (_, index) => (
           <div key={index} className="rounded-[10px] border border-border bg-card p-4 md:p-5">
             <Skeleton className="h-2.5 w-16 rounded" />
@@ -295,8 +282,6 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">{dashboardSubtitle}</p>
         </section>
-
-        <QuickActions />
 
         <Suspense fallback={<DashboardOverviewSkeleton />}>
           <DashboardOverview
