@@ -81,6 +81,20 @@ function getTotalSets(workout: Workout) {
   return workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)
 }
 
+function getRoutineTemplateKey(workout: Workout) {
+  const exercisePlan = workout.exercises
+    .map((exercise) => {
+      const setPlan = exercise.sets
+        .map((set) => `${set.targetRepsMin ?? set.targetReps}-${set.targetReps}`)
+        .join(",")
+
+      return `${exercise.variation.id}:${setPlan}`
+    })
+    .join("|")
+
+  return `${normalizeText(workout.name)}::${exercisePlan}`
+}
+
 function getLastUsed(workout: Workout, historyLogs: WorkoutLog[], messages: AppMessages) {
   const latestLog = historyLogs.find((log) => log.workout.id === workout.id)
 
@@ -286,6 +300,11 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
   const scheduledWorkouts = useMemo(() => workouts.filter((workout) => Boolean(workout.scheduledDate)), [workouts])
+  const uniqueScheduledWorkouts = useMemo(() => {
+    const reusableRoutineKeys = new Set(reusableWorkouts.map(getRoutineTemplateKey))
+
+    return scheduledWorkouts.filter((workout) => !reusableRoutineKeys.has(getRoutineTemplateKey(workout)))
+  }, [reusableWorkouts, scheduledWorkouts])
   const visibleWorkouts = useMemo(
     () => reusableWorkouts.filter((workout) => filter === "all" || inferRoutineTag(workout) === filter),
     [filter, reusableWorkouts],
@@ -311,16 +330,16 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
         </div>
       </div>
 
-      {scheduledWorkouts.length > 0 ? (
+      {uniqueScheduledWorkouts.length > 0 ? (
         <section className="mb-7 sm:mb-9">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <span className="label-micro block">{messages.workoutPage.scheduledWorkouts}</span>
-              <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.sessionCount(scheduledWorkouts.length)}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.sessionCount(uniqueScheduledWorkouts.length)}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-            {scheduledWorkouts.map((workout) => (
+            {uniqueScheduledWorkouts.map((workout) => (
               <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
             ))}
           </div>
