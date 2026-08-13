@@ -14,7 +14,6 @@ import {
 } from "lucide-react"
 
 import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
-import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -27,7 +26,7 @@ import type { AppLocale } from "@/lib/i18n/config"
 
 export function LandingPage(_props: { locale: AppLocale }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="landing-shell min-h-screen bg-background text-foreground">
       <TopBar />
 
       <main>
@@ -52,24 +51,26 @@ function TopBar() {
   const { messages } = useLocale()
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3.5 md:px-10 md:py-[18px]">
+    <header className="landing-header sticky top-0 z-30 px-3 pt-3 md:px-8 md:pt-4">
+      <div className="landing-header__inner glass-surface mx-auto flex max-w-[1200px] items-center justify-between rounded-full border border-border/70 px-2.5 py-2 shadow-lg backdrop-blur-xl md:px-4">
         {/* Logo */}
-        <div className="flex shrink-0 items-center gap-2.5">
-          <Image
-            src="/lift-mark.svg"
-            alt=""
-            width={26}
-            height={26}
-            className="shrink-0"
-          />
-          <span className="hidden whitespace-nowrap text-[20px] font-semibold tracking-[-0.04em] text-foreground sm:inline">
-            YeahBuddy Fitness
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="landing-brand-mark grid size-9 place-items-center overflow-hidden rounded-full border border-border/70 bg-foreground text-background shadow-sm">
+            <Image
+              src="/android-icon-192x192.png"
+              alt="YeahBuddy"
+              width={36}
+              height={36}
+              className="size-full scale-[1.35] rounded-full object-cover"
+            />
+          </span>
+          <span className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.04em] text-foreground md:text-[19px]">
+            YeahBuddy
           </span>
         </div>
 
         {/* Nav */}
-        <nav className="flex items-center gap-2 lg:gap-7">
+        <nav className="flex items-center gap-1 md:gap-2 lg:gap-7">
           <Link
             href="#features"
             className="hidden whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground lg:block"
@@ -82,13 +83,11 @@ function TopBar() {
           >
             {messages.landing.navTrainers}
           </Link>
-          <LanguageToggle />
-
           <Button
             variant="ghost"
             size="sm"
             asChild
-            className="text-sm font-medium"
+            className="landing-auth-link hidden rounded-full px-3 text-sm font-medium min-[390px]:inline-flex"
           >
             <Link href="/?auth=login" scroll={false}>
               {messages.landing.signIn}
@@ -98,7 +97,7 @@ function TopBar() {
           <Button
             size="sm"
             asChild
-            className="bg-foreground text-background text-sm font-medium hover:bg-foreground/90"
+            className="landing-auth-cta rounded-full bg-foreground px-3.5 text-sm font-medium text-background hover:bg-foreground/90 md:px-4"
           >
             <Link href="/?auth=register" scroll={false}>
               {messages.landing.getStarted}
@@ -161,7 +160,7 @@ function Hero() {
       </div>
 
       {/* Product preview tile */}
-      <div className="mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.12)] md:mt-[72px] md:p-7">
+      <div className="glass-card landing-preview mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.12)] md:mt-[72px] md:p-7">
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[1.4fr_1fr] md:gap-6">
           {/* Mock set-log card */}
           <MockSetLog />
@@ -183,7 +182,7 @@ function MockSetLog() {
   ]
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <div className="glass-inset overflow-hidden rounded-[10px] border border-border bg-card">
       {/* Header */}
       <div className="border-b border-border px-[18px] py-3.5">
         <div className="text-base font-semibold text-foreground">{messages.landing.benchPress}</div>
@@ -248,7 +247,7 @@ function MockChart() {
   const { messages } = useLocale()
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-[18px]">
+    <div className="glass-inset rounded-[10px] border border-border bg-card p-[18px]">
       <p className="label-micro mb-1.5">{messages.landing.oneRmEstimate}</p>
 
       <div className="flex items-baseline gap-2">
@@ -311,7 +310,7 @@ function FeaturesSection() {
       </div>
 
       {/* 3×2 grid with hairline dividers */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="glass-card overflow-hidden rounded-xl border border-border bg-card">
         <div className="grid grid-cols-1 md:grid-cols-3">
           {featureItems.map((item, i) => {
             const col = i % 3
@@ -363,7 +362,7 @@ function TrainerCallout() {
       id="trainers"
       className="mx-auto max-w-[1200px] px-5 pb-10 pt-5 md:px-10 md:pb-20 md:pt-10"
     >
-      <div className="grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
+      <div className="glass-card landing-trainer grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
         {/* Left: copy */}
         <div>
           <p className="label-micro mb-3 text-[#9a9a92]">{messages.landing.trainerEyebrow}</p>

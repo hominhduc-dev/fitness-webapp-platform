@@ -384,3 +384,347 @@
 .dark .bg-primary-soft .text-primary {
   color: var(--accent-ink-color);
 }
+
+/* ============================================================
+   Liquid Glass theme
+   A dark material theme inspired by iOS 26. Glass is deliberately
+   reserved for top-level surfaces to keep text crisp and mobile GPUs cool.
+   ============================================================ */
+.glass {
+  color-scheme: dark;
+
+  --brand-primary: #f3f4f6;
+  --brand-primary-hover: #ffffff;
+  --brand-primary-press: #d8dce3;
+  --brand-primary-soft: rgb(255 255 255 / 12%);
+  --brand-secondary: #5ee0a0;
+  --brand-accent: #89c8ff;
+
+  --ink-0: #0b0c10;
+  --ink-50: rgb(30 32 38 / 62%);
+  --ink-100: rgb(255 255 255 / 14%);
+  --ink-150: rgb(255 255 255 / 18%);
+  --ink-200: rgb(255 255 255 / 22%);
+  --ink-400: #aeb4bf;
+  --ink-600: #d0d4dc;
+  --ink-800: #f0f2f5;
+  --ink-900: #ffffff;
+
+  --accent-color: var(--brand-primary);
+  --accent-hover-color: var(--brand-primary-hover);
+  --accent-press-color: var(--brand-primary-press);
+  --accent-soft-color: var(--brand-primary-soft);
+  --accent-ink-color: #ffffff;
+
+  --primary: var(--accent-color);
+  --primary-foreground: #15161a;
+  --background: #0b0c10;
+  --foreground: var(--ink-800);
+  --card: rgb(31 33 39 / 58%);
+  --card-foreground: var(--ink-800);
+  --surface: rgb(255 255 255 / 7%);
+  --popover: rgb(27 29 35 / 82%);
+  --popover-foreground: var(--ink-800);
+  --muted: rgb(255 255 255 / 8%);
+  --muted-foreground: var(--ink-400);
+  --border: rgb(255 255 255 / 14%);
+  --input: rgb(255 255 255 / 12%);
+  --ring: rgb(255 255 255 / 72%);
+  --sidebar: rgb(20 22 27 / 68%);
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-accent: rgb(255 255 255 / 9%);
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #15161a;
+  --radius: 1rem;
+
+  --glass-bg: rgb(28 30 36 / 58%);
+  --glass-bg-strong: rgb(31 33 39 / 78%);
+  --glass-border: rgb(255 255 255 / 16%);
+  --glass-highlight: rgb(255 255 255 / 24%);
+  --glass-shadow: 0 18px 54px rgb(0 0 0 / 38%);
+}
+
+.glass body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 5%, rgb(133 39 31 / 34%), transparent 34rem),
+    radial-gradient(circle at 88% 82%, rgb(101 22 22 / 24%), transparent 30rem),
+    linear-gradient(145deg, #171010 0%, #090b0f 48%, #110809 100%);
+  background-attachment: fixed;
+}
+
+.glass .app-shell {
+  background: transparent;
+}
+
+.glass .landing-shell {
+  background:
+    radial-gradient(circle at 78% 10%, rgb(129 31 24 / 34%), transparent 32rem),
+    radial-gradient(circle at 8% 58%, rgb(92 20 20 / 22%), transparent 34rem),
+    linear-gradient(145deg, rgb(26 14 14 / 72%), rgb(8 10 14 / 88%));
+}
+
+.glass .landing-shell > main {
+  background: transparent;
+}
+
+.landing-header {
+  background: linear-gradient(to bottom, hsl(var(--background) / 0.42), transparent);
+}
+
+.glass .landing-header__inner {
+  border-color: rgb(255 255 255 / 18%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 2%)),
+    rgb(14 15 19 / 58%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 12px 34px rgb(0 0 0 / 28%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+}
+
+.glass .landing-brand-mark {
+  border-color: rgb(255 255 255 / 32%);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: inset 0 1px 0 #fff, 0 5px 16px rgb(0 0 0 / 22%);
+}
+
+.glass .landing-preview {
+  border-radius: 28px;
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.glass .glass-inset {
+  border-color: rgb(255 255 255 / 12%);
+  background: rgb(9 11 15 / 42%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+.glass .glass-card.landing-trainer {
+  color: var(--foreground);
+  background:
+    linear-gradient(135deg, rgb(116 32 27 / 38%), rgb(20 22 28 / 52%)),
+    var(--glass-bg);
+}
+
+.glass .glass-card.landing-trainer h2,
+.glass .glass-card.landing-trainer [class*="text-[#fcfcfa]"] {
+  color: var(--foreground);
+}
+
+.glass .glass-card.landing-trainer [class*="text-[#c9c9c2]"],
+.glass .glass-card.landing-trainer [class*="text-[#9a9a92]"] {
+  color: var(--muted-foreground);
+}
+
+.glass .landing-auth-link:hover {
+  color: var(--foreground);
+  background: rgb(255 255 255 / 8%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.glass .landing-auth-cta,
+.glass .landing-auth-cta:hover {
+  color: #f8fafc;
+  border: 1px solid rgb(255 255 255 / 20%);
+  background: rgb(255 255 255 / 12%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%), 0 8px 24px rgb(0 0 0 / 18%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  backdrop-filter: blur(16px) saturate(145%);
+}
+
+.glass .landing-auth-cta:hover {
+  border-color: rgb(255 255 255 / 34%);
+  background: rgb(255 255 255 / 18%);
+  transform: translateY(-1px);
+}
+
+.glass .auth-theme-tabs {
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(8 10 14 / 30%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+}
+
+.auth-modal-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 35%) transparent;
+}
+
+.auth-floating-panel {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 18%),
+    0 24px 70px rgb(0 0 0 / 38%);
+}
+
+.glass .auth-floating-panel {
+  border-color: rgb(255 255 255 / 20%);
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2%)),
+    rgb(22 22 27 / 76%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+}
+
+.glass .auth-theme-tab {
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+.glass .auth-theme-tab:hover {
+  color: var(--foreground);
+  background: rgb(255 255 255 / 8%);
+}
+
+.glass .auth-theme-tab[data-state="active"] {
+  color: #ffffff;
+  border-color: rgb(255 255 255 / 16%);
+  background: rgb(255 255 255 / 14%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%), 0 6px 18px rgb(0 0 0 / 16%);
+}
+
+.glass .glass-surface,
+.glass [data-slot="dialog-content"],
+.glass [data-slot="drawer-content"] {
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 2%)),
+    var(--glass-bg-strong);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.glass .bg-card {
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 1.5%)),
+    var(--card);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), 0 12px 34px rgb(0 0 0 / 20%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+}
+
+.glass .glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border-color: rgb(255 255 255 / 16%);
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 2.5%)),
+    rgb(28 30 36 / 46%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    inset 1px 0 0 rgb(255 255 255 / 8%),
+    0 16px 44px rgb(0 0 0 / 22%);
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  backdrop-filter: blur(24px) saturate(155%);
+}
+
+.glass .glass-card::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 18% 0%, rgb(255 255 255 / 14%), transparent 38%);
+  content: "";
+  pointer-events: none;
+}
+
+.glass .glass-card:hover {
+  border-color: rgb(255 255 255 / 28%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 20px 52px rgb(0 0 0 / 28%);
+  transform: translateY(-2px);
+}
+
+@media (min-width: 768px) {
+  .glass aside.glass-surface {
+    height: calc(100dvh - 24px);
+    margin: 12px 0 12px 12px;
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    background:
+      linear-gradient(150deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 3%)),
+      rgb(30 32 38 / 48%);
+  }
+}
+
+@media (max-width: 767px) {
+  :root:not(.dark) .mobile-floating-nav {
+    border-color: rgb(15 23 42 / 10%);
+    background: rgb(255 255 255 / 42%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 92%),
+      0 18px 48px rgb(15 23 42 / 13%);
+    -webkit-backdrop-filter: blur(22px) saturate(165%);
+    backdrop-filter: blur(22px) saturate(165%);
+  }
+
+  .glass .mobile-floating-nav {
+    border-color: rgb(255 255 255 / 22%);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%)),
+      rgb(15 16 20 / 68%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 24%),
+      inset 0 -1px 0 rgb(0 0 0 / 32%),
+      0 14px 38px rgb(0 0 0 / 42%);
+    -webkit-backdrop-filter: blur(26px) saturate(155%);
+    backdrop-filter: blur(26px) saturate(155%);
+  }
+
+  .app-shell:has(.workout-floating-chip) .ai-bubble-trigger {
+    display: none;
+  }
+}
+
+.glass input,
+.glass textarea,
+.glass select {
+  background-color: rgb(255 255 255 / 6%);
+}
+
+.glass [data-slot="skeleton"] {
+  background-image: linear-gradient(
+    110deg,
+    rgb(255 255 255 / 5%) 20%,
+    rgb(255 255 255 / 12%) 42%,
+    rgb(255 255 255 / 5%) 64%
+  );
+  background-color: rgb(255 255 255 / 4%);
+  background-size: 240% 100%;
+  border: 1px solid rgb(255 255 255 / 5%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+  animation-duration: 2.2s;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass .glass-surface,
+  .glass .glass-card,
+  .glass .bg-card,
+  .glass [data-slot="dialog-content"],
+  .glass [data-slot="drawer-content"] {
+    background: #1c1e24;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass *,
+  .glass *::before,
+  .glass *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

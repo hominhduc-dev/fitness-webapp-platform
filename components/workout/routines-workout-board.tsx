@@ -103,6 +103,17 @@ function formatRelativeCompact(date: Date, messages: AppMessages) {
   return messages.workoutPage.monthsAgo(Math.floor(diffDays / 30))
 }
 
+function formatScheduledDate(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
+
 function RoutineDot({ tag }: { tag: Exclude<RoutineTag, "all"> }) {
   return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TAG_DOT_COLOR[tag] }} />
 }
@@ -149,9 +160,13 @@ function CreateRoutineButton() {
 
 function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; workout: Workout }) {
   const { messages } = useLocale()
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
   const lastUsed = getLastUsed(workout, historyLogs, messages)
+  const cardMeta = workout.scheduledDate
+    ? messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))
+    : messages.workoutPage.lastUsed(lastUsed)
 
   return (
     <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
@@ -177,25 +192,21 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs leading-snug text-muted-foreground tnum">
             <span>{messages.workoutPage.exerciseCount(workout.exercises.length)}</span>
             <span>{messages.workoutPage.setCount(totalSets)}</span>
-            <span>{messages.workoutPage.lastUsed(lastUsed)}</span>
+            <span>{cardMeta}</span>
           </div>
         </div>
 
         {workout.isPersonal ? (
-          <RoutineBuilderDialog
-            workoutToEdit={workout}
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label={messages.workoutPage.editRoutine}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            }
-          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={messages.workoutPage.editRoutine}
+            onClick={() => setIsEditorOpen(true)}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
         ) : null}
       </div>
 
@@ -237,15 +248,16 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         </Link>
         {workout.isPersonal ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
-            <RoutineBuilderDialog
-              workoutToEdit={workout}
-              trigger={
-                <Button variant="outline" size="sm" className="h-10 w-full justify-center gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium sm:w-auto">
-                  <Pencil className="h-4 w-4" />
-                  {messages.workoutPage.edit}
-                </Button>
-              }
-            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-10 w-full justify-center gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium sm:w-auto"
+              onClick={() => setIsEditorOpen(true)}
+            >
+              <Pencil className="h-4 w-4" />
+              {messages.workoutPage.edit}
+            </Button>
             <DeleteWorkoutButton
               workoutId={workout.id}
               size="sm"
@@ -257,6 +269,14 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           </div>
         ) : null}
       </div>
+
+      {workout.isPersonal ? (
+        <RoutineBuilderDialog
+          workoutToEdit={workout}
+          open={isEditorOpen}
+          onOpenChange={setIsEditorOpen}
+        />
+      ) : null}
     </article>
   )
 }
@@ -265,6 +285,7 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
+  const scheduledWorkouts = useMemo(() => workouts.filter((workout) => Boolean(workout.scheduledDate)), [workouts])
   const visibleWorkouts = useMemo(
     () => reusableWorkouts.filter((workout) => filter === "all" || inferRoutineTag(workout) === filter),
     [filter, reusableWorkouts],
@@ -289,6 +310,22 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
           <CreateRoutineButton />
         </div>
       </div>
+
+      {scheduledWorkouts.length > 0 ? (
+        <section className="mb-7 sm:mb-9">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <span className="label-micro block">{messages.workoutPage.scheduledWorkouts}</span>
+              <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.sessionCount(scheduledWorkouts.length)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {scheduledWorkouts.map((workout) => (
+              <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((tag) => (

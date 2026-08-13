@@ -1,18 +1,100 @@
 import Link from "next/link"
-import { AlertTriangle, ArrowRight, CalendarPlus, Dumbbell, Users } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { AlertTriangle, ArrowRight, BellRing, CalendarPlus, Dumbbell, TrendingUp, Users } from "lucide-react"
 
 import { PendingRequestsPanel } from "@/components/coach/pending-requests-panel"
-import { StatsCard } from "@/components/dashboard/stats-card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchCoachDashboard } from "@/lib/fitness/api"
 import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
+import { cn } from "@/lib/utils"
 
 export const revalidate = 30
 
 type CoachDashboardMessages = Awaited<ReturnType<typeof getServerMessages>>
+
+type CoachStatTone = "blue" | "green" | "orange" | "violet"
+
+const coachStatTone = {
+  blue: {
+    accent: "bg-primary",
+    glow: "bg-primary/15",
+    icon: "border-primary/25 bg-primary/12 text-primary",
+    value: "text-primary",
+  },
+  green: {
+    accent: "bg-success",
+    glow: "bg-success/15",
+    icon: "border-success/25 bg-success/12 text-success",
+    value: "text-success",
+  },
+  orange: {
+    accent: "bg-warning",
+    glow: "bg-warning/15",
+    icon: "border-warning/25 bg-warning/12 text-warning",
+    value: "text-warning",
+  },
+  violet: {
+    accent: "bg-violet-500",
+    glow: "bg-violet-500/15",
+    icon: "border-violet-500/25 bg-violet-500/10 text-violet-400",
+    value: "text-violet-400",
+  },
+} satisfies Record<CoachStatTone, Record<string, string>>
+
+function CoachStatCard({
+  icon: Icon,
+  progress,
+  subtitle,
+  title,
+  tone,
+  value,
+}: {
+  icon: LucideIcon
+  progress?: number
+  subtitle: string
+  title: string
+  tone: CoachStatTone
+  value: number | string
+}) {
+  const palette = coachStatTone[tone]
+  const safeProgress = Math.max(0, Math.min(100, progress ?? 0))
+
+  return (
+    <article className="group relative min-h-[158px] overflow-hidden rounded-[20px] border border-border/75 bg-card/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-lg sm:min-h-[170px] sm:p-5">
+      <span className={cn("absolute inset-x-0 top-0 h-0.5", palette.accent)} />
+      <span className={cn("pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-opacity group-hover:opacity-100", palette.glow)} />
+
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <p className="label-micro max-w-[8.5rem] leading-snug text-muted-foreground">{title}</p>
+          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border", palette.icon)}>
+            <Icon className="h-[17px] w-[17px]" strokeWidth={2.2} />
+          </span>
+        </div>
+
+        <p className={cn("mt-2 font-mono text-[34px] font-bold leading-none tracking-[-0.06em] tnum sm:text-[40px]", palette.value)}>
+          {value}
+        </p>
+        <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground sm:text-xs">{subtitle}</p>
+
+        <div className="mt-auto flex items-center gap-1 pt-3" aria-hidden="true">
+          {progress === undefined ? (
+            Array.from({ length: 5 }).map((_, index) => (
+              <span key={index} className={cn("h-1 flex-1 rounded-full", index < 3 ? palette.accent : "bg-border")} />
+            ))
+          ) : (
+            <span className="h-1 w-full overflow-hidden rounded-full bg-border/80">
+              <span className={cn("block h-full rounded-full transition-[width] duration-500", palette.accent)} style={{ width: `${safeProgress}%` }} />
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
+  )
+}
 
 function getInitials(name: string) {
   return name
@@ -62,36 +144,48 @@ export default async function CoachDashboardPage() {
   const dashboard = await fetchCoachDashboard(accessToken)
   const maxWorkouts = Math.max(...dashboard.activityByDay.map((point) => point.workouts), 1)
   const coachMessages: CoachDashboardMessages["coach"] = messages.coach
+  const plannedSessions = dashboard.summary.totalPlannedSessions
+  const weeklyOutputRate = plannedSessions > 0
+    ? (dashboard.summary.workoutsThisWeek / plannedSessions) * 100
+    : 0
+  const attentionRate = dashboard.summary.totalTrainees > 0
+    ? (dashboard.summary.atRiskTraineeCount / dashboard.summary.totalTrainees) * 100
+    : 0
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
       <div className="space-y-6">
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatsCard
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <CoachStatCard
             title={coachMessages.totalTrainees}
             value={dashboard.summary.totalTrainees}
             subtitle={coachMessages.totalPlannedSessionsThisWeek(dashboard.summary.totalPlannedSessions)}
-            iconName="users"
-            variant="primary"
+            icon={Users}
+            tone="blue"
           />
-          <StatsCard
+          <CoachStatCard
             title={coachMessages.workoutsLogged}
             value={dashboard.summary.workoutsThisWeek}
             subtitle={coachMessages.acrossAllTrainees}
-            iconName="dumbbell"
+            icon={Dumbbell}
+            progress={weeklyOutputRate}
+            tone="violet"
           />
-          <StatsCard
+          <CoachStatCard
             title={coachMessages.averageCompletion}
             value={formatPercent(dashboard.summary.averageCompletionRate)}
             subtitle={coachMessages.basedOnAssignedWorkload}
-            iconName="trending-up"
-            variant="accent"
+            icon={TrendingUp}
+            progress={dashboard.summary.averageCompletionRate}
+            tone="green"
           />
-          <StatsCard
+          <CoachStatCard
             title={coachMessages.needAttention}
             value={dashboard.summary.atRiskTraineeCount}
             subtitle={coachMessages.unreadNotifications(dashboard.summary.unreadNotificationCount)}
-            iconName="bell-ring"
+            icon={BellRing}
+            progress={attentionRate}
+            tone="orange"
           />
         </section>
 

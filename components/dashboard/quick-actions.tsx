@@ -43,13 +43,13 @@ export function QuickActions() {
   ] as const
 
   return (
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <section aria-label="Quick actions" className="grid grid-cols-5 gap-1.5 md:gap-2.5">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
           className={cn(
-            "group flex min-h-[112px] flex-col items-center justify-center rounded-[10px] border px-3 py-4 text-center transition-colors md:min-h-[132px]",
+            "glass-card group flex min-w-0 flex-col items-center justify-center rounded-[16px] border px-1 py-3 text-center transition-all hover:-translate-y-0.5 md:min-h-[108px] md:rounded-[20px] md:px-3 md:py-4",
             action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
             action.tone === "primary" && "border-border bg-card hover:border-primary/25",
             action.tone === "neutral" && "border-border bg-card hover:border-border/80",
@@ -57,15 +57,15 @@ export function QuickActions() {
         >
           <div
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-[8px] md:h-12 md:w-12",
+              "flex h-9 w-9 items-center justify-center rounded-full md:h-11 md:w-11",
               action.tone === "primary" && "bg-primary-soft text-primary",
               action.tone === "success" && "bg-ok-soft text-success",
               action.tone === "neutral" && "bg-muted text-muted-foreground",
             )}
           >
-            <action.icon className="h-5 w-5" />
+            <action.icon className="h-4 w-4 md:h-5 md:w-5" />
           </div>
-          <p className="mt-3 text-[13px] font-medium tracking-tight text-foreground md:mt-4 md:text-sm">
+          <p className="mt-2 line-clamp-2 text-[10px] font-medium leading-[1.15] tracking-tight text-foreground md:mt-3 md:text-[13px]">
             {action.label}
           </p>
         </Link>

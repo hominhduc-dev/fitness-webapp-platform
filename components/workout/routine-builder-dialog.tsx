@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
@@ -376,8 +377,11 @@ export function RoutineBuilderDialog({
         </span>
       )}
 
-      {/* Backdrop + modal */}
-      {open && (
+      {typeof document !== "undefined"
+        ? createPortal(
+          <>
+            {/* Backdrop + modal */}
+            {open && (
         <div
           className="fixed inset-0 z-[80] flex items-stretch justify-center sm:items-center sm:p-6"
           style={{ background: "rgba(13,13,11,0.45)", backdropFilter: "blur(4px)" }}
@@ -586,25 +590,29 @@ export function RoutineBuilderDialog({
             </div>
           </div>
         </div>
-      )}
+            )}
 
-      {/* Exercise picker sub-modal */}
-      {pickerTarget && (
-        <AddExerciseModal
-          exercises={loadingLibrary ? [] : library}
-          loading={loadingLibrary}
-          currentVariationId={pickerTarget !== "add" ? exercises.find((e) => e.id === pickerTarget)?.variationId : undefined}
-          existingVariationIds={
-            // When swapping: exclude the exercise being swapped so it shows as pickable
-            (pickerTarget === "add"
-              ? exercises
-              : exercises.filter((e) => e.id !== pickerTarget)
-            ).map((e) => e.variationId)
-          }
-          onPick={pickExercise}
-          onClose={() => setPickerTarget(null)}
-        />
-      )}
+            {/* Exercise picker sub-modal */}
+            {pickerTarget && (
+              <AddExerciseModal
+                exercises={loadingLibrary ? [] : library}
+                loading={loadingLibrary}
+                currentVariationId={pickerTarget !== "add" ? exercises.find((e) => e.id === pickerTarget)?.variationId : undefined}
+                existingVariationIds={
+                  // When swapping: exclude the exercise being swapped so it shows as pickable
+                  (pickerTarget === "add"
+                    ? exercises
+                    : exercises.filter((e) => e.id !== pickerTarget)
+                  ).map((e) => e.variationId)
+                }
+                onPick={pickExercise}
+                onClose={() => setPickerTarget(null)}
+              />
+            )}
+          </>,
+          document.body,
+        )
+        : null}
     </>
   )
 }

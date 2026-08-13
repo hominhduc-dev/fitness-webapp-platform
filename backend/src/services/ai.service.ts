@@ -1,4 +1,4 @@
-import { AIGenerationStatus, AIGenerationType, FoodSource, type Prisma, type ProgramDifficulty } from "@prisma/client"
+import { AIGenerationStatus, AIGenerationType, FoodSource, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
 import { randomUUID } from "crypto"
 
 import { getAIProvider } from "../lib/ai/ai-client"
@@ -233,6 +233,19 @@ const LEVEL_LABELS: Record<string, string> = {
   advanced: "Nâng cao",
 }
 
+const ENGLISH_WORKOUT_NAMES: Record<WorkoutKind, string> = {
+  push: "Push Day",
+  pull: "Back Day",
+  legs: "Leg Day",
+  full_body: "Full Body Day",
+  cardio: "Cardio Day",
+  other: "Training Day",
+}
+
+function getEnglishWorkoutName(kind: string) {
+  return ENGLISH_WORKOUT_NAMES[toWorkoutKind(kind)]
+}
+
 async function generateWorkoutProgram(profile: SerializedProfile, input: GenerateProgramInput) {
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.workout_program)
@@ -308,7 +321,8 @@ QUY TẮC BẮT BUỘC:
 3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
 4. weekIndex bắt đầu từ 0, scheduledDay: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7.
 5. kind phải là một trong: push, pull, legs, full_body, cardio, other.
-6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.`
+6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.
+7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.`
 
   const weightInfo = profile.targetWeightKg
     ? `Cân nặng mục tiêu: ${profile.targetWeightKg}kg`
@@ -401,7 +415,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         }>
 
       return {
-        name: workout.name,
+        name: getEnglishWorkoutName(workout.kind),
         kind: workout.kind,
         weekIndex: workout.weekIndex,
         scheduledDay: workout.scheduledDay,
@@ -633,6 +647,282 @@ type MappedProgramOutput = {
       weight?: number
     }>
   }>
+}
+
+// ---------------------------------------------------------------------------
+// Daily Workout Generation
+// ---------------------------------------------------------------------------
+
+type GenerateDailyWorkoutInput = {
+  date: string
+  goal: string
+  experienceLevel: string
+  sessionDuration: number
+  availableEquipment: string
+  focusAreas?: string[]
+  injuries?: string
+  energyLevel: "low" | "normal" | "high"
+}
+
+type AIDailyWorkoutOutput = {
+  name: string
+  description: string
+  kind: string
+  duration: number
+  warmup: string
+  exercises: Array<{
+    exerciseName: string
+    variationName?: string
+    sets: number
+    reps: number
+    repsMin?: number
+    rir?: number
+    restTime?: number
+    weight?: number
+  }>
+}
+
+type MappedDailyWorkoutOutput = {
+  date: string
+  name: string
+  description: string
+  difficulty: ProgramDifficulty
+  kind: WorkoutKind
+  duration: number
+  warmup: string
+  exercises: Array<{
+    variationId: string
+    sets: number
+    reps: number
+    repsMin?: number
+    rir?: number
+    restTime?: number
+    weight?: number
+  }>
+}
+
+const WORKOUT_KINDS = new Set<WorkoutKind>(["push", "pull", "legs", "full_body", "cardio", "other"])
+
+function toWorkoutKind(value: string): WorkoutKind {
+  return WORKOUT_KINDS.has(value as WorkoutKind) ? value as WorkoutKind : "other"
+}
+
+async function generateDailyWorkout(profile: SerializedProfile, input: GenerateDailyWorkoutInput) {
+  const db = ensurePrisma()
+  await checkRateLimit(profile.id, AIGenerationType.workout_program)
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    throw new AuthServiceError("Ngày tập không hợp lệ.", 400)
+  }
+  if (!Number.isFinite(input.sessionDuration) || input.sessionDuration < 20 || input.sessionDuration > 120) {
+    throw new AuthServiceError("Thời lượng buổi tập phải từ 20 đến 120 phút.", 400)
+  }
+  if (!(["low", "normal", "high"] as const).includes(input.energyLevel)) {
+    throw new AuthServiceError("Mức năng lượng không hợp lệ.", 400)
+  }
+
+  const exercises = await db.exercise.findMany({
+    include: { variations: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
+    where: { OR: [{ createdById: null }, { createdById: profile.id }] },
+    orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
+  })
+  const catalog: ExerciseCatalogItem[] = exercises.map((exercise) => ({
+    id: exercise.id,
+    name: exercise.name,
+    muscleGroup: exercise.muscleGroup,
+    variations: exercise.variations.map((variation) => ({
+      id: variation.id,
+      name: variation.name,
+      equipment: variation.equipment,
+    })),
+  }))
+  const catalogForPrompt = catalog.map((exercise) => ({
+    name: exercise.name,
+    muscleGroup: exercise.muscleGroup,
+    variations: exercise.variations.map((variation) => variation.name),
+  }))
+  const recentLogs = await db.workoutLog.count({
+    where: { userId: profile.id, startedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+  })
+
+  const generation = await db.aIGeneration.create({
+    data: {
+      id: randomUUID(),
+      userId: profile.id,
+      type: AIGenerationType.workout_program,
+      status: AIGenerationStatus.pending,
+      input: { ...input, mode: "daily" } as unknown as Prisma.InputJsonValue,
+    },
+  })
+
+  const systemPrompt = `Bạn là personal trainer AI. Hãy tạo ĐÚNG MỘT buổi tập cho hôm nay.
+
+QUY TẮC BẮT BUỘC:
+1. CHỈ dùng bài tập và variation có trong Exercise Catalog.
+2. exerciseName và variationName phải khớp chính xác với catalog.
+3. Điều chỉnh volume theo trình độ, thời lượng và mức năng lượng hôm nay.
+4. Tôn trọng tuyệt đối chấn thương hoặc bài cần tránh.
+5. Trả về JSON thuần tuý, không dùng markdown.
+6. kind chỉ được là push, pull, legs, full_body, cardio hoặc other.
+7. name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Leg Day, Back Day, Push Day hoặc Full Body Day. Không dùng tên tiếng Việt.`
+
+  const userPrompt = `## Người tập
+- Ngày tập: ${input.date}
+- Mục tiêu: ${GOAL_LABELS[input.goal] ?? input.goal}
+- Trình độ: ${LEVEL_LABELS[input.experienceLevel] ?? input.experienceLevel}
+- Thời lượng: ${input.sessionDuration} phút
+- Thiết bị: ${EQUIPMENT_LABELS[input.availableEquipment] ?? input.availableEquipment}
+- Mức năng lượng: ${input.energyLevel}
+${input.focusAreas?.length ? `- Nhóm cơ hôm nay: ${input.focusAreas.join(", ")}` : "- Nhóm cơ hôm nay: AI tự cân đối"}
+${input.injuries ? `- Chấn thương/hạn chế: ${input.injuries}` : "- Không khai báo chấn thương"}
+- Số buổi đã tập trong 30 ngày: ${recentLogs}
+
+## Exercise Catalog
+${JSON.stringify(catalogForPrompt)}
+
+## Output JSON Schema
+{
+  "name": "Tên buổi tập bằng tiếng Việt",
+  "description": "Mô tả ngắn",
+  "kind": "push|pull|legs|full_body|cardio|other",
+  "duration": ${input.sessionDuration},
+  "warmup": "Hướng dẫn khởi động ngắn",
+  "exercises": [{
+    "exerciseName": "Tên chính xác từ catalog",
+    "variationName": "Variation chính xác từ catalog",
+    "sets": 3,
+    "reps": 12,
+    "repsMin": 8,
+    "rir": 2,
+    "restTime": 90,
+    "weight": 0
+  }]
+}`
+
+  try {
+    const response = await getAIProvider().generateStructuredJSON<AIDailyWorkoutOutput>({
+      systemPrompt,
+      userPrompt,
+      maxTokens: 2048,
+    })
+    const raw = response.data
+    const mappedExercises = raw.exercises.map((exercise) => {
+      const variationId = mapExerciseToVariation(exercise.exerciseName, exercise.variationName, catalog)
+      if (!variationId) return null
+      return {
+        variationId,
+        sets: Math.max(1, Math.min(8, Math.round(exercise.sets))),
+        reps: Math.max(1, Math.round(exercise.reps)),
+        repsMin: exercise.repsMin ? Math.max(1, Math.round(exercise.repsMin)) : undefined,
+        rir: exercise.rir == null ? undefined : Math.max(0, Math.min(4, Math.round(exercise.rir))),
+        restTime: exercise.restTime ? Math.max(15, Math.round(exercise.restTime)) : undefined,
+        weight: exercise.weight && exercise.weight > 0 ? exercise.weight : undefined,
+      }
+    }).filter(Boolean) as MappedDailyWorkoutOutput["exercises"]
+
+    const mappingRate = raw.exercises.length > 0 ? mappedExercises.length / raw.exercises.length : 0
+    if (mappedExercises.length === 0 || mappingRate < 0.7) {
+      await db.aIGeneration.update({
+        where: { id: generation.id },
+        data: { status: AIGenerationStatus.failed, output: raw as unknown as Prisma.InputJsonValue, tokenUsage: response.tokenUsage, errorMsg: `Chỉ map được ${Math.round(mappingRate * 100)}% bài tập.` },
+      })
+      throw new AuthServiceError("Nhiều bài AI đề xuất không có trong thư viện. Vui lòng thử lại.", 422)
+    }
+
+    const mapped: MappedDailyWorkoutOutput = {
+      date: input.date,
+      name: getEnglishWorkoutName(raw.kind),
+      description: raw.description,
+      difficulty: mapDifficulty(input.experienceLevel),
+      kind: toWorkoutKind(raw.kind),
+      duration: input.sessionDuration,
+      warmup: raw.warmup,
+      exercises: mappedExercises,
+    }
+    await db.aIGeneration.update({
+      where: { id: generation.id },
+      data: {
+        status: AIGenerationStatus.completed,
+        output: { mode: "daily", raw, mapped } as unknown as Prisma.InputJsonValue,
+        tokenUsage: response.tokenUsage,
+      },
+    })
+
+    return { generationId: generation.id, workout: mapped, mappingRate: Math.round(mappingRate * 100) }
+  } catch (error) {
+    if (error instanceof AuthServiceError) throw error
+    await db.aIGeneration.update({
+      where: { id: generation.id },
+      data: { status: AIGenerationStatus.failed, errorMsg: error instanceof Error ? error.message : "Unknown error" },
+    })
+    throw new AuthServiceError("Không thể tạo buổi tập hôm nay. Vui lòng thử lại sau.", 500)
+  }
+}
+
+async function acceptDailyWorkout(profile: SerializedProfile, generationId: string) {
+  const db = ensurePrisma()
+  const generation = await db.aIGeneration.findUnique({ where: { id: generationId } })
+  if (!generation || generation.userId !== profile.id) {
+    throw new AuthServiceError("Không tìm thấy kết quả AI.", 404)
+  }
+  if (generation.status !== AIGenerationStatus.completed) {
+    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", 400)
+  }
+  const output = generation.output as { mode?: string; mapped?: MappedDailyWorkoutOutput } | null
+  if (output?.mode !== "daily" || !output.mapped) {
+    throw new AuthServiceError("Dữ liệu buổi tập AI không hợp lệ.", 400)
+  }
+  const mapped = output.mapped
+  const scheduledDate = new Date(`${mapped.date}T00:00:00.000Z`)
+
+  return retryTransaction(() => db.$transaction(async (tx) => {
+    const programId = randomUUID()
+    const workoutId = randomUUID()
+    await tx.program.create({
+      data: {
+        id: programId,
+        name: mapped.name,
+        description: mapped.description,
+        difficulty: mapped.difficulty,
+        duration: 1,
+        workoutsPerWeek: 1,
+        isAIGenerated: true,
+        createdById: profile.id,
+      },
+    })
+    await tx.programAssignment.create({ data: { programId, userId: profile.id } })
+    await tx.workout.create({
+      data: {
+        id: workoutId,
+        programId,
+        name: mapped.name,
+        kind: mapped.kind,
+        scheduledDate,
+        duration: mapped.duration,
+        notes: mapped.warmup ? `Khởi động: ${mapped.warmup}` : mapped.description,
+      },
+    })
+    for (let index = 0; index < mapped.exercises.length; index += 1) {
+      const exercise = mapped.exercises[index]
+      const workoutExerciseId = randomUUID()
+      await tx.workoutExercise.create({
+        data: { id: workoutExerciseId, workoutId, variationId: exercise.variationId, order: index + 1, restTime: exercise.restTime },
+      })
+      await tx.exerciseSet.createMany({
+        data: Array.from({ length: exercise.sets }, (_, setIndex) => ({
+          id: randomUUID(),
+          workoutExerciseId,
+          setNumber: setIndex + 1,
+          targetReps: exercise.reps,
+          targetRepsMin: exercise.repsMin,
+          weight: exercise.weight,
+          rir: exercise.rir,
+        })),
+      })
+    }
+    await tx.aIGeneration.update({ where: { id: generationId }, data: { status: AIGenerationStatus.accepted, programId } })
+    return { accepted: true, workoutId }
+  }, { maxWait: 15000, timeout: 60000 }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1120,9 +1410,11 @@ async function chatWithAI(
 }
 
 export {
+  acceptDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
   chatWithAI,
+  generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
 }

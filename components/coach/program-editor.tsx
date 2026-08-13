@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   Pencil,
@@ -447,14 +448,20 @@ function SessionSlot({
       type="button"
       onClick={onClick}
       className={cn(
-        "group relative flex min-h-[100px] flex-col rounded-[8px] border p-3 text-left transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+        "group relative flex min-h-[108px] flex-col overflow-hidden rounded-[16px] border p-4 text-left shadow-sm transition-all duration-200 ease-[cubic-bezier(.2,.7,.2,1)]",
         isRest
-          ? "border-dashed border-border bg-transparent hover:border-input"
-          : "border-border bg-muted/50 hover:border-input hover:bg-muted",
+          ? "border-dashed border-border/80 bg-background/20 hover:border-foreground/25 hover:bg-background/35"
+          : "border-border/80 bg-background/55 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-background/75 hover:shadow-md",
       )}
     >
+      {routine ? (
+        <span
+          className="absolute inset-x-0 top-0 h-0.5 opacity-90"
+          style={{ backgroundColor: TAG_DOT_COLOR[routine.tag] }}
+        />
+      ) : null}
       <span className="flex items-center justify-between">
-        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <span className="rounded-full bg-muted/70 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           {dayLabel}
         </span>
         <span className="flex items-center gap-0.5">
@@ -463,7 +470,7 @@ function SessionSlot({
               role="button"
               tabIndex={0}
               title={messages.coach.editRoutineExercises}
-              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-all hover:border-border hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation()
                 onEdit()
@@ -484,7 +491,7 @@ function SessionSlot({
               role="button"
               tabIndex={0}
               title={messages.coach.markAsRestDay}
-              className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-all hover:border-border hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation()
                 onToggleRest()
@@ -504,9 +511,9 @@ function SessionSlot({
       </span>
 
       {routine ? (
-        <span className="mt-5 min-w-0">
+        <span className="mt-4 min-w-0">
           <RoutineTagBadge tag={routine.tag} />
-          <span className="mt-2 block truncate text-[13px] font-medium text-foreground">{routine.name}</span>
+          <span className="mt-2 block truncate text-[14px] font-semibold tracking-[-0.01em] text-foreground">{routine.name}</span>
           <span className="mt-1 block font-mono text-[10px] text-muted-foreground tnum">
             {messages.coach.exerciseCount(routine.exercises.length)}
           </span>
@@ -738,6 +745,7 @@ export function ProgramEditor({
   const isAdjustMode = Boolean(programId && adjustForTraineeId)
 
   const [programName, setProgramName] = useState("")
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
   const [durationDraft, setDurationDraft] = useState("8")
@@ -1144,7 +1152,7 @@ export function ProgramEditor({
     <div
       className={cn(
         isModal
-          ? "fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain bg-foreground/45 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
+          ? "fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto overscroll-contain bg-background/55 p-2 backdrop-blur-md sm:p-6"
           : "mx-auto w-full max-w-[880px] pb-8",
       )}
       aria-busy={isSaving}
@@ -1161,11 +1169,11 @@ export function ProgramEditor({
 
       <div
         className={cn(
-          "flex w-full max-w-[880px] flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_24px_60px_-12px_rgba(13,13,11,0.18)]",
-          isModal && "max-h-[calc(100svh-2rem)] sm:max-h-[calc(100svh-4rem)]",
+          "glass-surface flex w-full max-w-[920px] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-card shadow-[0_32px_90px_-20px_rgba(13,13,11,0.42)]",
+          isModal && "h-[calc(100svh-1rem)] max-h-[960px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
         )}
       >
-        <div className="border-b border-border px-4 pb-[18px] pt-6 md:px-7">
+        <div className="shrink-0 border-b border-border/70 bg-background/25 px-4 pb-5 pt-5 sm:px-6 md:px-8">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="label-micro mb-1.5">
@@ -1200,71 +1208,110 @@ export function ProgramEditor({
             )}
           </div>
 
-          <div className={cn("grid gap-2.5 md:grid-cols-[1.35fr_0.82fr_0.9fr_1fr]", isArchived && "pointer-events-none opacity-60")}>
-            <Input
-              value={programName}
-              onChange={(event) => setProgramName(event.target.value)}
-              placeholder={messages.coach.programNamePlaceholder}
-              className="bg-background"
-            />
-            <div className="relative">
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={MIN_WEEKS}
-                max={MAX_WEEKS}
-                value={durationDraft}
-                onChange={(event) => setDurationDraft(event.target.value)}
-                onBlur={(event) => commitDuration(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    commitDuration(event.currentTarget.value)
-                    event.currentTarget.blur()
-                  }
-                }}
-                aria-label={messages.coach.weeks(totalWeeks)}
-                className="bg-background pr-14 tnum"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                {messages.coach.weeksUnit}
+          <button
+            type="button"
+            className="mb-3 flex w-full items-center justify-between gap-3 rounded-[14px] border border-border/70 bg-background/35 px-3.5 py-3 text-left md:hidden"
+            aria-expanded={isDetailsExpanded}
+            onClick={() => setIsDetailsExpanded((current) => !current)}
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-foreground">{messages.coach.programDetails}</span>
+              <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty}
               </span>
+            </span>
+            <ChevronDown
+              className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isDetailsExpanded && "rotate-180")}
+            />
+          </button>
+
+          <div className={cn(
+            "rounded-[18px] border border-border/70 bg-background/30 p-3.5 sm:p-4",
+            !isDetailsExpanded && "hidden md:block",
+            isArchived && "pointer-events-none opacity-60",
+          )}>
+            <p className="label-micro mb-3 text-muted-foreground">{messages.coach.programDetails}</p>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.45fr_0.65fr_0.9fr_0.9fr]">
+              <label className="col-span-2 space-y-1.5 md:col-span-1">
+                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programName}</span>
+                <Input
+                  value={programName}
+                  onChange={(event) => setProgramName(event.target.value)}
+                  placeholder={messages.coach.programNamePlaceholder}
+                  className="h-10 bg-background/65"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programDuration}</span>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_WEEKS}
+                    max={MAX_WEEKS}
+                    value={durationDraft}
+                    onChange={(event) => setDurationDraft(event.target.value)}
+                    onBlur={(event) => commitDuration(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        commitDuration(event.currentTarget.value)
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    aria-label={messages.coach.weeks(totalWeeks)}
+                    className="h-10 bg-background/65 pr-14 tnum"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    {messages.coach.weeksUnit}
+                  </span>
+                </div>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programFrequency}</span>
+                <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
+                  <SelectTrigger className="h-10 bg-background/65">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[100] border-border bg-card">
+                    {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
+                      <SelectItem key={dayCount} value={String(dayCount)}>
+                        {messages.coach.daysPerWeek(dayCount)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programDifficulty}</span>
+                <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
+                  <SelectTrigger className="h-10 bg-background/65 capitalize">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[100] border-border bg-card">
+                    {DIFFICULTY_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option} className="capitalize">
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="space-y-1.5 md:col-span-4">
+                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programFocus}</span>
+                <Input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder={messages.coach.descriptionPlaceholder}
+                  className="h-10 bg-background/65 text-[13px]"
+                  disabled={isArchived}
+                />
+              </label>
             </div>
-            <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
-              <SelectTrigger className="bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="z-[90] border-border bg-card">
-                {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
-                  <SelectItem key={dayCount} value={String(dayCount)}>
-                    {messages.coach.daysPerWeek(dayCount)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
-              <SelectTrigger className="bg-background capitalize">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="z-[90] border-border bg-card">
-                {DIFFICULTY_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option} className="capitalize">
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
-          <div className="mt-3 grid gap-2.5 md:grid-cols-[1fr_auto]">
-            <Input
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder={messages.coach.descriptionPlaceholder}
-              className="h-9 bg-background text-[13px]"
-              disabled={isArchived}
-            />
-            <div className="flex items-center gap-2">
+          <div className={cn("mt-3 flex flex-wrap items-center gap-2", !isDetailsExpanded && "hidden md:flex")}>
+            <div className="flex flex-wrap items-center gap-2">
               {programId && assignedTrainees.length > 0 && (
                 <ExportProgramLogsDialog
                   assignedTrainees={assignedTrainees}
@@ -1286,9 +1333,9 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="flex min-h-[66px] flex-wrap items-center gap-3 border-b border-border bg-muted px-4 py-3 md:px-7">
-          <p className="label-micro">{messages.coach.week}</p>
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5 pt-2">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-background/35 px-4 py-2.5 sm:px-6 md:px-8">
+          <p className="label-micro hidden shrink-0 sm:block">{messages.coach.week}</p>
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {Array.from({ length: totalWeeks }).map((_, index) => {
               const week = schedule[index] ?? []
               const weekTotal = week.filter((slot) => slot !== null).length
@@ -1304,7 +1351,7 @@ export function ProgramEditor({
                   onClick={() => setActiveWeek(index)}
                   title={isCurrentWeek ? messages.coach.currentlyOnWeek(index + 1, totalWeeks) : undefined}
                   className={cn(
-                    "relative flex min-w-[38px] flex-col items-center rounded border px-2.5 py-1 font-mono text-xs transition-colors duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+                    "relative flex h-8 min-w-[44px] items-center justify-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)] sm:min-w-[48px]",
                     isActive
                       ? "border-foreground bg-foreground text-background"
                       : "border-input bg-background text-foreground hover:bg-muted",
@@ -1324,7 +1371,7 @@ export function ProgramEditor({
                   {messages.coach.weekShort(index + 1)}
                   <span
                     className={cn(
-                      "mt-1 h-1 w-1 rounded-full",
+                      "h-1.5 w-1.5 rounded-full",
                       isComplete ? "bg-success" : isActive ? "bg-muted-foreground" : "bg-muted-foreground/30",
                     )}
                   />
@@ -1332,13 +1379,13 @@ export function ProgramEditor({
               )
             })}
           </div>
-          <Button type="button" variant="ghost" size="sm" className="gap-1.5" disabled={isArchived} onClick={copyActiveWeekToAll}>
+          <Button type="button" variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 text-xs sm:px-3" disabled={isArchived} onClick={copyActiveWeekToAll}>
             <Copy className="h-3.5 w-3.5" />
             {messages.coach.copyWeekToAll(activeWeek + 1)}
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-7">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-background/10 px-4 py-5 sm:px-6 md:px-8">
           {isArchived ? (
             <div className="mb-4 rounded-[10px] border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               Program này đã archive (chỉ đọc). Restore để chỉnh sửa.
@@ -1355,7 +1402,7 @@ export function ProgramEditor({
             </div>
           ) : null}
 
-          <div className={cn("grid gap-2.5 sm:grid-cols-2 md:grid-cols-7", isArchived && "pointer-events-none opacity-70")}>
+          <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-7", isArchived && "pointer-events-none opacity-70")}>
             {DAY_OPTIONS.map((day, dayIndex) => (
               <SessionSlot
                 key={day.scheduledDay}
@@ -1396,20 +1443,20 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="flex min-h-[68px] flex-col gap-2 border-t border-border bg-card px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:justify-end md:px-7">
+        <div className="grid shrink-0 grid-cols-2 gap-2.5 border-t border-border/70 bg-background/55 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:flex sm:justify-end sm:px-6 md:px-8">
           {onClose ? (
-            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
+            <Button type="button" variant="outline" className="w-full rounded-xl bg-transparent sm:w-auto" onClick={onClose}>
               {messages.common.cancel}
             </Button>
           ) : (
-            <Button variant="ghost" asChild className="w-full sm:w-auto">
+            <Button variant="outline" asChild className="w-full rounded-xl bg-transparent sm:w-auto">
               <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"}>{messages.common.cancel}</Link>
             </Button>
           )}
           {isArchived ? (
             <Button
               type="button"
-              className="w-full sm:w-auto"
+              className="w-full rounded-xl sm:w-auto"
               disabled={isRestoring}
               onClick={() => void handleRestoreFromEditor()}
             >
@@ -1417,7 +1464,7 @@ export function ProgramEditor({
               Restore
             </Button>
           ) : (
-            <Button type="button" className="w-full sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
+            <Button type="button" className="w-full rounded-xl sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {isSaving ? messages.common.saving : programId ? messages.common.saveChanges : messages.coach.saveProgram}
             </Button>
