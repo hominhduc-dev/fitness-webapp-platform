@@ -6,6 +6,8 @@ import type { AIConversationMessage } from "../lib/ai/types"
 import { prisma, retryTransaction } from "../lib/prisma"
 import { chatTools, CREATE_WORKOUT_PROGRAM, normalizeCreateProgramArgs } from "./ai/chat-tools"
 import { buildTraineeChatContext } from "./ai/context/builder"
+import { parseExerciseSnapshot } from "./ai/context/helpers"
+import { selectCatalogForPrompt } from "./ai/exercise-catalog"
 import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
 import { AuthServiceError } from "./errors"
@@ -277,11 +279,26 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
     take: 20,
   })
 
-  const catalogForPrompt = catalog.map((e) => ({
-    name: e.name,
-    muscleGroup: e.muscleGroup,
-    variations: e.variations.map((v) => v.name),
-  }))
+  const recentExerciseNames = recentLogs.flatMap((log) =>
+    parseExerciseSnapshot(log.exerciseSnapshot)
+      .map((entry) => entry.exercise?.name?.trim())
+      .filter((name): name is string => Boolean(name)),
+  )
+
+  const catalogForPrompt = selectCatalogForPrompt(
+    exercises.map((e) => ({
+      id: e.id,
+      name: e.name,
+      muscleGroup: e.muscleGroup,
+      createdById: e.createdById,
+      variations: e.variations.map((v) => ({ id: v.id, name: v.name, equipment: v.equipment })),
+    })),
+    {
+      availableEquipment: input.availableEquipment,
+      focusAreas: input.focusAreas,
+      recentExerciseNames,
+    },
+  )
 
   const systemPrompt = `Bạn là một personal trainer AI chuyên nghiệp. Tạo chương trình tập luyện cá nhân hoá dựa trên thông tin người dùng.
 
