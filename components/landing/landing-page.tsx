@@ -55,8 +55,14 @@ function TopBar() {
       <div className="landing-header__inner glass-surface mx-auto flex max-w-[1200px] items-center justify-between rounded-full border border-border/70 px-2.5 py-2 shadow-lg backdrop-blur-xl md:px-4">
         {/* Logo */}
         <div className="flex shrink-0 items-center gap-2">
-          <span className="landing-brand-mark grid size-9 place-items-center rounded-full border border-border/70 bg-foreground text-background shadow-sm">
-            <Image src="/lift-mark.svg" alt="" width={20} height={20} />
+          <span className="landing-brand-mark grid size-9 place-items-center overflow-hidden rounded-full border border-border/70 bg-foreground text-background shadow-sm">
+            <Image
+              src="/icon.svg"
+              alt="YeahBuddy"
+              width={36}
+              height={36}
+              className="size-full rounded-full object-cover"
+            />
           </span>
           <span className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.04em] text-foreground md:text-[19px]">
             YeahBuddy
