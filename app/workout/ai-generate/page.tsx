@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Bot } from "lucide-react"
+import { ArrowLeft, Bot, ShieldCheck, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
@@ -106,21 +106,25 @@ export default function AIGeneratePage() {
   }, [session?.access_token, result, router])
 
   return (
-    <main className="mx-auto max-w-[800px] px-4 py-5 sm:px-6 sm:py-8 md:px-10">
-      <div className="mb-6">
+    <main className="mx-auto max-w-[880px] px-4 pb-28 pt-5 sm:px-6 sm:py-8 md:px-10">
+      <div className="mb-6 sm:mb-8">
         <Link href="/workout" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
           <ArrowLeft className="size-4" />
           Quay lại
         </Link>
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-            <Bot className="size-5 text-primary" />
+        <div className="glass-card flex items-start gap-3 rounded-[22px] border bg-gradient-to-br from-primary-soft/70 via-card to-card p-4 sm:p-5">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <Bot className="size-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold sm:text-2xl">AI Tạo Chương Trình</h1>
-            <p className="text-sm text-muted-foreground">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold sm:text-2xl">AI Tạo Chương Trình</h1>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />Cá nhân hoá</span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
               Cá nhân hoá lịch tập dựa trên mục tiêu và trình độ của bạn
             </p>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success" />Có kiểm tra thiết bị và giới hạn vận động</p>
           </div>
         </div>
       </div>
