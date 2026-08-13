@@ -2,7 +2,9 @@ import { AIGenerationStatus, AIGenerationType, FoodSource, type Prisma, type Pro
 import { randomUUID } from "crypto"
 
 import { getAIProvider } from "../lib/ai/ai-client"
+import type { AIConversationMessage } from "../lib/ai/types"
 import { prisma, retryTransaction } from "../lib/prisma"
+import { chatTools, CREATE_WORKOUT_PROGRAM, normalizeCreateProgramArgs } from "./ai/chat-tools"
 import { buildTraineeChatContext } from "./ai/context/builder"
 import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
@@ -953,11 +955,21 @@ type MappedMealOutput = {
 // AI Chat — one-shot fitness Q&A
 // ---------------------------------------------------------------------------
 
+const FALLBACK_REPLY = "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪"
+
+/** A draft the chat produced that the user still has to confirm. */
+type ChatAction = {
+  type: "program_draft"
+  generationId: string
+  mappingRate: number
+  program: MappedProgramOutput
+}
+
 async function chatWithAI(
   profile: SerializedProfile,
   message: string,
   history: ChatMessage[],
-) {
+): Promise<{ reply: string; action?: ChatAction }> {
   if (!message.trim()) {
     throw new AuthServiceError("Tin nhắn không được để trống.", 400)
   }
@@ -977,24 +989,117 @@ async function chatWithAI(
     systemPrompt = buildAIChatSystemPrompt(profile, null)
   }
 
-  const conversationHistory = history.slice(-6)
-  const userPrompt = conversationHistory.length > 0
-    ? conversationHistory.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n") + `\nUser: ${message}`
-    : message
-
   const ai = getAIProvider()
-  const response = await ai.generateText({
+  const conversationHistory = history.slice(-6)
+
+  if (!ai.supportsTools) {
+    const userPrompt = conversationHistory.length > 0
+      ? conversationHistory.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n") + `\nUser: ${message}`
+      : message
+
+    const response = await ai.generateText({ systemPrompt, userPrompt, maxTokens: 1024 })
+    return { reply: response.data.trim() || FALLBACK_REPLY }
+  }
+
+  const messages: AIConversationMessage[] = [
+    ...conversationHistory.map((entry) => ({ role: entry.role, content: entry.content })),
+    { role: "user" as const, content: message },
+  ]
+
+  const turn = await ai.generateWithTools({
     systemPrompt,
-    userPrompt,
+    messages,
+    tools: chatTools,
     maxTokens: 1024,
   })
 
-  const reply = response.data.trim()
-  if (!reply) {
-    return { reply: "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪" }
+  if (turn.toolCalls.length === 0) {
+    return { reply: turn.text.trim() || FALLBACK_REPLY }
   }
 
-  return { reply }
+  // Every tool call must get a result back or the next request is rejected, so
+  // walk all of them — but only ever run one generation per message, since each
+  // one is slow, token-heavy and counts against the daily program quota.
+  let action: ChatAction | undefined
+  const toolResults: AIConversationMessage[] = []
+
+  for (const call of turn.toolCalls) {
+    if (call.name !== CREATE_WORKOUT_PROGRAM) {
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({ ok: false, error: `Tool "${call.name}" không tồn tại.` }),
+      })
+      continue
+    }
+
+    if (action) {
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({ ok: false, error: "Đã tạo một chương trình trong lượt này rồi." }),
+      })
+      continue
+    }
+
+    try {
+      const input = normalizeCreateProgramArgs(call.arguments)
+      const result = await generateWorkoutProgram(profile, input)
+      action = {
+        type: "program_draft",
+        generationId: result.generationId,
+        mappingRate: result.mappingRate,
+        program: result.program as MappedProgramOutput,
+      }
+      // Keep the tool result small — the model only needs enough to describe the
+      // draft, and the full payload goes to the client through `action`.
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({
+          ok: true,
+          name: result.program.name,
+          description: result.program.description,
+          durationWeeks: result.program.duration,
+          workoutsPerWeek: result.program.workoutsPerWeek,
+          mappingRate: result.mappingRate,
+          workouts: result.program.workouts.map((workout) => ({
+            name: workout.name,
+            scheduledDay: workout.scheduledDay,
+            exerciseCount: workout.exercises.length,
+          })),
+          note: "Đây là bản nháp. Trainee phải bấm xác nhận trong app thì mới được lưu.",
+        }),
+      })
+    } catch (error) {
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({
+          ok: false,
+          error: error instanceof AuthServiceError ? error.message : "Không tạo được chương trình.",
+        }),
+      })
+    }
+  }
+
+  const followUp = await ai.generateWithTools({
+    systemPrompt,
+    messages: [
+      ...messages,
+      { role: "assistant", content: turn.text, toolCalls: turn.toolCalls },
+      ...toolResults,
+    ],
+    tools: chatTools,
+    maxTokens: 1024,
+  })
+
+  const reply = followUp.text.trim() || turn.text.trim() || FALLBACK_REPLY
+  return action ? { reply, action } : { reply }
 }
 
 export {

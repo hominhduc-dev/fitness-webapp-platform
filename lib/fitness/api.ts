@@ -1978,8 +1978,30 @@ async function acceptAIMealPlan(accessToken: string, generationId: string, date:
   return response.data
 }
 
+/** A draft the chat produced in-conversation that still needs user confirmation. */
+export type AIChatAction = {
+  type: "program_draft"
+  generationId: string
+  mappingRate: number
+  program: {
+    name: string
+    description: string
+    difficulty: string
+    duration: number
+    workoutsPerWeek: number
+    workouts: Array<{
+      name: string
+      kind: string
+      weekIndex: number
+      scheduledDay: number
+      duration: number
+      exercises: unknown[]
+    }>
+  }
+}
+
 async function sendAIChatMessage(accessToken: string, message: string, history: Array<{ role: "user" | "assistant"; content: string }>) {
-  const response = await request<ApiEnvelope<{ reply: string }>>("/api/ai/chat", accessToken, {
+  const response = await request<ApiEnvelope<{ reply: string; action?: AIChatAction }>>("/api/ai/chat", accessToken, {
     method: "POST",
     body: JSON.stringify({ message, history }),
   })
