@@ -6,12 +6,18 @@ export type ThemeMode = "light" | "dark" | "glass" | "system"
 export type ResolvedTheme = "light" | "dark"
 
 type ThemeContextValue = {
+  glassTransparency: number
   resolvedTheme: ResolvedTheme
+  setGlassTransparency: (value: number) => void
   setTheme: (nextTheme: ThemeMode) => void
   theme: ThemeMode
 }
 
 export const themeStorageKey = "yeahbuddy-theme"
+export const glassTransparencyStorageKey = "yeahbuddy-glass-transparency"
+export const defaultGlassTransparency = 42
+export const minGlassTransparency = 10
+export const maxGlassTransparency = 70
 const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#ffffff"
 const darkThemeColor = "#0b0d12"
@@ -31,6 +37,26 @@ function getStoredTheme(): ThemeMode {
   } catch {
     return defaultTheme
   }
+}
+
+function clampGlassTransparency(value: number) {
+  return Math.min(maxGlassTransparency, Math.max(minGlassTransparency, Math.round(value)))
+}
+
+function getStoredGlassTransparency() {
+  try {
+    const rawStoredValue = window.localStorage.getItem(glassTransparencyStorageKey)
+    if (rawStoredValue === null) return defaultGlassTransparency
+    const storedValue = Number(rawStoredValue)
+    return Number.isFinite(storedValue) ? clampGlassTransparency(storedValue) : defaultGlassTransparency
+  } catch {
+    return defaultGlassTransparency
+  }
+}
+
+function applyGlassTransparencyToDocument(value: number) {
+  const opacity = (100 - clampGlassTransparency(value)) / 100
+  document.documentElement.style.setProperty("--glass-opacity", opacity.toFixed(2))
 }
 
 function resolveTheme(theme: ThemeMode): ResolvedTheme {
@@ -62,6 +88,7 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
   const startingTheme = initialTheme ?? defaultTheme
   const [theme, setThemeState] = useState<ThemeMode>(startingTheme)
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(startingTheme === "dark" || startingTheme === "glass" ? "dark" : "light")
+  const [glassTransparency, setGlassTransparencyState] = useState(defaultGlassTransparency)
   const themeRef = useRef<ThemeMode>(startingTheme)
 
   const applyTheme = useCallback((nextTheme: ThemeMode) => {
@@ -72,8 +99,11 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
 
   useEffect(() => {
     const startupTheme = initialTheme ?? getStoredTheme()
+    const storedGlassTransparency = getStoredGlassTransparency()
     themeRef.current = startupTheme
     setThemeState(startupTheme)
+    setGlassTransparencyState(storedGlassTransparency)
+    applyGlassTransparencyToDocument(storedGlassTransparency)
     applyTheme(startupTheme)
 
     const mediaQuery = window.matchMedia?.(darkQuery)
@@ -107,13 +137,27 @@ export function ThemeProvider({ children, initialTheme }: { children: ReactNode;
     [applyTheme],
   )
 
+  const setGlassTransparency = useCallback((value: number) => {
+    const nextValue = clampGlassTransparency(value)
+    setGlassTransparencyState(nextValue)
+    applyGlassTransparencyToDocument(nextValue)
+
+    try {
+      window.localStorage.setItem(glassTransparencyStorageKey, String(nextValue))
+    } catch {
+      // Persisting appearance preferences is best-effort.
+    }
+  }, [])
+
   const value = useMemo<ThemeContextValue>(
     () => ({
+      glassTransparency,
       resolvedTheme,
+      setGlassTransparency,
       setTheme,
       theme,
     }),
-    [resolvedTheme, setTheme, theme],
+    [glassTransparency, resolvedTheme, setGlassTransparency, setTheme, theme],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
