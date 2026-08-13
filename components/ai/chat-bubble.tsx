@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { AIMessage } from "@/components/ai/ai-message"
+import { ChatMealPlanCard } from "@/components/ai/chat-meal-plan-card"
 import { ChatProgramCard } from "@/components/ai/chat-program-card"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -195,7 +196,11 @@ function AIChatBubble() {
                   >
                     {msg.role === "user" ? msg.content : <AIMessage content={msg.content} />}
                     {msg.action && session?.access_token && (
-                      <ChatProgramCard action={msg.action} accessToken={session.access_token} />
+                      msg.action.type === "program_draft" ? (
+                        <ChatProgramCard action={msg.action} accessToken={session.access_token} />
+                      ) : (
+                        <ChatMealPlanCard action={msg.action} accessToken={session.access_token} />
+                      )
                     )}
                   </div>
                 ))}

@@ -16,7 +16,7 @@ function ChatProgramCard({
   action,
   accessToken,
 }: {
-  action: AIChatAction
+  action: Extract<AIChatAction, { type: "program_draft" }>
   accessToken: string
 }) {
   const { locale } = useLocale()

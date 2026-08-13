@@ -9,6 +9,7 @@ import type { AIToolDefinition } from "../../lib/ai/types"
  */
 
 const CREATE_WORKOUT_PROGRAM = "create_workout_program" as const
+const CREATE_MEAL_PLAN = "create_meal_plan" as const
 
 const chatTools: AIToolDefinition[] = [
   {
@@ -71,6 +72,35 @@ const chatTools: AIToolDefinition[] = [
       ],
     },
   },
+  {
+    name: CREATE_MEAL_PLAN,
+    description:
+      "Tạo bản nháp thực đơn cho MỘT ngày dựa trên mục tiêu dinh dưỡng của trainee. Chỉ gọi khi trainee muốn một thực đơn cụ thể để ăn theo. KHÔNG gọi khi trainee chỉ hỏi nên ăn gì trước khi tập, hỏi một món bao nhiêu calo, hay hỏi hôm nay đã đủ protein chưa — những câu đó trả lời trực tiếp. Kết quả là bản nháp; trainee phải bấm xác nhận thì mới được ghi vào nhật ký.",
+    parameters: {
+      type: "object",
+      properties: {
+        date: {
+          type: "string",
+          description: "Ngày áp dụng, định dạng YYYY-MM-DD. Bỏ trống nếu là hôm nay.",
+        },
+        preferences: {
+          type: "string",
+          description: "Sở thích hoặc kiêng khem, ví dụ 'không ăn hải sản', 'ăn chay'. Bỏ trống nếu không có.",
+        },
+        budget: {
+          type: "string",
+          enum: ["low", "medium", "high"],
+          description: "Ngân sách cho bữa ăn.",
+        },
+        cookingTime: {
+          type: "string",
+          enum: ["quick", "normal"],
+          description: "Thời gian nấu trainee sẵn sàng bỏ ra.",
+        },
+      },
+      required: [],
+    },
+  },
 ]
 
 type CreateProgramArgs = {
@@ -121,4 +151,45 @@ function normalizeCreateProgramArgs(raw: Record<string, unknown>): CreateProgram
   }
 }
 
-export { chatTools, CREATE_WORKOUT_PROGRAM, normalizeCreateProgramArgs, type CreateProgramArgs }
+type CreateMealPlanArgs = {
+  date: string
+  preferences?: string
+  budget?: string
+  cookingTime?: string
+}
+
+const BUDGETS = ["low", "medium", "high"]
+const COOKING_TIMES = ["quick", "normal"]
+
+function optionalText(value: unknown, maxLength = 200) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : undefined
+}
+
+/**
+ * generateMealPlan rejects a malformed date with a 400 the trainee reads as
+ * "AI hỏng", and the model has no reliable sense of today's date — so fall back
+ * to today rather than passing whatever it invented straight through.
+ */
+function normalizeCreateMealPlanArgs(raw: Record<string, unknown>): CreateMealPlanArgs {
+  const today = new Date().toISOString().slice(0, 10)
+  const date = typeof raw.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.date.trim())
+    ? raw.date.trim()
+    : today
+
+  return {
+    date,
+    preferences: optionalText(raw.preferences),
+    budget: pickEnum(raw.budget, BUDGETS, "medium"),
+    cookingTime: pickEnum(raw.cookingTime, COOKING_TIMES, "normal"),
+  }
+}
+
+export {
+  chatTools,
+  CREATE_MEAL_PLAN,
+  CREATE_WORKOUT_PROGRAM,
+  normalizeCreateMealPlanArgs,
+  normalizeCreateProgramArgs,
+  type CreateMealPlanArgs,
+  type CreateProgramArgs,
+}
