@@ -165,7 +165,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
       <QuickActions />
 
-      <section className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {statCards.map((card) => {
           const isHelperAccent = "helperTone" in card && card.helperTone === "accent"
 
@@ -173,7 +173,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "glass-card min-w-[168px] snap-start rounded-[20px] border p-4 transition-all md:min-w-0 md:p-5",
+                "glass-card min-w-0 rounded-[20px] border p-4 transition-all md:p-5",
                 card.tone === "primary" && "border-primary/20 bg-primary-soft",
                 card.tone === "blue" && "border-primary/20 bg-primary-soft",
                 card.tone === "neutral" && "border-border bg-card",
@@ -206,9 +206,9 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 function DashboardOverviewSkeleton() {
   return (
     <div className="space-y-6">
-      <section className="-mx-4 flex gap-3 overflow-hidden px-4 md:mx-0 md:grid md:grid-cols-4 md:px-0">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="rounded-[10px] border border-border bg-card p-4 md:p-5">
+          <div key={index} className="min-w-0 rounded-[20px] border border-border bg-card p-4 md:p-5">
             <Skeleton className="h-2.5 w-16 rounded" />
             <Skeleton className="mt-3 h-7 w-24" />
             <Skeleton className="mt-2 h-3 w-28" />
