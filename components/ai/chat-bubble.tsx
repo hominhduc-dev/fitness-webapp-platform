@@ -7,35 +7,51 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AIMessage } from "@/components/ai/ai-message"
 import { ChatProgramCard } from "@/components/ai/chat-program-card"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { sendAIChatMessage, type AIChatAction } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
 type Message = { role: "user" | "assistant"; content: string; action?: AIChatAction }
 
-const QUICK_ACTIONS = [
-  {
-    label: "Tạo chương trình tập",
-    icon: Dumbbell,
-    href: "/workout/ai-generate",
-  },
-  {
-    label: "AI gợi ý thực đơn",
-    icon: UtensilsCrossed,
-    href: "/meals",
-    hint: "Bấm nút 'AI gợi ý' trên trang Meals",
-  },
-] as const
+function getChatCopy(locale: "en" | "vi") {
+  if (locale === "vi") {
+    return {
+      ariaOpen: "Mở AI Coach",
+      error: "Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại.",
+      features: "Tính năng AI",
+      loading: "AI đang trả lời...",
+      placeholder: "Hỏi về tập luyện, dinh dưỡng...",
+      prompt: "Hỏi AI Coach",
+      subtitle: "Hỏi đáp fitness & dinh dưỡng",
+      actions: [
+        { label: "Tạo chương trình tập", icon: Dumbbell, href: "/workout/ai-generate" },
+        { label: "AI gợi ý thực đơn", icon: UtensilsCrossed, href: "/meals", hint: "Bấm nút 'AI gợi ý' trên trang Meals" },
+      ],
+      suggestions: ["Tôi nên tập gì hôm nay?", "Cho tôi tips giảm cân", "Cách tăng cơ hiệu quả?", "Nên ăn gì trước khi tập?"],
+    }
+  }
 
-const SUGGESTIONS = [
-  "Tôi nên tập gì hôm nay?",
-  "Cho tôi tips giảm cân",
-  "Cách tăng cơ hiệu quả?",
-  "Nên ăn gì trước khi tập?",
-]
+  return {
+    ariaOpen: "Open AI Coach",
+    error: "Sorry, I cannot answer right now. Please try again.",
+    features: "AI features",
+    loading: "AI is responding...",
+    placeholder: "Ask about training or nutrition...",
+    prompt: "Ask AI Coach",
+    subtitle: "Fitness and nutrition Q&A",
+    actions: [
+      { label: "Create a workout program", icon: Dumbbell, href: "/workout/ai-generate" },
+      { label: "AI meal suggestions", icon: UtensilsCrossed, href: "/meals", hint: "Use the AI suggestion button on the Meals page" },
+    ],
+    suggestions: ["What should I train today?", "Give me weight-loss tips", "How can I build muscle effectively?", "What should I eat before training?"],
+  }
+}
 
 function AIChatBubble() {
   const { session } = useAuth()
+  const { locale } = useLocale()
+  const copy = getChatCopy(locale)
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -83,11 +99,11 @@ function AIChatBubble() {
       const result = await sendAIChatMessage(session.access_token, msg, transcript)
       setMessages((prev) => [...prev, { role: "assistant", content: result.reply, action: result.action }])
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại." }])
+      setMessages((prev) => [...prev, { role: "assistant", content: copy.error }])
     } finally {
       setIsLoading(false)
     }
-  }, [input, session?.access_token, isLoading, messages])
+  }, [copy.error, input, session?.access_token, isLoading, messages])
 
   if (!session) return null
 
@@ -97,7 +113,7 @@ function AIChatBubble() {
       {!open && (
         <button
           type="button"
-          aria-label="Mở AI Coach"
+          aria-label={copy.ariaOpen}
           onClick={() => setOpen(true)}
           className="ai-bubble-trigger fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex size-14 items-center justify-center rounded-full border border-white/15 bg-primary text-primary-foreground shadow-2xl backdrop-blur-xl transition-all hover:scale-105 md:bottom-5 md:right-5 md:z-40"
         >
@@ -115,7 +131,7 @@ function AIChatBubble() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold">AI Coach</p>
-              <p className="text-[11px] text-muted-foreground">Hỏi đáp fitness & dinh dưỡng</p>
+              <p className="text-[11px] text-muted-foreground">{copy.subtitle}</p>
             </div>
           </div>
 
@@ -125,8 +141,8 @@ function AIChatBubble() {
               <div className="space-y-4">
                 {/* Quick Actions */}
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Tính năng AI</p>
-                  {QUICK_ACTIONS.map((action) => (
+                  <p className="text-xs font-medium text-muted-foreground">{copy.features}</p>
+                  {copy.actions.map((action) => (
                     <Link
                       key={action.href}
                       href={action.href}
@@ -148,9 +164,9 @@ function AIChatBubble() {
 
                 {/* Suggestions */}
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">Hỏi AI Coach</p>
+                  <p className="text-xs font-medium text-muted-foreground">{copy.prompt}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {SUGGESTIONS.map((s) => (
+                    {copy.suggestions.map((s) => (
                       <button
                         key={s}
                         type="button"
@@ -186,7 +202,7 @@ function AIChatBubble() {
                 {isLoading && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="size-3 animate-spin" />
-                    AI đang trả lời...
+                    {copy.loading}
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -208,7 +224,7 @@ function AIChatBubble() {
                     void handleSend()
                   }
                 }}
-                placeholder="Hỏi về tập luyện, dinh dưỡng..."
+                placeholder={copy.placeholder}
                 className="flex-1 rounded-xl border bg-transparent px-3.5 py-2.5 text-sm outline-none focus:border-primary"
                 disabled={isLoading}
               />
