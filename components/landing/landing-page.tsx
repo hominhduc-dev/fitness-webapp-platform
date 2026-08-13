@@ -27,7 +27,7 @@ import type { AppLocale } from "@/lib/i18n/config"
 
 export function LandingPage(_props: { locale: AppLocale }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="landing-shell min-h-screen bg-background text-foreground">
       <TopBar />
 
       <main>
@@ -52,7 +52,7 @@ function TopBar() {
   const { messages } = useLocale()
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
+    <header className="glass-surface sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3.5 md:px-10 md:py-[18px]">
         {/* Logo */}
         <div className="flex shrink-0 items-center gap-2.5">
@@ -161,7 +161,7 @@ function Hero() {
       </div>
 
       {/* Product preview tile */}
-      <div className="mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.12)] md:mt-[72px] md:p-7">
+      <div className="glass-card landing-preview mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.12)] md:mt-[72px] md:p-7">
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[1.4fr_1fr] md:gap-6">
           {/* Mock set-log card */}
           <MockSetLog />
@@ -183,7 +183,7 @@ function MockSetLog() {
   ]
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <div className="glass-inset overflow-hidden rounded-[10px] border border-border bg-card">
       {/* Header */}
       <div className="border-b border-border px-[18px] py-3.5">
         <div className="text-base font-semibold text-foreground">{messages.landing.benchPress}</div>
@@ -248,7 +248,7 @@ function MockChart() {
   const { messages } = useLocale()
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-[18px]">
+    <div className="glass-inset rounded-[10px] border border-border bg-card p-[18px]">
       <p className="label-micro mb-1.5">{messages.landing.oneRmEstimate}</p>
 
       <div className="flex items-baseline gap-2">
@@ -311,7 +311,7 @@ function FeaturesSection() {
       </div>
 
       {/* 3×2 grid with hairline dividers */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="glass-card overflow-hidden rounded-xl border border-border bg-card">
         <div className="grid grid-cols-1 md:grid-cols-3">
           {featureItems.map((item, i) => {
             const col = i % 3
@@ -363,7 +363,7 @@ function TrainerCallout() {
       id="trainers"
       className="mx-auto max-w-[1200px] px-5 pb-10 pt-5 md:px-10 md:pb-20 md:pt-10"
     >
-      <div className="grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
+      <div className="glass-card landing-trainer grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
         {/* Left: copy */}
         <div>
           <p className="label-micro mb-3 text-[#9a9a92]">{messages.landing.trainerEyebrow}</p>

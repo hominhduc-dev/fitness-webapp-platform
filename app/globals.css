@@ -457,6 +457,47 @@
   background: transparent;
 }
 
+.glass .landing-shell {
+  background:
+    radial-gradient(circle at 78% 10%, rgb(129 31 24 / 34%), transparent 32rem),
+    radial-gradient(circle at 8% 58%, rgb(92 20 20 / 22%), transparent 34rem),
+    linear-gradient(145deg, rgb(26 14 14 / 72%), rgb(8 10 14 / 88%));
+}
+
+.glass .landing-shell > main {
+  background: transparent;
+}
+
+.glass .landing-preview {
+  border-radius: 28px;
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.glass .glass-inset {
+  border-color: rgb(255 255 255 / 12%);
+  background: rgb(9 11 15 / 42%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+.glass .glass-card.landing-trainer {
+  color: var(--foreground);
+  background:
+    linear-gradient(135deg, rgb(116 32 27 / 38%), rgb(20 22 28 / 52%)),
+    var(--glass-bg);
+}
+
+.glass .glass-card.landing-trainer h2,
+.glass .glass-card.landing-trainer [class*="text-[#fcfcfa]"] {
+  color: var(--foreground);
+}
+
+.glass .glass-card.landing-trainer [class*="text-[#c9c9c2]"],
+.glass .glass-card.landing-trainer [class*="text-[#9a9a92]"] {
+  color: var(--muted-foreground);
+}
+
 .glass .glass-surface,
 .glass [data-slot="dialog-content"],
 .glass [data-slot="drawer-content"] {
