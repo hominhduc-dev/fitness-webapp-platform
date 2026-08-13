@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 export type RestEvent = {
   duration?: number
   exercise: string
-  set: { id: string; kg: number; reps: number | null }
+  set: { id: string; kg: number | null; reps: number | null }
 } | null
 
 interface RestTimerProps {
@@ -81,8 +81,8 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
       className={cn(
         "workout-floating-chip fixed z-50 pointer-events-auto",
         // Desktop: offset left by sidebar width (280px)
-        "left-3 right-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))]",
-        "md:left-[280px] md:right-10 md:bottom-6",
+        "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
+        "md:left-[280px] md:right-10 md:w-auto md:max-w-none md:translate-x-0 md:bottom-6",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",
       )}
@@ -135,7 +135,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
               <>
                 {" · "}
                 <span style={{ fontFeatureSettings: '"tnum" 1' }} className="font-mono">
-                  {event.set.kg} kg × {event.set.reps ?? "—"}
+                  {event.set.kg ?? "—"} kg × {event.set.reps ?? "—"}
                 </span>
               </>
             )}
