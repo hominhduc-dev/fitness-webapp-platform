@@ -2,6 +2,7 @@
 
 import { formatDistanceToNow } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
+import { useEffect, useState } from "react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -47,10 +48,15 @@ function ActivityRow({
       ? Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000))
       : null
 
-  const ago = formatDistanceToNow(completedAt ?? startedAt, {
-    addSuffix: true,
-    locale: locale === "vi" ? vi : enUS,
-  })
+  const [ago, setAgo] = useState("")
+  useEffect(() => {
+    const dateFnsLocale = locale === "vi" ? vi : enUS
+    const update = () =>
+      setAgo(formatDistanceToNow(completedAt ?? startedAt, { addSuffix: true, locale: dateFnsLocale }))
+    update()
+    const timer = setInterval(update, 60_000)
+    return () => clearInterval(timer)
+  }, [completedAt, startedAt, locale])
 
   const dayNum = startedAt.getDate()
   const monthShort = startedAt.toLocaleDateString("en-US", { month: "short" })

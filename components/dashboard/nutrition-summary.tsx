@@ -11,8 +11,7 @@ interface NutritionSummaryProps {
 }
 
 export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
-  const { locale, messages } = useLocale()
-  const numberFormatter = new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US")
+  const { messages } = useLocale()
   const percentage =
     nutrition.targetCalories > 0
       ? Math.min(100, Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100))
@@ -60,14 +59,14 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.consumed}</p>
                 <p className="font-mono text-[1.5rem] font-semibold leading-none tnum text-foreground">
-                  {numberFormatter.format(nutrition.totalCalories)}
+                  {nutrition.totalCalories.toLocaleString("en-US")}
                   <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.remaining}</p>
                 <p className="font-mono text-[1.25rem] font-semibold leading-none tnum text-primary">
-                  {numberFormatter.format(remaining)}
+                  {remaining.toLocaleString("en-US")}
                   <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>

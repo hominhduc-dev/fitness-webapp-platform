@@ -2,13 +2,18 @@ import { AIGenerationStatus, AIGenerationType, FoodSource, type Prisma, type Pro
 import { randomUUID } from "crypto"
 
 import { getAIProvider } from "../lib/ai/ai-client"
+import type { AIConversationMessage } from "../lib/ai/types"
 import { prisma, retryTransaction } from "../lib/prisma"
+import { chatTools, CREATE_WORKOUT_PROGRAM, normalizeCreateProgramArgs } from "./ai/chat-tools"
 import { buildTraineeChatContext } from "./ai/context/builder"
+import { parseExerciseSnapshot } from "./ai/context/helpers"
+import { selectCatalogForPrompt } from "./ai/exercise-catalog"
 import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
 import { AuthServiceError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
-import { addMealItemForUser } from "./nutrition.service"
+import { addMealItemForUser, calculateItemNutrition, normalizeAmountUnit, type AmountUnit } from "./nutrition.service"
+import { roundNutrition } from "../lib/nutrition/food-utils"
 
 // ---------------------------------------------------------------------------
 // Rate Limits
@@ -141,9 +146,12 @@ type FoodCatalogItem = {
   protein: number
   carbs: number
   fat: number
-  servingLabel: string | null
+  fiber: number | null
+  sodium: number | null
+  sugar: number | null
+  servingLabel: string
   servingAmount: number
-  servingUnit: string | null
+  servingUnit: string
 }
 
 function mapFoodToId(
@@ -153,6 +161,19 @@ function mapFoodToId(
   const normName = normalizeForMatch(foodName)
   const food = catalog.find((f) => normalizeForMatch(f.name) === normName)
   return food?.id ?? null
+}
+
+// addMealItemForUser rejects non-positive amounts and anything above 5000, and
+// acceptAIMealPlan swallows those failures. Drop them at generation time instead
+// so the preview only ever shows items that will really be logged.
+const MAX_MEAL_AMOUNT = 5000
+
+function normalizeAmountValue(value: unknown): number | null {
+  const amount = Number(value)
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MEAL_AMOUNT) {
+    return null
+  }
+  return amount
 }
 
 // ---------------------------------------------------------------------------
@@ -271,11 +292,26 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
     take: 20,
   })
 
-  const catalogForPrompt = catalog.map((e) => ({
-    name: e.name,
-    muscleGroup: e.muscleGroup,
-    variations: e.variations.map((v) => v.name),
-  }))
+  const recentExerciseNames = recentLogs.flatMap((log) =>
+    parseExerciseSnapshot(log.exerciseSnapshot)
+      .map((entry) => entry.exercise?.name?.trim())
+      .filter((name): name is string => Boolean(name)),
+  )
+
+  const catalogForPrompt = selectCatalogForPrompt(
+    exercises.map((e) => ({
+      id: e.id,
+      name: e.name,
+      muscleGroup: e.muscleGroup,
+      createdById: e.createdById,
+      variations: e.variations.map((v) => ({ id: v.id, name: v.name, equipment: v.equipment })),
+    })),
+    {
+      availableEquipment: input.availableEquipment,
+      focusAreas: input.focusAreas,
+      recentExerciseNames,
+    },
+  )
 
   const systemPrompt = `Bạn là một personal trainer AI chuyên nghiệp. Tạo chương trình tập luyện cá nhân hoá dựa trên thông tin người dùng.
 
@@ -954,6 +990,9 @@ async function generateMealPlan(profile: SerializedProfile, input: GenerateMealP
     protein: f.protein ?? 0,
     carbs: f.carbs ?? 0,
     fat: f.fat ?? 0,
+    fiber: f.fiber,
+    sodium: f.sodium,
+    sugar: f.sugar,
     servingLabel: f.servingLabel,
     servingAmount: f.servingAmount ?? 1,
     servingUnit: f.servingUnit,
@@ -997,8 +1036,9 @@ QUY TẮC BẮT BUỘC:
 5. Tổng calories phải gần với mục tiêu (±10%).
 6. Tạo đúng 4 bữa: breakfast, lunch, dinner, snack.
 7. Mỗi bữa chỉ có 2-3 items. Dùng amountValue để tăng khẩu phần thay vì thêm quá nhiều món.
-8. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
-9. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
+8. amountUnit CHỈ được là "serving", "g" hoặc "ml". TUYỆT ĐỐI không dùng đơn vị khác (ly, tô, dĩa, quả, chén, muỗng...) — dùng "serving" cho khẩu phần và đặt số lượng vào amountValue.
+9. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
+10. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
 
   const userPrompt = `## Mục tiêu dinh dưỡng
 - Calories: ${profile.dailyCalorieGoal} kcal
@@ -1062,22 +1102,33 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
           const foodId = mapFoodToId(item.foodName, foodCatalog)
           if (!foodId) return null
           const food = foodCatalog.find((f) => f.id === foodId)
+          if (!food) return null
+
+          const amountValue = normalizeAmountValue(item.amountValue)
+          if (amountValue === null) return null
+
+          // Models routinely invent units ("ly", "tô", "100 g"), so normalize
+          // here and scale with the exact same helper the accept path uses —
+          // otherwise the preview totals disagree with what actually gets logged.
+          const amountUnit = normalizeAmountUnit(item.amountUnit)
+          const nutrition = calculateItemNutrition(food, { amountUnit, amountValue })
+
           return {
             foodId,
-            foodName: food?.name ?? item.foodName,
-            amountValue: item.amountValue,
-            amountUnit: item.amountUnit,
-            calories: food?.calories ?? 0,
-            protein: food?.protein ?? 0,
-            carbs: food?.carbs ?? 0,
-            fat: food?.fat ?? 0,
+            foodName: food.name,
+            amountValue,
+            amountUnit,
+            calories: nutrition.calories,
+            protein: nutrition.protein,
+            carbs: nutrition.carbs,
+            fat: nutrition.fat,
           }
         })
         .filter(Boolean) as Array<{
           foodId: string
           foodName: string
           amountValue: number
-          amountUnit: string
+          amountUnit: AmountUnit
           calories: number
           protein: number
           carbs: number
@@ -1090,6 +1141,22 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         items: mappedItems,
       }
     })
+
+    // Totals come from the mapped items, not from the model's own arithmetic —
+    // the model can't know which items dropped out of the catalog mapping, and
+    // its self-reported sums were drifting from the logged values.
+    const totals = mappedMeals.reduce(
+      (acc, meal) => {
+        for (const item of meal.items) {
+          acc.calories += item.calories
+          acc.protein += item.protein
+          acc.carbs += item.carbs
+          acc.fat += item.fat
+        }
+        return acc
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    )
 
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -1107,10 +1174,10 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       generationId: generation.id,
       meals: mappedMeals,
       totals: {
-        calories: aiOutput.totalCalories,
-        protein: aiOutput.totalProtein,
-        carbs: aiOutput.totalCarbs,
-        fat: aiOutput.totalFat,
+        calories: roundNutrition(totals.calories),
+        protein: roundNutrition(totals.protein),
+        carbs: roundNutrition(totals.carbs),
+        fat: roundNutrition(totals.fat),
       },
       notes: aiOutput.notes,
     }
@@ -1195,11 +1262,21 @@ type MappedMealOutput = {
 // AI Chat — one-shot fitness Q&A
 // ---------------------------------------------------------------------------
 
+const FALLBACK_REPLY = "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪"
+
+/** A draft the chat produced that the user still has to confirm. */
+type ChatAction = {
+  type: "program_draft"
+  generationId: string
+  mappingRate: number
+  program: MappedProgramOutput
+}
+
 async function chatWithAI(
   profile: SerializedProfile,
   message: string,
   history: ChatMessage[],
-) {
+): Promise<{ reply: string; action?: ChatAction }> {
   if (!message.trim()) {
     throw new AuthServiceError("Tin nhắn không được để trống.", 400)
   }
@@ -1219,24 +1296,117 @@ async function chatWithAI(
     systemPrompt = buildAIChatSystemPrompt(profile, null)
   }
 
-  const conversationHistory = history.slice(-6)
-  const userPrompt = conversationHistory.length > 0
-    ? conversationHistory.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n") + `\nUser: ${message}`
-    : message
-
   const ai = getAIProvider()
-  const response = await ai.generateText({
+  const conversationHistory = history.slice(-6)
+
+  if (!ai.supportsTools) {
+    const userPrompt = conversationHistory.length > 0
+      ? conversationHistory.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n") + `\nUser: ${message}`
+      : message
+
+    const response = await ai.generateText({ systemPrompt, userPrompt, maxTokens: 1024 })
+    return { reply: response.data.trim() || FALLBACK_REPLY }
+  }
+
+  const messages: AIConversationMessage[] = [
+    ...conversationHistory.map((entry) => ({ role: entry.role, content: entry.content })),
+    { role: "user" as const, content: message },
+  ]
+
+  const turn = await ai.generateWithTools({
     systemPrompt,
-    userPrompt,
+    messages,
+    tools: chatTools,
     maxTokens: 1024,
   })
 
-  const reply = response.data.trim()
-  if (!reply) {
-    return { reply: "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪" }
+  if (turn.toolCalls.length === 0) {
+    return { reply: turn.text.trim() || FALLBACK_REPLY }
   }
 
-  return { reply }
+  // Every tool call must get a result back or the next request is rejected, so
+  // walk all of them — but only ever run one generation per message, since each
+  // one is slow, token-heavy and counts against the daily program quota.
+  let action: ChatAction | undefined
+  const toolResults: AIConversationMessage[] = []
+
+  for (const call of turn.toolCalls) {
+    if (call.name !== CREATE_WORKOUT_PROGRAM) {
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({ ok: false, error: `Tool "${call.name}" không tồn tại.` }),
+      })
+      continue
+    }
+
+    if (action) {
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({ ok: false, error: "Đã tạo một chương trình trong lượt này rồi." }),
+      })
+      continue
+    }
+
+    try {
+      const input = normalizeCreateProgramArgs(call.arguments)
+      const result = await generateWorkoutProgram(profile, input)
+      action = {
+        type: "program_draft",
+        generationId: result.generationId,
+        mappingRate: result.mappingRate,
+        program: result.program as MappedProgramOutput,
+      }
+      // Keep the tool result small — the model only needs enough to describe the
+      // draft, and the full payload goes to the client through `action`.
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({
+          ok: true,
+          name: result.program.name,
+          description: result.program.description,
+          durationWeeks: result.program.duration,
+          workoutsPerWeek: result.program.workoutsPerWeek,
+          mappingRate: result.mappingRate,
+          workouts: result.program.workouts.map((workout) => ({
+            name: workout.name,
+            scheduledDay: workout.scheduledDay,
+            exerciseCount: workout.exercises.length,
+          })),
+          note: "Đây là bản nháp. Trainee phải bấm xác nhận trong app thì mới được lưu.",
+        }),
+      })
+    } catch (error) {
+      toolResults.push({
+        role: "tool",
+        toolCallId: call.id,
+        name: call.name,
+        content: JSON.stringify({
+          ok: false,
+          error: error instanceof AuthServiceError ? error.message : "Không tạo được chương trình.",
+        }),
+      })
+    }
+  }
+
+  const followUp = await ai.generateWithTools({
+    systemPrompt,
+    messages: [
+      ...messages,
+      { role: "assistant", content: turn.text, toolCalls: turn.toolCalls },
+      ...toolResults,
+    ],
+    tools: chatTools,
+    maxTokens: 1024,
+  })
+
+  const reply = followUp.text.trim() || turn.text.trim() || FALLBACK_REPLY
+  return action ? { reply, action } : { reply }
 }
 
 export {

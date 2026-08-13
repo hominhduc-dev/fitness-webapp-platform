@@ -4,12 +4,14 @@ import { Bot, Dumbbell, Loader2, Send, Sparkles, UtensilsCrossed } from "lucide-
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { AIMessage } from "@/components/ai/ai-message"
+import { ChatProgramCard } from "@/components/ai/chat-program-card"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
-import { sendAIChatMessage } from "@/lib/fitness/api"
+import { sendAIChatMessage, type AIChatAction } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
-type Message = { role: "user" | "assistant"; content: string }
+type Message = { role: "user" | "assistant"; content: string; action?: AIChatAction }
 
 const QUICK_ACTIONS = [
   {
@@ -75,8 +77,11 @@ function AIChatBubble() {
     setIsLoading(true)
 
     try {
-      const result = await sendAIChatMessage(session.access_token, msg, messages)
-      setMessages((prev) => [...prev, { role: "assistant", content: result.reply }])
+      // Only the plain transcript goes back to the model — action payloads are
+      // client-side render state, not conversation history.
+      const transcript = messages.map(({ role, content }) => ({ role, content }))
+      const result = await sendAIChatMessage(session.access_token, msg, transcript)
+      setMessages((prev) => [...prev, { role: "assistant", content: result.reply, action: result.action }])
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại." }])
     } finally {
@@ -164,13 +169,18 @@ function AIChatBubble() {
                   <div
                     key={i}
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm",
+                      "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "ml-auto bg-primary text-primary-foreground"
-                        : "bg-muted",
+                        ? "ml-auto max-w-[85%] whitespace-pre-wrap bg-primary text-primary-foreground"
+                        : msg.action
+                          ? "bg-muted"
+                          : "max-w-[85%] bg-muted",
                     )}
                   >
-                    {msg.content}
+                    {msg.role === "user" ? msg.content : <AIMessage content={msg.content} />}
+                    {msg.action && session?.access_token && (
+                      <ChatProgramCard action={msg.action} accessToken={session.access_token} />
+                    )}
                   </div>
                 ))}
                 {isLoading && (
