@@ -160,6 +160,7 @@ function CreateRoutineButton() {
 
 function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; workout: Workout }) {
   const { messages } = useLocale()
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
   const lastUsed = getLastUsed(workout, historyLogs, messages)
@@ -196,20 +197,16 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         </div>
 
         {workout.isPersonal ? (
-          <RoutineBuilderDialog
-            workoutToEdit={workout}
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label={messages.workoutPage.editRoutine}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            }
-          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={messages.workoutPage.editRoutine}
+            onClick={() => setIsEditorOpen(true)}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
         ) : null}
       </div>
 
@@ -251,15 +248,16 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         </Link>
         {workout.isPersonal ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
-            <RoutineBuilderDialog
-              workoutToEdit={workout}
-              trigger={
-                <Button variant="outline" size="sm" className="h-10 w-full justify-center gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium sm:w-auto">
-                  <Pencil className="h-4 w-4" />
-                  {messages.workoutPage.edit}
-                </Button>
-              }
-            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-10 w-full justify-center gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium sm:w-auto"
+              onClick={() => setIsEditorOpen(true)}
+            >
+              <Pencil className="h-4 w-4" />
+              {messages.workoutPage.edit}
+            </Button>
             <DeleteWorkoutButton
               workoutId={workout.id}
               size="sm"
@@ -271,6 +269,14 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           </div>
         ) : null}
       </div>
+
+      {workout.isPersonal ? (
+        <RoutineBuilderDialog
+          workoutToEdit={workout}
+          open={isEditorOpen}
+          onOpenChange={setIsEditorOpen}
+        />
+      ) : null}
     </article>
   )
 }
