@@ -3,6 +3,7 @@
 import { Bot, Check, Loader2, RefreshCw, Sparkles, X } from "lucide-react"
 import { useCallback, useState } from "react"
 
+import { AIMessage } from "@/components/ai/ai-message"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -176,7 +177,7 @@ function MealPlanGenerator({
               ))}
 
               {result.notes && (
-                <p className="text-xs text-muted-foreground">{result.notes}</p>
+                <AIMessage content={result.notes} className="text-xs text-muted-foreground" />
               )}
 
               {/* Actions */}

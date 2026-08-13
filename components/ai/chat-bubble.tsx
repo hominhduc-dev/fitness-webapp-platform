@@ -4,6 +4,7 @@ import { Bot, Dumbbell, Loader2, Send, Sparkles, UtensilsCrossed, X } from "luci
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { AIMessage } from "@/components/ai/ai-message"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { sendAIChatMessage } from "@/lib/fitness/api"
@@ -151,13 +152,13 @@ function AIChatBubble() {
                   <div
                     key={i}
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm",
+                      "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "ml-auto bg-primary text-primary-foreground"
+                        ? "ml-auto whitespace-pre-wrap bg-primary text-primary-foreground"
                         : "bg-muted",
                     )}
                   >
-                    {msg.content}
+                    {msg.role === "user" ? msg.content : <AIMessage content={msg.content} />}
                   </div>
                 ))}
                 {isLoading && (
