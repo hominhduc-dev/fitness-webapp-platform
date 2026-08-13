@@ -19,7 +19,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
 
         <div className="flex min-w-0 flex-1 flex-col">
           <ShellHeader role={profile.role} />
-          <main className="flex-1 overflow-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          <main className="flex-1 overflow-auto pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <PullToRefresh>{children}</PullToRefresh>
           </main>
         </div>
