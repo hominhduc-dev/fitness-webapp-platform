@@ -1,6 +1,6 @@
 "use client"
 
-import { Bot, Dumbbell, Loader2, Send, Sparkles, UtensilsCrossed, X } from "lucide-react"
+import { Bot, Dumbbell, Loader2, Send, Sparkles, UtensilsCrossed } from "lucide-react"
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -40,6 +40,7 @@ function AIChatBubble() {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -50,6 +51,19 @@ function AIChatBubble() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    if (!open) return
+
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !panelRef.current?.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointer)
+    return () => document.removeEventListener("pointerdown", handleOutsidePointer)
+  }, [open])
 
   const handleSend = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -75,21 +89,20 @@ function AIChatBubble() {
   return (
     <>
       {/* Floating Button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "ai-bubble-trigger fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex size-14 items-center justify-center rounded-full border border-white/15 shadow-2xl backdrop-blur-xl transition-all hover:scale-105 md:bottom-5 md:right-5 md:z-40",
-          open
-            ? "bg-muted text-muted-foreground"
-            : "bg-primary text-primary-foreground",
-        )}
-      >
-        {open ? <X className="size-6" /> : <Sparkles className="size-6" />}
-      </button>
+      {!open && (
+        <button
+          type="button"
+          aria-label="Mở AI Coach"
+          onClick={() => setOpen(true)}
+          className="ai-bubble-trigger fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex size-14 items-center justify-center rounded-full border border-white/15 bg-primary text-primary-foreground shadow-2xl backdrop-blur-xl transition-all hover:scale-105 md:bottom-5 md:right-5 md:z-40"
+        >
+          <Sparkles className="size-6" />
+        </button>
+      )}
 
       {/* Chat Panel */}
       {open && (
-        <div className="glass-surface fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-7.5rem-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-[24px] border bg-background shadow-2xl md:bottom-24 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-120px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
+        <div ref={panelRef} className="glass-surface fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-7.5rem-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-[24px] border bg-background shadow-2xl md:bottom-24 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-120px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
           {/* Header */}
           <div className="flex items-center gap-2.5 border-b bg-primary/5 px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
