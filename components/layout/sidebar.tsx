@@ -38,7 +38,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-dvh flex-col border-r border-border bg-sidebar transition-all duration-300 md:flex",
+        "glass-surface sticky top-0 hidden h-dvh flex-col border-r border-border bg-sidebar transition-all duration-300 md:flex",
         collapsed ? "w-16" : "w-64",
       )}
     >
@@ -114,7 +114,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
   const settingsItems = adminNavItems.filter((i) => i.href.startsWith("/profile"))
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+    <aside className="glass-surface sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         {/* Brand */}
         <Link href={getRoleLandingPath("admin")} className="mb-4 flex items-center gap-2 px-1">
@@ -236,7 +236,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   )
 
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+    <aside className="glass-surface sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
       <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
         <Link href={getRoleLandingPath("coach")} className="mb-4 flex items-center gap-2 px-1">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
