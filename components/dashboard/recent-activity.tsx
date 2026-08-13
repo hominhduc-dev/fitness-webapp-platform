@@ -56,7 +56,7 @@ function ActivityRow({
   const monthShort = startedAt.toLocaleDateString("en-US", { month: "short" })
 
   return (
-    <div className="rounded-[10px] border border-border bg-card px-4 py-3">
+    <div className="glass-card rounded-[10px] border border-border bg-card px-4 py-3">
       <div className="flex items-center gap-3.5">
         {/* Date column */}
         <div className="w-8 shrink-0 text-center">
