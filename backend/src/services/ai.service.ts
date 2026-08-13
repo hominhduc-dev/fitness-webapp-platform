@@ -4,7 +4,14 @@ import { randomUUID } from "crypto"
 import { getAIProvider } from "../lib/ai/ai-client"
 import type { AIConversationMessage } from "../lib/ai/types"
 import { prisma, retryTransaction } from "../lib/prisma"
-import { chatTools, CREATE_WORKOUT_PROGRAM, normalizeCreateProgramArgs } from "./ai/chat-tools"
+import {
+  chatTools,
+  CREATE_MEAL_PLAN,
+  CREATE_WORKOUT_PROGRAM,
+  normalizeCreateMealPlanArgs,
+  normalizeCreateProgramArgs,
+} from "./ai/chat-tools"
+import { DailyCounter } from "./ai/daily-counter"
 import { buildTraineeChatContext } from "./ai/context/builder"
 import { parseExerciseSnapshot } from "./ai/context/helpers"
 import { selectCatalogForPrompt } from "./ai/exercise-catalog"
@@ -13,7 +20,7 @@ import type { ChatMessage } from "./ai/context/types"
 import { AuthServiceError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 import { addMealItemForUser, calculateItemNutrition, normalizeAmountUnit, type AmountUnit } from "./nutrition.service"
-import { roundNutrition } from "../lib/nutrition/food-utils"
+import { formatFoodQuantity, roundNutrition } from "../lib/nutrition/food-utils"
 
 // ---------------------------------------------------------------------------
 // Rate Limits
@@ -49,26 +56,22 @@ async function checkRateLimit(userId: string, type: AIGenerationType) {
 // AIGeneration row. Limit it with an in-memory per-user daily counter (fine for
 // a single backend instance; resets on restart). Prevents the chat box from
 // being abused as a free general-purpose assistant.
-const DAILY_CHAT_LIMIT = 40
-const chatUsage = new Map<string, { date: string; count: number }>()
+const chatMessageCounter = new DailyCounter(40)
+
+// Chat is a second way into program generation, and the model decides when to
+// use it. Without a budget of its own, a few misread messages could burn the
+// whole daily allowance that the /workout/ai-generate form depends on, so cap
+// how much of it a conversation may consume.
+const chatProgramCounter = new DailyCounter(3)
+const chatMealPlanCounter = new DailyCounter(5)
 
 function checkChatRateLimit(userId: string) {
-  const today = new Date().toISOString().slice(0, 10)
-  const entry = chatUsage.get(userId)
-
-  if (!entry || entry.date !== today) {
-    chatUsage.set(userId, { date: today, count: 1 })
-    return
-  }
-
-  if (entry.count >= DAILY_CHAT_LIMIT) {
+  if (!chatMessageCounter.tryConsume(userId)) {
     throw new AuthServiceError(
-      `Bạn đã đạt giới hạn ${DAILY_CHAT_LIMIT} tin nhắn AI mỗi ngày. Vui lòng thử lại vào ngày mai.`,
+      `Bạn đã đạt giới hạn ${chatMessageCounter.max} tin nhắn AI mỗi ngày. Vui lòng thử lại vào ngày mai.`,
       429,
     )
   }
-
-  entry.count += 1
 }
 
 // ---------------------------------------------------------------------------
@@ -1118,6 +1121,9 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
             foodName: food.name,
             amountValue,
             amountUnit,
+            // Real weight where the library has one, the dish's own label where
+            // it does not — resolved here because the Food row is in hand.
+            quantityLabel: formatFoodQuantity(food, { amountValue, amountUnit }),
             calories: nutrition.calories,
             protein: nutrition.protein,
             carbs: nutrition.carbs,
@@ -1129,6 +1135,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
           foodName: string
           amountValue: number
           amountUnit: AmountUnit
+          quantityLabel: string
           calories: number
           protein: number
           carbs: number
@@ -1219,6 +1226,9 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
     throw new AuthServiceError("Dữ liệu thực đơn AI không hợp lệ.", 400)
   }
 
+  let logged = 0
+  let skipped = 0
+
   for (const meal of output.mapped) {
     for (const item of meal.items) {
       try {
@@ -1229,10 +1239,22 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
           amountValue: item.amountValue,
           amountUnit: item.amountUnit,
         })
+        logged += 1
       } catch {
         // skip items that fail to add (e.g. food deleted since generation)
+        skipped += 1
       }
     }
+  }
+
+  // Marking the plan accepted when nothing was written tells the trainee their
+  // day is logged while the diary stays empty, and burns the draft — the plan
+  // can no longer be accepted again. Leave it accept-able and report instead.
+  if (logged === 0) {
+    throw new AuthServiceError(
+      "Không thêm được món nào vào nhật ký (có thể món đã bị xoá khỏi thư viện). Vui lòng tạo thực đơn mới.",
+      422,
+    )
   }
 
   await db.aIGeneration.update({
@@ -1240,7 +1262,7 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
     data: { status: AIGenerationStatus.accepted },
   })
 
-  return { accepted: true }
+  return { accepted: true, logged, skipped }
 }
 
 type MappedMealOutput = {
@@ -1251,6 +1273,8 @@ type MappedMealOutput = {
     foodName: string
     amountValue: number
     amountUnit: string
+    /** Absent on drafts generated before this field existed. */
+    quantityLabel?: string
     calories: number
     protein: number
     carbs: number
@@ -1265,27 +1289,80 @@ type MappedMealOutput = {
 const FALLBACK_REPLY = "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪"
 
 /** A draft the chat produced that the user still has to confirm. */
-type ChatAction = {
-  type: "program_draft"
-  generationId: string
-  mappingRate: number
-  program: MappedProgramOutput
+type ChatAction =
+  | {
+      type: "program_draft"
+      generationId: string
+      mappingRate: number
+      program: MappedProgramOutput
+    }
+  | {
+      type: "meal_plan_draft"
+      generationId: string
+      /** Needed to accept: the meal endpoint logs against a specific day. */
+      date: string
+      meals: MappedMealOutput[]
+      totals: { calories: number; protein: number; carbs: number; fat: number }
+      notes: string
+    }
+
+const MAX_CHAT_MESSAGE_LENGTH = 2000
+const MAX_HISTORY_TURNS = 6
+/** How many raw entries we will even inspect, however many the client sends. */
+const MAX_HISTORY_SCAN = 200
+
+/**
+ * History arrives from the client, so nothing in it can be trusted. `message`
+ * was already capped but history entries were not — six oversized turns could
+ * push far more text into the prompt than a single message ever could, and a
+ * malformed role would be silently treated as "assistant".
+ *
+ * Note this only bounds the input. A client can still assert what the assistant
+ * previously said, because the transcript lives on the client; removing that
+ * would mean persisting conversations server-side.
+ */
+function sanitizeChatHistory(history: unknown): ChatMessage[] {
+  if (!Array.isArray(history)) {
+    return []
+  }
+
+  const sanitized: ChatMessage[] = []
+
+  // Validate first and keep the newest turns last, so malformed entries cannot
+  // push real ones out of the window. Scanning is bounded independently so a
+  // huge array still costs a fixed amount of work.
+  for (const entry of history.slice(-MAX_HISTORY_SCAN)) {
+    if (!entry || typeof entry !== "object") continue
+
+    const { role, content } = entry as { role?: unknown; content?: unknown }
+    if (role !== "user" && role !== "assistant") continue
+    if (typeof content !== "string") continue
+
+    const trimmed = content.trim()
+    if (!trimmed) continue
+
+    sanitized.push({ role, content: trimmed.slice(0, MAX_CHAT_MESSAGE_LENGTH) })
+  }
+
+  return sanitized.slice(-MAX_HISTORY_TURNS)
 }
 
 async function chatWithAI(
   profile: SerializedProfile,
   message: string,
-  history: ChatMessage[],
+  rawHistory: unknown,
 ): Promise<{ reply: string; action?: ChatAction }> {
   if (!message.trim()) {
     throw new AuthServiceError("Tin nhắn không được để trống.", 400)
   }
 
-  if (message.length > 2000) {
-    throw new AuthServiceError("Tin nhắn quá dài (tối đa 2000 ký tự).", 400)
+  if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+    throw new AuthServiceError(`Tin nhắn quá dài (tối đa ${MAX_CHAT_MESSAGE_LENGTH} ký tự).`, 400)
   }
 
   checkChatRateLimit(profile.id)
+
+  const history = sanitizeChatHistory(rawHistory)
 
   let systemPrompt: string
   try {
@@ -1297,7 +1374,7 @@ async function chatWithAI(
   }
 
   const ai = getAIProvider()
-  const conversationHistory = history.slice(-6)
+  const conversationHistory = history
 
   if (!ai.supportsTools) {
     const userPrompt = conversationHistory.length > 0
@@ -1325,48 +1402,55 @@ async function chatWithAI(
   }
 
   // Every tool call must get a result back or the next request is rejected, so
-  // walk all of them — but only ever run one generation per message, since each
-  // one is slow, token-heavy and counts against the daily program quota.
+  // walk all of them — but only ever produce one draft per message, since each
+  // generation is slow, token-heavy and counted against a daily quota.
   let action: ChatAction | undefined
   const toolResults: AIConversationMessage[] = []
 
+  const pushToolResult = (call: { id: string; name: string }, payload: unknown) => {
+    toolResults.push({
+      role: "tool",
+      toolCallId: call.id,
+      name: call.name,
+      content: JSON.stringify(payload),
+    })
+  }
+
+  const DRAFT_NOTE = "Đây là bản nháp. Trainee phải bấm xác nhận trong app thì mới được lưu."
+
   for (const call of turn.toolCalls) {
-    if (call.name !== CREATE_WORKOUT_PROGRAM) {
-      toolResults.push({
-        role: "tool",
-        toolCallId: call.id,
-        name: call.name,
-        content: JSON.stringify({ ok: false, error: `Tool "${call.name}" không tồn tại.` }),
-      })
+    if (call.name !== CREATE_WORKOUT_PROGRAM && call.name !== CREATE_MEAL_PLAN) {
+      pushToolResult(call, { ok: false, error: `Tool "${call.name}" không tồn tại.` })
       continue
     }
 
     if (action) {
-      toolResults.push({
-        role: "tool",
-        toolCallId: call.id,
-        name: call.name,
-        content: JSON.stringify({ ok: false, error: "Đã tạo một chương trình trong lượt này rồi." }),
-      })
+      pushToolResult(call, { ok: false, error: "Đã tạo một bản nháp trong lượt này rồi." })
+      continue
+    }
+
+    const counter = call.name === CREATE_WORKOUT_PROGRAM ? chatProgramCounter : chatMealPlanCounter
+    const overLimitMessage = call.name === CREATE_WORKOUT_PROGRAM
+      ? `Hôm nay đã tạo ${counter.max} chương trình từ chat rồi. Trainee có thể dùng trang "Tạo chương trình tập" nếu vẫn muốn tạo thêm.`
+      : `Hôm nay đã tạo ${counter.max} thực đơn từ chat rồi. Trainee có thể dùng nút "AI gợi ý" trên trang Meals nếu vẫn muốn tạo thêm.`
+
+    if (!counter.tryConsume(profile.id)) {
+      pushToolResult(call, { ok: false, error: overLimitMessage })
       continue
     }
 
     try {
-      const input = normalizeCreateProgramArgs(call.arguments)
-      const result = await generateWorkoutProgram(profile, input)
-      action = {
-        type: "program_draft",
-        generationId: result.generationId,
-        mappingRate: result.mappingRate,
-        program: result.program as MappedProgramOutput,
-      }
-      // Keep the tool result small — the model only needs enough to describe the
-      // draft, and the full payload goes to the client through `action`.
-      toolResults.push({
-        role: "tool",
-        toolCallId: call.id,
-        name: call.name,
-        content: JSON.stringify({
+      // Tool results stay small — the model only needs enough to describe the
+      // draft, and the full payload reaches the client through `action`.
+      if (call.name === CREATE_WORKOUT_PROGRAM) {
+        const result = await generateWorkoutProgram(profile, normalizeCreateProgramArgs(call.arguments))
+        action = {
+          type: "program_draft",
+          generationId: result.generationId,
+          mappingRate: result.mappingRate,
+          program: result.program as MappedProgramOutput,
+        }
+        pushToolResult(call, {
           ok: true,
           name: result.program.name,
           description: result.program.description,
@@ -1378,18 +1462,37 @@ async function chatWithAI(
             scheduledDay: workout.scheduledDay,
             exerciseCount: workout.exercises.length,
           })),
-          note: "Đây là bản nháp. Trainee phải bấm xác nhận trong app thì mới được lưu.",
-        }),
-      })
+          note: DRAFT_NOTE,
+        })
+      } else {
+        const input = normalizeCreateMealPlanArgs(call.arguments)
+        const result = await generateMealPlan(profile, input)
+        action = {
+          type: "meal_plan_draft",
+          generationId: result.generationId,
+          date: input.date,
+          meals: result.meals,
+          totals: result.totals,
+          notes: result.notes,
+        }
+        pushToolResult(call, {
+          ok: true,
+          date: input.date,
+          totals: result.totals,
+          meals: result.meals.map((meal) => ({
+            type: meal.type,
+            itemCount: meal.items.length,
+            foods: meal.items.map((item) => item.foodName),
+          })),
+          note: DRAFT_NOTE,
+        })
+      }
     } catch (error) {
-      toolResults.push({
-        role: "tool",
-        toolCallId: call.id,
-        name: call.name,
-        content: JSON.stringify({
-          ok: false,
-          error: error instanceof AuthServiceError ? error.message : "Không tạo được chương trình.",
-        }),
+      // The attempt produced nothing, so it should not count against the budget.
+      counter.release(profile.id)
+      pushToolResult(call, {
+        ok: false,
+        error: error instanceof AuthServiceError ? error.message : "Không tạo được bản nháp.",
       })
     }
   }
