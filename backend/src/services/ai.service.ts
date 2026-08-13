@@ -212,6 +212,19 @@ const LEVEL_LABELS: Record<string, string> = {
   advanced: "Nâng cao",
 }
 
+const ENGLISH_WORKOUT_NAMES: Record<WorkoutKind, string> = {
+  push: "Push Day",
+  pull: "Back Day",
+  legs: "Leg Day",
+  full_body: "Full Body Day",
+  cardio: "Cardio Day",
+  other: "Training Day",
+}
+
+function getEnglishWorkoutName(kind: string) {
+  return ENGLISH_WORKOUT_NAMES[toWorkoutKind(kind)]
+}
+
 async function generateWorkoutProgram(profile: SerializedProfile, input: GenerateProgramInput) {
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.workout_program)
@@ -272,7 +285,8 @@ QUY TẮC BẮT BUỘC:
 3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
 4. weekIndex bắt đầu từ 0, scheduledDay: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7.
 5. kind phải là một trong: push, pull, legs, full_body, cardio, other.
-6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.`
+6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.
+7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.`
 
   const weightInfo = profile.targetWeightKg
     ? `Cân nặng mục tiêu: ${profile.targetWeightKg}kg`
@@ -365,7 +379,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         }>
 
       return {
-        name: workout.name,
+        name: getEnglishWorkoutName(workout.kind),
         kind: workout.kind,
         weekIndex: workout.weekIndex,
         scheduledDay: workout.scheduledDay,
@@ -713,7 +727,8 @@ QUY TẮC BẮT BUỘC:
 3. Điều chỉnh volume theo trình độ, thời lượng và mức năng lượng hôm nay.
 4. Tôn trọng tuyệt đối chấn thương hoặc bài cần tránh.
 5. Trả về JSON thuần tuý, không dùng markdown.
-6. kind chỉ được là push, pull, legs, full_body, cardio hoặc other.`
+6. kind chỉ được là push, pull, legs, full_body, cardio hoặc other.
+7. name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Leg Day, Back Day, Push Day hoặc Full Body Day. Không dùng tên tiếng Việt.`
 
   const userPrompt = `## Người tập
 - Ngày tập: ${input.date}
@@ -780,7 +795,7 @@ ${JSON.stringify(catalogForPrompt)}
 
     const mapped: MappedDailyWorkoutOutput = {
       date: input.date,
-      name: raw.name,
+      name: getEnglishWorkoutName(raw.kind),
       description: raw.description,
       difficulty: mapDifficulty(input.experienceLevel),
       kind: toWorkoutKind(raw.kind),
