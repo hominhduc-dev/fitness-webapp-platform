@@ -58,10 +58,11 @@ function applyThemeToDocument(theme: ThemeMode, resolvedTheme: ResolvedTheme) {
   )
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(defaultTheme)
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light")
-  const themeRef = useRef<ThemeMode>(defaultTheme)
+export function ThemeProvider({ children, initialTheme }: { children: ReactNode; initialTheme?: ThemeMode }) {
+  const startingTheme = initialTheme ?? defaultTheme
+  const [theme, setThemeState] = useState<ThemeMode>(startingTheme)
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(startingTheme === "dark" || startingTheme === "glass" ? "dark" : "light")
+  const themeRef = useRef<ThemeMode>(startingTheme)
 
   const applyTheme = useCallback((nextTheme: ThemeMode) => {
     const nextResolvedTheme = resolveTheme(nextTheme)
@@ -70,10 +71,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const storedTheme = getStoredTheme()
-    themeRef.current = storedTheme
-    setThemeState(storedTheme)
-    applyTheme(storedTheme)
+    const startupTheme = initialTheme ?? getStoredTheme()
+    themeRef.current = startupTheme
+    setThemeState(startupTheme)
+    applyTheme(startupTheme)
 
     const mediaQuery = window.matchMedia?.(darkQuery)
     if (!mediaQuery) {
@@ -88,7 +89,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     mediaQuery.addEventListener("change", handleSystemThemeChange)
     return () => mediaQuery.removeEventListener("change", handleSystemThemeChange)
-  }, [applyTheme])
+  }, [applyTheme, initialTheme])
 
   const setTheme = useCallback(
     (nextTheme: ThemeMode) => {
