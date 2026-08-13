@@ -52,24 +52,20 @@ function TopBar() {
   const { messages } = useLocale()
 
   return (
-    <header className="glass-surface sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3.5 md:px-10 md:py-[18px]">
+    <header className="landing-header sticky top-0 z-30 px-3 pt-3 md:px-8 md:pt-4">
+      <div className="landing-header__inner glass-surface mx-auto flex max-w-[1200px] items-center justify-between rounded-full border border-border/70 px-2.5 py-2 shadow-lg backdrop-blur-xl md:px-4">
         {/* Logo */}
-        <div className="flex shrink-0 items-center gap-2.5">
-          <Image
-            src="/lift-mark.svg"
-            alt=""
-            width={26}
-            height={26}
-            className="shrink-0"
-          />
-          <span className="hidden whitespace-nowrap text-[20px] font-semibold tracking-[-0.04em] text-foreground sm:inline">
-            YeahBuddy Fitness
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="landing-brand-mark grid size-9 place-items-center rounded-full border border-border/70 bg-foreground text-background shadow-sm">
+            <Image src="/lift-mark.svg" alt="" width={20} height={20} />
+          </span>
+          <span className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.04em] text-foreground md:text-[19px]">
+            YeahBuddy
           </span>
         </div>
 
         {/* Nav */}
-        <nav className="flex items-center gap-2 lg:gap-7">
+        <nav className="flex items-center gap-1 md:gap-2 lg:gap-7">
           <Link
             href="#features"
             className="hidden whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground lg:block"
@@ -82,13 +78,13 @@ function TopBar() {
           >
             {messages.landing.navTrainers}
           </Link>
-          <LanguageToggle />
+          <LanguageToggle className="landing-language-toggle" />
 
           <Button
             variant="ghost"
             size="sm"
             asChild
-            className="landing-auth-link text-sm font-medium"
+            className="landing-auth-link hidden rounded-full px-3 text-sm font-medium min-[390px]:inline-flex"
           >
             <Link href="/?auth=login" scroll={false}>
               {messages.landing.signIn}
@@ -98,7 +94,7 @@ function TopBar() {
           <Button
             size="sm"
             asChild
-            className="landing-auth-cta bg-foreground text-background text-sm font-medium hover:bg-foreground/90"
+            className="landing-auth-cta rounded-full bg-foreground px-3.5 text-sm font-medium text-background hover:bg-foreground/90 md:px-4"
           >
             <Link href="/?auth=register" scroll={false}>
               {messages.landing.getStarted}
