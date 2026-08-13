@@ -109,83 +109,76 @@ export function ResumeWorkoutCard() {
     <div
       className={cn(
         "workout-floating-chip fixed z-40 pointer-events-auto",
-        "left-3 right-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))]",
-        "md:left-[280px] md:right-24 md:bottom-6",
+        "bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
+        "md:left-[280px] md:right-24 md:w-auto md:max-w-none md:translate-x-0 md:bottom-6",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",
       )}
     >
       <div
         className={cn(
-          "flex items-center gap-3 md:gap-5",
-          "rounded-xl border border-border",
+          "flex items-center gap-2 md:gap-5",
+          "rounded-[22px] border border-border md:rounded-xl",
           "bg-background/90 backdrop-blur-xl",
-          "px-3 py-3 md:px-5 md:py-[14px]",
+          "px-2.5 py-2 md:px-5 md:py-[14px]",
           "shadow-[0_16px_48px_-12px_rgba(13,13,11,0.18),0_2px_6px_rgba(13,13,11,0.06)]",
-          "flex-wrap md:flex-nowrap",
         )}
       >
         {/* Left: label + workout name */}
         <div className="min-w-0 flex-1 md:flex-none md:min-w-[160px] md:max-w-[240px]">
-          <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-[2px]">
+          <div className="mb-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground md:text-[11px]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
             {messages.workoutPage.inProgress}
           </div>
-          <div className="text-[15px] md:text-[16px] font-semibold text-foreground leading-tight truncate">
+          <div className="truncate text-[13px] font-semibold leading-tight text-foreground md:text-[16px]">
             {name}
           </div>
         </div>
 
         {/* Middle: elapsed + caption */}
-        <div
-          className={cn(
-            "min-w-0",
-            "order-3 md:order-none w-full md:w-auto md:flex-1",
-          )}
-        >
+        <div className="shrink-0 text-right md:min-w-0 md:flex-1 md:text-left">
           <div
-            className="font-mono text-[22px] md:text-[24px] font-semibold text-primary leading-none"
+            className="font-mono text-[18px] font-semibold leading-none text-primary md:text-[24px]"
             style={{ fontFeatureSettings: '"tnum" 1' }}
           >
             {elapsed}
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+          <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground md:mt-1.5 md:overflow-hidden md:text-ellipsis md:text-xs">
             <span style={{ fontFeatureSettings: '"tnum" 1' }} className="font-mono">
               {messages.workoutPage.setsProgress(session.completedSets, session.totalSets)}
             </span>
             {startedAgo && (
-              <>
+              <span className="hidden md:inline">
                 {" · "}
                 {messages.workoutPage.startedAgo(startedAgo)}
-              </>
+              </span>
             )}
           </p>
         </div>
 
         {/* Right: actions */}
-        <div className="flex items-center gap-2 ml-auto shrink-0">
+        <div className="ml-0.5 flex shrink-0 items-center gap-1.5 md:ml-auto md:gap-2">
           <button
             onClick={handleResume}
             aria-label={messages.workoutPage.resume}
             className={cn(
-              "flex items-center gap-1 rounded-md",
-              "px-3 py-1.5 text-[13px] font-medium",
+              "flex h-9 items-center gap-1 rounded-full px-2.5 text-[12px] font-medium md:h-auto md:rounded-md md:px-3 md:py-1.5 md:text-[13px]",
               "bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150",
             )}
           >
-            <Play className="h-3.5 w-3.5" />
+            <Play className="h-3.5 w-3.5" fill="currentColor" />
             {messages.workoutPage.resume}
           </button>
           <button
             onClick={handleDiscard}
             aria-label={messages.workoutPage.discard}
             className={cn(
-              "flex items-center gap-1 rounded-md",
-              "px-3 py-1.5 text-[13px] font-medium",
+              "flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-medium md:h-auto md:w-auto md:rounded-md md:px-3 md:py-1.5",
               "bg-transparent text-destructive hover:bg-destructive-soft transition-colors duration-150",
             )}
           >
             <X className="h-3.5 w-3.5" />
-            {messages.workoutPage.discard}
+            <span className="sr-only md:not-sr-only">{messages.workoutPage.discard}</span>
           </button>
         </div>
       </div>
