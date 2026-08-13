@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Dumbbell, LogOut, Menu, Settings, X } from "lucide-react"
+import { Dumbbell, LogOut, MoreHorizontal, Settings, X } from "lucide-react"
 import { Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
@@ -103,6 +103,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         : getTraineeNavItems(messages)
 
   const badge = ROLE_BADGE[role]
+  const primaryItems = navItems.slice(0, 4)
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -118,29 +119,21 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <div className="relative z-50 md:hidden">
-      {/* ── Top bar ── */}
-      <header className="glass-surface relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Dumbbell className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
-          {badge ? (
-            <span className="rounded-[3px] bg-foreground px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-background">
-              {badge}
-            </span>
-          ) : null}
-        </div>
-
-        <button
-          type="button"
-          aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
-          onClick={() => setOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      <nav className="glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 grid grid-cols-5 rounded-[22px] border border-border px-1.5 py-1.5 shadow-2xl">
+        {primaryItems.map((item) => {
+          const active = isNavItemActive(pathname, item)
+          return (
+            <Link key={item.href} href={item.href} className={cn("flex min-w-0 flex-col items-center gap-1 rounded-[16px] px-1 py-2 text-[10px]", active ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
+              <item.icon className="h-[18px] w-[18px]" strokeWidth={1.7} />
+              <span className="max-w-full truncate">{item.label}</span>
+            </Link>
+          )
+        })}
+        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 flex-col items-center gap-1 rounded-[16px] px-1 py-2 text-[10px]", open ? "bg-primary-soft text-primary" : "text-muted-foreground")}>
+          <MoreHorizontal className="h-[18px] w-[18px]" />
+          <span>More</span>
         </button>
-      </header>
+      </nav>
 
       {/* ── Dropdown ── */}
       {open ? (
@@ -149,9 +142,13 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             type="button"
             aria-label={messages.common.closeNavigation}
             onClick={() => setOpen(false)}
-            className="fixed inset-x-0 bottom-0 top-[calc(57px+env(safe-area-inset-top))] z-40 bg-background/45 backdrop-blur-[1px]"
+            className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[2px]"
           />
-          <nav className="glass-surface fixed left-3 right-3 top-[calc(65px+env(safe-area-inset-top))] z-50 max-h-[calc(100dvh-80px-env(safe-area-inset-top))] overflow-y-auto rounded-lg border border-border bg-background p-2.5 shadow-lg">
+          <nav className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-[22px] border border-border bg-background p-2.5 shadow-2xl">
+            <div className="mb-2 flex items-center justify-between px-2 py-1.5">
+              <div className="flex items-center gap-2"><Dumbbell className="h-4 w-4" /><span className="font-semibold">YeahBuddy</span>{badge ? <span className="label-micro">{badge}</span> : null}</div>
+              <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
             {/* Role nav items */}
             <Suspense fallback={null}>
               <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />
@@ -171,7 +168,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.common.theme}
               </p>
-              <ThemeToggle compact />
+              <ThemeToggle variant="select" />
             </div>
 
             <Link

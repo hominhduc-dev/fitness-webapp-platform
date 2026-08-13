@@ -4,14 +4,16 @@ import { Droplets, Monitor, Moon, Sun, type LucideIcon } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useTheme, type ThemeMode } from "@/components/providers/theme-provider"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 type ThemeToggleProps = {
   compact?: boolean
   className?: string
+  variant?: "select" | "toggle"
 }
 
-export function ThemeToggle({ compact = false, className }: ThemeToggleProps) {
+export function ThemeToggle({ compact = false, className, variant = "toggle" }: ThemeToggleProps) {
   const { messages } = useLocale()
   const { setTheme, theme } = useTheme()
 
@@ -21,6 +23,24 @@ export function ThemeToggle({ compact = false, className }: ThemeToggleProps) {
     { icon: Droplets, label: messages.common.themeGlass, value: "glass" },
     { icon: Monitor, label: messages.common.themeSystem, value: "system" },
   ]
+
+  if (variant === "select") {
+    return (
+      <Select value={theme} onValueChange={(value) => setTheme(value as ThemeMode)}>
+        <SelectTrigger aria-label={messages.common.theme} className={cn("w-full bg-muted/50", className)}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="glass-surface">
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <option.icon className="h-4 w-4" />
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
 
   return (
     <div
