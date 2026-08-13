@@ -1,9 +1,15 @@
 import { normalizeText } from "./helpers"
 import type { AIChatIntent, ChatMessage, IntentResult } from "./types"
 
+// A rule is either a phrase that must appear as whole words, or a group of
+// phrases that must ALL appear (in any order). Groups keep natural word order
+// from mattering — "hôm nay tôi nên tập gì" and "tập gì hôm nay" both match
+// ["hom nay", "tap"] without needing one entry per phrasing.
+type KeywordRule = string | string[]
+
 const INTENT_KEYWORDS: Array<{
   intent: AIChatIntent
-  keywords: string[]
+  keywords: KeywordRule[]
   reason: string
 }> = [
   {
@@ -17,6 +23,7 @@ const INTENT_KEYWORDS: Array<{
       "tien bo",
       "tang ta",
       "giam ta",
+      "len ta",
       "progress",
       "progression",
       "pr",
@@ -37,12 +44,12 @@ const INTENT_KEYWORDS: Array<{
   {
     intent: "workout_today",
     keywords: [
-      "hom nay tap gi",
-      "tap gi hom nay",
-      "workout hom nay",
-      "today workout",
-      "buoi tap hom nay",
-      "lich hom nay",
+      ["hom nay", "tap"],
+      ["hom nay", "workout"],
+      ["today", "workout"],
+      ["buoi tap", "hom nay"],
+      ["buoi tap", "tiep theo"],
+      ["lich", "hom nay"],
       "next workout",
       "tap tiep",
     ],
@@ -50,19 +57,40 @@ const INTENT_KEYWORDS: Array<{
   },
   {
     intent: "program_review",
-    keywords: ["chuong trinh", "program", "routine", "split", "lich tap", "plan", "ke hoach tap", "phan bo buoi"],
+    keywords: [
+      "chuong trinh",
+      "program",
+      "routine",
+      "split",
+      "lich tap",
+      "plan",
+      "ke hoach tap",
+      "phan bo buoi",
+      "tan suat",
+      ["tuan", "buoi"],
+      "may buoi",
+      "bao nhieu buoi",
+    ],
     reason: "Câu hỏi hỏi về chương trình hoặc lịch tập tổng thể.",
   },
   {
     intent: "nutrition_trend",
-    keywords: ["an uong gan day", "dinh duong gan day", "trung binh", "7 ngay", "14 ngay", "tuan nay an", "macro trend"],
+    keywords: [
+      ["an uong", "gan day"],
+      ["dinh duong", "gan day"],
+      "trung binh",
+      "7 ngay",
+      "14 ngay",
+      ["tuan nay", "an"],
+      "macro trend",
+    ],
     reason: "Câu hỏi hỏi xu hướng dinh dưỡng nhiều ngày.",
   },
   {
     intent: "nutrition_today",
     keywords: [
-      "hom nay an",
-      "an gi",
+      ["hom nay", "an"],
+      ["an", "gi"],
       "protein",
       "calo",
       "calorie",
@@ -71,17 +99,46 @@ const INTENT_KEYWORDS: Array<{
       "carb",
       "fat",
       "bua an",
-      "con bao nhieu",
-      "du protein",
+      "dam",
+      "tinh bot",
+      ["con", "bao nhieu"],
+      ["du", "protein"],
+      ["thieu", "protein"],
     ],
     reason: "Câu hỏi hỏi bữa ăn, calories hoặc macro.",
   },
   {
     intent: "weight_progress",
-    keywords: ["can nang", "giam can", "tang can", "body fat", "mo", "vong eo", "target weight", "muc tieu can"],
+    keywords: [
+      "can nang",
+      "giam can",
+      "tang can",
+      "body fat",
+      "mo",
+      "vong eo",
+      "target weight",
+      ["muc tieu", "can"],
+    ],
     reason: "Câu hỏi hỏi cân nặng, body metrics hoặc mục tiêu cân nặng.",
   },
 ]
+
+/**
+ * Whole-word containment. `normalizeText` already collapses punctuation to
+ * spaces, so padding both sides is enough to stop short keywords from matching
+ * inside longer words — "pr" no longer fires on "protein", "mo" no longer fires
+ * on "một".
+ */
+function containsPhrase(haystack: string, phrase: string): boolean {
+  const needle = normalizeText(phrase)
+  return needle.length > 0 && ` ${haystack} `.includes(` ${needle} `)
+}
+
+function matchesRule(haystack: string, rule: KeywordRule): boolean {
+  return Array.isArray(rule)
+    ? rule.every((phrase) => containsPhrase(haystack, phrase))
+    : containsPhrase(haystack, rule)
+}
 
 export function detectAIChatIntent(message: string, history: ChatMessage[] = []): IntentResult {
   const latestHistory = history
@@ -96,8 +153,8 @@ export function detectAIChatIntent(message: string, history: ChatMessage[] = [])
   }
 
   for (const candidate of INTENT_KEYWORDS) {
-    const score = candidate.keywords.reduce((total, keyword) => {
-      return total + (normalized.includes(normalizeText(keyword)) ? 1 : 0)
+    const score = candidate.keywords.reduce((total, rule) => {
+      return total + (matchesRule(normalized, rule) ? 1 : 0)
     }, 0)
 
     if (score > best.score) {
