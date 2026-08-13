@@ -1,9 +1,11 @@
 import { Router } from "express"
 
 import {
+  acceptDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
   chatWithAI,
+  generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
 } from "../services/ai.service"
@@ -11,6 +13,28 @@ import { requireCurrentProfile } from "../services/auth.service"
 import { getAccessToken, sendApiError, sendData } from "./route.utils"
 
 const aiRouter = Router()
+
+aiRouter.post("/generate-workout", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const result = await generateDailyWorkout(profile, req.body)
+
+    sendData(res, result, { status: 201 })
+  } catch (error) {
+    sendApiError(res, error)
+  }
+})
+
+aiRouter.post("/accept-workout", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const result = await acceptDailyWorkout(profile, String(req.body.generationId))
+
+    sendData(res, result)
+  } catch (error) {
+    sendApiError(res, error)
+  }
+})
 
 aiRouter.post("/generate-program", async (req, res) => {
   try {

@@ -1932,6 +1932,56 @@ async function acceptAIProgram(accessToken: string, generationId: string) {
   return response.data
 }
 
+type AIDailyWorkout = {
+  date: string
+  name: string
+  description: string
+  kind: string
+  duration: number
+  warmup: string
+  exercises: Array<{
+    variationId: string
+    sets: number
+    reps: number
+    repsMin?: number
+    rir?: number
+    restTime?: number
+    weight?: number
+  }>
+}
+
+async function generateAIDailyWorkout(accessToken: string, input: {
+  date: string
+  goal: string
+  experienceLevel: string
+  sessionDuration: number
+  availableEquipment: string
+  focusAreas?: string[]
+  injuries?: string
+  energyLevel: "low" | "normal" | "high"
+}) {
+  const response = await request<ApiEnvelope<{
+    generationId: string
+    workout: AIDailyWorkout
+    mappingRate: number
+  }>>("/api/ai/generate-workout", accessToken, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+
+  return response.data
+}
+
+async function acceptAIDailyWorkout(accessToken: string, generationId: string) {
+  const response = await request<ApiEnvelope<{ accepted: boolean; workoutId: string }>>(
+    "/api/ai/accept-workout",
+    accessToken,
+    { method: "POST", body: JSON.stringify({ generationId }) },
+  )
+
+  return response.data
+}
+
 async function generateAIMealPlan(accessToken: string, input: {
   date: string
   preferences?: string
@@ -1988,6 +2038,7 @@ async function sendAIChatMessage(accessToken: string, message: string, history: 
 }
 
 export {
+  acceptAIDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
   adjustCoachProgram,
@@ -2034,6 +2085,7 @@ export {
   fetchDashboard,
   generateAIMealPlan,
   generateAIProgram,
+  generateAIDailyWorkout,
   sendAIChatMessage,
   fetchNutritionDay,
   fetchNotifications,
@@ -2053,3 +2105,5 @@ export {
   updateCoachWorkoutLogComment,
   updateWorkout,
 }
+
+export type { AIDailyWorkout }
