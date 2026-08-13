@@ -119,7 +119,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   return (
     <div className="relative z-50 md:hidden">
       {/* ── Top bar ── */}
-      <header className="relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
+      <header className="glass-surface relative z-50 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
@@ -151,7 +151,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             onClick={() => setOpen(false)}
             className="fixed inset-x-0 bottom-0 top-[calc(57px+env(safe-area-inset-top))] z-40 bg-background/45 backdrop-blur-[1px]"
           />
-          <nav className="fixed left-3 right-3 top-[calc(65px+env(safe-area-inset-top))] z-50 max-h-[calc(100dvh-80px-env(safe-area-inset-top))] overflow-y-auto rounded-lg border border-border bg-background p-2.5 shadow-lg">
+          <nav className="glass-surface fixed left-3 right-3 top-[calc(65px+env(safe-area-inset-top))] z-50 max-h-[calc(100dvh-80px-env(safe-area-inset-top))] overflow-y-auto rounded-lg border border-border bg-background p-2.5 shadow-lg">
             {/* Role nav items */}
             <Suspense fallback={null}>
               <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />

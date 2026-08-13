@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-export type ThemeMode = "light" | "dark" | "system"
+export type ThemeMode = "light" | "dark" | "glass" | "system"
 export type ResolvedTheme = "light" | "dark"
 
 type ThemeContextValue = {
@@ -15,12 +15,13 @@ export const themeStorageKey = "yeahbuddy-theme"
 const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#ffffff"
 const darkThemeColor = "#0b0d12"
+const glassThemeColor = "#111015"
 const defaultTheme: ThemeMode = "light"
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function isThemeMode(value: string | null): value is ThemeMode {
-  return value === "light" || value === "dark" || value === "system"
+  return value === "light" || value === "dark" || value === "glass" || value === "system"
 }
 
 function getStoredTheme(): ThemeMode {
@@ -33,6 +34,10 @@ function getStoredTheme(): ThemeMode {
 }
 
 function resolveTheme(theme: ThemeMode): ResolvedTheme {
+  if (theme === "glass") {
+    return "dark"
+  }
+
   if (theme !== "system") {
     return theme
   }
@@ -40,13 +45,17 @@ function resolveTheme(theme: ThemeMode): ResolvedTheme {
   return window.matchMedia?.(darkQuery).matches ? "dark" : "light"
 }
 
-function applyThemeToDocument(resolvedTheme: ResolvedTheme) {
+function applyThemeToDocument(theme: ThemeMode, resolvedTheme: ResolvedTheme) {
   const root = document.documentElement
   root.classList.toggle("dark", resolvedTheme === "dark")
+  root.classList.toggle("glass", theme === "glass")
   root.style.colorScheme = resolvedTheme
 
   const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  themeColor?.setAttribute("content", resolvedTheme === "dark" ? darkThemeColor : lightThemeColor)
+  themeColor?.setAttribute(
+    "content",
+    theme === "glass" ? glassThemeColor : resolvedTheme === "dark" ? darkThemeColor : lightThemeColor,
+  )
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -56,7 +65,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const applyTheme = useCallback((nextTheme: ThemeMode) => {
     const nextResolvedTheme = resolveTheme(nextTheme)
-    applyThemeToDocument(nextResolvedTheme)
+    applyThemeToDocument(nextTheme, nextResolvedTheme)
     setResolvedTheme(nextResolvedTheme)
   }, [])
 
