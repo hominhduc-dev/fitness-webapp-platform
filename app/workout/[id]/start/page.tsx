@@ -933,6 +933,8 @@ export default function WorkoutStartPage() {
   const [now, setNow] = useState(new Date())
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
   const exerciseRefs = useRef<(HTMLDivElement | null)[]>([])
+  const shouldAutoScrollExerciseRef = useRef(false)
+  const scrollResetWorkoutIdRef = useRef<string | null>(null)
   const addedSetTokensRef = useRef<Map<string, string>>(new Map())
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
@@ -960,6 +962,23 @@ export default function WorkoutStartPage() {
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
+
+  // Reset after the workout replaces the loading state. Doing this earlier lets
+  // Next.js scroll restoration reapply the dashboard's previous scroll offset.
+  useEffect(() => {
+    if (isLoading || !workout || !workoutId || scrollResetWorkoutIdRef.current === workoutId) return
+    scrollResetWorkoutIdRef.current = workoutId
+
+    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+    resetScroll()
+    const frameId = requestAnimationFrame(resetScroll)
+    const timeoutId = window.setTimeout(resetScroll, 100)
+
+    return () => {
+      cancelAnimationFrame(frameId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [isLoading, workout, workoutId])
 
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1039,10 +1058,17 @@ export default function WorkoutStartPage() {
 
   // ── Auto-advance: scroll the active exercise into view ─────────────────────
   useEffect(() => {
-    exerciseRefs.current[currentExerciseIndex]?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
+    if (!shouldAutoScrollExerciseRef.current) return
+    shouldAutoScrollExerciseRef.current = false
+
+    const frameId = requestAnimationFrame(() => {
+      exerciseRefs.current[currentExerciseIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
     })
+
+    return () => cancelAnimationFrame(frameId)
   }, [currentExerciseIndex])
 
   // ── Derived stats ───────────────────────────────────────────────────────────
@@ -1283,6 +1309,7 @@ export default function WorkoutStartPage() {
       if (updatedSets.every((s) => s.completed)) {
         const exIdx = exercises.findIndex((e) => e.id === exercise.id)
         if (exIdx >= 0 && exIdx < exercises.length - 1) {
+          shouldAutoScrollExerciseRef.current = true
           setCurrentExerciseIndex(exIdx + 1)
         }
       }
