@@ -1993,16 +1993,7 @@ async function generateAIMealPlan(accessToken: string, input: {
     meals: Array<{
       type: string
       suggestion: string
-      items: Array<{
-        foodId: string
-        foodName: string
-        amountValue: number
-        amountUnit: string
-        calories: number
-        protein: number
-        carbs: number
-        fat: number
-      }>
+      items: AIMealItem[]
     }>
     totals: {
       calories: number
@@ -2029,26 +2020,48 @@ async function acceptAIMealPlan(accessToken: string, generationId: string, date:
 }
 
 /** A draft the chat produced in-conversation that still needs user confirmation. */
-export type AIChatAction = {
-  type: "program_draft"
-  generationId: string
-  mappingRate: number
-  program: {
-    name: string
-    description: string
-    difficulty: string
-    duration: number
-    workoutsPerWeek: number
-    workouts: Array<{
-      name: string
-      kind: string
-      weekIndex: number
-      scheduledDay: number
-      duration: number
-      exercises: unknown[]
-    }>
-  }
+export type AIMealItem = {
+  foodId: string
+  foodName: string
+  amountValue: number
+  amountUnit: string
+  /** Real weight where the library has one, the dish's own label otherwise. */
+  quantityLabel?: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
 }
+
+export type AIChatAction =
+  | {
+      type: "program_draft"
+      generationId: string
+      mappingRate: number
+      program: {
+        name: string
+        description: string
+        difficulty: string
+        duration: number
+        workoutsPerWeek: number
+        workouts: Array<{
+          name: string
+          kind: string
+          weekIndex: number
+          scheduledDay: number
+          duration: number
+          exercises: unknown[]
+        }>
+      }
+    }
+  | {
+      type: "meal_plan_draft"
+      generationId: string
+      date: string
+      meals: Array<{ type: string; suggestion: string; items: AIMealItem[] }>
+      totals: { calories: number; protein: number; carbs: number; fat: number }
+      notes: string
+    }
 
 async function sendAIChatMessage(accessToken: string, message: string, history: Array<{ role: "user" | "assistant"; content: string }>) {
   const response = await request<ApiEnvelope<{ reply: string; action?: AIChatAction }>>("/api/ai/chat", accessToken, {
