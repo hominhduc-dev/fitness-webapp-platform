@@ -614,6 +614,12 @@
   }
 }
 
+@media (max-width: 767px) {
+  .app-shell:has(.workout-floating-chip) .ai-bubble-trigger {
+    display: none;
+  }
+}
+
 .glass input,
 .glass textarea,
 .glass select {
