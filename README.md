@@ -107,43 +107,29 @@ The editable source is available at [`docs/architecture.drawio`](docs/architectu
 - API responses follow a consistent `{ data, error, meta }` envelope (auth endpoints return a flatter `{ profile, session, user }` payload).
 - AI endpoints call out to Anthropic or OpenAI (`backend/src/lib/ai/ai-client.ts`), persist the request/response as an `AIGeneration` row, and only materialize a real `Program`/meal once the trainee explicitly accepts the draft.
 
-### Use cases and sequence flows
+### Main use cases
 
 ![YeahBuddy main use cases](docs/use-cases.png)
 
-- **Editable use-case diagram:** [`docs/use-cases.drawio`](docs/use-cases.drawio)
-- **Editable sequence diagrams (6 pages, UC-01 → UC-06):** [`docs/sequence-diagrams.drawio`](docs/sequence-diagrams.drawio)
-- **Sequence diagrams as PDF:** [`docs/sequence-diagrams.drawio.pdf`](docs/sequence-diagrams.drawio.pdf)
-- Detailed textual specifications remain in [`docs/use-case-specifications.md`](docs/use-case-specifications.md).
+The overview focuses on the six primary use cases across visitors, trainees, coaches, and administrators. Supporting flows such as AI generation, exports, notifications, and profile management are documented separately.
 
-<details>
-<summary><strong>View all 6 sequence diagrams</strong></summary>
+### Core sequence flows
 
-#### UC-01 — Register account
+#### Trainee completes and logs a workout
 
-![UC-01 register account sequence](docs/sequence-uc01.png)
+![Workout logging sequence](docs/sequence-uc03.png)
 
-#### UC-02 — Login and session management
+#### Coach creates and assigns a training program
 
-![UC-02 login sequence](docs/sequence-uc02.png)
+![Coach program management sequence](docs/sequence-uc05.png)
 
-#### UC-03 — Perform and log a workout
+Further design documentation:
 
-![UC-03 workout logging sequence](docs/sequence-uc03.png)
-
-#### UC-04 — Nutrition and progress tracking
-
-![UC-04 nutrition and progress sequence](docs/sequence-uc04.png)
-
-#### UC-05 — Coach manages programs and trainees
-
-![UC-05 coaching sequence](docs/sequence-uc05.png)
-
-#### UC-06 — Admin manages the platform
-
-![UC-06 administration sequence](docs/sequence-uc06.png)
-
-</details>
+- [Editable architecture diagram](docs/architecture.drawio)
+- [Editable use-case diagram](docs/use-cases.drawio)
+- [All six sequence diagrams — editable Draw.io](docs/sequence-diagrams.drawio)
+- [All six sequence diagrams — PDF](docs/sequence-diagrams.drawio.pdf)
+- [Detailed use-case specifications](docs/use-case-specifications.md)
 
 ---
 
