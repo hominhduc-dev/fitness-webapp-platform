@@ -1,5 +1,7 @@
 import { Router } from "express"
 
+import { aiLimiter } from "../middleware/rate-limit"
+import { validated } from "../middleware/validate"
 import {
   acceptDailyWorkout,
   acceptAIMealPlan,
@@ -10,85 +12,76 @@ import {
   generateWorkoutProgram,
 } from "../services/ai.service"
 import { requireCurrentProfile } from "../services/auth.service"
-import { getAccessToken, sendApiError, sendData } from "./route.utils"
+import {
+  acceptMealPlanSchema,
+  chatSchema,
+  generateDailyWorkoutSchema,
+  generateMealPlanSchema,
+  generateProgramSchema,
+  generationIdSchema,
+} from "./ai.schemas"
+import { getAccessToken, sendData } from "./route.utils"
 
 const aiRouter = Router()
 
-aiRouter.post("/generate-workout", async (req, res) => {
-  try {
+// Every route below spends provider tokens, so the tighter per-caller budget
+// applies to the whole router rather than being repeated per endpoint.
+aiRouter.use(aiLimiter)
+
+aiRouter.post(
+  "/generate-workout",
+  validated({ body: generateDailyWorkoutSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await generateDailyWorkout(profile, req.body)
+    sendData(res, await generateDailyWorkout(profile, req.body), { status: 201 })
+  }),
+)
 
-    sendData(res, result, { status: 201 })
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
-
-aiRouter.post("/accept-workout", async (req, res) => {
-  try {
+aiRouter.post(
+  "/accept-workout",
+  validated({ body: generationIdSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await acceptDailyWorkout(profile, String(req.body.generationId))
+    sendData(res, await acceptDailyWorkout(profile, req.body.generationId))
+  }),
+)
 
-    sendData(res, result)
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
-
-aiRouter.post("/generate-program", async (req, res) => {
-  try {
+aiRouter.post(
+  "/generate-program",
+  validated({ body: generateProgramSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await generateWorkoutProgram(profile, req.body)
+    sendData(res, await generateWorkoutProgram(profile, req.body), { status: 201 })
+  }),
+)
 
-    sendData(res, result, { status: 201 })
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
-
-aiRouter.post("/accept-program", async (req, res) => {
-  try {
+aiRouter.post(
+  "/accept-program",
+  validated({ body: generationIdSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await acceptAIProgram(profile, String(req.body.generationId))
+    sendData(res, await acceptAIProgram(profile, req.body.generationId))
+  }),
+)
 
-    sendData(res, result)
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
-
-aiRouter.post("/generate-meal-plan", async (req, res) => {
-  try {
+aiRouter.post(
+  "/generate-meal-plan",
+  validated({ body: generateMealPlanSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await generateMealPlan(profile, req.body)
+    sendData(res, await generateMealPlan(profile, req.body), { status: 201 })
+  }),
+)
 
-    sendData(res, result, { status: 201 })
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
-
-aiRouter.post("/accept-meal-plan", async (req, res) => {
-  try {
+aiRouter.post(
+  "/accept-meal-plan",
+  validated({ body: acceptMealPlanSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await acceptAIMealPlan(profile, String(req.body.generationId), String(req.body.date))
+    sendData(res, await acceptAIMealPlan(profile, req.body.generationId, req.body.date))
+  }),
+)
 
-    sendData(res, result)
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
-
-aiRouter.post("/chat", async (req, res) => {
-  try {
+aiRouter.post(
+  "/chat",
+  validated({ body: chatSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const result = await chatWithAI(profile, String(req.body.message ?? ""), req.body.history ?? [])
-
-    sendData(res, result)
-  } catch (error) {
-    sendApiError(res, error)
-  }
-})
+    sendData(res, await chatWithAI(profile, req.body.message, req.body.history))
+  }),
+)
 
 export { aiRouter }

@@ -11,7 +11,6 @@ import { DailyWorkoutGeneratorForm, type DailyWorkoutFormValues } from "@/compon
 import { DailyWorkoutPreview } from "@/components/ai/daily-workout-preview"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
-import { Button } from "@/components/ui/button"
 import { acceptAIDailyWorkout, acceptAIProgram, fetchExerciseLibrary, generateAIDailyWorkout, generateAIProgram, type AIDailyWorkout } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"

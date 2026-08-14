@@ -1,3 +1,5 @@
+import { ExternalServiceError } from "../../services/errors"
+
 /**
  * Shared salvage logic for model text responses.
  *
@@ -48,7 +50,7 @@ function extractJSON<T>(text: string): T {
     if (start !== -1 && end !== -1 && end > start) {
       return JSON.parse(trimmed.slice(start, end + 1)) as T
     }
-    throw new Error("AI response did not contain valid JSON")
+    throw new ExternalServiceError("Nhà cung cấp AI trả về dữ liệu không hợp lệ.", { code: "AI_INVALID_JSON" })
   }
 }
 

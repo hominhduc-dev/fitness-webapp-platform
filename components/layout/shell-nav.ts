@@ -1,5 +1,5 @@
 import type { ElementType } from "react"
-import { Activity, BarChart3, Calendar, ClipboardList, Dumbbell, Home, LayoutDashboard, Link2, ListChecks, ScrollText, Settings, ShieldCheck, UserPlus, UserRoundCheck, Users, Utensils } from "lucide-react"
+import { Activity, BarChart3, Calendar, ClipboardList, Dumbbell, Home, LayoutDashboard, Link2, ListChecks, ScrollText, Settings, UserPlus, UserRoundCheck, Users, Utensils } from "lucide-react"
 
 import type { AppMessages } from "@/lib/i18n/messages"
 

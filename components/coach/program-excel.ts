@@ -31,25 +31,6 @@ const INSTRUCTIONS_SHEET_NAME = "Instructions"
 const REFERENCE_SHEET_NAME = "Reference"
 const TRAINEES_SHEET_NAME = "Trainees"
 
-const PROGRAM_FIELD_ROWS: Array<[string, string]> = [
-  ["name", ""],
-  ["description", ""],
-  ["duration_weeks", ""],
-  ["difficulty", ""],
-  ["assign_to_emails", ""],
-]
-
-const WORKOUT_HEADERS = [
-  "workout_name",
-  "scheduled_day",
-  "exercise_name",
-  "variation_name",
-  "variation_id",
-  "sets",
-  "reps_range",
-  "weight",
-] as const
-
 const DIFFICULTY_MAP = new Map<string, CreateCoachProgramInput["difficulty"]>([
   ["advanced", "advanced"],
   ["beginner", "beginner"],
@@ -378,46 +359,6 @@ function selectSampleExercise(
   return exercises
     .slice()
     .sort((left, right) => scoreSampleExercise(right, slot, usedVariationIds) - scoreSampleExercise(left, slot, usedVariationIds))[0]
-}
-
-function buildSampleProgramRows(_trainees: CoachTrainee[]) {
-  return [
-    ["field", "value"],
-    ["name", "Sample 4-Day Strength Program"],
-    ["description", "Sample schedule generated from your current exercise library. Replace or duplicate rows before importing."],
-    ["duration_weeks", "8"],
-    ["difficulty", "intermediate"],
-    ["assign_to_emails", ""],
-  ]
-}
-
-function buildSampleWorkoutRows(exercises: ExerciseVariationOption[]) {
-  const usedVariationIds = new Set<string>()
-  const rows: RawCell[][] = [Array.from(WORKOUT_HEADERS)]
-
-  SAMPLE_WORKOUT_PLANS.forEach((workoutPlan) => {
-    workoutPlan.slots.forEach((slot) => {
-      const selectedExercise = selectSampleExercise(exercises, slot, usedVariationIds)
-
-      if (!selectedExercise) {
-        return
-      }
-
-      usedVariationIds.add(selectedExercise.id)
-      rows.push([
-        workoutPlan.name,
-        workoutPlan.scheduledDay,
-        selectedExercise.exerciseName,
-        selectedExercise.variationName,
-        selectedExercise.id,
-        slot.sets,
-        slot.repsRange,
-        slot.weight ?? "",
-      ])
-    })
-  })
-
-  return rows
 }
 
 async function getSheetRows(sheet: unknown) {

@@ -1,5 +1,7 @@
 import { Router } from "express"
 
+import { heavyLimiter } from "../middleware/rate-limit"
+import { asyncHandler, validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   createPersonalWorkoutForTrainee,
@@ -14,222 +16,120 @@ import {
   swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
 } from "../services/fitness-data.service"
-import { getAccessToken, sendError } from "./route.utils"
+import { getAccessToken } from "./route.utils"
+import {
+  createWorkoutLogSchema,
+  exportLogsSchema,
+  logParams,
+  logRangeQuery,
+  personalWorkoutSchema,
+  programIdParams,
+  swapExerciseSchema,
+  swapParams,
+  workoutIdParams,
+} from "./workout.schemas"
 
 const workoutRouter = Router()
 
-function parsePersonalWorkoutInput(body: unknown) {
-  const payload = typeof body === "object" && body !== null ? body : {}
-  const requestBody = payload as {
-    duration?: unknown
-    exercises?: Array<{
-      notes?: unknown
-      repsMin?: unknown
-      rir?: unknown
-      variationId?: unknown
-      reps?: unknown
-      restTime?: unknown
-      sets?: unknown
-      weight?: unknown
-    }>
-    kind?: unknown
-    name?: unknown
-    notes?: unknown
-    scheduledDay?: unknown
-    scheduledDate?: unknown
-  }
+type WorkoutLogInput = Parameters<typeof createWorkoutLogForTrainee>[2]
 
-  return {
-    duration: typeof requestBody.duration === "number" ? requestBody.duration : undefined,
-    exercises: Array.isArray(requestBody.exercises)
-      ? requestBody.exercises.map((exercise) => ({
-          notes: typeof exercise?.notes === "string" ? exercise.notes : undefined,
-          repsMin: typeof exercise?.repsMin === "number" ? exercise.repsMin : undefined,
-          rir: typeof exercise?.rir === "number" ? exercise.rir : undefined,
-          variationId: typeof exercise?.variationId === "string" ? exercise.variationId : "",
-          reps: typeof exercise?.reps === "number" ? exercise.reps : 0,
-          restTime: typeof exercise?.restTime === "number" ? exercise.restTime : undefined,
-          sets: typeof exercise?.sets === "number" ? exercise.sets : 0,
-          weight: typeof exercise?.weight === "number" ? exercise.weight : undefined,
-        }))
-      : [],
-    kind: typeof requestBody.kind === "string" ? requestBody.kind : undefined,
-    name: typeof requestBody.name === "string" ? requestBody.name : "",
-    notes: typeof requestBody.notes === "string" ? requestBody.notes : undefined,
-    scheduledDay: typeof requestBody.scheduledDay === "number" ? requestBody.scheduledDay : undefined,
-    scheduledDate: typeof requestBody.scheduledDate === "string" ? requestBody.scheduledDate : undefined,
-  }
-}
+workoutRouter.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json(await listWorkoutsForTrainee(profile))
+  }),
+)
 
-workoutRouter.get("/", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const result = await listWorkoutsForTrainee(profile.profile)
+workoutRouter.get(
+  "/programs/:programId",
+  validated({ params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ program: await getTraineeProgramDetail(profile, req.params.programId) })
+  }),
+)
 
-    res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+workoutRouter.get(
+  "/logs",
+  validated({ query: logRangeQuery }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ data: await listWorkoutLogsForExportTrainee(profile, req.query) })
+  }),
+)
 
-workoutRouter.get("/programs/:programId", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const program = await getTraineeProgramDetail(profile.profile, String(req.params.programId))
-    res.json({ program })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+workoutRouter.post(
+  "/logs/export/google-sheets",
+  heavyLimiter,
+  validated({ body: exportLogsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const result = await exportWorkoutLogsToGoogleSheetsForTrainee(profile, req.body)
 
-workoutRouter.get("/logs", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const from = typeof req.query.from === "string" ? req.query.from : undefined
-    const to = typeof req.query.to === "string" ? req.query.to : undefined
-    const programId = typeof req.query.programId === "string" ? req.query.programId : undefined
+    res.json({ data: result, error: null, meta: null })
+  }),
+)
 
-    if (!from || !to) {
-      res.status(400).json({ error: { message: "from và to là bắt buộc (YYYY-MM-DD)." } })
-      return
-    }
+workoutRouter.get(
+  "/:workoutId",
+  validated({ params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ workout: await getWorkoutDetailForTrainee(profile, req.params.workoutId) })
+  }),
+)
 
-    const logs = await listWorkoutLogsForExportTrainee(profile.profile, { from, programId, to })
-    res.json({ data: logs })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+workoutRouter.post(
+  "/",
+  validated({ body: personalWorkoutSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.status(201).json({ workout: await createPersonalWorkoutForTrainee(profile, req.body) })
+  }),
+)
 
-workoutRouter.post("/logs/export/google-sheets", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const result = await exportWorkoutLogsToGoogleSheetsForTrainee(profile.profile, {
-      from: String(req.body.from ?? ""),
-      label: typeof req.body.label === "string" ? req.body.label : undefined,
-      to: String(req.body.to ?? ""),
-    })
+workoutRouter.patch(
+  "/:workoutId",
+  validated({ body: personalWorkoutSchema, params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ workout: await updatePersonalWorkoutForTrainee(profile, req.params.workoutId, req.body) })
+  }),
+)
 
-    res.json({
-      data: result,
-      error: null,
-      meta: null,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+workoutRouter.post(
+  "/:workoutId/logs",
+  validated({ body: createWorkoutLogSchema, params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const log = await createWorkoutLogForTrainee(profile, req.params.workoutId, req.body as WorkoutLogInput)
 
-workoutRouter.get("/:workoutId", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const workout = await getWorkoutDetailForTrainee(profile.profile, String(req.params.workoutId))
+    res.status(201).json({ log })
+  }),
+)
 
-    res.json({
-      workout,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-workoutRouter.post("/", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const workout = await createPersonalWorkoutForTrainee(profile.profile, parsePersonalWorkoutInput(req.body))
-
-    res.status(201).json({
-      workout,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-workoutRouter.patch("/:workoutId", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const workout = await updatePersonalWorkoutForTrainee(
-      profile.profile,
-      String(req.params.workoutId),
-      parsePersonalWorkoutInput(req.body),
-    )
-
-    res.json({
-      workout,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-workoutRouter.post("/:workoutId/logs", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const log = await createWorkoutLogForTrainee(profile.profile, String(req.params.workoutId), {
-      completedAt: typeof req.body.completedAt === "string" ? req.body.completedAt : undefined,
-      exercises: Array.isArray(req.body.exercises) ? req.body.exercises : [],
-      notes: typeof req.body.notes === "string" ? req.body.notes : undefined,
-      plannedDate: typeof req.body.plannedDate === "string" ? req.body.plannedDate : undefined,
-      startedAt: typeof req.body.startedAt === "string" ? req.body.startedAt : undefined,
-    })
-
-    res.status(201).json({
-      log,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-workoutRouter.post("/:workoutId/exercises/:workoutExerciseId/swap", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const body = typeof req.body === "object" && req.body !== null ? req.body : {}
-    const newVariationId = typeof (body as { variationId?: unknown }).variationId === "string"
-      ? String((body as { variationId: string }).variationId)
-      : ""
-    if (!newVariationId) {
-      res.status(400).json({ error: { message: "variationId là bắt buộc." } })
-      return
-    }
-
-    const result = await swapExerciseForTraineeFromWorkout(profile.profile, {
-      newVariationId,
-      workoutExerciseId: String(req.params.workoutExerciseId),
-      workoutId: String(req.params.workoutId),
+workoutRouter.post(
+  "/:workoutId/exercises/:workoutExerciseId/swap",
+  validated({ body: swapExerciseSchema, params: swapParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const result = await swapExerciseForTraineeFromWorkout(profile, {
+      newVariationId: req.body.variationId,
+      workoutExerciseId: req.params.workoutExerciseId,
+      workoutId: req.params.workoutId,
     })
 
     res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+  }),
+)
 
-workoutRouter.delete("/:workoutId/logs/:logId", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const result = await deleteWorkoutLogForTrainee(
-      profile.profile,
-      String(req.params.workoutId),
-      String(req.params.logId),
-    )
+workoutRouter.delete(
+  "/:workoutId/logs/:logId",
+  validated({ params: logParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json(await deleteWorkoutLogForTrainee(profile, req.params.workoutId, req.params.logId))
+  }),
+)
 
-    res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-workoutRouter.delete("/:workoutId", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const result = await deletePersonalWorkoutForTrainee(profile.profile, String(req.params.workoutId))
-
-    res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+workoutRouter.delete(
+  "/:workoutId",
+  validated({ params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json(await deletePersonalWorkoutForTrainee(profile, req.params.workoutId))
+  }),
+)
 
 export { workoutRouter }

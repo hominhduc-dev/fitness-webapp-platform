@@ -11,6 +11,7 @@ import {
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
+import { logger } from "../../lib/logger"
 import { prisma } from "../../lib/prisma"
 import { supabaseAdmin } from "../../lib/supabase"
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
@@ -1012,7 +1013,7 @@ async function updateAdminUser(
         },
       })
     } catch (error) {
-      console.warn("Unable to sync admin user metadata to Supabase", error)
+      logger.warn("unable to sync admin user metadata to Supabase", { error, userId: existingUser.id })
     }
   }
 
