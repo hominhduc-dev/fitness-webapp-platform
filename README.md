@@ -98,7 +98,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 
 ## Architecture
 
-![YeahBuddy system architecture](docs/architecture.drawio.png)
+![YeahBuddy system architecture](docs/architecture.png)
 
 The editable source is available at [`docs/architecture.drawio`](docs/architecture.drawio).
 
@@ -109,12 +109,41 @@ The editable source is available at [`docs/architecture.drawio`](docs/architectu
 
 ### Use cases and sequence flows
 
-![YeahBuddy main use cases](docs/use-cases.drawio.png)
+![YeahBuddy main use cases](docs/use-cases.png)
 
 - **Editable use-case diagram:** [`docs/use-cases.drawio`](docs/use-cases.drawio)
 - **Editable sequence diagrams (6 pages, UC-01 → UC-06):** [`docs/sequence-diagrams.drawio`](docs/sequence-diagrams.drawio)
 - **Sequence diagrams as PDF:** [`docs/sequence-diagrams.drawio.pdf`](docs/sequence-diagrams.drawio.pdf)
 - Detailed textual specifications remain in [`docs/use-case-specifications.md`](docs/use-case-specifications.md).
+
+<details>
+<summary><strong>View all 6 sequence diagrams</strong></summary>
+
+#### UC-01 — Register account
+
+![UC-01 register account sequence](docs/sequence-uc01.png)
+
+#### UC-02 — Login and session management
+
+![UC-02 login sequence](docs/sequence-uc02.png)
+
+#### UC-03 — Perform and log a workout
+
+![UC-03 workout logging sequence](docs/sequence-uc03.png)
+
+#### UC-04 — Nutrition and progress tracking
+
+![UC-04 nutrition and progress sequence](docs/sequence-uc04.png)
+
+#### UC-05 — Coach manages programs and trainees
+
+![UC-05 coaching sequence](docs/sequence-uc05.png)
+
+#### UC-06 — Admin manages the platform
+
+![UC-06 administration sequence](docs/sequence-uc06.png)
+
+</details>
 
 ---
 
