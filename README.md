@@ -98,25 +98,23 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 
 ## Architecture
 
-```
-┌──────────────────────┐     /backend/api/*  (rewrite)      ┌──────────────────────┐
-│   Next.js frontend    │ ─────────────────────────────────▶│   Express API (:4000)│
-│   (App Router, :3000) │                                    │   Prisma + services  │
-│                       │ ◀──────────────────────────────────│                      │
-└──────────┬────────────┘        { data, error, meta }       └──────────┬───────────┘
-           │                                                            │
-           │  cookie session (@supabase/ssr)                            │  Prisma
-           ▼                                                            ▼
-   ┌───────────────┐                                          ┌───────────────────┐
-   │ Supabase Auth │                                          │ PostgreSQL on     │
-   └───────────────┘                                          │ Supabase (pooler) │
-                                                              └───────────────────┘
-```
+![YeahBuddy system architecture](docs/architecture.drawio.png)
+
+The editable source is available at [`docs/architecture.drawio`](docs/architecture.drawio).
 
 - The browser calls `/backend/api/...`, which Next.js rewrites to the Express server (`NEXT_PUBLIC_API_URL`).
 - Every authenticated request carries the Supabase access token; the backend verifies it, syncs a local `User` profile, and enforces role before running a handler.
 - API responses follow a consistent `{ data, error, meta }` envelope (auth endpoints return a flatter `{ profile, session, user }` payload).
 - AI endpoints call out to Anthropic or OpenAI (`backend/src/lib/ai/ai-client.ts`), persist the request/response as an `AIGeneration` row, and only materialize a real `Program`/meal once the trainee explicitly accepts the draft.
+
+### Use cases and sequence flows
+
+![YeahBuddy main use cases](docs/use-cases.drawio.png)
+
+- **Editable use-case diagram:** [`docs/use-cases.drawio`](docs/use-cases.drawio)
+- **Editable sequence diagrams (6 pages, UC-01 → UC-06):** [`docs/sequence-diagrams.drawio`](docs/sequence-diagrams.drawio)
+- **Sequence diagrams as PDF:** [`docs/sequence-diagrams.drawio.pdf`](docs/sequence-diagrams.drawio.pdf)
+- Detailed textual specifications remain in [`docs/use-case-specifications.md`](docs/use-case-specifications.md).
 
 ---
 
