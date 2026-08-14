@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import { ExternalServiceError } from "../../services/errors"
 
 import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
+import { extractJSON, stripThoughts } from "./response-parsing"
 import type {
   AIConversationMessage,
   AIProvider,
@@ -130,9 +131,7 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
         throw new ExternalServiceError("Nhà cung cấp AI trả về nội dung rỗng.", { code: "AI_EMPTY_RESPONSE" })
       }
 
-      const jsonMatch = textBlock.text.match(/```(?:json)?\s*([\s\S]*?)```/)
-      const raw = jsonMatch ? jsonMatch[1].trim() : textBlock.text.trim()
-      const data = JSON.parse(raw) as T
+      const data = extractJSON<T>(textBlock.text)
 
       const tokenUsage =
         (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0)
@@ -170,7 +169,7 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
       const tokenUsage =
         (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0)
 
-      return { data: textBlock.text.trim(), tokenUsage }
+      return { data: stripThoughts(textBlock.text), tokenUsage }
     },
   }
 }

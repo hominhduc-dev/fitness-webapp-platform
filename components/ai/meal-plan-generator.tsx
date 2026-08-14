@@ -7,7 +7,7 @@ import { AIMessage } from "@/components/ai/ai-message"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { acceptAIMealPlan, generateAIMealPlan } from "@/lib/fitness/api"
+import { acceptAIMealPlan, generateAIMealPlan, type AIMealItem } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
 type MealPlanResult = {
@@ -15,16 +15,7 @@ type MealPlanResult = {
   meals: Array<{
     type: string
     suggestion: string
-    items: Array<{
-      foodId: string
-      foodName: string
-      amountValue: number
-      amountUnit: string
-      calories: number
-      protein: number
-      carbs: number
-      fat: number
-    }>
+    items: AIMealItem[]
   }>
   totals: {
     calories: number
@@ -163,7 +154,7 @@ function MealPlanGenerator({
                       <div key={j} className="flex items-center justify-between px-4 py-2 text-sm">
                         <span>{item.foodName}</span>
                         <span className="text-xs text-muted-foreground">
-                          {item.amountValue} {item.amountUnit} · {Math.round(item.calories)} kcal
+                          {item.quantityLabel ?? `${item.amountValue} ${item.amountUnit}`} · {Math.round(item.calories)} kcal
                         </span>
                       </div>
                     ))}
