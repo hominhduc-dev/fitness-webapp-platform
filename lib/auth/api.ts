@@ -11,16 +11,39 @@ class ApiError extends Error {
   }
 }
 
+type ErrorPayload = {
+  error?: string | { message?: string } | null
+  message?: string
+}
+
+/**
+ * The API returns two error shapes: a flat `{ error: "…" }` from the legacy auth
+ * handlers and the `{ error: { code, message } }` envelope produced by the central
+ * error middleware. Both resolve to a display string here.
+ */
+function readErrorMessage(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return "Request failed"
+  }
+
+  const { error, message } = payload as ErrorPayload
+
+  if (typeof error === "string" && error) {
+    return error
+  }
+
+  if (error && typeof error === "object" && typeof error.message === "string" && error.message) {
+    return error.message
+  }
+
+  return message || "Request failed"
+}
+
 async function parseJson<T>(response: Response) {
-  const payload = (await response.json().catch(() => null)) as T | { error?: string; message?: string } | null
+  const payload = (await response.json().catch(() => null)) as T | ErrorPayload | null
 
   if (!response.ok) {
-    const message =
-      payload && typeof payload === "object" && ("error" in payload || "message" in payload)
-        ? payload.error ?? payload.message ?? "Request failed"
-        : "Request failed"
-
-    throw new ApiError(message, response.status)
+    throw new ApiError(readErrorMessage(payload), response.status)
   }
 
   return payload as T

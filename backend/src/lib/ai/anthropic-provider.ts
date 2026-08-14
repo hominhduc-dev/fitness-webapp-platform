@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 
+import { ExternalServiceError } from "../../services/errors"
+
 import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
 import type {
   AIConversationMessage,
@@ -125,7 +127,7 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
       const textBlock = response.content.find((b) => b.type === "text")
 
       if (!textBlock || textBlock.type !== "text") {
-        throw new Error("AI response contained no text content")
+        throw new ExternalServiceError("Nhà cung cấp AI trả về nội dung rỗng.", { code: "AI_EMPTY_RESPONSE" })
       }
 
       const jsonMatch = textBlock.text.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -162,7 +164,7 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
       const textBlock = response.content.find((b) => b.type === "text")
 
       if (!textBlock || textBlock.type !== "text") {
-        throw new Error("AI response contained no text content")
+        throw new ExternalServiceError("Nhà cung cấp AI trả về nội dung rỗng.", { code: "AI_EMPTY_RESPONSE" })
       }
 
       const tokenUsage =

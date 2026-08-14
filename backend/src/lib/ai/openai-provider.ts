@@ -1,6 +1,8 @@
 import OpenAI from "openai"
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions"
 
+import { ExternalServiceError } from "../../services/errors"
+
 import { getAIRequestTimeoutMs, withAIRequestTimeout } from "./request-timeout"
 import type {
   AIConversationMessage,
@@ -60,7 +62,7 @@ function extractJSON<T>(text: string): T {
     if (start !== -1 && end !== -1 && end > start) {
       return JSON.parse(trimmed.slice(start, end + 1)) as T
     }
-    throw new Error("AI response did not contain valid JSON")
+    throw new ExternalServiceError("Nhà cung cấp AI trả về dữ liệu không hợp lệ.", { code: "AI_INVALID_JSON" })
   }
 }
 
@@ -199,7 +201,7 @@ function createOpenAIProvider(
       const text = response.choices[0]?.message?.content
 
       if (!text) {
-        throw new Error("AI response contained no text content")
+        throw new ExternalServiceError("Nhà cung cấp AI trả về nội dung rỗng.", { code: "AI_EMPTY_RESPONSE" })
       }
 
       const data = extractJSON<T>(text)
@@ -237,7 +239,7 @@ function createOpenAIProvider(
       const text = response.choices[0]?.message?.content
 
       if (!text) {
-        throw new Error("AI response contained no text content")
+        throw new ExternalServiceError("Nhà cung cấp AI trả về nội dung rỗng.", { code: "AI_EMPTY_RESPONSE" })
       }
 
       const tokenUsage =

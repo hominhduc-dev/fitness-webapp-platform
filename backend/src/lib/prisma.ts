@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client"
 
 import { env } from "../config/env"
+import { logger } from "./logger"
 
 const globalForPrisma = globalThis as {
   prisma?: PrismaClient
@@ -95,7 +96,7 @@ if (prisma) {
     ) {
       return // swallow — Prisma will reconnect transparently
     }
-    console.error("[prisma]", msg)
+    logger.error("prisma client error", { detail: msg })
   })
 }
 
@@ -107,7 +108,7 @@ if (prisma && slowQueryMs > 0) {
   prisma.$on("query" as never, (event: { duration: number; query: string; params: string }) => {
     if (event.duration >= slowQueryMs) {
       const sql = event.query.replace(/\s+/g, " ").trim().slice(0, 300)
-      console.warn(`[prisma:slow] ${event.duration}ms ${sql}`)
+      logger.warn("slow query", { durationMs: event.duration, sql })
     }
   })
 }

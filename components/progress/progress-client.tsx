@@ -69,10 +69,6 @@ function inferKind(kindField: string | undefined | null, name: string): WorkoutK
   return "push"
 }
 
-function formatYYYYMM(year: number, month: number) {
-  return `${year}-${String(month).padStart(2, "0")}`
-}
-
 function monthLabel(year: number, month: number, locale: string) {
   return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { month: "long", year: "numeric" }).format(
     new Date(year, month - 1, 1),

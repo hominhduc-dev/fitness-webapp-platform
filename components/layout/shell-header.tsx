@@ -82,7 +82,7 @@ function NavItems({
 /* ------------------------------------------------------------------ */
 export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   const { messages } = useLocale()
-  const { profile, signOut } = useAuth()
+  const { signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)

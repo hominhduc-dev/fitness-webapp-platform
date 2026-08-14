@@ -10,7 +10,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Trash2,
   UserPlus,
   X,
 } from "lucide-react"
@@ -24,7 +23,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   adjustCoachProgram,
@@ -416,7 +414,7 @@ function RoutineDot({ tag }: { tag: RoutineTag }) {
 }
 
 function RoutineTagBadge({ tag }: { tag: RoutineTag }) {
-  const { locale, messages } = useLocale()
+  const { messages } = useLocale()
 
   return (
     <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -701,34 +699,6 @@ function RoutinePickerDialog({
   )
 }
 
-function NumberField({
-  label,
-  min,
-  onChange,
-  step = 1,
-  value,
-}: {
-  label: string
-  min?: number
-  onChange: (value: number) => void
-  step?: number
-  value: number | string
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Label className="label-micro">{label}</Label>
-      <Input
-        type="number"
-        value={value}
-        min={min}
-        step={step}
-        onChange={(event) => onChange(event.target.value === "" ? 0 : Number(event.target.value))}
-        className="h-9 bg-background text-center font-mono text-sm tnum"
-      />
-    </div>
-  )
-}
-
 export function ProgramEditor({
   initialExerciseOptions = [],
   initialTraineeOptions = [],
@@ -751,7 +721,9 @@ export function ProgramEditor({
   const [durationDraft, setDurationDraft] = useState("8")
   const [daysPerWeek, setDaysPerWeek] = useState("4")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
-  const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
+  // Write-only: loadPage() maps the schedule from its own local copy, so nothing
+  // reads this back. Kept as state because the picker is expected to consume it.
+  const [, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
   const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>(initialTraineeOptions)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
   const [assignedTrainees, setAssignedTrainees] = useState<AssignedTrainee[]>([])

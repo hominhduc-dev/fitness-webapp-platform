@@ -26,6 +26,7 @@ Authentication is handled by **Supabase Auth**, and all application data lives i
 - [Data model](#data-model)
 - [Getting started](#getting-started)
 - [Scripts](#scripts)
+- [Quality gates](#quality-gates)
 - [Conventions & ground rules](#conventions--ground-rules)
 - [Auth & access model](#auth--access-model)
 - [Known gotchas](#known-gotchas)
@@ -406,7 +407,8 @@ Open http://localhost:3000 and sign up / log in.
 |---|---|
 | `npm run dev` | Next.js dev server (`:3000`) |
 | `npm run build` / `npm start` | Production build / serve |
-| `npm run lint` | ESLint |
+| `npm run lint` · `lint:fix` | ESLint over `app/`, `components/`, `lib/` **and** `backend/src/` |
+| `npm run typecheck` · `typecheck:backend` | `tsc --noEmit` per package |
 | `npm run dev:backend` · `build:backend` · `start:backend` | Proxy to backend scripts |
 | `npm run create:admin` | Create an admin account (proxies to backend) |
 | `npm run seed:exercises` · `seed:foods` | Seed reference data (proxies to backend) |
@@ -418,11 +420,81 @@ Open http://localhost:3000 and sign up / log in.
 | Script | Description |
 |---|---|
 | `npm --prefix backend run dev` | `tsx watch` API server |
-| `npm --prefix backend run build` / `start` | Compile / run `dist` |
+| `npm --prefix backend run build` / `start` | Compile (`tsconfig.build.json`, excludes tests) / run `dist` |
+| `npm --prefix backend run typecheck` | `tsc --noEmit`, including test files |
+| `npm --prefix backend run test` · `test:watch` · `test:coverage` | Vitest |
 | `npm --prefix backend run seed:exercises` / `seed:foods` | Seed reference data |
 | `npm --prefix backend run create:admin` | Create an admin user |
 | `npm --prefix backend run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma commands |
 | `npm --prefix backend run prisma:resolve:baseline` | One-off: mark the initial baseline migration as applied without running it |
+
+---
+
+## Quality gates
+
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+lint (both packages), typecheck (both packages), the backend test suite, and a
+production build of each app. `deploy-backend.yml` re-runs the backend checks as a
+`needs:` gate, so a failing test cannot reach the VPS, and the deploy now fails if
+the container does not answer `/api/health` afterwards.
+
+### Testing
+
+**Vitest**, 141 tests, colocated as `src/**/*.test.ts` in the backend.
+
+Coverage is deliberately concentrated on logic that is pure or contract-defining,
+rather than on Prisma round-trips:
+
+| Area | What is asserted |
+|---|---|
+| `services/errors` | Status→code mapping, and that 5xx messages are never exposed |
+| `middleware/error-handler` | The `{ data, error, meta }` envelope for every error class |
+| `middleware/validate` | Parsed values reach the handler; failures 422 with the offending path |
+| `middleware/rate-limit` | Per-caller bucketing; the raw access token never enters the key |
+| `config/env` | Defaults, placeholder rejection, Supabase URL inference, production fail-fast |
+| `routes/*.schemas` | Boundary limits on the AI and workout payloads |
+| `lib/cache` | TTL expiry and single-flight loading |
+| `lib/nutrition`, `services/nutrition` | Slug/diacritic handling and macro scaling |
+| `fitness-data/shared/dates` | UTC day keys vs. local windows, rollover rejection |
+
+Tests are hermetic: `ENV_SKIP_DOTENV=1` stops the suite from reading a developer's
+real `.env`, so results never depend on the machine and live credentials cannot
+reach test output.
+
+### Error model
+
+`services/errors.ts` defines `AppError` and its subclasses (`BadRequestError`,
+`UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`,
+`ValidationError`, `TooManyRequestsError`, `ExternalServiceError`).
+
+A single terminal middleware formats all of them. The `expose` flag is the load-
+bearing part: 4xx messages are written for end users and are sent as-is, while 5xx
+messages (which can carry connection strings or upstream payloads) are replaced by
+a generic string and only ever appear in the logs.
+
+`AuthServiceError` remains as a subclass so the ~226 existing throw sites keep
+working; new code should throw the specific classes.
+
+### Request hardening
+
+- **helmet** for transport and framing headers.
+- **Rate limits** per caller, keyed by a SHA-256 hash of the bearer token and
+  falling back to an IP bucket. `/api/ai/*` is limited separately and tightly —
+  those endpoints spend money at a metered LLM provider, so an unbounded caller is
+  a billing risk, not just a load problem.
+- **Zod validation** at the boundary for `/api/ai/*`, `/api/auth/*` and
+  `/api/workouts/*`. Business rules that already have localized Vietnamese messages
+  stay in the services; the schemas enforce shape and size.
+- **Request ids** (`x-request-id`, echoed on the response) propagated through
+  `AsyncLocalStorage`, so a service-level log line can be traced to its HTTP call
+  without threading an id through every signature.
+- **Structured logging** — single-line JSON in production, human-readable locally.
+- **Fail-fast config** — a production boot aborts with a list of what is missing
+  rather than starting half-configured and failing on the first request.
+- **Graceful shutdown** on SIGTERM, so a redeploy drains in-flight requests instead
+  of dropping Prisma connections on the PgBouncer pooler.
+
+Known, tracked shortfalls are recorded in [`docs/tech-debt.md`](docs/tech-debt.md).
 
 ---
 
