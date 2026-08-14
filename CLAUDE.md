@@ -45,7 +45,9 @@ Three roles: **trainee**, **coach**, **admin** — enforced server-side via `req
 
 ## Ground Rules
 1. All API responses use `{ data, error, meta }` format.
-2. Every API route uses `AppError` class — never throw raw `Error`.
+2. Every API route uses the `AppError` class (`backend/src/services/errors.ts`) — never throw raw `Error`. Enforced by ESLint. The central `errorHandler` formats them; 5xx messages are never sent to the client.
+   - New routes use `validated()` / `asyncHandler()` from `middleware/validate.ts` and throw; they do not catch and format their own errors.
+   - Request input is validated with zod at the route boundary; business rules with localized messages stay in the services.
 3. Use Prisma for all database queries — no raw SQL except in migration files.
 4. Frontend components use named exports, not default exports.
 5. Every database change requires a migration file.
@@ -58,11 +60,15 @@ Three roles: **trainee**, **coach**, **admin** — enforced server-side via `req
 # Frontend
 npm run dev          # Next.js dev server on :3000
 npm run build        # Production build
-npm run lint         # ESLint
+npm run lint         # ESLint (covers app/, components/, lib/ AND backend/src/)
+npm run typecheck    # tsc --noEmit
 
 # Backend
 npm run dev:backend  # Express dev server on :4000
 npm run build:backend
+npm --prefix backend run typecheck
+npm --prefix backend run test        # Vitest
+npm --prefix backend run test:watch
 
 # Database
 npm run prisma:generate

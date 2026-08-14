@@ -141,7 +141,6 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
       el.removeEventListener("touchend", onEnd)
       el.removeEventListener("touchcancel", onEnd)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onRefresh, router])
 
   const visualPull = refreshing ? THRESHOLD : pull

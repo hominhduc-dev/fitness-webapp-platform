@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Plus, SkipForward } from "lucide-react"
+import { Plus, SkipForward } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"

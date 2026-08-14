@@ -1,4 +1,5 @@
 import { env } from "../config/env"
+import { logger } from "../lib/logger"
 
 type N8nWebhookPayload = {
   timestamp: string
@@ -44,9 +45,7 @@ async function sendWebhookPayloadToN8n(payload: N8nWebhookPayload) {
     })
 
     if (!response.ok) {
-      if (env.nodeEnv !== "production") {
-        console.error(`n8n log webhook failed with status ${response.status}`)
-      }
+      logger.warn("n8n log webhook rejected the payload", { status: response.status })
 
       return {
         ok: false,
@@ -60,9 +59,7 @@ async function sendWebhookPayloadToN8n(payload: N8nWebhookPayload) {
       statusCode: response.status,
     }
   } catch (error) {
-    if (env.nodeEnv !== "production") {
-      console.error("n8n log webhook error", error)
-    }
+    logger.warn("n8n log webhook request failed", { error })
 
     return {
       ok: false,

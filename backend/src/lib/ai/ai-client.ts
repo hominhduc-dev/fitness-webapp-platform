@@ -1,31 +1,38 @@
+import { env } from "../../config/env"
+import { AppError } from "../../services/errors"
 import { createAnthropicProvider } from "./anthropic-provider"
 import { createOpenAIProvider } from "./openai-provider"
 import type { AIProvider } from "./types"
 
 let cachedProvider: AIProvider | null = null
 
+function missingKeyError(variable: string) {
+  return new AppError(`Tính năng AI chưa được cấu hình trên máy chủ.`, {
+    code: "AI_NOT_CONFIGURED",
+    details: { missing: variable, provider: env.aiProvider },
+    status: 503,
+  })
+}
+
 function getAIProvider(): AIProvider {
   if (cachedProvider) {
     return cachedProvider
   }
 
-  const provider = process.env.AI_PROVIDER ?? "anthropic"
-  const model = process.env.AI_MODEL ?? "claude-haiku-4-5-20251001"
+  if (env.aiProvider === "openai") {
+    const apiKey = env.openaiApiKey ?? env.aiApiKey
 
-  if (provider === "openai") {
-    const apiKey = process.env.OPENAI_API_KEY ?? process.env.AI_API_KEY
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY or AI_API_KEY is required when AI_PROVIDER=openai")
+      throw missingKeyError("OPENAI_API_KEY or AI_API_KEY")
     }
-    const baseURL = process.env.AI_BASE_URL || undefined
-    const jsonMode = process.env.AI_JSON_MODE !== "false"
-    cachedProvider = createOpenAIProvider(apiKey, model, baseURL, jsonMode)
+
+    cachedProvider = createOpenAIProvider(apiKey, env.aiModel, env.aiBaseUrl, env.aiJsonMode)
   } else {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic")
+    if (!env.anthropicApiKey) {
+      throw missingKeyError("ANTHROPIC_API_KEY")
     }
-    cachedProvider = createAnthropicProvider(apiKey, model)
+
+    cachedProvider = createAnthropicProvider(env.anthropicApiKey, env.aiModel)
   }
 
   return cachedProvider

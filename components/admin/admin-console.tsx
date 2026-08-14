@@ -2,20 +2,15 @@
 
 import {
   Activity,
-  ClipboardList,
   Download,
-  Dumbbell,
   KeyRound,
-  LayoutDashboard,
   Link2,
   Loader2,
   Save,
   Search,
-  ScrollText,
   Trash2,
   Upload,
   UserRoundCheck,
-  Users,
 } from "lucide-react"
 import { useEffect, useState, type ChangeEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -39,7 +34,6 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import {
   assignAdminCoachConnection,
   bulkDeleteAdminExercisesRequest,
@@ -75,7 +69,6 @@ import type {
   AdminExerciseItem,
   AdminExerciseImportRequest,
   AdminExerciseImportRow,
-  AdminMiniUser,
   AdminProgramSummary,
   AdminUserDetail,
   AdminUserListItem,
@@ -83,7 +76,6 @@ import type {
   ExerciseSyncRow,
 } from "@/lib/admin/types"
 import { matchesExerciseSearch, scoreExerciseSearch, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
-import { formatExerciseVariationLabel, formatExerciseVariationMeta } from "@/lib/exercise-display"
 import type { UserRole } from "@/lib/types"
 
 type ConfirmState =
@@ -344,13 +336,6 @@ function EmptyState({ copy }: { copy: string }) {
 
 type AdminSectionId = "dashboard" | "users" | "requests" | "connections" | "programs" | "exercises" | "audit"
 
-type AdminSectionItem = {
-  badge?: number
-  icon: typeof LayoutDashboard
-  id: AdminSectionId
-  label: string
-}
-
 function AdminShellHeader({
   activeSection,
   auditCount,
@@ -525,9 +510,11 @@ export function AdminConsole() {
   const [requestStatusFilter, setRequestStatusFilter] = useState<AdminCoachRequest["status"] | "all">("all")
   const [connectionSearch, setConnectionSearch] = useState("")
   const [programSearch, setProgramSearch] = useState("")
-  const [exerciseSearch, setExerciseSearch] = useState("")
-  const [openExerciseGroups, setOpenExerciseGroups] = useState<string[]>([])
-  const [selectedExerciseGroupKeys, setSelectedExerciseGroupKeys] = useState<string[]>([])
+  // The exercise search box now lives in <AdminExercisesPanel>; the console only
+  // still needs the unfiltered grouping, so this stays a constant empty query.
+  const exerciseSearch = ""
+  // Only the setter is used — the effect below prunes keys for groups that scrolled out.
+  const [, setSelectedExerciseGroupKeys] = useState<string[]>([])
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
@@ -565,7 +552,8 @@ export function AdminConsole() {
   const [syncPreview, setSyncPreview] = useState<ExerciseSyncPreview | null>(null)
   const [syncRows, setSyncRows] = useState<ExerciseSyncRow[]>([])
   const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false)
-  const [syncInputKey, setSyncInputKey] = useState(0)
+  // Only the setter is used — bumping it remounts the sync file input.
+  const [, setSyncInputKey] = useState(0)
 
   useEffect(() => {
     if (!userDetail) {
@@ -1013,35 +1001,6 @@ export function AdminConsole() {
       setNotice(locale === "en" ? "Coach assigned successfully." : "Đã gán coach cho trainee.")
     } catch (assignError) {
       setError(assignError instanceof Error ? assignError.message : "Không thể gán coach.")
-    } finally {
-      setActionKey(null)
-    }
-  }
-
-  async function handleSaveExercise() {
-    if (!session?.access_token) {
-      return
-    }
-
-    setActionKey(exerciseForm.id ? `exercise-update-${exerciseForm.id}` : "exercise-create")
-    setError(null)
-    setNotice(null)
-
-    try {
-      if (exerciseForm.id) {
-        const savedExercise = await updateAdminExerciseRequest(session.access_token, exerciseForm.id, exerciseForm)
-        setExercises((current) => sortAdminExercises(current.map((item) => (item.id === savedExercise.id ? savedExercise : item))))
-        setNotice(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
-      } else {
-        const savedExercise = await createAdminExerciseRequest(session.access_token, exerciseForm)
-        setExercises((current) => sortAdminExercises([savedExercise, ...current]))
-        setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
-      }
-
-      resetExerciseForm()
-      void refreshExercises()
-    } catch (exerciseError) {
-      setError(exerciseError instanceof Error ? exerciseError.message : "Không thể lưu bài tập.")
     } finally {
       setActionKey(null)
     }
@@ -1639,16 +1598,6 @@ export function AdminConsole() {
   )
   const visibleExerciseGroupKeys = groupedExercises.map((group) => group.groupKey)
   const visibleExerciseGroupKeySignature = visibleExerciseGroupKeys.join("|")
-  const shouldAutoExpandExerciseGroups = exerciseSearch.trim().length > 0
-  const totalExerciseUsageCount = groupedExercises.reduce((sum, group) => sum + group.totalUsageCount, 0)
-  const selectedExerciseGroups = groupedExercises.filter((group) => selectedExerciseGroupKeys.includes(group.groupKey))
-  const selectedExerciseGroupCount = selectedExerciseGroups.length
-  const selectAllExerciseGroupsState =
-    selectedExerciseGroupCount === 0
-      ? false
-      : selectedExerciseGroupCount === groupedExercises.length
-        ? true
-        : "indeterminate"
 
   useEffect(() => {
     const visibleGroupKeySet = new Set(visibleExerciseGroupKeys)
@@ -1663,14 +1612,6 @@ export function AdminConsole() {
     const matchesEntityType = auditEntityType === "all" ? true : log.entityType === auditEntityType
     return matchesEntityType && matchesSearch([log.action, log.entityType, log.entityLabel, log.admin.name], auditSearch)
   })
-  const exerciseMuscleGroupOptions = Array.from(
-    new Map(
-      [...EXERCISE_TEMPLATE_MUSCLE_GROUPS, ...exercises.map((exercise) => exercise.muscleGroup), exerciseForm.muscleGroup]
-        .map((muscleGroup) => muscleGroup?.trim())
-        .filter((muscleGroup): muscleGroup is string => Boolean(muscleGroup))
-        .map((muscleGroup) => [muscleGroup.toLowerCase(), muscleGroup]),
-    ).values(),
-  ).sort((left, right) => left.localeCompare(right, locale === "vi" ? "vi" : "en", { sensitivity: "base" }))
   const isExerciseGroupDelete =
     confirmState?.kind === "exercise-group" || confirmState?.kind === "exercise-groups"
   const isBulkExerciseGroupDelete = confirmState?.kind === "exercise-groups"
@@ -1709,16 +1650,6 @@ export function AdminConsole() {
         : "Xác nhận"
   const isConsolePending = !session?.access_token || isLoading
   const pendingRequestCount = coachRequests.filter((request) => request.status === "pending").length
-  const adminNavItems: AdminSectionItem[] = [
-    { icon: LayoutDashboard, id: "dashboard", label: "Dashboard" },
-    { icon: Users, id: "users", label: "Users" },
-    { badge: pendingRequestCount || undefined, icon: UserRoundCheck, id: "requests", label: "Coach Requests" },
-    { icon: Link2, id: "connections", label: "Connections" },
-    { icon: ClipboardList, id: "programs", label: "Programs" },
-    { icon: Dumbbell, id: "exercises", label: "Exercises" },
-    { icon: ScrollText, id: "audit", label: "Audit" },
-  ]
-
   return (
     <>
       <main className="min-w-0">
