@@ -1,6 +1,16 @@
 import js from "@eslint/js"
-import nextPlugin from "eslint-config-next/core-web-vitals"
+/**
+ * The Next and react-hooks plugins are used directly rather than through
+ * `eslint-config-next`. That wrapper also pulls eslint-plugin-import and
+ * eslint-import-resolver-typescript, whose `unrs-resolver` dependency ships
+ * prebuilt wasm bindings that npm resolves differently per platform — installing
+ * on Windows left package-lock.json unresolvable by `npm ci` on the Linux CI
+ * runners. None of the import/* rules were in use, so dropping the wrapper costs
+ * nothing and removes the platform-dependent dependency entirely.
+ */
+import nextPlugin from "@next/eslint-plugin-next"
 import globals from "globals"
+import reactHooks from "eslint-plugin-react-hooks"
 import tseslint from "typescript-eslint"
 
 const FRONTEND_FILES = ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"]
@@ -37,7 +47,10 @@ export default [
   // ---------------------------------------------------------------- frontend
   ...scopeTo([js.configs.recommended], FRONTEND_FILES),
   ...scopeTo(tseslint.configs.recommended, FRONTEND_FILES),
-  ...scopeTo(nextPlugin, FRONTEND_FILES),
+  ...scopeTo([nextPlugin.configs.recommended, nextPlugin.configs["core-web-vitals"]], FRONTEND_FILES),
+  // v7 still exports the eslintrc shape at `configs.recommended`; the flat one
+  // lives under `configs.flat`.
+  ...scopeTo([reactHooks.configs.flat["recommended-latest"]], FRONTEND_FILES),
   {
     files: FRONTEND_FILES,
     languageOptions: {
