@@ -145,7 +145,7 @@ function FilterChip({
     <button
       type="button"
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors",
+        "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-border bg-card text-foreground hover:border-foreground/25",
