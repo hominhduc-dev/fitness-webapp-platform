@@ -122,6 +122,11 @@
   --glass-rim-soft: rgb(255 255 255 / 38%);
   --glass-skeleton-base: rgb(15 23 42 / 5%);
   --glass-skeleton-sheen: rgb(15 23 42 / 11%);
+  /* Opaque fallback for prefers-reduced-transparency. */
+  --glass-solid: #f4f6fa;
+  /* The dome keeps a white glyph in both themes, so on a pale backdrop its
+     fill has to stay dark and fairly opaque or the icon disappears. */
+  --glass-dome-fill: rgb(15 23 42 / 62%);
 
   /* Page backdrop. Flat white gives the glass nothing to blur or refract, so
      light gets faint brand-tinted pools over an off-white base. Deliberately
@@ -484,6 +489,8 @@ input[type="button"] {
   --glass-rim-soft: rgb(255 255 255 / 14%);
   --glass-skeleton-base: rgb(255 255 255 / 4%);
   --glass-skeleton-sheen: rgb(255 255 255 / 12%);
+  --glass-solid: #1c1e24;
+  --glass-dome-fill: rgb(20 22 28 / 38%);
 
   --page-backdrop:
     radial-gradient(circle at 12% 5%, rgb(133 39 31 / 34%), transparent 34rem),
@@ -605,43 +612,40 @@ body {
 }
 
 .auth-floating-panel {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 18%),
-    0 24px 70px rgb(0 0 0 / 38%);
-}
-
-.glass .auth-floating-panel {
-  border-color: rgb(255 255 255 / 20%);
+  border-color: var(--glass-border);
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2%)),
-    rgb(22 22 27 / 76%);
+    linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
+    var(--glass-bg-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
   -webkit-backdrop-filter: blur(28px) saturate(150%);
   backdrop-filter: blur(28px) saturate(150%);
 }
 
-.glass .auth-theme-tab {
+.auth-theme-tab {
   border-radius: 999px;
   color: var(--muted-foreground);
   transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
 }
 
-.glass .auth-theme-tab:hover {
+.auth-theme-tab:hover {
   color: var(--foreground);
-  background: rgb(255 255 255 / 8%);
+  background: var(--glass-scrim);
 }
 
-.glass .auth-theme-tab[data-state="active"] {
-  color: #ffffff;
-  border-color: rgb(255 255 255 / 16%);
-  background: rgb(255 255 255 / 14%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%), 0 6px 18px rgb(0 0 0 / 16%);
+.auth-theme-tab[data-state="active"] {
+  color: var(--primary-foreground);
+  border-color: var(--glass-border);
+  background: var(--primary);
+  box-shadow: inset 0 1px 0 var(--glass-rim-soft), var(--glass-shadow);
 }
 
-.glass .glass-surface,
-.glass [data-slot="dialog-content"],
-.glass [data-slot="drawer-content"] {
+/* ── Core surfaces ──────────────────────────────────────────────────────── */
+
+.glass-surface,
+[data-slot="dialog-content"],
+[data-slot="drawer-content"] {
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 2%)),
+    linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
     var(--glass-bg-strong);
   border-color: var(--glass-border);
   box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
@@ -649,92 +653,90 @@ body {
   backdrop-filter: blur(22px) saturate(145%);
 }
 
-/* Meal picker: a warmer, lighter glass material than the default dark modal. */
-.glass .glass-surface.meal-food-sheet {
-  --foreground: #fffafa;
-  --muted-foreground: #cec3c5;
-  --border: rgb(255 255 255 / 20%);
-  --muted: rgb(255 255 255 / 10%);
-  --input: rgb(255 255 255 / 16%);
+/* Meal picker: a warmer glass than the default modal. The warm tint is an
+   overlay rather than a fill, so it reads the same over either theme's
+   base — and the local token overrides the dark version needed are gone,
+   because the sheet now inherits whichever palette is active. */
+.glass-surface.meal-food-sheet {
   background:
-    radial-gradient(circle at 12% 0%, rgb(178 72 62 / 34%), transparent 44%),
-    linear-gradient(145deg, rgb(255 255 255 / 16%), rgb(255 255 255 / 4%)),
-    rgb(38 27 31 / clamp(0.5, calc(var(--glass-opacity) * 0.9), 0.78));
-  border-color: rgb(255 255 255 / 26%);
+    radial-gradient(circle at 12% 0%, rgb(178 72 62 / 22%), transparent 44%),
+    linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
+    var(--glass-bg-strong);
+  border-color: var(--glass-border);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 28%),
-    inset 1px 0 0 rgb(255 255 255 / 8%),
-    0 28px 90px rgb(0 0 0 / 34%);
+    inset 0 1px 0 var(--glass-highlight),
+    inset 1px 0 0 var(--glass-rim-soft),
+    var(--glass-shadow);
   -webkit-backdrop-filter: blur(30px) saturate(165%);
   backdrop-filter: blur(30px) saturate(165%);
 }
 
-.glass .meal-food-sheet__chrome {
+.meal-food-sheet__chrome {
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 11%), rgb(255 255 255 / 4%)),
-    rgb(76 43 46 / clamp(0.24, calc(var(--glass-opacity) * 0.46), 0.42));
+    linear-gradient(180deg, var(--glass-tint-1), var(--glass-tint-2)),
+    var(--glass-scrim);
 }
 
-.glass .meal-food-sheet__control {
+.meal-food-sheet__control {
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 5%)),
-    rgb(255 255 255 / 8%);
-  border-color: rgb(255 255 255 / 18%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 17%);
+    linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
+    var(--glass-scrim);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-rim-soft);
 }
 
-.glass .meal-food-sheet__row {
-  border-color: rgb(255 255 255 / 9%);
-  background: rgb(255 255 255 / 6%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+.meal-food-sheet__row {
+  border-color: var(--glass-border);
+  background: var(--glass-scrim);
+  box-shadow: inset 0 1px 0 var(--glass-rim-soft);
 }
 
-.glass .meal-food-sheet__category[data-active="false"] {
-  color: #ddd4d5;
-  border-color: rgb(255 255 255 / 14%);
-  background: rgb(255 255 255 / 8%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+.meal-food-sheet__category[data-active="false"] {
+  color: var(--muted-foreground);
+  border-color: var(--glass-border);
+  background: var(--glass-scrim);
+  box-shadow: inset 0 1px 0 var(--glass-rim-soft);
 }
 
-.glass .bg-card {
+.bg-card {
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 1.5%)),
+    linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
     var(--card);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), 0 12px 34px rgb(0 0 0 / 20%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
   -webkit-backdrop-filter: blur(14px) saturate(130%);
   backdrop-filter: blur(14px) saturate(130%);
 }
 
-.glass .glass-card {
+.glass-card {
   position: relative;
   overflow: hidden;
   border-radius: 20px;
-  border-color: rgb(255 255 255 / 16%);
+  border-color: var(--glass-border);
   background:
-    linear-gradient(145deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 2.5%)),
-    rgb(28 30 36 / clamp(0.18, calc(var(--glass-opacity) * 0.8), 0.82));
+    linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
+    var(--glass-bg);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 22%),
-    inset 1px 0 0 rgb(255 255 255 / 8%),
-    0 16px 44px rgb(0 0 0 / 22%);
+    inset 0 1px 0 var(--glass-highlight),
+    inset 1px 0 0 var(--glass-rim-soft),
+    var(--glass-shadow);
   -webkit-backdrop-filter: blur(24px) saturate(155%);
   backdrop-filter: blur(24px) saturate(155%);
 }
 
-.glass .glass-card::before {
+.glass-card::before {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(circle at 18% 0%, rgb(255 255 255 / 14%), transparent 38%);
+  background: radial-gradient(circle at 18% 0%, var(--glass-rim-soft), transparent 38%);
   content: "";
   pointer-events: none;
 }
 
-.glass .glass-card:hover {
-  border-color: rgb(255 255 255 / 28%);
+.glass-card:hover {
+  border-color: var(--glass-hover-border);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 28%),
-    0 20px 52px rgb(0 0 0 / 28%);
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-shadow);
   transform: translateY(-2px);
 }
 
@@ -748,50 +750,22 @@ body {
     overflow: hidden;
     border: 1px solid var(--sidebar-border);
     border-radius: 24px;
-    background: color-mix(in srgb, var(--sidebar) 88%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 52%),
-      0 18px 48px rgb(15 23 42 / 12%);
+    background:
+      linear-gradient(150deg, var(--glass-tint-1), var(--glass-tint-2)),
+      color-mix(in srgb, var(--sidebar) 86%, transparent);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
     -webkit-backdrop-filter: blur(20px) saturate(135%);
     backdrop-filter: blur(20px) saturate(135%);
-  }
-
-  .dark aside.glass-surface {
-    border-color: rgb(255 255 255 / 10%);
-    background: color-mix(in srgb, var(--sidebar) 84%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 10%),
-      0 18px 48px rgb(0 0 0 / 30%);
-  }
-
-  .glass aside.glass-surface {
-    background:
-      linear-gradient(150deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 3%)),
-      rgb(30 32 38 / clamp(0.2, calc(var(--glass-opacity) * 0.83), 0.86));
-    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
   }
 }
 
 @media (max-width: 767px) {
-  :root:not(.dark) .mobile-floating-nav {
-    border-color: rgb(15 23 42 / 10%);
-    background: rgb(255 255 255 / 42%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 92%),
-      0 18px 48px rgb(15 23 42 / 13%);
-    -webkit-backdrop-filter: blur(22px) saturate(165%);
-    backdrop-filter: blur(22px) saturate(165%);
-  }
-
-  .glass .mobile-floating-nav {
-    border-color: rgb(255 255 255 / 22%);
+  .mobile-floating-nav {
+    border-color: var(--glass-border);
     background:
-      linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%)),
-      rgb(15 16 20 / clamp(0.25, calc(var(--glass-opacity) + 0.1), 0.95));
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 24%),
-      inset 0 -1px 0 rgb(0 0 0 / 32%),
-      0 14px 38px rgb(0 0 0 / 42%);
+      linear-gradient(180deg, var(--glass-tint-1), var(--glass-tint-2)),
+      var(--glass-bg-strong);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
     -webkit-backdrop-filter: blur(26px) saturate(155%);
     backdrop-filter: blur(26px) saturate(155%);
   }
@@ -801,23 +775,23 @@ body {
   }
 }
 
-.glass input,
-.glass textarea,
-.glass select {
-  background-color: rgb(255 255 255 / 6%);
+input,
+textarea,
+select {
+  background-color: var(--glass-scrim);
 }
 
-.glass [data-slot="skeleton"] {
+[data-slot="skeleton"] {
   background-image: linear-gradient(
     110deg,
-    rgb(255 255 255 / 5%) 20%,
-    rgb(255 255 255 / 12%) 42%,
-    rgb(255 255 255 / 5%) 64%
+    var(--glass-skeleton-base) 20%,
+    var(--glass-skeleton-sheen) 42%,
+    var(--glass-skeleton-base) 64%
   );
-  background-color: rgb(255 255 255 / 4%);
+  background-color: var(--glass-skeleton-base);
   background-size: 240% 100%;
-  border: 1px solid rgb(255 255 255 / 5%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-rim-soft);
   animation-duration: 2.2s;
 }
 
@@ -834,16 +808,16 @@ body {
    engine-agnostic and enhances the frosted material for every browser.
    ============================================================ */
 
-.glass .lg-bevel,
-.glass .glass-card,
-.glass .mobile-floating-nav,
-.glass aside.glass-surface,
-.glass [data-slot="dialog-content"],
-.glass [data-slot="drawer-content"] {
+.lg-bevel,
+.glass-card,
+.mobile-floating-nav,
+aside.glass-surface,
+[data-slot="dialog-content"],
+[data-slot="drawer-content"] {
   isolation: isolate;
 }
 
-.glass .lg-bevel {
+.lg-bevel {
   position: relative;
 }
 
@@ -851,12 +825,12 @@ body {
    surface turns away from the viewer, so the highlight rides the top and left
    edges and fades to a dim bounce along the bottom. Sits above the backdrop
    but below content, and never eats pointer events. */
-.glass .lg-bevel::after,
-.glass .glass-card::after,
-.glass .mobile-floating-nav::after,
-.glass aside.glass-surface::after,
-.glass [data-slot="dialog-content"]::after,
-.glass [data-slot="drawer-content"]::after {
+.lg-bevel::after,
+.glass-card::after,
+.mobile-floating-nav::after,
+aside.glass-surface::after,
+[data-slot="dialog-content"]::after,
+[data-slot="drawer-content"]::after {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -864,16 +838,16 @@ body {
   background:
     linear-gradient(
       145deg,
-      rgb(255 255 255 / 16%) 0%,
+      var(--glass-rim-soft) 0%,
       rgb(255 255 255 / 0%) 22%,
       rgb(255 255 255 / 0%) 78%,
-      rgb(255 255 255 / 7%) 100%
+      var(--glass-tint-2) 100%
     );
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 42%),
-    inset 1px 0 0 rgb(255 255 255 / 16%),
-    inset -1px 0 0 rgb(255 255 255 / 12%),
-    inset 0 -1px 0 rgb(255 255 255 / 9%);
+    inset 0 1px 0 var(--glass-rim-strong),
+    inset 1px 0 0 var(--glass-rim-soft),
+    inset -1px 0 0 var(--glass-tint-2),
+    inset 0 -1px 0 var(--glass-tint-2);
   content: "";
   pointer-events: none;
 }
@@ -888,14 +862,14 @@ body {
 
    Each surface takes the filter authored at its own aspect ratio, so the bevel
    band lands at an even thickness the whole way round. */
-:root[data-liquid-glass="on"].glass .glass-surface,
-:root[data-liquid-glass="on"].glass [data-slot="dialog-content"],
-:root[data-liquid-glass="on"].glass [data-slot="drawer-content"] {
+:root[data-liquid-glass="on"] .glass-surface,
+:root[data-liquid-glass="on"] [data-slot="dialog-content"],
+:root[data-liquid-glass="on"] [data-slot="drawer-content"] {
   -webkit-backdrop-filter: url("#lg-sheet") blur(6px) saturate(165%) brightness(108%);
   backdrop-filter: url("#lg-sheet") blur(6px) saturate(165%) brightness(108%);
 }
 
-:root[data-liquid-glass="on"].glass aside.glass-surface {
+:root[data-liquid-glass="on"] aside.glass-surface {
   -webkit-backdrop-filter: url("#lg-panel") blur(7px) saturate(160%) brightness(106%);
   backdrop-filter: url("#lg-panel") blur(7px) saturate(160%) brightness(106%);
 }
@@ -908,7 +882,7 @@ body {
    (`brightness: -0.1`), not a brighter one. Refraction survives; the smear
    does not. */
 @media (max-width: 767px) {
-  :root[data-liquid-glass="on"].glass .mobile-floating-nav {
+  :root[data-liquid-glass="on"] .mobile-floating-nav {
     -webkit-backdrop-filter: url("#lg-pill") blur(14px) saturate(165%) brightness(94%);
     backdrop-filter: url("#lg-pill") blur(14px) saturate(165%) brightness(94%);
   }
@@ -919,14 +893,14 @@ body {
    library sets `blurAmount: 0` on its magnifier, and blurring a lens defeats
    the point of it. Keep it to elements roughly 40-72px; the map is authored
    square, so an oval host would smear it. */
-.glass .lg-dome {
-  position: relative;
+.lg-dome,
+.ai-bubble-trigger {
   isolation: isolate;
-  border-color: rgb(255 255 255 / 30%);
+  border-color: var(--glass-hover-border);
   background:
     radial-gradient(circle at 32% 24%, rgb(255 255 255 / 34%), transparent 52%),
     linear-gradient(160deg, rgb(255 255 255 / 20%), rgb(255 255 255 / 5%)),
-    rgb(20 22 28 / 38%);
+    var(--glass-dome-fill);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 62%),
     inset 0 -3px 8px rgb(255 255 255 / 12%),
@@ -936,75 +910,61 @@ body {
   backdrop-filter: blur(3px) saturate(180%) brightness(112%);
 }
 
-:root[data-liquid-glass="on"].glass .lg-dome {
-  -webkit-backdrop-filter: url("#lg-dome") saturate(180%) brightness(112%);
-  backdrop-filter: url("#lg-dome") saturate(180%) brightness(112%);
+/* `.lg-dome` is a bare utility that can land on a statically positioned host,
+   so it needs its own containing block for the bevel below. `.ai-bubble-trigger`
+   must NOT be included: it is positioned by its own `fixed` utility, and this
+   rule is unlayered — which beats Tailwind v4's `@layer utilities` no matter
+   the order — so forcing `relative` here drops the button out of the fixed
+   layer and back into the app-shell flex row, squeezing <main> and shifting
+   the whole page left on mobile. */
+.lg-dome {
+  position: relative;
 }
 
-/* The AI trigger is the one round control in the shell, so it is where the
-   dome earns its place. Scoped to the glass theme — light and dark keep the
-   solid accent button. */
-.glass .ai-bubble-trigger {
-  border-color: rgb(255 255 255 / 30%);
-  background:
-    radial-gradient(circle at 32% 24%, rgb(255 255 255 / 34%), transparent 52%),
-    linear-gradient(160deg, rgb(255 255 255 / 20%), rgb(255 255 255 / 5%)),
-    rgb(20 22 28 / 38%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 62%),
-    inset 0 -3px 8px rgb(255 255 255 / 12%),
-    0 14px 34px rgb(0 0 0 / 45%);
-  color: #ffffff;
-  -webkit-backdrop-filter: blur(3px) saturate(180%) brightness(112%);
-  backdrop-filter: blur(3px) saturate(180%) brightness(112%);
-}
-
-:root[data-liquid-glass="on"].glass .ai-bubble-trigger {
+:root[data-liquid-glass="on"] .lg-dome,
+:root[data-liquid-glass="on"] .ai-bubble-trigger {
   -webkit-backdrop-filter: url("#lg-dome") saturate(180%) brightness(112%);
   backdrop-filter: url("#lg-dome") saturate(180%) brightness(112%);
 }
 
 /* With the backdrop now carrying its own refracted light, the flat fill behind
    these surfaces can drop back and let more of it through. */
-:root[data-liquid-glass="on"].glass .mobile-floating-nav,
-:root[data-liquid-glass="on"].glass aside.glass-surface {
+:root[data-liquid-glass="on"] .mobile-floating-nav,
+:root[data-liquid-glass="on"] aside.glass-surface {
   background:
-    linear-gradient(150deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2%)),
-    rgb(18 20 25 / clamp(0.12, calc(var(--glass-opacity) * 0.55), 0.7));
+    linear-gradient(150deg, var(--glass-tint-2), transparent),
+    var(--glass-bg);
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .glass .glass-surface,
-  .glass .glass-card,
-  .glass .bg-card,
-  .glass [data-slot="dialog-content"],
-  .glass [data-slot="drawer-content"] {
-    background: #1c1e24;
+  .glass-surface,
+  .glass-card,
+  .bg-card,
+  .mobile-floating-nav,
+  aside.glass-surface,
+  .lg-dome,
+  .ai-bubble-trigger,
+  [data-slot="dialog-content"],
+  [data-slot="drawer-content"] {
+    background: var(--glass-solid);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 
-  .glass .lg-bevel::after,
-  .glass .glass-card::after,
-  .glass .mobile-floating-nav::after,
-  .glass aside.glass-surface::after,
-  .glass [data-slot="dialog-content"]::after,
-  .glass [data-slot="drawer-content"]::after {
+  .lg-bevel::after,
+  .glass-card::after,
+  .mobile-floating-nav::after,
+  aside.glass-surface::after,
+  [data-slot="dialog-content"]::after,
+  [data-slot="drawer-content"]::after {
     display: none;
-  }
-
-  .glass .lg-dome,
-  .glass .ai-bubble-trigger {
-    background: #1c1e24;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass *,
-  .glass *::before,
-  .glass *::after {
+  *,
+  *::before,
+  *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

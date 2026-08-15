@@ -7,7 +7,6 @@ import { AlertTriangle, Bell, Camera, ChevronDown, Flame, Loader2, Lock, Monitor
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
-import { maxGlassTransparency, minGlassTransparency, useTheme } from "@/components/providers/theme-provider"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -20,7 +19,6 @@ import type { AppActivityLevel, AppProfile, AppSex } from "@/lib/auth/types"
 import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { getAppBaseUrl } from "@/lib/supabase/config"
-import { cn } from "@/lib/utils"
 
 const availableGoalValues = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"] as const
 const DEFAULT_DAILY_CALORIE_GOAL = 2500
@@ -75,7 +73,6 @@ export type ProfileClientInitialData = {
 
 export function ProfileClient({ initialData }: { initialData: ProfileClientInitialData }) {
   const { messages } = useLocale()
-  const { glassTransparency, setGlassTransparency, theme } = useTheme()
   const { isLoading, profile: authProfile, session, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
   const hasConsumedInitialWeight = useRef(false)
@@ -733,34 +730,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">{messages.profile.appearanceCopy}</p>
           <ThemeToggle className="w-full" />
-        </div>
-
-        <div className={cn("mt-4 rounded-xl border border-border bg-muted/35 p-3.5 transition-opacity", theme !== "glass" && "opacity-50")}>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <Label htmlFor="glass-transparency">{messages.profile.glassTransparency}</Label>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{messages.profile.glassTransparencyCopy}</p>
-            </div>
-            <span className="shrink-0 rounded-full border border-border bg-background px-2.5 py-1 font-mono text-[11px] font-semibold text-foreground tnum">
-              {messages.profile.glassTransparencyValue(glassTransparency)}
-            </span>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Solid</span>
-            <input
-              id="glass-transparency"
-              type="range"
-              min={minGlassTransparency}
-              max={maxGlassTransparency}
-              step={1}
-              value={glassTransparency}
-              disabled={theme !== "glass"}
-              onChange={(event) => setGlassTransparency(Number(event.target.value))}
-              className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-border accent-primary disabled:cursor-not-allowed [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:bg-primary [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-md"
-            />
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Clear</span>
-          </div>
         </div>
       </div>
 

@@ -47,23 +47,24 @@ const themeInitScript = `
 (function() {
   try {
     var storageKey = "yeahbuddy-theme";
-    var glassTransparencyKey = "yeahbuddy-glass-transparency";
     var storedTheme = window.localStorage.getItem(storageKey);
-    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "glass" || storedTheme === "system" ? storedTheme : "light";
+    // "glass" was a third theme before the liquid-glass material became
+    // universal. It resolved to dark, so migrate rather than let it fall
+    // through to light. Mirrors migrateStoredTheme() in theme-provider.tsx.
+    if (storedTheme === "glass") {
+      storedTheme = "dark";
+      window.localStorage.setItem(storageKey, storedTheme);
+    }
+    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "light";
     if (window.location.pathname === "/") theme = "light";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : (theme === "glass" ? "dark" : theme);
+    var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
     var root = document.documentElement;
     root.classList.toggle("dark", resolvedTheme === "dark");
-    root.classList.toggle("glass", theme === "glass");
-    var rawStoredTransparency = window.localStorage.getItem(glassTransparencyKey);
-    var storedTransparency = rawStoredTransparency === null ? NaN : Number(rawStoredTransparency);
-    var transparency = Number.isFinite(storedTransparency) ? Math.min(70, Math.max(10, Math.round(storedTransparency))) : 42;
-    root.style.setProperty("--glass-opacity", ((100 - transparency) / 100).toFixed(2));
     root.style.colorScheme = resolvedTheme;
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      themeColor.setAttribute("content", theme === "glass" ? "#111015" : (resolvedTheme === "dark" ? "#0b0d12" : "#ffffff"));
+      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0b0c10" : "#ffffff");
     }
     // -- Liquid glass capability probe --------------------------------
     // Refraction rides on an SVG filter referenced from backdrop-filter.
