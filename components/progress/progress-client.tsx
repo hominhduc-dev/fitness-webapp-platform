@@ -112,7 +112,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors pointer-coarse:min-h-10",
         active
           ? "border-primary bg-primary-soft text-primary"
           : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -298,7 +298,7 @@ function WorkoutLogModal({
           <button
             type="button"
             onClick={onClose}
-            className="ml-4 rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="ml-4 inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label={messages.common.closeNavigation}
           >
             <X className="h-4 w-4" />
@@ -1049,7 +1049,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             <button
               type="button"
               onClick={goToPrevMonth}
-              className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               aria-label={messages.progressPage.previousMonth}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -1069,7 +1069,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               type="button"
               onClick={goToNextMonth}
               disabled={isCurrentMonth}
-              className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              className="inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
               aria-label={messages.progressPage.nextMonth}
             >
               <ChevronRight className="h-4 w-4" />
@@ -1158,7 +1158,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               <button
                 type="button"
                 onClick={() => setYearViewYear((y) => y - 1)}
-                className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted"
+                className="inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted"
                 aria-label={messages.progressPage.previousYear}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -1168,7 +1168,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                 type="button"
                 onClick={() => setYearViewYear((y) => y + 1)}
                 disabled={yearViewYear >= now.getFullYear()}
-                className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
+                className="inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
                 aria-label={messages.progressPage.nextYear}
               >
                 <ChevronRight className="h-4 w-4" />

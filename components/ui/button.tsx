@@ -20,13 +20,17 @@ const buttonVariants = cva(
           'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
         link: 'text-primary underline-offset-4 hover:underline',
       },
+      // Touch devices get the platform minimum (44px, Apple HIG) via
+      // `pointer-coarse:`; mouse-driven layouts keep the denser sizing.
+      // The `sm` pair stays at 40px — they fill dense, scrollable chip rows
+      // where a full 44px crowds the row without buying much accuracy.
       size: {
-        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
-        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
-        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'size-9',
-        'icon-sm': 'size-8',
-        'icon-lg': 'size-10',
+        default: 'h-9 px-4 py-2 has-[>svg]:px-3 pointer-coarse:h-11',
+        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 pointer-coarse:h-10',
+        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4 pointer-coarse:h-11',
+        icon: 'size-9 pointer-coarse:size-11',
+        'icon-sm': 'size-8 pointer-coarse:size-10',
+        'icon-lg': 'size-10 pointer-coarse:size-11',
       },
     },
     defaultVariants: {

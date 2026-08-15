@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f8fafc",
-  "theme_color": "#f8fafc",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "shortcuts": [
     {
       "name": "Start Workout",

@@ -914,7 +914,7 @@ function RoutineBuilderDialog({
                   type="button"
                   onClick={() => setTag(tagOption)}
                   className={cn(
-                    "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                    "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
                     tag === tagOption
                       ? "border-foreground bg-foreground text-background"
                       : "border-border bg-background text-foreground hover:border-foreground/30",

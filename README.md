@@ -80,7 +80,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript 5
 - **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
 - **Forms:** Controlled React components (no React Hook Form/Zod on the client — see [Known gotchas](#known-gotchas) about `AGENTS.md` disagreeing with this)
-- **Charts:** Recharts · **Drag & drop:** @dnd-kit
+- **Charts:** Recharts
 - **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
 - **Auth client:** `@supabase/ssr` (cookie-based SSR sessions)
 
