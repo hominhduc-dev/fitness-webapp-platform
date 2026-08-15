@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { LiquidGlassFilters } from "@/components/ui/liquid-glass-filters"
 import { defaultLocale } from "@/lib/i18n/config"
 import iosSplashDevices from "@/lib/ios-splash-devices.json"
 import "./globals.css"
@@ -63,6 +64,20 @@ const themeInitScript = `
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
       themeColor.setAttribute("content", theme === "glass" ? "#111015" : (resolvedTheme === "dark" ? "#0b0d12" : "#ffffff"));
+    }
+    // -- Liquid glass capability probe --------------------------------
+    // Refraction rides on an SVG filter referenced from backdrop-filter.
+    // Only Chromium actually resolves url(#id) there: Safari reports support
+    // then paints nothing, Firefox drops it. CSS.supports() cannot tell those
+    // apart, so gate on the engine and let everyone else keep frosted blur.
+    // Runs pre-paint, so there is no flash between the two materials.
+    var ua = navigator.userAgent;
+    var brands = (navigator.userAgentData && navigator.userAgentData.brands) || [];
+    var isChromium = brands.some(function (entry) { return entry.brand === "Chromium"; })
+      || (/(Chrome|Chromium|Edg)\\/[0-9]/.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPT)\\//.test(ua));
+    var opaquePreferred = window.matchMedia && window.matchMedia("(prefers-reduced-transparency: reduce)").matches;
+    if (isChromium && !opaquePreferred && window.CSS && CSS.supports("backdrop-filter", "url(#lg-sheet)")) {
+      root.dataset.liquidGlass = "on";
     }
   } catch (error) {}
 })();
@@ -172,8 +187,11 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pinch-zoom stays available — WCAG 1.4.4 wants it, and iOS Safari has
+  // ignored `user-scalable=no` since iOS 10 anyway. The two reasons to block it
+  // are handled properly instead: the 16px input floor above stops focus
+  // auto-zoom, and `touch-action: manipulation` in globals.css keeps taps
+  // instant by opting controls out of double-tap zoom only.
   viewportFit: "cover", // let content extend under the notch; pair with env(safe-area-inset-*)
 }
 
@@ -193,6 +211,7 @@ export default function RootLayout({
         ))}
       </head>
       <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
+        <LiquidGlassFilters />
         {children}
         {isVercelRuntime ? <Analytics /> : null}
         {isVercelRuntime ? <SpeedInsights /> : null}
