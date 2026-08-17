@@ -35,6 +35,13 @@ import {
   updateCoachProgram,
 } from "@/lib/fitness/api"
 import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
+import {
+  MAX_WEEKS,
+  MIN_WEEKS,
+  clampWeeks,
+  resolveCurrentWeekProgress,
+  type CurrentWeekProgress,
+} from "@/lib/fitness/program-week"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import type {
   AssignedTrainee,
@@ -97,15 +104,6 @@ type BuilderMode =
   | { kind: "edit-slot"; slot: PickerSlot }
   | { kind: "edit-library"; routineId: string }
 
-type CurrentWeekProgress =
-  | { kind: "active"; weekIndex: number }
-  | { kind: "not-started" }
-  | { kind: "completed" }
-  | null
-
-const MIN_WEEKS = 1
-const MAX_WEEKS = 52
-const DAY_IN_MS = 24 * 60 * 60 * 1000
 const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
 const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
@@ -168,48 +166,12 @@ function createFormId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function clampWeeks(value: number) {
-  if (!Number.isFinite(value)) {
-    return 8
-  }
-
-  return Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, Math.round(value)))
-}
-
 function clampDaysPerWeek(value: number) {
   if (DAYS_PER_WEEK_OPTIONS.includes(value)) {
     return value
   }
 
   return Math.min(6, Math.max(3, value || 4))
-}
-
-function parseValidDate(value: unknown) {
-  if (value == null) return null
-  const date = value instanceof Date ? value : new Date(value as string | number)
-  return Number.isFinite(date.getTime()) ? date : null
-}
-
-function startOfUtcWeek(date: Date) {
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-  const day = start.getUTCDay()
-  const offset = day === 0 ? -6 : 1 - day
-  start.setUTCDate(start.getUTCDate() + offset)
-  return start
-}
-
-function resolveCurrentWeekProgress(assignedAt: unknown, totalWeeks: number, now = new Date()): CurrentWeekProgress {
-  const assignedDate = parseValidDate(assignedAt)
-  if (!assignedDate) return null
-  if (assignedDate.getTime() > now.getTime()) return { kind: "not-started" }
-
-  const assignmentWeekStart = startOfUtcWeek(assignedDate)
-  const currentWeekStart = startOfUtcWeek(now)
-  const elapsedWeeks = Math.floor((currentWeekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
-  const lastWeekIndex = Math.max(0, clampWeeks(totalWeeks) - 1)
-
-  if (elapsedWeeks > lastWeekIndex) return { kind: "completed" }
-  return { kind: "active", weekIndex: Math.max(0, Math.min(lastWeekIndex, elapsedWeeks)) }
 }
 
 function resolveInitialActiveWeek(assignedAt: unknown, totalWeeks: number) {
