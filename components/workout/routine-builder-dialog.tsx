@@ -7,11 +7,13 @@ import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
+import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
+import { buildMuscleHighlights } from "@/lib/fitness/muscle-map"
 import type { ExerciseVariationOption, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { parseRepTargetText, formatRepTarget } from "@/lib/workout-reps"
@@ -198,6 +200,12 @@ export function RoutineBuilderDialog({
 
   const totalSets = exercises.reduce((acc, ex) => acc + (Number(ex.sets) || 0), 0)
   const canSave = name.trim().length > 0 && exercises.length > 0 && !isSaving
+  // Recomputed straight from draft state, so the figure tracks every add and
+  // remove — that live feedback is the point of showing it in the editor.
+  const muscleHighlights = buildMuscleHighlights(
+    exercises.map((ex) => ex.muscleGroup),
+    "var(--primary)",
+  )
 
   // ── Reset form on open/close ──────────────────────────────────────────────
   const resetForm = () => {
@@ -409,13 +417,21 @@ export function RoutineBuilderDialog({
                     {messages.workoutPage.exerciseCount(exercises.length)} · {messages.workoutPage.setCount(totalSets)}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="ml-3 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <X className="h-[18px] w-[18px]" />
-                </button>
+                <div className="flex shrink-0 items-start gap-3">
+                  <MuscleMapPair
+                    size="sm"
+                    highlights={muscleHighlights}
+                    label={messages.workoutPage.muscleMapLabel}
+                    className="mt-0.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <X className="h-[18px] w-[18px]" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">

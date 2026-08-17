@@ -8,6 +8,7 @@ import dynamic from "next/dynamic"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
+import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   fetchProgressAnalytics,
@@ -874,10 +875,12 @@ function ProgressPrsSkeleton() {
 
 export type ProgressClientInitialData = {
   calendar: ProgressCalendar
+  historyLogs?: WorkoutLog[]
   prevCalendar: ProgressCalendar | null
   programs?: TraineeProgram[]
   viewMonth: number
   viewYear: number
+  weekLogs?: WorkoutLog[]
   weightUnitLabel: string
 }
 
@@ -1138,13 +1141,20 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               onDayClick={handleDayClick}
             />
 
-            <div>
-              <LabelMicro className="mb-3 block">{messages.progressPage.recent}</LabelMicro>
-              <RecentSessions
-                calendar={calendar}
-                calendarLoading={calendarLoading}
-                onLogClick={setSelectedLogId}
+            <div className="space-y-6">
+              <TrainedAreasCard
+                weekLogs={initialData.weekLogs ?? []}
+                historyLogs={initialData.historyLogs ?? []}
               />
+
+              <div>
+                <LabelMicro className="mb-3 block">{messages.progressPage.recent}</LabelMicro>
+                <RecentSessions
+                  calendar={calendar}
+                  calendarLoading={calendarLoading}
+                  onLogClick={setSelectedLogId}
+                />
+              </div>
             </div>
           </div>
         )}
