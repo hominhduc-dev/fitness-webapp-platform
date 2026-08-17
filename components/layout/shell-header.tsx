@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Dumbbell, LogOut, MoreHorizontal, Settings, X } from "lucide-react"
-import { Suspense, useEffect, useState } from "react"
+import { Fragment, Suspense, useEffect, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
 import { LanguageToggle } from "@/components/layout/language-toggle"
@@ -17,6 +17,7 @@ import {
   type ShellNavItem,
 } from "@/components/layout/shell-nav"
 import { cn } from "@/lib/utils"
+import { useLiquidGlass } from "@/components/ui/use-liquid-glass"
 
 const ROLE_BADGE: Partial<Record<AppRole, string>> = {
   admin: "Admin",
@@ -87,6 +88,22 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const mobileNavRef = useRef<HTMLElement>(null)
+
+  useLiquidGlass(mobileNavRef, {
+    blurAmount: 0.4,
+    refraction: 0.72,
+    chromAberration: 0.05,
+    edgeHighlight: 0.14,
+    specular: 0.12,
+    fresnel: 0.9,
+    cornerRadius: 32,
+    zRadius: 28,
+    brightness: -0.08,
+    saturation: 0.12,
+    shadowOpacity: 0.24,
+    shadowSpread: 12,
+  })
 
   // Auto-close when the route changes (e.g. after clicking a nav link)
   useEffect(() => {
@@ -118,22 +135,25 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   }
 
   return (
-    <div className="relative z-50 md:hidden">
-      <nav className="mobile-floating-nav glass-surface fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
-        {primaryItems.map((item) => {
-          const active = isNavItemActive(pathname, item)
-          return (
-            <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", active ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
-              <item.icon className="h-5 w-5" strokeWidth={1.7} />
-              <span className="sr-only">{item.label}</span>
-            </Link>
-          )
-        })}
-        <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
-          <MoreHorizontal className="h-5 w-5" />
-          <span className="sr-only">More</span>
-        </button>
-      </nav>
+    <Fragment>
+      <div className="mobile-liquid-glass-root fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
+        <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
+        <nav ref={mobileNavRef} className="mobile-floating-nav glass-surface relative grid w-full grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
+          {primaryItems.map((item) => {
+            const active = isNavItemActive(pathname, item)
+            return (
+              <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", active ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+                <item.icon className="h-5 w-5" strokeWidth={1.7} />
+                <span className="sr-only">{item.label}</span>
+              </Link>
+            )
+          })}
+          <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+            <MoreHorizontal className="h-5 w-5" />
+            <span className="sr-only">More</span>
+          </button>
+        </nav>
+      </div>
 
       {/* ── Dropdown ── */}
       {open ? (
@@ -192,6 +212,6 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           </nav>
         </>
       ) : null}
-    </div>
+    </Fragment>
   )
 }

@@ -936,6 +936,27 @@ aside.glass-surface::after,
     var(--glass-bg);
 }
 
+/* The WebGL canvas owns refraction, lighting and shadow after it initializes.
+   Remove the SVG/CSS optical layer to avoid rendering the material twice. */
+[data-liquid-glass-renderer="webgl"] {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+[data-liquid-glass-renderer="webgl"]::after {
+  display: none;
+}
+
+/* A small, self-contained capture scene keeps the WebGL nav inexpensive. The
+   library sees the same page material without rasterizing the full dashboard. */
+.mobile-liquid-glass-scene {
+  background: var(--page-backdrop);
+  background-position: center bottom;
+  background-size: 100vw 100vh;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .glass-surface,
   .glass-card,
