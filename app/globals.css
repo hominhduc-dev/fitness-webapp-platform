@@ -986,6 +986,18 @@ aside.glass-surface::after,
     backdrop-filter: none;
   }
 
+  /* The generic light glass fallback is nearly white. The AI trigger keeps a
+     white glyph, so give this primary action an opaque brand fill instead of
+     letting the icon disappear against the page. */
+  :root:not(.dark) .ai-bubble-trigger {
+    border-color: rgb(255 255 255 / 72%);
+    background: var(--brand-primary);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 34%),
+      0 10px 28px rgb(19 73 236 / 32%);
+    color: #ffffff;
+  }
+
   .lg-bevel::after,
   .glass-card::after,
   .mobile-floating-nav::after,

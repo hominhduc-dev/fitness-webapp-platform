@@ -9,8 +9,8 @@ import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import type { AppMessages } from "@/lib/i18n/messages"
-import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
 import type { Workout, WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -81,20 +81,6 @@ function getTagLabel(tag: RoutineTag, messages: AppMessages) {
 
 function getTotalSets(workout: Workout) {
   return workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)
-}
-
-function getRoutineTemplateKey(workout: Workout) {
-  const exercisePlan = workout.exercises
-    .map((exercise) => {
-      const setPlan = exercise.sets
-        .map((set) => `${set.targetRepsMin ?? set.targetReps}-${set.targetReps}`)
-        .join(",")
-
-      return `${exercise.variation.id}:${setPlan}`
-    })
-    .join("|")
-
-  return `${normalizeText(workout.name)}::${exercisePlan}`
 }
 
 function getLastUsed(workout: Workout, historyLogs: WorkoutLog[], messages: AppMessages) {
@@ -194,7 +180,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
 
   return (
     <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5">
@@ -220,17 +206,6 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
           </div>
         </div>
 
-        {/* The written tag stays: it comes from workout.kind as the coach set it,
-            while the figure reflects the exercises actually in the routine. When
-            the two disagree that is worth seeing, and the filter row still runs
-            off the tag. */}
-        <MuscleMapPair
-          size="sm"
-          highlights={muscleHighlights}
-          label={messages.workoutPage.muscleMapLabel}
-          className="mt-0.5"
-        />
-
         {workout.isPersonal ? (
           <Button
             type="button"
@@ -245,33 +220,64 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
         ) : null}
       </div>
 
-      <div className="flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-[8px] bg-muted/45 px-3 py-2.5 font-mono text-xs leading-tight">
-        {workout.exercises.slice(0, 4).map((exercise) => {
-          const firstSet = exercise.sets[0]
-          const reps = formatRepTarget({
-            reps: firstSet?.targetReps,
-            repsMin: firstSet?.targetRepsMin,
-          })
-
-          return (
-            <div key={exercise.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-              <span className="min-w-0 truncate text-foreground">
-                {formatExerciseVariationLabel({
-                  exerciseName: exercise.exercise.name,
-                  isDefault: exercise.variation.isDefault,
-                  variationName: exercise.variation.name,
-                })}
-              </span>
-              <span className="shrink-0 text-muted-foreground tnum">
-                {exercise.sets.length} × {reps}
-                {firstSet?.weight ? ` · ${firstSet.weight}kg` : ""}
-              </span>
+      <div className="flex min-w-0 items-center gap-3.5">
+        {/* The written tag stays: it comes from workout.kind as the coach set it,
+            while the figure reflects the exercises actually in the routine. When
+            the two disagree that is worth seeing, and the filter row still runs
+            off the tag. */}
+        <Dialog>
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              aria-label={`${messages.workoutPage.muscleMapLabel}: ${workout.name}`}
+              className="shrink-0 rounded-[10px] p-1 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <MuscleMapPair
+                size="card"
+                highlights={muscleHighlights}
+                label={messages.workoutPage.muscleMapLabel}
+              />
+            </button>
+          </DialogTrigger>
+          <DialogContent className="max-w-[min(92vw,440px)] gap-5 rounded-[20px] p-5 sm:p-6">
+            <DialogHeader className="pr-8 text-left">
+              <DialogTitle>{workout.name}</DialogTitle>
+              <DialogDescription>
+                {messages.workoutPage.muscleMapLabel} · {messages.workoutPage.exerciseCount(workout.exercises.length)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-[16px] border border-border bg-card px-4 py-5">
+              <MuscleMapPair
+                size="md"
+                highlights={muscleHighlights}
+                label={`${messages.workoutPage.muscleMapLabel}: ${workout.name}`}
+                className="mx-auto"
+              />
             </div>
-          )
-        })}
-        {workout.exercises.length > 4 ? (
-          <p className="text-[11px] text-muted-foreground">{messages.workoutPage.more(workout.exercises.length - 4)}</p>
-        ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[8px] bg-muted/45 px-3 py-2.5 font-mono text-xs leading-tight">
+          {workout.exercises.slice(0, 4).map((exercise) => {
+            const firstSet = exercise.sets[0]
+            const reps = formatRepTarget({
+              reps: firstSet?.targetReps,
+              repsMin: firstSet?.targetRepsMin,
+            })
+
+            return (
+              <div key={exercise.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
+                <span className="min-w-0 truncate text-foreground">{exercise.exercise.name}</span>
+                <span className="shrink-0 text-muted-foreground tnum">
+                  {exercise.sets.length} × {reps}
+                </span>
+              </div>
+            )
+          })}
+          {workout.exercises.length > 4 ? (
+            <p className="text-[11px] text-muted-foreground">{messages.workoutPage.more(workout.exercises.length - 4)}</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-auto flex min-w-0 flex-col gap-2 sm:flex-row">
@@ -320,12 +326,6 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
-  const scheduledWorkouts = useMemo(() => workouts.filter((workout) => Boolean(workout.scheduledDate)), [workouts])
-  const uniqueScheduledWorkouts = useMemo(() => {
-    const reusableRoutineKeys = new Set(reusableWorkouts.map(getRoutineTemplateKey))
-
-    return scheduledWorkouts.filter((workout) => !reusableRoutineKeys.has(getRoutineTemplateKey(workout)))
-  }, [reusableWorkouts, scheduledWorkouts])
   const visibleWorkouts = useMemo(
     () => reusableWorkouts.filter((workout) => filter === "all" || inferRoutineTag(workout) === filter),
     [filter, reusableWorkouts],
@@ -350,22 +350,6 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
           <CreateRoutineButton />
         </div>
       </div>
-
-      {uniqueScheduledWorkouts.length > 0 ? (
-        <section className="mb-7 sm:mb-9">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <span className="label-micro block">{messages.workoutPage.scheduledWorkouts}</span>
-              <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.sessionCount(uniqueScheduledWorkouts.length)}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-            {uniqueScheduledWorkouts.map((workout) => (
-              <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mb-6 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((tag) => (
