@@ -1287,6 +1287,44 @@ async function deleteWorkout(accessToken: string, workoutId: string) {
   })
 }
 
+async function addWorkoutToProgram(
+  accessToken: string,
+  programId: string,
+  input: CreateWorkoutInput & { weekIndex: number },
+) {
+  const response = await request<{ workout: SerializedWorkout }>(
+    `/api/workouts/programs/${programId}/workouts`,
+    accessToken,
+    { body: JSON.stringify(input), method: "POST" },
+  )
+
+  return mapWorkout(response.workout)
+}
+
+async function copyProgramWeek(accessToken: string, programId: string, fromWeekIndex: number) {
+  const response = await request<{ result: { copiedTo: number[]; fromWeekIndex: number; sessionCount: number } }>(
+    `/api/workouts/programs/${programId}/copy-week`,
+    accessToken,
+    { body: JSON.stringify({ fromWeekIndex }), method: "POST" },
+  )
+
+  return response.result
+}
+
+async function updateTraineeProgram(
+  accessToken: string,
+  programId: string,
+  input: { description?: string | null; name?: string },
+) {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/workouts/programs/${programId}`,
+    accessToken,
+    { body: JSON.stringify(input), method: "PATCH" },
+  )
+
+  return mapCoachProgram(response.program)
+}
+
 async function createWorkoutLog(accessToken: string, workoutId: string, input: WorkoutLogInput) {
   const response = await request<{ log: SerializedWorkoutLog }>(`/api/workouts/${workoutId}/logs`, accessToken, {
     body: JSON.stringify({
@@ -2148,6 +2186,9 @@ export {
   fetchWorkoutLogsForExport,
   fetchTraineeProgram,
   fetchWorkouts,
+  addWorkoutToProgram,
+  copyProgramWeek,
+  updateTraineeProgram,
   markAllNotificationsRead,
   markNotificationRead,
   restoreCoachProgram,

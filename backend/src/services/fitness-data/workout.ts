@@ -1,4 +1,6 @@
 export {
+  addWorkoutToTraineeProgram,
+  copyTraineeProgramWeek,
   createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
@@ -10,4 +12,5 @@ export {
   resetCurrentTraineeData,
   swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
+  updateTraineeProgramDetails,
 } from "./core"
