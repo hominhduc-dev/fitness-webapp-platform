@@ -183,6 +183,16 @@ function normalizeAmountValue(value: unknown): number | null {
 // Workout Program Generation
 // ---------------------------------------------------------------------------
 
+// The provider's JSON is cast to AIWorkoutOutput, not validated, so weekIndex is
+// whatever the model chose to emit. A missing value used to reach the database as
+// NULL, and NULL workouts are exempt from the current-week filter — which left
+// finished programs visible forever. Week 0 is the documented default: the system
+// prompt tells the model to author only the first week.
+function normalizeAIWeekIndex(weekIndex: unknown) {
+  const parsed = Number(weekIndex)
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0
+}
+
 type GenerateProgramInput = {
   goal: string
   experienceLevel: string
@@ -420,7 +430,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       return {
         name: getEnglishWorkoutName(workout.kind),
         kind: workout.kind,
-        weekIndex: workout.weekIndex,
+        weekIndex: normalizeAIWeekIndex(workout.weekIndex),
         scheduledDay: workout.scheduledDay,
         duration: workout.duration,
         exercises: mappedExercises,
@@ -557,7 +567,7 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
             programId,
             name: workout.name,
             scheduledDay: workout.scheduledDay,
-            weekIndex: workout.weekIndex,
+            weekIndex: normalizeAIWeekIndex(workout.weekIndex),
             duration: workout.duration,
           },
         })
