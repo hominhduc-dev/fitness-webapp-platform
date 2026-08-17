@@ -7,7 +7,6 @@
 - **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
 - **Forms:** React Hook Form 7 + Zod validation
 - **Charts:** Recharts
-- **Drag & Drop:** @dnd-kit
 - **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
 
 ### Backend

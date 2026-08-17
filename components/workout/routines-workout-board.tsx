@@ -6,10 +6,12 @@ import { useMemo, useState } from "react"
 
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
+import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+import { buildMuscleHighlights, muscleGroupsFromWorkout } from "@/lib/fitness/muscle-map"
 import type { Workout, WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
@@ -145,7 +147,7 @@ function FilterChip({
     <button
       type="button"
       className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors",
+        "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors",
         active
           ? "border-foreground bg-foreground text-background"
           : "border-border bg-card text-foreground hover:border-foreground/25",
@@ -177,6 +179,10 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
+  const muscleHighlights = useMemo(
+    () => buildMuscleHighlights(muscleGroupsFromWorkout(workout), "var(--primary)"),
+    [workout],
+  )
   const lastUsed = getLastUsed(workout, historyLogs, messages)
   const cardMeta = workout.scheduledDate
     ? messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))
@@ -209,6 +215,17 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
             <span>{cardMeta}</span>
           </div>
         </div>
+
+        {/* The written tag stays: it comes from workout.kind as the coach set it,
+            while the figure reflects the exercises actually in the routine. When
+            the two disagree that is worth seeing, and the filter row still runs
+            off the tag. */}
+        <MuscleMapPair
+          size="sm"
+          highlights={muscleHighlights}
+          label={messages.workoutPage.muscleMapLabel}
+          className="mt-0.5"
+        />
 
         {workout.isPersonal ? (
           <Button

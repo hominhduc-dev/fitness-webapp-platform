@@ -43,6 +43,24 @@ function startOfIsoWeek(date: Date): Date {
 }
 
 /**
+ * Snap a Date back to Monday 00:00 UTC — a port of `startOfUtcWeek` in
+ * backend/src/services/fitness-data/shared/dates.ts.
+ *
+ * Deliberately separate from `startOfIsoWeek` above, which anchors on the
+ * *local* Monday at UTC noon so exported date labels read correctly for a
+ * UTC+7 user. This one has a different job: it has to reproduce the exact
+ * `startedAt >= weekStart` boundary the backend uses to cut `weekLogs`. Any
+ * drift between the two and "this week" would mean different things on the
+ * server and in the client that derives "last week" from the same cutoff.
+ */
+export function startOfUtcWeek(date: Date): Date {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const day = start.getUTCDay()
+  start.setUTCDate(start.getUTCDate() + (day === 0 ? -6 : 1 - day))
+  return start
+}
+
+/**
  * Resolve a program's start date, snapped to the Monday of the assignment week.
  *
  * Program weeks are Monday-aligned everywhere in the app (schedule, weekly

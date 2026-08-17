@@ -51,6 +51,9 @@ import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 
 /** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
 const DEFAULT_REST_SECONDS = 90
+// The trailing column holds the complete-set tick and the row menu. Both keep
+// their original 22px footprint and grow only in height on touch, so the column
+// width — and therefore the room left for the number fields — is unchanged.
 const SET_ROW_GRID_CLASS =
   "grid-cols-[28px_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_50px] gap-1.5 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_54px] sm:gap-2 sm:px-4 md:px-5"
 
@@ -424,7 +427,9 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         className={cn(
           "grid min-w-0 items-center",
           SET_ROW_GRID_CLASS,
-          "py-[10px]",
+          // The fields carry their own height on touch, so the row padding backs
+          // off to keep the list from stretching out.
+          "py-[10px] pointer-coarse:py-1",
           "transition-colors duration-[180ms]",
         )}
       >
@@ -474,15 +479,18 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         placeholder="—"
         aria-label={messages.workoutPage.weightInUnit(weightUnit)}
         className={cn(
-          "min-w-0 w-full rounded-md text-center font-mono text-[14px]",
+          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-[14px]",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
-          "h-8 px-1",
+          "h-8 pointer-coarse:h-11 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
           "disabled:cursor-not-allowed",
           completed
             ? "border-transparent bg-transparent text-muted-foreground"
-            : "border-border bg-background text-foreground",
+            // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
+            // dense grid. Drop the border there and let a soft fill carry the
+            // field instead — same target, much lighter on the eye.
+            : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
         )}
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
@@ -500,15 +508,18 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         placeholder="—"
         aria-label={messages.workoutPage.reps}
         className={cn(
-          "min-w-0 w-full rounded-md text-center font-mono text-[14px]",
+          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-[14px]",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
-          "h-8 px-1",
+          "h-8 pointer-coarse:h-11 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
           "disabled:cursor-not-allowed",
           completed
             ? "border-transparent bg-transparent text-muted-foreground"
-            : "border-border bg-background text-foreground",
+            // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
+            // dense grid. Drop the border there and let a soft fill carry the
+            // field instead — same target, much lighter on the eye.
+            : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
         )}
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
@@ -528,15 +539,18 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         min={0}
         max={10}
         className={cn(
-          "min-w-0 w-full rounded-md text-center font-mono text-[14px]",
+          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-[14px]",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
-          "h-8 px-1",
+          "h-8 pointer-coarse:h-11 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
           "disabled:cursor-not-allowed",
           completed
             ? "border-transparent bg-transparent text-muted-foreground"
-            : "border-border bg-background text-foreground",
+            // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
+            // dense grid. Drop the border there and let a soft fill carry the
+            // field instead — same target, much lighter on the eye.
+            : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
         )}
         style={{ fontFeatureSettings: '"tnum" 1' }}
       />
@@ -547,24 +561,35 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
             type="button"
             onClick={handleToggle}
             aria-label={completed ? messages.workoutPage.markIncomplete : messages.workoutPage.completeSet}
-            className={cn(
-              "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
-              "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
-              completed
-                ? "bg-[var(--success)] border-0"
-                : "border-[1.5px] border-border bg-transparent",
-            )}
+            // Completing a set is the most-tapped control in the app, and a 22px
+            // square is half the platform minimum. Rather than inflate the box,
+            // the button is just an invisible 44px-tall target and the inner
+            // span keeps the original 22px tick — big to hit, small to look at.
+            className="flex h-[22px] w-[22px] items-center justify-center pointer-coarse:h-11"
           >
-            {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+            <span
+              className={cn(
+                "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
+                "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
+                completed
+                  ? "bg-[var(--success)] border-0"
+                  : "border-[1.5px] border-border bg-transparent",
+              )}
+            >
+              {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+            </span>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-label={messages.workoutPage.setOptions}
-                className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="flex h-[22px] w-[22px] items-center justify-center pointer-coarse:h-11 text-muted-foreground transition-colors hover:text-foreground"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                {/* Same split as the tick: tall invisible target, small visual. */}
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] transition-colors hover:bg-muted">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-36">
@@ -770,7 +795,7 @@ function LiftExerciseBlock({
           rel="noopener noreferrer"
           aria-label={messages.workoutPage.searchExercise}
           title={messages.workoutPage.searchExercise}
-          className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <Search className="h-4 w-4" />
         </a>
@@ -779,7 +804,7 @@ function LiftExerciseBlock({
           onClick={() => setCollapsed((value) => !value)}
           aria-label={collapsed ? messages.workoutPage.expandExercise : messages.workoutPage.collapseExercise}
           aria-expanded={!collapsed}
-          className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "-rotate-90")} />
         </button>
@@ -788,7 +813,7 @@ function LiftExerciseBlock({
             <button
               type="button"
               aria-label={messages.workoutPage.moreOptions}
-              className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+              className="ml-2 flex shrink-0 items-center justify-center rounded-md p-1.5 pointer-coarse:size-11 text-muted-foreground hover:bg-muted transition-colors"
             >
               <MoreHorizontal className="h-[18px] w-[18px]" />
             </button>
@@ -1471,7 +1496,7 @@ export default function WorkoutStartPage() {
           <button
             type="button"
             onClick={handleCancelWorkout}
-            className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
+            className="mb-3 flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
           >
             <X className="h-4 w-4" />
             {messages.workoutPage.cancelWorkout}

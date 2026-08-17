@@ -31,6 +31,7 @@ Authentication is handled by **Supabase Auth**, and all application data lives i
 - [Auth & access model](#auth--access-model)
 - [Known gotchas](#known-gotchas)
 - [Deployment](#deployment)
+- [Third-party assets](#third-party-assets)
 
 ---
 
@@ -80,7 +81,7 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript 5
 - **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
 - **Forms:** Controlled React components (no React Hook Form/Zod on the client — see [Known gotchas](#known-gotchas) about `AGENTS.md` disagreeing with this)
-- **Charts:** Recharts · **Drag & drop:** @dnd-kit
+- **Charts:** Recharts
 - **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
 - **Auth client:** `@supabase/ssr` (cookie-based SSR sessions)
 
@@ -427,6 +428,7 @@ Open http://localhost:3000 and sign up / log in.
 | `npm run seed:exercises` · `seed:foods` | Seed reference data (proxies to backend) |
 | `npm run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma (proxied to backend) |
 | `npm run splash` | Generate iOS splash assets |
+| `node scripts/extract-muscle-paths.mjs` | Regenerate the body-map SVG assets in `components/body/` (see [Third-party assets](#third-party-assets)) |
 
 ### Backend
 
@@ -574,6 +576,26 @@ CI/CD is wired up in `.github/workflows/deploy-backend.yml` — pushes to `main`
 7. Open Progress export or Coach trainee workout logs and click **Export to Google Sheets**.
 
 > Workouts and body-weight history can also be exported directly to Excel from the UI (`lib/workout-export-excel.ts`, `components/weight-tracking-export-excel.ts`) without any n8n setup.
+
+---
+
+## Third-party assets
+
+### Body map SVG (`components/body/`)
+
+The anatomical figures behind `MuscleMap` are the male front/back artwork from
+[react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter)
+v3.2.0, © 2022 ELABBASSI Hicham, **MIT licensed**.
+
+That package renders through `react-native-svg` and lists `react-native` as a peer
+dependency, so it cannot be installed here. Only its SVG path data is reused — the
+rendering component (`components/body/muscle-map.tsx`) is ours. The data is not
+vendored by hand: `node scripts/extract-muscle-paths.mjs` reads the published tarball
+from the npm registry and regenerates `muscle-paths.front.ts`, `muscle-paths.back.ts`
+and `muscle-outline.ts`. Those three files are generated — edit the script, not them.
+To upgrade, bump `UPSTREAM_VERSION` in the script and re-run.
+
+Preview the result at `/dev/muscle-map` (no auth required).
 
 ---
 
