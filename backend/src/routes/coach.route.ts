@@ -1,5 +1,6 @@
 import { CoachRequestStatus, ProgramDifficulty } from "@prisma/client"
 import { Router } from "express"
+import { parseMuscleListValue, parseMuscleProfileInput } from "../domain/muscle-profile"
 
 import { requireCurrentProfile } from "../services/auth.service"
 import {
@@ -49,12 +50,15 @@ function parseExerciseImportRows(body: Record<string, unknown>) {
         const source = row && typeof row === "object" ? (row as Record<string, unknown>) : {}
 
         return {
+          activityType: getOptionalString(source.activityType),
           exerciseName: getOptionalString(source.exerciseName) ?? getOptionalString(source.name),
           equipment: getOptionalString(source.equipment),
           isDefault: typeof source.isDefault === "boolean" ? source.isDefault : undefined,
           muscleGroup: getOptionalString(source.muscleGroup),
+          primaryMuscles: parseMuscleListValue(source.primaryMuscles),
           rowNumber: typeof source.rowNumber === "number" ? source.rowNumber : undefined,
           sortOrder: typeof source.sortOrder === "number" ? source.sortOrder : undefined,
+          secondaryMuscles: parseMuscleListValue(source.secondaryMuscles),
           variationName: getOptionalString(source.variationName),
         }
       })
@@ -292,6 +296,7 @@ coachRouter.post("/exercises", async (req, res) => {
     const exercise = await createCoachExercise(profile.profile, {
       equipment: typeof req.body.equipment === "string" ? req.body.equipment : undefined,
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
     })
 
@@ -338,6 +343,7 @@ coachRouter.patch("/exercises/:exerciseId", async (req, res) => {
     const exercise = await updateCoachExercise(profile.profile, String(req.params.exerciseId), {
       equipment: typeof req.body.equipment === "string" ? req.body.equipment : undefined,
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
     })
 

@@ -1,12 +1,15 @@
 import { ApiError } from "@/lib/auth/api"
 import { getApiBaseUrl } from "@/lib/supabase/config"
+import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import type {
   DailyNutrition,
   ExerciseBase,
   ExerciseLibraryExercise,
+  ExerciseActivityType,
   ExerciseSet,
   ExerciseVariation,
   ExerciseVariationOption,
+  MuscleSlug,
   Meal,
   NutritionFood,
   Program,
@@ -54,17 +57,7 @@ import type {
 
 type SerializedExerciseBase = ExerciseBase
 
-type SerializedExerciseVariation = {
-  canManage?: boolean
-  createdById?: string
-  equipment?: string
-  id: string
-  isDefault: boolean
-  metadata?: Record<string, unknown>
-  name: string
-  source?: "coach" | "system"
-  sortOrder: number
-}
+type SerializedExerciseVariation = ExerciseVariation
 
 type SerializedExerciseVariationOption = ExerciseVariationOption
 
@@ -393,20 +386,9 @@ type SerializedCoachDashboardRecentWorkoutLog = {
   }
 }
 
-type SerializedCoachExercise = {
-  canManage: boolean
+type SerializedCoachExercise = Omit<CoachExercise, "createdAt" | "updatedAt"> & {
   createdAt: string
-  createdById?: string
-  createdByName?: string
-  equipment?: string
-  id: string
-  muscleGroup: string
-  name: string
-  source: "coach" | "system"
   updatedAt: string
-  usageCount: number
-  variationId?: string
-  variationName: string
 }
 
 type SerializedCoachExerciseImportRequest = Omit<CoachExerciseImportRequest, "createdAt" | "reviewedAt" | "updatedAt"> & {
@@ -502,7 +484,13 @@ function toDate(value?: string | null) {
   return value ? new Date(value) : undefined
 }
 
-function buildExerciseQuery(options?: { equipment?: string; muscleGroup?: string; search?: string }) {
+function buildExerciseQuery(options?: {
+  activityType?: ExerciseActivityType
+  equipment?: string
+  muscle?: MuscleSlug
+  muscleGroup?: string
+  search?: string
+}) {
   const searchParams = new URLSearchParams()
 
   if (options?.equipment?.trim()) {
@@ -511,6 +499,14 @@ function buildExerciseQuery(options?: { equipment?: string; muscleGroup?: string
 
   if (options?.muscleGroup?.trim()) {
     searchParams.set("muscleGroup", options.muscleGroup.trim())
+  }
+
+  if (options?.muscle) {
+    searchParams.set("muscle", options.muscle)
+  }
+
+  if (options?.activityType) {
+    searchParams.set("activityType", options.activityType)
   }
 
   if (options?.search?.trim()) {
@@ -557,6 +553,7 @@ function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
 
 function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseVariation {
   return {
+    activityType: variation.activityType,
     canManage: variation.canManage,
     createdById: variation.createdById,
     equipment: variation.equipment,
@@ -566,6 +563,8 @@ function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseV
     name: variation.name,
     source: variation.source,
     sortOrder: variation.sortOrder,
+    primaryMuscles: variation.primaryMuscles,
+    secondaryMuscles: variation.secondaryMuscles,
   }
 }
 
@@ -577,6 +576,8 @@ function synthesizeExerciseVariation(exercise: SerializedWorkoutExercise): Exerc
     metadata: undefined,
     name: "Default",
     sortOrder: 0,
+    primaryMuscles: [...muscleGroupToSlugs(exercise.exercise.muscleGroup)] as MuscleSlug[],
+    secondaryMuscles: [],
   }
 }
 
@@ -882,6 +883,9 @@ function flattenExerciseLibraryToVariationOptions(
       source: variation.source ?? exercise.source,
       sortOrder: variation.sortOrder,
       variationName: variation.name,
+      activityType: variation.activityType,
+      primaryMuscles: variation.primaryMuscles,
+      secondaryMuscles: variation.secondaryMuscles,
     })),
   )
 }
@@ -922,6 +926,7 @@ function mapCoachDashboardRecentWorkoutLog(
 
 function mapCoachExercise(exercise: SerializedCoachExercise): CoachExercise {
   return {
+    activityType: exercise.activityType,
     canManage: exercise.canManage,
     createdAt: new Date(exercise.createdAt),
     createdById: exercise.createdById,
@@ -935,6 +940,8 @@ function mapCoachExercise(exercise: SerializedCoachExercise): CoachExercise {
     usageCount: exercise.usageCount,
     variationId: exercise.variationId,
     variationName: exercise.variationName,
+    primaryMuscles: exercise.primaryMuscles,
+    secondaryMuscles: exercise.secondaryMuscles,
   }
 }
 
@@ -1332,7 +1339,13 @@ async function swapWorkoutExercise(
 
 async function fetchExercises(
   accessToken: string,
-  options?: { equipment?: string; muscleGroup?: string; search?: string },
+  options?: {
+    activityType?: ExerciseActivityType
+    equipment?: string
+    muscle?: MuscleSlug
+    muscleGroup?: string
+    search?: string
+  },
 ): Promise<ExerciseVariationOption[]> {
   const response = await request<{ exercises: SerializedExerciseVariationOption[] }>(
     `/api/exercises${buildExerciseQuery(options)}`,
@@ -1352,7 +1365,13 @@ async function fetchExercises(
 
 async function fetchExerciseLibrary(
   accessToken: string,
-  options?: { equipment?: string; muscleGroup?: string; search?: string },
+  options?: {
+    activityType?: ExerciseActivityType
+    equipment?: string
+    muscle?: MuscleSlug
+    muscleGroup?: string
+    search?: string
+  },
 ): Promise<ExerciseLibraryExercise[]> {
   const response = await request<{ exercises: SerializedExerciseLibraryExercise[] }>(
     `/api/exercises/library${buildExerciseQuery(options)}`,

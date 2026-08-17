@@ -11,7 +11,18 @@ import {
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
+import {
+  buildApprovedMuscleProfileData,
+  buildApprovedMuscleProfileUpdate,
+  buildMuscleTargetRows,
+  muscleProfileInputSchema,
+  parseMuscleListValue,
+  serializeMuscleProfile,
+  type ExerciseActivityTypeValue,
+  type MuscleProfileInput,
+} from "../../domain/muscle-profile"
 import { logger } from "../../lib/logger"
+import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import { prisma } from "../../lib/prisma"
 import { supabaseAdmin } from "../../lib/supabase"
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
@@ -48,6 +59,7 @@ const ADMIN_VARIATION_INCLUDE = {
       createdBy: true,
     },
   },
+  muscleTargets: true,
 } satisfies Prisma.VariationInclude
 
 type ExerciseSummaryRecord = Prisma.VariationGetPayload<{
@@ -86,12 +98,15 @@ type ExerciseImportRequestRecord = ExerciseImportRequest & {
 }
 
 type ExerciseImportRowInput = {
+  activityType?: string
   exerciseName?: string
   equipment?: string
   isDefault?: boolean
   muscleGroup?: string
+  primaryMuscles?: string[] | string
   rowNumber?: number
   sortOrder?: number
+  secondaryMuscles?: string[] | string
   variationName?: string
 }
 
@@ -116,12 +131,15 @@ function serializeExerciseImportRow(row: unknown): ExerciseImportRowInput | null
   }
 
   return {
+    activityType: sanitizeText(typeof source.activityType === "string" ? source.activityType : undefined),
     exerciseName,
     equipment: sanitizeText(typeof source.equipment === "string" ? source.equipment : undefined),
     isDefault: typeof source.isDefault === "boolean" ? source.isDefault : variationName.trim().toLowerCase() === "default",
     muscleGroup,
+    primaryMuscles: parseMuscleListValue(source.primaryMuscles),
     rowNumber: typeof source.rowNumber === "number" && Number.isFinite(source.rowNumber) ? Math.max(1, Math.round(source.rowNumber)) : undefined,
     sortOrder: typeof source.sortOrder === "number" && Number.isFinite(source.sortOrder) ? Math.max(0, Math.round(source.sortOrder)) : undefined,
+    secondaryMuscles: parseMuscleListValue(source.secondaryMuscles),
     variationName,
   }
 }
@@ -135,18 +153,29 @@ function normalizeExerciseImportRows(rows: ExerciseImportRowInput[]) {
     throw new AuthServiceError("Chỉ hỗ trợ import tối đa 1000 dòng mỗi lần.", 400)
   }
 
-  const sanitizedRows = rows.map((row, index) => ({
-    exerciseName: sanitizeText(row.exerciseName),
-    equipment: sanitizeText(row.equipment),
-    isDefault: row.isDefault === true,
-    muscleGroup: sanitizeText(row.muscleGroup),
-    sortOrder:
-      typeof row.sortOrder === "number" && Number.isFinite(row.sortOrder) ? Math.max(0, Math.round(row.sortOrder)) : undefined,
-    variationName: sanitizeText(row.variationName) ?? "Default",
-    rowNumber: row.rowNumber ?? index + 2,
-  }))
+  const sanitizedRows = rows.map((row, index) => {
+    const muscleProfileResult = muscleProfileInputSchema.safeParse({
+      activityType: sanitizeText(row.activityType),
+      primaryMuscles: parseMuscleListValue(row.primaryMuscles),
+      secondaryMuscles: parseMuscleListValue(row.secondaryMuscles),
+    })
 
-  const invalidRows = sanitizedRows.filter((row) => !row.exerciseName || !row.muscleGroup || !row.variationName)
+    return {
+      exerciseName: sanitizeText(row.exerciseName),
+      equipment: sanitizeText(row.equipment),
+      isDefault: row.isDefault === true,
+      muscleGroup: sanitizeText(row.muscleGroup),
+      muscleProfile: muscleProfileResult.success ? muscleProfileResult.data : undefined,
+      sortOrder:
+        typeof row.sortOrder === "number" && Number.isFinite(row.sortOrder) ? Math.max(0, Math.round(row.sortOrder)) : undefined,
+      variationName: sanitizeText(row.variationName) ?? "Default",
+      rowNumber: row.rowNumber ?? index + 2,
+    }
+  })
+
+  const invalidRows = sanitizedRows.filter(
+    (row) => !row.exerciseName || !row.muscleGroup || row.muscleGroup.toLowerCase() === "full body" || !row.variationName || !row.muscleProfile,
+  )
 
   if (invalidRows.length > 0) {
     const invalidPreview = invalidRows
@@ -155,7 +184,7 @@ function normalizeExerciseImportRows(rows: ExerciseImportRowInput[]) {
       .join(", ")
 
     throw new AuthServiceError(
-      `Có dòng thiếu exercise name, muscle group hoặc variation name. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
+      `Có dòng thiếu thông tin hoặc muscle profile không hợp lệ. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
       400,
     )
   }
@@ -165,6 +194,7 @@ function normalizeExerciseImportRows(rows: ExerciseImportRowInput[]) {
     equipment: row.equipment,
     isDefault: row.isDefault,
     muscleGroup: row.muscleGroup as string,
+    muscleProfile: row.muscleProfile as MuscleProfileInput,
     rowNumber: row.rowNumber,
     sortOrder: row.sortOrder,
     variationName: row.variationName as string,
@@ -301,6 +331,10 @@ function serializeExerciseSummary(exercise: ExerciseSummaryRecord) {
     updatedAt: exercise.updatedAt,
     usageCount: exercise._count.workoutExercises,
     variationName: exercise.name,
+    ...serializeMuscleProfile({
+      ...exercise,
+      muscleTargets: exercise.muscleTargets,
+    }),
   }
 }
 
@@ -1499,7 +1533,16 @@ async function deleteAdminProgram(profile: SerializedProfile, programId: string)
   }
 }
 
-async function listAdminExercises(profile: SerializedProfile, options?: { search?: string }) {
+async function listAdminExercises(
+  profile: SerializedProfile,
+  options?: {
+    activityType?: ExerciseActivityTypeValue
+    maxConfidence?: number
+    muscleGroup?: string
+    profileStatus?: "approved" | "pending"
+    search?: string
+  },
+) {
   assertAdmin(profile)
   const db = ensurePrisma()
   const exercises = await db.variation.findMany({
@@ -1510,7 +1553,19 @@ async function listAdminExercises(profile: SerializedProfile, options?: { search
   const search = normalizeSearch(options?.search)
 
   return exercises
-    .filter((exercise) => matchesSearch([exercise.exercise.name, exercise.exercise.muscleGroup, exercise.equipment], search))
+    .filter((exercise) => {
+      const matchesText = matchesSearch([exercise.exercise.name, exercise.exercise.muscleGroup, exercise.equipment], search)
+      const matchesActivity = !options?.activityType || exercise.activityType === options.activityType
+      const matchesStatus = !options?.profileStatus || exercise.muscleProfileStatus === options.profileStatus
+      const matchesGroup =
+        !options?.muscleGroup || exercise.exercise.muscleGroup.toLowerCase() === options.muscleGroup.toLowerCase()
+      const matchesConfidence =
+        options?.maxConfidence == null ||
+        exercise.muscleProfileConfidence == null ||
+        exercise.muscleProfileConfidence <= options.maxConfidence
+
+      return matchesText && matchesActivity && matchesStatus && matchesGroup && matchesConfidence
+    })
     .map((exercise) => serializeExerciseSummary(exercise as ExerciseSummaryRecord))
 }
 
@@ -1519,6 +1574,7 @@ async function createAdminExercise(
   input: {
     equipment?: string
     muscleGroup: string
+    muscleProfile: MuscleProfileInput
     name: string
     variationName?: string
   },
@@ -1530,8 +1586,8 @@ async function createAdminExercise(
   const equipment = sanitizeText(input.equipment)
   const variationName = sanitizeText(input.variationName) || "Default"
 
-  if (!name || !muscleGroup) {
-    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
+  if (!name || !muscleGroup || muscleGroup.toLowerCase() === "full body") {
+    throw new AuthServiceError("Tên bài tập/nhóm cơ không hợp lệ; Full Body chỉ là nhãn suy ra từ muscle targets.", 400)
   }
 
   let exercise
@@ -1551,6 +1607,7 @@ async function createAdminExercise(
             isDefault: variationName === "Default",
             name: variationName,
             sortOrder: 0,
+            ...buildApprovedMuscleProfileData(input.muscleProfile, profile.id),
           },
         },
       },
@@ -1567,6 +1624,7 @@ async function createAdminExercise(
                 createdBy: true,
               },
             },
+            muscleTargets: true,
           },
         },
       },
@@ -1636,6 +1694,7 @@ async function importAdminExercises(
     equipment?: string
     isDefault: boolean
     muscleGroup: string
+    muscleProfile: MuscleProfileInput
     rowNumber: number
     sortOrder?: number
     variationName: string
@@ -1665,6 +1724,7 @@ async function importAdminExercises(
       equipment: row.equipment,
       isDefault: row.isDefault,
       muscleGroup: row.muscleGroup as string,
+      muscleProfile: row.muscleProfile as MuscleProfileInput,
       rowNumber: row.rowNumber,
       sortOrder: row.sortOrder,
       variationName: row.variationName as string,
@@ -1700,6 +1760,7 @@ async function importAdminExercises(
     equipment?: string
     isDefault: boolean
     muscleGroup: string
+    muscleProfile: MuscleProfileInput
     rowNumber: number
     sortOrder?: number
     variationName: string
@@ -1738,6 +1799,7 @@ async function importAdminExercises(
       equipment: row.equipment,
       isDefault: row.isDefault,
       muscleGroup: row.muscleGroup,
+      muscleProfile: row.muscleProfile,
       rowNumber: row.rowNumber,
       sortOrder: row.sortOrder,
       variationName: row.variationName,
@@ -1825,11 +1887,8 @@ async function importAdminExercises(
       // 3d. Create variations — batch non-default, individual for default
       let count = 0
       const bulkNonDefaultData: Array<{
-        equipment: string | null
-        exerciseId: string
-        isDefault: boolean
-        name: string
-        sortOrder: number
+        data: Prisma.VariationCreateManyInput
+        muscleProfile: MuscleProfileInput
       }> = []
 
       for (const [exerciseSignature, exerciseRows] of rowsByExercise.entries()) {
@@ -1872,6 +1931,7 @@ async function importAdminExercises(
                   isDefault: true,
                   name: row.variationName,
                   sortOrder: row.sortOrder ?? index,
+                  ...buildApprovedMuscleProfileData(row.muscleProfile, profile.id),
                 },
                 select: { id: true },
               })
@@ -1906,11 +1966,19 @@ async function importAdminExercises(
           } else {
             // Non-default: accumulate for batch createMany
             bulkNonDefaultData.push({
-              equipment: row.equipment ?? null,
-              exerciseId: exercise.id,
-              isDefault: false,
-              name: row.variationName,
-              sortOrder: row.sortOrder ?? index,
+              data: {
+                activityType: row.muscleProfile.activityType,
+                equipment: row.equipment ?? null,
+                exerciseId: exercise.id,
+                isDefault: false,
+                muscleProfileReviewedAt: new Date(),
+                muscleProfileReviewedById: profile.id,
+                muscleProfileSource: "manual",
+                muscleProfileStatus: "approved",
+                name: row.variationName,
+                sortOrder: row.sortOrder ?? index,
+              },
+              muscleProfile: row.muscleProfile,
             })
             variationSignatures.add(variationSignature)
           }
@@ -1919,11 +1987,32 @@ async function importAdminExercises(
 
       // 3e. Batch insert all non-default variations at once
       if (bulkNonDefaultData.length > 0) {
-        const batchResult = await tx.variation.createMany({
-          data: bulkNonDefaultData,
+        const createdVariations = await tx.variation.createManyAndReturn({
+          data: bulkNonDefaultData.map((entry) => entry.data),
           skipDuplicates: true,
+          select: { exerciseId: true, id: true, name: true },
         })
-        count += batchResult.count
+
+        const profileByVariationKey = new Map(
+          bulkNonDefaultData.map((entry) => [
+            `${entry.data.exerciseId}::${entry.data.name.trim().toLowerCase()}`,
+            entry.muscleProfile,
+          ]),
+        )
+        const targetRows = createdVariations.flatMap((variation) => {
+          const muscleProfile = profileByVariationKey.get(
+            `${variation.exerciseId}::${variation.name.trim().toLowerCase()}`,
+          )
+          return muscleProfile
+            ? buildMuscleTargetRows(muscleProfile).map((target) => ({ ...target, variationId: variation.id }))
+            : []
+        })
+
+        if (targetRows.length > 0) {
+          await tx.variationMuscleTarget.createMany({ data: targetRows, skipDuplicates: true })
+        }
+
+        count += createdVariations.length
       }
 
       return count
@@ -2066,6 +2155,7 @@ async function updateAdminExercise(
   input: {
     equipment?: string
     muscleGroup: string
+    muscleProfile: MuscleProfileInput
     name: string
     variationName?: string
   },
@@ -2077,8 +2167,8 @@ async function updateAdminExercise(
   const equipment = sanitizeText(input.equipment)
   const variationName = sanitizeText(input.variationName) || "Default"
 
-  if (!name || !muscleGroup) {
-    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
+  if (!name || !muscleGroup || muscleGroup.toLowerCase() === "full body") {
+    throw new AuthServiceError("Tên bài tập/nhóm cơ không hợp lệ; Full Body chỉ là nhãn suy ra từ muscle targets.", 400)
   }
 
   const existingExercise = await db.variation.findUnique({
@@ -2111,6 +2201,7 @@ async function updateAdminExercise(
           equipment,
           isDefault: variationName === "Default",
           name: variationName,
+          ...buildApprovedMuscleProfileUpdate(input.muscleProfile, profile.id),
         },
         include: ADMIN_VARIATION_INCLUDE,
         where: {
@@ -2139,6 +2230,53 @@ async function updateAdminExercise(
   })
 
   return serializeExerciseSummary(exercise as ExerciseSummaryRecord)
+}
+
+async function approveAdminMuscleProfiles(profile: SerializedProfile, variationIds: string[]) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const ids = [...new Set(variationIds.filter(Boolean))]
+  if (!ids.length || ids.length > 500) {
+    throw new AuthServiceError("Chọn từ 1 đến 500 variations để duyệt.", 400)
+  }
+
+  const variations = await db.variation.findMany({
+    include: { exercise: { select: { name: true } }, muscleTargets: true },
+    where: { id: { in: ids } },
+  })
+  const approvedIds: string[] = []
+  const skippedIds: string[] = []
+
+  for (const variation of variations) {
+    const profileResult = muscleProfileInputSchema.safeParse({
+      activityType: variation.activityType,
+      primaryMuscles: variation.muscleTargets.filter((target) => target.role === "primary").sort((a, b) => a.position - b.position).map((target) => target.muscleSlug),
+      secondaryMuscles: variation.muscleTargets.filter((target) => target.role === "secondary").sort((a, b) => a.position - b.position).map((target) => target.muscleSlug),
+    })
+    if (profileResult.success) approvedIds.push(variation.id)
+    else skippedIds.push(variation.id)
+  }
+  skippedIds.push(...ids.filter((id) => !variations.some((variation) => variation.id === id)))
+
+  await db.$transaction(async (transaction) => {
+    if (approvedIds.length) {
+      await transaction.variation.updateMany({
+        data: {
+          muscleProfileReviewedAt: new Date(),
+          muscleProfileReviewedById: profile.id,
+          muscleProfileStatus: "approved",
+        },
+        where: { id: { in: approvedIds } },
+      })
+    }
+    await logAdminAudit(transaction, profile.id, {
+      action: "exercise.muscle_profiles_bulk_approved",
+      entityType: "variation",
+      metadata: { approvedIds, skippedIds },
+    })
+  })
+  invalidateExerciseLibrary()
+  return { approvedCount: approvedIds.length, approvedIds, skippedCount: skippedIds.length, skippedIds }
 }
 
 async function deleteAdminExercise(profile: SerializedProfile, exerciseId: string) {
@@ -2717,6 +2855,7 @@ async function listAdminAuditLogs(
 
 export {
   applyExerciseSync,
+  approveAdminMuscleProfiles,
   assignAdminCoachToTrainee,
   createAdminExercise,
   importAdminExercises,

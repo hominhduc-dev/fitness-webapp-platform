@@ -13,6 +13,9 @@ const SIZE_CLASS = {
   // Thumbnail: routine cards and the builder dialog header, where the map sits
   // beside a title and must not compete with it.
   sm: "w-[38px]",
+  // Routine card: large enough to read at a glance while leaving the exercise
+  // summary enough horizontal space on narrow mobile screens.
+  card: "w-[48px]",
   // Full card: sized for the 360px right-hand column on the progress page.
   md: "w-[120px]",
 } as const
@@ -23,9 +26,10 @@ interface MuscleMapPairProps {
   /** Describes what the pair represents, e.g. "Muscles trained this week". */
   label: string
   className?: string
+  onMuscleClick?: (slug: MuscleSlug) => void
 }
 
-export function MuscleMapPair({ highlights, size = "md", label, className }: MuscleMapPairProps) {
+export function MuscleMapPair({ highlights, size = "md", label, className, onMuscleClick }: MuscleMapPairProps) {
   return (
     <div className={cn("flex shrink-0 items-start justify-center gap-1.5", className)} role="group" aria-label={label}>
       {(["front", "back"] as const).map((side) => (
@@ -34,6 +38,7 @@ export function MuscleMapPair({ highlights, size = "md", label, className }: Mus
           side={side}
           highlights={highlights}
           label={`${label} — ${side}`}
+          onMuscleClick={onMuscleClick}
           className={SIZE_CLASS[size]}
         />
       ))}

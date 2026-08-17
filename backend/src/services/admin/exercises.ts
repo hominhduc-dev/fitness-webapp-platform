@@ -1,5 +1,6 @@
 export {
   applyExerciseSync,
+  approveAdminMuscleProfiles,
   bulkDeleteAdminExercises,
   createAdminExercise,
   deleteAdminExercise,

@@ -23,7 +23,9 @@
     "icons": "node scripts/generate-app-icons.mjs",
     "splash": "node scripts/generate-ios-splash.mjs",
     "start": "next start",
-    "start:backend": "npm --prefix backend run start"
+    "start:backend": "npm --prefix backend run start",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "1.1.2",
@@ -58,16 +60,21 @@
     "@eslint/js": "^9.39.5",
     "@next/eslint-plugin-next": "^16.3.1",
     "@tailwindcss/postcss": "^4.1.9",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.11.0",
+    "jsdom": "27.0.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
     "typescript": "^5",
-    "typescript-eslint": "^8.67.0"
+    "typescript-eslint": "^8.67.0",
+    "vitest": "4.1.10"
   }
 }

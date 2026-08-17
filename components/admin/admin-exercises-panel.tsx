@@ -18,14 +18,18 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { MuscleMapPair } from "@/components/body/muscle-map-pair"
+import { TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
+import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
 import type { AdminExerciseImportRequest, AdminExerciseItem } from "@/lib/admin/types"
+import type { ExerciseActivityType, MuscleSlug } from "@/lib/types"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
 /* ------------------------------------------------------------------ */
@@ -34,19 +38,23 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
 const MUSCLES = [
   "Chest", "Back", "Legs", "Shoulders", "Arms",
-  "Core", "Glutes", "Calves", "Cardio", "Full Body",
+  "Core", "Glutes", "Calves", "Cardio", "Other",
 ]
 const EQUIP = [
   "Barbell", "Dumbbell", "Kettlebell", "Cable", "Machine",
   "Bodyweight", "Resistance Band", "EZ Bar", "Smith Machine",
   "Pull-up Bar", "Bench", "Medicine Ball", "TRX", "Other",
 ]
+const ACTIVITY_TYPES: ExerciseActivityType[] = ["strength", "cardio", "mobility", "sport", "other"]
 
 type FormData = {
+  activityType: ExerciseActivityType
   id?: string
   name: string
   variationName: string
   muscleGroup: string
+  primaryMuscles: MuscleSlug[]
+  secondaryMuscles: MuscleSlug[]
   equipment: string
 }
 
@@ -113,12 +121,48 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
   const [variationName, setVariation] = useState(initial?.variationName === "Default" ? "" : (initial?.variationName ?? ""))
   const [muscleGroup, setMuscle] = useState(initial?.muscleGroup ?? MUSCLES[0])
   const [equipment, setEquipment] = useState(initial?.equipment ?? EQUIP[0])
+  const [activityType, setActivityType] = useState<ExerciseActivityType>(initial?.activityType ?? "strength")
+  const [primaryMuscles, setPrimaryMuscles] = useState<MuscleSlug[]>(initial?.primaryMuscles ?? [])
+  const [secondaryMuscles, setSecondaryMuscles] = useState<MuscleSlug[]>(initial?.secondaryMuscles ?? [])
+  const [targetRole, setTargetRole] = useState<"primary" | "secondary">("primary")
 
-  const canSave = name.trim().length > 0
+  const canSave = name.trim().length > 0 && (activityType !== "strength" || primaryMuscles.length > 0)
+  const muscleHighlights = buildMuscleProfileHighlights(
+    [{ activityType, muscleProfileStatus: "approved", primaryMuscles, secondaryMuscles }],
+    "var(--primary)",
+    "color-mix(in oklab, var(--primary) 45%, var(--body-fill))",
+  )
+
+  function toggleMuscle(slug: MapMuscleSlug) {
+    if (!(TRAINABLE_MUSCLE_SLUGS as readonly string[]).includes(slug)) return
+    const target = slug as MuscleSlug
+
+    if (targetRole === "primary") {
+      setSecondaryMuscles((current) => current.filter((entry) => entry !== target))
+      setPrimaryMuscles((current) =>
+        current.includes(target) ? current.filter((entry) => entry !== target) : [...current, target],
+      )
+      return
+    }
+
+    setPrimaryMuscles((current) => current.filter((entry) => entry !== target))
+    setSecondaryMuscles((current) =>
+      current.includes(target) ? current.filter((entry) => entry !== target) : [...current, target],
+    )
+  }
 
   function handleSave() {
     if (!canSave) return
-    onSave({ id: initial?.id, name: name.trim(), variationName: variationName.trim() || "Default", muscleGroup, equipment })
+    onSave({
+      activityType,
+      equipment,
+      id: initial?.id,
+      muscleGroup,
+      name: name.trim(),
+      primaryMuscles,
+      secondaryMuscles,
+      variationName: variationName.trim() || "Default",
+    })
   }
 
   return (
@@ -187,6 +231,60 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
 
           {/* Equipment chips */}
           <div>
+            <Label className="label-micro text-muted-foreground">{locale === "en" ? "Activity type" : "Loại hoạt động"}</Label>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {ACTIVITY_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setActivityType(type)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em]",
+                    activityType === type
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-muted-foreground",
+                  )}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[10px] border border-border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="label-micro text-muted-foreground">Muscle targets</Label>
+              <div className="flex gap-1">
+                {(["primary", "secondary"] as const).map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setTargetRole(role)}
+                    className={cn(
+                      "rounded-full border px-2 py-1 text-[10px] uppercase",
+                      targetRole === role ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                    )}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <MuscleMapPair
+              className="mt-3"
+              highlights={muscleHighlights}
+              label={locale === "en" ? "Exercise muscle targets" : "Vùng cơ của bài tập"}
+              onMuscleClick={toggleMuscle}
+            />
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p><span className="font-medium text-foreground">Primary:</span> {primaryMuscles.join(", ") || "—"}</p>
+              <p><span className="font-medium text-foreground">Secondary:</span> {secondaryMuscles.join(", ") || "—"}</p>
+              {initial?.muscleProfileRationale ? <p>{initial.muscleProfileRationale}</p> : null}
+            </div>
+          </div>
+
+          {/* Equipment chips */}
+          <div>
             <Label className="label-micro text-muted-foreground">{copy.equipment}</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {EQUIP.map((eq) => (
@@ -244,7 +342,7 @@ type GroupBlockProps = {
 function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, deletingId, locale }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
   const totalUses = exercises.reduce((a, e) => a + e.usageCount, 0)
-  const selectableIds = exercises.filter((e) => e.usageCount === 0 && ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
+  const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someSelected = selectableIds.some((id) => selected.has(id))
 
@@ -294,7 +392,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 
           {exercises.map((e) => {
             const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
-            const canSelect = canManage && e.usageCount === 0
+            const canSelect = canManage
             const isSelected = selected.has(e.id)
             return (
             <div
@@ -320,6 +418,9 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
+                  <Badge variant={e.muscleProfileStatus === "approved" ? "secondary" : "outline"} className="shrink-0 px-1.5 py-0 font-mono text-[9px]">
+                    {e.muscleProfileStatus ?? "legacy"}{e.muscleProfileConfidence != null ? ` ${Math.round(e.muscleProfileConfidence * 100)}%` : ""}
+                  </Badge>
                 </div>
                 {/* Mobile-only: show variation + equipment under the name */}
                 <span className="truncate text-[11px] text-muted-foreground sm:hidden">
@@ -387,10 +488,13 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 /* ------------------------------------------------------------------ */
 
 export type ExerciseSaveData = {
+  activityType: ExerciseActivityType
   id?: string
   name: string
   variationName: string
   muscleGroup: string
+  primaryMuscles: MuscleSlug[]
+  secondaryMuscles: MuscleSlug[]
   equipment: string
 }
 
@@ -402,6 +506,7 @@ type Props = {
   onSave: (data: ExerciseSaveData) => Promise<void>
   onDelete: (exercise: AdminExerciseItem) => Promise<void>
   onBulkDelete: (ids: string[]) => Promise<void>
+  onBulkApprove?: (ids: string[]) => Promise<void>
   onImport: () => void
   onDownloadTemplate: () => void
   onExportAll: () => void
@@ -417,6 +522,7 @@ export function AdminExercisesPanel({
   onSave,
   onDelete,
   onBulkDelete,
+  onBulkApprove,
   onImport,
   onDownloadTemplate,
   onExportAll,
@@ -431,6 +537,9 @@ export function AdminExercisesPanel({
   const [modal, setModal] = useState<"new" | AdminExerciseItem | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [profileFilter, setProfileFilter] = useState<"all" | "pending" | "approved">("all")
+  const [activityFilter, setActivityFilter] = useState<"all" | ExerciseActivityType>("all")
+  const [maxConfidence, setMaxConfidence] = useState("")
 
   function handleSearchChange(value: string) {
     setRawQ(value)
@@ -442,8 +551,15 @@ export function AdminExercisesPanel({
 
   /* Derived: filter + group */
   const filtered = useMemo(
-    () => exercises.filter((e) => matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)),
-    [exercises, q],
+    () => exercises.filter((e) => {
+      if (!matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)) return false
+      if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
+      if (activityFilter !== "all" && e.activityType !== activityFilter) return false
+      const confidenceLimit = Number(maxConfidence)
+      if (maxConfidence.trim() && Number.isFinite(confidenceLimit) && (e.muscleProfileConfidence ?? 0) > confidenceLimit) return false
+      return true
+    }),
+    [activityFilter, exercises, maxConfidence, profileFilter, q],
   )
 
   const grouped = useMemo(() => {
@@ -642,18 +758,31 @@ export function AdminExercisesPanel({
             {isBulkDeleting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
             {copy.deleteSelected(selected.size)}
           </Button>
+          {onBulkApprove ? (
+            <Button size="sm" disabled={actionKey === "exercise-bulk-approve"} onClick={() => void onBulkApprove(Array.from(selected))}>
+              {actionKey === "exercise-bulk-approve" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
+              Approve profiles
+            </Button>
+          ) : null}
         </div>
       )}
 
       {/* Search */}
-      <div className="relative max-w-[360px]">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={rawQ}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder={copy.searchExercises}
-          className="pl-9"
-        />
+      <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px_140px]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
+          <Input value={rawQ} onChange={(e) => handleSearchChange(e.target.value)} placeholder={copy.searchExercises} className="pl-9" />
+        </div>
+        <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
+          <option value="all">Profile: all</option>
+          <option value="pending">Pending review</option>
+          <option value="approved">Approved</option>
+        </select>
+        <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
+          <option value="all">Activity: all</option>
+          {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+        </select>
+        <Input type="number" min="0" max="1" step="0.01" value={maxConfidence} onChange={(event) => setMaxConfidence(event.target.value)} placeholder="Max confidence" />
       </div>
 
       {/* Groups */}

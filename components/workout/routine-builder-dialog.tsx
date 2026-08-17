@@ -13,8 +13,8 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
-import { buildMuscleHighlights } from "@/lib/fitness/muscle-map"
-import type { ExerciseVariationOption, Workout } from "@/lib/types"
+import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
+import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { parseRepTargetText, formatRepTarget } from "@/lib/workout-reps"
 
@@ -27,6 +27,9 @@ export type RoutineExerciseDraft = {
   variationId: string
   displayName: string
   muscleGroup: string
+  activityType?: ExerciseActivityType
+  primaryMuscles?: MuscleSlug[]
+  secondaryMuscles?: MuscleSlug[]
   equipment?: string
   sets: number
   reps: string
@@ -105,6 +108,9 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     variationId: exercise.variation.id,
     displayName: exercise.exercise.name,
     muscleGroup: exercise.exercise.muscleGroup,
+    activityType: exercise.variation.activityType,
+    primaryMuscles: exercise.variation.primaryMuscles,
+    secondaryMuscles: exercise.variation.secondaryMuscles,
     equipment: exercise.variation.equipment,
     sets: exercise.sets.length,
     reps: formatRepTarget({ reps: set0?.targetReps ?? 10, repsMin: set0?.targetRepsMin }),
@@ -202,9 +208,10 @@ export function RoutineBuilderDialog({
   const canSave = name.trim().length > 0 && exercises.length > 0 && !isSaving
   // Recomputed straight from draft state, so the figure tracks every add and
   // remove — that live feedback is the point of showing it in the editor.
-  const muscleHighlights = buildMuscleHighlights(
-    exercises.map((ex) => ex.muscleGroup),
+  const muscleHighlights = buildMuscleProfileHighlights(
+    exercises,
     "var(--primary)",
+    "color-mix(in oklab, var(--primary) 45%, var(--body-fill))",
   )
 
   // ── Reset form on open/close ──────────────────────────────────────────────
@@ -260,6 +267,9 @@ export function RoutineBuilderDialog({
           variationId: ex.id,
           displayName: ex.exerciseName,
           muscleGroup: ex.muscleGroup,
+          activityType: ex.activityType,
+          primaryMuscles: ex.primaryMuscles,
+          secondaryMuscles: ex.secondaryMuscles,
           equipment: ex.equipment,
           sets: 3,
           reps: "10",
@@ -279,6 +289,9 @@ export function RoutineBuilderDialog({
                 variationId: ex.id,
                 displayName: ex.exerciseName,
                 muscleGroup: ex.muscleGroup,
+                activityType: ex.activityType,
+                primaryMuscles: ex.primaryMuscles,
+                secondaryMuscles: ex.secondaryMuscles,
                 equipment: ex.equipment,
               }
             : item,

@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/auth/api"
 import { getApiBaseUrl } from "@/lib/supabase/config"
+import type { ExerciseActivityType, MuscleProfileStatus, MuscleSlug } from "@/lib/types"
 
 import type {
   AdminAuditLogItem,
@@ -376,8 +377,21 @@ async function deleteAdminProgramRequest(accessToken: string, programId: string)
   })
 }
 
-async function fetchAdminExercises(accessToken: string, options?: { search?: string }) {
+async function fetchAdminExercises(
+  accessToken: string,
+  options?: {
+    activityType?: ExerciseActivityType
+    maxConfidence?: number
+    muscleGroup?: string
+    profileStatus?: MuscleProfileStatus
+    search?: string
+  },
+) {
   const query = buildQuery({
+    activityType: options?.activityType,
+    maxConfidence: options?.maxConfidence?.toString(),
+    muscleGroup: options?.muscleGroup,
+    profileStatus: options?.profileStatus,
     search: options?.search,
   })
   const response = await request<{ exercises: SerializedAdminExerciseItem[] }>(`/api/admin/exercises${query}`, accessToken)
@@ -387,9 +401,12 @@ async function fetchAdminExercises(accessToken: string, options?: { search?: str
 async function createAdminExerciseRequest(
   accessToken: string,
   input: {
+    activityType: ExerciseActivityType
     equipment?: string
     muscleGroup: string
     name: string
+    primaryMuscles: MuscleSlug[]
+    secondaryMuscles: MuscleSlug[]
     variationName?: string
   },
 ) {
@@ -404,9 +421,12 @@ async function updateAdminExerciseRequest(
   accessToken: string,
   exerciseId: string,
   input: {
+    activityType: ExerciseActivityType
     equipment?: string
     muscleGroup: string
     name: string
+    primaryMuscles: MuscleSlug[]
+    secondaryMuscles: MuscleSlug[]
     variationName?: string
   },
 ) {
@@ -433,6 +453,15 @@ async function bulkDeleteAdminExercisesRequest(accessToken: string, ids: string[
     accessToken,
     { body: JSON.stringify({ ids }), method: "POST" },
   )
+}
+
+async function bulkApproveAdminMuscleProfilesRequest(accessToken: string, variationIds: string[]) {
+  const response = await request<{ result: { approvedCount: number; approvedIds: string[]; skippedCount: number; skippedIds: string[] } }>(
+    `/api/admin/exercises/muscle-profiles/bulk-approve`,
+    accessToken,
+    { body: JSON.stringify({ variationIds }), method: "POST" },
+  )
+  return response.result
 }
 
 async function deleteAdminExerciseGroupRequest(accessToken: string, muscleGroup: string) {
@@ -522,6 +551,7 @@ async function fetchAdminAuditLogs(accessToken: string, options?: { entityType?:
 export {
   applyExerciseSyncRequest,
   assignAdminCoachConnection,
+  bulkApproveAdminMuscleProfilesRequest,
   bulkDeleteAdminExercisesRequest,
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
