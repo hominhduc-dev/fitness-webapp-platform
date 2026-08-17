@@ -102,9 +102,16 @@ export function MuscleMap({
           <path
             key={key}
             d={d}
+            // Names the region in the DOM. The artwork is 750-odd anonymous
+            // paths otherwise, which makes both end-to-end selection and
+            // eyeballing the tree in devtools guesswork.
+            data-muscle={slug}
             fill={highlights?.[slug] ?? defaultFill}
             onClick={isInteractive ? () => onMuscleClick?.(slug) : undefined}
-            className={isInteractive ? "cursor-pointer" : undefined}
+            // Fading rather than recolouring on hover keeps the affordance
+            // independent of `highlights` — the caller owns the palette, and a
+            // fixed hover colour would fight whichever scale it picked.
+            className={isInteractive ? "cursor-pointer transition-opacity hover:opacity-70" : undefined}
           />
         )
       })}

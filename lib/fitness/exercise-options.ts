@@ -9,6 +9,7 @@ function mapCoachExerciseToVariationOption(exercise: CoachExercise): ExerciseVar
   const isDefaultVariation = variationName.toLowerCase() === "default"
 
   return {
+    activityType: exercise.activityType,
     canManage: exercise.canManage,
     createdById: exercise.createdById,
     equipment: exercise.equipment,
@@ -22,6 +23,8 @@ function mapCoachExerciseToVariationOption(exercise: CoachExercise): ExerciseVar
     source: exercise.source,
     sortOrder: 0,
     variationName,
+    primaryMuscles: exercise.primaryMuscles,
+    secondaryMuscles: exercise.secondaryMuscles,
   }
 }
 
@@ -30,6 +33,7 @@ function flattenExerciseLibraryToVariationOptions(
 ): ExerciseVariationOption[] {
   return exercises.flatMap((exercise) =>
     exercise.variations.map((variation) => ({
+      activityType: variation.activityType,
       canManage: variation.canManage ?? exercise.canManage,
       createdById: variation.createdById ?? exercise.createdById,
       equipment: variation.equipment,
@@ -43,6 +47,8 @@ function flattenExerciseLibraryToVariationOptions(
       source: variation.source ?? exercise.source,
       sortOrder: variation.sortOrder,
       variationName: variation.name,
+      primaryMuscles: variation.primaryMuscles,
+      secondaryMuscles: variation.secondaryMuscles,
     })),
   )
 }

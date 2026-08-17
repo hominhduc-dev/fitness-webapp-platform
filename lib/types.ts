@@ -25,7 +25,34 @@ export interface ExerciseBase {
 
 export type ExerciseSource = "system" | "coach"
 
-export interface ExerciseVariation {
+export type ExerciseActivityType = "strength" | "cardio" | "mobility" | "sport" | "other"
+export type MuscleProfileStatus = "approved" | "pending"
+export type MuscleProfileSource = "ai" | "manual"
+export type MuscleSlug =
+  | "abs"
+  | "adductors"
+  | "biceps"
+  | "calves"
+  | "chest"
+  | "deltoids"
+  | "forearm"
+  | "gluteal"
+  | "hamstring"
+  | "lower-back"
+  | "obliques"
+  | "quadriceps"
+  | "tibialis"
+  | "trapezius"
+  | "triceps"
+  | "upper-back"
+
+export interface ExerciseMuscleProfile {
+  activityType?: ExerciseActivityType
+  primaryMuscles: MuscleSlug[]
+  secondaryMuscles: MuscleSlug[]
+}
+
+export interface ExerciseVariation extends ExerciseMuscleProfile {
   id: string
   name: string
   equipment?: string
@@ -37,7 +64,7 @@ export interface ExerciseVariation {
   source?: ExerciseSource
 }
 
-export interface ExerciseVariationOption {
+export interface ExerciseVariationOption extends ExerciseMuscleProfile {
   id: string
   exerciseId: string
   exerciseName: string

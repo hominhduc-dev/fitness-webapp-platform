@@ -2,6 +2,7 @@ import type {
   DailyNutrition,
   ExerciseBase,
   ExerciseLibraryExercise,
+  ExerciseMuscleProfile,
   ExerciseSource,
   ExerciseVariation,
   ExerciseVariationOption,
@@ -368,7 +369,7 @@ type CoachWorkoutLogPage = {
   nextCursor?: string
 }
 
-type CoachExercise = {
+type CoachExercise = ExerciseMuscleProfile & {
   canManage: boolean
   createdAt: Date
   createdById?: string
@@ -385,18 +386,24 @@ type CoachExercise = {
 }
 
 type CoachExerciseInput = {
+  activityType: import("@/lib/types").ExerciseActivityType
   equipment?: string
   muscleGroup: string
   name: string
+  primaryMuscles: import("@/lib/types").MuscleSlug[]
+  secondaryMuscles: import("@/lib/types").MuscleSlug[]
 }
 
 type CoachExerciseImportRow = {
+  activityType: import("@/lib/types").ExerciseActivityType
   exerciseName: string
   equipment?: string
   isDefault?: boolean
   muscleGroup: string
+  primaryMuscles: import("@/lib/types").MuscleSlug[]
   rowNumber: number
   sortOrder?: number
+  secondaryMuscles: import("@/lib/types").MuscleSlug[]
   variationName: string
 }
 

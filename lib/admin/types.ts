@@ -1,4 +1,4 @@
-import type { UserRole } from "@/lib/types"
+import type { ExerciseActivityType, ExerciseMuscleProfile, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
 
 type AdminMiniUser = {
   avatar?: string
@@ -59,13 +59,17 @@ type AdminProgramSummary = {
   workoutsPerWeek: number
 }
 
-type AdminExerciseItem = {
+type AdminExerciseItem = ExerciseMuscleProfile & {
   createdAt: Date
   createdBy: AdminMiniUser | null
   equipment?: string
   id: string
   isDefault: boolean
   muscleGroup: string
+  muscleProfileConfidence?: number
+  muscleProfileRationale?: string
+  muscleProfileSource?: MuscleProfileSource
+  muscleProfileStatus?: MuscleProfileStatus
   name: string
   updatedAt: Date
   usageCount: number
@@ -73,12 +77,15 @@ type AdminExerciseItem = {
 }
 
 type AdminExerciseImportRow = {
+  activityType: ExerciseActivityType
   exerciseName: string
   equipment?: string
   isDefault?: boolean
   muscleGroup: string
+  primaryMuscles: MuscleSlug[]
   rowNumber: number
   sortOrder?: number
+  secondaryMuscles: MuscleSlug[]
   variationName: string
 }
 

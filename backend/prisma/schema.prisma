@@ -48,6 +48,29 @@ enum ExerciseImportRequestStatus {
   rejected
 }
 
+enum ExerciseActivityType {
+  strength
+  cardio
+  mobility
+  sport
+  other
+}
+
+enum MuscleTargetRole {
+  primary
+  secondary
+}
+
+enum MuscleProfileStatus {
+  pending
+  approved
+}
+
+enum MuscleProfileSource {
+  ai
+  manual
+}
+
 enum WeightUnit {
   kg
   lbs
@@ -117,50 +140,51 @@ enum ActivityLevel {
 }
 
 model User {
-  id                     String              @id @default(uuid()) @db.Uuid
-  supabaseAuthUserId     String?             @unique @db.Uuid
+  id                     String                  @id @default(uuid()) @db.Uuid
+  supabaseAuthUserId     String?                 @unique @db.Uuid
   name                   String
-  email                  String              @unique
-  username               String?             @unique
-  phone                  String?             @unique
+  email                  String                  @unique
+  username               String?                 @unique
+  phone                  String?                 @unique
   role                   UserRole
-  isActive               Boolean             @default(true)
+  isActive               Boolean                 @default(true)
   avatar                 String?
-  fitnessGoals           String[]            @default([])
-  preferredWeightUnit    WeightUnit          @default(kg)
-  dailyCalorieGoal       Int                 @default(2500)
-  dailyProteinGoal       Int                 @default(140)
-  dailyCarbsGoal         Int                 @default(280)
-  dailyFatGoal           Int                 @default(70)
+  fitnessGoals           String[]                @default([])
+  preferredWeightUnit    WeightUnit              @default(kg)
+  dailyCalorieGoal       Int                     @default(2500)
+  dailyProteinGoal       Int                     @default(140)
+  dailyCarbsGoal         Int                     @default(280)
+  dailyFatGoal           Int                     @default(70)
   heightCm               Float?
   targetWeightKg         Float?
   goalStartWeightKg      Float?
-  birthDate              DateTime?           @db.Date
+  birthDate              DateTime?               @db.Date
   sex                    UserSex?
   activityLevel          ActivityLevel?
-  coachId                String?             @db.Uuid
-  coach                  User?               @relation("CoachTrainees", fields: [coachId], references: [id], onDelete: SetNull)
-  trainees               User[]              @relation("CoachTrainees")
+  coachId                String?                 @db.Uuid
+  coach                  User?                   @relation("CoachTrainees", fields: [coachId], references: [id], onDelete: SetNull)
+  trainees               User[]                  @relation("CoachTrainees")
   meals                  Meal[]
-  exercisesCreated       Exercise[]          @relation("ExerciseCreator")
+  exercisesCreated       Exercise[]              @relation("ExerciseCreator")
   exerciseImportRequests ExerciseImportRequest[] @relation("ExerciseImportSubmitter")
   exerciseImportReviews  ExerciseImportRequest[] @relation("ExerciseImportReviewer")
-  foodsCreated           Food[]              @relation("FoodCreator")
+  muscleProfilesReviewed Variation[]             @relation("MuscleProfileReviewer")
+  foodsCreated           Food[]                  @relation("FoodCreator")
   notifications          Notification[]
-  programsCreated        Program[]           @relation("ProgramCreator")
+  programsCreated        Program[]               @relation("ProgramCreator")
   programAssignments     ProgramAssignment[]
   workoutLogs            WorkoutLog[]
-  workoutLogComments     WorkoutLogComment[]   @relation("WorkoutLogCommentAuthor")
-  bodyMetricsAsTrainee   BodyMetricEntry[]   @relation("BodyMetricTrainee")
-  bodyMetricsAsCoach     BodyMetricEntry[]   @relation("BodyMetricCoach")
-  checkInsAsTrainee      CoachCheckIn[]      @relation("CoachCheckInTrainee")
-  checkInsAsCoach        CoachCheckIn[]      @relation("CoachCheckInCoach")
-  coachRequestsAsCoach   CoachRequest[]      @relation("CoachRequestCoach")
-  coachRequestsAsTrainee CoachRequest[]      @relation("CoachRequestTrainee")
-  adminAuditLogs         AdminAuditLog[]     @relation("AdminAuditActor")
+  workoutLogComments     WorkoutLogComment[]     @relation("WorkoutLogCommentAuthor")
+  bodyMetricsAsTrainee   BodyMetricEntry[]       @relation("BodyMetricTrainee")
+  bodyMetricsAsCoach     BodyMetricEntry[]       @relation("BodyMetricCoach")
+  checkInsAsTrainee      CoachCheckIn[]          @relation("CoachCheckInTrainee")
+  checkInsAsCoach        CoachCheckIn[]          @relation("CoachCheckInCoach")
+  coachRequestsAsCoach   CoachRequest[]          @relation("CoachRequestCoach")
+  coachRequestsAsTrainee CoachRequest[]          @relation("CoachRequestTrainee")
+  adminAuditLogs         AdminAuditLog[]         @relation("AdminAuditActor")
   aiGenerations          AIGeneration[]
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
   @@index([coachId])
   @@index([username])
@@ -181,21 +205,52 @@ model Exercise {
 }
 
 model Variation {
-  id               String            @id @default(uuid()) @db.Uuid
-  exerciseId       String            @db.Uuid
-  name             String
-  equipment        String?
-  isDefault        Boolean           @default(false)
-  sortOrder        Int               @default(0)
-  metadata         Json?
-  exercise         Exercise          @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  workoutExercises WorkoutExercise[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                        String                  @id @default(uuid()) @db.Uuid
+  exerciseId                String                  @db.Uuid
+  name                      String
+  equipment                 String?
+  isDefault                 Boolean                 @default(false)
+  sortOrder                 Int                     @default(0)
+  metadata                  Json?
+  activityType              ExerciseActivityType?
+  muscleProfileStatus       MuscleProfileStatus     @default(pending)
+  muscleProfileSource       MuscleProfileSource?
+  muscleProfileConfidence   Float?
+  muscleProfileRationale    String?
+  muscleProfileReviewedAt   DateTime?
+  muscleProfileReviewedById String?                 @db.Uuid
+  exercise                  Exercise                @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  muscleProfileReviewedBy   User?                   @relation("MuscleProfileReviewer", fields: [muscleProfileReviewedById], references: [id], onDelete: SetNull)
+  muscleTargets             VariationMuscleTarget[]
+  workoutExercises          WorkoutExercise[]
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
 
   @@unique([exerciseId, name])
   @@index([equipment])
   @@index([exerciseId, sortOrder])
+  @@index([activityType, muscleProfileStatus])
+  @@index([muscleProfileReviewedById])
+}
+
+model MuscleRegion {
+  slug      String                  @id
+  targets   VariationMuscleTarget[]
+  createdAt DateTime                @default(now())
+}
+
+model VariationMuscleTarget {
+  variationId String           @db.Uuid
+  muscleSlug  String
+  role        MuscleTargetRole
+  position    Int              @default(0)
+  variation   Variation        @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  muscle      MuscleRegion     @relation(fields: [muscleSlug], references: [slug], onDelete: Restrict)
+  createdAt   DateTime         @default(now())
+
+  @@id([variationId, muscleSlug])
+  @@index([muscleSlug, role])
+  @@index([variationId, role, position])
 }
 
 model ExerciseImportRequest {
@@ -220,14 +275,14 @@ model ExerciseImportRequest {
 }
 
 model Food {
-  id            String           @id @default(uuid()) @db.Uuid
-  slug          String           @unique
+  id            String         @id @default(uuid()) @db.Uuid
+  slug          String         @unique
   name          String
   category      FoodCategory
   brand         String?
-  barcode       String?          @unique
-  servingAmount Float            @default(1)
-  servingUnit   String           @default("serving")
+  barcode       String?        @unique
+  servingAmount Float          @default(1)
+  servingUnit   String         @default("serving")
   servingLabel  String
   calories      Float
   protein       Float?
@@ -236,13 +291,13 @@ model Food {
   fiber         Float?
   sugar         Float?
   sodium        Float?
-  source        FoodSource       @default(system)
-  isVerified    Boolean          @default(false)
-  createdById   String?          @db.Uuid
-  createdBy     User?            @relation("FoodCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  source        FoodSource     @default(system)
+  isVerified    Boolean        @default(false)
+  createdById   String?        @db.Uuid
+  createdBy     User?          @relation("FoodCreator", fields: [createdById], references: [id], onDelete: SetNull)
   mealItems     MealFoodItem[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([createdById])
   @@index([category])
@@ -303,17 +358,17 @@ model Workout {
 }
 
 model WorkoutExercise {
-  id          String       @id @default(uuid()) @db.Uuid
-  workoutId   String       @db.Uuid
-  variationId String       @db.Uuid
+  id          String        @id @default(uuid()) @db.Uuid
+  workoutId   String        @db.Uuid
+  variationId String        @db.Uuid
   order       Int
   restTime    Int?
   notes       String?
-  workout     Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  variation   Variation    @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  workout     Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  variation   Variation     @relation(fields: [variationId], references: [id], onDelete: Restrict)
   sets        ExerciseSet[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([variationId])
   @@index([workoutId, order])
@@ -336,22 +391,22 @@ model ExerciseSet {
 }
 
 model WorkoutLog {
-  id               String    @id @default(uuid()) @db.Uuid
-  userId           String    @db.Uuid
-  workoutId        String?   @db.Uuid
-  programId        String?   @db.Uuid
+  id               String              @id @default(uuid()) @db.Uuid
+  userId           String              @db.Uuid
+  workoutId        String?             @db.Uuid
+  programId        String?             @db.Uuid
   workoutSnapshot  Json?
   exerciseSnapshot Json?
-  plannedDate      DateTime? @db.Date
+  plannedDate      DateTime?           @db.Date
   startedAt        DateTime
   completedAt      DateTime?
   totalVolume      Float?
   notes            String?
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workout          Workout?  @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout          Workout?            @relation(fields: [workoutId], references: [id], onDelete: SetNull)
   comments         WorkoutLogComment[]
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   @@index([userId, startedAt])
   @@index([userId, plannedDate])
@@ -417,23 +472,23 @@ model CoachCheckIn {
 }
 
 model Meal {
-  id               String   @id @default(uuid()) @db.Uuid
-  userId           String   @db.Uuid
-  type             MealType
-  name             String
-  loggedDate       DateTime @db.Date
-  calories         Float
-  protein          Float?
-  carbs            Float?
-  fat              Float?
-  fiber            Float?
-  sugar            Float?
-  sodium           Float?
-  recordedAt       DateTime
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items            MealFoodItem[]
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  type       MealType
+  name       String
+  loggedDate DateTime       @db.Date
+  calories   Float
+  protein    Float?
+  carbs      Float?
+  fat        Float?
+  fiber      Float?
+  sugar      Float?
+  sodium     Float?
+  recordedAt DateTime
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      MealFoodItem[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 
   @@unique([userId, loggedDate, type])
   @@index([userId, loggedDate])
@@ -441,27 +496,27 @@ model Meal {
 }
 
 model MealFoodItem {
-  id               String    @id @default(uuid()) @db.Uuid
-  mealId           String    @db.Uuid
-  foodId           String    @db.Uuid
-  quantity         Float     @default(1)
-  amountValue      Float     @default(1)
-  amountUnit       String    @default("serving")
+  id               String   @id @default(uuid()) @db.Uuid
+  mealId           String   @db.Uuid
+  foodId           String   @db.Uuid
+  quantity         Float    @default(1)
+  amountValue      Float    @default(1)
+  amountUnit       String   @default("serving")
   amountLabel      String?
   weightGrams      Float?
   notes            String?
   foodNameSnapshot String?
-  calories         Float     @default(0)
+  calories         Float    @default(0)
   protein          Float?
   carbs            Float?
   fat              Float?
   fiber            Float?
   sugar            Float?
   sodium           Float?
-  meal             Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
-  food             Food      @relation(fields: [foodId], references: [id], onDelete: Restrict)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  meal             Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  food             Food     @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([foodId])
   @@index([mealId])
@@ -519,17 +574,17 @@ model AdminAuditLog {
 }
 
 model AIGeneration {
-  id         String               @id @default(uuid()) @db.Uuid
-  userId     String               @db.Uuid
+  id         String             @id @default(uuid()) @db.Uuid
+  userId     String             @db.Uuid
   type       AIGenerationType
-  status     AIGenerationStatus   @default(pending)
+  status     AIGenerationStatus @default(pending)
   input      Json
   output     Json?
-  programId  String?              @db.Uuid
+  programId  String?            @db.Uuid
   tokenUsage Int?
   errorMsg   String?
-  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime             @default(now())
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime           @default(now())
 
   @@index([userId, type, createdAt])
 }

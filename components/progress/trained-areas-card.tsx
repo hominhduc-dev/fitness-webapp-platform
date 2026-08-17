@@ -5,7 +5,7 @@ import { useMemo, useState } from "react"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { startOfUtcWeek } from "@/lib/fitness/date-range"
-import { buildMuscleHighlights, muscleGroupsFromLogs } from "@/lib/fitness/muscle-map"
+import { buildMuscleProfileHighlights, muscleProfilesFromLogs } from "@/lib/fitness/muscle-map"
 import type { WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -45,7 +45,11 @@ export function TrainedAreasCard({ weekLogs, historyLogs }: TrainedAreasCardProp
 
   const logs = period === "this" ? weekLogs : lastWeekLogs
   const highlights = useMemo(
-    () => buildMuscleHighlights(muscleGroupsFromLogs(logs), "var(--primary)"),
+    () => buildMuscleProfileHighlights(
+      muscleProfilesFromLogs(logs),
+      "var(--primary)",
+      "color-mix(in oklab, var(--primary) 45%, var(--body-fill))",
+    ),
     [logs],
   )
 
