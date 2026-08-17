@@ -42,6 +42,58 @@ export function startOfUtcWeek(date: Date) {
   return start
 }
 
+export type ProgramWeekPlacement =
+  | { kind: "active"; weekIndex: number }
+  | { kind: "before" }
+  | { kind: "after" }
+  | null
+
+/**
+ * Where an arbitrary calendar week falls relative to a program's span.
+ *
+ * `weekStartCalendarDate` is a **local-midnight** Date whose calendar date is
+ * the UTC Monday of that week — the shape `startOfUtcWeekAsLocal` produces in
+ * the weekly calendar. Handing it straight to `startOfUtcWeek` would land on
+ * the previous Monday in any positive-offset timezone, so the UTC instant is
+ * rebuilt from its calendar fields first.
+ */
+export function resolveProgramWeekForWeekStart(
+  assignedAt: unknown,
+  totalWeeks: number,
+  weekStartCalendarDate: Date,
+): ProgramWeekPlacement {
+  const assignedDate = parseValidDate(assignedAt)
+  if (!assignedDate) return null
+
+  const weekStartUtc = Date.UTC(
+    weekStartCalendarDate.getFullYear(),
+    weekStartCalendarDate.getMonth(),
+    weekStartCalendarDate.getDate(),
+  )
+  const assignmentWeekStart = startOfUtcWeek(assignedDate)
+  const elapsedWeeks = Math.round((weekStartUtc - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
+  const lastWeekIndex = Math.max(0, clampWeeks(totalWeeks) - 1)
+
+  if (elapsedWeeks < 0) return { kind: "before" }
+  if (elapsedWeeks > lastWeekIndex) return { kind: "after" }
+  return { kind: "active", weekIndex: elapsedWeeks }
+}
+
+/**
+ * Which authored week to actually show for a target week.
+ *
+ * A program that stops short repeats its last authored week rather than going
+ * blank — the AI generator writes only week 0 and expects it to repeat. This
+ * mirrors `selectVisibleWorkoutsForAssignmentWeek` on the backend; the two must
+ * agree or /schedule and /workout will disagree about the same week.
+ */
+export function resolveEffectiveWeekIndex(authoredWeeks: number[], targetWeekIndex: number) {
+  if (authoredWeeks.length === 0) return null
+
+  const atOrBefore = authoredWeeks.filter((weekIndex) => weekIndex <= targetWeekIndex)
+  return atOrBefore.length > 0 ? Math.max(...atOrBefore) : Math.min(...authoredWeeks)
+}
+
 export function resolveCurrentWeekProgress(
   assignedAt: unknown,
   totalWeeks: number,
