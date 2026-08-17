@@ -6,82 +6,32 @@ import { useMemo, useState } from "react"
 
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
+import { ProgramGroupCard } from "@/components/workout/program-group-card"
+import { RoutineDot } from "@/components/workout/routine-dot"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
+import { getTagLabel, getTotalSets, inferRoutineTag, type RoutineTag } from "@/lib/fitness/routine-tag"
+import type { TraineeProgram } from "@/lib/fitness/types"
 import type { Workout, WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
 
-type RoutineTag = "all" | "push" | "pull" | "legs" | "upper" | "lower" | "full"
-
 type RoutinesWorkoutBoardProps = {
   historyLogs: WorkoutLog[]
+  programs: TraineeProgram[]
+  workouts: Workout[]
+}
+
+type ProgramGroup = {
+  program: TraineeProgram
   workouts: Workout[]
 }
 
 const FILTERS: RoutineTag[] = ["all", "push", "pull", "legs", "upper", "lower", "full"]
-
-const TAG_DOT_COLOR: Record<Exclude<RoutineTag, "all">, string> = {
-  full: "var(--ink-600)",
-  legs: "var(--warning)",
-  lower: "#1a8a8a",
-  pull: "var(--success)",
-  push: "var(--primary)",
-  upper: "#7c5dff",
-}
-
-function normalizeText(value?: string | null) {
-  return value?.trim().toLowerCase() ?? ""
-}
-
-function inferRoutineTag(workout: Workout): Exclude<RoutineTag, "all"> {
-  if (workout.kind === "push" || workout.kind === "pull" || workout.kind === "legs") {
-    return workout.kind
-  }
-
-  if (workout.kind === "full_body") {
-    return "full"
-  }
-
-  const name = normalizeText(workout.name)
-  if (name.includes("upper")) return "upper"
-  if (name.includes("lower")) return "lower"
-  if (name.includes("push")) return "push"
-  if (name.includes("pull")) return "pull"
-  if (name.includes("leg")) return "legs"
-  if (name.includes("full")) return "full"
-
-  const groups = new Set(workout.exercises.map((exercise) => normalizeText(exercise.exercise.muscleGroup)))
-  const hasUpper = ["chest", "back", "shoulders", "arms", "biceps", "triceps"].some((group) => groups.has(group))
-  const hasLower = ["legs", "quads", "hamstrings", "glutes", "calves"].some((group) => groups.has(group))
-
-  if (hasUpper && hasLower) return "full"
-  if (hasUpper) return "upper"
-  if (hasLower) return "lower"
-
-  return "full"
-}
-
-function getTagLabel(tag: RoutineTag, messages: AppMessages) {
-  const labels: Record<RoutineTag, string> = {
-    all: messages.workoutPage.all,
-    full: messages.workoutPage.tagFull,
-    legs: messages.workoutPage.tagLegs,
-    lower: messages.workoutPage.tagLower,
-    pull: messages.workoutPage.tagPull,
-    push: messages.workoutPage.tagPush,
-    upper: messages.workoutPage.tagUpper,
-  }
-  return labels[tag]
-}
-
-function getTotalSets(workout: Workout) {
-  return workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)
-}
 
 function getLastUsed(workout: Workout, historyLogs: WorkoutLog[], messages: AppMessages) {
   const latestLog = historyLogs.find((log) => log.workout.id === workout.id)
@@ -114,10 +64,6 @@ function formatScheduledDate(date: Date) {
   }).formatToParts(date)
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
   return `${values.year}-${values.month}-${values.day}`
-}
-
-function RoutineDot({ tag }: { tag: Exclude<RoutineTag, "all"> }) {
-  return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TAG_DOT_COLOR[tag] }} />
 }
 
 function FilterChip({
@@ -322,7 +268,7 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
   )
 }
 
-export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutBoardProps) {
+export function RoutinesWorkoutBoard({ historyLogs, programs, workouts }: RoutinesWorkoutBoardProps) {
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
@@ -331,13 +277,50 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
     [filter, reusableWorkouts],
   )
 
+  // A personal routine is wrapped in a synthetic one-week program by
+  // `createPersonalWorkoutForTrainee`, so `duration > 1` is what separates a real
+  // multi-week program from a standalone routine.
+  const multiWeekById = useMemo(
+    () => new Map(programs.filter((program) => program.duration > 1).map((program) => [program.id, program])),
+    [programs],
+  )
+
+  const { programGroups, standaloneWorkouts } = useMemo(() => {
+    const groups = new Map<string, ProgramGroup>()
+    const standalone: Workout[] = []
+
+    visibleWorkouts.forEach((workout) => {
+      const program = workout.programId ? multiWeekById.get(workout.programId) : undefined
+
+      if (!program) {
+        standalone.push(workout)
+        return
+      }
+
+      const group = groups.get(program.id)
+
+      if (group) {
+        group.workouts.push(workout)
+        return
+      }
+
+      groups.set(program.id, { program, workouts: [workout] })
+    })
+
+    return { programGroups: Array.from(groups.values()), standaloneWorkouts: standalone }
+  }, [multiWeekById, visibleWorkouts])
+
+  // The heading sits directly above the grid, so it counts what is actually
+  // rendered: one entry per program card plus each standalone routine.
+  const cardCount = programGroups.length + standaloneWorkouts.length
+
   return (
     <>
       <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end">
         <div>
           <span className="label-micro mb-2 block">{messages.workoutPage.routines}</span>
           <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-[36px]">
-            {messages.workoutPage.savedRoutines(reusableWorkouts.length)}
+            {messages.workoutPage.savedRoutines(cardCount)}
           </h1>
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
@@ -360,9 +343,12 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
         ))}
       </div>
 
-      {visibleWorkouts.length > 0 ? (
+      {cardCount > 0 ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleWorkouts.map((workout) => (
+          {programGroups.map((group) => (
+            <ProgramGroupCard key={group.program.id} program={group.program} workouts={group.workouts} />
+          ))}
+          {standaloneWorkouts.map((workout) => (
             <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
           ))}
         </div>

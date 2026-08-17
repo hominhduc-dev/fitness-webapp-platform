@@ -33,7 +33,13 @@ async function RoutinesContent() {
   const { accessToken } = await requireAppSession({ role: "trainee" })
   const workoutData = await fetchWorkouts(accessToken)
 
-  return <RoutinesWorkoutBoard historyLogs={workoutData.historyLogs} workouts={workoutData.workouts} />
+  return (
+    <RoutinesWorkoutBoard
+      historyLogs={workoutData.historyLogs}
+      programs={workoutData.programs}
+      workouts={workoutData.workouts}
+    />
+  )
 }
 
 export default function WorkoutPage() {
