@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   assignAdminCoachConnection,
+  bulkApproveAdminMuscleProfilesRequest,
   bulkDeleteAdminExercisesRequest,
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
@@ -76,6 +77,7 @@ import type {
   ExerciseSyncRow,
 } from "@/lib/admin/types"
 import { matchesExerciseSearch, scoreExerciseSearch, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
+import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS, parseActivityType, parseMuscleSlugs } from "@/lib/fitness/muscle-profile"
 import type { UserRole } from "@/lib/types"
 
 type ConfirmState =
@@ -113,6 +115,7 @@ type ExerciseGroupItem = {
 }
 
 const EXERCISE_IMPORT_HEADERS = {
+  activityType: ["activity type", "activity_type", "type", "loai hoat dong"],
   exerciseName: [
     "exercise name",
     "exercise_name",
@@ -124,6 +127,8 @@ const EXERCISE_IMPORT_HEADERS = {
   equipment: ["equipment", "gear", "device", "dung cu", "thiet bi"],
   isDefault: ["is default", "is_default", "default", "mac dinh"],
   muscleGroup: ["muscle group", "musclegroup", "muscle_group", "body part", "bodypart", "nhom co"],
+  primaryMuscles: ["primary muscles", "primary_muscles", "primary", "co chinh"],
+  secondaryMuscles: ["secondary muscles", "secondary_muscles", "secondary", "co phu"],
   sortOrder: ["sort order", "sort_order", "order", "thu tu"],
   variationName: ["variation name", "variation_name", "variation", "bien the"],
 } as const
@@ -138,7 +143,7 @@ const EXERCISE_TEMPLATE_MUSCLE_GROUPS = [
   "Glutes",
   "Calves",
   "Cardio",
-  "Full Body",
+  "Other",
 ] as const
 
 const EXERCISE_TEMPLATE_EQUIPMENT = [
@@ -159,10 +164,10 @@ const EXERCISE_TEMPLATE_EQUIPMENT = [
 ] as const
 
 const EXERCISE_TEMPLATE_EXAMPLES = [
-  ["Bench Press", "Chest", "Default", "Barbell", "TRUE", 0],
-  ["Bench Press", "Chest", "Incline", "Dumbbell", "FALSE", 1],
-  ["Lat Pulldown", "Back", "Wide Grip", "Cable", "TRUE", 0],
-  ["Plank", "Core", "Default", "Bodyweight", "TRUE", 0],
+  ["Bench Press", "Chest", "Default", "Barbell", "strength", "chest", "triceps,deltoids", "TRUE", 0],
+  ["Bench Press", "Chest", "Incline", "Dumbbell", "strength", "chest", "triceps,deltoids", "FALSE", 1],
+  ["Lat Pulldown", "Back", "Wide Grip", "Cable", "strength", "upper-back", "biceps,forearm", "TRUE", 0],
+  ["Plank", "Core", "Default", "Bodyweight", "strength", "abs", "obliques", "TRUE", 0],
 ] as const
 
 function normalizeImportHeader(value: unknown) {
@@ -701,7 +706,7 @@ export function AdminConsole() {
     try {
       const XLSX = await import("xlsx")
       const workbook = XLSX.utils.book_new()
-      const templateHeaders = ["exercise_name", "muscle_group", "variation_name", "equipment", "is_default", "sort_order"]
+      const templateHeaders = ["exercise_name", "muscle_group", "variation_name", "equipment", "activity_type", "primary_muscles", "secondary_muscles", "is_default", "sort_order"]
       const instructionsSheet = XLSX.utils.aoa_to_sheet([
         [locale === "en" ? "Exercise import template" : "Mẫu import bài tập"],
         [
@@ -711,8 +716,8 @@ export function AdminConsole() {
         ],
         [
           locale === "en"
-            ? "Each row represents one exercise variation. Required columns: exercise_name, muscle_group, variation_name."
-            : "Mỗi dòng là một variation của bài tập. Cột bắt buộc: exercise_name, muscle_group, variation_name.",
+            ? "Each row is one variation. Required: exercise_name, muscle_group, activity_type, primary_muscles, secondary_muscles."
+            : "Mỗi dòng là một variation. Bắt buộc: exercise_name, muscle_group, activity_type, primary_muscles, secondary_muscles.",
         ],
         [
           locale === "en"
@@ -745,8 +750,8 @@ export function AdminConsole() {
       const referenceSheet = XLSX.utils.aoa_to_sheet(referenceRows)
 
       instructionsSheet["!cols"] = [{ wch: 110 }]
-      exercisesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 12 }, { wch: 12 }]
-      examplesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 12 }, { wch: 12 }]
+      exercisesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 12 }]
+      examplesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 12 }]
       referenceSheet["!cols"] = [{ wch: 22 }, { wch: 22 }]
 
       XLSX.utils.book_append_sheet(workbook, exercisesSheet, "Exercises")
@@ -833,6 +838,9 @@ export function AdminConsole() {
       const missingColumns = [
         typeof columnMap.exerciseName !== "number" ? (locale === "en" ? "exercise_name" : "exercise_name") : null,
         typeof columnMap.muscleGroup !== "number" ? (locale === "en" ? "muscle_group" : "muscle_group") : null,
+        typeof columnMap.activityType !== "number" ? "activity_type" : null,
+        typeof columnMap.primaryMuscles !== "number" ? "primary_muscles" : null,
+        typeof columnMap.secondaryMuscles !== "number" ? "secondary_muscles" : null,
       ].filter(Boolean) as string[]
 
       if (missingColumns.length > 0) {
@@ -854,12 +862,15 @@ export function AdminConsole() {
         const equipmentIndex = columnMap.equipment
         const isDefaultIndex = columnMap.isDefault
         const sortOrderIndex = columnMap.sortOrder
+        const activityType = parseActivityType(row[columnMap.activityType as number])
+        const primary = parseMuscleSlugs(row[columnMap.primaryMuscles as number])
+        const secondary = parseMuscleSlugs(row[columnMap.secondaryMuscles as number])
         const rawVariationName = typeof variationNameIndex === "number" ? String(row[variationNameIndex] ?? "").trim() : ""
         const variationName = rawVariationName || "Default"
         const equipment = typeof equipmentIndex === "number" ? String(row[equipmentIndex] ?? "").trim() : ""
         const isDefault = typeof isDefaultIndex === "number" ? parseImportBoolean(row[isDefaultIndex]) : variationName === "Default"
         const sortOrder = typeof sortOrderIndex === "number" ? parseImportNumber(row[sortOrderIndex]) : undefined
-        const isBlankRow = !exerciseName && !muscleGroup && !rawVariationName && !equipment
+        const isBlankRow = !exerciseName && !muscleGroup && !rawVariationName && !equipment && !activityType && !primary.muscles.length && !secondary.muscles.length
 
         if (isBlankRow) {
           return
@@ -876,13 +887,25 @@ export function AdminConsole() {
           return
         }
 
+        const overlap = primary.muscles.filter((slug) => secondary.muscles.includes(slug))
+        if (!activityType || primary.invalid.length || secondary.invalid.length || overlap.length || (activityType === "strength" && !primary.muscles.length)) {
+          nextIssues.push({
+            message: `Muscle profile không hợp lệ${primary.invalid.length || secondary.invalid.length ? ` (slug lạ: ${[...primary.invalid, ...secondary.invalid].join(", ")})` : ""}${overlap.length ? ` (trùng primary/secondary: ${overlap.join(", ")})` : ""}. Activity types: ${EXERCISE_ACTIVITY_TYPES.join(", ")}; muscle slugs: ${MUSCLE_SLUGS.join(", ")}.`,
+            rowNumber,
+          })
+          return
+        }
+
         nextRows.push({
+          activityType,
           exerciseName,
           equipment: equipment || undefined,
           isDefault,
           muscleGroup,
+          primaryMuscles: primary.muscles,
           rowNumber,
           sortOrder,
+          secondaryMuscles: secondary.muscles,
           variationName,
         })
       })
@@ -1068,6 +1091,22 @@ export function AdminConsole() {
     }
   }
 
+  async function handleBulkApproveProfiles(ids: string[]) {
+    if (!session?.access_token || !ids.length) return
+    setActionKey("exercise-bulk-approve")
+    setError(null)
+    try {
+      const result = await bulkApproveAdminMuscleProfilesRequest(session.access_token, ids)
+      setNotice(locale === "en" ? `Approved ${result.approvedCount} profile(s); skipped ${result.skippedCount}.` : `Đã duyệt ${result.approvedCount} profile; bỏ qua ${result.skippedCount}.`)
+      await refreshExercises()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể duyệt muscle profiles.")
+      throw err
+    } finally {
+      setActionKey(null)
+    }
+  }
+
   async function handleExportAllExercises() {
     if (exercises.length === 0) return
     setActionKey("exercise-export")
@@ -1091,6 +1130,9 @@ export function AdminConsole() {
         { header: "variation_name", key: "variation_name", width: 22 },
         { header: "equipment", key: "equipment", width: 20 },
         { header: "usage_count", key: "usage_count", width: 14 },
+        { header: "activity_type", key: "activity_type", width: 16 },
+        { header: "primary_muscles", key: "primary_muscles", width: 30 },
+        { header: "secondary_muscles", key: "secondary_muscles", width: 30 },
       ]
 
       const headerRow = ws.getRow(1)
@@ -1106,6 +1148,9 @@ export function AdminConsole() {
           variation_name: e.variationName === "Default" ? "" : e.variationName,
           equipment: e.equipment ?? "",
           usage_count: e.usageCount,
+          activity_type: e.activityType ?? "",
+          primary_muscles: e.primaryMuscles.join(","),
+          secondary_muscles: e.secondaryMuscles.join(","),
         })
       }
 
@@ -1121,10 +1166,22 @@ export function AdminConsole() {
         sort: true,
       })
 
-      // Unlock editable columns (B–F) for all rows
+      // Unlock editable columns (B–I) for all rows
       for (let row = 1; row <= lastDataRow + 100; row++) {
-        for (const col of ["B", "C", "D", "E", "F"]) {
+        for (const col of ["B", "C", "D", "E", "F", "G", "H", "I"]) {
           ws.getCell(`${col}${row}`).protection = { locked: false }
+        }
+      }
+
+
+      for (let row = 2; row <= lastDataRow + 100; row++) {
+        ws.getCell(`G${row}`).dataValidation = {
+          type: "list",
+          allowBlank: false,
+          formulae: [`"${EXERCISE_ACTIVITY_TYPES.join(",")}"`],
+          showErrorMessage: true,
+          errorTitle: "Invalid",
+          error: "Please select a supported activity type.",
         }
       }
 
@@ -1159,7 +1216,7 @@ export function AdminConsole() {
       }
 
       // Auto-filter
-      ws.autoFilter = { from: "A1", to: `F${lastDataRow}` }
+      ws.autoFilter = { from: "A1", to: `I${lastDataRow}` }
 
       // Freeze header row
       ws.views = [{ state: "frozen", ySplit: 1 }]
@@ -2134,6 +2191,7 @@ export function AdminConsole() {
               onSave={handleSaveExerciseData}
               onDelete={handleDeleteExerciseDirect}
               onBulkDelete={handleBulkDeleteExercises}
+              onBulkApprove={handleBulkApproveProfiles}
               onImport={() => setIsImportDialogOpen(true)}
               onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
               onExportAll={() => void handleExportAllExercises()}

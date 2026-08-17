@@ -1,5 +1,10 @@
 import { CoachRequestStatus, ExerciseImportRequestStatus, UserRole } from "@prisma/client"
 import { Router } from "express"
+import {
+  EXERCISE_ACTIVITY_TYPES,
+  parseMuscleListValue,
+  parseMuscleProfileInput,
+} from "../domain/muscle-profile"
 
 import { AuthServiceError, requireCurrentProfile } from "../services/auth.service"
 import {
@@ -7,6 +12,7 @@ import {
   assignAdminCoachToTrainee,
   bulkDeleteAdminExercises,
   createAdminExercise,
+  approveAdminMuscleProfiles,
   deleteAdminCoachRequest,
   deleteAdminExercise,
   deleteAdminExerciseGroup,
@@ -43,12 +49,15 @@ function parseExerciseImportRows(body: Record<string, unknown>) {
         const source = row && typeof row === "object" ? (row as Record<string, unknown>) : {}
 
         return {
+          activityType: getOptionalString(source.activityType),
           exerciseName: getOptionalString(source.exerciseName) ?? getOptionalString(source.name),
           equipment: getOptionalString(source.equipment),
           isDefault: typeof source.isDefault === "boolean" ? source.isDefault : undefined,
           muscleGroup: getOptionalString(source.muscleGroup),
+          primaryMuscles: parseMuscleListValue(source.primaryMuscles),
           rowNumber: typeof source.rowNumber === "number" ? source.rowNumber : undefined,
           sortOrder: typeof source.sortOrder === "number" ? source.sortOrder : undefined,
+          secondaryMuscles: parseMuscleListValue(source.secondaryMuscles),
           variationName: getOptionalString(source.variationName),
         }
       })
@@ -248,6 +257,18 @@ adminRouter.get("/exercises", async (req, res) => {
   try {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     const exercises = await listAdminExercises(profile, {
+      activityType: EXERCISE_ACTIVITY_TYPES.includes(req.query.activityType as (typeof EXERCISE_ACTIVITY_TYPES)[number])
+        ? (req.query.activityType as (typeof EXERCISE_ACTIVITY_TYPES)[number])
+        : undefined,
+      maxConfidence:
+        typeof req.query.maxConfidence === "string" && Number.isFinite(Number(req.query.maxConfidence))
+          ? Math.max(0, Math.min(1, Number(req.query.maxConfidence)))
+          : undefined,
+      muscleGroup: getOptionalString(req.query.muscleGroup),
+      profileStatus:
+        req.query.profileStatus === "approved" || req.query.profileStatus === "pending"
+          ? req.query.profileStatus
+          : undefined,
       search: getOptionalString(req.query.search),
     })
 
@@ -265,6 +286,7 @@ adminRouter.post("/exercises", async (req, res) => {
     const exercise = await createAdminExercise(profile, {
       equipment: getOptionalString(req.body.equipment),
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
       variationName: getOptionalString(req.body.variationName),
     })
@@ -272,6 +294,17 @@ adminRouter.post("/exercises", async (req, res) => {
     res.status(201).json({
       exercise,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+adminRouter.post("/exercises/muscle-profiles/bulk-approve", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const variationIds = Array.isArray(req.body.variationIds) ? req.body.variationIds.map(String) : []
+    const result = await approveAdminMuscleProfiles(profile, variationIds)
+    res.json({ result })
   } catch (error) {
     sendError(res, error)
   }
@@ -333,6 +366,7 @@ adminRouter.patch("/exercises/:exerciseId", async (req, res) => {
     const exercise = await updateAdminExercise(profile, String(req.params.exerciseId), {
       equipment: getOptionalString(req.body.equipment),
       muscleGroup: String(req.body.muscleGroup ?? ""),
+      muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
       variationName: getOptionalString(req.body.variationName),
     })

@@ -24,6 +24,7 @@ import {
   updateCoachExerciseRequest,
 } from "@/lib/fitness/api"
 import type { AdminExerciseItem, AdminExerciseImportRow } from "@/lib/admin/types"
+import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS, parseActivityType, parseMuscleSlugs } from "@/lib/fitness/muscle-profile"
 import type { CoachExercise, CoachExerciseImportRequest } from "@/lib/fitness/types"
 
 type ExerciseLibraryClientProps = {
@@ -37,15 +38,18 @@ type ExerciseImportIssue = {
 }
 
 const EXERCISE_IMPORT_HEADERS = {
+  activityType: ["activity type", "activity_type", "type", "loai hoat dong"],
   exerciseName: ["exercise name", "exercise_name", "exercise", "name", "ten bai tap", "ten"],
   equipment: ["equipment", "gear", "device", "dung cu", "thiet bi"],
   isDefault: ["is default", "is_default", "default", "mac dinh"],
   muscleGroup: ["muscle group", "musclegroup", "muscle_group", "body part", "bodypart", "nhom co"],
+  primaryMuscles: ["primary muscles", "primary_muscles", "primary", "co chinh"],
+  secondaryMuscles: ["secondary muscles", "secondary_muscles", "secondary", "co phu"],
   sortOrder: ["sort order", "sort_order", "order", "thu tu"],
   variationName: ["variation name", "variation_name", "variation", "bien the"],
 } as const
 
-const TEMPLATE_HEADERS = ["exercise_name", "muscle_group", "variation_name", "equipment", "is_default", "sort_order"]
+const TEMPLATE_HEADERS = ["exercise_name", "muscle_group", "variation_name", "equipment", "activity_type", "primary_muscles", "secondary_muscles", "is_default", "sort_order"]
 
 function normalizeImportHeader(value: unknown) {
   return String(value ?? "")
@@ -82,6 +86,7 @@ function parseImportNumber(value: unknown) {
 
 function mapCoachExerciseToPanelItem(exercise: CoachExercise): AdminExerciseItem & { canManage: boolean } {
   return {
+    activityType: exercise.activityType,
     canManage: exercise.canManage,
     createdAt: exercise.createdAt,
     createdBy: exercise.createdById
@@ -101,6 +106,8 @@ function mapCoachExerciseToPanelItem(exercise: CoachExercise): AdminExerciseItem
     updatedAt: exercise.updatedAt,
     usageCount: exercise.usageCount,
     variationName: exercise.variationName,
+    primaryMuscles: exercise.primaryMuscles,
+    secondaryMuscles: exercise.secondaryMuscles,
   }
 }
 
@@ -196,10 +203,10 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       const workbook = XLSX.utils.book_new()
       const exercisesSheet = XLSX.utils.aoa_to_sheet([
         TEMPLATE_HEADERS,
-        ["Tempo Hack Squat", "Legs", "Default", "Machine", "TRUE", 0],
-        ["Cable Row", "Back", "Wide Grip", "Cable", "TRUE", 0],
+        ["Tempo Hack Squat", "Legs", "Default", "Machine", "strength", "quadriceps,gluteal", "hamstring", "TRUE", 0],
+        ["Cable Row", "Back", "Wide Grip", "Cable", "strength", "upper-back", "biceps,forearm", "TRUE", 0],
       ])
-      exercisesSheet["!cols"] = [{ wch: 28 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 12 }]
+      exercisesSheet["!cols"] = [{ wch: 28 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 12 }]
       XLSX.utils.book_append_sheet(workbook, exercisesSheet, "Exercises")
       XLSX.writeFile(workbook, "coach-exercise-import-template.xlsx")
     } catch (downloadError) {
@@ -248,6 +255,9 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       const missingColumns = [
         typeof columnMap.exerciseName !== "number" ? "exercise_name" : null,
         typeof columnMap.muscleGroup !== "number" ? "muscle_group" : null,
+        typeof columnMap.activityType !== "number" ? "activity_type" : null,
+        typeof columnMap.primaryMuscles !== "number" ? "primary_muscles" : null,
+        typeof columnMap.secondaryMuscles !== "number" ? "secondary_muscles" : null,
       ].filter(Boolean)
 
       if (missingColumns.length > 0) {
@@ -265,12 +275,15 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         const equipmentIndex = columnMap.equipment
         const isDefaultIndex = columnMap.isDefault
         const sortOrderIndex = columnMap.sortOrder
+        const activityType = parseActivityType(row[columnMap.activityType as number])
+        const primary = parseMuscleSlugs(row[columnMap.primaryMuscles as number])
+        const secondary = parseMuscleSlugs(row[columnMap.secondaryMuscles as number])
         const rawVariationName = typeof variationNameIndex === "number" ? String(row[variationNameIndex] ?? "").trim() : ""
         const variationName = rawVariationName || "Default"
         const equipment = typeof equipmentIndex === "number" ? String(row[equipmentIndex] ?? "").trim() : ""
         const isDefault = typeof isDefaultIndex === "number" ? parseImportBoolean(row[isDefaultIndex]) : variationName === "Default"
         const sortOrder = typeof sortOrderIndex === "number" ? parseImportNumber(row[sortOrderIndex]) : undefined
-        const isBlankRow = !exerciseName && !muscleGroup && !rawVariationName && !equipment
+        const isBlankRow = !exerciseName && !muscleGroup && !rawVariationName && !equipment && !activityType && !primary.muscles.length && !secondary.muscles.length
 
         if (isBlankRow) return
 
@@ -279,13 +292,25 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
           return
         }
 
+        const overlap = primary.muscles.filter((slug) => secondary.muscles.includes(slug))
+        if (!activityType || primary.invalid.length || secondary.invalid.length || overlap.length || (activityType === "strength" && !primary.muscles.length)) {
+          nextIssues.push({
+            message: `Muscle profile không hợp lệ${primary.invalid.length || secondary.invalid.length ? ` (slug lạ: ${[...primary.invalid, ...secondary.invalid].join(", ")})` : ""}${overlap.length ? ` (trùng primary/secondary: ${overlap.join(", ")})` : ""}. Activity types: ${EXERCISE_ACTIVITY_TYPES.join(", ")}; muscle slugs: ${MUSCLE_SLUGS.join(", ")}.`,
+            rowNumber,
+          })
+          return
+        }
+
         nextRows.push({
+          activityType,
           exerciseName,
           equipment: equipment || undefined,
           isDefault,
           muscleGroup,
+          primaryMuscles: primary.muscles,
           rowNumber,
           sortOrder,
+          secondaryMuscles: secondary.muscles,
           variationName,
         })
       })
@@ -338,9 +363,12 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
 
     try {
       const payload = {
+        activityType: data.activityType,
         equipment: data.equipment?.trim() || undefined,
         muscleGroup: data.muscleGroup.trim(),
         name: data.name.trim(),
+        primaryMuscles: data.primaryMuscles,
+        secondaryMuscles: data.secondaryMuscles,
       }
       const savedExercise = data.id
         ? await updateCoachExerciseRequest(session.access_token, data.id, payload)

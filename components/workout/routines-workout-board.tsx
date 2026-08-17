@@ -11,7 +11,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
-import { buildMuscleHighlights, muscleGroupsFromWorkout } from "@/lib/fitness/muscle-map"
+import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
 import type { Workout, WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
@@ -180,7 +180,11 @@ function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; work
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
   const muscleHighlights = useMemo(
-    () => buildMuscleHighlights(muscleGroupsFromWorkout(workout), "var(--primary)"),
+    () => buildMuscleProfileHighlights(
+      muscleProfilesFromWorkout(workout),
+      "var(--primary)",
+      "color-mix(in oklab, var(--primary) 45%, var(--body-fill))",
+    ),
     [workout],
   )
   const lastUsed = getLastUsed(workout, historyLogs, messages)

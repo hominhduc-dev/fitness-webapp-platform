@@ -15,6 +15,7 @@ import {
   type Notification,
   type User,
   type Variation,
+  type VariationMuscleTarget,
   type ExerciseImportRequest,
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
@@ -30,6 +31,19 @@ import {
 import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-export.service"
 import { logger } from "../../lib/logger"
 import { retryTransaction } from "../../lib/prisma"
+import {
+  buildApprovedMuscleProfileData,
+  buildApprovedMuscleProfileUpdate,
+  legacyMuscleGroupToSlugs,
+  legacyMuscleGroupsForSlug,
+  muscleProfileInputSchema,
+  parseMuscleListValue,
+  serializePublicMuscleProfile,
+  type ExerciseActivityTypeValue,
+  type MuscleProfileInput,
+  type MuscleSlugValue,
+} from "../../domain/muscle-profile"
+import { enrichExerciseSnapshot, type SnapshotMuscleProfile } from "../../domain/workout-muscle-snapshot"
 import {
   addUtcDays,
   DAY_IN_MS,
@@ -96,6 +110,7 @@ const WORKOUT_EXERCISE_INCLUDE = {
   variation: {
     include: {
       exercise: true,
+      muscleTargets: true,
     },
   },
 } satisfies Prisma.WorkoutExerciseInclude
@@ -203,6 +218,7 @@ type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
             workoutExercises: true
           }
         }
+        muscleTargets: true
       }
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
     }
@@ -219,12 +235,15 @@ type ExerciseImportRequestRecord = ExerciseImportRequest & {
 }
 
 type ExerciseImportRowInput = {
+  activityType?: string
   exerciseName?: string
   equipment?: string
   isDefault?: boolean
   muscleGroup?: string
+  primaryMuscles?: string[] | string
   rowNumber?: number
   sortOrder?: number
+  secondaryMuscles?: string[] | string
   variationName?: string
 }
 
@@ -351,7 +370,9 @@ function serializeMiniUser(user: Pick<User, "avatar" | "email" | "id" | "name">)
   }
 }
 
-function serializeVariation(variation: Variation) {
+type VariationWithMuscleTargets = Variation & { muscleTargets?: VariationMuscleTarget[] }
+
+function serializeVariation(variation: VariationWithMuscleTargets, legacyMuscleGroup?: string | null) {
   return {
     equipment: variation.equipment ?? undefined,
     id: variation.id,
@@ -362,6 +383,10 @@ function serializeVariation(variation: Variation) {
         : undefined,
     name: variation.name,
     sortOrder: variation.sortOrder,
+    ...serializePublicMuscleProfile({
+      ...variation,
+      muscleTargets: variation.muscleTargets ?? [],
+    }, legacyMuscleGroup),
   }
 }
 
@@ -396,20 +421,31 @@ function normalizeCoachExerciseImportRows(rows: ExerciseImportRowInput[]) {
     throw new AuthServiceError("Chỉ hỗ trợ import tối đa 1000 dòng mỗi lần.", 400)
   }
 
-  const sanitizedRows = rows.map((row, index) => ({
-    exerciseName: sanitizeImportText(row.exerciseName),
-    equipment: sanitizeImportText(row.equipment),
-    isDefault: row.isDefault === true,
-    muscleGroup: sanitizeImportText(row.muscleGroup),
-    rowNumber: row.rowNumber ?? index + 2,
-    sortOrder:
-      typeof row.sortOrder === "number" && Number.isFinite(row.sortOrder)
-        ? Math.max(0, Math.round(row.sortOrder))
-        : undefined,
-    variationName: sanitizeImportText(row.variationName) ?? "Default",
-  }))
+  const sanitizedRows = rows.map((row, index) => {
+    const muscleProfileResult = muscleProfileInputSchema.safeParse({
+      activityType: sanitizeImportText(row.activityType),
+      primaryMuscles: parseMuscleListValue(row.primaryMuscles),
+      secondaryMuscles: parseMuscleListValue(row.secondaryMuscles),
+    })
 
-  const invalidRows = sanitizedRows.filter((row) => !row.exerciseName || !row.muscleGroup || !row.variationName)
+    return {
+      exerciseName: sanitizeImportText(row.exerciseName),
+      equipment: sanitizeImportText(row.equipment),
+      isDefault: row.isDefault === true,
+      muscleGroup: sanitizeImportText(row.muscleGroup),
+      muscleProfile: muscleProfileResult.success ? muscleProfileResult.data : undefined,
+      rowNumber: row.rowNumber ?? index + 2,
+      sortOrder:
+        typeof row.sortOrder === "number" && Number.isFinite(row.sortOrder)
+          ? Math.max(0, Math.round(row.sortOrder))
+          : undefined,
+      variationName: sanitizeImportText(row.variationName) ?? "Default",
+    }
+  })
+
+  const invalidRows = sanitizedRows.filter(
+    (row) => !row.exerciseName || !row.muscleGroup || row.muscleGroup.toLowerCase() === "full body" || !row.variationName || !row.muscleProfile,
+  )
 
   if (invalidRows.length > 0) {
     const invalidPreview = invalidRows
@@ -418,7 +454,7 @@ function normalizeCoachExerciseImportRows(rows: ExerciseImportRowInput[]) {
       .join(", ")
 
     throw new AuthServiceError(
-      `Có dòng thiếu exercise name, muscle group hoặc variation name. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
+      `Có dòng thiếu thông tin hoặc muscle profile không hợp lệ. Kiểm tra lại các dòng: ${invalidPreview}${invalidRows.length > 5 ? "..." : ""}`,
       400,
     )
   }
@@ -428,8 +464,11 @@ function normalizeCoachExerciseImportRows(rows: ExerciseImportRowInput[]) {
     equipment: row.equipment,
     isDefault: row.isDefault,
     muscleGroup: row.muscleGroup as string,
+    activityType: (row.muscleProfile as MuscleProfileInput).activityType,
+    primaryMuscles: (row.muscleProfile as MuscleProfileInput).primaryMuscles,
     rowNumber: row.rowNumber,
     sortOrder: row.sortOrder,
+    secondaryMuscles: (row.muscleProfile as MuscleProfileInput).secondaryMuscles,
     variationName: row.variationName as string,
   }))
 }
@@ -469,7 +508,7 @@ function serializeExerciseImportRequest(request: ExerciseImportRequestRecord) {
 }
 
 function serializeVariationOption(
-  variation: Variation & { exercise: Exercise & { createdById?: string | null } },
+  variation: VariationWithMuscleTargets & { exercise: Exercise & { createdById?: string | null } },
   profile?: SerializedProfile,
 ) {
   const visibility = getExerciseSourceForProfile(variation.exercise.createdById, profile)
@@ -491,6 +530,10 @@ function serializeVariationOption(
     source: visibility.source,
     sortOrder: variation.sortOrder,
     variationName: variation.name,
+    ...serializePublicMuscleProfile({
+      ...variation,
+      muscleTargets: variation.muscleTargets ?? [],
+    }, variation.exercise.muscleGroup),
   }
 }
 
@@ -553,7 +596,7 @@ function serializeWorkout(
           workoutExercise.sets,
           options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id),
         ),
-        variation: serializeVariation(workoutExercise.variation),
+        variation: serializeVariation(workoutExercise.variation, workoutExercise.variation.exercise.muscleGroup),
       })),
     ...(options?.hasCoachUpdate ? { hasCoachUpdate: true } : {}),
     id: workout.id,
@@ -1761,6 +1804,15 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
   const visibility = getExerciseSourceForProfile(exercise.createdById, profile)
 
   return {
+    ...(defaultVariation
+      ? serializePublicMuscleProfile({
+          ...defaultVariation,
+          muscleTargets: defaultVariation.muscleTargets,
+        }, exercise.muscleGroup)
+      : {
+          primaryMuscles: [...legacyMuscleGroupToSlugs(exercise.muscleGroup)],
+          secondaryMuscles: [],
+        }),
     canManage: visibility.canManage,
     createdAt: exercise.createdAt,
     createdById: exercise.createdById ?? undefined,
@@ -2403,7 +2455,9 @@ function normalizePhoneNumber(value?: string | null) {
   return (value ?? "").replace(/\D/g, "")
 }
 
-type VariationWithExercise = Prisma.VariationGetPayload<{ include: { exercise: true } }>
+type VariationWithExercise = Prisma.VariationGetPayload<{
+  include: { exercise: true; muscleTargets: true }
+}>
 
 // The default-seed scan only has work to do the very first time a process touches
 // an empty/under-seeded DB; afterwards the rows exist forever. Gate it behind a
@@ -2487,6 +2541,7 @@ async function ensureDefaultExercises(): Promise<VariationWithExercise[]> {
     db.variation.findMany({
       include: {
         exercise: true,
+        muscleTargets: true,
       },
       orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
     }),
@@ -2495,12 +2550,43 @@ async function ensureDefaultExercises(): Promise<VariationWithExercise[]> {
 
 async function listExercises(
   profile: SerializedProfile,
-  options?: { equipment?: string; muscleGroup?: string; search?: string },
+  options?: {
+    activityType?: ExerciseActivityTypeValue
+    equipment?: string
+    muscle?: MuscleSlugValue
+    muscleGroup?: string
+    search?: string
+  },
 ) {
-  const variations = await ensureDefaultExercises()
   const search = options?.search?.trim().toLowerCase()
   const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
   const equipment = options?.equipment?.trim().toLowerCase()
+  const muscle = options?.muscle
+  const activityType = options?.activityType
+  const variations = muscle || activityType
+    ? await ensurePrisma().variation.findMany({
+        include: { exercise: true, muscleTargets: true },
+        orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
+        where: {
+          ...(activityType ? { activityType } : {}),
+          ...(muscle ? {
+            OR: [
+              { muscleProfileStatus: "approved", muscleTargets: { some: { muscleSlug: muscle } } },
+              {
+                muscleProfileStatus: "pending",
+                exercise: {
+                  is: {
+                    OR: legacyMuscleGroupsForSlug(muscle).map((group) => ({
+                      muscleGroup: { equals: group, mode: "insensitive" as const },
+                    })),
+                  },
+                },
+              },
+            ],
+          } : {}),
+        },
+      })
+    : await ensureDefaultExercises()
 
   return variations
     .filter((variation) => {
@@ -2525,21 +2611,35 @@ async function listExercises(
 
       const matchesGroup = !muscleGroup || variation.exercise.muscleGroup.toLowerCase() === muscleGroup
       const matchesEquipment = !equipment || (variation.equipment ?? "").toLowerCase() === equipment
+      const resolvedMuscles =
+        variation.muscleProfileStatus === "approved"
+          ? variation.muscleTargets.map((target) => target.muscleSlug)
+          : legacyMuscleGroupToSlugs(variation.exercise.muscleGroup)
+      const matchesMuscle = !muscle || resolvedMuscles.includes(muscle)
+      const matchesActivityType = !activityType || variation.activityType === activityType
 
-      return matchesSearch && matchesGroup && matchesEquipment
+      return matchesSearch && matchesGroup && matchesEquipment && matchesMuscle && matchesActivityType
     })
     .map((variation) => serializeVariationOption(variation, profile))
 }
 
 async function listExerciseLibrary(
   profile: SerializedProfile,
-  options?: { equipment?: string; muscleGroup?: string; search?: string },
+  options?: {
+    activityType?: ExerciseActivityTypeValue
+    equipment?: string
+    muscle?: MuscleSlugValue
+    muscleGroup?: string
+    search?: string
+  },
 ) {
   const db = ensurePrisma()
   await ensureDefaultExercises()
   const search = options?.search?.trim().toLowerCase()
   const muscleGroup = options?.muscleGroup?.trim().toLowerCase()
   const equipment = options?.equipment?.trim().toLowerCase()
+  const muscle = options?.muscle
+  const activityType = options?.activityType
 
   // Shared across all callers; per-profile visibility + the search/group/equipment
   // filters below run in-memory over the cached set, so the cache key is global.
@@ -2552,6 +2652,9 @@ async function listExerciseLibrary(
           },
         },
         variations: {
+          include: {
+            muscleTargets: true,
+          },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         },
       },
@@ -2577,7 +2680,13 @@ async function listExerciseLibrary(
             .toLowerCase()
             .includes(search)
         const matchesEquipment = !equipment || (variation.equipment ?? "").toLowerCase() === equipment
-        return matchesSearch && matchesEquipment
+        const resolvedMuscles =
+          variation.muscleProfileStatus === "approved"
+            ? variation.muscleTargets.map((target) => target.muscleSlug)
+            : legacyMuscleGroupToSlugs(exercise.muscleGroup)
+        const matchesMuscle = !muscle || resolvedMuscles.includes(muscle)
+        const matchesActivityType = !activityType || variation.activityType === activityType
+        return matchesSearch && matchesEquipment && matchesMuscle && matchesActivityType
       }),
     }))
     .filter((exercise) => {
@@ -2586,7 +2695,7 @@ async function listExerciseLibrary(
     })
     .map((exercise) => ({
       ...exercise,
-      variations: exercise.variations.map(serializeVariation),
+      variations: exercise.variations.map((variation) => serializeVariation(variation, exercise.muscleGroup)),
     }))
 }
 
@@ -2610,6 +2719,7 @@ async function listCoachExercises(profile: SerializedProfile, options?: { search
               workoutExercises: true,
             },
           },
+          muscleTargets: true,
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
@@ -2645,6 +2755,7 @@ async function createCoachExercise(
   input: {
     equipment?: string | null
     muscleGroup: string
+    muscleProfile: MuscleProfileInput
     name: string
   },
 ) {
@@ -2655,8 +2766,8 @@ async function createCoachExercise(
   const muscleGroup = input.muscleGroup.trim()
   const equipment = input.equipment?.trim() || undefined
 
-  if (!name || !muscleGroup) {
-    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
+  if (!name || !muscleGroup || muscleGroup.toLowerCase() === "full body") {
+    throw new AuthServiceError("Tên bài tập/nhóm cơ không hợp lệ; Full Body chỉ là nhãn suy ra từ muscle targets.", 400)
   }
 
   const existingExercise = await db.exercise.findFirst({
@@ -2688,6 +2799,7 @@ async function createCoachExercise(
           isDefault: true,
           name: "Default",
           sortOrder: 0,
+          ...buildApprovedMuscleProfileData(input.muscleProfile, profile.id),
         },
       },
     },
@@ -2704,6 +2816,7 @@ async function createCoachExercise(
               workoutExercises: true,
             },
           },
+          muscleTargets: true,
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
@@ -2720,6 +2833,7 @@ async function updateCoachExercise(
   input: {
     equipment?: string | null
     muscleGroup: string
+    muscleProfile: MuscleProfileInput
     name: string
   },
 ) {
@@ -2730,13 +2844,16 @@ async function updateCoachExercise(
   const muscleGroup = input.muscleGroup.trim()
   const equipment = input.equipment?.trim() || undefined
 
-  if (!name || !muscleGroup) {
-    throw new AuthServiceError("Tên bài tập và nhóm cơ không được để trống.", 400)
+  if (!name || !muscleGroup || muscleGroup.toLowerCase() === "full body") {
+    throw new AuthServiceError("Tên bài tập/nhóm cơ không hợp lệ; Full Body chỉ là nhãn suy ra từ muscle targets.", 400)
   }
 
   const existingExercise = await db.exercise.findFirst({
     include: {
       variations: {
+        include: {
+          muscleTargets: true,
+        },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
     },
@@ -2791,6 +2908,7 @@ async function updateCoachExercise(
       await transaction.variation.update({
         data: {
           equipment,
+          ...buildApprovedMuscleProfileUpdate(input.muscleProfile, profile.id),
         },
         where: {
           id: defaultVariation.id,
@@ -2812,6 +2930,7 @@ async function updateCoachExercise(
                 workoutExercises: true,
               },
             },
+            muscleTargets: true,
           },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         },
@@ -3507,6 +3626,14 @@ async function createWorkoutLogForTrainee(
   const startedAt = input.startedAt ? new Date(input.startedAt) : new Date()
   const completedAt = input.completedAt ? new Date(input.completedAt) : new Date()
   const plannedDate = resolveWorkoutLogPlannedDate(workout as WorkoutRecord, startedAt, input.plannedDate)
+  const profilesByVariationId = new Map<string, SnapshotMuscleProfile>(
+    serializedWorkout.exercises.map((entry) => [entry.variation.id, {
+      activityType: entry.variation.activityType,
+      primaryMuscles: entry.variation.primaryMuscles,
+      secondaryMuscles: entry.variation.secondaryMuscles,
+    }]),
+  )
+  const enrichedSnapshot = enrichExerciseSnapshot(input.exercises, profilesByVariationId).snapshot
 
   // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
   // round-trips over PgBouncer); retryTransaction still guards against transient
@@ -3515,7 +3642,7 @@ async function createWorkoutLogForTrainee(
     db.workoutLog.create({
       data: {
         completedAt,
-        exerciseSnapshot: input.exercises as Prisma.InputJsonValue,
+        exerciseSnapshot: enrichedSnapshot as Prisma.InputJsonValue,
         notes: input.notes?.trim() || undefined,
         plannedDate,
         programId: workout.programId ?? undefined,

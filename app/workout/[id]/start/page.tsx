@@ -1190,7 +1190,16 @@ export default function WorkoutStartPage() {
     const newExercise: WorkoutExercise = {
       id,
       exercise: { id: variation.exerciseId, muscleGroup: variation.muscleGroup, name: variation.exerciseName },
-      variation: { id: variation.id, isDefault: variation.isDefault, name: variation.variationName, equipment: variation.equipment, sortOrder: variation.sortOrder },
+      variation: {
+        activityType: variation.activityType,
+        equipment: variation.equipment,
+        id: variation.id,
+        isDefault: variation.isDefault,
+        name: variation.variationName,
+        primaryMuscles: variation.primaryMuscles,
+        secondaryMuscles: variation.secondaryMuscles,
+        sortOrder: variation.sortOrder,
+      },
       sets: Array.from({ length: 3 }, (_, i) => ({
         id: `${id}-s${i}`,
         completed: false,
@@ -1259,10 +1268,13 @@ export default function WorkoutStartPage() {
                 name: variation.exerciseName,
               },
               variation: {
+                activityType: variation.activityType,
+                equipment: variation.equipment,
                 id: variation.id,
                 isDefault: variation.isDefault,
                 name: variation.variationName,
-                equipment: variation.equipment,
+                primaryMuscles: variation.primaryMuscles,
+                secondaryMuscles: variation.secondaryMuscles,
                 sortOrder: variation.sortOrder,
               },
             }

@@ -4,10 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { MuscleMapPair } from "@/components/body/muscle-map-pair"
+import type { MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Input } from "@/components/ui/input"
 import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
-import type { ExerciseVariationOption } from "@/lib/types"
+import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS } from "@/lib/fitness/muscle-profile"
+import { muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
+import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type AddExerciseModalProps = {
@@ -41,14 +45,36 @@ export function AddExerciseModal({
   loading = false,
   footer,
 }: AddExerciseModalProps) {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const [query, setQuery] = useState("")
-  const [muscle, setMuscle] = useState("all")
+  const [muscle, setMuscle] = useState<"all" | MuscleSlug>("all")
   const [equipment, setEquipment] = useState("all")
+  const [activityType, setActivityType] = useState<"all" | ExerciseActivityType>("all")
   const [showFilters, setShowFilters] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const currentRef = useRef<HTMLButtonElement>(null)
   const existingSet = useMemo(() => new Set(existingVariationIds), [existingVariationIds])
+  const filterCopy = locale === "vi"
+    ? {
+        activity: "Hoạt động",
+        allMuscles: "Tất cả nhóm cơ",
+        done: "Áp dụng",
+        equipment: "Thiết bị",
+        filter: "Lọc bài tập",
+        hint: "Chạm trực tiếp vào vùng cơ trên hình để lọc bài tập.",
+        muscle: "Nhóm cơ",
+        reset: "Đặt lại",
+      }
+    : {
+        activity: "Activity",
+        allMuscles: "All muscles",
+        done: "Apply",
+        equipment: "Equipment",
+        filter: "Filter exercises",
+        hint: "Tap a muscle region on the map to filter exercises.",
+        muscle: "Muscle",
+        reset: "Reset",
+      }
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -59,21 +85,16 @@ export function AddExerciseModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key !== "Escape") return
+      if (showFilters) {
+        setShowFilters(false)
+        return
+      }
+      onClose()
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
-  }, [onClose])
-
-  const muscleGroups = useMemo(
-    () => [
-      "all",
-      ...Array.from(new Set(exercises.map((exercise) => exercise.muscleGroup))).sort((left, right) =>
-        left.localeCompare(right),
-      ),
-    ],
-    [exercises],
-  )
+  }, [onClose, showFilters])
 
   const NONE_EQUIPMENT = "__none__"
 
@@ -86,7 +107,14 @@ export function AddExerciseModal({
 
   const visible = useMemo(() => {
     const filtered = exercises.filter((exercise) => {
-      if (muscle !== "all" && exercise.muscleGroup !== muscle) return false
+      if (muscle !== "all") {
+        const explicitMuscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
+        const targetMuscles = explicitMuscles.length > 0
+          ? explicitMuscles
+          : muscleGroupToSlugs(exercise.muscleGroup)
+        if (!targetMuscles.includes(muscle)) return false
+      }
+      if (activityType !== "all" && exercise.activityType !== activityType) return false
       if (equipment !== "all") {
         if (equipment === NONE_EQUIPMENT) { if (exercise.equipment) return false }
         else if (exercise.equipment !== equipment) return false
@@ -97,7 +125,12 @@ export function AddExerciseModal({
       )
     })
     return sortByExerciseRelevance(filtered, query, (exercise) => exercise.exerciseName)
-  }, [exercises, muscle, equipment, query])
+  }, [activityType, exercises, muscle, equipment, query])
+
+  function toggleMuscle(slug: MapMuscleSlug) {
+    if (!(MUSCLE_SLUGS as readonly string[]).includes(slug)) return
+    setMuscle((current) => current === slug ? "all" : slug as MuscleSlug)
+  }
 
   return (
     <div
@@ -135,66 +168,21 @@ export function AddExerciseModal({
             </div>
             <button
               type="button"
-              onClick={() => setShowFilters((v) => !v)}
+              aria-label={filterCopy.filter}
+              onClick={() => setShowFilters(true)}
               className={cn(
                 "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors",
-                showFilters || muscle !== "all" || equipment !== "all"
+                showFilters || muscle !== "all" || equipment !== "all" || activityType !== "all"
                   ? "border-foreground bg-foreground text-background"
                   : "border-border bg-background text-muted-foreground hover:text-foreground",
               )}
             >
               <SlidersHorizontal className="h-4 w-4" />
-              {(muscle !== "all" || equipment !== "all") && !showFilters && (
+              {(muscle !== "all" || equipment !== "all" || activityType !== "all") && (
                 <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />
               )}
             </button>
           </div>
-          {showFilters && (
-            <div className="space-y-2 pb-0.5">
-              <div>
-                <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Muscle</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {muscleGroups.map((group) => (
-                    <button
-                      key={group}
-                      type="button"
-                      onClick={() => setMuscle(group)}
-                      className={cn(
-                        "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-xs font-medium capitalize transition-colors",
-                        muscle === group
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-border bg-background text-foreground hover:border-foreground/30",
-                      )}
-                    >
-                      {group === "all" ? messages.workoutPage.all : group}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {equipmentList.length > 2 && (
-                <div>
-                  <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">Equipment</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {equipmentList.map((eq) => (
-                      <button
-                        key={eq}
-                        type="button"
-                        onClick={() => setEquipment(eq)}
-                        className={cn(
-                          "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-xs font-medium capitalize transition-colors",
-                          equipment === eq
-                            ? "border-foreground bg-foreground text-background"
-                            : "border-border bg-background text-foreground hover:border-foreground/30",
-                        )}
-                      >
-                        {eq === "all" ? messages.workoutPage.all : eq === NONE_EQUIPMENT ? "Bodyweight" : eq}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* List */}
@@ -247,6 +235,140 @@ export function AddExerciseModal({
 
         {footer ? <div className="border-t border-border px-[22px] py-3">{footer}</div> : null}
       </div>
+
+      {showFilters ? (
+        <div
+          className="fixed inset-0 z-[130] flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+          onClick={(event) => {
+            event.stopPropagation()
+            setShowFilters(false)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="exercise-filter-title"
+            className="flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[24px] border border-border bg-background shadow-2xl sm:rounded-[16px]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div className="min-w-0">
+                <h4 id="exercise-filter-title" className="text-lg font-semibold text-foreground">{filterCopy.filter}</h4>
+                <p className="mt-1 text-sm text-muted-foreground">{filterCopy.hint}</p>
+              </div>
+              <button
+                type="button"
+                aria-label={messages.workoutPage.cancel}
+                onClick={() => setShowFilters(false)}
+                className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4">
+              <section>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                    {filterCopy.muscle}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setMuscle("all")}
+                    className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40"
+                    disabled={muscle === "all"}
+                  >
+                    {filterCopy.reset}
+                  </button>
+                </div>
+                <div className="rounded-[14px] border border-border bg-card px-4 py-4">
+                  <MuscleMapPair
+                    size="md"
+                    label={filterCopy.hint}
+                    highlights={muscle === "all" ? {} : { [muscle]: "var(--primary)" }}
+                    onMuscleClick={toggleMuscle}
+                    className="mx-auto"
+                  />
+                </div>
+                <p className="mt-2 text-center text-sm font-medium text-foreground">
+                  {muscle === "all"
+                    ? filterCopy.allMuscles
+                    : `${muscleGroupFromSlug(muscle) ?? filterCopy.muscle} · ${muscle.replaceAll("-", " ")}`}
+                </p>
+              </section>
+
+              <section>
+                <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  {filterCopy.activity}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["all", ...EXERCISE_ACTIVITY_TYPES] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setActivityType(type)}
+                      className={cn(
+                        "inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium capitalize transition-colors",
+                        activityType === type
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-background text-foreground hover:border-foreground/30",
+                      )}
+                    >
+                      {type === "all" ? messages.workoutPage.all : type}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              {equipmentList.length > 2 ? (
+                <section>
+                  <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                    {filterCopy.equipment}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {equipmentList.map((eq) => (
+                      <button
+                        key={eq}
+                        type="button"
+                        onClick={() => setEquipment(eq)}
+                        className={cn(
+                          "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium capitalize transition-colors",
+                          equipment === eq
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-background text-foreground hover:border-foreground/30",
+                        )}
+                      >
+                        {eq === "all" ? messages.workoutPage.all : eq === NONE_EQUIPMENT ? "Bodyweight" : eq}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 border-t border-border px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <button
+                type="button"
+                onClick={() => {
+                  setMuscle("all")
+                  setActivityType("all")
+                  setEquipment("all")
+                }}
+                className="h-10 rounded-[8px] border border-border bg-background text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                {filterCopy.reset}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilters(false)}
+                className="h-10 rounded-[8px] bg-foreground text-sm font-semibold text-background transition-opacity hover:opacity-90"
+              >
+                {filterCopy.done}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

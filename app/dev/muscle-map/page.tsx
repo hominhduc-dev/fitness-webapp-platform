@@ -6,7 +6,7 @@ import { MuscleMap, type MuscleSlug } from "@/components/body/muscle-map"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
 import { startOfUtcWeek } from "@/lib/fitness/date-range"
-import { buildMuscleHighlights, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
+import { buildMuscleHighlights, muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import type { WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -40,7 +40,14 @@ function makeLog(id: string, startedAt: Date, muscleGroups: string[]): WorkoutLo
       exercise: { id: `${id}-e${index}`, muscleGroup, name: muscleGroup },
       id: `${id}-we${index}`,
       sets: [],
-      variation: { id: `${id}-v${index}`, isDefault: true, name: "Default", sortOrder: 0 },
+      variation: {
+        id: `${id}-v${index}`,
+        isDefault: true,
+        name: "Default",
+        primaryMuscles: [],
+        secondaryMuscles: [],
+        sortOrder: 0,
+      },
     })),
     id,
     startedAt,
@@ -63,13 +70,30 @@ const MOCK_HISTORY_LOGS = [
 export default function MuscleMapPreviewPage() {
   const [selected, setSelected] = useState<string[]>(["Chest", "Arms"])
   const [clicked, setClicked] = useState<MuscleSlug | null>(null)
+  const [pinned, setPinned] = useState<readonly MuscleSlug[]>([])
 
-  const highlights = buildMuscleHighlights(selected, "var(--chart-1)")
+  // Group fills go down first so a directly clicked region paints over the
+  // colour its group gave it. The two scales stay separate on purpose: the
+  // buttons select whole groups, the artwork selects one region at a time.
+  const highlights = {
+    ...buildMuscleHighlights(selected, "var(--chart-1)"),
+    ...Object.fromEntries(pinned.map((slug) => [slug, "var(--primary)"])),
+  }
   const resolved = selected.flatMap((group) => muscleGroupToSlugs(group))
 
   function toggleGroup(group: string) {
     setSelected((current) =>
       current.includes(group) ? current.filter((entry) => entry !== group) : [...current, group],
+    )
+  }
+
+  // One click highlights exactly the region under the cursor. `upper-back`,
+  // `lower-back` and `trapezius` are three separate targets even though all
+  // three belong to Back — the group is reported as context, never selected.
+  function toggleSlug(slug: MuscleSlug) {
+    setClicked(slug)
+    setPinned((current) =>
+      current.includes(slug) ? current.filter((entry) => entry !== slug) : [...current, slug],
     )
   }
 
@@ -104,11 +128,11 @@ export default function MuscleMapPreviewPage() {
       <section className="grid grid-cols-2 gap-6 rounded-[10px] border border-border bg-card p-6">
         <div className="space-y-2">
           <p className="label-micro text-center">Front</p>
-          <MuscleMap side="front" highlights={highlights} onMuscleClick={setClicked} label="Front body map" />
+          <MuscleMap side="front" highlights={highlights} onMuscleClick={toggleSlug} label="Front body map" />
         </div>
         <div className="space-y-2">
           <p className="label-micro text-center">Back</p>
-          <MuscleMap side="back" highlights={highlights} onMuscleClick={setClicked} label="Back body map" />
+          <MuscleMap side="back" highlights={highlights} onMuscleClick={toggleSlug} label="Back body map" />
         </div>
       </section>
 
@@ -121,6 +145,24 @@ export default function MuscleMapPreviewPage() {
         </p>
         <p className="text-muted-foreground">
           Last clicked: <span className="font-mono text-xs text-foreground">{clicked ?? "(none)"}</span>
+          {clicked && (
+            <span className="text-xs"> (belongs to {muscleGroupFromSlug(clicked) ?? "no group"})</span>
+          )}
+        </p>
+        <p className="text-muted-foreground">
+          Highlighted regions:{" "}
+          <span className="font-mono text-xs text-foreground">
+            {pinned.length > 0 ? [...pinned].sort().join(", ") : "(none)"}
+          </span>
+          {pinned.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPinned([])}
+              className="ml-2 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/25"
+            >
+              Clear
+            </button>
+          )}
         </p>
       </section>
 

@@ -4,14 +4,10 @@ import type { Workout, WorkoutLog } from "@/lib/types"
 /**
  * Maps `Exercise.muscleGroup` onto the regions the body artwork can colour in.
  *
- * `muscleGroup` is an unconstrained string in Prisma, and the repo currently
- * writes it from four disagreeing lists: the admin picker
- * (components/admin/admin-exercises-panel.tsx), the backend seed
- * (backend/src/services/fitness-data/core.ts), and the two AI generator forms,
- * which say Biceps/Triceps/Abs where the admin panel says Arms/Core. The XLSX
- * importer (backend/src/scripts/seed-exercise-library.ts) validates nothing at
- * all. So this table covers every spelling in use rather than one canonical set,
- * and unknown input degrades to "highlight nothing" instead of throwing.
+ * `muscleGroup` is the legacy, unconstrained classification kept during the
+ * additive muscle-profile rollout. Production currently contains nine clean
+ * values, but import paths can still introduce an unknown string. Unknown input
+ * therefore degrades to "highlight nothing" instead of throwing.
  *
  * This is deliberately the *only* place that knowledge lives. When the schema
  * grows real primaryMuscles/secondaryMuscles columns, this function changes and
@@ -34,7 +30,7 @@ const MUSCLE_GROUP_SLUGS: Record<string, readonly MuscleSlug[]> = {
   forearms: ["forearm"],
   glutes: ["gluteal"],
   hamstrings: ["hamstring"],
-  legs: ["quadriceps", "hamstring", "calves", "adductors"],
+  legs: ["quadriceps", "hamstring", "gluteal", "calves", "adductors"],
   "lower back": ["lower-back"],
   quads: ["quadriceps"],
   shoulders: ["deltoids", "trapezius"],
@@ -89,6 +85,41 @@ export function muscleGroupsToSlugs(muscleGroups: readonly (string | null | unde
 }
 
 /**
+ * Anatomical legacy groups that can be resolved from a body region.
+ * The table above also carries fine-grained spellings (Biceps, Quads, Traps)
+ * because stored data uses them, but those are not groups a user can pick, so
+ * they are not candidates when resolving a region back to a group.
+ *
+ * Order is the tie-break rule, and both ties are deliberate:
+ *   - `trapezius` belongs to Back and Shoulders; Back wins because Shoulders is
+ *     defined by the deltoids, which map to Shoulders unambiguously.
+ *   - `calves` belongs to Calves and Legs; the narrower group wins, otherwise
+ *     the dedicated Calves filter could never be reached from the artwork.
+ */
+const CANONICAL_MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Arms", "Core", "Glutes", "Calves", "Legs"] as const
+
+// Derived rather than hand-written so it cannot drift from MUSCLE_GROUP_SLUGS.
+// `Map` keeps the last value written for a repeated key, so the pairs are
+// reversed to make the *first* group in the priority order above the winner.
+const SLUG_TO_CANONICAL_GROUP: ReadonlyMap<MuscleSlug, string> = new Map(
+  CANONICAL_MUSCLE_GROUPS.flatMap((group) =>
+    muscleGroupToSlugs(group).map((slug) => [slug, group] as const),
+  ).reverse(),
+)
+
+/**
+ * Resolve a body region back to the group a user can pick — the inverse of
+ * `muscleGroupToSlugs`, narrowed to the canonical list.
+ *
+ * Returns `null` for regions no group claims. `tibialis` is the live example:
+ * the artwork draws the shin, but no entry in the table above targets it, so
+ * clicking it resolves to nothing rather than being forced into Legs.
+ */
+export function muscleGroupFromSlug(slug: MuscleSlug): string | null {
+  return SLUG_TO_CANONICAL_GROUP.get(slug) ?? null
+}
+
+/**
  * Build the `highlights` prop for `MuscleMap` by painting every region a set of
  * muscle groups touches in one colour.
  */
@@ -97,6 +128,88 @@ export function buildMuscleHighlights(
   color: string,
 ): Partial<Record<MuscleSlug, string>> {
   return Object.fromEntries(muscleGroupsToSlugs(muscleGroups).map((slug) => [slug, color]))
+}
+
+export type ExerciseActivityType = "strength" | "cardio" | "mobility" | "sport" | "other"
+export type MuscleProfileStatus = "approved" | "pending"
+
+export interface MuscleProfileLike {
+  activityType?: ExerciseActivityType
+  muscleGroup?: string | null
+  muscleProfileStatus?: MuscleProfileStatus
+  primaryMuscles?: readonly MuscleSlug[]
+  secondaryMuscles?: readonly MuscleSlug[]
+}
+
+export interface ResolvedMuscleProfile {
+  activityType?: ExerciseActivityType
+  primaryMuscles: readonly MuscleSlug[]
+  secondaryMuscles: readonly MuscleSlug[]
+  usesLegacyFallback: boolean
+}
+
+/**
+ * Prefer an approved variation-level profile. Pending and historical records
+ * deliberately fall back to the coarse group until rollout coverage reaches 100%.
+ */
+export function resolveMuscleProfile(profile: MuscleProfileLike): ResolvedMuscleProfile {
+  const hasExplicitTargets = (profile.primaryMuscles?.length ?? 0) + (profile.secondaryMuscles?.length ?? 0) > 0
+  if (profile.muscleProfileStatus === "approved" || (profile.muscleProfileStatus === undefined && hasExplicitTargets)) {
+    return {
+      activityType: profile.activityType,
+      primaryMuscles: [...new Set(profile.primaryMuscles ?? [])],
+      secondaryMuscles: [...new Set(profile.secondaryMuscles ?? [])].filter(
+        (slug) => !profile.primaryMuscles?.includes(slug),
+      ),
+      usesLegacyFallback: false,
+    }
+  }
+
+  return {
+    activityType: profile.activityType,
+    primaryMuscles: muscleGroupToSlugs(profile.muscleGroup),
+    secondaryMuscles: [],
+    usesLegacyFallback: true,
+  }
+}
+
+/** Build a two-tier body-map fill; a primary hit always wins over secondary. */
+export function buildMuscleProfileHighlights(
+  profiles: readonly MuscleProfileLike[],
+  primaryColor: string,
+  secondaryColor: string,
+): Partial<Record<MuscleSlug, string>> {
+  const primary = new Set<MuscleSlug>()
+  const secondary = new Set<MuscleSlug>()
+
+  for (const profile of profiles) {
+    const resolved = resolveMuscleProfile(profile)
+    resolved.secondaryMuscles.forEach((slug) => secondary.add(slug))
+    resolved.primaryMuscles.forEach((slug) => primary.add(slug))
+  }
+
+  primary.forEach((slug) => secondary.delete(slug))
+
+  return Object.fromEntries([
+    ...[...secondary].map((slug) => [slug, secondaryColor] as const),
+    ...[...primary].map((slug) => [slug, primaryColor] as const),
+  ])
+}
+
+export function muscleProfilesFromWorkout(workout: Workout): MuscleProfileLike[] {
+  return workout.exercises.map((entry) => ({
+    ...entry.variation,
+    muscleGroup: entry.exercise.muscleGroup,
+  }))
+}
+
+export function muscleProfilesFromLogs(logs: readonly WorkoutLog[]): MuscleProfileLike[] {
+  return logs.flatMap((log) =>
+    log.exercises.map((entry) => ({
+      ...entry.variation,
+      muscleGroup: entry.exercise.muscleGroup,
+    })),
+  )
 }
 
 /** Distinct muscle groups a planned workout targets. */
