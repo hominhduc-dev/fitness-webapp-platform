@@ -1,4 +1,5 @@
 import type { MuscleSlug } from "@/components/body/muscle-map"
+import type { Workout, WorkoutLog } from "@/lib/types"
 
 /**
  * Maps `Exercise.muscleGroup` onto the regions the body artwork can colour in.
@@ -96,4 +97,18 @@ export function buildMuscleHighlights(
   color: string,
 ): Partial<Record<MuscleSlug, string>> {
   return Object.fromEntries(muscleGroupsToSlugs(muscleGroups).map((slug) => [slug, color]))
+}
+
+/** Distinct muscle groups a planned workout targets. */
+export function muscleGroupsFromWorkout(workout: Workout): string[] {
+  return dedupeGroups(workout.exercises.map((exercise) => exercise.exercise.muscleGroup))
+}
+
+/** Distinct muscle groups a set of completed sessions touched. */
+export function muscleGroupsFromLogs(logs: readonly WorkoutLog[]): string[] {
+  return dedupeGroups(logs.flatMap((log) => log.exercises.map((exercise) => exercise.exercise.muscleGroup)))
+}
+
+function dedupeGroups(muscleGroups: readonly (string | null | undefined)[]): string[] {
+  return [...new Set(muscleGroups.map((group) => group?.trim()).filter((group): group is string => Boolean(group)))]
 }

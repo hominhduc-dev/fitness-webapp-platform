@@ -3,7 +3,11 @@
 import { useState } from "react"
 
 import { MuscleMap, type MuscleSlug } from "@/components/body/muscle-map"
+import { MuscleMapPair } from "@/components/body/muscle-map-pair"
+import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
+import { startOfUtcWeek } from "@/lib/fitness/date-range"
 import { buildMuscleHighlights, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
+import type { WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 /**
@@ -22,6 +26,38 @@ const TIERS = [
   { color: "var(--chart-3)", label: "Gold" },
   { color: "var(--chart-4)", label: "Bronze" },
   { color: "var(--muted-foreground)", label: "Wood" },
+]
+
+/**
+ * Fixtures for TrainedAreasCard. Dated relative to the real Monday-UTC week
+ * boundary so the card's this-week / last-week split is genuinely exercised
+ * rather than assumed.
+ */
+function makeLog(id: string, startedAt: Date, muscleGroups: string[]): WorkoutLog {
+  return {
+    comments: [],
+    exercises: muscleGroups.map((muscleGroup, index) => ({
+      exercise: { id: `${id}-e${index}`, muscleGroup, name: muscleGroup },
+      id: `${id}-we${index}`,
+      sets: [],
+      variation: { id: `${id}-v${index}`, isDefault: true, name: "Default", sortOrder: 0 },
+    })),
+    id,
+    startedAt,
+    workout: { exercises: [], id: `${id}-w`, name: "Session" },
+  }
+}
+
+const WEEK_START = startOfUtcWeek(new Date())
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const MOCK_WEEK_LOGS = [makeLog("w1", new Date(WEEK_START.getTime() + DAY_MS), ["Chest", "Arms"])]
+const MOCK_HISTORY_LOGS = [
+  ...MOCK_WEEK_LOGS,
+  makeLog("h1", new Date(WEEK_START.getTime() - 2 * DAY_MS), ["Legs", "Glutes"]),
+  makeLog("h2", new Date(WEEK_START.getTime() - 6 * DAY_MS), ["Back"]),
+  // Older than last week — must not appear under either toggle.
+  makeLog("h3", new Date(WEEK_START.getTime() - 20 * DAY_MS), ["Shoulders"]),
 ]
 
 export default function MuscleMapPreviewPage() {
@@ -86,6 +122,42 @@ export default function MuscleMapPreviewPage() {
         <p className="text-muted-foreground">
           Last clicked: <span className="font-mono text-xs text-foreground">{clicked ?? "(none)"}</span>
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Thumbnail (size=&quot;sm&quot;)</h2>
+        <p className="text-sm text-muted-foreground">
+          The scale used in routine cards and the builder dialog header, beside a title block.
+        </p>
+        <div className="flex max-w-[420px] items-start justify-between gap-3 rounded-[10px] border border-border bg-card p-5">
+          <div className="min-w-0">
+            <p className="label-micro mb-1">Push</p>
+            <h3 className="text-[17px] font-semibold leading-tight text-foreground">Upper body A</h3>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">5 exercises · 18 sets</p>
+          </div>
+          <MuscleMapPair
+            size="sm"
+            highlights={buildMuscleHighlights(["Chest", "Shoulders", "Arms"], "var(--primary)")}
+            label="Muscles targeted"
+            className="mt-0.5"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Trained areas card</h2>
+        <p className="text-sm text-muted-foreground">
+          Rendered at the 360px column width it occupies on <code className="font-mono text-xs">/progress</code>.
+          Fixtures: this week = Chest + Arms, last week = Legs + Glutes + Back.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="max-w-[360px]">
+            <TrainedAreasCard weekLogs={MOCK_WEEK_LOGS} historyLogs={MOCK_HISTORY_LOGS} />
+          </div>
+          <div className="max-w-[360px]">
+            <TrainedAreasCard weekLogs={[]} historyLogs={[]} />
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3">
