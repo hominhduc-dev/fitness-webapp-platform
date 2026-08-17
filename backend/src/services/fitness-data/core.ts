@@ -1576,21 +1576,57 @@ function isAssignmentProgramFinished(assignedAt: Date, weekStart: Date, duration
   return elapsedWeeks > lastWeekIndex
 }
 
-function isWorkoutVisibleForAssignmentWeek(
-  workout: Pick<WorkoutRecord, "scheduledDate" | "weekIndex">,
+// A workout with no weekIndex belongs to week 1. The AI generator authors only
+// week 0 and expects it to repeat, and older rows predate the column, so NULL
+// must not be read as "belongs to no week".
+function normalizeWeekIndexForVisibility(weekIndex: number | null | undefined) {
+  return typeof weekIndex === "number" && Number.isFinite(weekIndex) ? Math.max(0, Math.round(weekIndex)) : 0
+}
+
+/**
+ * Picks the workouts a trainee should see this week.
+ *
+ * Resolving one workout at a time is not enough: deciding whether a week is
+ * missing requires knowing which weeks the program actually authored. A program
+ * that stops short — the AI generator writing only week 0, or a coach filling
+ * W1-W3 of an eight-week plan — repeats its last authored week rather than
+ * going blank.
+ */
+function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "scheduledDate" | "weekIndex">>(
+  workouts: T[],
   assignedAt: Date,
   programDuration: number,
   weekStart: Date,
-) {
-  if (workout.scheduledDate || typeof workout.weekIndex !== "number") {
-    return true
+): T[] {
+  const duration = Math.max(1, Math.round(programDuration))
+
+  // Personal routines live in a synthetic one-week program and never expire.
+  if (duration <= 1) {
+    return workouts
   }
 
-  if (isAssignmentProgramFinished(assignedAt, weekStart, programDuration)) {
-    return false
+  const datedWorkouts = workouts.filter((workout) => workout.scheduledDate)
+
+  if (isAssignmentProgramFinished(assignedAt, weekStart, duration)) {
+    return datedWorkouts
   }
 
-  return workout.weekIndex === getAssignmentWeekIndex(assignedAt, weekStart, programDuration)
+  const recurringWorkouts = workouts.filter((workout) => !workout.scheduledDate)
+  const authoredWeeks = new Set(recurringWorkouts.map((workout) => normalizeWeekIndexForVisibility(workout.weekIndex)))
+
+  if (authoredWeeks.size === 0) {
+    return datedWorkouts
+  }
+
+  const currentWeekIndex = getAssignmentWeekIndex(assignedAt, weekStart, duration)
+  const weeksAtOrBefore = Array.from(authoredWeeks).filter((weekIndex) => weekIndex <= currentWeekIndex)
+  const effectiveWeekIndex =
+    weeksAtOrBefore.length > 0 ? Math.max(...weeksAtOrBefore) : Math.min(...Array.from(authoredWeeks))
+
+  return workouts.filter(
+    (workout) =>
+      Boolean(workout.scheduledDate) || normalizeWeekIndexForVisibility(workout.weekIndex) === effectiveWeekIndex,
+  )
 }
 
 function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
@@ -3270,12 +3306,14 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   assignments.forEach((assignment) => {
     const isPersonalProgram = assignment.program.createdById === profile.id
+    const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
+      assignment.program.workouts as WorkoutRecord[],
+      assignment.assignedAt,
+      assignment.program.duration,
+      weekStart,
+    )
 
-    ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
-      if (!isWorkoutVisibleForAssignmentWeek(workout, assignment.assignedAt, assignment.program.duration, weekStart)) {
-        return
-      }
-
+    visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
       if (isPersonalProgram) {
@@ -3457,12 +3495,14 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
 
   assignments.forEach((assignment) => {
     const isPersonalProgram = assignment.program.createdById === profile.id
+    const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
+      assignment.program.workouts as WorkoutRecord[],
+      assignment.assignedAt,
+      assignment.program.duration,
+      weekStart,
+    )
 
-    ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
-      if (!isWorkoutVisibleForAssignmentWeek(workout, assignment.assignedAt, assignment.program.duration, weekStart)) {
-        return
-      }
-
+    visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
       if (isPersonalProgram) {
@@ -6680,6 +6720,7 @@ export {
   markNotificationAsReadForUser,
   resetCurrentTraineeData,
   restoreCoachProgram,
+  selectVisibleWorkoutsForAssignmentWeek,
   submitCoachExerciseImportRequest,
   swapExerciseForTraineeFromWorkout,
   unassignCoachProgramFromTrainee,
