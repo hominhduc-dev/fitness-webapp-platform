@@ -47,9 +47,17 @@ async function ProgramDetailContent({ programId }: { programId: string }) {
   ])
 
   const assignedAt = program.assignedTrainees.find((trainee) => trainee.id === profile.id)?.assignedAt
+  // Only a program the trainee authored is theirs to reshape; a coach's plan
+  // stays read-only here, and the backend enforces the same rule.
+  const canEdit = program.createdBy === profile.id && !program.archivedAt
 
   return (
-    <ProgramWeekViewer assignedAt={assignedAt} historyLogs={workoutData.historyLogs} program={program} />
+    <ProgramWeekViewer
+      assignedAt={assignedAt}
+      canEdit={canEdit}
+      historyLogs={workoutData.historyLogs}
+      program={program}
+    />
   )
 }
 

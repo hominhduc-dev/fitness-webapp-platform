@@ -4,6 +4,8 @@ import { heavyLimiter } from "../middleware/rate-limit"
 import { asyncHandler, validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
+  addWorkoutToTraineeProgram,
+  copyTraineeProgramWeek,
   createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
@@ -15,17 +17,21 @@ import {
   listWorkoutsForTrainee,
   swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
+  updateTraineeProgramDetails,
 } from "../services/fitness-data.service"
 import { getAccessToken } from "./route.utils"
 import {
+  copyProgramWeekSchema,
   createWorkoutLogSchema,
   exportLogsSchema,
   logParams,
   logRangeQuery,
   personalWorkoutSchema,
   programIdParams,
+  programWorkoutSchema,
   swapExerciseSchema,
   swapParams,
+  updateTraineeProgramSchema,
   workoutIdParams,
 } from "./workout.schemas"
 
@@ -46,6 +52,30 @@ workoutRouter.get(
   validated({ params: programIdParams }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     res.json({ program: await getTraineeProgramDetail(profile, req.params.programId) })
+  }),
+)
+
+workoutRouter.patch(
+  "/programs/:programId",
+  validated({ body: updateTraineeProgramSchema, params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ program: await updateTraineeProgramDetails(profile, req.params.programId, req.body) })
+  }),
+)
+
+workoutRouter.post(
+  "/programs/:programId/workouts",
+  validated({ body: programWorkoutSchema, params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.status(201).json({ workout: await addWorkoutToTraineeProgram(profile, req.params.programId, req.body) })
+  }),
+)
+
+workoutRouter.post(
+  "/programs/:programId/copy-week",
+  validated({ body: copyProgramWeekSchema, params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ result: await copyTraineeProgramWeek(profile, req.params.programId, req.body.fromWeekIndex) })
   }),
 )
 

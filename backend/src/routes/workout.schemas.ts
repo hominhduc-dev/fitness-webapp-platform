@@ -47,6 +47,25 @@ const personalWorkoutSchema = z.object({
   scheduledDay: z.number().int().min(0).max(6).optional(),
 })
 
+/** A session added straight into an existing program needs its week slot. */
+const programWorkoutSchema = personalWorkoutSchema.extend({
+  weekIndex: z.number().int().min(0).max(51).default(0),
+})
+
+const copyProgramWeekSchema = z.object({
+  fromWeekIndex: z.number().int().min(0).max(51),
+})
+
+const updateTraineeProgramSchema = z
+  .object({
+    description: z.string().max(2000).nullish(),
+    name: z.string().trim().min(1, "Tên chương trình không được để trống.").max(120).optional(),
+  })
+  .refine(
+    (value) => value.name !== undefined || value.description !== undefined,
+    "Cần ít nhất một trường để cập nhật.",
+  )
+
 const logRangeQuery = z.object({
   from: isoDate,
   programId: uuid.optional(),
@@ -78,13 +97,16 @@ const swapExerciseSchema = z.object({
 })
 
 export {
+  copyProgramWeekSchema,
   createWorkoutLogSchema,
   exportLogsSchema,
   logParams,
   logRangeQuery,
   personalWorkoutSchema,
   programIdParams,
+  programWorkoutSchema,
   swapExerciseSchema,
   swapParams,
+  updateTraineeProgramSchema,
   workoutIdParams,
 }
