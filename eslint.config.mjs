@@ -41,6 +41,10 @@ export default [
       "next-env.d.ts",
       "lift-design-system/**",
       "**/*.config.mjs",
+      // Agent tooling checks out scratch git worktrees here. They hold a full copy
+      // of the tree, so `**/*.test.ts` overrides would match those files too and
+      // lint them without the backend parser config, failing on TS syntax.
+      ".claude/**",
     ],
   },
 
