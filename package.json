@@ -72,6 +72,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.11.0",
     "jsdom": "27.0.1",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
