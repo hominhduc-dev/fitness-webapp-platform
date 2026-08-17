@@ -55,8 +55,8 @@ interface MuscleMapProps {
 export function MuscleMap({
   side,
   highlights,
-  defaultFill = "var(--muted)",
-  outline = "var(--border)",
+  defaultFill = "var(--body-fill)",
+  outline = "var(--body-line)",
   onMuscleClick,
   label,
   className,

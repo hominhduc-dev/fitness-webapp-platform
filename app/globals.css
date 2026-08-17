@@ -97,6 +97,16 @@
   --chart-4: var(--brand-accent);
   --chart-5: #8b5cf6;
 
+  /* ── Body map ───────────────────────────────────────────────────────────── */
+  /* The anatomical figure is an object drawn *on* a surface, not a surface, so
+     it cannot borrow --muted: that token is #f5f5f5 here and near-invisible on
+     the white card. The two neutral ramps also run opposite ways — solid greys
+     in light, white-alpha in dark — so the body needs its own pair to land at
+     the same contrast on both sides. --body-line covers the internal striations
+     as well as the silhouette, so it carries most of the definition. */
+  --body-fill: var(--ink-200);
+  --body-line: #8a8a8a;
+
   /* ── Radius ──────────────────────────────────────────────────────────────── */
   /* 16px — the glass material wants a softer corner than the old 12px, and the
      radius is shared by both themes so light and dark differ only in colour. */
@@ -464,6 +474,10 @@ input[type="button"] {
   --chart-3: var(--warn);
   --chart-4: #a78bfa;
   --chart-5: var(--danger);
+
+  /* ── Body map ───────────────────────────────────────────────────────────── */
+  --body-fill: rgb(255 255 255 / 10%);
+  --body-line: rgb(255 255 255 / 30%);
 
   --sidebar: rgb(20 22 27 / clamp(0.2, calc(var(--glass-opacity) + 0.1), 0.95));
   --sidebar-foreground: var(--ink-800);
