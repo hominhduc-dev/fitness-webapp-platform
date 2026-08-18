@@ -141,14 +141,15 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         <nav ref={mobileNavRef} className="mobile-floating-nav glass-surface relative grid w-full grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
           {primaryItems.map((item) => {
             const active = isNavItemActive(pathname, item)
+            const visuallyActive = active && !open
             return (
-              <Link key={item.href} href={item.href} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", active ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+              <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
                 <item.icon className="h-5 w-5" strokeWidth={1.7} />
                 <span className="sr-only">{item.label}</span>
               </Link>
             )
           })}
-          <button type="button" aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+          <button type="button" aria-controls="mobile-more-navigation" aria-expanded={open} aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
             <MoreHorizontal className="h-5 w-5" />
             <span className="sr-only">More</span>
           </button>
@@ -164,7 +165,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[2px]"
           />
-          <nav className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-[22px] border border-border bg-background p-2.5 shadow-2xl">
+          <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-[22px] border border-border bg-background p-2.5 shadow-2xl">
             <div className="mb-2 flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2"><Dumbbell className="h-4 w-4" /><span className="font-semibold">YeahBuddy</span>{badge ? <span className="label-micro">{badge}</span> : null}</div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
