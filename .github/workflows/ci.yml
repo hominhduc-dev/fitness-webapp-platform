@@ -66,6 +66,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Validate semantic color contract
+        run: npm run lint:colors
+
+      - name: Test
+        run: npm run test
+
       - name: Build
         # Placeholder public config: the build only needs these to exist, and no
         # request is made to Supabase during static generation.

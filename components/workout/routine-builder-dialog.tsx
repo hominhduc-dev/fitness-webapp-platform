@@ -64,12 +64,12 @@ export type RoutineBuilderDialogProps = {
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
 
 const TAG_DOT: Record<RoutineTag, string> = {
-  full:  "var(--ink-600, #52525b)",
-  legs:  "var(--warning,  #f59e0b)",
-  lower: "#1a8a8a",
-  pull:  "var(--success,  #22c55e)",
+  full:  "var(--ink-600)",
+  legs:  "var(--warning)",
+  lower: "var(--chart-2)",
+  pull:  "var(--success)",
   push:  "var(--primary)",
-  upper: "#7c5dff",
+  upper: "var(--chart-4)",
 }
 
 function getRoutineTagLabel(tag: RoutineTag, messages: ReturnType<typeof useLocale>["messages"]) {
@@ -404,16 +404,11 @@ export function RoutineBuilderDialog({
             {/* Backdrop + modal */}
             {open && (
         <div
-          className="fixed inset-0 z-[80] flex items-stretch justify-center sm:items-center sm:p-6"
-          style={{ background: "rgba(13,13,11,0.45)", backdropFilter: "blur(4px)" }}
+          className="fixed inset-0 z-[80] flex items-stretch justify-center bg-overlay backdrop-blur-sm sm:items-center sm:p-6"
           onClick={() => setOpen(false)}
         >
           <div
-            className="flex h-full w-full flex-col overflow-hidden bg-background sm:h-auto sm:max-w-[640px] sm:rounded-[14px]"
-            style={{
-              maxHeight: "100%",
-              boxShadow: "0 24px 60px -12px rgba(13,13,11,0.25)",
-            }}
+            className="flex h-full max-h-full w-full flex-col overflow-hidden bg-background shadow-[var(--glass-shadow)] sm:h-auto sm:max-w-[640px] sm:rounded-[14px]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── Header ──────────────────────────────────────────────────── */}
@@ -482,7 +477,7 @@ export function RoutineBuilderDialog({
             {/* ── Exercise list ─────────────────────────────────────────── */}
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-7">
               {error && (
-                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   {error}
                 </div>
               )}
@@ -535,7 +530,7 @@ export function RoutineBuilderDialog({
                       <button
                         type="button"
                         onClick={() => removeExercise(ex.id)}
-                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive"
+                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

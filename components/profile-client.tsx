@@ -476,7 +476,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive">
+        <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-text">
           {error}
         </div>
       ) : null}
@@ -801,7 +801,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
       {profile.role === "trainee" ? (
         <details className="group rounded-[18px] border border-destructive/30 bg-destructive-soft">
-          <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-destructive marker:hidden sm:p-5 [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-destructive-text marker:hidden sm:p-5 [&::-webkit-details-marker]:hidden">
             <AlertTriangle className="h-5 w-5 shrink-0" />
             <span className="flex-1 text-base font-semibold">{messages.profile.resetData}</span>
             <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />

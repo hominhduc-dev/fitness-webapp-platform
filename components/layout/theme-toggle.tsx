@@ -1,6 +1,6 @@
 "use client"
 
-import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react"
+import { Monitor, Moon, MoonStar, Sun, type LucideIcon } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useTheme, type ThemeMode } from "@/components/providers/theme-provider"
@@ -20,6 +20,7 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
   const options: Array<{ icon: LucideIcon; label: string; value: ThemeMode }> = [
     { icon: Sun, label: messages.common.themeLight, value: "light" },
     { icon: Moon, label: messages.common.themeDark, value: "dark" },
+    { icon: MoonStar, label: messages.common.themeMidnight, value: "midnight" },
     { icon: Monitor, label: messages.common.themeSystem, value: "system" },
   ]
 
@@ -51,7 +52,9 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
       )}
       role="group"
     >
-      <div className={cn("gap-0.5", compact ? "grid w-full grid-cols-3" : "inline-flex")}>
+      {/* Four labelled buttons overflow a narrow container, so the roomy
+          variant wraps instead of forcing a horizontal scroll. */}
+      <div className={cn("gap-0.5", compact ? "grid w-full grid-cols-4" : "flex flex-wrap")}>
         {options.map((option) => {
           const Icon = option.icon
           const active = theme === option.value
@@ -66,7 +69,7 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
               className={cn(
                 "inline-flex h-7 items-center justify-center gap-1 rounded-[6px] px-2.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-colors",
                 active
-                  ? "bg-background text-foreground shadow-[0_1px_2px_rgba(13,13,11,0.08)] ring-1 ring-border/60"
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                   : "text-muted-foreground hover:text-foreground",
               )}
               onClick={() => setTheme(option.value)}

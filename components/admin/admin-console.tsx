@@ -1725,7 +1725,7 @@ export function AdminConsole() {
 
             <div className="min-h-[42px]">
               {error ? (
-                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   {error}
                 </div>
               ) : null}
@@ -1894,7 +1894,7 @@ export function AdminConsole() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
-                        {!user.isActive ? <span className="shrink-0 text-xs text-destructive">🔒</span> : null}
+                        {!user.isActive ? <span className="shrink-0 text-xs text-destructive-text">🔒</span> : null}
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                     </div>

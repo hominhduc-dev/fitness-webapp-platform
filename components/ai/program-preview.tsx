@@ -74,12 +74,12 @@ function ProgramPreview({
           <span className="rounded-full bg-muted px-2.5 py-1">
             {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"}
           </span>
-          <span className={cn("rounded-full px-2.5 py-1", mappingRate >= 80 ? "bg-ok-soft text-success" : "bg-warning-soft text-warning")}>
+          <span className={cn("rounded-full px-2.5 py-1", mappingRate >= 80 ? "bg-ok-soft text-success-text" : "bg-warning-soft text-warning-text")}>
             {mappingRate}% {isVi ? "bài tập khả dụng" : "exercises available"}
           </span>
         </div>
         {mappingRate < 80 && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-warning/20 bg-warning-soft p-3 text-xs text-warning">
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-warning/20 bg-warning-soft p-3 text-xs text-warning-text">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             {isVi ? "Một số bài AI đề xuất chưa có trong thư viện. Hãy kiểm tra kỹ trước khi lưu hoặc tạo lại cấu hình." : "Some AI-recommended exercises are not in the library. Review them before saving or adjust the setup."}
           </div>

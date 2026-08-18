@@ -185,7 +185,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
                   <p className="font-mono text-2xl font-semibold leading-none tracking-tight tnum text-foreground md:text-[1.75rem]">
                     {card.value}
                   </p>
-                  <p className={cn("mt-2 text-[13px] leading-snug", isHelperAccent ? "font-medium text-success" : "text-muted-foreground")}>
+                  <p className={cn("mt-2 text-[13px] leading-snug", isHelperAccent ? "font-medium text-success-text" : "text-muted-foreground")}>
                     {card.helper}
                   </p>
                 </div>

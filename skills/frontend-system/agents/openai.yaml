@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend System"
+  short_description: "Tra cứu và duy trì frontend system của YeahBuddy"
+  default_prompt: "Use $frontend-system to inspect the frontend system reference before implementing this UI request."

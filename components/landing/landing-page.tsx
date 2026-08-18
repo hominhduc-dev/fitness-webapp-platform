@@ -160,7 +160,7 @@ function Hero() {
       </div>
 
       {/* Product preview tile */}
-      <div className="glass-card landing-preview mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.12)] md:mt-[72px] md:p-7">
+      <div className="glass-card landing-preview mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[var(--glass-shadow)] md:mt-[72px] md:p-7">
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[1.4fr_1fr] md:gap-6">
           {/* Mock set-log card */}
           <MockSetLog />
@@ -227,13 +227,13 @@ function MockSetLog() {
             className={cn(
               "flex h-5 w-5 items-center justify-center rounded-[4px]",
               s.done
-                ? "bg-[#2a8a5f] text-white"
+                ? "bg-success text-success-foreground"
                 : "border-[1.5px] border-border bg-transparent"
             )}
           >
             {s.done && (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
           </div>
@@ -255,7 +255,7 @@ function MockChart() {
           112.5
         </span>
         <span className="text-[13px] text-muted-foreground">kg</span>
-        <span className="ml-1 font-mono text-[12px] text-[#2a8a5f]">↑ 5.0 · 12 w</span>
+        <span className="ml-1 font-mono text-[12px] text-success-text">↑ 5.0 · 12 w</span>
       </div>
 
       <svg
@@ -365,11 +365,11 @@ function TrainerCallout() {
       <div className="glass-card landing-trainer grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
         {/* Left: copy */}
         <div>
-          <p className="label-micro mb-3 text-[#9a9a92]">{messages.landing.trainerEyebrow}</p>
-          <h2 className="m-0 text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-[#fcfcfa] md:text-[42px]">
+          <p className="label-micro mb-3 text-inverse-muted">{messages.landing.trainerEyebrow}</p>
+          <h2 className="m-0 text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-inverse-foreground md:text-[42px]">
             {messages.landing.trainerTitle}
           </h2>
-          <p className="mb-6 mt-[18px] max-w-[440px] text-[15px] leading-[1.55] text-[#c9c9c2]">
+          <p className="mb-6 mt-[18px] max-w-[440px] text-[15px] leading-[1.55] text-inverse-secondary">
             {messages.landing.trainerCopy}
           </p>
 
@@ -384,7 +384,7 @@ function TrainerCallout() {
             <Button
               variant="ghost"
               size="default"
-              className="font-medium text-[#fcfcfa] hover:bg-white/10 hover:text-[#fcfcfa]"
+              className="font-medium text-inverse-foreground hover:bg-inverse-hover hover:text-inverse-foreground"
             >
               {messages.landing.requestInvite}
             </Button>
@@ -392,23 +392,23 @@ function TrainerCallout() {
         </div>
 
         {/* Right: mock client table */}
-        <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.04] p-5 font-mono text-[13px] leading-[1.7] text-[#c9c9c2]">
-          <div className="mb-2.5 text-[#fcfcfa]">{messages.landing.thisWeekClients}</div>
+        <div className="rounded-[10px] border border-inverse-border bg-inverse-surface p-5 font-mono text-[13px] leading-[1.7] text-inverse-secondary">
+          <div className="mb-2.5 text-inverse-foreground">{messages.landing.thisWeekClients}</div>
           {clientRows.map((row, i) => (
             <div
               key={row.name}
               className={cn(
                 "flex items-center justify-between py-1.5",
-                i > 0 && "border-t border-white/[0.06]"
+                i > 0 && "border-t border-inverse-divider"
               )}
             >
-              <span className="text-[#fcfcfa]">{row.name}</span>
+              <span className="text-inverse-foreground">{row.name}</span>
               <span>{row.activity}</span>
               <span
                 className={cn(
-                  row.tone === "ok" && "text-[#2a8a5f]",
-                  row.tone === "warn" && "text-[#b56a1a]",
-                  row.tone === "neutral" && "text-[#8a8a82]"
+                  row.tone === "ok" && "text-inverse-success",
+                  row.tone === "warn" && "text-inverse-warning",
+                  row.tone === "neutral" && "text-inverse-muted"
                 )}
               >
                 {row.status}

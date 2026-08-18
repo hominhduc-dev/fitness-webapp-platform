@@ -84,13 +84,13 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
 
         <div className="flex flex-wrap gap-2 text-sm">
           {preview.added.length > 0 && (
-            <Badge variant="default" className="bg-green-600">{t.added}: {preview.added.length}</Badge>
+            <Badge variant="default" className="bg-success text-success-foreground">{t.added}: {preview.added.length}</Badge>
           )}
           {preview.modified.length > 0 && (
-            <Badge variant="default" className="bg-blue-600">{t.modified}: {preview.modified.length}</Badge>
+            <Badge variant="default" className="bg-info text-info-foreground">{t.modified}: {preview.modified.length}</Badge>
           )}
           {preview.deleted.length > 0 && (
-            <Badge variant="default" className="bg-red-600">{t.deleted}: {preview.deleted.length}</Badge>
+            <Badge variant="default" className="bg-destructive text-destructive-foreground">{t.deleted}: {preview.deleted.length}</Badge>
           )}
           {preview.unchangedCount > 0 && (
             <Badge variant="secondary">{preview.unchangedCount} {t.unchanged}</Badge>
@@ -105,7 +105,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
               <SyncSection
                 label={t.added}
                 count={preview.added.length}
-                color="text-green-600"
+                color="text-success-text"
                 icon={<Plus className="size-4" />}
                 expanded={expandedSections.has("added")}
                 onToggle={() => toggleSection("added")}
@@ -129,7 +129,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
               <SyncSection
                 label={`${t.modified}${conflictCount > 0 ? (locale === "en" ? ` (${conflictCount} conflict${conflictCount !== 1 ? "s" : ""} will be skipped)` : ` (${conflictCount} trùng tên sẽ bỏ qua)`) : ""}`}
                 count={preview.modified.length}
-                color="text-blue-600"
+                color="text-info-text"
                 icon={<Pencil className="size-4" />}
                 expanded={expandedSections.has("modified")}
                 onToggle={() => toggleSection("modified")}
@@ -147,7 +147,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
                         )}
                       </span>
                       {item.hasConflict && (
-                        <span className="flex items-center gap-1 text-xs text-amber-600 whitespace-nowrap shrink-0">
+                        <span className="flex items-center gap-1 text-xs text-warning-text whitespace-nowrap shrink-0">
                           <AlertTriangle className="size-3.5" />
                           {locale === "en" ? "Name conflict" : "Trùng tên"}
                         </span>
@@ -158,9 +158,9 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
                         <div key={field} className="text-xs text-muted-foreground">
                           <span className="capitalize">{field === "exerciseName" ? "name" : field === "variationName" ? "variation" : field === "muscleGroup" ? "muscle group" : field}</span>
                           {": "}
-                          <span className="line-through text-red-500/80">{change.from || "—"}</span>
+                          <span className="line-through text-destructive-text/80">{change.from || "—"}</span>
                           {" → "}
-                          <span className="text-green-600">{change.to || "—"}</span>
+                          <span className="text-success-text">{change.to || "—"}</span>
                         </div>
                       ))}
                     </div>
@@ -173,7 +173,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
               <SyncSection
                 label={t.deleted}
                 count={preview.deleted.length}
-                color="text-red-600"
+                color="text-destructive-text"
                 icon={<Minus className="size-4" />}
                 expanded={expandedSections.has("deleted")}
                 onToggle={() => toggleSection("deleted")}
@@ -188,7 +188,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
                       <span className="text-muted-foreground text-xs ml-2">({item.muscleGroup})</span>
                     </div>
                     {!item.canDelete && (
-                      <div className="flex items-center gap-1 text-xs text-amber-600 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-xs text-warning-text whitespace-nowrap">
                         <AlertTriangle className="size-3.5" />
                         {t.cannotDelete} ({item.usageCount})
                       </div>
@@ -196,7 +196,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
                   </div>
                 ))}
                 {skippedDeletes > 0 && (
-                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-warning-text mt-1 flex items-center gap-1">
                     <AlertTriangle className="size-3.5" />
                     {t.inUseWarning}
                   </p>

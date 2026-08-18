@@ -321,15 +321,15 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const renderAuthContent = () => (
     <>
       {!isSupabaseConfigured && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-amber-700" />
-          <p className="text-sm text-amber-700">{messages.auth.authDisabledConfig}</p>
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-warning/20 bg-warning-soft p-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-warning-text" />
+          <p className="text-sm text-warning-text">{messages.auth.authDisabledConfig}</p>
         </div>
       )}
       {error && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive-soft p-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <p className="text-sm text-destructive">{error}</p>
+          <AlertCircle className="h-4 w-4 shrink-0 text-destructive-text" />
+          <p className="text-sm text-destructive-text">{error}</p>
         </div>
       )}
       {success && (

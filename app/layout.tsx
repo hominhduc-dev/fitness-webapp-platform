@@ -55,16 +55,23 @@ const themeInitScript = `
       storedTheme = "dark";
       window.localStorage.setItem(storageKey, storedTheme);
     }
-    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "light";
+    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "midnight" || storedTheme === "system" ? storedTheme : "light";
     if (window.location.pathname === "/") theme = "light";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    // "system" never resolves to midnight — the OS cannot express it.
     var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
     var root = document.documentElement;
-    root.classList.toggle("dark", resolvedTheme === "dark");
-    root.style.colorScheme = resolvedTheme;
+    // Midnight is a palette on top of the dark family, so it keeps the .dark
+    // class and adds data-palette. Mirrors applyThemeToDocument() in
+    // components/providers/theme-provider.tsx — keep the two in sync.
+    root.classList.toggle("dark", resolvedTheme !== "light");
+    root.style.colorScheme = resolvedTheme === "light" ? "light" : "dark";
+    if (resolvedTheme === "midnight") root.setAttribute("data-palette", "midnight");
+    else root.removeAttribute("data-palette");
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      themeColor.setAttribute("content", resolvedTheme === "dark" ? "#0b0c10" : "#ffffff");
+      var themeColors = { light: "#f4f7fb", dark: "#080a0f", midnight: "#0a1020" };
+      themeColor.setAttribute("content", themeColors[resolvedTheme] || themeColors.light);
     }
     // -- Liquid glass capability probe --------------------------------
     // Refraction rides on an SVG filter referenced from backdrop-filter.
@@ -172,7 +179,7 @@ export const metadata: Metadata = {
   category: "health & fitness",
   // Windows tiles (msapplication) — favicon set referenced via browserconfig
   other: {
-    "msapplication-TileColor": "#ffffff",
+    "msapplication-TileColor": "#f4f7fb",
     "msapplication-TileImage": "/ms-icon-144x144.png",
     "msapplication-config": "/browserconfig.xml",
   },
@@ -185,7 +192,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#f4f7fb",
   width: "device-width",
   initialScale: 1,
   // Pinch-zoom stays available — WCAG 1.4.4 wants it, and iOS Safari has

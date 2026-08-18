@@ -156,7 +156,7 @@ function CalorieRing({ consumed, target }: { consumed: number; target: number })
           strokeDashoffset={circumference * (1 - pct)}
           strokeLinecap="round"
           strokeWidth="10"
-          className={cn("transition-all duration-300", overTarget ? "text-warning" : "text-primary")}
+          className={cn("transition-all duration-300", overTarget ? "text-warning-text" : "text-primary")}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -294,7 +294,7 @@ function MealSection({
           </div>
           <span className="font-mono text-[13px] text-muted-foreground tnum">{Math.round(item.calories)}</span>
           <button
-            className="rounded p-1 text-ink-200 transition-colors hover:text-destructive"
+            className="rounded p-1 text-ink-200 transition-colors hover:text-destructive-text"
             disabled={isSubmitting}
             title={deleteLabel}
             type="button"
@@ -563,11 +563,11 @@ function AddFoodModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-overlay-soft px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
-        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-[28px] border border-border/80 bg-card shadow-[0_28px_90px_-28px_rgba(0,0,0,0.55)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-[24px]"
+        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-[28px] border border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-[24px]"
         onClick={(event) => event.stopPropagation()}
       >
         {creating ? (
@@ -940,7 +940,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
         </Button>
       </div>
 
-      {error ? <div className="mb-5 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">{error}</div> : null}
+      {error ? <div className="mb-5 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div> : null}
 
       <section className="mb-5 rounded-[10px] border border-border bg-card p-[18px] md:mb-6 md:p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-9">
@@ -949,7 +949,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
             <div>
               <p className="label-micro">{messages.meals.calories}</p>
               <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className={cn("text-3xl font-semibold tracking-[-0.03em] tnum", remaining < 0 ? "text-warning" : "text-foreground")}>
+                <span className={cn("text-3xl font-semibold tracking-[-0.03em] tnum", remaining < 0 ? "text-warning-text" : "text-foreground")}>
                   {Math.abs(Math.round(remaining)).toLocaleString()}
                 </span>
                 <span className="text-[13px] text-muted-foreground">{remaining < 0 ? messages.meals.kcalOver : messages.meals.kcalLeft}</span>
