@@ -88,7 +88,7 @@ function ChatProgramCard({
         </Button>
       )}
 
-      {error && <p className="mt-2 text-[11px] text-destructive">{error}</p>}
+      {error && <p className="mt-2 text-[11px] text-destructive-text">{error}</p>}
     </div>
   )
 }

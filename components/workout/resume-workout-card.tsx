@@ -121,7 +121,7 @@ export function ResumeWorkoutCard() {
           "rounded-[22px] border border-border md:rounded-xl",
           "bg-background/90 backdrop-blur-xl",
           "px-2.5 py-2 md:px-5 md:py-[14px]",
-          "shadow-[0_16px_48px_-12px_rgba(13,13,11,0.18),0_2px_6px_rgba(13,13,11,0.06)]",
+          "shadow-[var(--glass-shadow)]",
         )}
       >
         {/* Left: label + workout name */}
@@ -174,7 +174,7 @@ export function ResumeWorkoutCard() {
             aria-label={messages.workoutPage.discard}
             className={cn(
               "flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-medium md:h-auto md:w-auto md:rounded-md md:px-3 md:py-1.5",
-              "bg-transparent text-destructive hover:bg-destructive-soft transition-colors duration-150",
+              "bg-transparent text-destructive-text hover:bg-destructive-soft transition-colors duration-150",
             )}
           >
             <X className="h-3.5 w-3.5" />

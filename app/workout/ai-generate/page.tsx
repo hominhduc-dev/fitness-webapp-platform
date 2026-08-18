@@ -186,7 +186,7 @@ export default function AIGeneratePage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {isVi ? "Tạo một buổi tập hôm nay hoặc chương trình nhiều tuần" : "Build today's workout or a multi-week program"}
             </p>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success" />{isVi ? "Có kiểm tra thiết bị và giới hạn vận động" : "Accounts for equipment and movement limitations"}</p>
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success-text" />{isVi ? "Có kiểm tra thiết bị và giới hạn vận động" : "Accounts for equipment and movement limitations"}</p>
           </div>
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function AIGeneratePage() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-text">
           {error}
         </div>
       )}

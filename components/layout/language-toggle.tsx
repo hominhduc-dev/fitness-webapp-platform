@@ -58,7 +58,7 @@ export function LanguageToggle({ compact = false, className, variant = "toggle" 
             className={cn(
               "h-7 rounded-[6px] px-2.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-colors",
               locale === option.value
-                ? "bg-background text-foreground shadow-[0_1px_2px_rgba(13,13,11,0.08)] ring-1 ring-border/60"
+                ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                 : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => setLocale(option.value)}

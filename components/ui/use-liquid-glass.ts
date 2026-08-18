@@ -13,6 +13,7 @@ type LiquidGlassConfig = Partial<GlassConfig>
 export function useLiquidGlass(
   ref: RefObject<HTMLElement | null>,
   config: LiquidGlassConfig,
+  renderKey?: string,
 ) {
   const serializedConfig = JSON.stringify(config)
 
@@ -68,5 +69,5 @@ export function useLiquidGlass(
       if (previousConfig === undefined) delete element.dataset.config
       else element.dataset.config = previousConfig
     }
-  }, [ref, serializedConfig])
+  }, [ref, renderKey, serializedConfig])
 }

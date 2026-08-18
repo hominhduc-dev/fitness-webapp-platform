@@ -165,7 +165,7 @@ export function ExercisePicker({
   }
 
   const pickerListClassName = cn(
-    "mt-3 space-y-2 overflow-y-auto pr-1 [scrollbar-color:rgba(148,163,184,0.45)_transparent] [scrollbar-width:thin] [touch-action:pan-y] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/80 [&::-webkit-scrollbar-track]:bg-transparent",
+    "semantic-scrollbar mt-3 space-y-2 overflow-y-auto pr-1 [touch-action:pan-y] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
     isMobile ? "min-h-0 flex-1 max-h-none overscroll-contain" : "max-h-[18rem] md:max-h-[20rem]",
   )
 
@@ -340,7 +340,7 @@ export function ExercisePicker({
       ) : null}
 
       {open && !isMobile ? (
-        <div className="absolute inset-x-0 bottom-full mb-3 rounded-[22px] border border-border/70 bg-background/95 p-3 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.32)] backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-full mb-3 rounded-[22px] border border-border/70 bg-background/95 p-3 shadow-[var(--glass-shadow)] backdrop-blur-sm">
           {pickerPanel}
         </div>
       ) : null}

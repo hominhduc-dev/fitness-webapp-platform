@@ -59,7 +59,7 @@ export function QuickActions() {
             className={cn(
               "flex h-9 w-9 items-center justify-center rounded-full md:h-11 md:w-11",
               action.tone === "primary" && "bg-primary-soft text-primary",
-              action.tone === "success" && "bg-ok-soft text-success",
+              action.tone === "success" && "bg-ok-soft text-success-text",
               action.tone === "neutral" && "bg-muted text-muted-foreground",
             )}
           >

@@ -93,7 +93,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
           "rounded-xl border border-border",
           "bg-background/90 backdrop-blur-xl",
           "px-3 py-3 md:px-5 md:py-[14px]",
-          "shadow-[0_16px_48px_-12px_rgba(13,13,11,0.18),0_2px_6px_rgba(13,13,11,0.06)]",
+          "shadow-[var(--glass-shadow)]",
           "flex-wrap md:flex-nowrap",
         )}
       >
@@ -162,7 +162,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
             className={cn(
               "flex items-center gap-1 rounded-md",
               "px-3 py-1.5 text-[13px] font-medium",
-              "bg-transparent text-destructive hover:bg-destructive-soft transition-colors duration-150",
+              "bg-transparent text-destructive-text hover:bg-destructive-soft transition-colors duration-150",
             )}
           >
             <SkipForward className="h-3.5 w-3.5" />

@@ -449,7 +449,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           className={cn(
             "min-w-0 font-mono text-[11px] leading-tight",
             exceededRange
-              ? "inline-flex items-center justify-center gap-1 text-success"
+              ? "inline-flex items-center justify-center gap-1 text-success-text"
               : "block truncate text-center text-muted-foreground",
           )}
           style={{ fontFeatureSettings: '"tnum" 1' }}
@@ -576,7 +576,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                   : "border-[1.5px] border-border bg-transparent",
               )}
             >
-              {completed && <Check className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+              {completed && <Check className="h-3.5 w-3.5 text-success-foreground" strokeWidth={2.5} />}
             </span>
           </button>
           <DropdownMenu>
@@ -602,7 +602,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
+                    className="text-destructive-text focus:text-destructive-text"
                     onClick={onRemove}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -642,7 +642,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
         hoverClassName: "hover:bg-[color-mix(in_srgb,var(--success)_12%,transparent)]",
         icon: TrendingUp,
         panelBgClassName: "bg-[color-mix(in_srgb,var(--success)_8%,transparent)]",
-        textClassName: "text-success",
+        textClassName: "text-success-text",
       }
     case "rir_down":
     case "weight_down":
@@ -651,7 +651,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
         hoverClassName: "hover:bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]",
         icon: ArrowDownNarrowWide,
         panelBgClassName: "bg-[color-mix(in_srgb,var(--warning)_8%,transparent)]",
-        textClassName: "text-warning",
+        textClassName: "text-warning-text",
       }
     case "rir_up":
     case "edit":
@@ -829,7 +829,7 @@ function LiftExerciseBlock({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
+              className="text-destructive-text focus:text-destructive-text"
               onClick={() => onRemoveExercise(exercise.id)}
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -1553,7 +1553,7 @@ export default function WorkoutStartPage() {
 
         {/* Error */}
         {error && (
-          <p className="mb-4 text-sm text-destructive">{error}</p>
+          <p className="mb-4 text-sm text-destructive-text">{error}</p>
         )}
 
         {/* Exercise blocks */}

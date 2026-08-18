@@ -34,8 +34,8 @@ function deriveStatus(trainee: {
 }
 
 const STATUS_BADGE_CLASS: Record<"on-track" | "behind" | "rest", string> = {
-  "on-track": "bg-success/10 text-success border-success/20",
-  "behind": "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  "on-track": "bg-success/10 text-success-text border-success/20",
+  "behind": "bg-warning-soft text-warning-text border-warning/20",
   "rest": "bg-muted text-muted-foreground border-border",
 }
 

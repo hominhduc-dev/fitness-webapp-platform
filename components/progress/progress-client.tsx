@@ -313,7 +313,7 @@ function WorkoutLogModal({
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-[8px]" />)}
             </div>
           ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-sm text-destructive-text">{error}</p>
           ) : log && log.exercises.length === 0 ? (
             <p className="text-sm text-muted-foreground">{messages.workoutPage.noExerciseData}</p>
           ) : (
@@ -1122,7 +1122,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
         {/* ---- Error banner ---- */}
         {error ? (
-          <div className="mb-6 rounded-[8px] border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+          <div className="mb-6 rounded-[8px] border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
             {error}
           </div>
         ) : null}

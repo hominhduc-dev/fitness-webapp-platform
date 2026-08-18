@@ -436,7 +436,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   return (
     <div className="space-y-5">
       {error ? (
-        <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+        <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
           {error}
         </div>
       ) : null}

@@ -88,7 +88,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
             </div>
 
             {error ? (
-              <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+              <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                 {error}
               </div>
             ) : null}

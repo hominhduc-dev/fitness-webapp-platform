@@ -9,6 +9,7 @@
     "dev": "next dev",
     "dev:backend": "npm --prefix backend run dev",
     "lint": "eslint .",
+    "lint:colors": "node scripts/check-ui-colors.mjs",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:backend": "npm --prefix backend run typecheck",

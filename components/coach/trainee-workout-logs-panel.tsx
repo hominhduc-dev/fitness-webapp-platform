@@ -728,7 +728,7 @@ export function TraineeWorkoutLogsPanel({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-8 w-8 text-destructive-text hover:text-destructive-text"
                           onClick={() => void handleDeleteComment(log.id, comment.id)}
                           disabled={deletingCommentId === comment.id}
                         >
@@ -817,7 +817,7 @@ export function TraineeWorkoutLogsPanel({
   return (
     <div className="space-y-6">
       {error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
           {error}
         </div>
       ) : null}
@@ -993,9 +993,9 @@ export function TraineeWorkoutLogsPanel({
 
                 {previewWorkbook.sheets.map((sheet) => (
                   <TabsContent key={sheet.name} value={sheet.name} className="mt-4">
-                    <div className="max-h-[60vh] overflow-auto rounded-xl border border-border bg-white p-4 text-black">
+                    <div className="max-h-[60vh] overflow-auto rounded-xl border border-export-border bg-export-background p-4 text-export-foreground">
                       <div
-                        className="min-w-max [&_table]:border-collapse [&_table]:text-xs [&_td]:border [&_td]:border-slate-300 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-1"
+                        className="min-w-max [&_table]:border-collapse [&_table]:text-xs [&_td]:border [&_td]:border-export-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-export-border [&_th]:bg-export-heading [&_th]:px-2 [&_th]:py-1"
                         dangerouslySetInnerHTML={{ __html: sheet.html }}
                       />
                     </div>

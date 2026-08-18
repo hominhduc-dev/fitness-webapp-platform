@@ -623,7 +623,7 @@ export function WeightTrackingClient() {
             className={cn(
               "rounded-[8px] border px-4 py-3 text-sm",
               error
-                ? "border-destructive/20 bg-destructive-soft text-destructive"
+                ? "border-destructive/20 bg-destructive-soft text-destructive-text"
                 : "border-primary/15 bg-primary-soft text-primary",
             )}
           >
@@ -647,7 +647,7 @@ export function WeightTrackingClient() {
                     className={cn(
                       "inline-flex items-center gap-1 font-mono text-sm tnum",
                       rangeChangeTone === "success" && "text-[var(--success)]",
-                      rangeChangeTone === "danger" && "text-destructive",
+                      rangeChangeTone === "danger" && "text-destructive-text",
                       rangeChangeTone === "neutral" && "text-muted-foreground",
                     )}
                   >
@@ -784,7 +784,7 @@ export function WeightTrackingClient() {
                   className={cn(
                     "inline-flex items-center gap-1 font-mono text-xs tnum font-medium",
                     currentDeltaTone === "success" && "text-[var(--success)]",
-                    currentDeltaTone === "danger" && "text-destructive",
+                    currentDeltaTone === "danger" && "text-destructive-text",
                     currentDeltaTone === "neutral" && "text-muted-foreground",
                   )}
                 >
@@ -856,7 +856,7 @@ export function WeightTrackingClient() {
                       bmiCategory === "healthy" && "bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-[var(--success)]",
                       bmiCategory === "underweight" && "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]",
                       bmiCategory === "overweight" && "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]",
-                      bmiCategory === "obese" && "bg-destructive-soft text-destructive",
+                      bmiCategory === "obese" && "bg-destructive-soft text-destructive-text",
                     )}
                   >
                     {bmiCategory === "healthy"
@@ -1003,7 +1003,7 @@ export function WeightTrackingClient() {
                             className={cn(
                               "mt-0.5 font-mono text-xs tnum font-medium",
                               deltaTone === "success" && "text-[var(--success)]",
-                              deltaTone === "danger" && "text-destructive",
+                              deltaTone === "danger" && "text-destructive-text",
                               deltaTone === "neutral" && "text-muted-foreground",
                             )}
                           >
