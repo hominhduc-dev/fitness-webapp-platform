@@ -1222,7 +1222,14 @@ function roundMealValue(value: number, fractionDigits = 1) {
   return Math.round(value * factor) / factor
 }
 
-function serializeProgram(program: ProgramRecord) {
+/**
+ * `viewerId` marks the workouts as the viewer's own when they authored the
+ * program, which is what the trainee UI keys editing off. Coach endpoints omit
+ * it, so their view stays `isPersonal: false` as before.
+ */
+function serializeProgram(program: ProgramRecord, options?: { viewerId?: string }) {
+  const isPersonal = Boolean(options?.viewerId && program.createdById === options.viewerId)
+
   return {
     assignedTo: program.assignments.map((assignment) => assignment.userId),
     assignedTrainees: program.assignments.map((assignment) => ({
@@ -1247,7 +1254,7 @@ function serializeProgram(program: ProgramRecord) {
         const weekDiff = (left.weekIndex ?? 0) - (right.weekIndex ?? 0)
         return weekDiff !== 0 ? weekDiff : (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
       })
-      .map((workout) => serializeWorkout(workout)),
+      .map((workout) => serializeWorkout(workout, { isPersonal })),
     workoutsPerWeek: program.workoutsPerWeek,
   }
 }
@@ -1576,21 +1583,57 @@ function isAssignmentProgramFinished(assignedAt: Date, weekStart: Date, duration
   return elapsedWeeks > lastWeekIndex
 }
 
-function isWorkoutVisibleForAssignmentWeek(
-  workout: Pick<WorkoutRecord, "scheduledDate" | "weekIndex">,
+// A workout with no weekIndex belongs to week 1. The AI generator authors only
+// week 0 and expects it to repeat, and older rows predate the column, so NULL
+// must not be read as "belongs to no week".
+function normalizeWeekIndexForVisibility(weekIndex: number | null | undefined) {
+  return typeof weekIndex === "number" && Number.isFinite(weekIndex) ? Math.max(0, Math.round(weekIndex)) : 0
+}
+
+/**
+ * Picks the workouts a trainee should see this week.
+ *
+ * Resolving one workout at a time is not enough: deciding whether a week is
+ * missing requires knowing which weeks the program actually authored. A program
+ * that stops short — the AI generator writing only week 0, or a coach filling
+ * W1-W3 of an eight-week plan — repeats its last authored week rather than
+ * going blank.
+ */
+function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "scheduledDate" | "weekIndex">>(
+  workouts: T[],
   assignedAt: Date,
   programDuration: number,
   weekStart: Date,
-) {
-  if (workout.scheduledDate || typeof workout.weekIndex !== "number") {
-    return true
+): T[] {
+  const duration = Math.max(1, Math.round(programDuration))
+
+  // Personal routines live in a synthetic one-week program and never expire.
+  if (duration <= 1) {
+    return workouts
   }
 
-  if (isAssignmentProgramFinished(assignedAt, weekStart, programDuration)) {
-    return false
+  const datedWorkouts = workouts.filter((workout) => workout.scheduledDate)
+
+  if (isAssignmentProgramFinished(assignedAt, weekStart, duration)) {
+    return datedWorkouts
   }
 
-  return workout.weekIndex === getAssignmentWeekIndex(assignedAt, weekStart, programDuration)
+  const recurringWorkouts = workouts.filter((workout) => !workout.scheduledDate)
+  const authoredWeeks = new Set(recurringWorkouts.map((workout) => normalizeWeekIndexForVisibility(workout.weekIndex)))
+
+  if (authoredWeeks.size === 0) {
+    return datedWorkouts
+  }
+
+  const currentWeekIndex = getAssignmentWeekIndex(assignedAt, weekStart, duration)
+  const weeksAtOrBefore = Array.from(authoredWeeks).filter((weekIndex) => weekIndex <= currentWeekIndex)
+  const effectiveWeekIndex =
+    weeksAtOrBefore.length > 0 ? Math.max(...weeksAtOrBefore) : Math.min(...Array.from(authoredWeeks))
+
+  return workouts.filter(
+    (workout) =>
+      Boolean(workout.scheduledDate) || normalizeWeekIndexForVisibility(workout.weekIndex) === effectiveWeekIndex,
+  )
 }
 
 function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
@@ -3270,12 +3313,14 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   assignments.forEach((assignment) => {
     const isPersonalProgram = assignment.program.createdById === profile.id
+    const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
+      assignment.program.workouts as WorkoutRecord[],
+      assignment.assignedAt,
+      assignment.program.duration,
+      weekStart,
+    )
 
-    ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
-      if (!isWorkoutVisibleForAssignmentWeek(workout, assignment.assignedAt, assignment.program.duration, weekStart)) {
-        return
-      }
-
+    visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
       if (isPersonalProgram) {
@@ -3457,12 +3502,14 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
 
   assignments.forEach((assignment) => {
     const isPersonalProgram = assignment.program.createdById === profile.id
+    const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
+      assignment.program.workouts as WorkoutRecord[],
+      assignment.assignedAt,
+      assignment.program.duration,
+      weekStart,
+    )
 
-    ;(assignment.program.workouts as WorkoutRecord[]).forEach((workout) => {
-      if (!isWorkoutVisibleForAssignmentWeek(workout, assignment.assignedAt, assignment.program.duration, weekStart)) {
-        return
-      }
-
+    visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
       if (isPersonalProgram) {
@@ -3860,6 +3907,13 @@ async function updatePersonalWorkoutForTrainee(
   const existingWorkout = await db.workout.findFirst({
     select: {
       id: true,
+      program: {
+        select: {
+          duration: true,
+          id: true,
+          _count: { select: { workouts: true } },
+        },
+      },
       programId: true,
     },
     where: {
@@ -3879,6 +3933,25 @@ async function updatePersonalWorkoutForTrainee(
     throw new AuthServiceError("Không tìm thấy lịch tập cá nhân.", 404)
   }
 
+  // A standalone routine is a synthetic one-week, one-workout program, so its
+  // name is the routine's name. A real multi-week program has a name of its own
+  // that editing one of its sessions must not overwrite.
+  const isStandaloneRoutineProgram = Boolean(
+    existingWorkout.program &&
+      existingWorkout.program._count.workouts <= 1 &&
+      Math.round(existingWorkout.program.duration) <= 1,
+  )
+
+  // Placement is only rewritten when the caller actually supplies it. The
+  // routine builder sends exercises and a name and nothing else, and blanking
+  // scheduledDay would drop the session out of the weekly calendar entirely.
+  const placementUpdate =
+    normalizedInput.scheduledDate != null
+      ? { scheduledDate: normalizedInput.scheduledDate, scheduledDay: null }
+      : normalizedInput.scheduledDay != null
+        ? { scheduledDate: null, scheduledDay: normalizedInput.scheduledDay }
+        : {}
+
   const updatedWorkout = await db.$transaction(async (tx) => {
     await tx.workoutExercise.deleteMany({
       where: {
@@ -3895,8 +3968,7 @@ async function updatePersonalWorkoutForTrainee(
         kind: normalizedInput.kind ?? null,
         name: normalizedInput.name,
         notes: normalizedInput.notes ?? null,
-        scheduledDate: normalizedInput.scheduledDate ?? null,
-        scheduledDay: normalizedInput.scheduledDate ? null : normalizedInput.scheduledDay ?? null,
+        ...placementUpdate,
       },
       include: {
         ...WORKOUT_INCLUDE,
@@ -3906,7 +3978,7 @@ async function updatePersonalWorkoutForTrainee(
       },
     })
 
-    if (existingWorkout.programId) {
+    if (existingWorkout.programId && isStandaloneRoutineProgram) {
       await tx.program.update({
         data: {
           name: normalizedInput.name,
@@ -3979,6 +4051,204 @@ async function deletePersonalWorkoutForTrainee(profile: SerializedProfile, worko
     deleted: true,
     id: workout.id,
   }
+}
+
+/**
+ * A trainee may only reshape programs they authored themselves — AI-generated
+ * plans and their own routines. Coach-assigned programs stay read-only here;
+ * editing those belongs to the coach, and letting a trainee rewrite them would
+ * silently diverge from what the coach is tracking.
+ */
+async function assertTraineeOwnsProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await db.program.findFirst({
+    select: { archivedAt: true, duration: true, id: true },
+    where: {
+      assignments: { some: { userId: profile.id } },
+      createdById: profile.id,
+      id: programId,
+    },
+  })
+
+  if (!program) {
+    throw new AuthServiceError("Không tìm thấy chương trình của bạn.", 404)
+  }
+
+  if (program.archivedAt) {
+    throw new AuthServiceError("Chương trình đã lưu trữ, không thể chỉnh sửa.", 409)
+  }
+
+  return program
+}
+
+async function addWorkoutToTraineeProgram(
+  profile: SerializedProfile,
+  programId: string,
+  input: PersonalWorkoutInput & { weekIndex?: number },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const program = await assertTraineeOwnsProgram(profile, programId)
+  const normalizedInput = await normalizePersonalWorkoutInput(input)
+  const lastWeekIndex = Math.max(0, Math.round(program.duration) - 1)
+  const weekIndex = Math.min(lastWeekIndex, Math.max(0, Math.round(input.weekIndex ?? 0)))
+
+  if (normalizedInput.scheduledDay == null) {
+    throw new AuthServiceError("Cần chọn ngày trong tuần cho buổi tập.", 400)
+  }
+
+  const clash = await db.workout.findFirst({
+    select: { id: true },
+    where: { programId, scheduledDay: normalizedInput.scheduledDay, weekIndex },
+  })
+
+  if (clash) {
+    throw new AuthServiceError("Ngày này đã có buổi tập.", 409)
+  }
+
+  const workout = await db.workout.create({
+    data: {
+      duration: normalizedInput.duration,
+      exercises: {
+        create: buildPersonalWorkoutExerciseCreateData(normalizedInput.exercises),
+      },
+      kind: normalizedInput.kind,
+      name: normalizedInput.name,
+      notes: normalizedInput.notes,
+      programId,
+      scheduledDay: normalizedInput.scheduledDay,
+      weekIndex,
+    },
+    include: WORKOUT_INCLUDE,
+  })
+
+  return serializeWorkout(workout as WorkoutRecord, { isPersonal: true })
+}
+
+/**
+ * Which weeks a copy-week lands on: the source clamped into the program, and
+ * every week after it. Pure so the off-by-one at the last week stays testable
+ * without a database.
+ */
+function resolveCopyWeekTargets(duration: number, fromWeekIndex: number) {
+  const lastWeekIndex = Math.max(0, Math.round(duration) - 1)
+  const sourceWeekIndex = Math.min(lastWeekIndex, Math.max(0, Math.round(fromWeekIndex)))
+
+  return {
+    sourceWeekIndex,
+    targetWeekIndexes: Array.from(
+      { length: Math.max(0, lastWeekIndex - sourceWeekIndex) },
+      (_value, offset) => sourceWeekIndex + offset + 1,
+    ),
+  }
+}
+
+/**
+ * Copies one week's sessions onto every later week of the program, replacing
+ * whatever those weeks held. Mirrors the coach editor's "copy week to all",
+ * except the coach does it in draft state and saves the whole tree at once,
+ * which is a coach-only endpoint.
+ *
+ * Sessions pinned to a calendar date are left alone — they belong to a specific
+ * day, not to a week slot.
+ */
+async function copyTraineeProgramWeek(profile: SerializedProfile, programId: string, fromWeekIndex: number) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const program = await assertTraineeOwnsProgram(profile, programId)
+  const { sourceWeekIndex, targetWeekIndexes } = resolveCopyWeekTargets(program.duration, fromWeekIndex)
+
+  if (targetWeekIndexes.length === 0) {
+    throw new AuthServiceError("Không còn tuần nào phía sau để chép sang.", 400)
+  }
+
+  const sourceWorkouts = await db.workout.findMany({
+    include: {
+      exercises: {
+        include: { sets: true },
+        orderBy: { order: "asc" },
+      },
+    },
+    orderBy: { scheduledDay: "asc" },
+    where: { programId, scheduledDate: null, weekIndex: sourceWeekIndex },
+  })
+
+  if (sourceWorkouts.length === 0) {
+    throw new AuthServiceError("Tuần này chưa có buổi tập nào để chép.", 400)
+  }
+
+  await retryTransaction(() =>
+    db.$transaction(async (tx) => {
+      await tx.workout.deleteMany({
+        where: { programId, scheduledDate: null, weekIndex: { in: targetWeekIndexes } },
+      })
+
+      for (const weekIndex of targetWeekIndexes) {
+        for (const source of sourceWorkouts) {
+          await tx.workout.create({
+            data: {
+              duration: source.duration,
+              exercises: {
+                create: source.exercises.map((exercise) => ({
+                  notes: exercise.notes,
+                  order: exercise.order,
+                  restTime: exercise.restTime,
+                  sets: {
+                    create: exercise.sets.map((set) => ({
+                      notes: set.notes,
+                      rir: set.rir,
+                      setNumber: set.setNumber,
+                      targetReps: set.targetReps,
+                      targetRepsMin: set.targetRepsMin,
+                      weight: set.weight,
+                    })),
+                  },
+                  variationId: exercise.variationId,
+                })),
+              },
+              kind: source.kind,
+              name: source.name,
+              notes: source.notes,
+              programId,
+              scheduledDay: source.scheduledDay,
+              weekIndex,
+            },
+          })
+        }
+      }
+    }),
+  )
+
+  return { copiedTo: targetWeekIndexes, fromWeekIndex: sourceWeekIndex, sessionCount: sourceWorkouts.length }
+}
+
+async function updateTraineeProgramDetails(
+  profile: SerializedProfile,
+  programId: string,
+  input: { description?: string | null; name?: string },
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  await assertTraineeOwnsProgram(profile, programId)
+
+  const name = input.name?.trim()
+
+  if (input.name != null && !name) {
+    throw new AuthServiceError("Tên chương trình không được để trống.", 400)
+  }
+
+  const program = await db.program.update({
+    data: {
+      ...(name ? { name } : {}),
+      ...(input.description !== undefined ? { description: input.description || null } : {}),
+    },
+    include: PROGRAM_INCLUDE,
+    where: { id: programId },
+  })
+
+  return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
 }
 
 async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
@@ -4177,7 +4447,7 @@ async function getTraineeProgramDetail(profile: SerializedProfile, programId: st
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
   }
 
-  return serializeProgram(program as ProgramRecord)
+  return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
 }
 
 function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>) {
@@ -6628,9 +6898,11 @@ async function updateCoachRequestStatus(
 }
 
 export {
+  addWorkoutToTraineeProgram,
   adjustCoachProgramForTrainee,
   archiveCoachProgram,
   assignCoachProgramToTrainee,
+  copyTraineeProgramWeek,
   createBodyMetricForTrainee,
   createBodyMetricForCurrentTrainee,
   createCoachCheckInForTrainee,
@@ -6679,7 +6951,9 @@ export {
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,
   resetCurrentTraineeData,
+  resolveCopyWeekTargets,
   restoreCoachProgram,
+  selectVisibleWorkoutsForAssignmentWeek,
   submitCoachExerciseImportRequest,
   swapExerciseForTraineeFromWorkout,
   unassignCoachProgramFromTrainee,
@@ -6688,5 +6962,6 @@ export {
   updateCoachRequestStatus,
   updateMealForUser,
   updatePersonalWorkoutForTrainee,
+  updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
 }

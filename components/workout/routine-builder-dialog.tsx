@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
+import type { AppMessages } from "@/lib/i18n/messages"
 import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { parseRepTargetText, formatRepTarget } from "@/lib/workout-reps"
@@ -168,6 +169,48 @@ function FieldNum({
   )
 }
 
+
+/**
+ * Turns a routine draft into the workout payload the API expects. Shared with
+ * the program editor so a session added to a program is normalized exactly the
+ * same way as one saved from this dialog.
+ *
+ * Throws with a localized message on unparseable reps or an empty routine.
+ */
+export function buildRoutineWorkoutPayload(
+  draft: { exercises: RoutineExerciseDraft[]; name: string; tag: RoutineTag },
+  messages: AppMessages,
+) {
+  const normalizedExercises = draft.exercises
+    .filter((ex) => ex.variationId)
+    .map((ex, i) => {
+      const repTarget = parseRepTargetText(ex.reps)
+      if (!repTarget) throw new Error(messages.workoutPage.invalidRepsAtExercise(i + 1))
+      const parsedWeight = Number(ex.weight)
+      const parsedRir = Number(ex.rir)
+      const parsedRest = Number(ex.restTime)
+      return {
+        notes: ex.notes?.trim() || undefined,
+        reps: repTarget.reps,
+        repsMin: repTarget.repsMin,
+        rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
+        restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
+        variationId: ex.variationId,
+        sets: Math.max(1, Number(ex.sets) || 1),
+        weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
+      }
+    })
+
+  if (normalizedExercises.length === 0) {
+    throw new Error(messages.workoutPage.addAtLeastOneExercise)
+  }
+
+  return {
+    exercises: normalizedExercises,
+    kind: draft.tag === "upper" || draft.tag === "lower" || draft.tag === "full" ? "full_body" : draft.tag,
+    name: draft.name,
+  }
+}
 
 // ─── RoutineBuilderDialog ─────────────────────────────────────────────────────
 
@@ -341,35 +384,7 @@ export function RoutineBuilderDialog({
     setError(null)
 
     try {
-      const normalizedExercises = exercises
-        .filter((ex) => ex.variationId)
-        .map((ex, i) => {
-          const repTarget = parseRepTargetText(ex.reps)
-          if (!repTarget) throw new Error(messages.workoutPage.invalidRepsAtExercise(i + 1))
-          const parsedWeight = Number(ex.weight)
-          const parsedRir = Number(ex.rir)
-          const parsedRest = Number(ex.restTime)
-          return {
-            notes: ex.notes?.trim() || undefined,
-            reps: repTarget.reps,
-            repsMin: repTarget.repsMin,
-            rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
-            restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
-            variationId: ex.variationId,
-            sets: Math.max(1, Number(ex.sets) || 1),
-            weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
-          }
-        })
-
-      if (normalizedExercises.length === 0) {
-        throw new Error(messages.workoutPage.addAtLeastOneExercise)
-      }
-
-      const payload = {
-        exercises: normalizedExercises,
-        kind: tag === "upper" || tag === "lower" || tag === "full" ? "full_body" : tag,
-        name: name.trim(),
-      }
+      const payload = buildRoutineWorkoutPayload({ exercises, name: name.trim(), tag }, messages)
 
       let saved: Workout
       if (isEditing && workoutToEdit) {

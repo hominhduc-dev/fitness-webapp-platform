@@ -13,14 +13,17 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { WorkoutLogReview, WorkoutPlanPreview } from "@/components/workout/workout-log-review"
-import { createWorkout, fetchExercises, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { createWorkout, fetchExercises, fetchTraineeProgram, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { resolveEffectiveWeekIndex, resolveProgramWeekForWeekStart } from "@/lib/fitness/program-week"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
+import type { CoachProgram, TraineeProgram } from "@/lib/fitness/types"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
 import type { AppMessages } from "@/lib/i18n/messages"
 
 type WeeklyCalendarProps = {
   historyLogs?: WorkoutLog[]
+  programs?: TraineeProgram[]
   recentLogs: WorkoutLog[]
   schedule: WeeklySchedule
   scheduleEntries?: WorkoutScheduleEntry[]
@@ -306,6 +309,65 @@ function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
   }
 
   return null
+}
+
+/**
+ * The workouts that actually belong to an arbitrary week.
+ *
+ * The server only ever ships the CURRENT week's program sessions, so projecting
+ * that same list onto every week the user browses to is wrong twice over: it
+ * keeps a finished program alive forever, and it shows this week's plan under
+ * next week's dates. This rebuilds the week from each program's own schedule.
+ *
+ * Personal routines are deliberately exempt. They live in a synthetic one-week
+ * program created by `createPersonalWorkoutForTrainee`, recur indefinitely, and
+ * must keep appearing on every week — treating them like a one-week program
+ * would make them vanish everywhere but the week they were created.
+ */
+function buildWorkoutsForWeek({
+  currentWeekWorkouts,
+  programDetailsById,
+  programs,
+  weekStart,
+}: {
+  currentWeekWorkouts: Workout[]
+  programDetailsById: Record<string, CoachProgram | null>
+  programs: TraineeProgram[]
+  weekStart: Date
+}): Workout[] {
+  const multiWeekById = new Map(programs.filter((program) => program.duration > 1).map((program) => [program.id, program]))
+
+  // Dated one-offs are pinned to real dates, and personal routines recur with no
+  // end, so both carry over from the current week's payload untouched.
+  const carriedOver = currentWeekWorkouts.filter(
+    (workout) => Boolean(workout.scheduledDate) || !workout.programId || !multiWeekById.has(workout.programId),
+  )
+
+  const fromPrograms = Array.from(multiWeekById.values()).flatMap((program) => {
+    const placement = resolveProgramWeekForWeekStart(program.assignedAt, program.duration, weekStart)
+
+    if (placement?.kind !== "active") {
+      return []
+    }
+
+    const detail = programDetailsById[program.id]
+
+    if (!detail) {
+      return []
+    }
+
+    const recurring = detail.workouts.filter((workout) => !workout.scheduledDate)
+    const authoredWeeks = Array.from(new Set(recurring.map((workout) => workout.weekIndex ?? 0)))
+    const effectiveWeekIndex = resolveEffectiveWeekIndex(authoredWeeks, placement.weekIndex)
+
+    if (effectiveWeekIndex == null) {
+      return []
+    }
+
+    return recurring.filter((workout) => (workout.weekIndex ?? 0) === effectiveWeekIndex)
+  })
+
+  return [...carriedOver, ...fromPrograms]
 }
 
 // Sequential weekly schedule: completed sessions show on the day they were actually
@@ -1200,7 +1262,7 @@ function RoutineDialogs({
   )
 }
 
-export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
@@ -1219,6 +1281,9 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
   const [isLoadingExercises, setIsLoadingExercises] = useState(false)
   const [isSavingRoutine, setIsSavingRoutine] = useState(false)
   const [routineError, setRoutineError] = useState<string | null>(null)
+  // null records a fetch that failed, so a broken program is not retried forever
+  // and does not leave the grid spinning.
+  const [programDetailsById, setProgramDetailsById] = useState<Record<string, CoachProgram | null>>({})
 
   useEffect(() => {
     setOptimisticScheduleByDate({})
@@ -1248,6 +1313,45 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
     return combined
   }, [historyLogs, visibleRecentLogs, visibleWeekLogs])
 
+  const multiWeekPrograms = useMemo(() => programs.filter((program) => program.duration > 1), [programs])
+
+  // Only the current week arrives with the page. Browsing to another week needs
+  // that program's own schedule, which getTraineeProgramDetail already returns
+  // in full — fetched once per program and cached for the session.
+  useEffect(() => {
+    if (weekOffset === 0 || multiWeekPrograms.length === 0 || !session?.access_token) {
+      return
+    }
+
+    const missing = multiWeekPrograms.filter((program) => !(program.id in programDetailsById))
+
+    if (missing.length === 0) {
+      return
+    }
+
+    let cancelled = false
+
+    void Promise.all(
+      missing.map((program) =>
+        fetchTraineeProgram(session.access_token, program.id)
+          .then((detail) => [program.id, detail] as const)
+          .catch(() => [program.id, null] as const),
+      ),
+    ).then((results) => {
+      if (cancelled) return
+      setProgramDetailsById((current) => ({ ...current, ...Object.fromEntries(results) }))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [weekOffset, multiWeekPrograms, programDetailsById, session?.access_token])
+
+  // Derived rather than stored: a program is pending until its fetch settles
+  // either way, which keeps the effect free of a synchronous setState.
+  const isLoadingProgramWeeks =
+    weekOffset !== 0 && multiWeekPrograms.some((program) => !(program.id in programDetailsById))
+
   const displayWeekEntries = useMemo(() => {
     if (weekOffset === 0) {
       if (!hasOptimisticSchedule && scheduleEntries.length > 0) {
@@ -1264,9 +1368,14 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
       logs: allLogs,
       optimisticScheduleByDate: {},
       weekStart: displayWeekStart,
-      workouts: visibleWorkouts,
+      workouts: buildWorkoutsForWeek({
+        currentWeekWorkouts: visibleWorkouts,
+        programDetailsById,
+        programs,
+        weekStart: displayWeekStart,
+      }),
     })
-  }, [weekOffset, hasOptimisticSchedule, scheduleEntries, logsForDisplay, allLogs, optimisticScheduleByDate, weekStart, displayWeekStart, visibleWorkouts])
+  }, [weekOffset, hasOptimisticSchedule, scheduleEntries, logsForDisplay, allLogs, optimisticScheduleByDate, weekStart, displayWeekStart, visibleWorkouts, programDetailsById, programs])
 
   const routineLibrary = useMemo(() => [
     ...extraRoutineLibrary,
@@ -1545,15 +1654,25 @@ export function WeeklyCalendar({ historyLogs = [], recentLogs, schedule, schedul
 
       <p className="label-micro mb-3">{weekOffset === 0 ? messages.schedule.thisWeek : formatWeekRangeLabel(displayWeekStart)}</p>
       <div className="mb-8">
-        <CalendarGrid
-          entries={filteredDisplayWeek}
-          onPreviewWorkout={(workout, date) => void openWorkoutPreview(workout, date)}
-          onRestDayClick={(date) => {
-            setSelectedRestDate(date)
-            setRoutineError(null)
-          }}
-          onReviewLog={setSelectedReviewLog}
-        />
+        {isLoadingProgramWeeks ? (
+          // Rendering the current week's sessions while the real ones load would
+          // show exactly the wrong data this fix exists to prevent.
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-7" aria-busy="true">
+            {Array.from({ length: 7 }, (_, index) => (
+              <div key={index} className="h-[164px] animate-pulse rounded-[10px] border border-border bg-muted/40" />
+            ))}
+          </div>
+        ) : (
+          <CalendarGrid
+            entries={filteredDisplayWeek}
+            onPreviewWorkout={(workout, date) => void openWorkoutPreview(workout, date)}
+            onRestDayClick={(date) => {
+              setSelectedRestDate(date)
+              setRoutineError(null)
+            }}
+            onReviewLog={setSelectedReviewLog}
+          />
+        )}
       </div>
 
       <div className="mt-7 text-center">

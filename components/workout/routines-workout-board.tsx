@@ -1,149 +1,32 @@
 "use client"
 
 import Link from "next/link"
-import { MoreHorizontal, Pencil, Play, Plus, Sparkles, User } from "lucide-react"
+import { Plus, Sparkles } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
-import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
-import { MuscleMapPair } from "@/components/body/muscle-map-pair"
+import { FilterChip } from "@/components/workout/filter-chip"
+import { ProgramGroupCard } from "@/components/workout/program-group-card"
+import { RoutineCard } from "@/components/workout/routine-card"
+import { RoutineDot } from "@/components/workout/routine-dot"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import type { AppMessages } from "@/lib/i18n/messages"
-import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
+import { getTagLabel, inferRoutineTag, type RoutineTag } from "@/lib/fitness/routine-tag"
+import type { TraineeProgram } from "@/lib/fitness/types"
 import type { Workout, WorkoutLog } from "@/lib/types"
-import { cn } from "@/lib/utils"
-import { formatRepTarget } from "@/lib/workout-reps"
-
-type RoutineTag = "all" | "push" | "pull" | "legs" | "upper" | "lower" | "full"
 
 type RoutinesWorkoutBoardProps = {
   historyLogs: WorkoutLog[]
+  programs: TraineeProgram[]
+  workouts: Workout[]
+}
+
+type ProgramGroup = {
+  program: TraineeProgram
   workouts: Workout[]
 }
 
 const FILTERS: RoutineTag[] = ["all", "push", "pull", "legs", "upper", "lower", "full"]
-
-const TAG_DOT_COLOR: Record<Exclude<RoutineTag, "all">, string> = {
-  full: "var(--ink-600)",
-  legs: "var(--warning)",
-  lower: "var(--chart-2)",
-  pull: "var(--success)",
-  push: "var(--primary)",
-  upper: "var(--chart-4)",
-}
-
-function normalizeText(value?: string | null) {
-  return value?.trim().toLowerCase() ?? ""
-}
-
-function inferRoutineTag(workout: Workout): Exclude<RoutineTag, "all"> {
-  if (workout.kind === "push" || workout.kind === "pull" || workout.kind === "legs") {
-    return workout.kind
-  }
-
-  if (workout.kind === "full_body") {
-    return "full"
-  }
-
-  const name = normalizeText(workout.name)
-  if (name.includes("upper")) return "upper"
-  if (name.includes("lower")) return "lower"
-  if (name.includes("push")) return "push"
-  if (name.includes("pull")) return "pull"
-  if (name.includes("leg")) return "legs"
-  if (name.includes("full")) return "full"
-
-  const groups = new Set(workout.exercises.map((exercise) => normalizeText(exercise.exercise.muscleGroup)))
-  const hasUpper = ["chest", "back", "shoulders", "arms", "biceps", "triceps"].some((group) => groups.has(group))
-  const hasLower = ["legs", "quads", "hamstrings", "glutes", "calves"].some((group) => groups.has(group))
-
-  if (hasUpper && hasLower) return "full"
-  if (hasUpper) return "upper"
-  if (hasLower) return "lower"
-
-  return "full"
-}
-
-function getTagLabel(tag: RoutineTag, messages: AppMessages) {
-  const labels: Record<RoutineTag, string> = {
-    all: messages.workoutPage.all,
-    full: messages.workoutPage.tagFull,
-    legs: messages.workoutPage.tagLegs,
-    lower: messages.workoutPage.tagLower,
-    pull: messages.workoutPage.tagPull,
-    push: messages.workoutPage.tagPush,
-    upper: messages.workoutPage.tagUpper,
-  }
-  return labels[tag]
-}
-
-function getTotalSets(workout: Workout) {
-  return workout.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0)
-}
-
-function getLastUsed(workout: Workout, historyLogs: WorkoutLog[], messages: AppMessages) {
-  const latestLog = historyLogs.find((log) => log.workout.id === workout.id)
-
-  if (!latestLog) {
-    return messages.workoutPage.never
-  }
-
-  return formatRelativeCompact(latestLog.completedAt ?? latestLog.startedAt, messages)
-}
-
-function formatRelativeCompact(date: Date, messages: AppMessages) {
-  const diffMs = Date.now() - date.getTime()
-  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000))
-
-  if (diffDays === 0) return messages.workoutPage.today
-  if (diffDays === 1) return messages.workoutPage.yesterday
-  if (diffDays < 7) return messages.workoutPage.daysAgo(diffDays)
-  if (diffDays < 14) return messages.workoutPage.lastWeek
-  if (diffDays < 30) return messages.workoutPage.weeksAgo(Math.floor(diffDays / 7))
-  return messages.workoutPage.monthsAgo(Math.floor(diffDays / 30))
-}
-
-function formatScheduledDate(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-  }).formatToParts(date)
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${values.year}-${values.month}-${values.day}`
-}
-
-function RoutineDot({ tag }: { tag: Exclude<RoutineTag, "all"> }) {
-  return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TAG_DOT_COLOR[tag] }} />
-}
-
-function FilterChip({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean
-  children: React.ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors",
-        active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border bg-card text-foreground hover:border-foreground/25",
-      )}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  )
-}
 
 function CreateRoutineButton() {
   const { messages } = useLocale()
@@ -160,169 +43,7 @@ function CreateRoutineButton() {
   )
 }
 
-function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; workout: Workout }) {
-  const { messages } = useLocale()
-  const [isEditorOpen, setIsEditorOpen] = useState(false)
-  const tag = inferRoutineTag(workout)
-  const totalSets = getTotalSets(workout)
-  const muscleHighlights = useMemo(
-    () => buildMuscleProfileHighlights(
-      muscleProfilesFromWorkout(workout),
-      "var(--primary)",
-      "color-mix(in oklab, var(--primary) 45%, var(--body-fill))",
-    ),
-    [workout],
-  )
-  const lastUsed = getLastUsed(workout, historyLogs, messages)
-  const cardMeta = workout.scheduledDate
-    ? messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))
-    : messages.workoutPage.lastUsed(lastUsed)
-
-  return (
-    <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
-      <div className="flex min-w-0 items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5">
-              <RoutineDot tag={tag} />
-              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                {tag}
-              </span>
-            </span>
-            {!workout.isPersonal ? (
-              <span className="inline-flex items-center gap-1 rounded-[3px] bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-foreground/80">
-                <User className="h-2.5 w-2.5" />
-                {messages.workoutPage.fromCoach}
-              </span>
-            ) : null}
-          </div>
-          <h2 className="line-clamp-2 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
-            {workout.name}
-          </h2>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs leading-snug text-muted-foreground tnum">
-            <span>{messages.workoutPage.exerciseCount(workout.exercises.length)}</span>
-            <span>{messages.workoutPage.setCount(totalSets)}</span>
-            <span>{cardMeta}</span>
-          </div>
-        </div>
-
-        {workout.isPersonal ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            aria-label={messages.workoutPage.editRoutine}
-            onClick={() => setIsEditorOpen(true)}
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        ) : null}
-      </div>
-
-      <div className="flex min-w-0 items-center gap-3.5">
-        {/* The written tag stays: it comes from workout.kind as the coach set it,
-            while the figure reflects the exercises actually in the routine. When
-            the two disagree that is worth seeing, and the filter row still runs
-            off the tag. */}
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              aria-label={`${messages.workoutPage.muscleMapLabel}: ${workout.name}`}
-              className="shrink-0 rounded-[10px] p-1 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <MuscleMapPair
-                size="card"
-                highlights={muscleHighlights}
-                label={messages.workoutPage.muscleMapLabel}
-              />
-            </button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[min(92vw,440px)] gap-5 rounded-[20px] p-5 sm:p-6">
-            <DialogHeader className="pr-8 text-left">
-              <DialogTitle>{workout.name}</DialogTitle>
-              <DialogDescription>
-                {messages.workoutPage.muscleMapLabel} · {messages.workoutPage.exerciseCount(workout.exercises.length)}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="rounded-[16px] border border-border bg-card px-4 py-5">
-              <MuscleMapPair
-                size="md"
-                highlights={muscleHighlights}
-                label={`${messages.workoutPage.muscleMapLabel}: ${workout.name}`}
-                className="mx-auto"
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden rounded-[8px] bg-muted/45 px-3 py-2.5 font-mono text-xs leading-tight">
-          {workout.exercises.slice(0, 4).map((exercise) => {
-            const firstSet = exercise.sets[0]
-            const reps = formatRepTarget({
-              reps: firstSet?.targetReps,
-              repsMin: firstSet?.targetRepsMin,
-            })
-
-            return (
-              <div key={exercise.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2">
-                <span className="min-w-0 truncate text-foreground">{exercise.exercise.name}</span>
-                <span className="shrink-0 text-muted-foreground tnum">
-                  {exercise.sets.length} × {reps}
-                </span>
-              </div>
-            )
-          })}
-          {workout.exercises.length > 4 ? (
-            <p className="text-[11px] text-muted-foreground">{messages.workoutPage.more(workout.exercises.length - 4)}</p>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-auto flex min-w-0 flex-col gap-2 sm:flex-row">
-        <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
-          <Button className="h-10 w-full justify-center gap-2 rounded-[8px] bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
-            <Play className="h-4 w-4" />
-            {messages.workoutPage.start}
-          </Button>
-        </Link>
-        {workout.isPersonal ? (
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-10 w-full justify-center gap-2 rounded-[8px] bg-transparent px-3 text-sm font-medium sm:w-auto"
-              onClick={() => setIsEditorOpen(true)}
-            >
-              <Pencil className="h-4 w-4" />
-              {messages.workoutPage.edit}
-            </Button>
-            <DeleteWorkoutButton
-              workoutId={workout.id}
-              size="sm"
-              variant="outline"
-              className="h-10 rounded-[8px] bg-transparent"
-              confirmTitle={messages.workoutPage.deleteRoutineTitle}
-              confirmDescription={messages.workoutPage.deleteRoutineDescription}
-            />
-          </div>
-        ) : null}
-      </div>
-
-      {workout.isPersonal ? (
-        <RoutineBuilderDialog
-          workoutToEdit={workout}
-          open={isEditorOpen}
-          onOpenChange={setIsEditorOpen}
-        />
-      ) : null}
-    </article>
-  )
-}
-
-export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutBoardProps) {
+export function RoutinesWorkoutBoard({ historyLogs, programs, workouts }: RoutinesWorkoutBoardProps) {
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
@@ -331,13 +52,50 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
     [filter, reusableWorkouts],
   )
 
+  // A personal routine is wrapped in a synthetic one-week program by
+  // `createPersonalWorkoutForTrainee`, so `duration > 1` is what separates a real
+  // multi-week program from a standalone routine.
+  const multiWeekById = useMemo(
+    () => new Map(programs.filter((program) => program.duration > 1).map((program) => [program.id, program])),
+    [programs],
+  )
+
+  const { programGroups, standaloneWorkouts } = useMemo(() => {
+    const groups = new Map<string, ProgramGroup>()
+    const standalone: Workout[] = []
+
+    visibleWorkouts.forEach((workout) => {
+      const program = workout.programId ? multiWeekById.get(workout.programId) : undefined
+
+      if (!program) {
+        standalone.push(workout)
+        return
+      }
+
+      const group = groups.get(program.id)
+
+      if (group) {
+        group.workouts.push(workout)
+        return
+      }
+
+      groups.set(program.id, { program, workouts: [workout] })
+    })
+
+    return { programGroups: Array.from(groups.values()), standaloneWorkouts: standalone }
+  }, [multiWeekById, visibleWorkouts])
+
+  // The heading sits directly above the grid, so it counts what is actually
+  // rendered: one entry per program card plus each standalone routine.
+  const cardCount = programGroups.length + standaloneWorkouts.length
+
   return (
     <>
       <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end">
         <div>
           <span className="label-micro mb-2 block">{messages.workoutPage.routines}</span>
           <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-[36px]">
-            {messages.workoutPage.savedRoutines(reusableWorkouts.length)}
+            {messages.workoutPage.savedRoutines(cardCount)}
           </h1>
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
@@ -360,9 +118,12 @@ export function RoutinesWorkoutBoard({ historyLogs, workouts }: RoutinesWorkoutB
         ))}
       </div>
 
-      {visibleWorkouts.length > 0 ? (
+      {cardCount > 0 ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleWorkouts.map((workout) => (
+          {programGroups.map((group) => (
+            <ProgramGroupCard key={group.program.id} program={group.program} workouts={group.workouts} />
+          ))}
+          {standaloneWorkouts.map((workout) => (
             <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
           ))}
         </div>
