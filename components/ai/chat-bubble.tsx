@@ -116,7 +116,7 @@ function AIChatBubble() {
           type="button"
           aria-label={copy.ariaOpen}
           onClick={() => setOpen(true)}
-          className="ai-bubble-trigger fixed right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[60] flex size-14 items-center justify-center rounded-full border border-white/15 bg-primary text-primary-foreground shadow-2xl backdrop-blur-xl transition-all hover:scale-105 md:bottom-5 md:right-5 md:top-auto md:z-40"
+          className="ai-bubble-trigger fixed right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[60] flex size-14 items-center justify-center rounded-full border border-border bg-primary text-primary-foreground shadow-2xl backdrop-blur-xl transition-all hover:scale-105 md:bottom-5 md:right-5 md:top-auto md:z-40"
         >
           <Sparkles className="size-6" />
         </button>

@@ -591,7 +591,7 @@ function RoutinePickerDialog({
       <DialogContent
         showCloseButton={false}
         overlayClassName="z-[65] bg-foreground/25 backdrop-blur-[2px]"
-        className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[0_24px_60px_-12px_rgba(13,13,11,0.22)] sm:max-w-[400px]"
+        className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[var(--glass-shadow)] sm:max-w-[400px]"
       >
         <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
           <div className="flex items-center justify-between gap-3">
@@ -1093,7 +1093,7 @@ export function ProgramEditor({
     >
       {isSaving ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[0_24px_60px_-12px_rgba(13,13,11,0.25)]">
+          <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[var(--glass-shadow)]">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
             <h2 className="mt-5 text-xl font-semibold">{messages.coach.savingProgram}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{messages.coach.updateProgramDetails}</p>
@@ -1103,7 +1103,7 @@ export function ProgramEditor({
 
       <div
         className={cn(
-          "glass-surface flex w-full max-w-[920px] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-card shadow-[0_32px_90px_-20px_rgba(13,13,11,0.42)]",
+          "glass-surface flex w-full max-w-[920px] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-card shadow-[var(--glass-shadow)]",
           isModal && "h-[calc(100svh-1rem)] max-h-[960px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
         )}
       >
@@ -1326,12 +1326,12 @@ export function ProgramEditor({
             </div>
           ) : null}
           {error ? (
-            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
               {error}
             </div>
           ) : null}
           {notice ? (
-            <div className="mb-4 rounded-[10px] border border-success/20 bg-ok-soft px-4 py-3 text-sm text-success">
+            <div className="mb-4 rounded-[10px] border border-success/20 bg-ok-soft px-4 py-3 text-sm text-success-text">
               {notice}
             </div>
           ) : null}

@@ -76,11 +76,11 @@ export default function ResetPasswordPage() {
         </div>
 
         {!isSupabaseConfigured && (
-          <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700">
+          <div className="mb-4 rounded-lg border border-warning/20 bg-warning-soft p-3 text-sm text-warning-text">
             {messages.auth.resetPasswordConfigMissing}
           </div>
         )}
-        {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive">{error}</div>}
+        {error && <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-text">{error}</div>}
         {success && <div className="mb-4 rounded-lg border border-primary/20 bg-primary-soft p-3 text-sm text-primary">{success}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">

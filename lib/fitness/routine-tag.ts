@@ -6,10 +6,10 @@ export type RoutineTag = "all" | "push" | "pull" | "legs" | "upper" | "lower" | 
 export const TAG_DOT_COLOR: Record<Exclude<RoutineTag, "all">, string> = {
   full: "var(--ink-600)",
   legs: "var(--warning)",
-  lower: "#1a8a8a",
+  lower: "var(--chart-2)",
   pull: "var(--success)",
   push: "var(--primary)",
-  upper: "#7c5dff",
+  upper: "var(--chart-4)",
 }
 
 function normalizeText(value?: string | null) {

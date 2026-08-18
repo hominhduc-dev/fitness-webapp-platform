@@ -100,7 +100,7 @@ function MealPlanGenerator({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 bg-overlay" onClick={onClose} />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl bg-background sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
@@ -116,7 +116,7 @@ function MealPlanGenerator({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
           {error && (
-            <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive-text">
               {error}
             </div>
           )}

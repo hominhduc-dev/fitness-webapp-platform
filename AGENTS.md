@@ -33,7 +33,7 @@ Three roles: **trainee**, **coach**, **admin** — enforced server-side via `req
 
 ## Skills
 @.Codex/skills/backend/README.md
-@.Codex/skills/frontend/README.md
+@skills/frontend-system/SKILL.md
 @.Codex/skills/database/README.md
 @.Codex/skills/git/README.md
 @.Codex/skills/seo-content/README.md

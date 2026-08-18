@@ -362,7 +362,7 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
             </p>
           ) : null}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-destructive-text">{error}</p>}
           {notice && <p className="text-sm text-primary">{notice}</p>}
 
           {previewLogs ? (

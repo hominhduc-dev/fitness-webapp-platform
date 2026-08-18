@@ -140,7 +140,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
               {GOALS.map(({ value, en, vi, icon: Icon }) => {
                 const selected = values.goal === value
                 return (
-                  <button key={value} type="button" aria-pressed={selected} onClick={() => setValues((current) => ({ ...current, goal: value }))} className={cn("relative flex min-h-[86px] flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-sm font-medium transition-all last:col-span-2 sm:last:col-span-1", selected ? "border-primary bg-primary-soft text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" : "border-border bg-background/30 hover:border-primary/40")}>
+                  <button key={value} type="button" aria-pressed={selected} onClick={() => setValues((current) => ({ ...current, goal: value }))} className={cn("relative flex min-h-[86px] flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-sm font-medium transition-all last:col-span-2 sm:last:col-span-1", selected ? "border-primary bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "border-border bg-background/30 hover:border-primary/40")}>
                     {selected && <Check className="absolute right-2 top-2 size-3.5" />}
                     <Icon className="size-5" />
                     {isVi ? vi : en}

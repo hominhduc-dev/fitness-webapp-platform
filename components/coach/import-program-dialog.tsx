@@ -412,7 +412,7 @@ export function ImportProgramDialog({
               </div>
 
               {error ? (
-                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   <div className="mb-1 flex items-center gap-2 font-medium">
                     <AlertTriangle className="h-4 w-4" />
                     File import chưa hợp lệ
@@ -457,14 +457,14 @@ export function ImportProgramDialog({
 
                   {/* Validation badge */}
                   {invalidVariationCount > 0 ? (
-                    <div className="flex items-center gap-2 rounded-[10px] bg-warn-soft px-4 py-3 text-sm text-warning">
+                    <div className="flex items-center gap-2 rounded-[10px] bg-warn-soft px-4 py-3 text-sm text-warning-text">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>
                         <b>{invalidVariationCount}</b> variation_id không có trong thư viện hiện tại.
                       </span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 rounded-[10px] bg-ok-soft px-4 py-3 text-sm text-success">
+                    <div className="flex items-center gap-2 rounded-[10px] bg-ok-soft px-4 py-3 text-sm text-success-text">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span>Tất cả variation_id hợp lệ - sẵn sàng tạo.</span>
                     </div>
@@ -521,9 +521,9 @@ export function ImportProgramDialog({
                                 {/* ID badge */}
                                 <span className="hidden items-center justify-center gap-1 md:inline-flex" title={ex.variationId}>
                                   {option ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-success-text" />
                                   ) : (
-                                    <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                                    <AlertCircle className="h-3.5 w-3.5 text-destructive-text" />
                                   )}
                                   <span className="font-mono text-[10px] text-muted-foreground">
                                     {ex.variationId.slice(0, 5)}…
@@ -557,7 +557,7 @@ export function ImportProgramDialog({
                                   type="button"
                                   title="Xoá bài tập"
                                   onClick={() => removeExercise(workoutIdx, exerciseIdx)}
-                                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive"
+                                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -589,7 +589,7 @@ export function ImportProgramDialog({
           {step === "done" ? (
             <div className="py-10 text-center">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-ok-soft">
-                <CheckCircle2 className="h-7 w-7 text-success" />
+                <CheckCircle2 className="h-7 w-7 text-success-text" />
               </span>
               <h3 className="mt-4 text-xl font-semibold">Đã tạo &ldquo;{savedName}&rdquo;</h3>
               <p className="mt-2 text-sm text-muted-foreground">Program mới đã được thêm vào danh sách của coach.</p>

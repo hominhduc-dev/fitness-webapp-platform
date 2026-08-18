@@ -64,7 +64,7 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
               "font-mono text-2xl font-semibold leading-none tracking-tight tnum",
               variant === "default" && "text-foreground",
               variant === "primary" && "text-primary",
-              variant === "accent"  && "text-success",
+              variant === "accent"  && "text-success-text",
             )}
           >
             {value}
@@ -77,8 +77,8 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
               className={cn(
                 "inline-flex rounded-sm px-1.5 py-0.5 font-mono text-[10px] tnum",
                 trend.positive
-                  ? "bg-ok-soft text-success"
-                  : "bg-warn-soft text-warning",
+                  ? "bg-ok-soft text-success-text"
+                  : "bg-warn-soft text-warning-text",
               )}
             >
               {trend.positive ? "+" : ""}{trend.value}%
@@ -92,7 +92,7 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
               variant === "default" && "bg-muted text-muted-foreground",
               variant === "primary" && "bg-primary-soft text-primary",
-              variant === "accent"  && "bg-ok-soft text-success",
+              variant === "accent"  && "bg-ok-soft text-success-text",
             )}
           >
             <Icon className="h-4 w-4" />

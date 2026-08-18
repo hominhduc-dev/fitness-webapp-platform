@@ -27,20 +27,20 @@ const coachStatTone = {
   green: {
     accent: "bg-success",
     glow: "bg-success/15",
-    icon: "border-success/25 bg-success/12 text-success",
-    value: "text-success",
+    icon: "border-success/25 bg-success/12 text-success-text",
+    value: "text-success-text",
   },
   orange: {
     accent: "bg-warning",
     glow: "bg-warning/15",
-    icon: "border-warning/25 bg-warning/12 text-warning",
-    value: "text-warning",
+    icon: "border-warning/25 bg-warning/12 text-warning-text",
+    value: "text-warning-text",
   },
   violet: {
-    accent: "bg-violet-500",
-    glow: "bg-violet-500/15",
-    icon: "border-violet-500/25 bg-violet-500/10 text-violet-400",
-    value: "text-violet-400",
+    accent: "bg-chart-4",
+    glow: "bg-chart-4/15",
+    icon: "border-chart-4/25 bg-chart-4/10 text-chart-4",
+    value: "text-chart-4",
   },
 } satisfies Record<CoachStatTone, Record<string, string>>
 
@@ -324,7 +324,7 @@ export default async function CoachDashboardPage() {
             {/* At-risk trainees */}
             <div className="rounded-[10px] border border-border bg-card p-5">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning" />
+                <AlertTriangle className="h-4 w-4 text-warning-text" />
                 <p className="label-micro text-muted-foreground">{coachMessages.needAttention}</p>
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.needAttention}</h2>

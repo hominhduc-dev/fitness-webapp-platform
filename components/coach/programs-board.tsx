@@ -273,7 +273,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
       {header}
 
       {error ? (
-        <div className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</div>
+        <div className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{error}</div>
       ) : null}
 
       <div

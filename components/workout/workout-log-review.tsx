@@ -67,7 +67,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
         hoverClassName: "hover:bg-[color-mix(in_srgb,var(--success)_12%,transparent)]",
         icon: TrendingUp,
         panelBgClassName: "bg-[color-mix(in_srgb,var(--success)_8%,transparent)]",
-        textClassName: "text-success",
+        textClassName: "text-success-text",
       }
     case "rir_down":
     case "weight_down":
@@ -76,7 +76,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
         hoverClassName: "hover:bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]",
         icon: ArrowDownNarrowWide,
         panelBgClassName: "bg-[color-mix(in_srgb,var(--warning)_8%,transparent)]",
-        textClassName: "text-warning",
+        textClassName: "text-warning-text",
       }
     case "rir_up":
     case "edit":

@@ -134,13 +134,11 @@ export function AddExerciseModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-6"
-      style={{ background: "rgba(13,13,11,0.45)", backdropFilter: "blur(4px)" }}
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-overlay p-6 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="flex w-full max-w-[480px] flex-col overflow-hidden rounded-[12px] border border-border bg-background"
-        style={{ maxHeight: "82vh", boxShadow: "0 24px 60px -12px rgba(13,13,11,0.25)" }}
+        className="flex max-h-[82vh] w-full max-w-[480px] flex-col overflow-hidden rounded-[12px] border border-border bg-background shadow-[var(--glass-shadow)]"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
@@ -223,7 +221,7 @@ export function AddExerciseModal({
                   {isCurrent ? (
                     <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-primary">current</span>
                   ) : added ? (
-                    <span className="text-xs font-medium text-green-600">{messages.workoutPage.added}</span>
+                    <span className="text-xs font-medium text-success-text">{messages.workoutPage.added}</span>
                   ) : (
                     <span className="text-lg leading-none text-muted-foreground">+</span>
                   )}
@@ -238,7 +236,7 @@ export function AddExerciseModal({
 
       {showFilters ? (
         <div
-          className="fixed inset-0 z-[130] flex items-end justify-center bg-black/50 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+          className="fixed inset-0 z-[130] flex items-end justify-center bg-overlay p-3 backdrop-blur-sm sm:items-center sm:p-6"
           onClick={(event) => {
             event.stopPropagation()
             setShowFilters(false)

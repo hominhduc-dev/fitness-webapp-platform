@@ -293,7 +293,7 @@ function getTagColor(tag: string) {
 
 function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
   if (entry.isCompleted) {
-    return { className: "bg-ok-soft text-success", label: messages.schedule.done }
+    return { className: "bg-ok-soft text-success-text", label: messages.schedule.done }
   }
 
   if (entry.isToday) {
@@ -301,11 +301,11 @@ function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
   }
 
   if (entry.isCatchUp) {
-    return { className: "bg-warn-soft text-warning", label: messages.schedule.catchUpLabel }
+    return { className: "bg-warn-soft text-warning-text", label: messages.schedule.catchUpLabel }
   }
 
   if (entry.isMissed) {
-    return { className: "bg-warn-soft text-warning", label: messages.schedule.missedLabel }
+    return { className: "bg-warn-soft text-warning-text", label: messages.schedule.missedLabel }
   }
 
   return null
@@ -765,7 +765,7 @@ function RoutinePickerDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {error ? (
-            <div className="border-b border-destructive/20 bg-destructive-soft px-5 py-3 text-sm text-destructive">{error}</div>
+            <div className="border-b border-destructive/20 bg-destructive-soft px-5 py-3 text-sm text-destructive-text">{error}</div>
           ) : null}
           {visibleRoutines.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-muted-foreground">
@@ -992,7 +992,7 @@ function RoutineBuilderDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-7">
           {error ? (
-            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">{error}</div>
+            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div>
           ) : null}
           {exercises.length === 0 ? (
             <div className="mb-4 rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
@@ -1046,7 +1046,7 @@ function RoutineBuilderDialog({
                       onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
                       aria-label={messages.workoutPage.removeExercise}
                       disabled={isSaving}
-                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive disabled:opacity-30"
+                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text disabled:opacity-30"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

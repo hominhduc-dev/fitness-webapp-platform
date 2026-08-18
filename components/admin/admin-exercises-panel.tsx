@@ -465,7 +465,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                     "rounded-md p-1.5 transition-colors",
                     !canManage || e.usageCount > 0 || deletingId === e.id
                       ? "cursor-not-allowed text-muted-foreground/30"
-                      : "text-muted-foreground hover:bg-destructive-soft hover:text-destructive",
+                      : "text-muted-foreground hover:bg-destructive-soft hover:text-destructive-text",
                   )}
                 >
                   {deletingId === e.id

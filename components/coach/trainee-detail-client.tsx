@@ -238,8 +238,8 @@ function KeyLiftCard({ lift }: KeyLiftCardProps) {
           <span
             className={cn(
               "font-mono text-xs",
-              isPositive && "text-success",
-              isNegative && "text-destructive",
+              isPositive && "text-success-text",
+              isNegative && "text-destructive-text",
               isFlat && "text-muted-foreground",
             )}
           >
@@ -319,7 +319,7 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
           <span
             className={cn(
               "font-mono text-sm tabular-nums",
-              s.complete >= 1 ? "text-success" : "text-amber-600",
+              s.complete >= 1 ? "text-success-text" : "text-warning-text",
             )}
           >
             {Math.round(s.complete * 100)}%
@@ -684,7 +684,7 @@ export function CoachTraineeDetailClient({
           </div>
 
           {assignError ? (
-            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
               {assignError}
             </div>
           ) : null}
@@ -769,7 +769,7 @@ export function CoachTraineeDetailClient({
             <p className="mt-1 text-sm text-muted-foreground">{messages.coach.addBodyMetricDesc}</p>
 
             {metricError ? (
-              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                 {metricError}
               </div>
             ) : null}
@@ -919,7 +919,7 @@ export function CoachTraineeDetailClient({
             <p className="mt-1 text-sm text-muted-foreground">{messages.coach.newCheckInDesc}</p>
 
             {checkInError ? (
-              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive">
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                 {checkInError}
               </div>
             ) : null}
@@ -1171,7 +1171,7 @@ export function CoachTraineeDetailClient({
                         <span
                           className={cn(
                             "flex-1 truncate font-mono text-[13px] tabular-nums",
-                            over ? "text-amber-600" : "text-foreground",
+                            over ? "text-warning-text" : "text-foreground",
                           )}
                         >
                           {integerFormatter.format(row.calories)}{" "}
@@ -1190,9 +1190,9 @@ export function CoachTraineeDetailClient({
                             className={cn(
                               "shrink-0",
                               over
-                                ? "border-amber-500/20 bg-amber-500/10 text-amber-600"
+                                ? "border-warning/20 bg-warning-soft text-warning-text"
                                 : onTrack
-                                  ? "border-success/20 bg-success/10 text-success"
+                                  ? "border-success/20 bg-success/10 text-success-text"
                                   : "border-border bg-muted text-muted-foreground",
                             )}
                           >

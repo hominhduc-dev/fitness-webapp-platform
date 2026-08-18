@@ -119,7 +119,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
         </DialogHeader>
 
         {error ? (
-          <div className="mx-5 mt-3 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive">{error}</div>
+          <div className="mx-5 mt-3 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{error}</div>
         ) : null}
 
         <div className="max-h-[44vh] overflow-y-auto py-1">

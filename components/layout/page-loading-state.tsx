@@ -42,11 +42,11 @@ export function AppLoadingScreen({
         </div>
 
         <div className={cn("h-1 overflow-hidden rounded-full bg-primary-soft", isMinimal ? "mb-4" : "mb-5")}>
-          <div className="page-loading-bar h-full w-28 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
+          <div className="page-loading-bar h-full w-28 rounded-full" />
         </div>
 
         {!isMinimal && (
-          <div className="rounded-[14px] border border-border bg-card p-4 shadow-[0_24px_60px_-28px_rgba(13,13,11,0.16)]">
+          <div className="rounded-[14px] border border-border bg-card p-4 shadow-[var(--glass-shadow)]">
             <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
               <div className="space-y-2">
                 <Skeleton className="h-5 w-36" />
@@ -92,7 +92,7 @@ export function PageLoadingState({
     <div className={cn("mx-auto w-full px-4 py-6 md:px-6", maxWidthClassName, className)}>
       <div className="space-y-6">
         <div className="h-1 overflow-hidden rounded-full bg-primary-soft">
-          <div className="page-loading-bar h-full w-28 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
+          <div className="page-loading-bar h-full w-28 rounded-full" />
         </div>
 
         <div className="space-y-3">
@@ -204,7 +204,7 @@ export function WorkoutSessionLoadingState() {
             <Skeleton className="h-4 w-24" />
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-primary-soft">
-            <div className="page-loading-bar h-full w-24 rounded-full bg-[linear-gradient(90deg,rgba(19,73,236,0),rgba(19,73,236,0.9),rgba(96,165,250,0.95))]" />
+            <div className="page-loading-bar h-full w-24 rounded-full" />
           </div>
         </div>
       </header>
