@@ -60,9 +60,6 @@ const darkTokens = new Map([...tokenBlock(":root"), ...tokenBlock(".dark")])
 describe.each([
   ["light", tokenBlock(":root")],
   ["dark", darkTokens],
-  // Midnight is applied as .dark + data-palette, so it inherits the dark block
-  // and only overrides the tokens that move to navy.
-  ["midnight", new Map([...darkTokens, ...tokenBlock(':root[data-palette="midnight"]')])],
 ])("%s theme contrast", (_theme, tokens) => {
   it.each(requiredPairs)("keeps %s legible on %s", (foreground, background) => {
     expect(contrast(resolveToken(tokens, foreground), resolveToken(tokens, background))).toBeGreaterThanOrEqual(4.5)

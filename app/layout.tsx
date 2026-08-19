@@ -48,29 +48,26 @@ const themeInitScript = `
   try {
     var storageKey = "yeahbuddy-theme";
     var storedTheme = window.localStorage.getItem(storageKey);
-    // "glass" was a third theme before the liquid-glass material became
-    // universal. It resolved to dark, so migrate rather than let it fall
-    // through to light. Mirrors migrateStoredTheme() in theme-provider.tsx.
-    if (storedTheme === "glass") {
+    // "glass" and "midnight" were extra themes before the liquid-glass
+    // material became universal. Both were dark-family, so migrate rather
+    // than let them fall through to light. Mirrors migrateStoredTheme() in
+    // theme-provider.tsx.
+    if (storedTheme === "glass" || storedTheme === "midnight") {
       storedTheme = "dark";
       window.localStorage.setItem(storageKey, storedTheme);
     }
-    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "midnight" || storedTheme === "system" ? storedTheme : "light";
+    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "light";
     if (window.location.pathname === "/") theme = "light";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    // "system" never resolves to midnight — the OS cannot express it.
     var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
     var root = document.documentElement;
-    // Midnight is a palette on top of the dark family, so it keeps the .dark
-    // class and adds data-palette. Mirrors applyThemeToDocument() in
+    // Mirrors applyThemeToDocument() in
     // components/providers/theme-provider.tsx — keep the two in sync.
     root.classList.toggle("dark", resolvedTheme !== "light");
-    root.style.colorScheme = resolvedTheme === "light" ? "light" : "dark";
-    if (resolvedTheme === "midnight") root.setAttribute("data-palette", "midnight");
-    else root.removeAttribute("data-palette");
+    root.style.colorScheme = resolvedTheme;
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      var themeColors = { light: "#f4f7fb", dark: "#080a0f", midnight: "#0a1020" };
+      var themeColors = { light: "#f4f7fb", dark: "#080a0f" };
       themeColor.setAttribute("content", themeColors[resolvedTheme] || themeColors.light);
     }
     // -- Liquid glass capability probe --------------------------------
