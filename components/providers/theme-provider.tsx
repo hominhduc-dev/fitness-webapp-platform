@@ -2,8 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-export type ThemeMode = "light" | "dark" | "midnight" | "system"
-export type ResolvedTheme = "light" | "dark" | "midnight"
+export type ThemeMode = "light" | "dark" | "system"
+export type ResolvedTheme = "light" | "dark"
 
 type ThemeContextValue = {
   resolvedTheme: ResolvedTheme
@@ -15,24 +15,23 @@ export const themeStorageKey = "yeahbuddy-theme"
 const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#f4f7fb"
 const darkThemeColor = "#080a0f"
-const midnightThemeColor = "#0a1020"
 const defaultTheme: ThemeMode = "light"
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function isThemeMode(value: string | null): value is ThemeMode {
-  return value === "light" || value === "dark" || value === "midnight" || value === "system"
+  return value === "light" || value === "dark" || value === "system"
 }
 
 /**
- * "glass" used to be a third theme. The liquid-glass material is now how every
- * theme looks, so the mode is gone — but it resolved to dark, and anyone who
- * had it selected would silently land on light without this rewrite. The same
- * migration runs in the pre-paint script in app/layout.tsx, which has to make
- * the identical decision before React boots.
+ * "glass" and "midnight" used to be extra themes. Both were dark-family
+ * palettes, so they migrate to dark rather than silently dropping anyone who
+ * had them selected back to light. The same migration runs in the pre-paint
+ * script in app/layout.tsx, which has to make the identical decision before
+ * React boots.
  */
 function migrateStoredTheme(value: string | null): ThemeMode {
-  if (value === "glass") return "dark"
+  if (value === "glass" || value === "midnight") return "dark"
   return isThemeMode(value) ? value : defaultTheme
 }
 
@@ -51,11 +50,6 @@ function getStoredTheme(): ThemeMode {
   }
 }
 
-/**
- * "system" only ever resolves to light or dark. Midnight is a deliberate
- * choice, not something the OS can express, so prefers-color-scheme has no
- * way to select it.
- */
 function resolveTheme(theme: ThemeMode): ResolvedTheme {
   if (theme !== "system") {
     return theme
@@ -67,26 +61,16 @@ function resolveTheme(theme: ThemeMode): ResolvedTheme {
 const themeColors: Record<ResolvedTheme, string> = {
   light: lightThemeColor,
   dark: darkThemeColor,
-  midnight: midnightThemeColor,
 }
 
 /**
- * Midnight is a palette layered on the dark family, not a replacement for it:
- * .dark still goes on so every dark: variant and .dark-scoped rule keeps
- * applying, and data-palette only swaps the colour tokens. The pre-paint
- * script in app/layout.tsx has to reach the identical result before React
- * boots, so the two must stay in sync.
+ * The pre-paint script in app/layout.tsx has to reach the identical result
+ * before React boots, so the two must stay in sync.
  */
 function applyThemeToDocument(resolvedTheme: ResolvedTheme) {
   const root = document.documentElement
   root.classList.toggle("dark", resolvedTheme !== "light")
-  root.style.colorScheme = resolvedTheme === "light" ? "light" : "dark"
-
-  if (resolvedTheme === "midnight") {
-    root.dataset.palette = "midnight"
-  } else {
-    delete root.dataset.palette
-  }
+  root.style.colorScheme = resolvedTheme
 
   const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   themeColor?.setAttribute("content", themeColors[resolvedTheme])

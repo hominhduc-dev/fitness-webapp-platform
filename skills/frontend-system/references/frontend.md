@@ -244,31 +244,6 @@ Light page backdrop là off-white với blue/green radial tint; không phải n�
 
 Dark backdrop dùng radial cobalt `20%` + green `10%` trên gradient `#10131b → #080a0f → #0b1013`; không dùng solid black hoặc radial đỏ cục bộ.
 
-### Midnight palette (`:root[data-palette="midnight"]`)
-
-Midnight là palette navy/cobalt nằm **trên** dark family, không thay thế nó: `<html>` mang cả `class="dark"` lẫn `data-palette="midnight"`, nên mọi `dark:` variant và rule `.dark .foo` vẫn chạy. Block CSS chỉ khai báo delta so với `.dark` và phải đứng **sau** block `.dark` trong `globals.css`.
-
-| Token | Giá trị | Ghi chú |
-|---|---|---|
-| `--brand-primary` | `#5b8cff` | Cobalt sáng hơn dark vì backdrop có bloom xanh thật |
-| `--brand-primary-hover` / `-press` | `#7ea6ff` / `#4478f5` | |
-| `--brand-primary-soft` | `rgb(91 140 255 / 18%)` | |
-| `--brand-secondary` | `#3ddc84` | Success solid |
-| `--brand-accent` | `#6ea8ff` | Info solid |
-| `--ink-0` | `#0a1020` | Background navy |
-| `--ink-50` | `rgb(22 34 58 / 74%)` | Raised glass |
-| `--ink-100` / `-150` / `-200` | `rgb(168 196 255 / 12% / 16% / 24%)` | Border là white ám xanh, không phải white-alpha trung tính |
-| `--ink-400` / `-600` / `-800` | `#9fb0cc` / `#c6d2e6` / `#eef3fb` | Muted / secondary / foreground |
-| `--primary-foreground` | `#0a1020` | |
-| `--card` / `--popover` / `--surface` / `--muted` | `rgb(24 38 64 / var(--glass-opacity))`, `rgb(20 32 56 / 84%)`, `rgb(168 196 255 / 8%)`, `rgb(168 196 255 / 9%)` | `.dark` hard-code rgb neutral nên phải restate, không kế thừa được qua `var()` |
-| `--border` / `--input` | `rgb(168 196 255 / 16% / 14%)` | |
-
-Cặp `*-text` / `*-soft` của status **giữ nguyên từ `.dark`** (đã đạt WCAG AA); midnight chỉ đổi solid `--ok` và `--info-token`.
-
-Glass ở midnight mỏng hơn dark (`--glass-opacity: 0.5`) và rim/tint đều ám xanh (`rgb(168 196 255 / …)`); `--glass-solid: #16223a` cho `prefers-reduced-transparency`.
-
-Midnight backdrop: cobalt bloom `42%` ở `78% 68%` + wash lạnh `16%` ở `14% 8%` trên gradient `#101a2e → #0a1020 → #0d1730`.
-
 ### Chart palette
 
 | Slot | Light | Dark |
@@ -313,10 +288,10 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 
 ### Theme lifecycle
 
-- Modes: `light`, `dark`, `midnight`, `system`; default `light`.
-- `system` chỉ resolve về `light`/`dark`; OS không có cách nào yêu cầu midnight, nó là lựa chọn chủ động.
-- `ThemeProvider` đặt class `.dark` cho mọi theme khác `light`, thêm `data-palette="midnight"` khi ở midnight, đặt CSS `color-scheme`, meta `theme-color` và expose `resolvedTheme` (`light | dark | midnight`).
-- Root pre-paint script trong `app/layout.tsx` phải luôn ra **cùng kết quả** với `applyThemeToDocument()`: cùng class, cùng `data-palette`, cùng `theme-color`. Lệch là flash khi reload.
+- Modes: `light`, `dark`, `system`; default `light`.
+- `ThemeProvider` đặt class `.dark` cho mọi theme khác `light`, đặt CSS `color-scheme`, meta `theme-color` và expose `resolvedTheme` (`light | dark`).
+- Giá trị `yeahbuddy-theme` cũ (`glass`, `midnight`) được migrate về `dark` ở cả `migrateStoredTheme()` lẫn pre-paint script.
+- Root pre-paint script trong `app/layout.tsx` phải luôn ra **cùng kết quả** với `applyThemeToDocument()`: cùng class, cùng `color-scheme`, cùng `theme-color`. Lệch là flash khi reload.
 - Thêm theme color literal mới phải allowlist trong `scripts/check-ui-colors.mjs` và thêm case vào `lib/design-system/color-contrast.test.ts`.
 - Landing `/` bị ép light trong pre-paint script.
 - Khi effect/canvas phụ thuộc theme, dùng `resolvedTheme`, không dùng raw `theme` vì mode `system` có thể đổi.
