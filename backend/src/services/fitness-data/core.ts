@@ -6304,7 +6304,7 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
 
   const traineeIds = filteredTrainees.map((trainee) => trainee.id)
   const recentWindow = toRecentWindow(7)
-  const [recentLogs, recentMetrics, recentCheckIns] = traineeIds.length
+  const [recentLogs, recentMetrics, latestCheckInRows] = traineeIds.length
     ? await Promise.all([
         db.workoutLog.findMany({
           select: {
@@ -6333,12 +6333,16 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
             },
           },
         }),
-        db.coachCheckIn.findMany({
-          orderBy: [{ checkInDate: "desc" }, { createdAt: "desc" }],
-          select: {
+        // Only the newest check-in date per trainee is used below, so let
+        // Postgres do the reduction: this aggregates to one row per trainee
+        // instead of streaming every check-in the coach's roster has ever
+        // logged. Prisma pushes groupBy down to a real GROUP BY, unlike
+        // `distinct`, which fetches the rows and dedupes them in memory.
+        db.coachCheckIn.groupBy({
+          _max: {
             checkInDate: true,
-            traineeId: true,
           },
+          by: ["traineeId"],
           where: {
             traineeId: {
               in: traineeIds,
@@ -6367,9 +6371,11 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
     new Map(),
   )
 
-  const latestCheckInByUser = recentCheckIns.reduce<Map<string, Date>>((accumulator, checkIn) => {
-    if (!accumulator.has(checkIn.traineeId)) {
-      accumulator.set(checkIn.traineeId, checkIn.checkInDate)
+  // Already one row per trainee out of the GROUP BY, so there is nothing to
+  // reduce — only the null guard for a trainee whose group holds no date.
+  const latestCheckInByUser = latestCheckInRows.reduce<Map<string, Date>>((accumulator, checkIn) => {
+    if (checkIn._max.checkInDate) {
+      accumulator.set(checkIn.traineeId, checkIn._max.checkInDate)
     }
 
     return accumulator
