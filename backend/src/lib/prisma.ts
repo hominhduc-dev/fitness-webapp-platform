@@ -25,21 +25,11 @@ function getPrismaDatasourceUrl() {
       if (!url.searchParams.has("pool_timeout")) {
         url.searchParams.set("pool_timeout", "30")
       }
-      // TCP keepalive: send a probe every 10 s so PgBouncer never sees the
-      // client connection as idle and closes it (which causes ConnectionReset /
-      // OS error 10054 on Windows).
-      if (!url.searchParams.has("keepalives")) {
-        url.searchParams.set("keepalives", "1")
-      }
-      if (!url.searchParams.has("keepalives_idle")) {
-        url.searchParams.set("keepalives_idle", "10")
-      }
-      if (!url.searchParams.has("keepalives_interval")) {
-        url.searchParams.set("keepalives_interval", "5")
-      }
-      if (!url.searchParams.has("keepalives_count")) {
-        url.searchParams.set("keepalives_count", "5")
-      }
+      // NOTE: libpq keepalive settings (keepalives, keepalives_idle, ...) used to
+      // be appended here. Prisma's PostgreSQL connector does not read them from
+      // the connection string, so they were silently ignored and gave a false
+      // sense of protection against idle-connection resets. Stale sockets are
+      // handled by retryTransaction() below instead.
       // Fail fast on a stale socket so Prisma can open a fresh connection.
       if (!url.searchParams.has("connect_timeout")) {
         url.searchParams.set("connect_timeout", "10")
@@ -120,12 +110,35 @@ if (prisma && slowQueryMs > 0) {
 //   P1017 — server has closed the connection (stale PgBouncer conn)
 const RETRYABLE_CODES = new Set(["P2028", "P1001", "P1008", "P1017"])
 
-// Detect a raw I/O connection-reset even when Prisma wraps it without a code
-function isConnectionReset(error: unknown): boolean {
+// Connectivity failures do NOT all arrive as PrismaClientKnownRequestError:
+//   - P1001/P1008/P1017 surface as PrismaClientInitializationError, which carries
+//     the code on `errorCode` (often undefined) rather than on `code`.
+//   - A socket that dies mid-query surfaces as PrismaClientUnknownRequestError
+//     with no code at all.
+// Reading only `PrismaClientKnownRequestError.code` therefore never matched any
+// of the connectivity codes above. Pull the code off whichever field carries it,
+// and fall back to matching the engine's message.
+function retryableCodeOf(error: unknown): string | null {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code
+  }
+
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return error.errorCode ?? null
+  }
+
+  return null
+}
+
+// Detect a raw I/O failure even when Prisma wraps it without a usable code
+function isConnectionFailure(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error)
   return (
     msg.includes("ConnectionReset") ||
     msg.includes("connection forcibly closed") ||
+    msg.includes("Can't reach database server") ||
+    msg.includes("Server has closed the connection") ||
+    msg.includes("P1001") ||
     msg.includes("P1017")
   )
 }
@@ -137,9 +150,9 @@ async function retryTransaction<T>(fn: () => Promise<T>, maxRetries = 3): Promis
       return await fn()
     } catch (error) {
       lastError = error
-      const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : null
+      const code = retryableCodeOf(error)
       const shouldRetry =
-        (code && RETRYABLE_CODES.has(code)) || isConnectionReset(error)
+        (code !== null && RETRYABLE_CODES.has(code)) || isConnectionFailure(error)
       if (shouldRetry && attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 200 * attempt))
         continue

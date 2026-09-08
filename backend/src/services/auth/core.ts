@@ -2,7 +2,7 @@ import { Prisma, UserRole, WeightUnit, type User as AppUser } from "@prisma/clie
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
 
 import { env } from "../../config/env"
-import { prisma } from "../../lib/prisma"
+import { prisma, retryTransaction } from "../../lib/prisma"
 import { supabaseAdmin, supabasePublic } from "../../lib/supabase"
 import { AuthServiceError } from "../errors"
 
@@ -572,7 +572,9 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
   role?: string | null
   username?: string | null
 }) {
-  if (!prisma || !authUser.email) {
+  const db = prisma
+
+  if (!db || !authUser.email) {
     return null
   }
 
@@ -593,11 +595,13 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
     lookupConditions.push({ username })
   }
 
-  const existingProfile = await prisma.user.findFirst({
-    where: {
-      OR: lookupConditions,
-    },
-  })
+  const existingProfile = await retryTransaction(() =>
+    db.user.findFirst({
+      where: {
+        OR: lookupConditions,
+      },
+    }),
+  )
 
   const name = resolveUserName(authUser, overrides?.name)
   const avatar = resolveUserAvatar(authUser, overrides?.avatar)
@@ -633,39 +637,43 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
       return existingProfile
     }
 
-    return prisma.user.update({
-      data: {
-        avatar: nextAvatar,
-        email,
-        fitnessGoals: shouldBackfillFitnessGoals ? metadataGoals : existingProfile.fitnessGoals,
-        heightCm: nextHeightCm,
-        name,
-        phone: nextPhone,
-        role: nextRole,
-        supabaseAuthUserId: authUser.id,
-        targetWeightKg: nextTargetWeightKg,
-        username: nextUsername,
-      },
-      where: {
-        id: existingProfile.id,
-      },
-    })
+    return retryTransaction(() =>
+      db.user.update({
+        data: {
+          avatar: nextAvatar,
+          email,
+          fitnessGoals: shouldBackfillFitnessGoals ? metadataGoals : existingProfile.fitnessGoals,
+          heightCm: nextHeightCm,
+          name,
+          phone: nextPhone,
+          role: nextRole,
+          supabaseAuthUserId: authUser.id,
+          targetWeightKg: nextTargetWeightKg,
+          username: nextUsername,
+        },
+        where: {
+          id: existingProfile.id,
+        },
+      }),
+    )
   }
 
-  return prisma.user.create({
-    data: {
-      avatar,
-      email,
-      fitnessGoals: metadataGoals,
-      heightCm: metadataHeightCm,
-      name,
-      phone,
-      role: nextRole,
-      supabaseAuthUserId: authUser.id,
-      targetWeightKg: metadataTargetWeightKg,
-      username,
-    },
-  })
+  return retryTransaction(() =>
+    db.user.create({
+      data: {
+        avatar,
+        email,
+        fitnessGoals: metadataGoals,
+        heightCm: metadataHeightCm,
+        name,
+        phone,
+        role: nextRole,
+        supabaseAuthUserId: authUser.id,
+        targetWeightKg: metadataTargetWeightKg,
+        username,
+      },
+    }),
+  )
 }
 
 async function findUserByIdentifier(identifier: string) {
@@ -683,11 +691,13 @@ async function findUserByIdentifier(identifier: string) {
       return null
     }
 
-    return db.user.findUnique({
-      where: {
-        email,
-      },
-    })
+    return retryTransaction(() =>
+      db.user.findUnique({
+        where: {
+          email,
+        },
+      }),
+    )
   }
 
   if (looksLikePhone(trimmedIdentifier)) {
@@ -697,11 +707,13 @@ async function findUserByIdentifier(identifier: string) {
       return null
     }
 
-    return db.user.findUnique({
-      where: {
-        phone,
-      },
-    })
+    return retryTransaction(() =>
+      db.user.findUnique({
+        where: {
+          phone,
+        },
+      }),
+    )
   }
 
   const username = normalizeUsername(trimmedIdentifier)
@@ -710,11 +722,13 @@ async function findUserByIdentifier(identifier: string) {
     return null
   }
 
-  return db.user.findUnique({
-    where: {
-      username,
-    },
-  })
+  return retryTransaction(() =>
+    db.user.findUnique({
+      where: {
+        username,
+      },
+    }),
+  )
 }
 
 async function resolveLoginEmail(identifier: string) {
@@ -738,35 +752,43 @@ async function resolveLoginEmail(identifier: string) {
 }
 
 async function ensureRegistrationIdentifiersAvailable(input: { email: string; phone: string; username: string }) {
-  if (!prisma) {
+  const db = prisma
+
+  if (!db) {
     return
   }
 
-  const existingByEmail = await prisma.user.findUnique({
-    where: {
-      email: input.email,
-    },
-  })
+  const existingByEmail = await retryTransaction(() =>
+    db.user.findUnique({
+      where: {
+        email: input.email,
+      },
+    }),
+  )
 
   if (existingByEmail) {
     throw new AuthServiceError("Email này đã được sử dụng.")
   }
 
-  const existingByUsername = await prisma.user.findUnique({
-    where: {
-      username: input.username,
-    },
-  })
+  const existingByUsername = await retryTransaction(() =>
+    db.user.findUnique({
+      where: {
+        username: input.username,
+      },
+    }),
+  )
 
   if (existingByUsername) {
     throw new AuthServiceError("Username này đã được sử dụng.")
   }
 
-  const existingByPhone = await prisma.user.findUnique({
-    where: {
-      phone: input.phone,
-    },
-  })
+  const existingByPhone = await retryTransaction(() =>
+    db.user.findUnique({
+      where: {
+        phone: input.phone,
+      },
+    }),
+  )
 
   if (existingByPhone) {
     throw new AuthServiceError("Số điện thoại này đã được sử dụng.")
@@ -1070,42 +1092,46 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
   }
 
   if (nextPhone) {
-    const existingPhoneOwner = await db.user.findFirst({
-      select: {
-        id: true,
-      },
-      where: {
-        id: {
-          not: profile.id,
+    const existingPhoneOwner = await retryTransaction(() =>
+      db.user.findFirst({
+        select: {
+          id: true,
         },
-        phone: nextPhone,
-      },
-    })
+        where: {
+          id: {
+            not: profile.id,
+          },
+          phone: nextPhone,
+        },
+      }),
+    )
 
     if (existingPhoneOwner) {
       throw new AuthServiceError("Số điện thoại này đã được sử dụng.")
     }
   }
 
-  const updatedProfile = await db.user.update({
-    data: {
-      activityLevel: nextActivityLevel,
-      avatar: nextAvatar,
-      birthDate: nextBirthDate,
-      dailyCalorieGoal: nextDailyCalorieGoal,
-      fitnessGoals: nextGoals,
-      goalStartWeightKg: nextGoalStartWeightKg,
-      heightCm: nextHeightCm,
-      name: nextName,
-      phone: nextPhone,
-      preferredWeightUnit: nextWeightUnit,
-      sex: nextSex,
-      targetWeightKg: nextTargetWeightKg,
-    },
-    where: {
-      id: profile.id,
-    },
-  })
+  const updatedProfile = await retryTransaction(() =>
+    db.user.update({
+      data: {
+        activityLevel: nextActivityLevel,
+        avatar: nextAvatar,
+        birthDate: nextBirthDate,
+        dailyCalorieGoal: nextDailyCalorieGoal,
+        fitnessGoals: nextGoals,
+        goalStartWeightKg: nextGoalStartWeightKg,
+        heightCm: nextHeightCm,
+        name: nextName,
+        phone: nextPhone,
+        preferredWeightUnit: nextWeightUnit,
+        sex: nextSex,
+        targetWeightKg: nextTargetWeightKg,
+      },
+      where: {
+        id: profile.id,
+      },
+    }),
+  )
 
   if (supabaseAdmin) {
     const { error } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
