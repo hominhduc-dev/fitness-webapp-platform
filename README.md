@@ -354,9 +354,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon-key>
 **Backend** — create `backend/.env` (see `backend/.env.example`):
 
 ```bash
-# Database (Supabase Postgres)
-DATABASE_URL=postgresql://...pooler.supabase.com:6543/postgres   # PgBouncer (pooled)
-DIRECT_URL=postgresql://...supabase.co:5432/postgres            # direct (migrations)
+# Database (Supabase Postgres) — both go through the Shared Pooler.
+# The pooler serves IPv4; the direct host (db.<ref>.supabase.co) is IPv6-only
+# unless the project buys the IPv4 add-on, so it fails on most home/ISP networks.
+# Port 5432 is session mode, 6543 is transaction mode (Prisma is told which via
+# pgbouncer=true automatically — see backend/src/lib/prisma.ts).
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-<n>-<region>.pooler.supabase.com:5432/postgres
+DIRECT_URL=postgresql://postgres.<project-ref>:<password>@aws-<n>-<region>.pooler.supabase.com:5432/postgres
 
 # Supabase
 SUPABASE_URL=https://<project-ref>.supabase.co
@@ -389,6 +393,7 @@ N8N_LOGS_WEBHOOK_URL=
 ### 3. Set up the database
 
 ```bash
+npm --prefix backend run db:doctor # check DNS / TCP / auth before anything else
 npm run prisma:generate            # generate Prisma client
 npm run prisma:migrate             # apply migrations (dev) — run from repo root or backend/, NOT the stray root prisma/ folder
 

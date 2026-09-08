@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { describe, expect, it, vi } from "vitest"
 
-import { retryTransaction } from "./prisma"
+import { buildPooledDatasourceUrl, retryTransaction } from "./prisma"
 
 /**
  * Connectivity failures reach us as several different Prisma error classes, and
@@ -68,5 +68,57 @@ describe("retryTransaction", () => {
 
     await expect(retryTransaction(fn, 3)).rejects.toBe(error)
     expect(fn).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe("buildPooledDatasourceUrl", () => {
+  const pooler = (port: number) =>
+    `postgresql://postgres.abcdefghijklm:pw@aws-1-ap-southeast-1.pooler.supabase.com:${port}/postgres`
+
+  it("marks port 6543 as PgBouncer transaction mode", () => {
+    // Without pgbouncer=true, Prisma reuses server-side prepared statements across
+    // pooled connections and fails with `prepared statement "s0" already exists`.
+    const params = new URL(buildPooledDatasourceUrl(pooler(6543))).searchParams
+
+    expect(params.get("pgbouncer")).toBe("true")
+  })
+
+  it("leaves port 5432 in session mode, where prepared statements are safe", () => {
+    const params = new URL(buildPooledDatasourceUrl(pooler(5432))).searchParams
+
+    expect(params.get("pgbouncer")).toBeNull()
+  })
+
+  it("applies the pool sizing to both pooler ports", () => {
+    for (const port of [5432, 6543]) {
+      const params = new URL(buildPooledDatasourceUrl(pooler(port))).searchParams
+
+      expect(params.get("connection_limit")).toBe("10")
+      expect(params.get("pool_timeout")).toBe("30")
+      expect(params.get("connect_timeout")).toBe("10")
+    }
+  })
+
+  it("never appends libpq keepalive params the Prisma connector cannot read", () => {
+    const params = new URL(buildPooledDatasourceUrl(pooler(5432))).searchParams
+
+    expect(params.get("keepalives")).toBeNull()
+    expect(params.get("keepalives_idle")).toBeNull()
+  })
+
+  it("respects an explicit pgbouncer value already in the URL", () => {
+    const params = new URL(buildPooledDatasourceUrl(`${pooler(6543)}?pgbouncer=false`)).searchParams
+
+    expect(params.get("pgbouncer")).toBe("false")
+  })
+
+  it("leaves a non-pooler direct connection untouched", () => {
+    const direct = "postgresql://postgres:pw@db.abcdefghijklm.supabase.co:5432/postgres"
+
+    expect(buildPooledDatasourceUrl(direct)).toBe(direct)
+  })
+
+  it("returns an unparseable string unchanged instead of throwing", () => {
+    expect(buildPooledDatasourceUrl("not a url")).toBe("not a url")
   })
 })

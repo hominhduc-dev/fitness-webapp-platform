@@ -7,20 +7,31 @@ const globalForPrisma = globalThis as {
   prisma?: PrismaClient
 }
 
-function getPrismaDatasourceUrl() {
-  if (!env.databaseUrl) {
-    return undefined
-  }
-
+/**
+ * Applies the Supabase-pooler tuning to a connection string. Kept pure and
+ * exported so the port-dependent behaviour is testable without a live database.
+ */
+function buildPooledDatasourceUrl(rawUrl: string): string {
   try {
-    const url = new URL(env.databaseUrl)
+    const url = new URL(rawUrl)
 
-    // Supabase PgBouncer (transaction mode) — enforce a sensible connection pool.
-    // connection_limit=1 is the default when using PgBouncer but causes P2024 timeouts
-    // under concurrent load (e.g. admin page fires 6+ queries in Promise.all).
-    // We force it to 10 regardless of what the URL already has, and bump pool_timeout
-    // to 30 s so queued requests don't fail while waiting for a free slot.
+    // Supabase exposes the shared pooler on two ports, and they need different
+    // Prisma settings:
+    //   6543 — transaction mode (PgBouncer). A pooled connection is handed to a
+    //          different session between statements, so Prisma must be told not
+    //          to rely on server-side prepared statements. Without pgbouncer=true
+    //          this surfaces as `prepared statement "s0" already exists`.
+    //   5432 — session mode. One client connection owns one Postgres session for
+    //          its lifetime, so prepared statements are safe and pgbouncer=true
+    //          would disable them for no benefit.
+    // connection_limit=1 is Prisma's default behind PgBouncer but causes P2024
+    // timeouts under concurrent load (e.g. the admin page fires 6+ queries in a
+    // Promise.all). We force it to 10 regardless of what the URL already has, and
+    // bump pool_timeout to 30 s so queued requests don't fail waiting for a slot.
     if (/pooler\.supabase\.com$/i.test(url.hostname)) {
+      if (url.port === "6543" && !url.searchParams.has("pgbouncer")) {
+        url.searchParams.set("pgbouncer", "true")
+      }
       url.searchParams.set("connection_limit", "10")
       if (!url.searchParams.has("pool_timeout")) {
         url.searchParams.set("pool_timeout", "30")
@@ -38,8 +49,16 @@ function getPrismaDatasourceUrl() {
 
     return url.toString()
   } catch {
-    return env.databaseUrl
+    return rawUrl
   }
+}
+
+function getPrismaDatasourceUrl() {
+  if (!env.databaseUrl) {
+    return undefined
+  }
+
+  return buildPooledDatasourceUrl(env.databaseUrl)
 }
 
 // Slow-query instrumentation is opt-in via PRISMA_SLOW_QUERY_MS. When enabled we
@@ -163,4 +182,4 @@ async function retryTransaction<T>(fn: () => Promise<T>, maxRetries = 3): Promis
   throw lastError
 }
 
-export { prisma, retryTransaction }
+export { buildPooledDatasourceUrl, prisma, retryTransaction }
