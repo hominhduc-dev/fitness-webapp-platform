@@ -3,6 +3,7 @@ import { randomUUID } from "crypto"
 
 import { getAIProvider } from "../lib/ai/ai-client"
 import type { AIConversationMessage } from "../lib/ai/types"
+import { normalizeAIWorkoutOutput } from "../lib/ai/workout-output"
 import { prisma, retryTransaction } from "../lib/prisma"
 import {
   chatTools,
@@ -335,7 +336,8 @@ QUY TẮC BẮT BUỘC:
 4. weekIndex bắt đầu từ 0, scheduledDay: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7.
 5. kind phải là một trong: push, pull, legs, full_body, cardio, other.
 6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.
-7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.`
+7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.
+8. Mọi bài tập BẮT BUỘC có sets (số nguyên 1-50) và reps (số nguyên dương). repsMin chỉ là cận dưới tùy chọn, không thay thế reps và không được lớn hơn reps. Không dùng reps/repsMin để biểu diễn giây hoặc phút.`
 
   const weightInfo = profile.targetWeightKg
     ? `Cân nặng mục tiêu: ${profile.targetWeightKg}kg`
@@ -400,7 +402,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       maxTokens: 4096,
     })
 
-    const aiOutput = response.data
+    const aiOutput = normalizeAIWorkoutOutput(response.data)
 
     const mappedWorkouts = aiOutput.workouts.map((workout) => {
       const mappedExercises = workout.exercises
@@ -489,8 +491,6 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       mappingRate: Math.round(mappingRate * 100),
     }
   } catch (error) {
-    if (error instanceof AuthServiceError) throw error
-
     await db.aIGeneration.update({
       where: { id: generation.id },
       data: {
@@ -498,6 +498,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         errorMsg: error instanceof Error ? error.message : "Unknown error",
       },
     })
+    if (error instanceof AuthServiceError) throw error
     throw new AuthServiceError("Không thể tạo chương trình AI. Vui lòng thử lại sau.", 500)
   }
 }
@@ -527,12 +528,17 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
     throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", 400)
   }
 
+  if (generation.type !== AIGenerationType.workout_program) {
+    throw new AuthServiceError("Kết quả AI không phải chương trình tập luyện.", 400)
+  }
+
   const output = generation.output as { mapped: MappedProgramOutput } | null
   if (!output?.mapped) {
     throw new AuthServiceError("Dữ liệu chương trình AI không hợp lệ.", 400)
   }
 
-  const mapped = output.mapped
+  // Revalidate legacy generations too, before any transaction writes begin.
+  const mapped = normalizeAIWorkoutOutput(output.mapped)
 
   const program = await retryTransaction(() =>
     db.$transaction(async (tx) => {
@@ -586,7 +592,7 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
             },
           })
 
-          const setCount = Math.max(1, Math.round(exercise.sets))
+          const setCount = exercise.sets
           await tx.exerciseSet.createMany({
             data: Array.from({ length: setCount }, (_, setIndex) => ({
               id: randomUUID(),
