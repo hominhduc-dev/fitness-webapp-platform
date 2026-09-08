@@ -15,7 +15,24 @@ import { env } from "../config/env"
  * reports which layer broke, so the fix is not a guess.
  *
  * Run with: npm --prefix backend run db:doctor
+ *
+ * Pass --url (and optionally --direct-url) to check a connection string without
+ * editing .env first — useful when the whole question is whether a different
+ * host or port would connect.
  */
+
+function readArg(name: string) {
+  const flag = `--${name}`
+  const args = process.argv.slice(2)
+  const withEquals = args.find((arg) => arg.startsWith(`${flag}=`))
+
+  if (withEquals) {
+    return withEquals.slice(flag.length + 1)
+  }
+
+  const index = args.indexOf(flag)
+  return index === -1 ? undefined : args[index + 1]
+}
 
 const TCP_TIMEOUT_MS = 8_000
 const QUERY_TIMEOUT_MS = 15_000
@@ -183,15 +200,28 @@ async function checkTarget(label: string, connectionString: string) {
 }
 
 async function main() {
-  const targets: Array<[string, string | undefined]> = [
-    ["DATABASE_URL", env.databaseUrl],
-    ["DIRECT_URL", env.directUrl],
-  ]
+  const urlOverride = readArg("url")
+  const directOverride = readArg("direct-url")
+
+  // An explicit --url means "check exactly this and nothing else", so it also
+  // suppresses the DIRECT_URL from .env unless a --direct-url is given too.
+  const targets: Array<[string, string | undefined]> = urlOverride
+    ? [
+        ["--url", urlOverride],
+        ["--direct-url", directOverride],
+      ]
+    : [
+        ["DATABASE_URL", env.databaseUrl],
+        ["DIRECT_URL", directOverride ?? env.directUrl],
+      ]
 
   const configured = targets.filter((entry): entry is [string, string] => Boolean(entry[1]))
 
   if (configured.length === 0) {
-    console.log("Neither DATABASE_URL nor DIRECT_URL is set. Create backend/.env from backend/.env.example first.")
+    console.log(
+      "Nothing to check. Set DATABASE_URL in backend/.env, or pass one inline:\n" +
+        '  npm --prefix backend run db:doctor -- --url "postgresql://user:pass@host:5432/postgres"',
+    )
     process.exitCode = 1
     return
   }
