@@ -68,6 +68,31 @@ describe("AI generation runtime contracts", () => {
     provider.generateStructuredJSON.mockResolvedValue({ data, tokenUsage: 100 })
     expect((await generateMealPlan(profile, { date: "2026-09-11" })).totals.calories).toBe(2000)
   })
+  it.each(["schema", "calories"])("repairs an invalid meal once before persistence: %s", async defect => {
+    const invalid = menu()
+    if (defect === "schema") invalid.meals[0].items[0].foodId = "invalid-id"
+    else invalid.meals.forEach(meal => meal.items.forEach(item => { item.amountValue = 10 }))
+    provider.generateStructuredJSON.mockResolvedValueOnce({ data: invalid, tokenUsage: 100 })
+      .mockResolvedValueOnce({ data: menu(), tokenUsage: 200 })
+    const result = await generateMealPlan(profile, { date: "2026-09-11" })
+    expect(result.totals.calories).toBe(2000)
+    expect(provider.generateStructuredJSON).toHaveBeenCalledTimes(2)
+    expect(db.aIGeneration.create).toHaveBeenCalledTimes(1)
+    expect(db.aIGeneration.update).toHaveBeenCalledTimes(1)
+    expect(db.aIGeneration.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "completed", tokenUsage: 300 }) }))
+  })
+  it("stops after one failed repair without saving a partial plan", async () => {
+    provider.generateStructuredJSON.mockResolvedValue({ data: { meals: [] }, tokenUsage: 100 })
+    await expect(generateMealPlan(profile, { date: "2026-09-11" })).rejects.toMatchObject({ status: 422 })
+    expect(provider.generateStructuredJSON).toHaveBeenCalledTimes(2)
+    expect(db.aIGeneration.update).toHaveBeenCalledTimes(1)
+    expect(db.aIGeneration.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "failed" }) }))
+  })
+  it("does not retry a provider outage as a data repair", async () => {
+    provider.generateStructuredJSON.mockRejectedValue(new Error("provider unavailable"))
+    await expect(generateMealPlan(profile, { date: "2026-09-11" })).rejects.toMatchObject({ status: 500 })
+    expect(provider.generateStructuredJSON).toHaveBeenCalledTimes(1)
+  })
   it.each(["unknown-food", "bad-unit", "empty", "duplicate-meal", "bad-amount", "calorie-target"])("rejects meal defect: %s", async defect => {
     const data = menu()
     if (defect === "unknown-food") data.meals[0].items[0].foodId = wrongId

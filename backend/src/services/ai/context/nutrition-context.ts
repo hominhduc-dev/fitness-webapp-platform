@@ -20,6 +20,12 @@ function addTotals(acc: NutritionTotals, meal: { calories: number; carbs: number
   acc.protein += meal.protein ?? 0
 }
 
+function describeRemaining(value: number, unit: string) {
+  if (value < 0) return `đã vượt mục tiêu ${formatNumber(Math.abs(value))} ${unit}`
+  if (value === 0) return "đã đạt mục tiêu"
+  return `còn thiếu ${formatNumber(value)} ${unit} để đạt mục tiêu`
+}
+
 export async function buildNutritionContext(
   db: ContextPrismaClient,
   profile: SerializedProfile,
@@ -98,7 +104,7 @@ export async function buildNutritionContext(
       ? `- Hôm nay (${formatDate(today)}): ${formatNumber(todayTotals.calories)} / ${profile.dailyCalorieGoal} kcal, P ${formatNumber(todayTotals.protein)}g / C ${formatNumber(todayTotals.carbs)}g / F ${formatNumber(todayTotals.fat)}g.`
       : `- Hôm nay (${formatDate(today)}): chưa log bữa ăn nào.`,
     todayMeals.length > 0
-      ? `- Còn lại hôm nay: ${formatNumber(remainingCalories)} kcal, protein ${formatNumber(remainingProtein)}g so với mục tiêu.`
+      ? `- Calories: ${describeRemaining(remainingCalories, "kcal")}. Protein (mục tiêu ${profile.dailyProteinGoal}g): ${describeRemaining(remainingProtein, "g")}. Không diễn giải lượng đã vượt thành còn thiếu.`
       : "",
     loggedDays > 0
       ? `- Trend 14 ngày: log ${loggedDays}/14 ngày, trung bình ${formatNumber(average.calories)} kcal/ngày, P ${formatNumber(average.protein)}g / C ${formatNumber(average.carbs)}g / F ${formatNumber(average.fat)}g.`

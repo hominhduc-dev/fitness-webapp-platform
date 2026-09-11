@@ -1,5 +1,6 @@
 import { AIGenerationStatus, AIGenerationType, FoodSource, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
 import { randomUUID } from "crypto"
+import { generateValidatedJSON } from "../lib/ai/validated-generation"
 
 import { getAIProvider } from "../lib/ai/ai-client"
 import type { AIConversationMessage } from "../lib/ai/types"
@@ -804,23 +805,6 @@ type GenerateMealPlanInput = {
   cookingTime?: string
 }
 
-type AIMealPlanOutput = {
-  meals: Array<{
-    type: "breakfast" | "lunch" | "dinner" | "snack"
-    suggestion: string
-    items: Array<{
-      foodName: string
-      amountValue: number
-      amountUnit: "serving" | "g" | "ml"
-    }>
-  }>
-  totalCalories: number
-  totalProtein: number
-  totalCarbs: number
-  totalFat: number
-  notes: string
-}
-
 const BUDGET_LABELS: Record<string, string> = {
   low: "Tiết kiệm",
   medium: "Trung bình",
@@ -929,22 +913,24 @@ ${recentFoodNames.length > 0 ? recentFoodNames.join(", ") : "Chưa có dữ li�
 ${JSON.stringify(catalogForPrompt, null, 0)}
 
 ## Output JSON Shape
-{
-  "meals": [{
-    "type": "breakfast",
-    "suggestion": "mô tả ngắn bữa ăn",
-    "items": [{
-      "foodId": "UUID chính xác từ catalog",
-      "amountValue": 1,
-      "amountUnit": "serving"
-    }]
-  }],
-  "totalCalories": 2500,
-  "totalProtein": 150,
-  "totalCarbs": 280,
-  "totalFat": 70,
-  "notes": "ghi chú dinh dưỡng ngắn bằng tiếng Việt"
-}`
+${JSON.stringify({
+  meals: ["breakfast", "lunch", "dinner", "snack"].map(type => ({
+    type,
+    suggestion: "mô tả ngắn bữa ăn",
+    items: Array.from({ length: type === "snack" ? 1 : 2 }, () => ({
+      foodId: "thay bằng UUID chính xác từ catalog",
+      amountValue: 1,
+      amountUnit: "serving",
+    })),
+  })),
+  notes: "ghi chú dinh dưỡng ngắn bằng tiếng Việt",
+}, null, 2)}
+
+## Kiểm tra cuối trước khi trả JSON
+- Trả đủ 4 bữa như mẫu. Mỗi bữa chính chỉ 2 hoặc 3 items; snack chỉ 1 đến 3 items. Bữa có 4 items trở lên sẽ bị từ chối toàn bộ.
+- Nếu thiếu năng lượng, tăng amountValue của món đã chọn; KHÔNG thêm món thứ tư (kể cả rau, dầu, gia vị hay nước).
+- Tính calories bằng calories trong catalog nhân khẩu phần quy đổi. Tổng phải trong ${Math.ceil(profile.dailyCalorieGoal * 0.9)}–${Math.floor(profile.dailyCalorieGoal * 1.1)} kcal. Ưu tiên khoảng calories bắt buộc khi các mục tiêu macro không đồng nhất.
+- Backend tự tính tổng dinh dưỡng; không cần trả totalCalories/totalProtein/totalCarbs/totalFat.`
 
   const generation = await db.aIGeneration.create({
     data: {
@@ -958,67 +944,62 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
 
   try {
     const ai = getAIProvider()
-    const response = await ai.generateStructuredJSON<AIMealPlanOutput>({
-      systemPrompt,
-      userPrompt,
-      // A full-day plan (4 meals + items + totals + notes) easily exceeds 2048
-      // output tokens and gets truncated mid-JSON, so allow more headroom.
-      maxTokens: 4096,
-    })
+    const response = await generateValidatedJSON(ai, { systemPrompt, userPrompt, maxTokens: 4096 }, (data) => {
+      const aiOutput = parseAI(mealOutputSchema, data)
 
-    const aiOutput = parseAI(mealOutputSchema, response.data)
+      const mappedMeals = aiOutput.meals.map((meal) => {
+        const mappedItems = meal.items
+          .map((item) => {
+            const food = foodCatalog.find(f => f.id === item.foodId)
+            if (!food) throw new AppError(`Món ${item.foodId} không thuộc thư viện của bạn. Không có món nào bị bỏ qua; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_FOOD" })
+            const foodId = food.id
+            const { amountValue, amountUnit } = item
+            if (amountUnit !== "serving" && (food.servingUnit !== amountUnit || food.servingAmount <= 0)) {
+              throw new AppError(`Không thể quy đổi đơn vị ${amountUnit} cho món ${food.name}. Hãy dùng serving hoặc tạo lại.`, { status: 422 })
+            }
+            const nutrition = calculateItemNutrition(food, { amountUnit, amountValue })
 
-    const mappedMeals = aiOutput.meals.map((meal) => {
-      const mappedItems = meal.items
-        .map((item) => {
-          const food = foodCatalog.find(f => f.id === item.foodId)
-          if (!food) throw new AppError(`Món ${item.foodId} không thuộc thư viện của bạn. Không có món nào bị bỏ qua; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_FOOD" })
-          const foodId = food.id
-          const { amountValue, amountUnit } = item
-          if (amountUnit !== "serving" && (food.servingUnit !== amountUnit || food.servingAmount <= 0)) {
-            throw new AppError(`Không thể quy đổi đơn vị ${amountUnit} cho món ${food.name}. Hãy dùng serving hoặc tạo lại.`, { status: 422 })
-          }
-          const nutrition = calculateItemNutrition(food, { amountUnit, amountValue })
+            return {
+              foodId,
+              foodName: food.name,
+              amountValue,
+              amountUnit,
+              // Real weight where the library has one, the dish's own label where
+              // it does not — resolved here because the Food row is in hand.
+              quantityLabel: formatFoodQuantity(food, { amountValue, amountUnit }),
+              calories: nutrition.calories,
+              protein: nutrition.protein,
+              carbs: nutrition.carbs,
+              fat: nutrition.fat,
+            }
+          })
 
-          return {
-            foodId,
-            foodName: food.name,
-            amountValue,
-            amountUnit,
-            // Real weight where the library has one, the dish's own label where
-            // it does not — resolved here because the Food row is in hand.
-            quantityLabel: formatFoodQuantity(food, { amountValue, amountUnit }),
-            calories: nutrition.calories,
-            protein: nutrition.protein,
-            carbs: nutrition.carbs,
-            fat: nutrition.fat,
-          }
-        })
-
-      return {
-        type: meal.type,
-        suggestion: meal.suggestion,
-        items: mappedItems,
-      }
-    })
-
-    // Totals come from the mapped items, not from the model's own arithmetic —
-    // the model can't know which items dropped out of the catalog mapping, and
-    // its self-reported sums were drifting from the logged values.
-    const totals = mappedMeals.reduce(
-      (acc, meal) => {
-        for (const item of meal.items) {
-          acc.calories += item.calories
-          acc.protein += item.protein
-          acc.carbs += item.carbs
-          acc.fat += item.fat
+        return {
+          type: meal.type,
+          suggestion: meal.suggestion,
+          items: mappedItems,
         }
-        return acc
-      },
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
-    )
+      })
 
-    validateCalorieTarget(totals.calories, profile.dailyCalorieGoal)
+      // Recalculate from every validated catalog item.
+      const totals = mappedMeals.reduce(
+        (acc, meal) => {
+          for (const item of meal.items) {
+            acc.calories += item.calories
+            acc.protein += item.protein
+            acc.carbs += item.carbs
+            acc.fat += item.fat
+          }
+          return acc
+        },
+        { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      )
+
+      validateCalorieTarget(totals.calories, profile.dailyCalorieGoal)
+
+      return { aiOutput, mappedMeals, totals }
+    })
+    const { aiOutput, mappedMeals, totals } = response.data
 
     await db.aIGeneration.update({
       where: { id: generation.id },

@@ -17,6 +17,7 @@ Triển khai trên `main` sau PR #83. Tài liệu này thay thế các nhận đ
 - Backend kiểm tra tổng kcal nằm trong ±10% mục tiêu hiện tại. Ngoài khoảng này trả 422, mã `AI_NUTRITION_TARGET_MISMATCH`; không tự thay đổi khẩu phần hay báo đạt mục tiêu.
 - Khi xác nhận, đọc lại thực phẩm và tính lại calories trong transaction. Thực phẩm đã bị xóa, không thuộc phạm vi người dùng, thay đổi đơn vị hoặc khiến tổng vượt khoảng mục tiêu sẽ bị từ chối.
 - Protein/carbs/fat được tính lại chính xác từ dữ liệu nguồn nhưng chưa có ngưỡng phần trăm bắt buộc riêng; quy tắc ±10% áp dụng cho calories như yêu cầu sinh thực đơn.
+- Khi output thực đơn sai schema, ID, đơn vị hoặc calories, cho model sửa tối đa một lần rồi kiểm tra lại toàn bộ. Không ghi dữ liệu nghiệp vụ trong bước sửa; không retry lỗi kết nối provider theo cơ chế này. Token usage của kết quả thành công gồm cả hai lượt.
 
 ## 3. Lưu nguyên tử và chống xử lý lặp
 
@@ -41,6 +42,7 @@ Triển khai trên `main` sau PR #83. Tài liệu này thay thế các nhận đ
 - Múi giờ AI thống nhất `Asia/Ho_Chi_Minh`. Date-only trong database vẫn là khóa ngày UTC midnight; cửa sổ timestamp dùng thời điểm UTC tương ứng với 00:00 Việt Nam.
 - Ngữ cảnh bữa ăn có cả cận dưới và cận trên, không đưa món tương lai vào hôm nay hoặc trung bình 14 ngày. Log tập, chỉ số cơ thể và ghi chú cũng có cận trên. Tuần tập bắt đầu thứ Hai.
 - Counter chat vẫn nằm trong RAM; thay đổi ở đây thống nhất ngày reset, không biến nó thành quota phân tán. Đây không phải hạng mục chống xác nhận trùng ở trên.
+- Context dinh dưỡng ghi rõ “đã vượt mục tiêu”/“còn thiếu”/“đã đạt”, tránh truyền số protein còn lại âm khiến model diễn giải nhầm dấu.
 
 ## Kiểm chứng
 
