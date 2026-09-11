@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-workout-accept.json",
+  "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-workout-accept.html",
+  "specification": {
+    "sha256": "f88ef42e317a978f8058f84509268f455574dbea4a7e02ea5651304b8500c0cd",
+    "bytes": 1648
+  },
+  "artifact": {
+    "sha256": "51e4f291d60c3934272bb9bbff5c969f551d6aad45f87d5552e1f8b20a1ee546",
+    "bytes": 702685
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

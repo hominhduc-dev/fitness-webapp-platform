@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-meals.json",
+  "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-meals.html",
+  "specification": {
+    "sha256": "0f0a1eabb5ee272df6f09d0c0c5daef77854f2e7c5ff1ae15d557d2d0184baed",
+    "bytes": 2292
+  },
+  "artifact": {
+    "sha256": "2087043ddbdd168f3ad04e989b8b20a387a9698ffa8243eef0595134b69c8a62",
+    "bytes": 706713
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

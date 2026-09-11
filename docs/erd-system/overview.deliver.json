@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\Source_code\\fitness-app\\docs\\erd-system\\overview.architecture.json",
+  "output": "D:\\Source_code\\fitness-app\\docs\\erd-system\\overview.html",
+  "specification": {
+    "sha256": "917b1ff0da55568e15cf0d9d83e53128dc1bef935d47deae25977947de6dab14",
+    "bytes": 2773
+  },
+  "artifact": {
+    "sha256": "062251e0b2dc39b075e55160cf98718726451777e6d9a76e6c8d4db2a68dc4b8",
+    "bytes": 707111
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-chat.json",
+  "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-chat.html",
+  "specification": {
+    "sha256": "c2f6efd4b62d3581953e05dcce63a7ff0c97a5328d356d66dbadaa3571c5c258",
+    "bytes": 2109
+  },
+  "artifact": {
+    "sha256": "4713b9e563f31cd3701a8dab2ee97d1f5ef4e2a133e1d59f3797744a04eb56f3",
+    "bytes": 706000
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
