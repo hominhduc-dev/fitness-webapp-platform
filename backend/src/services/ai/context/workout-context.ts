@@ -1,4 +1,5 @@
 import type { SerializedProfile } from "../../auth.service"
+import { startOfVietnamDay } from "../../../lib/ai/calendar"
 import {
   addDays,
   completedSetCount,
@@ -22,7 +23,7 @@ export async function buildWorkoutContext(
   now: Date,
 ): Promise<ContextSection | null> {
   const today = startOfLocalDay(now)
-  const startOfWeek = startOfLocalDay(addDays(today, -today.getDay()))
+  const startOfWeek = addDays(startOfVietnamDay(now), -((today.getUTCDay() + 6) % 7))
   const thirtyDaysAgo = addDays(now, -30)
 
   const [assignments, recentLogs, weekLogs] = await Promise.all([
@@ -60,18 +61,18 @@ export async function buildWorkoutContext(
         workoutSnapshot: true,
       },
       take: 8,
-      where: { startedAt: { gte: thirtyDaysAgo }, userId: profile.id },
+      where: { startedAt: { gte: thirtyDaysAgo, lte: now }, userId: profile.id },
     }),
     db.workoutLog.findMany({
       select: { completedAt: true, totalVolume: true },
-      where: { startedAt: { gte: startOfWeek }, userId: profile.id },
+      where: { startedAt: { gte: startOfWeek, lte: now }, completedAt: { not: null, lte: now }, userId: profile.id },
     }),
   ])
 
   const allWorkouts = assignments.flatMap((assignment) => assignment.program.workouts)
   const todayWorkout =
     allWorkouts.find((workout) => workout.scheduledDate && isSameLocalDate(workout.scheduledDate, today)) ??
-    allWorkouts.find((workout) => workout.scheduledDay === today.getDay()) ??
+    allWorkouts.find((workout) => workout.scheduledDay === today.getUTCDay()) ??
     null
   const nextWorkout = todayWorkout ? null : findNextWorkout(allWorkouts, today)
   const completedWeekLogs = weekLogs.filter((log) => log.completedAt != null)
@@ -117,11 +118,11 @@ function findNextWorkout<T extends { scheduledDate: Date | null; scheduledDay: n
     const targetDate = addDays(today, offset)
     const workout =
       workouts.find((item) => item.scheduledDate && isSameLocalDate(item.scheduledDate, targetDate)) ??
-      workouts.find((item) => item.scheduledDay === targetDate.getDay())
+      workouts.find((item) => item.scheduledDay === targetDate.getUTCDay())
 
     if (workout) {
       return {
-        label: `${weekdayLabel(targetDate.getDay())} ${formatDate(targetDate)}`,
+        label: `${weekdayLabel(targetDate.getUTCDay())} ${formatDate(targetDate)}`,
         workout,
       }
     }

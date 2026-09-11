@@ -1,4 +1,4 @@
-import { FoodCategory, FoodSource, MealType } from "@prisma/client"
+import { FoodCategory, FoodSource, MealType, type Prisma } from "@prisma/client"
 
 import { CACHE_KEYS, FOOD_CATALOG_TTL_MS, libraryCache } from "../lib/library-cache"
 import { buildFoodSlug, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
@@ -465,8 +465,8 @@ async function recalculateMeal(mealId: string) {
   })
 }
 
-async function addMealItemForUser(profile: SerializedProfile, input: Record<string, unknown>) {
-  const db = ensurePrisma()
+async function addMealItemForUser(profile: SerializedProfile, input: Record<string, unknown>, transaction?: Prisma.TransactionClient) {
+  const db = transaction ?? ensurePrisma()
   const loggedDate = parseDateKey(input.date)
   const type = parseMealType(input.mealType)
   const foodId = sanitizeText(input.foodId, "foodId")

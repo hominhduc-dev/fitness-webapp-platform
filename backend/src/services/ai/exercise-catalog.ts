@@ -7,8 +7,8 @@
  * menu to choose from, not the whole warehouse — so keep what the trainee can
  * actually use, prefer what they already train, and cap per muscle group.
  *
- * Note the mapper still resolves AI output against the FULL catalog, so an
- * exercise omitted here is not a mapping failure if the model names it anyway.
+ * The returned variation IDs are the exact allowlist for model output. Unknown
+ * equipment is excluded in limited-equipment modes; no fallback is inferred.
  */
 
 type CatalogExercise = {
@@ -20,9 +20,10 @@ type CatalogExercise = {
 }
 
 type PromptExercise = {
+  id: string
   name: string
   muscleGroup: string
-  variations?: string[]
+  variations: Array<{ id: string; name: string; equipment: string | null }>
 }
 
 /** Equipment labels (as stored on Variation.equipment) reachable per setting. */
@@ -32,19 +33,8 @@ const EQUIPMENT_ACCESS: Record<string, string[] | null> = {
   home_dumbbells: [
     "Bodyweight",
     "Dumbbell",
-    "Kettlebell",
-    "Resistance Band",
-    "Bench",
-    "Medicine Ball",
-    "Weight Plate",
-    "Weight Plate Bench",
-    "EZ Bar",
-    "Pull-up Bar",
-    "TRX",
-    "Bosu Ball",
-    "Other",
   ],
-  bodyweight: ["Bodyweight", "Pull-up Bar", "TRX", "Bosu Ball"],
+  bodyweight: ["Bodyweight"],
 }
 
 const DEFAULT_PER_GROUP = 14
@@ -71,8 +61,7 @@ function normalize(value: string) {
 function isReachable(exercise: CatalogExercise, allowed: string[] | null) {
   if (!allowed) return true
   return exercise.variations.some((variation) =>
-    // A variation with no recorded equipment is assumed to need none.
-    variation.equipment === null || allowed.includes(variation.equipment),
+    variation.equipment !== null && allowed.some(value => normalize(value) === normalize(variation.equipment!)),
   )
 }
 
@@ -89,7 +78,7 @@ function selectCatalogForPrompt(
     recentExerciseNames?: string[]
   },
 ): PromptExercise[] {
-  const allowed = EQUIPMENT_ACCESS[options.availableEquipment] ?? null
+  const allowed = EQUIPMENT_ACCESS[options.availableEquipment] === null ? null : EQUIPMENT_ACCESS[options.availableEquipment] ?? []
   const focused = new Set((options.focusAreas ?? []).map(normalize).filter(Boolean))
   const recent = new Set((options.recentExerciseNames ?? []).map(normalize))
 
@@ -130,15 +119,14 @@ function selectCatalogForPrompt(
 
   const selected: PromptExercise[] = chosen.map((exercise) => {
     const usable = allowed
-      ? exercise.variations.filter((v) => v.equipment === null || allowed.includes(v.equipment))
+      ? exercise.variations.filter((v) => v.equipment !== null && allowed.some(value => normalize(value) === normalize(v.equipment!)))
       : exercise.variations
 
     return {
+      id: exercise.id,
       name: exercise.name,
       muscleGroup: exercise.muscleGroup,
-      // Most exercises have exactly one variation, and the mapper falls back to
-      // the first one anyway — so only spend tokens when there is a choice.
-      ...(usable.length > 1 ? { variations: usable.map((v) => v.name) } : {}),
+      variations: usable,
     }
   })
 
@@ -147,4 +135,8 @@ function selectCatalogForPrompt(
   )
 }
 
+export function isEquipmentAllowed(equipment: string | null, available: string) {
+  if (available === "full_gym") return true
+  return equipment !== null && (EQUIPMENT_ACCESS[available] ?? []).some(value => normalize(value) === normalize(equipment))
+}
 export { selectCatalogForPrompt, type CatalogExercise, type PromptExercise }

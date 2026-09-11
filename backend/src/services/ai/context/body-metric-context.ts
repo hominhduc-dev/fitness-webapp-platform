@@ -14,7 +14,7 @@ export async function buildBodyMetricContext(
     orderBy: { recordedAt: "desc" },
     take: 20,
     where: {
-      recordedAt: { gte: ninetyDaysAgo },
+      recordedAt: { gte: ninetyDaysAgo, lte: now },
       traineeId: profile.id,
     },
   })
