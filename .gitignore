@@ -18,3 +18,5 @@ yarn-error.log*
 pnpm-debug.log*
 *.tsbuildinfo
 .backups/
+.vscode/
+.pr-worktrees/
