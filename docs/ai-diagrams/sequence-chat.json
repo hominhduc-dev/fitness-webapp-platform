@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "AI · Chat với dữ liệu cá nhân",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1040,
+      510
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI",
+      "sublabel": "Next.js"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API và AI Service",
+      "sublabel": "Express"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Database",
+      "sublabel": "Qua Prisma"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "Nhà cung cấp AI",
+      "sublabel": "Anthropic / OpenAI-compatible"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "label": "Câu hỏi + history + access token",
+      "variant": "emphasis",
+      "y": 170
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "label": "Xác thực và lấy profile",
+      "variant": "default",
+      "y": 202
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "label": "Thông tin người dùng",
+      "variant": "return",
+      "y": 234
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "db",
+      "label": "Sau kiểm tra input/quota: đọc ngữ cảnh",
+      "variant": "default",
+      "y": 266
+    },
+    {
+      "id": "m5",
+      "from": "db",
+      "to": "api",
+      "label": "Cân nặng; bữa ăn; log; sets",
+      "variant": "return",
+      "y": 298
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "llm",
+      "label": "Prompt + ngữ cảnh + 6 tin gần nhất",
+      "variant": "emphasis",
+      "y": 330
+    },
+    {
+      "id": "m7",
+      "from": "llm",
+      "to": "api",
+      "label": "Nội dung trả lời",
+      "variant": "return",
+      "y": 362
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "ui",
+      "label": "200: reply; hiển thị trong chat",
+      "variant": "return",
+      "y": 394
+    }
+  ]
+}

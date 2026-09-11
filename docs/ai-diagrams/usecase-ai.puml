@@ -1,0 +1,38 @@
+@startuml
+left to right direction
+skinparam shadowing false
+actor "Người dùng đã đăng nhập" as User
+actor "Nhà cung cấp AI" as Provider
+rectangle "Fitness App — phân hệ AI" {
+usecase "UC-AI-01
+Tạo chương trình tập" as GenerateProgram
+usecase "UC-AI-02
+Lưu chương trình đã tạo" as AcceptProgram
+usecase "UC-AI-03
+Gợi ý thực đơn một ngày" as GenerateMeal
+usecase "UC-AI-04
+Ghi thực đơn vào nhật ký" as AcceptMeal
+usecase "UC-AI-05
+Chat AI Coach" as Chat
+}
+User -- GenerateProgram
+User -- AcceptProgram
+User -- GenerateMeal
+User -- AcceptMeal
+User -- Chat
+GenerateProgram -- Provider
+GenerateMeal -- Provider
+Chat -- Provider
+note bottom of AcceptProgram
+Tiền điều kiện: generation thuộc user,
+trạng thái completed.
+end note
+note bottom of AcceptMeal
+Tiền điều kiện: generation thuộc user,
+trạng thái completed.
+end note
+note bottom of User
+API chỉ kiểm tra đăng nhập.
+Chat bubble chỉ hiện cho trainee.
+end note
+@enduml

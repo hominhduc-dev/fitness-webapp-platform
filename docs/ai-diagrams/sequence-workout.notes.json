@@ -1,0 +1,26 @@
+[
+  {
+    "dot": "cyan",
+    "title": "API",
+    "items": [
+      "POST /api/ai/generate-program",
+      "POST /api/ai/accept-program"
+    ]
+  },
+  {
+    "dot": "rose",
+    "title": "Nhánh lỗi",
+    "items": [
+      "Hết quota → 429; tỷ lệ ghép <70% → failed, 422.",
+      "Lỗi provider/parse → failed, 500; không lưu chương trình."
+    ]
+  },
+  {
+    "dot": "amber",
+    "title": "Giới hạn hiện tại",
+    "items": [
+      "Chỉ sinh tuần đầu; chưa có tăng tải từng tuần.",
+      "Kiểm tra completed nằm ngoài transaction; có nguy cơ lưu trùng."
+    ]
+  }
+]

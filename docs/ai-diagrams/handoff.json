@@ -1,0 +1,92 @@
+[
+  {
+    "diagram_type": "sequence",
+    "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-workout.html",
+    "specification_sha256": "d4f8da1c82a7ce7a56f0474d53b1ad11e4b40003ab0aa356fcf0c0a355da3792",
+    "artifact_sha256": "3b625921247695249305bf866970c01f6de1b6a0e30f39188e3e80f3a839ccca",
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "visual_review_scope": "Ảnh screenshot artifact đã deliver; nhãn, đường nối, bố cục. Không kiểm thử thủ công mọi nút viewer.",
+    "correction_rounds": 2
+  },
+  {
+    "diagram_type": "sequence",
+    "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-workout-accept.html",
+    "specification_sha256": "f88ef42e317a978f8058f84509268f455574dbea4a7e02ea5651304b8500c0cd",
+    "artifact_sha256": "51e4f291d60c3934272bb9bbff5c969f551d6aad45f87d5552e1f8b20a1ee546",
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "visual_review_scope": "Ảnh screenshot artifact đã deliver; nhãn, đường nối, bố cục. Không kiểm thử thủ công mọi nút viewer.",
+    "correction_rounds": 2
+  },
+  {
+    "diagram_type": "sequence",
+    "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-meals.html",
+    "specification_sha256": "0f0a1eabb5ee272df6f09d0c0c5daef77854f2e7c5ff1ae15d557d2d0184baed",
+    "artifact_sha256": "2087043ddbdd168f3ad04e989b8b20a387a9698ffa8243eef0595134b69c8a62",
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "visual_review_scope": "Ảnh screenshot artifact đã deliver; nhãn, đường nối, bố cục. Không kiểm thử thủ công mọi nút viewer.",
+    "correction_rounds": 2
+  },
+  {
+    "diagram_type": "sequence",
+    "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-meals-accept.html",
+    "specification_sha256": "df19b4e894a6aa8ec8eda52224abc2304a45b009307cdc80333c4a9f130761aa",
+    "artifact_sha256": "9d1b6666a7a2f3620421a6a48a52d0d9327d732a24e6d6809132777bec8cff4a",
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "visual_review_scope": "Ảnh screenshot artifact đã deliver; nhãn, đường nối, bố cục. Không kiểm thử thủ công mọi nút viewer.",
+    "correction_rounds": 2
+  },
+  {
+    "diagram_type": "sequence",
+    "output": "D:\\Source_code\\fitness-app\\docs\\ai-diagrams\\sequence-chat.html",
+    "specification_sha256": "c2f6efd4b62d3581953e05dcce63a7ff0c97a5328d356d66dbadaa3571c5c258",
+    "artifact_sha256": "4713b9e563f31cd3701a8dab2ee97d1f5ef4e2a133e1d59f3797744a04eb56f3",
+    "validation": {
+      "checksPassed": 9,
+      "checkCount": 9,
+      "compositionProfile": "showcase",
+      "compositionStatus": "pass",
+      "errors": 0,
+      "warnings": 0
+    },
+    "browser_evidence": "passed",
+    "visual_review": "passed",
+    "visual_review_scope": "Ảnh screenshot artifact đã deliver; nhãn, đường nối, bố cục. Không kiểm thử thủ công mọi nút viewer.",
+    "correction_rounds": 2
+  }
+]

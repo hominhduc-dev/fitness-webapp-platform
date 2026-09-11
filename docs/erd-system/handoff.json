@@ -1,0 +1,14 @@
+{
+  "diagram_type": "architecture",
+  "output": "D:/Source_code/fitness-app/docs/erd-system/overview.html",
+  "specification_sha256": "917b1ff0da55568e15cf0d9d83e53128dc1bef935d47deae25977947de6dab14",
+  "artifact_sha256": "062251e0b2dc39b075e55160cf98718726451777e6d9a76e6c8d4db2a68dc4b8",
+  "validation": "9/9 showcase; 0 errors; 0 warnings",
+  "browser_evidence": "passed",
+  "visual_review": "passed",
+  "correction_rounds": 1,
+  "scope": "Archify overview only; one browser containment repair",
+  "erd_html": "D:/Source_code/fitness-app/docs/erd-system/index.html",
+  "erd_browser_interaction": "not verified: browser URL policy blocked local file",
+  "erd_visual_review": "SVG/PNG reviewed; dense full map requires zoom or domain views"
+}

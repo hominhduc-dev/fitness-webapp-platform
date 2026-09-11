@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "AI · Lưu chương trình tập",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1040,
+      510
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI",
+      "sublabel": "Next.js"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API và AI Service",
+      "sublabel": "Express"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Database",
+      "sublabel": "Qua Prisma"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "label": "Xác nhận lưu + generationId",
+      "variant": "emphasis",
+      "y": 170
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "label": "Xác thực; đọc chủ sở hữu và trạng thái",
+      "variant": "default",
+      "y": 202
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "label": "Generation của user, completed",
+      "variant": "return",
+      "y": 234
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "db",
+      "label": "Transaction: tạo chương trình và bài",
+      "variant": "default",
+      "y": 266
+    },
+    {
+      "id": "m5",
+      "from": "db",
+      "to": "api",
+      "label": "Gán cho user; accepted; commit",
+      "variant": "return",
+      "y": 298
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "ui",
+      "label": "200: chương trình → /workout",
+      "variant": "return",
+      "y": 330
+    }
+  ]
+}
