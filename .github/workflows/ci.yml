@@ -17,6 +17,18 @@ jobs:
   backend:
     name: Backend — lint, typecheck, test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ai_hardening_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_hardening_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +58,18 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: backend
+
+      - name: Test AI transactions with PostgreSQL
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/ai_hardening_test
+          DIRECT_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/ai_hardening_test
+          AI_TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/ai_hardening_test
+          ENV_SKIP_DOTENV: "1"
+          NODE_ENV: test
+        run: |
+          npx prisma db push --skip-generate
+          npm run test -- src/services/ai-hardening.integration.test.ts
 
   frontend:
     name: Frontend — typecheck, build

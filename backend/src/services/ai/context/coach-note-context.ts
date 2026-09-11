@@ -24,7 +24,7 @@ export async function buildCoachNoteContext(
       orderBy: { checkInDate: "desc" },
       take: 3,
       where: {
-        checkInDate: { gte: ninetyDaysAgo },
+        checkInDate: { gte: ninetyDaysAgo, lte: now },
         traineeId: profile.id,
       },
     }),
@@ -43,7 +43,7 @@ export async function buildCoachNoteContext(
       take: 5,
       where: {
         author: { role: UserRole.coach },
-        createdAt: { gte: ninetyDaysAgo },
+        createdAt: { gte: ninetyDaysAgo, lte: now },
         workoutLog: { userId: profile.id },
       },
     }),

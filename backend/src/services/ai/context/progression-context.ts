@@ -24,14 +24,15 @@ export async function buildProgressionContext(
 ): Promise<ContextSection | null> {
   const sixtyDaysAgo = addDays(now, -60)
   const logs = await db.workoutLog.findMany({
-    orderBy: { startedAt: "asc" },
+    orderBy: [{ startedAt: "desc" }, { id: "desc" }],
     select: {
       exerciseSnapshot: true,
       startedAt: true,
     },
     take: 80,
     where: {
-      startedAt: { gte: sixtyDaysAgo },
+      startedAt: { gte: sixtyDaysAgo, lte: now },
+      completedAt: { not: null, lte: now },
       userId: profile.id,
     },
   })
@@ -44,11 +45,11 @@ export async function buildProgressionContext(
       const entries = byExercise.get(label) ?? []
 
       for (const set of exercise.sets ?? []) {
-        if (set.completed === false || set.weight == null) {
+        if (set.completed !== true || set.weight == null || set.weight < 0) {
           continue
         }
 
-        const reps = set.actualReps ?? set.targetReps ?? 0
+        const reps = set.actualReps ?? 0
         if (reps <= 0) {
           continue
         }

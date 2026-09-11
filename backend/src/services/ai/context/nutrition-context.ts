@@ -40,7 +40,7 @@ export async function buildNutritionContext(
     },
     orderBy: [{ loggedDate: "desc" }, { type: "asc" }],
     where: {
-      loggedDate: { gte: fourteenDaysAgo },
+      loggedDate: { gte: fourteenDaysAgo, lt: addDays(today, 1) },
       userId: profile.id,
     },
   })

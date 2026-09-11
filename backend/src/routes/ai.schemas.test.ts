@@ -10,11 +10,11 @@ import {
 } from "./ai.schemas"
 
 const validProgram = {
-  availableEquipment: "Tạ đòn, tạ đơn",
+  availableEquipment: "full_gym",
   daysPerWeek: 4,
   durationWeeks: 8,
   experienceLevel: "intermediate",
-  goal: "Tăng cơ",
+  goal: "build_muscle",
   sessionDuration: 60,
 }
 
@@ -61,11 +61,11 @@ describe("generateProgramSchema", () => {
 
 describe("generateDailyWorkoutSchema", () => {
   const validDaily = {
-    availableEquipment: "Bodyweight",
+    availableEquipment: "bodyweight",
     date: "2026-08-14",
     energyLevel: "normal",
     experienceLevel: "beginner",
-    goal: "Giảm mỡ",
+    goal: "lose_weight",
     sessionDuration: 45,
   }
 

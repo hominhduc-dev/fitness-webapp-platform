@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client"
 
 import { prisma } from "../../../lib/prisma"
+import { dayKey, localDateKey, plusDays } from "../../../lib/ai/calendar"
 import { AuthServiceError } from "../../errors"
 import type { ContextSection, ContextSectionKey } from "./types"
 
@@ -74,27 +75,19 @@ export function normalizeText(text: string) {
 }
 
 export function startOfLocalDay(date: Date) {
-  const value = new Date(date)
-  value.setHours(0, 0, 0, 0)
-  return value
+  return dayKey(date)
 }
 
 export function addDays(date: Date, days: number) {
-  const value = new Date(date)
-  value.setDate(value.getDate() + days)
-  return value
+  return plusDays(date, days)
 }
 
 export function isSameLocalDate(left: Date, right: Date) {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  )
+  return localDateKey(left) === localDateKey(right)
 }
 
 export function formatDate(date: Date) {
-  return date.toISOString().slice(0, 10)
+  return localDateKey(date)
 }
 
 export function weekdayLabel(day?: number | null) {

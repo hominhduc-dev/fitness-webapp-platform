@@ -118,7 +118,8 @@ if (prisma && slowQueryMs > 0) {
 //   P1001 — can't reach database server
 //   P1008 — operations timed out
 //   P1017 — server has closed the connection (stale PgBouncer conn)
-const RETRYABLE_CODES = new Set(["P2028", "P1001", "P1008", "P1017"])
+//   P2034 — serializable transaction conflict / deadlock; retry the whole unit
+const RETRYABLE_CODES = new Set(["P2028", "P1001", "P1008", "P1017", "P2034"])
 
 // Detect a raw I/O connection-reset even when Prisma wraps it without a code
 function isConnectionReset(error: unknown): boolean {

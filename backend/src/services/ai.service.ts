@@ -16,11 +16,15 @@ import { DailyCounter } from "./ai/daily-counter"
 import { buildTraineeChatContext } from "./ai/context/builder"
 import { parseExerciseSnapshot } from "./ai/context/helpers"
 import { selectCatalogForPrompt } from "./ai/exercise-catalog"
+import { claimGeneration, validateAccessibleVariations } from "./ai/acceptance"
+import { parseAI, programOutputSchema, mappedProgramSchema, dailyOutputSchema, mappedDailySchema, mealOutputSchema, mappedMealsSchema, dateSchema } from "../lib/ai/output-schemas"
+import { generateProgramSchema, generateDailyWorkoutSchema, generateMealPlanSchema, chatSchema } from "../routes/ai.schemas"
+import { startOfVietnamDay, dayKey, plusDays } from "../lib/ai/calendar"
 import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
-import { AuthServiceError } from "./errors"
+import { AppError, AuthServiceError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
-import { addMealItemForUser, calculateItemNutrition, normalizeAmountUnit, type AmountUnit } from "./nutrition.service"
+import { addMealItemForUser, calculateItemNutrition } from "./nutrition.service"
 import { formatFoodQuantity, roundNutrition } from "../lib/nutrition/food-utils"
 
 // ---------------------------------------------------------------------------
@@ -34,8 +38,7 @@ const DAILY_LIMITS: Record<AIGenerationType, number> = {
 
 async function checkRateLimit(userId: string, type: AIGenerationType) {
   const db = ensurePrisma()
-  const startOfDay = new Date()
-  startOfDay.setHours(0, 0, 0, 0)
+  const startOfDay = startOfVietnamDay()
 
   const count = await db.aIGeneration.count({
     where: {
@@ -86,113 +89,16 @@ function ensurePrisma() {
   return prisma
 }
 
-function normalizeForMatch(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/[^a-z0-9\s]/g, "")
-    .trim()
-}
-
-// ---------------------------------------------------------------------------
-// Exercise Mapping
-// ---------------------------------------------------------------------------
-
-type ExerciseCatalogItem = {
-  id: string
-  name: string
-  muscleGroup: string
-  variations: Array<{
-    id: string
-    name: string
-    equipment: string | null
-  }>
-}
-
-function mapExerciseToVariation(
-  exerciseName: string,
-  variationName: string | undefined,
-  catalog: ExerciseCatalogItem[],
-): string | null {
-  const normExercise = normalizeForMatch(exerciseName)
-  const normVariation = variationName ? normalizeForMatch(variationName) : null
-
-  const exercise = catalog.find((e) => normalizeForMatch(e.name) === normExercise)
-
-  if (!exercise) {
-    return null
+function requirePromptVariation(id: string, catalog: Array<{ variations: Array<{ id: string }> }>, context: string) {
+  if (!catalog.some(exercise => exercise.variations.some(variation => variation.id === id))) {
+    throw new AppError(`${context}: bài tập ${id} không nằm trong thư viện phù hợp thiết bị. Không có bài nào được tự thay thế; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_EXERCISE" })
   }
-
-  if (normVariation && exercise.variations.length > 0) {
-    const variation = exercise.variations.find((v) => normalizeForMatch(v.name) === normVariation)
-    if (variation) {
-      return variation.id
-    }
-  }
-
-  const defaultVariation = exercise.variations.find((v) =>
-    normalizeForMatch(v.name) === "default" || exercise.variations.indexOf(v) === 0,
-  )
-  return defaultVariation?.id ?? null
-}
-
-// ---------------------------------------------------------------------------
-// Food Mapping
-// ---------------------------------------------------------------------------
-
-type FoodCatalogItem = {
-  id: string
-  name: string
-  category: string
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
-  fiber: number | null
-  sodium: number | null
-  sugar: number | null
-  servingLabel: string
-  servingAmount: number
-  servingUnit: string
-}
-
-function mapFoodToId(
-  foodName: string,
-  catalog: FoodCatalogItem[],
-): string | null {
-  const normName = normalizeForMatch(foodName)
-  const food = catalog.find((f) => normalizeForMatch(f.name) === normName)
-  return food?.id ?? null
-}
-
-// addMealItemForUser rejects non-positive amounts and anything above 5000, and
-// acceptAIMealPlan swallows those failures. Drop them at generation time instead
-// so the preview only ever shows items that will really be logged.
-const MAX_MEAL_AMOUNT = 5000
-
-function normalizeAmountValue(value: unknown): number | null {
-  const amount = Number(value)
-  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MEAL_AMOUNT) {
-    return null
-  }
-  return amount
+  return id
 }
 
 // ---------------------------------------------------------------------------
 // Workout Program Generation
 // ---------------------------------------------------------------------------
-
-// The provider's JSON is cast to AIWorkoutOutput, not validated, so weekIndex is
-// whatever the model chose to emit. A missing value used to reach the database as
-// NULL, and NULL workouts are exempt from the current-week filter — which left
-// finished programs visible forever. Week 0 is the documented default: the system
-// prompt tells the model to author only the first week.
-function normalizeAIWeekIndex(weekIndex: unknown) {
-  const parsed = Number(weekIndex)
-  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0
-}
 
 type GenerateProgramInput = {
   goal: string
@@ -261,6 +167,7 @@ function getEnglishWorkoutName(kind: string) {
 }
 
 async function generateWorkoutProgram(profile: SerializedProfile, input: GenerateProgramInput) {
+  input = parseAI(generateProgramSchema, input, 400)
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.workout_program)
 
@@ -286,16 +193,6 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
     orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
   })
 
-  const catalog: ExerciseCatalogItem[] = exercises.map((e) => ({
-    id: e.id,
-    name: e.name,
-    muscleGroup: e.muscleGroup,
-    variations: e.variations.map((v) => ({
-      id: v.id,
-      name: v.name,
-      equipment: v.equipment,
-    })),
-  }))
 
   const recentLogs = await db.workoutLog.findMany({
     where: {
@@ -331,7 +228,7 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
 
 QUY TẮC BẮT BUỘC:
 1. CHỈ sử dụng bài tập từ Exercise Catalog được cung cấp. KHÔNG tự nghĩ ra bài tập mới.
-2. exerciseName và variationName PHẢI khớp chính xác với tên trong catalog.
+2. variationId BẮT BUỘC là ID variation trong catalog; không tự tạo ID hoặc thay thế thiết bị.
 3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
 4. weekIndex bắt đầu từ 0, scheduledDay: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7.
 5. kind phải là một trong: push, pull, legs, full_body, cardio, other.
@@ -372,7 +269,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
     "scheduledDay": "number 0-6",
     "duration": "number - phút",
     "exercises": [{
-      "exerciseName": "string - tên chính xác từ catalog",
+      "variationId": "UUID chính xác của variation trong catalog",
       "variationName": "string - tên variation từ catalog",
       "sets": "number",
       "reps": "number",
@@ -402,13 +299,14 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       maxTokens: 4096,
     })
 
-    const aiOutput = normalizeAIWorkoutOutput(response.data)
+    const aiOutput = parseAI(programOutputSchema, normalizeAIWorkoutOutput(response.data))
+    if (aiOutput.workouts.some(w => w.duration > input.sessionDuration)) throw new AppError("Thời lượng AI tạo vượt quá yêu cầu. Hãy tạo lại.", { status: 422 })
+    if (aiOutput.workouts.length !== input.daysPerWeek) throw new AppError("Số buổi AI tạo không khớp yêu cầu. Hãy tạo lại.", { status: 422 })
 
     const mappedWorkouts = aiOutput.workouts.map((workout) => {
       const mappedExercises = workout.exercises
         .map((exercise) => {
-          const variationId = mapExerciseToVariation(exercise.exerciseName, exercise.variationName, catalog)
-          if (!variationId) return null
+          const variationId = requirePromptVariation(exercise.variationId, catalogForPrompt, workout.name)
           return {
             variationId,
             sets: exercise.sets,
@@ -419,45 +317,18 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
             weight: exercise.weight,
           }
         })
-        .filter(Boolean) as Array<{
-          variationId: string
-          sets: number
-          reps: number
-          repsMin?: number
-          rir?: number
-          restTime?: number
-          weight?: number
-        }>
 
       return {
         name: getEnglishWorkoutName(workout.kind),
         kind: workout.kind,
-        weekIndex: normalizeAIWeekIndex(workout.weekIndex),
+        weekIndex: workout.weekIndex,
         scheduledDay: workout.scheduledDay,
         duration: workout.duration,
         exercises: mappedExercises,
       }
     })
 
-    const totalExercises = aiOutput.workouts.reduce((sum, w) => sum + w.exercises.length, 0)
-    const mappedExercises = mappedWorkouts.reduce((sum, w) => sum + w.exercises.length, 0)
-    const mappingRate = totalExercises > 0 ? mappedExercises / totalExercises : 0
-
-    if (mappingRate < 0.7) {
-      await db.aIGeneration.update({
-        where: { id: generation.id },
-        data: {
-          status: AIGenerationStatus.failed,
-          output: aiOutput as unknown as Prisma.InputJsonValue,
-          tokenUsage: response.tokenUsage,
-          errorMsg: `Chỉ map được ${Math.round(mappingRate * 100)}% bài tập. Vui lòng thử lại.`,
-        },
-      })
-      throw new AuthServiceError(
-        "AI đã tạo chương trình nhưng nhiều bài tập không khớp với thư viện. Vui lòng thử lại.",
-        422,
-      )
-    }
+    const mappingRate = 1
 
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -498,7 +369,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         errorMsg: error instanceof Error ? error.message : "Unknown error",
       },
     })
-    if (error instanceof AuthServiceError) throw error
+    if (error instanceof AppError) throw error
     throw new AuthServiceError("Không thể tạo chương trình AI. Vui lòng thử lại sau.", 500)
   }
 }
@@ -525,23 +396,26 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
   }
 
   if (generation.status !== AIGenerationStatus.completed) {
-    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", 400)
+    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", generation.status === AIGenerationStatus.accepted ? 409 : 400)
   }
 
   if (generation.type !== AIGenerationType.workout_program) {
     throw new AuthServiceError("Kết quả AI không phải chương trình tập luyện.", 400)
   }
 
-  const output = generation.output as { mapped: MappedProgramOutput } | null
-  if (!output?.mapped) {
+  const output = generation.output as { mode?: string; mapped: MappedProgramOutput } | null
+  if (!output?.mapped || output.mode === "daily") {
     throw new AuthServiceError("Dữ liệu chương trình AI không hợp lệ.", 400)
   }
 
   // Revalidate legacy generations too, before any transaction writes begin.
-  const mapped = normalizeAIWorkoutOutput(output.mapped)
+  const mapped = parseAI(mappedProgramSchema, normalizeAIWorkoutOutput(output.mapped))
+  const equipment = parseAI(generateProgramSchema, generation.input, 422).availableEquipment
 
   const program = await retryTransaction(() =>
     db.$transaction(async (tx) => {
+      await claimGeneration(tx, generationId, profile.id, AIGenerationType.workout_program)
+      await validateAccessibleVariations(tx, mapped.workouts.flatMap(w => w.exercises.map(e => e.variationId)), profile.id, equipment)
       const programId = randomUUID()
 
       await tx.program.create({
@@ -572,8 +446,9 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
             id: workoutId,
             programId,
             name: workout.name,
+            kind: workout.kind,
             scheduledDay: workout.scheduledDay,
-            weekIndex: normalizeAIWeekIndex(workout.weekIndex),
+            weekIndex: workout.weekIndex,
             duration: workout.duration,
           },
         })
@@ -638,6 +513,7 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
     }, {
       maxWait: 15000,
       timeout: 60000,
+      isolationLevel: "Serializable",
     }),
   )
 
@@ -727,6 +603,7 @@ function toWorkoutKind(value: string): WorkoutKind {
 }
 
 async function generateDailyWorkout(profile: SerializedProfile, input: GenerateDailyWorkoutInput) {
+  input = parseAI(generateDailyWorkoutSchema, input, 400)
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.workout_program)
 
@@ -745,21 +622,7 @@ async function generateDailyWorkout(profile: SerializedProfile, input: GenerateD
     where: { OR: [{ createdById: null }, { createdById: profile.id }] },
     orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
   })
-  const catalog: ExerciseCatalogItem[] = exercises.map((exercise) => ({
-    id: exercise.id,
-    name: exercise.name,
-    muscleGroup: exercise.muscleGroup,
-    variations: exercise.variations.map((variation) => ({
-      id: variation.id,
-      name: variation.name,
-      equipment: variation.equipment,
-    })),
-  }))
-  const catalogForPrompt = catalog.map((exercise) => ({
-    name: exercise.name,
-    muscleGroup: exercise.muscleGroup,
-    variations: exercise.variations.map((variation) => variation.name),
-  }))
+  const catalogForPrompt = selectCatalogForPrompt(exercises, input)
   const recentLogs = await db.workoutLog.count({
     where: { userId: profile.id, startedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
   })
@@ -778,7 +641,7 @@ async function generateDailyWorkout(profile: SerializedProfile, input: GenerateD
 
 QUY TẮC BẮT BUỘC:
 1. CHỈ dùng bài tập và variation có trong Exercise Catalog.
-2. exerciseName và variationName phải khớp chính xác với catalog.
+2. variationId BẮT BUỘC là ID variation trong catalog; không tự tạo ID hoặc thay thế thiết bị.
 3. Điều chỉnh volume theo trình độ, thời lượng và mức năng lượng hôm nay.
 4. Tôn trọng tuyệt đối chấn thương hoặc bài cần tránh.
 5. Trả về JSON thuần tuý, không dùng markdown.
@@ -807,7 +670,7 @@ ${JSON.stringify(catalogForPrompt)}
   "duration": ${input.sessionDuration},
   "warmup": "Hướng dẫn khởi động ngắn",
   "exercises": [{
-    "exerciseName": "Tên chính xác từ catalog",
+    "variationId": "UUID chính xác của variation trong catalog",
     "variationName": "Variation chính xác từ catalog",
     "sets": 3,
     "reps": 12,
@@ -824,29 +687,12 @@ ${JSON.stringify(catalogForPrompt)}
       userPrompt,
       maxTokens: 2048,
     })
-    const raw = response.data
-    const mappedExercises = raw.exercises.map((exercise) => {
-      const variationId = mapExerciseToVariation(exercise.exerciseName, exercise.variationName, catalog)
-      if (!variationId) return null
-      return {
-        variationId,
-        sets: Math.max(1, Math.min(8, Math.round(exercise.sets))),
-        reps: Math.max(1, Math.round(exercise.reps)),
-        repsMin: exercise.repsMin ? Math.max(1, Math.round(exercise.repsMin)) : undefined,
-        rir: exercise.rir == null ? undefined : Math.max(0, Math.min(4, Math.round(exercise.rir))),
-        restTime: exercise.restTime ? Math.max(15, Math.round(exercise.restTime)) : undefined,
-        weight: exercise.weight && exercise.weight > 0 ? exercise.weight : undefined,
-      }
-    }).filter(Boolean) as MappedDailyWorkoutOutput["exercises"]
-
-    const mappingRate = raw.exercises.length > 0 ? mappedExercises.length / raw.exercises.length : 0
-    if (mappedExercises.length === 0 || mappingRate < 0.7) {
-      await db.aIGeneration.update({
-        where: { id: generation.id },
-        data: { status: AIGenerationStatus.failed, output: raw as unknown as Prisma.InputJsonValue, tokenUsage: response.tokenUsage, errorMsg: `Chỉ map được ${Math.round(mappingRate * 100)}% bài tập.` },
-      })
-      throw new AuthServiceError("Nhiều bài AI đề xuất không có trong thư viện. Vui lòng thử lại.", 422)
-    }
+    const raw = parseAI(dailyOutputSchema, normalizeAIWorkoutOutput({ workouts: [response.data] }).workouts[0])
+    const mappedExercises = raw.exercises.map(exercise => ({
+      ...exercise,
+      variationId: requirePromptVariation(exercise.variationId, catalogForPrompt, raw.name),
+    }))
+    const mappingRate = 1
 
     const mapped: MappedDailyWorkoutOutput = {
       date: input.date,
@@ -869,11 +715,11 @@ ${JSON.stringify(catalogForPrompt)}
 
     return { generationId: generation.id, workout: mapped, mappingRate: Math.round(mappingRate * 100) }
   } catch (error) {
-    if (error instanceof AuthServiceError) throw error
     await db.aIGeneration.update({
       where: { id: generation.id },
       data: { status: AIGenerationStatus.failed, errorMsg: error instanceof Error ? error.message : "Unknown error" },
     })
+    if (error instanceof AppError) throw error
     throw new AuthServiceError("Không thể tạo buổi tập hôm nay. Vui lòng thử lại sau.", 500)
   }
 }
@@ -885,16 +731,19 @@ async function acceptDailyWorkout(profile: SerializedProfile, generationId: stri
     throw new AuthServiceError("Không tìm thấy kết quả AI.", 404)
   }
   if (generation.status !== AIGenerationStatus.completed) {
-    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", 400)
+    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", generation.status === AIGenerationStatus.accepted ? 409 : 400)
   }
   const output = generation.output as { mode?: string; mapped?: MappedDailyWorkoutOutput } | null
-  if (output?.mode !== "daily" || !output.mapped) {
+  if (generation.type !== AIGenerationType.workout_program || output?.mode !== "daily" || !output.mapped) {
     throw new AuthServiceError("Dữ liệu buổi tập AI không hợp lệ.", 400)
   }
-  const mapped = output.mapped
+  const mapped = parseAI(mappedDailySchema, { ...output.mapped, exercises: normalizeAIWorkoutOutput({ workouts: [output.mapped] }).workouts[0].exercises })
+  const equipment = parseAI(generateDailyWorkoutSchema, generation.input, 422).availableEquipment
   const scheduledDate = new Date(`${mapped.date}T00:00:00.000Z`)
 
   return retryTransaction(() => db.$transaction(async (tx) => {
+    await claimGeneration(tx, generationId, profile.id, AIGenerationType.workout_program)
+    await validateAccessibleVariations(tx, mapped.exercises.map(e => e.variationId), profile.id, equipment)
     const programId = randomUUID()
     const workoutId = randomUUID()
     await tx.program.create({
@@ -941,7 +790,7 @@ async function acceptDailyWorkout(profile: SerializedProfile, generationId: stri
     }
     await tx.aIGeneration.update({ where: { id: generationId }, data: { status: AIGenerationStatus.accepted, programId } })
     return { accepted: true, workoutId }
-  }, { maxWait: 15000, timeout: 60000 }))
+  }, { maxWait: 15000, timeout: 60000, isolationLevel: "Serializable" }))
 }
 
 // ---------------------------------------------------------------------------
@@ -984,6 +833,7 @@ const COOKING_TIME_LABELS: Record<string, string> = {
 }
 
 async function generateMealPlan(profile: SerializedProfile, input: GenerateMealPlanInput) {
+  input = parseAI(generateMealPlanSchema, input, 400)
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.meal_plan)
 
@@ -1001,7 +851,7 @@ async function generateMealPlan(profile: SerializedProfile, input: GenerateMealP
     orderBy: { name: "asc" },
   })
 
-  const foodCatalog: FoodCatalogItem[] = foods.map((f) => ({
+  const foodCatalog = foods.map((f) => ({
     id: f.id,
     name: f.name,
     category: f.category,
@@ -1020,7 +870,7 @@ async function generateMealPlan(profile: SerializedProfile, input: GenerateMealP
   const recentMeals = await db.meal.findMany({
     where: {
       userId: profile.id,
-      loggedDate: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      loggedDate: { gte: plusDays(dayKey(), -6), lt: plusDays(dayKey(), 1) },
     },
     include: {
       items: {
@@ -1036,6 +886,7 @@ async function generateMealPlan(profile: SerializedProfile, input: GenerateMealP
   ).slice(0, 15)
 
   const catalogForPrompt = foodCatalog.map((f) => ({
+    id: f.id,
     name: f.name,
     category: f.category,
     calories: f.calories,
@@ -1043,18 +894,20 @@ async function generateMealPlan(profile: SerializedProfile, input: GenerateMealP
     carbs: f.carbs,
     fat: f.fat,
     servingLabel: f.servingLabel,
+    servingAmount: f.servingAmount,
+    servingUnit: f.servingUnit,
   }))
 
   const systemPrompt = `Bạn là chuyên gia dinh dưỡng AI. Tạo thực đơn 1 ngày phù hợp với mục tiêu dinh dưỡng và ẩm thực Việt Nam.
 
 QUY TẮC BẮT BUỘC:
 1. CHỈ sử dụng foods từ Food Catalog được cung cấp. KHÔNG tự nghĩ ra món mới.
-2. foodName PHẢI khớp chính xác với tên trong catalog.
+2. foodId BẮT BUỘC là ID trong Food Catalog. Calories trong catalog tính trên servingAmount + servingUnit; không tự suy đoán đơn vị.
 3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
 4. type phải là: breakfast, lunch, dinner, hoặc snack.
 5. Tổng calories phải gần với mục tiêu (±10%).
 6. Tạo đúng 4 bữa: breakfast, lunch, dinner, snack.
-7. Mỗi bữa chỉ có 2-3 items. Dùng amountValue để tăng khẩu phần thay vì thêm quá nhiều món.
+7. Bữa sáng, trưa, tối có 2-3 items; bữa phụ (snack) có 1-3 items. Dùng amountValue để tăng khẩu phần thay vì thêm quá nhiều món.
 8. amountUnit CHỈ được là "serving", "g" hoặc "ml". TUYỆT ĐỐI không dùng đơn vị khác (ly, tô, dĩa, quả, chén, muỗng...) — dùng "serving" cho khẩu phần và đặt số lượng vào amountValue.
 9. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
 10. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
@@ -1081,7 +934,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
     "type": "breakfast",
     "suggestion": "mô tả ngắn bữa ăn",
     "items": [{
-      "foodName": "tên chính xác từ catalog",
+      "foodId": "UUID chính xác từ catalog",
       "amountValue": 1,
       "amountUnit": "serving"
     }]
@@ -1113,23 +966,18 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       maxTokens: 4096,
     })
 
-    const aiOutput = response.data
+    const aiOutput = parseAI(mealOutputSchema, response.data)
 
     const mappedMeals = aiOutput.meals.map((meal) => {
       const mappedItems = meal.items
         .map((item) => {
-          const foodId = mapFoodToId(item.foodName, foodCatalog)
-          if (!foodId) return null
-          const food = foodCatalog.find((f) => f.id === foodId)
-          if (!food) return null
-
-          const amountValue = normalizeAmountValue(item.amountValue)
-          if (amountValue === null) return null
-
-          // Models routinely invent units ("ly", "tô", "100 g"), so normalize
-          // here and scale with the exact same helper the accept path uses —
-          // otherwise the preview totals disagree with what actually gets logged.
-          const amountUnit = normalizeAmountUnit(item.amountUnit)
+          const food = foodCatalog.find(f => f.id === item.foodId)
+          if (!food) throw new AppError(`Món ${item.foodId} không thuộc thư viện của bạn. Không có món nào bị bỏ qua; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_FOOD" })
+          const foodId = food.id
+          const { amountValue, amountUnit } = item
+          if (amountUnit !== "serving" && (food.servingUnit !== amountUnit || food.servingAmount <= 0)) {
+            throw new AppError(`Không thể quy đổi đơn vị ${amountUnit} cho món ${food.name}. Hãy dùng serving hoặc tạo lại.`, { status: 422 })
+          }
           const nutrition = calculateItemNutrition(food, { amountUnit, amountValue })
 
           return {
@@ -1146,17 +994,6 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
             fat: nutrition.fat,
           }
         })
-        .filter(Boolean) as Array<{
-          foodId: string
-          foodName: string
-          amountValue: number
-          amountUnit: AmountUnit
-          quantityLabel: string
-          calories: number
-          protein: number
-          carbs: number
-          fat: number
-        }>
 
       return {
         type: meal.type,
@@ -1180,6 +1017,8 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       },
       { calories: 0, protein: 0, carbs: 0, fat: 0 },
     )
+
+    validateCalorieTarget(totals.calories, profile.dailyCalorieGoal)
 
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -1205,8 +1044,6 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       notes: aiOutput.notes,
     }
   } catch (error) {
-    if (error instanceof AuthServiceError) throw error
-
     await db.aIGeneration.update({
       where: { id: generation.id },
       data: {
@@ -1214,6 +1051,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         errorMsg: error instanceof Error ? error.message : "Unknown error",
       },
     })
+    if (error instanceof AppError) throw error
     throw new AuthServiceError("Không thể tạo thực đơn AI. Vui lòng thử lại sau.", 500)
   }
 }
@@ -1234,51 +1072,42 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
   }
 
   if (generation.status !== AIGenerationStatus.completed) {
-    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", 400)
+    throw new AuthServiceError("Kết quả AI chưa sẵn sàng hoặc đã được chấp nhận.", generation.status === AIGenerationStatus.accepted ? 409 : 400)
   }
 
-  const output = generation.output as { mapped: MappedMealOutput[] } | null
-  if (!output?.mapped) {
-    throw new AuthServiceError("Dữ liệu thực đơn AI không hợp lệ.", 400)
-  }
+  if (generation.type !== AIGenerationType.meal_plan) throw new AppError("Kết quả AI không phải thực đơn.", { status: 400 })
+  const targetDate = parseAI(dateSchema, date, 400)
+  const output = generation.output as { mapped?: unknown } | null
+  const meals = parseAI(mappedMealsSchema, output?.mapped)
 
-  let logged = 0
-  let skipped = 0
-
-  for (const meal of output.mapped) {
-    for (const item of meal.items) {
-      try {
-        await addMealItemForUser(profile, {
-          date,
-          mealType: meal.type,
-          foodId: item.foodId,
-          amountValue: item.amountValue,
-          amountUnit: item.amountUnit,
-        })
-        logged += 1
-      } catch {
-        // skip items that fail to add (e.g. food deleted since generation)
-        skipped += 1
+  return retryTransaction(() => db.$transaction(async tx => {
+    await claimGeneration(tx, generationId, profile.id, AIGenerationType.meal_plan)
+    // Recalculate against today's catalog and goals inside the same transaction.
+    const ids = [...new Set(meals.flatMap(meal => meal.items.map(item => item.foodId)))]
+    const foods = await tx.food.findMany({ where: { id: { in: ids }, OR: [{ source: FoodSource.system }, { source: FoodSource.user, createdById: profile.id }] } })
+    let calories = 0
+    for (const meal of meals) for (const item of meal.items) {
+      const food = foods.find(f => f.id === item.foodId)
+      if (!food || (item.amountUnit !== "serving" && (item.amountUnit !== food.servingUnit || food.servingAmount <= 0))) {
+        throw new AppError("Thực phẩm đã thay đổi, bị xóa hoặc không thể quy đổi khẩu phần. Chưa lưu món nào; hãy tạo lại.", { status: 422, code: "AI_CATALOG_CHANGED" })
       }
+      calories += calculateItemNutrition(food, item).calories
     }
+    validateCalorieTarget(calories, profile.dailyCalorieGoal)
+    let logged = 0
+    for (const meal of meals) for (const item of meal.items) {
+      await addMealItemForUser(profile, { date: targetDate, mealType: meal.type, ...item }, tx)
+      logged += 1
+    }
+    return { accepted: true, logged, skipped: 0 }
+  }, { maxWait: 15000, timeout: 60000, isolationLevel: "Serializable" }))
+}
+
+function validateCalorieTarget(calories: number, goal: number) {
+  if (!Number.isFinite(goal) || goal <= 0) throw new AppError("Hãy cập nhật mục tiêu calories trước khi tạo thực đơn.", { status: 422 })
+  if (!Number.isFinite(calories) || Math.abs(calories - goal) > goal * 0.1 + 0.01) {
+    throw new AppError(`Thực đơn tính từ khẩu phần có ${Math.round(calories)} kcal, nằm ngoài ±10% mục tiêu ${goal} kcal. Hãy tạo lại.`, { status: 422, code: "AI_NUTRITION_TARGET_MISMATCH" })
   }
-
-  // Marking the plan accepted when nothing was written tells the trainee their
-  // day is logged while the diary stays empty, and burns the draft — the plan
-  // can no longer be accepted again. Leave it accept-able and report instead.
-  if (logged === 0) {
-    throw new AuthServiceError(
-      "Không thêm được món nào vào nhật ký (có thể món đã bị xoá khỏi thư viện). Vui lòng tạo thực đơn mới.",
-      422,
-    )
-  }
-
-  await db.aIGeneration.update({
-    where: { id: generationId },
-    data: { status: AIGenerationStatus.accepted },
-  })
-
-  return { accepted: true, logged, skipped }
 }
 
 type MappedMealOutput = {
@@ -1368,6 +1197,8 @@ async function chatWithAI(
   message: string,
   rawHistory: unknown,
 ): Promise<{ reply: string; action?: ChatAction }> {
+  const parsedInput = parseAI(chatSchema, { message, history: rawHistory }, 400)
+  message = parsedInput.message
   if (!message.trim()) {
     throw new AuthServiceError("Tin nhắn không được để trống.", 400)
   }
@@ -1378,7 +1209,7 @@ async function chatWithAI(
 
   checkChatRateLimit(profile.id)
 
-  const history = sanitizeChatHistory(rawHistory)
+  const history = sanitizeChatHistory(parsedInput.history)
 
   let systemPrompt: string
   try {

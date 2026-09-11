@@ -1,5 +1,6 @@
 import type { SerializedProfile } from "../../auth.service"
 import type { TraineeChatContext } from "./types"
+import { AI_TIME_ZONE, localDateKey } from "../../../lib/ai/calendar"
 
 export function buildAIChatSystemPrompt(
   profile: SerializedProfile,
@@ -10,6 +11,7 @@ export function buildAIChatSystemPrompt(
     : "\n\nDỮ LIỆU TRAINEE LIÊN QUAN:\n- Context cá nhân hoá không khả dụng trong request này."
 
   return `Bạn là AI huấn luyện viên cá nhân và chuyên gia dinh dưỡng cho app YeahBuddy. Trả lời ngắn gọn, hữu ích bằng tiếng Việt.
+Ngày hiện tại: ${localDateKey()} (${AI_TIME_ZONE}). Mọi dữ liệu ngày được tính theo múi giờ này.
 
 Thông tin người dùng tối thiểu:
 - Tên: ${profile.name ?? "Trainee"}

@@ -10,6 +10,7 @@
  * cannot grow without bound as users come and go.
  */
 
+import { localDateKey } from "../../lib/ai/calendar"
 type Entry = { date: string; count: number }
 
 class DailyCounter {
@@ -19,7 +20,7 @@ class DailyCounter {
   constructor(private readonly limit: number) {}
 
   private today() {
-    return new Date().toISOString().slice(0, 10)
+    return localDateKey()
   }
 
   /** Drops entries from previous days; runs at most once per day. */

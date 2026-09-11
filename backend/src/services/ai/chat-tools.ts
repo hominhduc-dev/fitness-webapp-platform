@@ -1,3 +1,6 @@
+import { generateMealPlanSchema, generateProgramSchema } from "../../routes/ai.schemas"
+import { parseAI } from "../../lib/ai/output-schemas"
+import { localDateKey } from "../../lib/ai/calendar"
 import type { AIToolDefinition } from "../../lib/ai/types"
 
 /**
@@ -114,76 +117,15 @@ type CreateProgramArgs = {
   injuries?: string
 }
 
-const GOALS = ["build_muscle", "lose_weight", "strength", "endurance", "general_fitness"]
-const LEVELS = ["beginner", "intermediate", "advanced"]
-const EQUIPMENT = ["full_gym", "home_dumbbells", "bodyweight"]
-
-function asInt(value: unknown, fallback: number) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? Math.round(parsed) : fallback
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
-}
-
-function pickEnum(value: unknown, allowed: string[], fallback: string) {
-  return typeof value === "string" && allowed.includes(value) ? value : fallback
-}
-
-/**
- * Models can emit out-of-range or misspelled arguments. Coerce into something
- * the service will accept rather than letting a stray value turn into a 400 the
- * user sees as "AI hỏng".
- */
 function normalizeCreateProgramArgs(raw: Record<string, unknown>): CreateProgramArgs {
-  return {
-    goal: pickEnum(raw.goal, GOALS, "general_fitness"),
-    experienceLevel: pickEnum(raw.experienceLevel, LEVELS, "intermediate"),
-    daysPerWeek: clamp(asInt(raw.daysPerWeek, 3), 2, 7),
-    sessionDuration: clamp(asInt(raw.sessionDuration, 60), 20, 180),
-    availableEquipment: pickEnum(raw.availableEquipment, EQUIPMENT, "full_gym"),
-    durationWeeks: clamp(asInt(raw.durationWeeks, 8), 1, 16),
-    focusAreas: Array.isArray(raw.focusAreas)
-      ? raw.focusAreas.filter((area): area is string => typeof area === "string").slice(0, 6)
-      : undefined,
-    injuries: typeof raw.injuries === "string" && raw.injuries.trim() ? raw.injuries.trim() : undefined,
-  }
+  return parseAI(generateProgramSchema, raw)
 }
 
-type CreateMealPlanArgs = {
-  date: string
-  preferences?: string
-  budget?: string
-  cookingTime?: string
-}
+type CreateMealPlanArgs = { date: string; preferences?: string; budget?: string; cookingTime?: string }
 
-const BUDGETS = ["low", "medium", "high"]
-const COOKING_TIMES = ["quick", "normal"]
-
-function optionalText(value: unknown, maxLength = 200) {
-  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : undefined
-}
-
-/**
- * generateMealPlan rejects a malformed date with a 400 the trainee reads as
- * "AI hỏng", and the model has no reliable sense of today's date — so fall back
- * to today rather than passing whatever it invented straight through.
- */
 function normalizeCreateMealPlanArgs(raw: Record<string, unknown>): CreateMealPlanArgs {
-  const today = new Date().toISOString().slice(0, 10)
-  const date = typeof raw.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.date.trim())
-    ? raw.date.trim()
-    : today
-
-  return {
-    date,
-    preferences: optionalText(raw.preferences),
-    budget: pickEnum(raw.budget, BUDGETS, "medium"),
-    cookingTime: pickEnum(raw.cookingTime, COOKING_TIMES, "normal"),
-  }
+  return parseAI(generateMealPlanSchema, { ...raw, date: raw.date ?? localDateKey() })
 }
-
 export {
   chatTools,
   CREATE_MEAL_PLAN,

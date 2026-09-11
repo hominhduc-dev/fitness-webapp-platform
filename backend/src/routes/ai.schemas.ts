@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { dateSchema } from "../lib/ai/output-schemas"
 
 /**
  * Request schemas for `/api/ai/*`.
@@ -8,12 +9,11 @@ import { z } from "zod"
  * is a cost and prompt-injection surface, not just a validation nicety.
  */
 
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày phải có định dạng YYYY-MM-DD")
-  .refine((value) => !Number.isNaN(Date.parse(value)), "Ngày không hợp lệ")
-
-const shortText = z.string().trim().min(1).max(200)
+const isoDate = dateSchema
+const equipment = z.enum(["full_gym", "home_dumbbells", "bodyweight"])
+const experience = z.enum(["beginner", "intermediate", "advanced"])
+const goal = z.enum(["build_muscle", "lose_weight", "strength", "endurance", "general_fitness"])
+const inputInt = (min: number, max: number) => z.union([z.number(), z.string().regex(/^\d+$/).transform(Number)]).pipe(z.number().int().min(min).max(max))
 const freeText = z.string().trim().max(500)
 const focusAreas = z.array(z.string().trim().min(1).max(60)).max(10).optional()
 
@@ -22,30 +22,30 @@ const generationIdSchema = z.object({
 })
 
 const generateProgramSchema = z.object({
-  availableEquipment: shortText,
-  daysPerWeek: z.coerce.number().int().min(1).max(7),
-  durationWeeks: z.coerce.number().int().min(1).max(52),
-  experienceLevel: shortText,
+  availableEquipment: equipment,
+  daysPerWeek: inputInt(2, 7),
+  durationWeeks: inputInt(1, 16),
+  experienceLevel: experience,
   focusAreas,
-  goal: shortText,
+  goal,
   injuries: freeText.optional(),
-  sessionDuration: z.coerce.number().int().min(10).max(240),
+  sessionDuration: inputInt(20, 180),
 })
 
 const generateDailyWorkoutSchema = z.object({
-  availableEquipment: shortText,
+  availableEquipment: equipment,
   date: isoDate,
   energyLevel: z.enum(["low", "normal", "high"]),
-  experienceLevel: shortText,
+  experienceLevel: experience,
   focusAreas,
-  goal: shortText,
+  goal,
   injuries: freeText.optional(),
-  sessionDuration: z.coerce.number().int().min(10).max(240),
+  sessionDuration: inputInt(20, 120),
 })
 
 const generateMealPlanSchema = z.object({
-  budget: freeText.optional(),
-  cookingTime: freeText.optional(),
+  budget: z.enum(["low", "medium", "high"]).optional(),
+  cookingTime: z.enum(["quick", "normal"]).optional(),
   date: isoDate,
   preferences: freeText.optional(),
 })
