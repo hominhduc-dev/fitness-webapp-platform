@@ -1,0 +1,50 @@
+{
+  "schemaSha256": "f0748c92004e985f2aa1aeccf8371700d556640c8442b384259e38fedd5d893c",
+  "revision": "1134c533f7f92cb7a667f051cf62b859d985ab9c",
+  "models": 22,
+  "scalarAndEnumColumns": 249,
+  "foreignKeys": 32,
+  "logicalProgramReferences": 2,
+  "enums": 20,
+  "views": [
+    {
+      "id": "all",
+      "entities": 22
+    },
+    {
+      "id": "columns",
+      "entities": 22
+    },
+    {
+      "id": "library",
+      "entities": 5
+    },
+    {
+      "id": "planning",
+      "entities": 7
+    },
+    {
+      "id": "history",
+      "entities": 5
+    },
+    {
+      "id": "nutrition",
+      "entities": 4
+    },
+    {
+      "id": "coaching",
+      "entities": 4
+    },
+    {
+      "id": "operations",
+      "entities": 6
+    }
+  ],
+  "checks": {
+    "allSchemaModelsRepresented": true,
+    "allRelationEndpointsExist": true,
+    "uniqueEntityNames": true
+  },
+  "renderer": "@viz-js/viz@3.30.0",
+  "note": "Coverage checks, not Archify showcase or browser checks."
+}

@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "YeahBuddy · Bản đồ dữ liệu toàn hệ thống",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      520
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "database",
+      "label": "User",
+      "sublabel": "Danh tính · vai trò · mục tiêu",
+      "pos": [
+        420,
+        225
+      ],
+      "size": [
+        240,
+        80
+      ]
+    },
+    {
+      "id": "library",
+      "type": "database",
+      "label": "Thư viện bài tập",
+      "sublabel": "Bài tập · biến thể · vùng cơ",
+      "pos": [
+        40,
+        65
+      ],
+      "size": [
+        260,
+        80
+      ]
+    },
+    {
+      "id": "plans",
+      "type": "database",
+      "label": "Kế hoạch tập",
+      "sublabel": "Chương trình · buổi · bài · set",
+      "pos": [
+        760,
+        65
+      ],
+      "size": [
+        280,
+        80
+      ]
+    },
+    {
+      "id": "nutrition",
+      "type": "database",
+      "label": "Dinh dưỡng",
+      "sublabel": "Food · Meal · MealFoodItem",
+      "pos": [
+        40,
+        225
+      ],
+      "size": [
+        260,
+        80
+      ]
+    },
+    {
+      "id": "history",
+      "type": "database",
+      "label": "Lịch sử tập",
+      "sublabel": "WorkoutLog · bình luận",
+      "pos": [
+        760,
+        225
+      ],
+      "size": [
+        280,
+        80
+      ]
+    },
+    {
+      "id": "coaching",
+      "type": "database",
+      "label": "Huấn luyện",
+      "sublabel": "Yêu cầu · check-in · chỉ số cơ thể",
+      "pos": [
+        40,
+        385
+      ],
+      "size": [
+        280,
+        80
+      ]
+    },
+    {
+      "id": "operations",
+      "type": "database",
+      "label": "AI và quản trị",
+      "sublabel": "Sinh AI · thông báo · duyệt · audit",
+      "pos": [
+        740,
+        385
+      ],
+      "size": [
+        300,
+        80
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "user",
+      "to": "library",
+      "label": "Tạo / duyệt"
+    },
+    {
+      "from": "user",
+      "to": "plans",
+      "label": "Tạo / được gán"
+    },
+    {
+      "from": "user",
+      "to": "nutrition",
+      "label": "Ghi bữa ăn",
+      "labelDy": 10
+    },
+    {
+      "from": "user",
+      "to": "history",
+      "label": "Ghi buổi tập",
+      "labelDy": 10
+    },
+    {
+      "from": "user",
+      "to": "coaching",
+      "label": "Coach / trainee"
+    },
+    {
+      "from": "user",
+      "to": "operations",
+      "label": "Tác nhân"
+    }
+  ]
+}

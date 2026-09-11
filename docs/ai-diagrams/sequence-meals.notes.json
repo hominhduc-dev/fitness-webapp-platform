@@ -1,0 +1,26 @@
+[
+  {
+    "dot": "cyan",
+    "title": "API",
+    "items": [
+      "POST /api/ai/generate-meal-plan",
+      "POST /api/ai/accept-meal-plan"
+    ]
+  },
+  {
+    "dot": "rose",
+    "title": "Nhánh lỗi hiện tại",
+    "items": [
+      "Lỗi tạo AI → failed, 500; hết quota → 429.",
+      "Lỗi từng món khi lưu bị bỏ qua; vẫn trả accepted=true."
+    ]
+  },
+  {
+    "dot": "amber",
+    "title": "Ý nghĩa nghiệp vụ",
+    "items": [
+      "Xác nhận thêm thẳng món vào nhật ký ăn uống.",
+      "Preview lấy tổng từ AI; lúc lưu tính khẩu phần qua nutrition service."
+    ]
+  }
+]

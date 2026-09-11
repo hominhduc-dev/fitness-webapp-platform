@@ -1,0 +1,188 @@
+classDiagram
+class NextAppRouter {
+  - route: AppRouter
+  - session: ServerSession
+  + renderShell()
+  + proxyBackendRequest()
+  + enforceAuthRedirect()
+}
+class BackendRoutes {
+  - request: ExpressRequest
+  - response: ExpressResponse
+  + registerRoutes()
+  + sendData()
+  + sendError()
+  + sendApiError()
+}
+class AuthService {
+  - supabase: SupabaseClient
+  - prisma: PrismaClient
+  - profileCache: Map
+  + registerUser()
+  + loginUser()
+  + refreshAuthSession()
+  + requireCurrentProfile()
+  + updateCurrentProfile()
+  + uploadCurrentProfileAvatar()
+  + logoutCurrentSession()
+}
+class AIService {
+  - prisma: PrismaClient
+  - provider: AIProvider
+  - rateLimiter: RateLimiter
+  + generateWorkoutProgram()
+  + acceptAIProgram()
+  + generateMealPlan()
+  + acceptAIMealPlan()
+  + buildChatContext()
+  + chatWithAI()
+}
+class NutritionService {
+  - prisma: PrismaClient
+  - timezone: string
+  + listNutritionDayForUser()
+  + listFoodsForUser()
+  + createFoodForUser()
+  + addMealItemForUser()
+  + recalculateMeal()
+  + deleteMealItemForUser()
+}
+class FitnessDataService {
+  - prisma: PrismaClient
+  - profile: SerializedProfile
+  + getDashboard()
+  + listWorkouts()
+  + logWorkout()
+  + getProgress()
+  + listNotifications()
+}
+class AdminService {
+  - prisma: PrismaClient
+  - supabase: SupabaseClient
+  + getAdminDashboard()
+  + listAdminUsers()
+  + updateAdminUser()
+  + reviewExerciseImportRequest()
+  + applyExerciseSync()
+  + logAdminAudit()
+}
+class AIProvider {
+  - model: string
+  + generateStructuredJSON<T>()
+  + generateText()
+}
+class OpenAIProvider {
+  - client: OpenAI
+  - jsonMode: boolean
+  + generateStructuredJSON<T>()
+  + generateText()
+}
+class AnthropicProvider {
+  - client: Anthropic
+  - model: string
+  + generateStructuredJSON<T>()
+  + generateText()
+}
+class PrismaClient {
+  - user: UserDelegate
+  - program: ProgramDelegate
+  - meal: MealDelegate
+  - aiGeneration: AIGenerationDelegate
+  + $transaction()
+  + $connect()
+  + $disconnect()
+}
+class SupabaseClient {
+  - auth: AuthClient
+  - storage: StorageClient
+  + signInWithPassword()
+  + signUp()
+  + getUser()
+  + refreshSession()
+  + upload()
+}
+class User {
+  - id: UUID
+  - email: string
+  - role: UserRole
+  - coachId?: UUID
+  - dailyCalorieGoal: number
+  + ownsResource()
+  + isCoach()
+  + isAdmin()
+}
+class Program {
+  - id: UUID
+  - name: string
+  - difficulty: ProgramDifficulty
+  - createdById: UUID
+  + addWorkout()
+  + assignToTrainee()
+  + archive()
+}
+class Workout {
+  - id: UUID
+  - programId?: UUID
+  - scheduledDate?: Date
+  - weekIndex?: number
+  + addExercise()
+  + reschedule()
+  + duplicate()
+}
+class Meal {
+  - id: UUID
+  - userId: UUID
+  - date: Date
+  - type: MealType
+  - totalCalories: number
+  + addFoodItem()
+  + recalculateTotals()
+  + removeFoodItem()
+}
+class Food {
+  - id: UUID
+  - name: string
+  - caloriesPer100g: number
+  - proteinPer100g: number
+  + calculateNutrition()
+  + isOwnedBy()
+}
+class AIGeneration {
+  - id: UUID
+  - userId: UUID
+  - type: AIGenerationType
+  - status: AIGenerationStatus
+  - input: Json
+  - output?: Json
+  + markCompleted()
+  + markFailed()
+  + isAcceptable()
+}
+NextAppRouter --> BackendRoutes : association
+BackendRoutes --> AuthService : association
+BackendRoutes --> AIService : association
+BackendRoutes --> NutritionService : association
+BackendRoutes --> FitnessDataService : association
+BackendRoutes --> AdminService : association
+AuthService --> SupabaseClient : auth / storage
+AuthService --> PrismaClient : profile persistence
+AIService --> AIProvider : dependency
+OpenAIProvider --> AIProvider : realization
+AnthropicProvider --> AIProvider : realization
+AIService --> PrismaClient : generation persistence
+NutritionService --> PrismaClient : food / meal queries
+FitnessDataService --> PrismaClient : workout queries
+AdminService --> PrismaClient : admin queries
+AdminService --> SupabaseClient : admin auth
+PrismaClient --> User : dependency
+PrismaClient --> Program : dependency
+PrismaClient --> Workout : dependency
+PrismaClient --> Meal : dependency
+PrismaClient --> Food : dependency
+PrismaClient --> AIGeneration : dependency
+User "1" --> "0..*" Program : association · 1 — 0..*
+Program "1" --> "0..*" Workout : composition · 1 — 0..*
+User "1" --> "0..*" Meal : association · 1 — 0..*
+Meal "1" --> "0..*" Food : composition · 1 — 0..*
+User "1" --> "0..*" AIGeneration : association · 1 — 0..*
+AIService --> AIGeneration : creates / accepts

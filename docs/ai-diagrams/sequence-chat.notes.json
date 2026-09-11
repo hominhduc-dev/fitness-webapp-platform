@@ -1,0 +1,26 @@
+[
+  {
+    "dot": "cyan",
+    "title": "API và dữ liệu",
+    "items": [
+      "POST /api/ai/chat; giới hạn câu hỏi 2.000 ký tự.",
+      "Không ghi AIGeneration; hội thoại chỉ ở state giao diện."
+    ]
+  },
+  {
+    "dot": "amber",
+    "title": "Quota và fallback",
+    "items": [
+      "40 tin/ngày/user trong RAM; restart sẽ mất bộ đếm.",
+      "Đọc ngữ cảnh lỗi → vẫn gọi AI với thông tin profile."
+    ]
+  },
+  {
+    "dot": "rose",
+    "title": "Phạm vi",
+    "items": [
+      "Chỉ hỏi đáp; không tự tạo/sửa lịch hoặc thực đơn.",
+      "Chat bubble chỉ hiện cho trainee; API kiểm tra đăng nhập."
+    ]
+  }
+]

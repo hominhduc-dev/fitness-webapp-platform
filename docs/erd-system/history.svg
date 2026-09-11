@@ -1,0 +1,292 @@
+<svg width="1564pt" height="545pt"
+ viewBox="0.00 0.00 1564.00 545.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(25.2 519.8)">
+<title>ERD</title>
+<!-- User&#45;&gt;User -->
+<g id="fk&#45;User&#45;coach" class="edge">
+<title>User:e&#45;&gt;User:e</title>
+<g id="a_fk&#45;User&#45;coach"><a xlink:title="User.coachId → User.id | 0..1 cha; 0..N con | onDelete: SetNull">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M1379.4,-35.93C1431.62,-25.26 1513.45,-34.35 1513.45,-140.2 1513.45,-248.76 1427.37,-255.55 1375.44,-243.61"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1372.76,-37.59 1365.2,-36.24 1368.94,-38.55 1366.39,-39.19 1366.39,-39.19 1366.39,-39.19 1368.94,-38.55 1366.73,-42.35 1372.76,-37.59"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="1377.64" cy="-36.37" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1365.33,-244.56 1367.11,-237.79 1368.47,-238.15 1366.68,-244.92 1365.33,-244.56"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1365.54,-241 1368.93,-241.89"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="1372.26" cy="-242.77" rx="2.8" ry="2.8"/>
+</a>
+</g>
+</g>
+<!-- Program&#45;&gt;User -->
+<g id="fk&#45;Program&#45;createdBy" class="edge">
+<title>Program:e&#45;&gt;User:w</title>
+<g id="a_fk&#45;Program&#45;createdBy"><a xlink:title="Program.createdById → User.id | 1 cha; 0..N con | onDelete: Cascade">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M1048.21,-240.43C1073.46,-240.54 1085.28,-240.94 1113.34,-240.99"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1041.43,-240.42 1034.43,-237.25 1037.49,-240.41 1034.86,-240.4 1034.86,-240.4 1034.86,-240.4 1037.49,-240.41 1034.42,-243.55 1041.43,-240.42"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="1046.46" cy="-240.43" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1119.3,-237.5 1119.29,-244.5 1117.89,-244.5 1117.9,-237.5 1119.3,-237.5"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1119.99,-241 1116.49,-241"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1115.8,-237.5 1115.79,-244.5 1114.39,-244.49 1114.4,-237.49 1115.8,-237.5"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1116.49,-241 1112.99,-240.99"/>
+</a>
+</g>
+</g>
+<!-- Workout&#45;&gt;Program -->
+<g id="fk&#45;Workout&#45;program" class="edge">
+<title>Workout:e&#45;&gt;Program:w</title>
+<g id="a_fk&#45;Workout&#45;program"><a xlink:title="Workout.programId → Program.id | 0..1 cha; 0..N con | onDelete: Cascade">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M793.14,-297.24C817.32,-297.39 829.19,-297.87 854.81,-297.98"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="786.35,-297.22 779.36,-294.05 782.42,-297.21 779.79,-297.2 779.79,-297.2 779.79,-297.2 782.42,-297.21 779.35,-300.35 786.35,-297.22"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="791.39" cy="-297.24" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="864.23,-294.5 864.21,-301.5 862.81,-301.5 862.83,-294.5 864.23,-294.5"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="864.92,-298 861.42,-297.99"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="857.97" cy="-297.99" rx="2.8" ry="2.8"/>
+</a>
+</g>
+</g>
+<!-- WorkoutLog&#45;&gt;User -->
+<g id="fk&#45;WorkoutLog&#45;user" class="edge">
+<title>WorkoutLog:e&#45;&gt;User:w</title>
+<g id="a_fk&#45;WorkoutLog&#45;user"><a xlink:title="WorkoutLog.userId → User.id | 1 cha; 0..N con | onDelete: Cascade">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M538.04,-419.27C755.73,-421.48 841.19,-472.78 1033.99,-359.8 1088.14,-328.07 1057.31,-247.3 1113.14,-241.35"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="531.28,-419.24 524.3,-416.05 527.35,-419.22 524.72,-419.2 524.72,-419.2 524.72,-419.2 527.35,-419.22 524.27,-422.35 531.28,-419.24"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="536.32" cy="-419.26" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1119.12,-237.54 1119.47,-244.53 1118.07,-244.6 1117.72,-237.61 1119.12,-237.54"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1119.99,-241 1116.5,-241.18"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1115.62,-237.72 1115.98,-244.71 1114.58,-244.78 1114.22,-237.79 1115.62,-237.72"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1116.5,-241.18 1113,-241.35"/>
+</a>
+</g>
+</g>
+<!-- WorkoutLog&#45;&gt;Program -->
+<g id="logical&#45;WorkoutLog" class="edge">
+<title>WorkoutLog:e&#45;&gt;Program:w</title>
+<g id="a_logical&#45;WorkoutLog"><a xlink:title="WorkoutLog.programId: tham chiếu logic, KHÔNG có FK trong Prisma">
+<path fill="none" stroke="#c17b18" stroke-width="1.3" stroke-dasharray="5,2" d="M523.85,-361.6C599.85,-361.6 543.96,-251.69 609.85,-213.8 674.99,-176.34 709.35,-185.41 778.92,-213.8 825.64,-232.86 813.14,-290.89 856.48,-297.4"/>
+<polygon fill="#c17b18" stroke="#c17b18" stroke-width="1.3" points="863.34,-297.89 856.14,-300.54 861.42,-297.9 856.35,-297.54 856.36,-297.39 856.37,-297.25 861.44,-297.6 856.58,-294.25 863.34,-297.89"/>
+</a>
+</g>
+</g>
+<!-- WorkoutLog&#45;&gt;Workout -->
+<g id="fk&#45;WorkoutLog&#45;workout" class="edge">
+<title>WorkoutLog:e&#45;&gt;Workout:w</title>
+<g id="a_fk&#45;WorkoutLog&#45;workout"><a xlink:title="WorkoutLog.workoutId → Workout.id | 0..1 cha; 0..N con | onDelete: SetNull">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M538.04,-388.11C567.42,-377.62 567.71,-334.41 599.88,-327.06"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="531.19,-389.21 523.77,-387.22 527.3,-389.84 524.71,-390.26 524.71,-390.26 524.71,-390.26 527.3,-389.84 524.78,-393.44 531.19,-389.21"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="536.16" cy="-388.41" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="608.78,-322.59 609.52,-329.55 608.13,-329.7 607.39,-322.74 608.78,-322.59"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="609.85,-326 606.37,-326.37"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="602.94" cy="-326.74" rx="2.8" ry="2.8"/>
+</a>
+</g>
+</g>
+<!-- WorkoutLogComment&#45;&gt;User -->
+<g id="fk&#45;WorkoutLogComment&#45;author" class="edge">
+<title>WorkoutLogComment:e&#45;&gt;User:w</title>
+<g id="a_fk&#45;WorkoutLogComment&#45;author"><a xlink:title="WorkoutLogComment.authorId → User.id | 1 cha; 0..N con | onDelete: Cascade">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M215.53,-216.18C277.73,-202.23 219.84,-89.32 287.41,-47.8 376.94,7.21 419.68,-33.96 523.85,-47.8 756.68,-78.74 819.28,-90.58 1033.99,-185.8 1073.4,-203.28 1074.56,-237.31 1113.42,-240.72"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="208.81,-216.86 201.53,-214.42 204.9,-217.25 202.28,-217.51 202.28,-217.51 202.28,-217.51 204.9,-217.25 202.16,-220.69 208.81,-216.86"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="213.82" cy="-216.35" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1119.44,-237.47 1119.15,-244.47 1117.75,-244.41 1118.04,-237.41 1119.44,-237.47"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1119.99,-241 1116.5,-240.85"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="1115.94,-237.33 1115.65,-244.32 1114.25,-244.26 1114.55,-237.27 1115.94,-237.33"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="1116.5,-240.85 1113,-240.7"/>
+</a>
+</g>
+</g>
+<!-- WorkoutLogComment&#45;&gt;WorkoutLog -->
+<g id="fk&#45;WorkoutLogComment&#45;workoutLog" class="edge">
+<title>WorkoutLogComment:e&#45;&gt;WorkoutLog:w</title>
+<g id="a_fk&#45;WorkoutLogComment&#45;workoutLog"><a xlink:title="WorkoutLogComment.workoutLogId → WorkoutLog.id | 1 cha; 0..N con | onDelete: Cascade">
+<path fill="none" stroke="#8190a9" stroke-width="1.3" d="M215.61,-248.14C285.71,-267.35 199.91,-438.96 280.75,-447.66"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="208.79,-247.31 202.23,-243.33 204.89,-246.83 202.28,-246.51 202.28,-246.51 202.28,-246.51 204.89,-246.83 201.46,-249.58 208.79,-247.31"/>
+<ellipse fill="none" stroke="#8190a9" stroke-width="1.3" cx="213.79" cy="-247.92" rx="2.8" ry="2.8"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="286.89,-444.47 286.53,-451.46 285.14,-451.39 285.5,-444.4 286.89,-444.47"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="287.41,-448 283.92,-447.82"/>
+<polygon fill="#8190a9" stroke="#8190a9" stroke-width="1.3" points="283.4,-444.29 283.04,-451.28 281.64,-451.21 282,-444.22 283.4,-444.29"/>
+<polyline fill="none" stroke="#8190a9" stroke-width="1.3" points="283.92,-447.82 280.42,-447.64"/>
+</a>
+</g>
+</g>
+<!-- User -->
+<g id="entity&#45;User" class="node">
+<title>User</title>
+<polygon fill="white" stroke="none" points="1119.99,0 1119.99,-287.6 1366.54,-287.6 1366.54,0 1119.99,0"/>
+<polygon fill="none" stroke="#cbd5e1" points="1119.99,0 1119.99,-287.6 1366.54,-287.6 1366.54,0 1119.99,0"/>
+<polygon fill="#3859bc" stroke="none" points="1120.99,-255.4 1120.99,-286.6 1365.54,-286.6 1365.54,-255.4 1120.99,-255.4"/>
+<text xml:space="preserve" text-anchor="start" x="1225.48" y="-267.2" font-family="Arial" font-weight="bold" font-size="16.00" fill="white">User</text>
+<polygon fill="#f0f4fa" stroke="none" points="1120.99,-226.6 1120.99,-255.4 1152.44,-255.4 1152.44,-226.6 1120.99,-226.6"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-235.4" font-family="Arial" font-size="14.00" fill="#243653">PK</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-235.4" font-family="Arial" font-size="14.00" fill="#172640">id</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-235.4" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f0f4fa" stroke="none" points="1120.99,-197.8 1120.99,-226.6 1152.44,-226.6 1152.44,-197.8 1120.99,-197.8"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-206.6" font-family="Arial" font-size="14.00" fill="#243653">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-206.6" font-family="Arial" font-size="14.00" fill="#172640">supabaseAuthUserId</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-206.6" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid?</text>
+<polygon fill="#ffffff" stroke="none" points="1120.99,-169 1120.99,-197.8 1152.44,-197.8 1152.44,-169 1120.99,-169"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-177.8" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-177.8" font-family="Arial" font-size="14.00" fill="#172640">name</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-177.8" font-family="Arial" font-size="14.00" fill="#5e6d84">String</text>
+<polygon fill="#f0f4fa" stroke="none" points="1120.99,-140.2 1120.99,-169 1152.44,-169 1152.44,-140.2 1120.99,-140.2"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-149" font-family="Arial" font-size="14.00" fill="#243653">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-149" font-family="Arial" font-size="14.00" fill="#172640">email</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-149" font-family="Arial" font-size="14.00" fill="#5e6d84">String</text>
+<polygon fill="#f0f4fa" stroke="none" points="1120.99,-111.4 1120.99,-140.2 1152.44,-140.2 1152.44,-111.4 1120.99,-111.4"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-120.2" font-family="Arial" font-size="14.00" fill="#243653">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-120.2" font-family="Arial" font-size="14.00" fill="#172640">username</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-120.2" font-family="Arial" font-size="14.00" fill="#5e6d84">String?</text>
+<polygon fill="#f0f4fa" stroke="none" points="1120.99,-82.6 1120.99,-111.4 1152.44,-111.4 1152.44,-82.6 1120.99,-82.6"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-91.4" font-family="Arial" font-size="14.00" fill="#243653">UK</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-91.4" font-family="Arial" font-size="14.00" fill="#172640">phone</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-91.4" font-family="Arial" font-size="14.00" fill="#5e6d84">String?</text>
+<polygon fill="#ffffff" stroke="none" points="1120.99,-53.8 1120.99,-82.6 1152.44,-82.6 1152.44,-53.8 1120.99,-53.8"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-62.6" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-62.6" font-family="Arial" font-size="14.00" fill="#172640">role</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-62.6" font-family="Arial" font-size="14.00" fill="#5e6d84">UserRole</text>
+<polygon fill="#f0f4fa" stroke="none" points="1120.99,-25 1120.99,-53.8 1152.44,-53.8 1152.44,-25 1120.99,-25"/>
+<text xml:space="preserve" text-anchor="start" x="1126.99" y="-33.8" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="1158.44" y="-33.8" font-family="Arial" font-size="14.00" fill="#172640">coachId</text>
+<text xml:space="preserve" text-anchor="start" x="1301.19" y="-33.8" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid?</text>
+<polygon fill="#f5f7fb" stroke="none" points="1120.99,-1 1120.99,-25 1365.54,-25 1365.54,-1 1120.99,-1"/>
+<text xml:space="preserve" text-anchor="start" x="1199.63" y="-9" font-family="Arial" font-size="10.00" fill="#5e6d84">24 cột · Danh tính</text>
+</g>
+<!-- Program -->
+<g id="entity&#45;Program" class="node">
+<title>Program</title>
+<polygon fill="white" stroke="none" points="864.92,-201 864.92,-344.6 1033.99,-344.6 1033.99,-201 864.92,-201"/>
+<polygon fill="none" stroke="#cbd5e1" points="864.92,-201 864.92,-344.6 1033.99,-344.6 1033.99,-201 864.92,-201"/>
+<polygon fill="#6550b7" stroke="none" points="865.92,-312.4 865.92,-343.6 1032.99,-343.6 1032.99,-312.4 865.92,-312.4"/>
+<text xml:space="preserve" text-anchor="start" x="916.56" y="-324.2" font-family="Arial" font-weight="bold" font-size="16.00" fill="white">Program</text>
+<polygon fill="#f0f4fa" stroke="none" points="865.92,-283.6 865.92,-312.4 896.97,-312.4 896.97,-283.6 865.92,-283.6"/>
+<text xml:space="preserve" text-anchor="start" x="871.92" y="-292.4" font-family="Arial" font-size="14.00" fill="#243653">PK</text>
+<text xml:space="preserve" text-anchor="start" x="902.97" y="-292.4" font-family="Arial" font-size="14.00" fill="#172640">id</text>
+<text xml:space="preserve" text-anchor="start" x="990.05" y="-292.4" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#ffffff" stroke="none" points="865.92,-254.8 865.92,-283.6 896.97,-283.6 896.97,-254.8 865.92,-254.8"/>
+<text xml:space="preserve" text-anchor="start" x="871.92" y="-263.6" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="902.97" y="-263.6" font-family="Arial" font-size="14.00" fill="#172640">name</text>
+<text xml:space="preserve" text-anchor="start" x="990.05" y="-263.6" font-family="Arial" font-size="14.00" fill="#5e6d84">String</text>
+<polygon fill="#f0f4fa" stroke="none" points="865.92,-226 865.92,-254.8 896.97,-254.8 896.97,-226 865.92,-226"/>
+<text xml:space="preserve" text-anchor="start" x="871.92" y="-234.8" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="902.97" y="-234.8" font-family="Arial" font-size="14.00" fill="#172640">createdById</text>
+<text xml:space="preserve" text-anchor="start" x="990.05" y="-234.8" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f5f7fb" stroke="none" points="865.92,-202 865.92,-226 1032.99,-226 1032.99,-202 865.92,-202"/>
+<text xml:space="preserve" text-anchor="start" x="871.92" y="-210" font-family="Arial" font-size="10.00" fill="#5e6d84">11 cột · Chương trình &amp; buổi tập</text>
+</g>
+<!-- Workout -->
+<g id="entity&#45;Workout" class="node">
+<title>Workout</title>
+<polygon fill="white" stroke="none" points="609.85,-229 609.85,-372.6 778.92,-372.6 778.92,-229 609.85,-229"/>
+<polygon fill="none" stroke="#cbd5e1" points="609.85,-229 609.85,-372.6 778.92,-372.6 778.92,-229 609.85,-229"/>
+<polygon fill="#6550b7" stroke="none" points="610.85,-340.4 610.85,-371.6 777.92,-371.6 777.92,-340.4 610.85,-340.4"/>
+<text xml:space="preserve" text-anchor="start" x="661.95" y="-352.2" font-family="Arial" font-weight="bold" font-size="16.00" fill="white">Workout</text>
+<polygon fill="#f0f4fa" stroke="none" points="610.85,-311.6 610.85,-340.4 645.53,-340.4 645.53,-311.6 610.85,-311.6"/>
+<text xml:space="preserve" text-anchor="start" x="616.85" y="-320.4" font-family="Arial" font-size="14.00" fill="#243653">PK</text>
+<text xml:space="preserve" text-anchor="start" x="651.53" y="-320.4" font-family="Arial" font-size="14.00" fill="#172640">id</text>
+<text xml:space="preserve" text-anchor="start" x="731.34" y="-320.4" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f0f4fa" stroke="none" points="610.85,-282.8 610.85,-311.6 645.53,-311.6 645.53,-282.8 610.85,-282.8"/>
+<text xml:space="preserve" text-anchor="start" x="616.85" y="-291.6" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="651.53" y="-291.6" font-family="Arial" font-size="14.00" fill="#172640">programId</text>
+<text xml:space="preserve" text-anchor="start" x="731.34" y="-291.6" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid?</text>
+<polygon fill="#ffffff" stroke="none" points="610.85,-254 610.85,-282.8 645.53,-282.8 645.53,-254 610.85,-254"/>
+<text xml:space="preserve" text-anchor="start" x="616.85" y="-262.8" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="651.53" y="-262.8" font-family="Arial" font-size="14.00" fill="#172640">name</text>
+<text xml:space="preserve" text-anchor="start" x="731.34" y="-262.8" font-family="Arial" font-size="14.00" fill="#5e6d84">String</text>
+<polygon fill="#f5f7fb" stroke="none" points="610.85,-230 610.85,-254 777.92,-254 777.92,-230 610.85,-230"/>
+<text xml:space="preserve" text-anchor="start" x="616.85" y="-238" font-family="Arial" font-size="10.00" fill="#5e6d84">11 cột · Chương trình &amp; buổi tập</text>
+</g>
+<!-- WorkoutLog -->
+<g id="entity&#45;WorkoutLog" class="node">
+<title>WorkoutLog</title>
+<polygon fill="white" stroke="none" points="287.41,-63 287.41,-494.6 523.85,-494.6 523.85,-63 287.41,-63"/>
+<polygon fill="none" stroke="#cbd5e1" points="287.41,-63 287.41,-494.6 523.85,-494.6 523.85,-63 287.41,-63"/>
+<polygon fill="#9a5b19" stroke="none" points="288.41,-462.4 288.41,-493.6 522.85,-493.6 522.85,-462.4 288.41,-462.4"/>
+<text xml:space="preserve" text-anchor="start" x="358.53" y="-474.2" font-family="Arial" font-weight="bold" font-size="16.00" fill="white">WorkoutLog</text>
+<polygon fill="#f0f4fa" stroke="none" points="288.41,-433.6 288.41,-462.4 319.09,-462.4 319.09,-433.6 288.41,-433.6"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-442.4" font-family="Arial" font-size="14.00" fill="#243653">PK</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-442.4" font-family="Arial" font-size="14.00" fill="#172640">id</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-442.4" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f0f4fa" stroke="none" points="288.41,-404.8 288.41,-433.6 319.09,-433.6 319.09,-404.8 288.41,-404.8"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-413.6" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-413.6" font-family="Arial" font-size="14.00" fill="#172640">userId</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-413.6" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f0f4fa" stroke="none" points="288.41,-376 288.41,-404.8 319.09,-404.8 319.09,-376 288.41,-376"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-384.8" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-384.8" font-family="Arial" font-size="14.00" fill="#172640">workoutId</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-384.8" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-347.2 288.41,-376 319.09,-376 319.09,-347.2 288.41,-347.2"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-356" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-356" font-family="Arial" font-size="14.00" fill="#172640">programId</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-356" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-318.4 288.41,-347.2 319.09,-347.2 319.09,-318.4 288.41,-318.4"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-327.2" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-327.2" font-family="Arial" font-size="14.00" fill="#172640">workoutSnapshot</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-327.2" font-family="Arial" font-size="14.00" fill="#5e6d84">Json?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-289.6 288.41,-318.4 319.09,-318.4 319.09,-289.6 288.41,-289.6"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-298.4" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-298.4" font-family="Arial" font-size="14.00" fill="#172640">exerciseSnapshot</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-298.4" font-family="Arial" font-size="14.00" fill="#5e6d84">Json?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-260.8 288.41,-289.6 319.09,-289.6 319.09,-260.8 288.41,-260.8"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-269.6" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-269.6" font-family="Arial" font-size="14.00" fill="#172640">plannedDate</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-269.6" font-family="Arial" font-size="14.00" fill="#5e6d84">Date?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-232 288.41,-260.8 319.09,-260.8 319.09,-232 288.41,-232"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-240.8" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-240.8" font-family="Arial" font-size="14.00" fill="#172640">startedAt</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-240.8" font-family="Arial" font-size="14.00" fill="#5e6d84">DateTime</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-203.2 288.41,-232 319.09,-232 319.09,-203.2 288.41,-203.2"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-212" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-212" font-family="Arial" font-size="14.00" fill="#172640">completedAt</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-212" font-family="Arial" font-size="14.00" fill="#5e6d84">DateTime?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-174.4 288.41,-203.2 319.09,-203.2 319.09,-174.4 288.41,-174.4"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-183.2" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-183.2" font-family="Arial" font-size="14.00" fill="#172640">totalVolume</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-183.2" font-family="Arial" font-size="14.00" fill="#5e6d84">Float?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-145.6 288.41,-174.4 319.09,-174.4 319.09,-145.6 288.41,-145.6"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-154.4" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-154.4" font-family="Arial" font-size="14.00" fill="#172640">notes</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-154.4" font-family="Arial" font-size="14.00" fill="#5e6d84">String?</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-116.8 288.41,-145.6 319.09,-145.6 319.09,-116.8 288.41,-116.8"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-125.6" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-125.6" font-family="Arial" font-size="14.00" fill="#172640">createdAt</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-125.6" font-family="Arial" font-size="14.00" fill="#5e6d84">DateTime</text>
+<polygon fill="#ffffff" stroke="none" points="288.41,-88 288.41,-116.8 319.09,-116.8 319.09,-88 288.41,-88"/>
+<text xml:space="preserve" text-anchor="start" x="294.41" y="-96.8" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="325.09" y="-96.8" font-family="Arial" font-size="14.00" fill="#172640">updatedAt</text>
+<text xml:space="preserve" text-anchor="start" x="448.38" y="-96.8" font-family="Arial" font-size="14.00" fill="#5e6d84">DateTime</text>
+<polygon fill="#f5f7fb" stroke="none" points="288.41,-64 288.41,-88 522.85,-88 522.85,-64 288.41,-64"/>
+<text xml:space="preserve" text-anchor="start" x="335.32" y="-72" font-family="Arial" font-size="10.00" fill="#5e6d84">13 cột · Lịch sử &amp; bình luận</text>
+</g>
+<!-- WorkoutLogComment -->
+<g id="entity&#45;WorkoutLogComment" class="node">
+<title>WorkoutLogComment</title>
+<polygon fill="white" stroke="none" points="0,-91.8 0,-321.8 201.41,-321.8 201.41,-91.8 0,-91.8"/>
+<polygon fill="none" stroke="#cbd5e1" points="0,-91.8 0,-321.8 201.41,-321.8 201.41,-91.8 0,-91.8"/>
+<polygon fill="#9a5b19" stroke="none" points="1,-289.6 1,-320.8 200.41,-320.8 200.41,-289.6 1,-289.6"/>
+<text xml:space="preserve" text-anchor="start" x="16.72" y="-301.4" font-family="Arial" font-weight="bold" font-size="16.00" fill="white">WorkoutLogComment</text>
+<polygon fill="#f0f4fa" stroke="none" points="1,-260.8 1,-289.6 31.68,-289.6 31.68,-260.8 1,-260.8"/>
+<text xml:space="preserve" text-anchor="start" x="7" y="-269.6" font-family="Arial" font-size="14.00" fill="#243653">PK</text>
+<text xml:space="preserve" text-anchor="start" x="37.68" y="-269.6" font-family="Arial" font-size="14.00" fill="#172640">id</text>
+<text xml:space="preserve" text-anchor="start" x="133.73" y="-269.6" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f0f4fa" stroke="none" points="1,-232 1,-260.8 31.68,-260.8 31.68,-232 1,-232"/>
+<text xml:space="preserve" text-anchor="start" x="7" y="-240.8" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="37.68" y="-240.8" font-family="Arial" font-size="14.00" fill="#172640">workoutLogId</text>
+<text xml:space="preserve" text-anchor="start" x="133.73" y="-240.8" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#f0f4fa" stroke="none" points="1,-203.2 1,-232 31.68,-232 31.68,-203.2 1,-203.2"/>
+<text xml:space="preserve" text-anchor="start" x="7" y="-212" font-family="Arial" font-size="14.00" fill="#243653">FK</text>
+<text xml:space="preserve" text-anchor="start" x="37.68" y="-212" font-family="Arial" font-size="14.00" fill="#172640">authorId</text>
+<text xml:space="preserve" text-anchor="start" x="133.73" y="-212" font-family="Arial" font-size="14.00" fill="#5e6d84">Uuid</text>
+<polygon fill="#ffffff" stroke="none" points="1,-174.4 1,-203.2 31.68,-203.2 31.68,-174.4 1,-174.4"/>
+<text xml:space="preserve" text-anchor="start" x="7" y="-183.2" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="37.68" y="-183.2" font-family="Arial" font-size="14.00" fill="#172640">content</text>
+<text xml:space="preserve" text-anchor="start" x="133.73" y="-183.2" font-family="Arial" font-size="14.00" fill="#5e6d84">String</text>
+<polygon fill="#ffffff" stroke="none" points="1,-145.6 1,-174.4 31.68,-174.4 31.68,-145.6 1,-145.6"/>
+<text xml:space="preserve" text-anchor="start" x="7" y="-154.4" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="37.68" y="-154.4" font-family="Arial" font-size="14.00" fill="#172640">createdAt</text>
+<text xml:space="preserve" text-anchor="start" x="133.73" y="-154.4" font-family="Arial" font-size="14.00" fill="#5e6d84">DateTime</text>
+<polygon fill="#ffffff" stroke="none" points="1,-116.8 1,-145.6 31.68,-145.6 31.68,-116.8 1,-116.8"/>
+<text xml:space="preserve" text-anchor="start" x="7" y="-125.6" font-family="Arial" font-size="14.00" fill="#243653">·</text>
+<text xml:space="preserve" text-anchor="start" x="37.68" y="-125.6" font-family="Arial" font-size="14.00" fill="#172640">updatedAt</text>
+<text xml:space="preserve" text-anchor="start" x="133.73" y="-125.6" font-family="Arial" font-size="14.00" fill="#5e6d84">DateTime</text>
+<polygon fill="#f5f7fb" stroke="none" points="1,-92.8 1,-116.8 200.41,-116.8 200.41,-92.8 1,-92.8"/>
+<text xml:space="preserve" text-anchor="start" x="33.17" y="-100.8" font-family="Arial" font-size="10.00" fill="#5e6d84">6 cột · Lịch sử &amp; bình luận</text>
+</g>
+</g>
+</svg>
