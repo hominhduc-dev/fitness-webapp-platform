@@ -8,7 +8,6 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
 import type { CoachTrainee } from "@/lib/fitness/types"
 import type { AppMessages } from "@/lib/i18n/messages"
 
