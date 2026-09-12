@@ -31,8 +31,8 @@ import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS, parseActivityType, parseMuscleSl
 import type { CoachExercise, CoachExerciseImportRequest } from "@/lib/fitness/types"
 
 type ExerciseLibraryClientProps = {
-  initialExercises: CoachExercise[]
-  initialImportRequests: CoachExerciseImportRequest[]
+  initialExercises?: CoachExercise[]
+  initialImportRequests?: CoachExerciseImportRequest[]
 }
 
 type ExerciseImportIssue = {
@@ -175,13 +175,19 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     equipment: locale === "en" ? "Equipment" : "Thiết bị",
     noEquipment: locale === "en" ? "No equipment" : "Không có thiết bị",
     submitForApproval: locale === "en" ? "Submit for approval" : "Gửi admin duyệt",
+    loadingExercises: locale === "en" ? "Loading exercise library..." : "Đang tải thư viện bài tập...",
+    loadExercisesError: locale === "en" ? "Unable to load the exercise library." : "Không thể tải thư viện bài tập.",
+    tryAgain: locale === "en" ? "Try again" : "Thử lại",
   }
-  const { data: exercises = initialExercises, setData: setExercises } = useCoachData(queryKeys.coach.exercises(), fetchCoachExercises, initialExercises)
+  const exercisesQuery = useCoachData(queryKeys.coach.exercises(), fetchCoachExercises, initialExercises)
+  const setExercises = exercisesQuery.setData
   const createExercise = useCoachMutation(createCoachExerciseRequest, ["coach", "exercises"])
   const updateExercise = useCoachMutation(updateCoachExerciseRequest, ["coach", "exercises"])
   const deleteExercise = useCoachMutation(deleteCoachExerciseRequest, ["coach", "exercises"])
   const submitImport = useCoachMutation(submitCoachExerciseImportRequest, ["coach", "admin"])
-  const { data: importRequests = initialImportRequests, setData: setImportRequests } = useCoachData(queryKeys.coach.exerciseImportRequests(), fetchCoachExerciseImportRequests, initialImportRequests)
+  const importRequestsQuery = useCoachData(queryKeys.coach.exerciseImportRequests(), fetchCoachExerciseImportRequests, initialImportRequests)
+  const importRequests = importRequestsQuery.data ?? []
+  const setImportRequests = importRequestsQuery.setData
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [importFileName, setImportFileName] = useState("")
   const [importRows, setImportRows] = useState<AdminExerciseImportRow[]>([])
@@ -191,7 +197,10 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  const panelExercises = useMemo(() => exercises.map(mapCoachExerciseToPanelItem), [exercises])
+  const panelExercises = useMemo(
+    () => (exercisesQuery.data ?? []).map(mapCoachExerciseToPanelItem),
+    [exercisesQuery.data],
+  )
 
   function resetImportState() {
     setImportFileName("")
@@ -458,16 +467,32 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         </div>
       ) : null}
 
-      <ExerciseLibraryPanel
-        actionKey={actionKey}
-        exercises={panelExercises}
-        locale={locale}
-        onDelete={handleDeleteExercise}
-        onBulkDelete={handleBulkDeleteExercises}
-        onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
-        onImport={() => setIsImportDialogOpen(true)}
-        onSave={handleSaveExercise}
-      />
+      {exercisesQuery.isPending ? (
+        <div className="flex min-h-56 items-center justify-center rounded-lg border border-border bg-card" role="status">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            {copy.loadingExercises}
+          </div>
+        </div>
+      ) : exercisesQuery.isError ? (
+        <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
+          <p className="text-sm text-destructive-text">{copy.loadExercisesError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void exercisesQuery.refetch()}>
+            {copy.tryAgain}
+          </Button>
+        </div>
+      ) : (
+        <ExerciseLibraryPanel
+          actionKey={actionKey}
+          exercises={panelExercises}
+          locale={locale}
+          onDelete={handleDeleteExercise}
+          onBulkDelete={handleBulkDeleteExercises}
+          onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
+          onImport={() => setIsImportDialogOpen(true)}
+          onSave={handleSaveExercise}
+        />
+      )}
 
       <Dialog
         open={isImportDialogOpen}

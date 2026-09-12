@@ -105,7 +105,7 @@ app/layout.tsx
 | `/coach` | SSR dashboard, coach guard | `app/(shell)/coach/page.tsx` |
 | `/coach/trainees*` | SSR guard/fetch → client detail/list | `components/coach/trainee-*` |
 | `/coach/programs*` | SSR guard/fetch → client editor/boards | `components/coach/program-*` |
-| `/coach/exercises` | SSR fetch → client library | `components/coach/exercise-library-client.tsx` |
+| `/coach/exercises` | SSR shell → TanStack client cache/fetch | `components/coach/exercise-library-client.tsx` |
 | `/coach/find` | trainee SSR fetch → client search | `components/coach/find-coach-client.tsx` |
 | `/admin` | SSR admin guard → client console | `components/admin/admin-console.tsx` |
 | `/workout/[id]/start` | CSR focused session/logger | `app/workout/[id]/start/page.tsx` |
