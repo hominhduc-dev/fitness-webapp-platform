@@ -33,11 +33,7 @@ type ProgramImportRow = {
   /** Set when the source names a variation id outright; skips name matching. */
   variationId?: string
   variationName: string
-  /**
-   * Week as the coach numbers it in the source, counting from 1. Absent when the
-   * source describes a single week that repeats. Converted to the app's 0-based
-   * `weekIndex` on the way out.
-   */
+  /** 1-based week number from the source; absent when one template week repeats. */
   week?: number
   weight?: number
   workoutName: string
@@ -234,8 +230,7 @@ function buildWorkoutsFromRows(
     }
 
     for (let repeat = 0; repeat < repeatWeeks; repeat += 1) {
-      // `weekIndex` is 0-based everywhere downstream; the source counts from 1.
-      const weekIndex = row.week != null ? Math.max(0, row.week - 1) : repeat
+      const weekIndex = row.week == null ? repeat : Math.max(0, row.week - 1)
       const key = `${weekIndex}::${row.workoutName}::${row.scheduledDay}`
       const workout = grouped.get(key) ?? {
         exercises: [],
