@@ -1,6 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import { useMutation } from "@tanstack/react-query"
+import { useCoachLogs, useCoachLogComment } from "@/lib/queries/coach-logs"
+import { useExportQueries, useCoachSheetsExport } from "@/lib/queries/exports"
 import { ChevronDown, Clock3, Download, FileSpreadsheet, Loader2, MessageSquare, Pencil, Save, Trash2 } from "lucide-react"
 
 import { formatDateInputValue, startOfLocalWeek } from "@/components/coach/trainee-workout-log-dates"
@@ -19,14 +22,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  createCoachWorkoutLogComment,
-  deleteCoachWorkoutLogComment,
-  exportCoachWorkoutLogsToGoogleSheets,
-  fetchCoachBodyMetrics,
-  fetchCoachWorkoutLogs,
-  updateCoachWorkoutLogComment,
-} from "@/lib/fitness/api"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { WorkoutLog } from "@/lib/types"
 import { formatRepTarget } from "@/lib/workout-reps"
@@ -218,30 +213,15 @@ function formatPreviousPerformance(
   return `${sourceLabel}: ${weightLabel} x ${repsLabel}`
 }
 
-async function loadAllCoachWorkoutLogsForExport(accessToken: string, traineeId: string, weekStart: string) {
-  const allLogs: WorkoutLog[] = []
-  let cursor: string | undefined
-
-  do {
-    const response = await fetchCoachWorkoutLogs(accessToken, traineeId, {
-      cursor,
-      limit: 50,
-      weekStart,
-    })
-
-    allLogs.push(...response.logs)
-    cursor = response.nextCursor
-  } while (cursor)
-
-  return allLogs
-}
-
 export function TraineeWorkoutLogsPanel({
   initialLogs = [],
   traineeId,
   traineeName,
 }: TraineeWorkoutLogsPanelProps) {
-  const { profile, session } = useAuth()
+  const { profile } = useAuth()
+  const queries = useExportQueries()
+  const commentMutation = useCoachLogComment()
+  const sheetsExport = useCoachSheetsExport()
   const { locale } = useLocale()
   const copy = {
     close: locale === "en" ? "Close" : "Đóng",
@@ -277,75 +257,27 @@ export function TraineeWorkoutLogsPanel({
   }
   const defaultWeekStart = formatDateInputValue(startOfLocalWeek(new Date()))
   const initialWeekLogs = initialLogs.filter((log) => isLogInSelectedWeek(log, defaultWeekStart))
-  const [logs, setLogs] = useState<WorkoutLog[]>(initialWeekLogs)
   const [expandedDayKeys, setExpandedDayKeys] = useState<string[]>([])
-  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
   const [weekStart, setWeekStart] = useState(defaultWeekStart)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
-  const [isExportingToSheets, setIsExportingToSheets] = useState(false)
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const logsQuery = useCoachLogs(traineeId, weekStart)
+  // recentLogs is only a partial server seed, with no pagination cursor.
+  const [seedOwner] = useState({ profileId: profile?.id, traineeId, weekStart: defaultWeekStart })
+  const seedLogs = seedOwner.profileId === profile?.id && seedOwner.traineeId === traineeId && seedOwner.weekStart === weekStart ? initialWeekLogs : []
+  const logs = logsQuery.data?.pages.flatMap((page) => page.logs) ?? seedLogs
+  const isLoading = logsQuery.isLoading && logs.length === 0
+  const isLoadingMore = logsQuery.isFetchingNextPage
+  const nextCursor = logsQuery.hasNextPage
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewWorkbook, setPreviewWorkbook] = useState<CoachWorkoutLogsWorkbookPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [draftByLogId, setDraftByLogId] = useState<Record<string, string>>({})
-  const [savingLogId, setSavingLogId] = useState<string | null>(null)
+  const savingLogId = commentMutation.isPending && commentMutation.variables.action !== "delete" ? commentMutation.variables.logId : null
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState("")
-  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
+  const deletingCommentId = commentMutation.isPending && commentMutation.variables.action === "delete" ? commentMutation.variables.commentId : null
   const daySections = buildWeekDaySections(logs, weekStart)
   const allDayKeys = daySections.map((section) => section.key)
-
-  useEffect(() => {
-    if (!session?.access_token) {
-      return
-    }
-
-    let cancelled = false
-
-    const loadLogs = async () => {
-      setIsLoading(true)
-      setError(null)
-      setNotice(null)
-
-      try {
-        const response = await fetchCoachWorkoutLogs(session.access_token, traineeId, {
-          limit: 20,
-          weekStart,
-        })
-
-        if (cancelled) {
-          return
-        }
-
-        setLogs(response.logs)
-        setNextCursor(response.nextCursor)
-        setExpandedDayKeys([])
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Không thể tải workout logs.")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void loadLogs()
-
-    return () => {
-      cancelled = true
-    }
-  }, [session?.access_token, traineeId, weekStart])
-
-  const updateLogComments = (logId: string, updater: (comments: WorkoutLog["comments"]) => WorkoutLog["comments"]) => {
-    setLogs((current) =>
-      current.map((log) => (log.id === logId ? { ...log, comments: updater(log.comments ?? []) } : log)),
-    )
-  }
 
   const toggleDaySection = (dayKey: string) => {
     setExpandedDayKeys((current) =>
@@ -361,47 +293,19 @@ export function TraineeWorkoutLogsPanel({
     setExpandedDayKeys([])
   }
 
-  const handleLoadMore = async () => {
-    if (!session?.access_token || !nextCursor || isLoadingMore) {
-      return
-    }
-
-    setIsLoadingMore(true)
-    setError(null)
-
-    try {
-      const response = await fetchCoachWorkoutLogs(session.access_token, traineeId, {
-        cursor: nextCursor,
-        limit: 20,
-        weekStart,
-      })
-
-      setLogs((current) => [...current, ...response.logs])
-      setNextCursor(response.nextCursor)
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Không thể tải thêm workout logs.")
-    } finally {
-      setIsLoadingMore(false)
-    }
+  const handleLoadMore = () => {
+    if (logsQuery.hasNextPage && !logsQuery.isFetching) void logsQuery.fetchNextPage()
   }
 
-  const handleExportExcel = async () => {
-    if (!session?.access_token || isExporting) {
-      return
-    }
-
-    setIsExporting(true)
-    setError(null)
-    setNotice(null)
-
-    try {
-      const exportLogs = await loadAllCoachWorkoutLogsForExport(session.access_token, traineeId, weekStart)
+  const excelExport = useMutation({
+    mutationFn: async () => {
+      const exportLogs = await queries.coachLogs(traineeId, { weekStart })
 
       if (exportLogs.length === 0) {
         throw new Error("Không có workout log nào để xuất.")
       }
 
-      const bodyMetrics = await fetchCoachBodyMetrics(session.access_token, traineeId, {
+      const bodyMetrics = await queries.coachBodyMetrics(traineeId, {
         from: weekStart,
         to: getWeekEndDateInput(weekStart),
       })
@@ -413,54 +317,30 @@ export function TraineeWorkoutLogsPanel({
         traineeName,
         weekStart,
       })
-    } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : "Không thể xuất Excel.")
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
-  const handleExportGoogleSheets = async () => {
-    if (!session?.access_token || isExportingToSheets) {
-      return
-    }
-
-    setIsExportingToSheets(true)
+    },
+    onMutate: () => { setError(null); setNotice(null) },
+    onError: (error) => setError(error.message),
+  })
+  const isExporting = excelExport.isPending
+  const handleExportExcel = () => excelExport.mutate()
+  const isExportingToSheets = sheetsExport.isPending
+  const handleExportGoogleSheets = () => {
     setError(null)
     setNotice(null)
-
-    try {
-      const result = await exportCoachWorkoutLogsToGoogleSheets(session.access_token, traineeId, {
-        label: `${traineeName ?? "Trainee"} week ${weekStart}`,
-        weekStart,
-      })
-
-      setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`)
-    } catch (exportError) {
-      setError(exportError instanceof Error ? exportError.message : "Không thể export sang Google Sheets.")
-    } finally {
-      setIsExportingToSheets(false)
-    }
+    sheetsExport.mutate({ traineeId, options: { label: `${traineeName ?? "Trainee"} week ${weekStart}`, weekStart } }, {
+      onSuccess: (result) => setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`),
+      onError: (error) => setError(error.message),
+    })
   }
-
-  const handlePreviewExcel = async () => {
-    if (!session?.access_token || isPreviewLoading) {
-      return
-    }
-
-    setIsPreviewOpen(true)
-    setIsPreviewLoading(true)
-    setPreviewWorkbook(null)
-    setError(null)
-
-    try {
-      const exportLogs = await loadAllCoachWorkoutLogsForExport(session.access_token, traineeId, weekStart)
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      const exportLogs = await queries.coachLogs(traineeId, { weekStart })
 
       if (exportLogs.length === 0) {
         throw new Error("Không có workout log nào để preview.")
       }
 
-      const bodyMetrics = await fetchCoachBodyMetrics(session.access_token, traineeId, {
+      const bodyMetrics = await queries.coachBodyMetrics(traineeId, {
         from: weekStart,
         to: getWeekEndDateInput(weekStart),
       })
@@ -473,76 +353,41 @@ export function TraineeWorkoutLogsPanel({
         weekStart,
       })
 
-      setPreviewWorkbook(preview)
-    } catch (previewError) {
-      setError(previewError instanceof Error ? previewError.message : "Không thể preview Excel.")
-      setIsPreviewOpen(false)
-    } finally {
-      setIsPreviewLoading(false)
-    }
-  }
+      return preview
+    },
+    onMutate: () => { setIsPreviewOpen(true); setPreviewWorkbook(null); setError(null) },
+    onSuccess: (preview) => setPreviewWorkbook(preview),
+    onError: (error) => { setError(error.message); setIsPreviewOpen(false) },
+  })
+  const isPreviewLoading = previewMutation.isPending
+  const handlePreviewExcel = () => previewMutation.mutate()
 
-  const handleCreateComment = async (logId: string) => {
-    if (!session?.access_token || !draftByLogId[logId]?.trim()) {
-      return
-    }
-
-    setSavingLogId(logId)
+  const handleCreateComment = (logId: string) => {
+    const content = draftByLogId[logId]?.trim()
+    if (!content || commentMutation.isPending) return
     setError(null)
-
-    try {
-      const comment = await createCoachWorkoutLogComment(session.access_token, logId, draftByLogId[logId])
-      updateLogComments(logId, (comments) => [...comments, comment])
-      setDraftByLogId((current) => ({ ...current, [logId]: "" }))
-    } catch (commentError) {
-      setError(commentError instanceof Error ? commentError.message : "Không thể lưu feedback.")
-    } finally {
-      setSavingLogId(null)
-    }
+    commentMutation.mutate({ action: "create", logId, content }, {
+      onSuccess: () => setDraftByLogId((current) => ({ ...current, [logId]: "" })),
+      onError: (error) => setError(error.message),
+    })
   }
-
-  const handleSaveEdit = async (logId: string, commentId: string) => {
-    if (!session?.access_token || !editingContent.trim()) {
-      return
-    }
-
-    setSavingLogId(logId)
+  const handleSaveEdit = (logId: string, commentId: string) => {
+    if (!editingContent.trim() || commentMutation.isPending) return
     setError(null)
-
-    try {
-      const updatedComment = await updateCoachWorkoutLogComment(session.access_token, commentId, editingContent)
-      updateLogComments(logId, (comments) =>
-        comments.map((comment) => (comment.id === updatedComment.id ? updatedComment : comment)),
-      )
-      setEditingCommentId(null)
-      setEditingContent("")
-    } catch (commentError) {
-      setError(commentError instanceof Error ? commentError.message : "Không thể cập nhật feedback.")
-    } finally {
-      setSavingLogId(null)
-    }
+    commentMutation.mutate({ action: "update", logId, commentId, content: editingContent }, {
+      onSuccess: () => { setEditingCommentId(null); setEditingContent("") },
+      onError: (error) => setError(error.message),
+    })
   }
-
-  const handleDeleteComment = async (logId: string, commentId: string) => {
-    if (!session?.access_token || deletingCommentId) {
-      return
-    }
-
-    setDeletingCommentId(commentId)
+  const handleDeleteComment = (logId: string, commentId: string) => {
+    if (commentMutation.isPending) return
     setError(null)
-
-    try {
-      await deleteCoachWorkoutLogComment(session.access_token, commentId)
-      updateLogComments(logId, (comments) => comments.filter((comment) => comment.id !== commentId))
-      if (editingCommentId === commentId) {
-        setEditingCommentId(null)
-        setEditingContent("")
-      }
-    } catch (commentError) {
-      setError(commentError instanceof Error ? commentError.message : "Không thể xóa feedback.")
-    } finally {
-      setDeletingCommentId(null)
-    }
+    commentMutation.mutate({ action: "delete", logId, commentId }, {
+      onSuccess: () => {
+        if (editingCommentId === commentId) { setEditingCommentId(null); setEditingContent("") }
+      },
+      onError: (error) => setError(error.message),
+    })
   }
 
   const renderLogCard = (log: WorkoutLog) => (
@@ -816,9 +661,9 @@ export function TraineeWorkoutLogsPanel({
 
   return (
     <div className="space-y-6">
-      {error ? (
+      {error || logsQuery.error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-          {error}
+          {error ?? logsQuery.error?.message}
         </div>
       ) : null}
       {notice ? (
@@ -842,7 +687,7 @@ export function TraineeWorkoutLogsPanel({
             <Input
               type="date"
               value={weekStart}
-              onChange={(event) => setWeekStart(event.target.value)}
+              onChange={(event) => { setWeekStart(event.target.value); setExpandedDayKeys([]); setError(null); setNotice(null) }}
               className="w-full min-w-[190px] bg-background sm:w-[220px]"
             />
           </div>

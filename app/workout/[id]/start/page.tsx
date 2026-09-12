@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
 import { ExerciseAnimation } from "@/components/workout/exercise-animation"
-import { createWorkoutLog, fetchExercises, fetchWorkoutDetail, swapWorkoutExercise } from "@/lib/fitness/api"
-import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
+import { useCreateWorkoutLog, useSwapWorkoutExercise, useWorkoutDetail } from "@/lib/queries/workouts"
+import { useExercises } from "@/lib/queries/exercises"
 import { cn } from "@/lib/utils"
 import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
@@ -949,7 +949,31 @@ function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
+type SessionSeed = Workout & {
+  originalExercises: Workout["exercises"]
+  storedSession: ReturnType<typeof readStoredWorkoutSession>
+}
+
+function selectSessionSeed(workout: Workout): SessionSeed {
+  const storedSession = readStoredWorkoutSession(workout.id)
+  return {
+    ...workout,
+    originalExercises: workout.exercises,
+    storedSession,
+    exercises: storedSession
+      ? restoreWorkoutSessionExercises(workout.exercises, storedSession.exercises,
+          storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION)
+      : seedFromPreviousPerformance(workout.exercises),
+  }
+}
+
 export default function WorkoutStartPage() {
+  const params = useParams()
+  const { profile } = useAuth()
+  return <WorkoutSession key={`${profile?.id ?? "anonymous"}:${params.id}`} />
+}
+
+function WorkoutSession() {
   const params = useParams()
   const router = useRouter()
   const { isLoading: authLoading, profile, session } = useAuth()
@@ -965,7 +989,6 @@ export default function WorkoutStartPage() {
   const scrollResetWorkoutIdRef = useRef<string | null>(null)
   const addedSetTokensRef = useRef<Map<string, string>>(new Map())
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
-  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDateDialog, setShowDateDialog] = useState(false)
@@ -980,15 +1003,24 @@ export default function WorkoutStartPage() {
   const [restEvent, setRestEvent] = useState<RestEvent>(null)
   // Add exercise dialog
   const [showAddExercise, setShowAddExercise] = useState(false)
-  const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseVariationOption[]>([])
-  const [loadingLibrary, setLoadingLibrary] = useState(false)
+  const libraryQuery = useExercises(undefined, undefined, showAddExercise)
+  const exerciseLibrary = libraryQuery.data ?? []
+  const loadingLibrary = libraryQuery.isFetching
   // Replace exercise dialog — tracks which exercise the trainee wants to swap.
   const [replacingExercise, setReplacingExercise] = useState<WorkoutExercise | null>(null)
-  const [replacementCandidates, setReplacementCandidates] = useState<ExerciseVariationOption[]>([])
-  const [loadingReplacements, setLoadingReplacements] = useState(false)
+  const replacementsQuery = useExercises(
+    { muscleGroup: replacingExercise?.exercise.muscleGroup }, undefined, Boolean(replacingExercise))
+  const replacementCandidates = replacementsQuery.data ?? []
+  const loadingReplacements = replacementsQuery.isFetching
   const [swapInFlight, setSwapInFlight] = useState(false)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
+  const workoutQuery = useWorkoutDetail(workoutId ?? "", {
+    activeSession: true, enabled: !workout, select: selectSessionSeed,
+  })
+  const isLoading = authLoading || (Boolean(profile) && !workout && !workoutQuery.isError)
+  const logMutation = useCreateWorkoutLog()
+  const swapMutation = useSwapWorkoutExercise()
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
   // Reset after the workout replaces the loading state. Doing this earlier lets
@@ -1010,46 +1042,17 @@ export default function WorkoutStartPage() {
 
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!session?.access_token || !workoutId) {
-      if (!authLoading) setIsLoading(false)
-      return
-    }
-
-    let cancelled = false
-    const loadWorkout = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const nextWorkout = await fetchWorkoutDetail(session.access_token, workoutId)
-        if (cancelled) return
-        const storedSession = readStoredWorkoutSession(workoutId)
-        addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
-        programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.exercises)
-        setWorkout(nextWorkout)
-        setExercises(
-          storedSession
-            ? restoreWorkoutSessionExercises(
-                nextWorkout.exercises,
-                storedSession.exercises,
-                storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
-              )
-            : seedFromPreviousPerformance(nextWorkout.exercises),
-        )
-        setCurrentExerciseIndex(
-          storedSession
-            ? Math.min(Math.max(0, storedSession.currentExerciseIndex), Math.max(0, nextWorkout.exercises.length - 1))
-            : 0,
-        )
-        setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
-      } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : messages.workoutPage.loadingWorkout)
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
-    }
-    void loadWorkout()
-    return () => { cancelled = true }
-  }, [authLoading, session?.access_token, workoutId])
+    if (workout || !workoutQuery.data) return
+    const nextWorkout = workoutQuery.data as SessionSeed
+    const storedSession = nextWorkout.storedSession
+    addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
+    programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.originalExercises)
+    setWorkout(nextWorkout)
+    setExercises(nextWorkout.exercises)
+    setCurrentExerciseIndex(storedSession
+      ? Math.min(Math.max(0, storedSession.currentExerciseIndex), Math.max(0, nextWorkout.exercises.length - 1)) : 0)
+    setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
+  }, [workout, workoutQuery.data])
 
   // ── Timer: update elapsed every 30s ────────────────────────────────────────
   useEffect(() => {
@@ -1174,18 +1177,8 @@ export default function WorkoutStartPage() {
     )
   }
 
-  const handleOpenAddExercise = async () => {
+  const handleOpenAddExercise = () => {
     setShowAddExercise(true)
-    if (exerciseLibrary.length > 0 || !session?.access_token) return
-    setLoadingLibrary(true)
-    try {
-      const list = await fetchExercises(session.access_token)
-      setExerciseLibrary(list)
-    } catch {
-      // non-critical — user sees empty list
-    } finally {
-      setLoadingLibrary(false)
-    }
   }
 
   const handleAddExercise = (variation: ExerciseVariationOption) => {
@@ -1214,19 +1207,8 @@ export default function WorkoutStartPage() {
     setShowAddExercise(false)
   }
 
-  const handleOpenReplace = async (exercise: WorkoutExercise) => {
+  const handleOpenReplace = (exercise: WorkoutExercise) => {
     setReplacingExercise(exercise)
-    setReplacementCandidates([])
-    if (!session?.access_token) return
-    setLoadingReplacements(true)
-    try {
-      const list = await fetchExercises(session.access_token, { muscleGroup: exercise.exercise.muscleGroup })
-      setReplacementCandidates(list)
-    } catch {
-      // Non-critical — user will see empty list.
-    } finally {
-      setLoadingReplacements(false)
-    }
   }
 
   const handleReplacePick = async (variation: ExerciseVariationOption) => {
@@ -1239,12 +1221,9 @@ export default function WorkoutStartPage() {
     setSwapInFlight(true)
     setError(null)
     try {
-      const response = await swapWorkoutExercise(
-        session.access_token,
-        workoutId,
-        replacingExercise.id,
-        variation.id,
-      )
+      const response = await swapMutation.mutateAsync({
+        workoutId, workoutExerciseId: replacingExercise.id, variationId: variation.id,
+      })
 
       // On a coach-program fork every workoutExercise + set gets a fresh UUID;
       // remap in-memory state (and the in-progress addedSetTokens map) so the
@@ -1412,16 +1391,14 @@ export default function WorkoutStartPage() {
       ? new Date()
       : new Date(loggedStartedAt.getTime() + cappedElapsedMs)
     try {
-      await createWorkoutLog(session.access_token, workout.id, {
+      await logMutation.mutateAsync({ workoutId: workout.id, input: {
         completedAt: loggedCompletedAt.toISOString(),
         exercises,
         plannedDate: resolvePlannedDateForWorkout(workout, loggedStartedAt),
         startedAt: loggedStartedAt.toISOString(),
-      })
-      markDashboardForRefresh()
+      } })
       clearStoredWorkoutSession(workout.id)
       router.push("/dashboard")
-      router.refresh()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : messages.meals.logMealError)
     } finally {

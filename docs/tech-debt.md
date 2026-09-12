@@ -139,20 +139,23 @@ both the service and the route boundary import.
 read. Two such cases are flagged in-file.
 
 **Done when** each is decomposed and no component file exceeds ~500 lines. There is
-no frontend test runner yet, so this needs one first — see item 7.
+already a frontend test runner; add behavior coverage before extraction — see item 7.
 
 ---
 
-## 7. No frontend tests
+## 7. Frontend behavior coverage remains partial
 
-The Vitest suite (141 tests) covers the backend only: middleware, error model, env
-loading, request schemas, the TTL cache, nutrition maths and date handling.
+Vitest 4 + jsdom + Testing Library are installed in the frontend. Tests cover
+pure helpers, import UI, query seed reuse, invalidation, pagination, meal-date
+races, frozen workout queries, and auth cache isolation. Run `npm test` at root.
+Backend tests remain a separate command: `npm --prefix backend run test`.
 
-The frontend has no test runner. Highest-value first targets are the pure modules:
-`lib/fitness/api.ts` response mapping, `lib/exercise-search`, `lib/workout-reps`,
-`components/coach/program-excel.ts` import parsing.
+Remaining high-value coverage: full admin mutation workflows, calendar optimistic
+drag/drop and a real workout session across browser focus/navigation changes.
+Hook tests do not replace authenticated browser checks for all three roles.
 
-**Done when** Vitest + Testing Library run in CI over `app/`, `components/`, `lib/`.
+**Done when** critical interactive workflows have regression coverage in CI and
+the browser scenarios in `docs/tanstack-query-migration.md` are verified.
 
 ---
 

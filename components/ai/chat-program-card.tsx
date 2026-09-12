@@ -1,11 +1,13 @@
 "use client"
 
+import { useAcceptAIProgram } from "@/lib/queries/ai"
+
 import { Check, Dumbbell, Loader2 } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
-import { acceptAIProgram, type AIChatAction } from "@/lib/fitness/api"
+import type { AIChatAction } from "@/lib/fitness/api"
 
 /**
  * Draft program the assistant built during a chat turn. Nothing is persisted
@@ -14,28 +16,26 @@ import { acceptAIProgram, type AIChatAction } from "@/lib/fitness/api"
  */
 function ChatProgramCard({
   action,
-  accessToken,
 }: {
   action: Extract<AIChatAction, { type: "program_draft" }>
-  accessToken: string
 }) {
+  const { mutateAsync: acceptAIProgram, isPending: acceptAIProgramPending } = useAcceptAIProgram()
   const { locale } = useLocale()
   const isVi = locale === "vi"
   const weekdayLabels = isVi ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [saved, setSaved] = useState(false)
+  const status = acceptAIProgramPending ? "saving" : saved ? "saved" : "idle"
   const [error, setError] = useState<string | null>(null)
 
-  const handleAccept = useCallback(async () => {
-    setStatus("saving")
+  const handleAccept = async () => {
     setError(null)
     try {
-      await acceptAIProgram(accessToken, action.generationId)
-      setStatus("saved")
+      await acceptAIProgram([action.generationId])
+      setSaved(true)
     } catch (err) {
-      setStatus("error")
       setError(err instanceof Error ? err.message : isVi ? "Không lưu được chương trình." : "Unable to save the program.")
     }
-  }, [accessToken, action.generationId, isVi])
+  }
 
   const { program } = action
 

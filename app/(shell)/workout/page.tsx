@@ -35,6 +35,7 @@ async function RoutinesContent() {
 
   return (
     <RoutinesWorkoutBoard
+      initialData={workoutData}
       historyLogs={workoutData.historyLogs}
       programs={workoutData.programs}
       workouts={workoutData.workouts}

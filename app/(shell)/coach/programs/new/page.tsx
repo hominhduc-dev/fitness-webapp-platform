@@ -1,4 +1,5 @@
 import { ProgramEditorLazy } from "@/components/coach/program-editor-lazy"
+import { ExerciseCacheSeed } from "@/components/coach/exercise-cache-seed"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchCoachTrainees, fetchExerciseLibrary, fetchExercises } from "@/lib/fitness/api"
 import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
@@ -14,5 +15,5 @@ export default async function NewProgramPage() {
   const fallbackExerciseOptions = flattenExerciseLibraryToVariationOptions(exerciseLibrary)
   const resolvedExerciseOptions = mergeExerciseOptions(exerciseOptions, fallbackExerciseOptions)
 
-  return <ProgramEditorLazy initialExerciseOptions={resolvedExerciseOptions} initialTraineeOptions={traineeOptions} />
+  return <ExerciseCacheSeed exercises={exerciseOptions} library={exerciseLibrary}><ProgramEditorLazy initialExerciseOptions={resolvedExerciseOptions} initialTraineeOptions={traineeOptions} /></ExerciseCacheSeed>
 }

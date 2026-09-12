@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
@@ -20,7 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
+import { useCreateWorkout, useUpdateWorkout } from "@/lib/queries/workouts"
+import { useExercises } from "@/lib/queries/exercises"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import type { AppMessages } from "@/lib/i18n/messages"
 import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug, Workout } from "@/lib/types"
@@ -225,13 +225,13 @@ export function RoutineBuilderDialog({
   trigger,
   workoutToEdit,
   onWorkoutSaved,
-  refreshOnSuccess = true,
   open: controlledOpen,
   onOpenChange,
   draftToEdit,
   onSaveDraft,
 }: RoutineBuilderDialogProps) {
-  const router = useRouter()
+  const createWorkoutMutation = useCreateWorkout()
+  const updateWorkoutMutation = useUpdateWorkout()
   const { isLoading: authLoading, session } = useAuth()
   const { messages } = useLocale()
   const isEditing = Boolean(workoutToEdit) || Boolean(draftToEdit?.id)
@@ -249,8 +249,9 @@ export function RoutineBuilderDialog({
   const [exercises, setExercises] = useState<RoutineExerciseDraft[]>([])
   // "add" = add new exercise; exerciseId = swap that exercise; null = closed
   const [pickerTarget, setPickerTarget] = useState<string | "add" | null>(null)
-  const [library, setLibrary] = useState<ExerciseVariationOption[]>([])
-  const [loadingLibrary, setLoadingLibrary] = useState(false)
+  const libraryQuery = useExercises(undefined, undefined, Boolean(pickerTarget))
+  const library = libraryQuery.data ?? []
+  const loadingLibrary = libraryQuery.isFetching
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -286,15 +287,6 @@ export function RoutineBuilderDialog({
     if (open) resetForm()
   }, [open])
 
-  // ── Load exercise library when picker opens ───────────────────────────────
-  useEffect(() => {
-    if (!pickerTarget || library.length > 0 || !session?.access_token) return
-    setLoadingLibrary(true)
-    fetchExercises(session.access_token)
-      .then(setLibrary)
-      .catch(() => {/* non-critical */})
-      .finally(() => setLoadingLibrary(false))
-  }, [pickerTarget, session?.access_token])
 
 
   // ── Exercise handlers ─────────────────────────────────────────────────────
@@ -386,14 +378,13 @@ export function RoutineBuilderDialog({
 
       let saved: Workout
       if (isEditing && workoutToEdit) {
-        saved = await updateWorkout(session.access_token, workoutToEdit.id, payload)
+        saved = await updateWorkoutMutation.mutateAsync({ workoutId: workoutToEdit.id, input: payload })
       } else {
-        saved = await createWorkout(session.access_token, payload)
+        saved = await createWorkoutMutation.mutateAsync(payload)
       }
 
       onWorkoutSaved?.(saved, workoutToEdit)
       setOpen(false)
-      if (refreshOnSuccess) router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : messages.workoutPage.saveRoutineError)
     } finally {

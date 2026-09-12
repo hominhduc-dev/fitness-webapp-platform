@@ -134,7 +134,6 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
     try {
       await signOut()
       router.push("/")
-      router.refresh()
     } finally {
       setIsSigningOut(false)
     }

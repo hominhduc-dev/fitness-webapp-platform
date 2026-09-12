@@ -1,9 +1,13 @@
 "use client"
 
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query"
+import { useAuth } from "@/components/providers/auth-provider"
 
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
+import { userQueryKey, useUserQuery } from "@/lib/queries/scoped"
+import type { CoachProgram } from "@/lib/fitness/types"
+import type { Workout } from "@/lib/types"
 import {
   addWorkoutToProgram,
   copyProgramWeek,
@@ -14,7 +18,49 @@ import {
   swapWorkoutExercise,
   updateTraineeProgram,
   updateWorkout,
+  fetchWorkouts,
+  fetchWorkoutDetail,
+  fetchTraineeProgram,
 } from "@/lib/fitness/api"
+
+export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>) {
+  return useUserQuery({ queryKey: queryKeys.workouts.collection(),
+    queryFn: async () => fetchWorkouts(await requireAccessToken()), initialData })
+}
+
+export function useTraineePrograms(programIds: string[], enabled: boolean) {
+  const { profile } = useAuth()
+  return useQueries({ queries: programIds.map((programId) => ({
+    queryKey: userQueryKey(queryKeys.workouts.traineeProgram(programId), profile?.id),
+    queryFn: async () => fetchTraineeProgram(await requireAccessToken(), programId),
+    enabled: Boolean(profile?.id) && enabled,
+    staleTime: 300_000,
+    retry: false,
+    // Failed programs settle as errors, without an effect retry loop or fake null data.
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })) })
+}
+
+export function useWorkoutDetail(workoutId: string, options: { initialData?: Workout; enabled?: boolean; activeSession?: boolean; select?: (workout: Workout) => Workout } = {}) {
+  return useUserQuery<Workout>({
+    queryKey: queryKeys.workouts.detail(workoutId),
+    queryFn: async () => fetchWorkoutDetail(await requireAccessToken(), workoutId),
+    initialData: options.initialData,
+    enabled: Boolean(workoutId) && (options.enabled ?? true),
+    select: options.select,
+    // Static also blocks invalidation refetches; Infinity alone does not.
+    ...(options.activeSession ? { staleTime: "static" as const, refetchOnMount: false as const,
+      refetchOnWindowFocus: false as const, refetchOnReconnect: false as const } : {}),
+  })
+}
+
+export function useTraineeProgram(programId: string, initialData?: CoachProgram, enabled = true) {
+  return useUserQuery({ queryKey: queryKeys.workouts.traineeProgram(programId),
+    queryFn: async () => fetchTraineeProgram(await requireAccessToken(), programId),
+    initialData, enabled: Boolean(programId) && enabled, staleTime: 300_000 })
+}
 
 /**
  * A finished, deleted or edited session moves the schedule, the dashboard

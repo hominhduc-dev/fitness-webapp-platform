@@ -7,17 +7,15 @@ import { useMemo, useState } from "react"
 import { FilterChip } from "@/components/workout/filter-chip"
 import { RoutineCard } from "@/components/workout/routine-card"
 import { RoutineBuilderDialog, buildRoutineWorkoutPayload, type RoutineDraftData } from "@/components/workout/routine-builder-dialog"
-import { useQueryClient } from "@tanstack/react-query"
 
-import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import { addWorkoutToProgram, copyProgramWeek, updateTraineeProgram } from "@/lib/fitness/api"
-import { queryKeys } from "@/lib/queries/keys"
+import { useAddWorkoutToProgram, useCopyProgramWeek, useUpdateTraineeProgram, useTraineeProgram, useWorkouts } from "@/lib/queries/workouts"
+import type { WorkoutCollection } from "@/lib/fitness/types"
 import { clampWeeks, resolveCurrentWeekProgress } from "@/lib/fitness/program-week"
 import type { CoachProgram } from "@/lib/fitness/types"
 import type { AppLocale } from "@/lib/i18n/config"
@@ -25,6 +23,7 @@ import type { Workout, WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type ProgramWeekViewerProps = {
+  initialData?: WorkoutCollection
   assignedAt?: Date
   canEdit?: boolean
   historyLogs: WorkoutLog[]
@@ -48,10 +47,14 @@ function getDayLabels(locale: AppLocale) {
  * The coach editor covers the same ground but is an authoring tool bound to
  * coach-only endpoints, so this stays a separate, much smaller view.
  */
-export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, program }: ProgramWeekViewerProps) {
+export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: initialLogs, program: initialProgram, initialData }: ProgramWeekViewerProps) {
+  const { data: program = initialProgram } = useTraineeProgram(initialProgram.id, initialProgram)
+  const { data: collection } = useWorkouts(initialData)
+  const historyLogs = collection?.historyLogs ?? initialLogs
+  const addMutation = useAddWorkoutToProgram()
+  const copyMutation = useCopyProgramWeek()
+  const updateMutation = useUpdateTraineeProgram()
   const { locale, messages } = useLocale()
-  const { session } = useAuth()
-  const queryClient = useQueryClient()
   const totalWeeks = clampWeeks(program.duration)
 
   const progress = useMemo(() => resolveCurrentWeekProgress(assignedAt, totalWeeks), [assignedAt, totalWeeks])
@@ -96,23 +99,14 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
   const freeDays = DAY_ORDER.filter((day) => !takenDays.has(day))
   const remainingWeeks = totalWeeks - activeWeek - 1
 
-  const run = async (action: (accessToken: string) => Promise<unknown>) => {
-    const accessToken = session?.access_token
-
-    if (!accessToken || isBusy) return
+  const run = async (action: () => Promise<unknown>) => {
+    if (isBusy) return
 
     setIsBusy(true)
     setError(null)
 
     try {
-      await action(accessToken)
-      // Was router.refresh(): re-running the whole RSC tree to pick up one
-      // program edit. Invalidating the two families the edit can touch is the
-      // same refresh without the server round trip for the layout.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.workouts.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.progress.all }),
-      ])
+      await action()
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : messages.workoutPage.programActionFailed)
     } finally {
@@ -125,9 +119,9 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
     if (scheduledDay == null) return
 
     setAddDay(null)
-    void run(async (accessToken) => {
+    void run(async () => {
       const payload = buildRoutineWorkoutPayload({ exercises: draft.exercises, name: draft.name, tag: draft.tag }, messages)
-      await addWorkoutToProgram(accessToken, program.id, { ...payload, scheduledDay, weekIndex: activeWeek })
+      await addMutation.mutateAsync({ programId: program.id, input: { ...payload, scheduledDay, weekIndex: activeWeek } })
     })
   }
 
@@ -276,7 +270,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
               disabled={isBusy}
               onClick={() => {
                 setIsCopyOpen(false)
-                void run((accessToken) => copyProgramWeek(accessToken, program.id, activeWeek))
+                void run(() => copyMutation.mutateAsync({ programId: program.id, input: activeWeek }))
               }}
             >
               {messages.workoutPage.copyWeek(activeWeek + 1)}
@@ -318,11 +312,11 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
               disabled={isBusy || !draftName.trim()}
               onClick={() => {
                 setIsInfoOpen(false)
-                void run((accessToken) =>
-                  updateTraineeProgram(accessToken, program.id, {
+                void run(() =>
+                  updateMutation.mutateAsync({ programId: program.id, input: {
                     description: draftDescription.trim() || null,
                     name: draftName.trim(),
-                  }),
+                  } }),
                 )
               }}
             >

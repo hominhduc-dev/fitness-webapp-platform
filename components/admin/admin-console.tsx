@@ -17,7 +17,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
-import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,45 +33,12 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import {
-  assignAdminCoachConnection,
-  bulkApproveAdminMuscleProfilesRequest,
-  bulkDeleteAdminExercisesRequest,
-  createAdminExerciseRequest,
-  deleteAdminCoachRequestRequest,
-  deleteAdminExerciseGroupRequest,
-  deleteAdminExerciseRequest,
-  deleteAdminProgramRequest,
-  fetchAdminAuditLogs,
-  fetchAdminCoachRequests,
-  fetchAdminConnections,
-  fetchAdminDashboard,
-  fetchAdminExercises,
-  fetchAdminExerciseImportRequests,
-  fetchAdminPrograms,
-  fetchAdminUserDetail,
-  fetchAdminUsers,
-  applyExerciseSyncRequest,
-  importAdminExercisesRequest,
-  previewExerciseSyncRequest,
-  removeAdminCoachConnection,
-  resetAdminUserPasswordRequest,
-  reviewAdminExerciseImportRequest,
-  updateAdminCoachRequestStatus,
-  updateAdminExerciseRequest,
-  updateAdminUserRequest,
-} from "@/lib/admin/api"
+import * as queries from "@/lib/queries/admin"
 import type {
-  AdminAuditLogItem,
   AdminCoachRequest,
-  AdminConnectionsData,
   AdminDashboardData,
   AdminExerciseItem,
-  AdminExerciseImportRequest,
   AdminExerciseImportRow,
-  AdminProgramSummary,
-  AdminUserDetail,
-  AdminUserListItem,
   ExerciseSyncPreview,
   ExerciseSyncRow,
 } from "@/lib/admin/types"
@@ -207,24 +173,6 @@ function parseImportNumber(value: unknown) {
 function getExerciseGroupKey(value?: string | null) {
   const normalizedValue = value?.trim().toLowerCase()
   return normalizedValue ? normalizedValue : "__other__"
-}
-
-function sortAdminExercises(items: AdminExerciseItem[]) {
-  return [...items].sort((a, b) => {
-    const muscleGroupComparison = a.muscleGroup.localeCompare(b.muscleGroup, undefined, { sensitivity: "base" })
-
-    if (muscleGroupComparison !== 0) {
-      return muscleGroupComparison
-    }
-
-    const nameComparison = a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-
-    if (nameComparison !== 0) {
-      return nameComparison
-    }
-
-    return a.createdAt.getTime() - b.createdAt.getTime()
-  })
 }
 
 function roleBadgeVariant(role: UserRole) {
@@ -488,21 +436,52 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
 
 export function AdminConsole() {
   const { locale } = useLocale()
-  const { session } = useAuth()
-  const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null)
-  const [users, setUsers] = useState<AdminUserListItem[]>([])
-  const [userDetail, setUserDetail] = useState<AdminUserDetail | null>(null)
-  const [coachRequests, setCoachRequests] = useState<AdminCoachRequest[]>([])
-  const [connections, setConnections] = useState<AdminConnectionsData | null>(null)
-  const [programs, setPrograms] = useState<AdminProgramSummary[]>([])
-  const [exercises, setExercises] = useState<AdminExerciseItem[]>([])
-  const [exerciseImportRequests, setExerciseImportRequests] = useState<AdminExerciseImportRequest[]>([])
-  const [auditLogs, setAuditLogs] = useState<AdminAuditLogItem[]>([])
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [requestedUserId, setSelectedUserId] = useState<string | null>(null)
+  const dashboardQuery = queries.useAdminDashboard()
+  const usersQuery = queries.useAdminUsers()
+  const coachRequestsQuery = queries.useAdminCoachRequests()
+  const connectionsQuery = queries.useAdminConnections()
+  const programsQuery = queries.useAdminPrograms()
+  const exercisesQuery = queries.useAdminExercises()
+  const importRequestsQuery = queries.useAdminExerciseImportRequests("pending")
+  const auditLogsQuery = queries.useAdminAuditLogs()
+  const dashboard = dashboardQuery.data
+  const users = usersQuery.data ?? []
+  const selectedUserId = users.some((user) => user.id === requestedUserId) ? requestedUserId : users[0]?.id ?? null
+  const userDetailQuery = queries.useAdminUserDetail(selectedUserId ?? "")
+  const userDetail = userDetailQuery.data
+  const coachRequests = coachRequestsQuery.data ?? []
+  const connections = connectionsQuery.data
+  const programs = programsQuery.data ?? []
+  const exercises = exercisesQuery.data ?? []
+  const exerciseImportRequests = importRequestsQuery.data ?? []
+  const auditLogs = auditLogsQuery.data ?? []
+  const readQueries = [dashboardQuery, usersQuery, coachRequestsQuery, connectionsQuery, programsQuery, exercisesQuery, importRequestsQuery, auditLogsQuery, userDetailQuery]
+  const isLoading = readQueries.some((query) => query.isLoading)
+  const queryError = readQueries.find((query) => query.error)?.error
+  const { mutateAsync: assignAdminCoachConnection } = queries.useAssignAdminCoachConnection()
+  const { mutateAsync: bulkApproveAdminMuscleProfilesRequest } = queries.useBulkApproveAdminMuscleProfilesRequest()
+  const { mutateAsync: bulkDeleteAdminExercisesRequest } = queries.useBulkDeleteAdminExercisesRequest()
+  const { mutateAsync: createAdminExerciseRequest } = queries.useCreateAdminExerciseRequest()
+  const { mutateAsync: deleteAdminCoachRequestRequest } = queries.useDeleteAdminCoachRequestRequest()
+  const { mutateAsync: deleteAdminExerciseGroupRequest } = queries.useDeleteAdminExerciseGroupRequest()
+  const { mutateAsync: deleteAdminExerciseRequest } = queries.useDeleteAdminExerciseRequest()
+  const { mutateAsync: deleteAdminProgramRequest } = queries.useDeleteAdminProgramRequest()
+  const { mutateAsync: applyExerciseSyncRequest } = queries.useApplyExerciseSyncRequest()
+  const { mutateAsync: importAdminExercisesRequest } = queries.useImportAdminExercisesRequest()
+  const { mutateAsync: previewExerciseSyncRequest } = queries.usePreviewExerciseSyncRequest()
+  const { mutateAsync: removeAdminCoachConnection } = queries.useRemoveAdminCoachConnection()
+  const { mutateAsync: resetAdminUserPasswordRequest } = queries.useResetAdminUserPasswordRequest()
+  const { mutateAsync: reviewAdminExerciseImportRequest } = queries.useReviewAdminExerciseImportRequest()
+  const { mutateAsync: updateAdminCoachRequestStatus } = queries.useUpdateAdminCoachRequestStatus()
+  const { mutateAsync: updateAdminExerciseRequest } = queries.useUpdateAdminExerciseRequest()
+  const { mutateAsync: updateAdminUserRequest } = queries.useUpdateAdminUserRequest()
   const [selectedRole, setSelectedRole] = useState<UserRole>("trainee")
   const [resetPassword, setResetPassword] = useState("")
-  const [assignTraineeId, setAssignTraineeId] = useState("")
-  const [assignCoachId, setAssignCoachId] = useState("")
+  const [requestedTraineeId, setAssignTraineeId] = useState("")
+  const assignTraineeId = connections?.unassignedTrainees.some((user) => user.id === requestedTraineeId) ? requestedTraineeId : connections?.unassignedTrainees[0]?.id ?? ""
+  const [requestedCoachId, setAssignCoachId] = useState("")
+  const assignCoachId = connections?.coaches.some((user) => user.id === requestedCoachId) ? requestedCoachId : connections?.coaches[0]?.id ?? ""
   const [exerciseForm, setExerciseForm] = useState<ExerciseFormState>({
     equipment: "",
     muscleGroup: "",
@@ -544,9 +523,9 @@ export function AdminConsole() {
     const url = section === "dashboard" ? "/admin" : `/admin?s=${section}`
     router.replace(url, { scroll: false })
   }
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setError] = useState<string | null>(null)
+  const error = actionError ?? queryError?.message ?? null
   const [notice, setNotice] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [actionKey, setActionKey] = useState<string | null>(null)
   const [confirmState, setConfirmState] = useState<ConfirmState>(null)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -568,110 +547,9 @@ export function AdminConsole() {
     setSelectedRole(userDetail.user.role)
   }, [userDetail])
 
-  async function refreshAllData(accessToken: string, preferredUserId?: string | null, silent?: boolean) {
-    if (!silent) {
-      setIsLoading(true)
-    }
-
+  function loadUserDetail(userId: string) {
     setError(null)
-
-    try {
-      const [nextDashboard, nextUsers, nextRequests, nextConnections, nextPrograms, nextExercises, nextImportRequests, nextAuditLogs] =
-        await Promise.all([
-          fetchAdminDashboard(accessToken),
-          fetchAdminUsers(accessToken),
-          fetchAdminCoachRequests(accessToken),
-          fetchAdminConnections(accessToken),
-          fetchAdminPrograms(accessToken),
-          fetchAdminExercises(accessToken),
-          fetchAdminExerciseImportRequests(accessToken, "pending"),
-          fetchAdminAuditLogs(accessToken),
-        ])
-
-      const nextSelectedUserId =
-        preferredUserId && nextUsers.some((user) => user.id === preferredUserId)
-          ? preferredUserId
-          : nextUsers[0]?.id ?? null
-
-      const nextUserDetail = nextSelectedUserId
-        ? await fetchAdminUserDetail(accessToken, nextSelectedUserId)
-        : null
-
-      setDashboard(nextDashboard)
-      setUsers(nextUsers)
-      setCoachRequests(nextRequests)
-      setConnections(nextConnections)
-      setPrograms(nextPrograms)
-      setExercises(nextExercises)
-      setExerciseImportRequests(nextImportRequests)
-      setAuditLogs(nextAuditLogs)
-      setSelectedUserId(nextSelectedUserId)
-      setUserDetail(nextUserDetail)
-
-      setAssignCoachId((current) =>
-        nextConnections.coaches.some((coach) => coach.id === current) ? current : nextConnections.coaches[0]?.id ?? "",
-      )
-      setAssignTraineeId((current) =>
-        nextConnections.unassignedTrainees.some((trainee) => trainee.id === current)
-          ? current
-          : nextConnections.unassignedTrainees[0]?.id ?? "",
-      )
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Không thể tải dữ liệu admin.")
-    } finally {
-      if (!silent) {
-        setIsLoading(false)
-      }
-    }
-  }
-
-  useEffect(() => {
-    if (!session?.access_token) {
-      return
-    }
-
-    void refreshAllData(session.access_token, selectedUserId)
-  }, [session?.access_token])
-
-  async function loadUserDetail(userId: string) {
-    if (!session?.access_token) {
-      return
-    }
-
-    setError(null)
-
-    try {
-      setSelectedUserId(userId)
-      setUserDetail(await fetchAdminUserDetail(session.access_token, userId))
-    } catch (detailError) {
-      setError(detailError instanceof Error ? detailError.message : "Không thể tải chi tiết người dùng.")
-    }
-  }
-
-  /**
-   * Lightweight refresh for exercise mutations.
-   * Exercise create/update/delete only affect the exercise list (+ audit log),
-   * so refetch just those two instead of the whole admin console (8 queries).
-   */
-  async function refreshExercises() {
-    if (!session?.access_token) {
-      return
-    }
-
-    const token = session.access_token
-
-    try {
-      const [nextExercises, nextImportRequests, nextAuditLogs] = await Promise.all([
-        fetchAdminExercises(token),
-        fetchAdminExerciseImportRequests(token, "pending").catch(() => exerciseImportRequests),
-        fetchAdminAuditLogs(token).catch(() => auditLogs), // audit is non-critical
-      ])
-      setExercises(nextExercises)
-      setExerciseImportRequests(nextImportRequests)
-      setAuditLogs(nextAuditLogs)
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : "Không thể tải danh sách bài tập.")
-    }
+    setSelectedUserId(userId)
   }
 
   function resetExerciseForm() {
@@ -938,7 +816,7 @@ export function AdminConsole() {
   }
 
   async function handleUserUpdate(input: { isActive?: boolean; role?: UserRole }) {
-    if (!session?.access_token || !userDetail) {
+    if (!userDetail) {
       return
     }
 
@@ -947,8 +825,8 @@ export function AdminConsole() {
     setNotice(null)
 
     try {
-      await updateAdminUserRequest(session.access_token, userDetail.user.id, input)
-      await refreshAllData(session.access_token, userDetail.user.id, true)
+      await updateAdminUserRequest([userDetail.user.id, input])
+
       setNotice(locale === "en" ? "User updated successfully." : "Đã cập nhật tài khoản người dùng.")
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : "Không thể cập nhật người dùng.")
@@ -958,7 +836,7 @@ export function AdminConsole() {
   }
 
   async function handleResetPassword() {
-    if (!session?.access_token || !userDetail) {
+    if (!userDetail) {
       return
     }
 
@@ -967,9 +845,9 @@ export function AdminConsole() {
     setNotice(null)
 
     try {
-      await resetAdminUserPasswordRequest(session.access_token, userDetail.user.id, resetPassword)
+      await resetAdminUserPasswordRequest([userDetail.user.id, resetPassword])
       setResetPassword("")
-      await refreshAllData(session.access_token, userDetail.user.id, true)
+
       setNotice(locale === "en" ? "Password reset successfully." : "Đã reset mật khẩu thủ công.")
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : "Không thể reset mật khẩu.")
@@ -979,17 +857,15 @@ export function AdminConsole() {
   }
 
   async function handleCoachRequestAction(requestId: string, status: "approved" | "rejected") {
-    if (!session?.access_token) {
-      return
-    }
+
 
     setActionKey(`request-${requestId}-${status}`)
     setError(null)
     setNotice(null)
 
     try {
-      await updateAdminCoachRequestStatus(session.access_token, requestId, status)
-      await refreshAllData(session.access_token, selectedUserId, true)
+      await updateAdminCoachRequestStatus([requestId, status])
+
       setNotice(
         status === "approved"
           ? locale === "en"
@@ -1007,7 +883,7 @@ export function AdminConsole() {
   }
 
   async function handleAssignConnection() {
-    if (!session?.access_token || !assignCoachId || !assignTraineeId) {
+    if (!assignCoachId || !assignTraineeId) {
       return
     }
 
@@ -1016,11 +892,11 @@ export function AdminConsole() {
     setNotice(null)
 
     try {
-      await assignAdminCoachConnection(session.access_token, {
+      await assignAdminCoachConnection([{
         coachId: assignCoachId,
         traineeId: assignTraineeId,
-      })
-      await refreshAllData(session.access_token, selectedUserId, true)
+      }])
+
       setNotice(locale === "en" ? "Coach assigned successfully." : "Đã gán coach cho trainee.")
     } catch (assignError) {
       setError(assignError instanceof Error ? assignError.message : "Không thể gán coach.")
@@ -1031,21 +907,21 @@ export function AdminConsole() {
 
   // Panel-facing handlers (accept data directly, no internal exerciseForm state needed)
   async function handleSaveExerciseData(data: ExerciseSaveData) {
-    if (!session?.access_token) return
+
     setActionKey(data.id ? `exercise-update-${data.id}` : "exercise-create")
     setError(null)
     setNotice(null)
     try {
       if (data.id) {
-        const savedExercise = await updateAdminExerciseRequest(session.access_token, data.id, data)
-        setExercises((current) => sortAdminExercises(current.map((item) => (item.id === savedExercise.id ? savedExercise : item))))
+        await updateAdminExerciseRequest([data.id, data])
+
         setNotice(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
       } else {
-        const savedExercise = await createAdminExerciseRequest(session.access_token, data)
-        setExercises((current) => sortAdminExercises([savedExercise, ...current]))
+        await createAdminExerciseRequest([data])
+
         setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
       }
-      void refreshExercises()
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu bài tập.")
       throw err
@@ -1055,14 +931,14 @@ export function AdminConsole() {
   }
 
   async function handleDeleteExerciseDirect(exercise: AdminExerciseItem) {
-    if (!session?.access_token) return
+
     setError(null)
     setNotice(null)
     try {
-      await deleteAdminExerciseRequest(session.access_token, exercise.id)
-      setExercises((current) => current.filter((item) => item.id !== exercise.id))
+      await deleteAdminExerciseRequest([exercise.id])
+
       setNotice(locale === "en" ? "Exercise deleted." : "Đã xóa bài tập.")
-      void refreshExercises()
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
       throw err
@@ -1070,20 +946,20 @@ export function AdminConsole() {
   }
 
   async function handleBulkDeleteExercises(ids: string[]) {
-    if (!session?.access_token || !ids.length) return
+    if (!ids.length) return
     setActionKey("exercise-bulk-delete")
     setError(null)
     setNotice(null)
     try {
-      const result = await bulkDeleteAdminExercisesRequest(session.access_token, ids)
-      const deletedSet = new Set(result.deletedIds)
-      setExercises((current) => current.filter((item) => !deletedSet.has(item.id)))
+      const result = await bulkDeleteAdminExercisesRequest([ids])
+
+
       const msg =
         locale === "en"
           ? `Deleted ${result.deletedCount} exercise(s)${result.skippedCount ? `, skipped ${result.skippedCount} in use` : ""}.`
           : `Đã xóa ${result.deletedCount} bài tập${result.skippedCount ? `, bỏ qua ${result.skippedCount} đang dùng` : ""}.`
       setNotice(msg)
-      void refreshExercises()
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
     } finally {
@@ -1092,13 +968,13 @@ export function AdminConsole() {
   }
 
   async function handleBulkApproveProfiles(ids: string[]) {
-    if (!session?.access_token || !ids.length) return
+    if (!ids.length) return
     setActionKey("exercise-bulk-approve")
     setError(null)
     try {
-      const result = await bulkApproveAdminMuscleProfilesRequest(session.access_token, ids)
+      const result = await bulkApproveAdminMuscleProfilesRequest([ids])
       setNotice(locale === "en" ? `Approved ${result.approvedCount} profile(s); skipped ${result.skippedCount}.` : `Đã duyệt ${result.approvedCount} profile; bỏ qua ${result.skippedCount}.`)
-      await refreshExercises()
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể duyệt muscle profiles.")
       throw err
@@ -1285,7 +1161,7 @@ export function AdminConsole() {
   }
 
   async function handleSyncImportFile(file: File) {
-    if (!session?.access_token) return
+
     setActionKey("exercise-sync-preview")
     setError(null)
     setNotice(null)
@@ -1341,7 +1217,7 @@ export function AdminConsole() {
         return
       }
 
-      const preview = await previewExerciseSyncRequest(session.access_token, rows)
+      const preview = await previewExerciseSyncRequest([rows])
       setSyncRows(rows)
       setSyncPreview(preview)
       setIsSyncReviewOpen(true)
@@ -1359,13 +1235,13 @@ export function AdminConsole() {
   }
 
   async function handleApplySyncChanges() {
-    if (!session?.access_token || syncRows.length === 0) return
+    if (syncRows.length === 0) return
     setActionKey("exercise-sync-apply")
     setError(null)
     setNotice(null)
 
     try {
-      const result = await applyExerciseSyncRequest(session.access_token, syncRows)
+      const result = await applyExerciseSyncRequest([syncRows])
       const parts: string[] = []
       if (result.addedCount > 0) parts.push(locale === "en" ? `+${result.addedCount} added` : `+${result.addedCount} thêm`)
       if (result.modifiedCount > 0) parts.push(locale === "en" ? `${result.modifiedCount} modified` : `${result.modifiedCount} sửa`)
@@ -1381,7 +1257,7 @@ export function AdminConsole() {
       setIsSyncReviewOpen(false)
       setSyncPreview(null)
       setSyncRows([])
-      void refreshExercises()
+
     } catch (applyError) {
       setError(
         applyError instanceof Error
@@ -1396,7 +1272,7 @@ export function AdminConsole() {
   }
 
   async function handleImportExercises() {
-    if (!session?.access_token || !importRows.length || importIssues.length > 0) {
+    if (!importRows.length || importIssues.length > 0) {
       return
     }
 
@@ -1405,8 +1281,7 @@ export function AdminConsole() {
     setNotice(null)
 
     try {
-      const token = session.access_token
-      const result = await importAdminExercisesRequest(token, importRows)
+      const result = await importAdminExercisesRequest([importRows])
       setNotice(
         locale === "en"
           ? `Imported ${result.createdCount} exercise variations and skipped ${result.skippedCount} rows.`
@@ -1414,7 +1289,7 @@ export function AdminConsole() {
       )
       setIsImportDialogOpen(false)
       resetImportState()
-      void refreshExercises()
+
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : "Không thể import danh sách bài tập.")
     } finally {
@@ -1423,16 +1298,14 @@ export function AdminConsole() {
   }
 
   async function handleReviewExerciseImportRequest(requestId: string, status: "approved" | "rejected") {
-    if (!session?.access_token) {
-      return
-    }
+
 
     setActionKey(`exercise-import-review-${requestId}`)
     setError(null)
     setNotice(null)
 
     try {
-      const response = await reviewAdminExerciseImportRequest(session.access_token, requestId, { status })
+      const response = await reviewAdminExerciseImportRequest([requestId, { status }])
       setNotice(
         status === "approved"
           ? locale === "en"
@@ -1442,8 +1315,7 @@ export function AdminConsole() {
             ? "Import request rejected."
             : "Đã từ chối yêu cầu import.",
       )
-      setExerciseImportRequests((current) => current.filter((request) => request.id !== response.request.id))
-      void refreshExercises()
+
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : "Không thể xử lý yêu cầu import.")
     } finally {
@@ -1452,7 +1324,7 @@ export function AdminConsole() {
   }
 
   async function handleConfirmAction() {
-    if (!session?.access_token || !confirmState) {
+    if (!confirmState) {
       return
     }
 
@@ -1464,15 +1336,15 @@ export function AdminConsole() {
       let nextNotice = locale === "en" ? "Action completed successfully." : "Đã thực hiện thao tác thành công."
 
       if (confirmState.kind === "request") {
-        await deleteAdminCoachRequestRequest(session.access_token, confirmState.id)
+        await deleteAdminCoachRequestRequest([confirmState.id])
       }
 
       if (confirmState.kind === "program") {
-        await deleteAdminProgramRequest(session.access_token, confirmState.id)
+        await deleteAdminProgramRequest([confirmState.id])
       }
 
       if (confirmState.kind === "exercise") {
-        await deleteAdminExerciseRequest(session.access_token, confirmState.id)
+        await deleteAdminExerciseRequest([confirmState.id])
         if (exerciseForm.id === confirmState.id) {
           resetExerciseForm()
         }
@@ -1480,7 +1352,7 @@ export function AdminConsole() {
       }
 
       if (confirmState.kind === "exercise-group") {
-        const result = await deleteAdminExerciseGroupRequest(session.access_token, confirmState.id)
+        const result = await deleteAdminExerciseGroupRequest([confirmState.id])
 
         if (exerciseForm.id && result.deletedIds.includes(exerciseForm.id)) {
           resetExerciseForm()
@@ -1511,7 +1383,7 @@ export function AdminConsole() {
       if (confirmState.kind === "exercise-groups") {
         const results = await Promise.all(
           confirmState.muscleGroups.map((muscleGroup) =>
-            deleteAdminExerciseGroupRequest(session.access_token as string, muscleGroup),
+            deleteAdminExerciseGroupRequest([muscleGroup]),
           ),
         )
         const deletedCount = results.reduce((sum, result) => sum + result.deletedCount, 0)
@@ -1542,21 +1414,11 @@ export function AdminConsole() {
       }
 
       if (confirmState.kind === "connection") {
-        await removeAdminCoachConnection(session.access_token, confirmState.id)
+        await removeAdminCoachConnection([confirmState.id])
       }
 
-      // Exercise/exercise-group deletes only touch the exercise list (+ audit),
-      // so use the lightweight refresh. Other entities (program/connection/request)
-      // affect dashboard counts and need the full refresh.
-      const exerciseOnlyKinds = ["exercise", "exercise-group", "exercise-groups"]
-      const useLightRefresh = exerciseOnlyKinds.includes(confirmState.kind)
 
       setConfirmState(null)
-      if (useLightRefresh) {
-        await refreshExercises()
-      } else {
-        await refreshAllData(session.access_token, selectedUserId, true)
-      }
       setNotice(nextNotice)
     } catch (confirmError) {
       setError(confirmError instanceof Error ? confirmError.message : "Không thể hoàn tất thao tác.")
@@ -1705,7 +1567,7 @@ export function AdminConsole() {
       : locale === "en"
         ? "Confirm"
         : "Xác nhận"
-  const isConsolePending = !session?.access_token || isLoading
+  const isConsolePending = isLoading
   const pendingRequestCount = coachRequests.filter((request) => request.status === "pending").length
   return (
     <>
@@ -1802,7 +1664,7 @@ export function AdminConsole() {
                     <button
                       key={user.id}
                       type="button"
-                      onClick={() => { setSelectedUserId(user.id); setActiveSection("users"); void refreshAllData(session.access_token, user.id, true) }}
+                      onClick={() => { setSelectedUserId(user.id); setActiveSection("users") }}
                       className="flex items-center gap-3 border-t border-border/50 py-2.5 text-left transition-colors first:border-t-0 hover:bg-muted/30"
                     >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">

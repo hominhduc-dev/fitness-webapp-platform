@@ -1,13 +1,15 @@
 "use client"
 
+import { useGenerateAIMealPlan, useAcceptAIMealPlan } from "@/lib/queries/ai"
+
 import { Bot, Check, Loader2, RefreshCw, Sparkles, X } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useState } from "react"
 
 import { AIMessage } from "@/components/ai/ai-message"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { acceptAIMealPlan, generateAIMealPlan, type AIMealItem } from "@/lib/fitness/api"
+import type { AIMealItem } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
 type MealPlanResult = {
@@ -45,7 +47,6 @@ const MEAL_TYPE_LABELS: Record<string, string> = {
 }
 
 function MealPlanGenerator({
-  accessToken,
   date,
   onAccepted,
   onClose,
@@ -55,48 +56,46 @@ function MealPlanGenerator({
   onAccepted: () => void
   onClose: () => void
 }) {
+  const { mutateAsync: generateAIMealPlan, isPending: generateAIMealPlanPending } = useGenerateAIMealPlan()
+  const { mutateAsync: acceptAIMealPlan, isPending: acceptAIMealPlanPending } = useAcceptAIMealPlan()
   const [preferences, setPreferences] = useState("")
   const [budget, setBudget] = useState("medium")
   const [cookingTime, setCookingTime] = useState("normal")
   const [result, setResult] = useState<MealPlanResult | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isAccepting, setIsAccepting] = useState(false)
+  const isGenerating = generateAIMealPlanPending
+  const isAccepting = acceptAIMealPlanPending
   const [error, setError] = useState<string | null>(null)
 
-  const handleGenerate = useCallback(async () => {
-    setIsGenerating(true)
+  const handleGenerate = async () => {
+
     setError(null)
     setResult(null)
 
     try {
-      const data = await generateAIMealPlan(accessToken, {
+      const data = await generateAIMealPlan([{
         date,
         preferences: preferences || undefined,
         budget,
         cookingTime,
-      })
+      }])
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tạo thực đơn. Vui lòng thử lại.")
-    } finally {
-      setIsGenerating(false)
     }
-  }, [accessToken, date, preferences, budget, cookingTime])
+  }
 
-  const handleAccept = useCallback(async () => {
+  const handleAccept = async () => {
     if (!result) return
-    setIsAccepting(true)
+
     setError(null)
 
     try {
-      await acceptAIMealPlan(accessToken, result.generationId, date)
+      await acceptAIMealPlan([result.generationId, date])
       onAccepted()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu thực đơn. Vui lòng thử lại.")
-    } finally {
-      setIsAccepting(false)
     }
-  }, [accessToken, result, date, onAccepted])
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">

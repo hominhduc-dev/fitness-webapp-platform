@@ -8,10 +8,9 @@ import type { BodyMetricQueryOptions, ExerciseQueryOptions } from "@/lib/queries
  * - **No access token in a key.** Supabase rotates it roughly hourly; keying on
  *   it would evict the entire cache each time. Query functions resolve the token
  *   themselves via `lib/queries/token.ts`.
- * - **No user id in a key either.** Threading it through forty key functions
- *   invites one to be forgotten, which is exactly the leak it would be there to
- *   prevent. The cache is cleared wholesale when the signed-in user changes —
- *   see `resetQueryCacheForUser` in the auth provider.
+ * - Private read hooks append profile.id using userQueryKey / useUserQuery.
+ *   These factories return base keys so invalidation still matches all variants.
+ *   AuthProvider also clears the cache on logout and account changes.
  * - **Every domain exposes an `all` prefix** so a mutation can invalidate a whole
  *   family without listing each variant.
  *

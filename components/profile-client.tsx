@@ -14,9 +14,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { forgotPasswordRequest, resetCurrentTraineeDataRequest } from "@/lib/auth/api"
+import { forgotPasswordRequest } from "@/lib/auth/api"
 import type { AppActivityLevel, AppProfile, AppSex } from "@/lib/auth/types"
-import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
+import { useResetTraineeData } from "@/lib/queries/profile"
+import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { getAppBaseUrl } from "@/lib/supabase/config"
 
@@ -75,7 +76,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const { messages } = useLocale()
   const { isLoading, profile: authProfile, session, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
-  const hasConsumedInitialWeight = useRef(false)
+  const resetData = useResetTraineeData()
+  const weightQuery = useWeightEntries(365, { initialData: initialData.weightEntries })
+  const createWeightEntry = useCreateWeightEntry()
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const previousWeightUnitRef = useRef<"kg" | "lbs">("kg")
   const [name, setName] = useState("")
@@ -85,7 +88,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [heightCm, setHeightCm] = useState("")
   const [currentWeight, setCurrentWeight] = useState("")
   const [targetWeight, setTargetWeight] = useState("")
-  const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null)
+  const [syncedWeightKg, setSyncedWeightKg] = useState<number | null>(null)
   const [dailyCalorieGoal, setDailyCalorieGoal] = useState(String(DEFAULT_DAILY_CALORIE_GOAL))
   const [birthDate, setBirthDate] = useState("")
   const [sex, setSex] = useState<AppSex | "">("")
@@ -127,49 +130,28 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     setActivityLevel(profile.activityLevel ?? "")
   }, [profile])
 
-  useEffect(() => {
-    let cancelled = false
+  // The SSR seed replaces the hasConsumedInitialWeight ref: the query renders the
+  // seeded entries on the first pass and only goes to the network once they age
+  // past staleTime, so the "use the seed exactly once" bookkeeping disappears.
+  const weightEntries = weightQuery.data ?? []
+  const latestWeightKg =
+    weightEntries.find((entry) => typeof entry.weightKg === "number" && Number.isFinite(entry.weightKg))?.weightKg ?? null
 
-    async function loadCurrentWeight() {
-      if (!session?.access_token || !profile?.id) {
-        setLatestWeightKg(null)
-        setCurrentWeight("")
-        return
-      }
-
-      try {
-        const entries = !hasConsumedInitialWeight.current
-          ? initialData.weightEntries
-          : await fetchWeightEntries(session.access_token, 365)
-        hasConsumedInitialWeight.current = true
-
-        if (cancelled) {
-          return
-        }
-
-        const nextLatestWeightKg =
-          entries.find((entry) => typeof entry.weightKg === "number" && Number.isFinite(entry.weightKg))?.weightKg ?? null
-
-        setLatestWeightKg(nextLatestWeightKg)
-        setCurrentWeight(
-          nextLatestWeightKg != null
-            ? formatNumericInput(convertWeightFromKg(nextLatestWeightKg, previousWeightUnitRef.current))
-            : "",
-        )
-      } catch {
-        if (!cancelled) {
-          setLatestWeightKg(null)
-          setCurrentWeight("")
-        }
-      }
-    }
-
-    void loadCurrentWeight()
-
-    return () => {
-      cancelled = true
-    }
-  }, [initialData.weightEntries, profile?.id, session?.access_token])
+  // The weight field is editable, so it cannot simply be derived — but it does
+  // have to follow the server value when that changes. Adjusting during render
+  // is React's documented answer; an effect here would render once with the
+  // stale value and cost a second pass.
+  if (syncedWeightKg !== latestWeightKg) {
+    setSyncedWeightKg(latestWeightKg)
+    setCurrentWeight(
+      latestWeightKg != null
+        // Read the unit from the profile rather than previousWeightUnitRef:
+        // touching a ref during render is impure, and the profile is the source
+        // that ref is tracking anyway.
+        ? formatNumericInput(convertWeightFromKg(latestWeightKg, profile.preferredWeightUnit ?? "kg"))
+        : "",
+    )
+  }
 
   useEffect(() => {
     const previousUnit = previousWeightUnitRef.current
@@ -364,13 +346,12 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       let resolvedCurrentWeightKg = latestWeightKg
 
       if (shouldCreateWeightEntry && session?.access_token) {
-        const bodyMetric = await createWeightEntry(session.access_token, {
+        const bodyMetric = await createWeightEntry.mutateAsync({
           recordedAt: new Date().toISOString(),
           weightKg: parsedCurrentWeightKg,
         })
 
         resolvedCurrentWeightKg = bodyMetric.weightKg ?? parsedCurrentWeightKg
-        setLatestWeightKg(resolvedCurrentWeightKg)
       }
 
       const resolvedWeightUnit = updatedProfile?.preferredWeightUnit ?? preferredWeightUnit
@@ -436,8 +417,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     setIsResettingData(true)
 
     try {
-      await resetCurrentTraineeDataRequest(session.access_token)
-      setLatestWeightKg(null)
+      await resetData.mutateAsync()
       setCurrentWeight("")
       setResetConfirmation("")
       setSuccess(messages.profile.resetDataSuccess)

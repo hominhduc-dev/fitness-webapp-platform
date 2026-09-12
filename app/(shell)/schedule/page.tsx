@@ -12,6 +12,7 @@ async function ScheduleCalendar({ accessToken }: { accessToken: string }) {
 
   return (
     <WeeklyCalendar
+      initialData={workoutData}
       historyLogs={workoutData.historyLogs}
       programs={workoutData.programs}
       recentLogs={workoutData.recentLogs}

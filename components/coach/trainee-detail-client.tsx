@@ -20,7 +20,9 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
-import { useAuth } from "@/components/providers/auth-provider"
+import { useCoachData } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { fetchCoachTraineeDetail, fetchCoachPrograms } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -332,10 +334,10 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
 
 /* ─── Main export ────────────────────────────────────────────────────────── */
 export function CoachTraineeDetailClient({
-  coachPrograms,
+  coachPrograms: initialCoachPrograms,
   initialDetail,
 }: CoachTraineeDetailClientProps) {
-  const { session } = useAuth()
+  const { data: coachPrograms = initialCoachPrograms } = useCoachData(queryKeys.coach.programs(), fetchCoachPrograms, initialCoachPrograms)
   const { locale, messages } = useLocale()
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
@@ -343,7 +345,7 @@ export function CoachTraineeDetailClient({
   const unassignProgram = useUnassignCoachProgram()
   const createBodyMetric = useCreateCoachBodyMetric()
   const createCheckIn = useCreateCoachCheckIn()
-  const [detail, setDetail] = useState(initialDetail)
+  const { data: detail = initialDetail, setData: setDetail } = useCoachData(queryKeys.coach.traineeDetail(initialDetail.trainee.id), (token) => fetchCoachTraineeDetail(token, initialDetail.trainee.id), initialDetail, true, 30_000)
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
   const [checkInForm, setCheckInForm] = useState<CheckInFormState>(createDefaultCheckInForm)
@@ -431,7 +433,7 @@ export function CoachTraineeDetailClient({
   const latestNote = detail.checkIns[0]?.feedback ?? null
 
   async function handleAssignProgram() {
-    if (!session?.access_token || !selectedProgramId) {
+    if (!selectedProgramId) {
       return
     }
 
@@ -459,9 +461,6 @@ export function CoachTraineeDetailClient({
   }
 
   async function handleUnassignProgram(programId: string) {
-    if (!session?.access_token) {
-      return
-    }
 
     setRemovingProgramId(programId)
     setAssignError(null)
@@ -483,9 +482,6 @@ export function CoachTraineeDetailClient({
   async function handleCreateBodyMetric(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!session?.access_token) {
-      return
-    }
 
     setIsSavingMetric(true)
     setMetricError(null)
@@ -517,9 +513,6 @@ export function CoachTraineeDetailClient({
   async function handleCreateCheckIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!session?.access_token) {
-      return
-    }
 
     setIsSavingCheckIn(true)
     setCheckInError(null)

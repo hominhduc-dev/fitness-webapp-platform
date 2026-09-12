@@ -13,9 +13,11 @@ import {
   UserPlus,
   X,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
-import { useAuth } from "@/components/providers/auth-provider"
+import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { useExercises, useExerciseLibrary } from "@/lib/queries/exercises"
+import { queryKeys } from "@/lib/queries/keys"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -29,8 +31,6 @@ import {
   createCoachProgram,
   fetchCoachProgram,
   fetchCoachTrainees,
-  fetchExerciseLibrary,
-  fetchExercises,
   restoreCoachProgram,
   updateCoachProgram,
 } from "@/lib/fitness/api"
@@ -664,9 +664,7 @@ export function ProgramEditor({
 }: ProgramEditorProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { isLoading: authLoading, session } = useAuth()
   const { locale, messages } = useLocale()
-  const hasInitialEditorData = initialExerciseOptions.length > 0 || initialTraineeOptions.length > 0
   const adjustForTraineeId = programId ? searchParams.get("adjustTrainee") ?? undefined : undefined
   const isAdjustMode = Boolean(programId && adjustForTraineeId)
 
@@ -677,10 +675,18 @@ export function ProgramEditor({
   const [durationDraft, setDurationDraft] = useState("8")
   const [daysPerWeek, setDaysPerWeek] = useState("4")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
-  // Write-only: loadPage() maps the schedule from its own local copy, so nothing
-  // reads this back. Kept as state because the picker is expected to consume it.
-  const [, setExerciseOptions] = useState<ExerciseVariationOption[]>(initialExerciseOptions)
-  const [traineeOptions, setTraineeOptions] = useState<CoachTrainee[]>(initialTraineeOptions)
+  const { data: traineeOptions = initialTraineeOptions } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTraineeOptions)
+  const rawExercisesQuery = useExercises()
+  const libraryQuery = useExerciseLibrary()
+  const exercisesQuery = { data: useMemo(() => rawExercisesQuery.data && libraryQuery.data
+    ? mergeExerciseOptions(rawExercisesQuery.data, flattenExerciseLibraryToVariationOptions(libraryQuery.data))
+    : initialExerciseOptions, [rawExercisesQuery.data, libraryQuery.data, initialExerciseOptions]) }
+  const programQuery = useCoachData(queryKeys.coach.program(programId ?? ""), (token) => fetchCoachProgram(token, programId!), undefined, Boolean(programId))
+  const createProgram = useCoachMutation(createCoachProgram)
+  const updateProgram = useCoachMutation(updateCoachProgram)
+  const adjustProgram = useCoachMutation(adjustCoachProgram)
+  const restoreProgram = useCoachMutation(restoreCoachProgram)
+  const [initializedProgram, setInitializedProgram] = useState<string | null>(null)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
   const [assignedTrainees, setAssignedTrainees] = useState<AssignedTrainee[]>([])
   const [archivedAt, setArchivedAt] = useState<Date | null>(null)
@@ -705,51 +711,19 @@ export function ProgramEditor({
     return undefined  // "create" mode → empty form
   }, [builderMode, schedule, routineLibrary])
   const [clientQuery, setClientQuery] = useState("")
-  const [isLoadingPage, setIsLoadingPage] = useState(programId ? true : !hasInitialEditorData)
+  const isLoadingPage = Boolean(programId && programQuery.isPending)
   const [isSaving, setIsSaving] = useState(false)
   const [isRestoring, setIsRestoring] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!session?.access_token) {
-      if (!authLoading) {
-        setIsLoadingPage(false)
-      }
-
-      return
-    }
-
-    let cancelled = false
-
-    const loadPage = async () => {
-      setIsLoadingPage(programId ? true : !hasInitialEditorData)
-      setError(null)
-
-      try {
-        const [exercises, exerciseLibrary, program, trainees] = await Promise.all([
-          fetchExercises(session.access_token),
-          fetchExerciseLibrary(session.access_token),
-          programId ? fetchCoachProgram(session.access_token, programId) : Promise.resolve(null),
-          fetchCoachTrainees(session.access_token),
-        ])
-
-        if (cancelled) {
-          return
-        }
-
-        const fallbackExerciseOptions = flattenExerciseLibraryToVariationOptions(exerciseLibrary)
-        const resolvedExerciseOptions = mergeExerciseOptions(exercises, fallbackExerciseOptions)
-        const nextExerciseOptions =
-          resolvedExerciseOptions.length > 0
-            ? mergeExerciseOptions(initialExerciseOptions, resolvedExerciseOptions)
-            : initialExerciseOptions
-        const nextTraineeOptions = trainees.length > 0 ? trainees : initialTraineeOptions
-
-        setExerciseOptions(nextExerciseOptions)
-        setTraineeOptions(nextTraineeOptions)
-
-        if (program) {
+  // Initialize the editable draft once per program/adjustment target. Background
+  // refetches update the query cache without replacing unsaved form values.
+  const draftIdentity = `${programId ?? "new"}:${adjustForTraineeId ?? ""}`
+  if (programQuery.data && initializedProgram !== draftIdentity) {
+    const program = programQuery.data
+    const nextExerciseOptions = exercisesQuery.data ?? initialExerciseOptions
+    setInitializedProgram(draftIdentity)
           const nextWeeks = clampWeeks(program.duration || 8)
           const nextDaysPerWeek = clampDaysPerWeek(program.workoutsPerWeek || program.workouts.length || 4)
           const mapped = mapProgramToSchedule(program, nextWeeks, nextDaysPerWeek, nextExerciseOptions, messages)
@@ -775,24 +749,7 @@ export function ProgramEditor({
             ? program.assignedTrainees.find((t) => t.id === adjustForTraineeId)
             : program.assignedTrainees[0]
           setActiveWeek(resolveInitialActiveWeek(targetTrainee?.assignedAt, nextWeeks))
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : messages.coach.loadProgramError)
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingPage(false)
-        }
-      }
-    }
-
-    void loadPage()
-
-    return () => {
-      cancelled = true
-    }
-  }, [adjustForTraineeId, authLoading, initialExerciseOptions, initialTraineeOptions, messages, programId, session?.access_token, hasInitialEditorData])
+  }
 
   const totalWeeks = Number(duration) || 8
   const totalDaysPerWeek = Number(daysPerWeek) || 4
@@ -1007,13 +964,12 @@ export function ProgramEditor({
   }
 
   const handleRestoreFromEditor = async () => {
-    if (!session?.access_token || !programId || !isArchived || isRestoring) return
+    if (!programId || !isArchived || isRestoring) return
     setIsRestoring(true)
     setError(null)
     try {
-      const restored = await restoreCoachProgram(session.access_token, programId)
+      const restored = await restoreProgram.mutateAsync([programId])
       setArchivedAt(restored.archivedAt ?? null)
-      router.refresh()
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : messages.coach.programSaveError)
     } finally {
@@ -1022,7 +978,7 @@ export function ProgramEditor({
   }
 
   const handleSaveProgram = async () => {
-    if (!session?.access_token || !canSave) {
+    if (!canSave) {
       return
     }
 
@@ -1047,20 +1003,18 @@ export function ProgramEditor({
     try {
       const savedProgram =
         programId && adjustForTraineeId
-          ? await adjustCoachProgram(session.access_token, programId, adjustForTraineeId, payload)
+          ? await adjustProgram.mutateAsync([programId, adjustForTraineeId, payload])
           : programId
-            ? await updateCoachProgram(session.access_token, programId, payload)
-            : await createCoachProgram(session.access_token, payload)
+            ? await updateProgram.mutateAsync([programId, payload])
+            : await createProgram.mutateAsync([payload])
 
       if (onSaved || onClose) {
         onSaved?.(savedProgram)
         onClose?.()
-        router.refresh()
-        return savedProgram
+          return savedProgram
       }
 
       router.push(adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs")
-      router.refresh()
 
       return savedProgram
     } catch (saveError) {
@@ -1071,6 +1025,8 @@ export function ProgramEditor({
   }
 
   const isModal = Boolean(onClose)
+
+  if (programQuery.error) return <div role="alert">{programQuery.error.message}</div>
 
   if (isLoadingPage) {
     return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">{messages.coach.loadingProgram}</div>

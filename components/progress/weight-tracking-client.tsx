@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { startTransition, useEffect, useMemo, useState } from "react"
+import { startTransition, useMemo, useState } from "react"
 import {
   CartesianGrid,
   Line,
@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
+import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
 
@@ -454,48 +454,21 @@ export function WeightTrackingClient() {
   const sex = profile?.sex ?? undefined
   const activityLevel = profile?.activityLevel ?? undefined
 
-  const [entries, setEntries] = useState<BodyMetricEntry[]>([])
   const [selectedRange, setSelectedRange] = useState<RangeValue>(30)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [inputValue, setInputValue] = useState("")
-  const [isLoadingPage, setIsLoadingPage] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadEntries() {
-      if (authLoading) return
-      if (!session?.access_token) {
-        startTransition(() => {
-          setEntries([])
-          setIsLoadingPage(false)
-        })
-        return
-      }
-
-      setIsLoadingPage(true)
-      setError(null)
-
-      try {
-        const nextEntries = await fetchWeightEntries(session.access_token, selectedRange)
-        if (cancelled) return
-        startTransition(() => {
-          setEntries(nextEntries.sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()))
-          setShowAllHistory(false)
-        })
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : messages.progressPage.loadFailed)
-      } finally {
-        if (!cancelled) setIsLoadingPage(false)
-      }
-    }
-
-    void loadEntries()
-    return () => { cancelled = true }
-  }, [authLoading, messages.progressPage.loadFailed, selectedRange, session?.access_token])
+  const weightQuery = useWeightEntries(selectedRange)
+  const createEntry = useCreateWeightEntry()
+  // The list is rendered newest-first everywhere; sort once here rather than at
+  // each of the five read sites.
+  const entries = useMemo(
+    () => [...(weightQuery.data ?? [])].sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()),
+    [weightQuery.data],
+  )
 
   const summary = useMemo(
     () => buildWeightSummary(entries, targetWeightKg, goalStartWeightKg),
@@ -546,16 +519,11 @@ export function WeightTrackingClient() {
     setInfoMessage(null)
 
     try {
-      const bodyMetric = await createWeightEntry(session.access_token, {
+      await createEntry.mutateAsync({
         recordedAt: new Date().toISOString(),
         weightKg: Number(convertWeightToKg(parsedValue, weightUnit).toFixed(2)),
       })
       startTransition(() => {
-        setEntries((curr) =>
-          [bodyMetric, ...curr]
-            .filter((e, i, arr) => arr.findIndex((x) => x.id === e.id) === i)
-            .sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()),
-        )
         setInputValue("")
       })
       setInfoMessage(messages.progressPage.saveSuccess)
@@ -575,7 +543,10 @@ export function WeightTrackingClient() {
     setInfoMessage(null)
   }
 
-  if (authLoading || isLoadingPage) return <WeightTrackingSkeleton />
+  // isPending, not isLoading: this page has no SSR seed, so "no data yet" is
+  // the right skeleton condition and a background refetch must not blank it.
+  if (authLoading || (session && weightQuery.isPending)) return <WeightTrackingSkeleton />
+  const displayError = error ?? weightQuery.error?.message
 
   const currentWeightDisplay = formatWeight(summary.currentWeightKg, weightUnit)
 
@@ -618,16 +589,16 @@ export function WeightTrackingClient() {
         </section>
 
         {/* ---- Feedback messages ---- */}
-        {(error || infoMessage) && (
+        {(displayError || infoMessage) && (
           <div
             className={cn(
               "rounded-lg border px-4 py-3 text-sm",
-              error
+              displayError
                 ? "border-destructive/20 bg-destructive-soft text-destructive-text"
                 : "border-primary/15 bg-primary-soft text-primary",
             )}
           >
-            {error ?? infoMessage}
+            {displayError ?? infoMessage}
           </div>
         )}
 
@@ -670,7 +641,10 @@ export function WeightTrackingClient() {
                 <button
                   key={r}
                   type="button"
-                  onClick={() => setSelectedRange(r)}
+                  onClick={() => {
+                    setSelectedRange(r)
+                    setShowAllHistory(false)
+                  }}
                   className={cn(
                     "rounded-full border px-3 py-1 font-mono text-xs tnum transition-colors",
                     selectedRange === r

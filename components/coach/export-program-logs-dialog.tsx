@@ -1,8 +1,5 @@
 "use client"
 
-import { useRef } from "react"
-
-import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { buildPlannedSessions, type PlannedSession } from "@/components/workout-export-excel"
 import {
@@ -11,9 +8,9 @@ import {
   type ExportSelection,
   type ResolvedExportRange,
 } from "@/components/workout/workout-export-dialog"
-import { exportCoachWorkoutLogsToGoogleSheets, fetchCoachBodyMetrics, fetchCoachProgram, fetchCoachWorkoutLogs } from "@/lib/fitness/api"
+import { useCoachSheetsExport, useExportQueries } from "@/lib/queries/exports"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
-import type { AssignedTrainee, CoachProgram } from "@/lib/fitness/types"
+import type { AssignedTrainee } from "@/lib/fitness/types"
 
 type ExportProgramLogsDialogProps = {
   assignedTrainees: AssignedTrainee[]
@@ -22,42 +19,15 @@ type ExportProgramLogsDialogProps = {
   programName: string
 }
 
-async function loadAllCoachLogs(
-  accessToken: string,
-  traineeId: string,
-  from: string,
-  programId: string,
-  to: string,
-) {
-  const allLogs: Awaited<ReturnType<typeof fetchCoachWorkoutLogs>>["logs"] = []
-  let cursor: string | undefined
-
-  for (let page = 0; page < 20; page++) {
-    const result = await fetchCoachWorkoutLogs(accessToken, traineeId, {
-      cursor,
-      from,
-      limit: 50,
-      programId,
-      to,
-    })
-    allLogs.push(...result.logs)
-
-    if (!result.nextCursor) break
-    cursor = result.nextCursor
-  }
-
-  return allLogs
-}
-
 export function ExportProgramLogsDialog({
   assignedTrainees,
   programDuration,
   programId,
   programName,
 }: ExportProgramLogsDialogProps) {
-  const { session } = useAuth()
+  const queries = useExportQueries()
+  const sheetsExport = useCoachSheetsExport()
   const { messages } = useLocale()
-  const programRef = useRef<CoachProgram | null>(null)
 
   if (assignedTrainees.length === 0) return null
 
@@ -84,40 +54,37 @@ export function ExportProgramLogsDialog({
   // The backend still includes legacy null-program logs inside the date window,
   // but logs from other programs are excluded.
   const loadLogs = async (context: ExportContext) => {
-    if (!session?.access_token || !context.subjectId) return []
-    return loadAllCoachLogs(session.access_token, context.subjectId, context.range.from, programId, context.range.to)
+    if (!context.subjectId) throw new Error("No trainee selected.")
+    return queries.coachLogs(context.subjectId, { from: context.range.from, programId, to: context.range.to })
   }
 
   const loadBodyMetrics = async (context: ExportContext) => {
-    if (!session?.access_token || !context.subjectId) return []
-    return fetchCoachBodyMetrics(session.access_token, context.subjectId, {
+    if (!context.subjectId) throw new Error("No trainee selected.")
+    return queries.coachBodyMetrics(context.subjectId, {
       from: context.range.from,
       to: context.range.to,
     })
   }
 
   const exportToSheets = async (context: ExportContext) => {
-    if (!session?.access_token || !context.subjectId) throw new Error("No trainee selected.")
-    return exportCoachWorkoutLogsToGoogleSheets(session.access_token, context.subjectId, {
+    if (!context.subjectId) throw new Error("No trainee selected.")
+    return sheetsExport.mutateAsync({ traineeId: context.subjectId, options: {
       from: context.range.from,
       label: context.range.label,
       programId,
       to: context.range.to,
-    })
+    } })
   }
 
   // Planned schedule from the program, anchored to the selected trainee's start.
   const resolvePlannedSessions = async (selection: ExportSelection): Promise<PlannedSession[]> => {
-    if (!session?.access_token) return []
     const trainee = assignedTrainees.find((candidate) => candidate.id === selection.subjectId)
     if (!trainee) return []
 
-    if (!programRef.current) {
-      programRef.current = await fetchCoachProgram(session.access_token, programId)
-    }
+    const program = await queries.coachProgram(programId)
 
     const start = formatDateToISO(getProgramStartDate(trainee.assignedAt, programDuration))
-    return buildPlannedSessions(programRef.current.workouts, start)
+    return buildPlannedSessions(program.workouts, start)
   }
 
   return (

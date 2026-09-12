@@ -1,8 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { ProgramEditorLazy } from "@/components/coach/program-editor-lazy"
+import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { useQueryClient } from "@tanstack/react-query"
+import { userQueryKey } from "@/lib/queries/scoped"
+import { requireAccessToken } from "@/lib/queries/token"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
@@ -15,6 +20,7 @@ import {
   deleteCoachProgram,
   fetchCoachProgram,
   fetchCoachPrograms,
+  fetchCoachTrainees,
   restoreCoachProgram,
 } from "@/lib/fitness/api"
 import type {
@@ -64,9 +70,9 @@ interface ProgramsBoardProps {
   trainees: CoachTrainee[]
 }
 
-export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees }: ProgramsBoardProps) {
-  const { session } = useAuth()
-  const [programs, setPrograms] = useState(initialPrograms)
+export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees: initialTrainees }: ProgramsBoardProps) {
+  const { profile, session } = useAuth()
+  const client = useQueryClient()
   const [assignTarget, setAssignTarget] = useState<CoachProgram | null>(null)
   const [editorTarget, setEditorTarget] = useState<"new" | string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -74,32 +80,24 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
 
-  const token = session?.access_token
-
-  // Refetch when toggling Archived view to include or exclude archived programs.
-  useEffect(() => {
-    if (!token) return
-    let cancelled = false
-    void fetchCoachPrograms(token, { includeArchived: showArchived }).then((next) => {
-      if (!cancelled) setPrograms(next)
-    }).catch(() => { /* ignore — existing list stays */ })
-    return () => {
-      cancelled = true
-    }
-  }, [showArchived, token])
+  const { data: programs = [], setData: setPrograms } = useCoachData(queryKeys.coach.programs({ includeArchived: showArchived }), (token) => fetchCoachPrograms(token, { includeArchived: showArchived }), showArchived ? undefined : initialPrograms)
+  const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
+  const createProgram = useCoachMutation(createCoachProgram)
+  const archiveProgram = useCoachMutation(archiveCoachProgram)
+  const restoreProgram = useCoachMutation(restoreCoachProgram)
+  const deleteProgram = useCoachMutation(deleteCoachProgram)
 
   const visiblePrograms = showArchived ? programs : programs.filter((p) => !p.archivedAt)
   const totalAssignments = visiblePrograms.reduce((sum, program) => sum + program.assignedTrainees.length, 0)
   const unassigned = visiblePrograms.filter((program) => program.assignedTrainees.length === 0).length
 
   const handleDuplicate = async (program: CoachProgram) => {
-    if (!token) return
     setBusyId(program.id)
     setError(null)
     try {
       // Re-fetch to make sure the full workout/exercise tree is loaded.
-      const full = await fetchCoachProgram(token, program.id)
-      const created = await createCoachProgram(token, toCreateInput(full, `${program.name} (copy)`))
+      const full = await client.fetchQuery({ queryKey: userQueryKey(queryKeys.coach.program(program.id), profile?.id), queryFn: async () => fetchCoachProgram(await requireAccessToken(), program.id), staleTime: 300_000 })
+      const created = await createProgram.mutateAsync([toCreateInput(full, `${program.name} (copy)`)])
       setPrograms((prev) => {
         const index = prev.findIndex((item) => item.id === program.id)
         const next = prev.slice()
@@ -114,7 +112,6 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
   }
 
   const handleArchive = async (program: CoachProgram) => {
-    if (!token) return
     if (
       !window.confirm(
         `Archive "${program.name}"? Lịch tập sống của trainee sẽ bị gỡ. Log lịch sử + export vẫn truy được.`,
@@ -125,7 +122,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
     setBusyId(program.id)
     setError(null)
     try {
-      const updated = await archiveCoachProgram(token, program.id)
+      const updated = await archiveProgram.mutateAsync([program.id])
       setPrograms((prev) => {
         // If we're hiding archived, remove it from view; otherwise flip its state in place.
         if (!showArchived) return prev.filter((item) => item.id !== program.id)
@@ -139,11 +136,10 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
   }
 
   const handleRestore = async (program: CoachProgram) => {
-    if (!token) return
     setBusyId(program.id)
     setError(null)
     try {
-      const updated = await restoreCoachProgram(token, program.id)
+      const updated = await restoreProgram.mutateAsync([program.id])
       setPrograms((prev) => prev.map((item) => (item.id === program.id ? updated : item)))
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : "Unable to restore program.")
@@ -153,12 +149,11 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
   }
 
   const handleDelete = async (program: CoachProgram) => {
-    if (!token) return
     if (!window.confirm(`Permanently delete "${program.name}"? Không thể hoàn tác.`)) return
     setBusyId(program.id)
     setError(null)
     try {
-      await deleteCoachProgram(token, program.id)
+      await deleteProgram.mutateAsync([program.id])
       setPrograms((prev) => prev.filter((item) => item.id !== program.id))
     } catch (deleteError) {
       // 409 → backend refuses because program has assignments or logs.
@@ -193,7 +188,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
   }
 
   const handleImported = (program: CoachProgram) => {
-    setPrograms((prev) => [program, ...prev])
+    setPrograms((prev) => [program, ...prev.filter((item) => item.id !== program.id)])
   }
 
   const editor =
@@ -261,7 +256,6 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
           onClose={() => setImportOpen(false)}
           onImported={handleImported}
           open={importOpen}
-          token={token}
           trainees={trainees}
         />
       </>
@@ -309,7 +303,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
         onClose={() => setImportOpen(false)}
         onImported={handleImported}
         open={importOpen}
-        token={token}
+        token={session?.access_token ?? ""}
         trainees={trainees}
       />
     </>

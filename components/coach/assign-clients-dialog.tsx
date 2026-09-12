@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react"
 import { Check, Search } from "lucide-react"
 
-import { useAuth } from "@/components/providers/auth-provider"
+import { useCoachData } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { fetchCoachTrainees } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -35,8 +37,8 @@ interface AssignClientsDialogProps {
  * diffs the selection and calls assignCoachProgram / unassignCoachProgram
  * for the added / removed ids.
  */
-export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: AssignClientsDialogProps) {
-  const { session } = useAuth()
+export function AssignClientsDialog({ program, trainees: initialTrainees, onClose, onAssigned }: AssignClientsDialogProps) {
+  const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
   const { messages } = useLocale()
   const [query, setQuery] = useState("")
   const assignProgram = useAssignCoachProgram()
@@ -71,7 +73,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
     })
 
   const handleSave = async () => {
-    if (!program || !session?.access_token) return
+    if (!program) return
     const current = new Set((program.assignedTrainees ?? []).map((t) => t.id))
     const toAdd = [...selected].filter((id) => !current.has(id))
     const toRemove = [...current].filter((id) => !selected.has(id))

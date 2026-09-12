@@ -6,11 +6,13 @@ import { Dumbbell, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
-import { useAuth } from "@/components/providers/auth-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
 import { fetchCoachNavCounts } from "@/lib/fitness/api"
+import { useUserQuery } from "@/lib/queries/scoped"
+import { queryKeys } from "@/lib/queries/keys"
+import { requireAccessToken } from "@/lib/queries/token"
 import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
 import { BaseSidebar } from "@/components/layout/base-sidebar"
 
@@ -116,41 +118,12 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 }
 
 function CoachSidebar({ pathname }: { pathname: string }) {
-  const { session } = useAuth()
   const { messages } = useLocale()
-  const [counts, setCounts] = useState<{ programs?: number; trainees?: number }>({})
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadCounts() {
-      if (!session?.access_token) {
-        setCounts({})
-        return
-      }
-
-      try {
-        const navCounts = await fetchCoachNavCounts(session.access_token)
-
-        if (!cancelled) {
-          setCounts({
-            programs: navCounts.programs,
-            trainees: navCounts.trainees,
-          })
-        }
-      } catch {
-        if (!cancelled) {
-          setCounts({})
-        }
-      }
-    }
-
-    void loadCounts()
-
-    return () => {
-      cancelled = true
-    }
-  }, [session?.access_token])
+  const countsQuery = useUserQuery({
+    queryKey: queryKeys.coach.navCounts(),
+    queryFn: async () => fetchCoachNavCounts(await requireAccessToken()),
+  })
+  const counts: { programs?: number; trainees?: number } = countsQuery.data ?? {}
 
   const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
     ["/coach/trainees", "/coach/programs", "/coach/exercises", "/coach/stats"].includes(item.href),
