@@ -1361,7 +1361,7 @@ async function createWorkoutLog(accessToken: string, workoutId: string, input: W
       ...input,
       exercises: input.exercises.map((exercise) => ({
         ...exercise,
-        sets: exercise.sets.map(({ previousPerformance, ...set }) => set),
+        sets: exercise.sets.map(({ compoundSet, previousPerformance, ...set }) => set),
       })),
     }),
     method: "POST",

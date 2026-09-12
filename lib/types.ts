@@ -106,12 +106,28 @@ export interface PreviousExerciseSetPerformance {
   weight?: number
 }
 
+export type CompoundSetType = "drop_set" | "rest_pause" | "myo_rep_match" | "cluster"
+
+export interface CompoundSetSegment {
+  id: string
+  reps?: number
+  weight?: number
+}
+
+export interface CompoundSet {
+  restSec?: number
+  segments: CompoundSetSegment[]
+  targetReps?: number
+  type: CompoundSetType
+}
+
 export interface ExerciseSet {
   id: string
   setNumber: number
   targetRepsMin?: number
   targetReps: number
   actualReps?: number
+  compoundSet?: CompoundSet
   weight?: number
   rir?: number // Reps in Reserve
   notes?: string
