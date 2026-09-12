@@ -27,7 +27,7 @@ export function FilterChip({ active, count, className, children, ...props }: Fil
       {children}
       {count !== undefined && (
         <span className={cn(
-          "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[10px] tnum",
+          "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-micro tnum",
           active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
         )}>
           {count}

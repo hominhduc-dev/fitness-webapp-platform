@@ -128,10 +128,10 @@ export function MetricCard({
       <div className="relative mt-3 flex flex-col gap-1">
         <div className={cn(
           // Typography classes by variant
-          isDefault && "font-mono text-[28px] font-semibold leading-none tracking-tight tnum",
+          isDefault && "font-mono text-3xl font-semibold leading-none tracking-tight tnum",
           isDefault && palette.value,
           isGlass && "font-mono text-2xl font-semibold leading-none tracking-tight tnum md:text-[1.75rem] text-foreground",
-          isFeatured && "font-mono text-[34px] font-bold leading-none tracking-[-0.06em] tnum sm:text-[40px]",
+          isFeatured && "font-mono text-4xl font-bold leading-none tracking-[-0.06em] tnum sm:text-5xl",
           isFeatured && palette.value
         )}>
           {value}
@@ -141,7 +141,7 @@ export function MetricCard({
           <div className="mt-1 flex items-center gap-2">
             {trend && (
               <span className={cn(
-                "inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-medium tnum",
+                "inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-micro font-medium tnum",
                 trend.positive 
                   ? "bg-success/15 text-success-text" 
                   : "bg-destructive/15 text-destructive"

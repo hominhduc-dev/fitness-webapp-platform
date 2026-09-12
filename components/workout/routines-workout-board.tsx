@@ -34,7 +34,7 @@ function CreateRoutineButton() {
   return (
     <RoutineBuilderDialog
       trigger={
-        <Button className="h-10 w-full justify-center gap-2 rounded-[8px] bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
+        <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
           <Plus className="h-4 w-4" />
           {messages.workoutPage.createRoutine}
         </Button>
@@ -94,13 +94,13 @@ export function RoutinesWorkoutBoard({ historyLogs, programs, workouts }: Routin
       <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end">
         <div>
           <span className="label-micro mb-2 block">{messages.workoutPage.routines}</span>
-          <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-[36px]">
+          <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-4xl">
             {messages.workoutPage.savedRoutines(cardCount)}
           </h1>
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
           <Link href="/workout/ai-generate" className="min-w-0 sm:w-auto">
-            <Button variant="outline" className="h-10 w-full justify-center gap-2 rounded-[8px] px-4 text-sm font-semibold sm:w-auto">
+            <Button variant="outline" className="h-10 w-full justify-center gap-2 rounded-lg px-4 text-sm font-semibold sm:w-auto">
               <Sparkles className="h-4 w-4" />
               {messages.workoutPage.aiCreateWorkout}
             </Button>
@@ -128,7 +128,7 @@ export function RoutinesWorkoutBoard({ historyLogs, programs, workouts }: Routin
           ))}
         </div>
       ) : (
-        <div className="rounded-[10px] border border-dashed border-border px-6 py-14 text-center">
+        <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center">
           <p className="text-sm font-medium text-foreground">{messages.workoutPage.noRoutinesTitle}</p>
           <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.noRoutinesCopy}</p>
           <div className="mt-5 flex justify-center">

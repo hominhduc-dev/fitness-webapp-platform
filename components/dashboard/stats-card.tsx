@@ -50,7 +50,7 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
   return (
     <div
       className={cn(
-        "rounded-[10px] border bg-card p-4 transition-colors hover:border-primary/25 md:p-5",
+        "rounded-lg border bg-card p-4 transition-colors hover:border-primary/25 md:p-5",
         variant === "default" && "border-border",
         variant === "primary" && "border-primary/20 bg-primary-soft",
         variant === "accent"  && "border-success/20 bg-ok-soft",
@@ -75,7 +75,7 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
           {trend && (
             <span
               className={cn(
-                "inline-flex rounded-sm px-1.5 py-0.5 font-mono text-[10px] tnum",
+                "inline-flex rounded-sm px-1.5 py-0.5 font-mono text-micro tnum",
                 trend.positive
                   ? "bg-ok-soft text-success-text"
                   : "bg-warn-soft text-warning-text",
@@ -89,7 +89,7 @@ export function StatsCard({ title, value, subtitle, icon, iconName, trend, varia
         {Icon && (
           <div
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
               variant === "default" && "bg-muted text-muted-foreground",
               variant === "primary" && "bg-primary-soft text-primary",
               variant === "accent"  && "bg-ok-soft text-success-text",

@@ -55,12 +55,12 @@ function ActivityRow({
   const monthShort = startedAt.toLocaleDateString("en-US", { month: "short" })
 
   return (
-    <div className="glass-card rounded-[10px] border border-border bg-card px-4 py-3">
+    <div className="glass-card rounded-lg border border-border bg-card px-4 py-3">
       <div className="flex items-center gap-3.5">
         {/* Date column */}
         <div className="w-8 shrink-0 text-center">
           <div className="label-micro leading-tight">{monthShort}</div>
-          <div className="font-mono text-[17px] font-semibold leading-tight tnum text-foreground">
+          <div className="font-mono text-lg font-semibold leading-tight tnum text-foreground">
             {dayNum}
           </div>
         </div>
@@ -71,7 +71,7 @@ function ActivityRow({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{log.workout.name}</p>
-          <div className="mt-0.5 flex items-center gap-3 font-mono text-[11px] tnum text-muted-foreground">
+          <div className="mt-0.5 flex items-center gap-3 font-mono text-micro tnum text-muted-foreground">
             {durationMins && (
               <span>{durationMins} {messages.dashboard.min}</span>
             )}
@@ -90,7 +90,7 @@ function ActivityRow({
 
         {/* Coach comments badge */}
         {log.comments.length > 0 && (
-          <div className="shrink-0 rounded-full border border-primary/20 bg-primary-soft px-2 py-0.5 font-mono text-[10px] text-primary">
+          <div className="shrink-0 rounded-full border border-primary/20 bg-primary-soft px-2 py-0.5 font-mono text-micro text-primary">
             {log.comments.length} note{log.comments.length > 1 ? "s" : ""}
           </div>
         )}
@@ -102,10 +102,10 @@ function ActivityRow({
           {log.comments.slice(-2).map((comment) => (
             <div
               key={comment.id}
-              className="rounded-[8px] border border-border bg-muted px-3 py-2.5"
+              className="rounded-lg border border-border bg-muted px-3 py-2.5"
             >
               <p className="label-micro text-primary">{comment.authorName}</p>
-              <p className="mt-1 text-[13px] text-muted-foreground">{comment.content}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{comment.content}</p>
             </div>
           ))}
         </div>
@@ -133,11 +133,11 @@ export function RecentActivity({ emptyMessage, logs, title }: RecentActivityProp
     <section>
       <div className="mb-4 flex items-baseline gap-3">
         <span className="label-micro">{title ?? messages.dashboard.recentActivity}</span>
-        <span className="font-mono text-[11px] tnum text-muted-foreground">{logs.length}</span>
+        <span className="font-mono text-micro tnum text-muted-foreground">{logs.length}</span>
       </div>
 
       {logs.length === 0 ? (
-        <div className="rounded-[10px] border border-dashed border-border px-6 py-10 text-center">
+        <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
           <p className="text-sm text-muted-foreground">
             {emptyMessage ?? messages.dashboard.noRecentWorkouts}
           </p>

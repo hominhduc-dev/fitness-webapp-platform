@@ -60,7 +60,7 @@ function NavItems({
           href={item.href}
           onClick={onSelect}
           className={cn(
-            "flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-sm transition-colors",
+            "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors",
             isActive(item)
               ? "bg-muted font-medium text-foreground"
               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -69,7 +69,7 @@ function NavItems({
           <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
           <span>{item.label}</span>
           {item.count != null ? (
-            <span className="ml-auto rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] leading-none text-muted-foreground">
+            <span className="ml-auto rounded-full bg-muted px-2 py-0.5 font-mono text-micro leading-none text-muted-foreground">
               {item.count}
             </span>
           ) : null}
@@ -171,7 +171,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[2px]"
           />
-          <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-[22px] border border-border bg-background p-2.5 shadow-2xl">
+          <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-3xl border border-border bg-background p-2.5 shadow-2xl">
             <div className="mb-2 flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2"><Dumbbell className="h-4 w-4" /><span className="font-semibold">YeahBuddy</span>{badge ? <span className="label-micro">{badge}</span> : null}</div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
@@ -185,14 +185,14 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             <div className="my-2 h-px bg-border" />
 
             <div className="px-3 py-2">
-              <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="mb-1.5 font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.common.language}
               </p>
               <LanguageToggle variant="select" />
             </div>
 
             <div className="px-3 py-2">
-              <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="mb-1.5 font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.common.theme}
               </p>
               <ThemeToggle variant="select" />
@@ -201,7 +201,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             <Link
               href="/profile"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+              className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
             >
               <Settings className="h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{messages.common.settings}</span>
@@ -211,7 +211,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               type="button"
               onClick={() => void handleSignOut()}
               disabled={isSigningOut}
-              className="flex w-full items-center gap-3 rounded-[6px] px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text disabled:opacity-50"
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text disabled:opacity-50"
             >
               <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{isSigningOut ? messages.common.signingOut : messages.common.signOut}</span>

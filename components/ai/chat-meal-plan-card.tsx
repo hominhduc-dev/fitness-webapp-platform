@@ -52,7 +52,7 @@ function ChatMealPlanCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug">Thực đơn ngày {action.date}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             {Math.round(totals.calories)} kcal · P {Math.round(totals.protein)}g · C{" "}
             {Math.round(totals.carbs)}g · F {Math.round(totals.fat)}g
           </p>
@@ -62,7 +62,7 @@ function ChatMealPlanCard({
       <div className="mt-2.5 space-y-2">
         {action.meals.map((meal, i) => (
           <div key={i}>
-            <p className="text-[11px] font-medium text-muted-foreground">
+            <p className="text-micro font-medium text-muted-foreground">
               {MEAL_TYPE_LABELS[meal.type] ?? meal.type}
             </p>
             <ul className="mt-0.5 space-y-0.5">
@@ -105,7 +105,7 @@ function ChatMealPlanCard({
         </Button>
       )}
 
-      {error && <p className="mt-2 text-[11px] text-destructive-text">{error}</p>}
+      {error && <p className="mt-2 text-micro text-destructive-text">{error}</p>}
     </div>
   )
 }

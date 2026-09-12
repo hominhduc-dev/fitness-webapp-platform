@@ -125,7 +125,7 @@ export default function MuscleMapPreviewPage() {
         ))}
       </section>
 
-      <section className="grid grid-cols-2 gap-6 rounded-[10px] border border-border bg-card p-6">
+      <section className="grid grid-cols-2 gap-6 rounded-lg border border-border bg-card p-6">
         <div className="space-y-2">
           <p className="label-micro text-center">Front</p>
           <MuscleMap side="front" highlights={highlights} onMuscleClick={toggleSlug} label="Front body map" />
@@ -171,10 +171,10 @@ export default function MuscleMapPreviewPage() {
         <p className="text-sm text-muted-foreground">
           The scale used in routine cards and the builder dialog header, beside a title block.
         </p>
-        <div className="flex max-w-[420px] items-start justify-between gap-3 rounded-[10px] border border-border bg-card p-5">
+        <div className="flex max-w-[420px] items-start justify-between gap-3 rounded-lg border border-border bg-card p-5">
           <div className="min-w-0">
             <p className="label-micro mb-1">Push</p>
-            <h3 className="text-[17px] font-semibold leading-tight text-foreground">Upper body A</h3>
+            <h3 className="text-lg font-semibold leading-tight text-foreground">Upper body A</h3>
             <p className="mt-1 font-mono text-xs text-muted-foreground">5 exercises · 18 sets</p>
           </div>
           <MuscleMapPair

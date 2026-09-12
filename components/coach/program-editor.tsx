@@ -373,7 +373,7 @@ function RoutineTagBadge({ tag }: { tag: RoutineTag }) {
   const { messages } = useLocale()
 
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+    <span className="inline-flex items-center gap-1.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
       <RoutineDot tag={tag} />
       {getRoutineTagLabel(tag, messages)}
     </span>
@@ -402,7 +402,7 @@ function SessionSlot({
       type="button"
       onClick={onClick}
       className={cn(
-        "group relative flex min-h-[108px] flex-col overflow-hidden rounded-[16px] border p-4 text-left shadow-sm transition-all duration-200 ease-[cubic-bezier(.2,.7,.2,1)]",
+        "group relative flex min-h-[108px] flex-col overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all duration-200 ease-[cubic-bezier(.2,.7,.2,1)]",
         isRest
           ? "border-dashed border-border/80 bg-background/20 hover:border-foreground/25 hover:bg-background/35"
           : "border-border/80 bg-background/55 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-background/75 hover:shadow-md",
@@ -415,7 +415,7 @@ function SessionSlot({
         />
       ) : null}
       <span className="flex items-center justify-between">
-        <span className="rounded-full bg-muted/70 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="rounded-full bg-muted/70 px-2 py-1 font-mono text-micro font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           {dayLabel}
         </span>
         <span className="flex items-center gap-0.5">
@@ -467,8 +467,8 @@ function SessionSlot({
       {routine ? (
         <span className="mt-4 min-w-0">
           <RoutineTagBadge tag={routine.tag} />
-          <span className="mt-2 block truncate text-[14px] font-semibold tracking-[-0.01em] text-foreground">{routine.name}</span>
-          <span className="mt-1 block font-mono text-[10px] text-muted-foreground tnum">
+          <span className="mt-2 block truncate text-sm font-semibold tracking-[-0.01em] text-foreground">{routine.name}</span>
+          <span className="mt-1 block font-mono text-micro text-muted-foreground tnum">
             {messages.coach.exerciseCount(routine.exercises.length)}
           </span>
         </span>
@@ -585,11 +585,11 @@ function RoutinePickerDialog({
       <DialogContent
         showCloseButton={false}
         overlayClassName="z-[65] bg-foreground/25 backdrop-blur-[2px]"
-        className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 shadow-[var(--glass-shadow)] sm:max-w-[400px]"
+        className="z-[90] flex max-h-[72svh] min-h-0 flex-col overflow-hidden rounded-xl border-border p-0 shadow-[var(--glass-shadow)] sm:max-w-[400px]"
       >
         <DialogHeader className="border-b border-border px-5 pb-3 pt-5 text-left">
           <div className="flex items-center justify-between gap-3">
-            <DialogTitle className="text-[15px] font-semibold">{messages.coach.pickRoutine}</DialogTitle>
+            <DialogTitle className="text-base font-semibold">{messages.coach.pickRoutine}</DialogTitle>
             <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} className="-mr-1 -mt-1">
               <X className="h-4 w-4" />
             </Button>
@@ -1087,7 +1087,7 @@ export function ProgramEditor({
     >
       {isSaving ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[14px] border border-border bg-card p-6 text-center shadow-[var(--glass-shadow)]">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-[var(--glass-shadow)]">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
             <h2 className="mt-5 text-xl font-semibold">{messages.coach.savingProgram}</h2>
             <p className="mt-2 text-sm text-muted-foreground">{messages.coach.updateProgramDetails}</p>
@@ -1097,7 +1097,7 @@ export function ProgramEditor({
 
       <div
         className={cn(
-          "glass-surface flex w-full max-w-[920px] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-card shadow-[var(--glass-shadow)]",
+          "glass-surface flex w-full max-w-[920px] flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-[var(--glass-shadow)]",
           isModal && "h-[calc(100svh-1rem)] max-h-[960px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
         )}
       >
@@ -1107,7 +1107,7 @@ export function ProgramEditor({
               <p className="label-micro mb-1.5">
                 {isAdjustMode ? messages.coach.adjustProgram : programId ? messages.coach.editProgram : messages.coach.newProgram}
               </p>
-              <h1 className="truncate text-[23px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+              <h1 className="truncate text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
                 {programName.trim() || messages.coach.untitledProgram}
               </h1>
               <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
@@ -1138,13 +1138,13 @@ export function ProgramEditor({
 
           <button
             type="button"
-            className="mb-3 flex w-full items-center justify-between gap-3 rounded-[14px] border border-border/70 bg-background/35 px-3.5 py-3 text-left md:hidden"
+            className="mb-3 flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/35 px-3.5 py-3 text-left md:hidden"
             aria-expanded={isDetailsExpanded}
             onClick={() => setIsDetailsExpanded((current) => !current)}
           >
             <span className="min-w-0">
               <span className="block text-xs font-semibold text-foreground">{messages.coach.programDetails}</span>
-              <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+              <span className="mt-0.5 block truncate font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
                 {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty}
               </span>
             </span>
@@ -1154,14 +1154,14 @@ export function ProgramEditor({
           </button>
 
           <div className={cn(
-            "rounded-[18px] border border-border/70 bg-background/30 p-3.5 sm:p-4",
+            "rounded-2xl border border-border/70 bg-background/30 p-3.5 sm:p-4",
             !isDetailsExpanded && "hidden md:block",
             isArchived && "pointer-events-none opacity-60",
           )}>
             <p className="label-micro mb-3 text-muted-foreground">{messages.coach.programDetails}</p>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.45fr_0.65fr_0.9fr_0.9fr]">
               <label className="col-span-2 space-y-1.5 md:col-span-1">
-                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programName}</span>
+                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programName}</span>
                 <Input
                   value={programName}
                   onChange={(event) => setProgramName(event.target.value)}
@@ -1170,7 +1170,7 @@ export function ProgramEditor({
                 />
               </label>
               <label className="space-y-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programDuration}</span>
+                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDuration}</span>
                 <div className="relative">
                   <Input
                     type="number"
@@ -1196,7 +1196,7 @@ export function ProgramEditor({
                 </div>
               </label>
               <label className="space-y-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programFrequency}</span>
+                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFrequency}</span>
                 <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
                   <SelectTrigger className="h-10 bg-background/65">
                     <SelectValue />
@@ -1211,7 +1211,7 @@ export function ProgramEditor({
                 </Select>
               </label>
               <label className="space-y-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programDifficulty}</span>
+                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDifficulty}</span>
                 <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
                   <SelectTrigger className="h-10 bg-background/65 capitalize">
                     <SelectValue />
@@ -1226,12 +1226,12 @@ export function ProgramEditor({
                 </Select>
               </label>
               <label className="space-y-1.5 md:col-span-4">
-                <span className="text-[11px] font-medium text-muted-foreground">{messages.coach.programFocus}</span>
+                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFocus}</span>
                 <Input
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder={messages.coach.descriptionPlaceholder}
-                  className="h-10 bg-background/65 text-[13px]"
+                  className="h-10 bg-background/65 text-sm"
                   disabled={isArchived}
                 />
               </label>
@@ -1279,7 +1279,7 @@ export function ProgramEditor({
                   onClick={() => setActiveWeek(index)}
                   title={isCurrentWeek ? messages.coach.currentlyOnWeek(index + 1, totalWeeks) : undefined}
                   className={cn(
-                    "relative flex h-8 min-w-[44px] items-center justify-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)] sm:min-w-[48px]",
+                    "relative flex h-8 min-w-[44px] items-center justify-center gap-1.5 rounded-full border px-2.5 font-mono text-micro transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)] sm:min-w-[48px]",
                     isActive
                       ? "border-foreground bg-foreground text-background"
                       : "border-input bg-background text-foreground hover:bg-muted",
@@ -1289,7 +1289,7 @@ export function ProgramEditor({
                   {isCurrentWeek ? (
                     <span
                       className={cn(
-                        "absolute -top-1.5 right-0 translate-x-1/3 rounded-sm px-1 py-px text-[8px] font-semibold tracking-[0.08em]",
+                        "absolute -top-1.5 right-0 translate-x-1/3 rounded-sm px-1 py-px text-micro font-semibold tracking-[0.08em]",
                         isActive ? "bg-primary text-primary-foreground" : "bg-primary text-primary-foreground",
                       )}
                     >
@@ -1315,17 +1315,17 @@ export function ProgramEditor({
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-background/10 px-4 py-5 sm:px-6 md:px-8">
           {isArchived ? (
-            <div className="mb-4 rounded-[10px] border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            <div className="mb-4 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               Program này đã archive (chỉ đọc). Restore để chỉnh sửa.
             </div>
           ) : null}
           {error ? (
-            <div className="mb-4 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
               {error}
             </div>
           ) : null}
           {notice ? (
-            <div className="mb-4 rounded-[10px] border border-success/20 bg-ok-soft px-4 py-3 text-sm text-success-text">
+            <div className="mb-4 rounded-lg border border-success/20 bg-ok-soft px-4 py-3 text-sm text-success-text">
               {notice}
             </div>
           ) : null}
@@ -1357,7 +1357,7 @@ export function ProgramEditor({
           <div className="mt-5 border-t border-border pt-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="label-micro">{messages.coach.programCompletion}</p>
-              <span className="font-mono text-[11px] text-muted-foreground tnum">{completion}%</span>
+              <span className="font-mono text-micro text-muted-foreground tnum">{completion}%</span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-border">
               <div
@@ -1417,7 +1417,7 @@ export function ProgramEditor({
       />
 
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-        <DialogContent className="z-[90] max-h-[80svh] overflow-hidden rounded-[14px] border-border p-0 sm:max-w-[520px]">
+        <DialogContent className="z-[90] max-h-[80svh] overflow-hidden rounded-xl border-border p-0 sm:max-w-[520px]">
           <DialogHeader className="border-b border-border px-6 pb-4 pt-6 text-left">
             <DialogTitle className="text-xl font-semibold">{messages.coach.assignClients}</DialogTitle>
             <div className="relative pt-2">
@@ -1441,7 +1441,7 @@ export function ProgramEditor({
                   return (
                     <label
                       key={trainee.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-border px-3 py-2.5 transition-colors hover:bg-muted"
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-muted"
                     >
                       <Checkbox
                         checked={checked}
@@ -1449,7 +1449,7 @@ export function ProgramEditor({
                       />
                       <Avatar className="h-9 w-9">
                         <AvatarImage src={trainee.avatar ?? undefined} alt={trainee.name} />
-                        <AvatarFallback className="bg-foreground text-[11px] text-background">
+                        <AvatarFallback className="bg-foreground text-micro text-background">
                           {getInitials(trainee.name)}
                         </AvatarFallback>
                       </Avatar>

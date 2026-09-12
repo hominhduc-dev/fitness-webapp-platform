@@ -192,6 +192,10 @@
   --font-sans: var(--font-geist), "Inter Fallback", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* Custom Type Scale */
+  --text-micro: 11px;
+  --text-micro--line-height: 14px;
+
   /* ── Ink ramp — available as bg-ink-0, text-ink-600, etc. ── */
   --color-ink-0:   var(--ink-0);
   --color-ink-50:  var(--ink-50);

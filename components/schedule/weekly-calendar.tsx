@@ -566,7 +566,7 @@ function DayCard({
   return (
     <div
       className={cn(
-        "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-[10px] border bg-card p-4 transition-colors duration-150",
+        "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-4 transition-colors duration-150",
         entry.isToday ? "border-primary" : workout ? "border-border hover:border-input" : "border-border",
         entry.isCompleted && "bg-muted/60",
       )}
@@ -588,7 +588,7 @@ function DayCard({
         </div>
         {badge ? (
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em]", badge.className)}>
+            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em]", badge.className)}>
               {badge.label}
             </span>
           </div>
@@ -612,10 +612,10 @@ function DayCard({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {entry.durationLabel ? (
-                <span className="font-mono text-[11px] text-muted-foreground tnum">{entry.durationLabel}</span>
+                <span className="font-mono text-micro text-muted-foreground tnum">{entry.durationLabel}</span>
               ) : null}
               {entry.source === "coach" ? (
-                <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                   <User className="h-2.5 w-2.5" />
                   {messages.schedule.coach}
                 </span>
@@ -672,7 +672,7 @@ function DayCard({
         <button
           type="button"
           onClick={() => onRestDayClick(entry.date)}
-          className="flex flex-1 flex-col items-center justify-center rounded-[8px] border border-dashed border-border text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted hover:text-primary"
+          className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted hover:text-primary"
         >
           <Plus className="mb-1 h-4 w-4" />
           {messages.schedule.addRoutine}
@@ -730,10 +730,10 @@ function RoutinePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[80] flex max-h-[calc(100svh-1.5rem)] min-h-0 flex-col overflow-hidden rounded-[14px] border-border p-0 sm:max-h-[72svh] sm:max-w-[400px]">
+      <DialogContent className="z-[80] flex max-h-[calc(100svh-1.5rem)] min-h-0 flex-col overflow-hidden rounded-xl border-border p-0 sm:max-h-[72svh] sm:max-w-[400px]">
         <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5 text-left">
-          <DialogTitle className="text-[15px] font-semibold">{messages.schedule.pickRoutine}</DialogTitle>
-          <p className="font-mono text-[11px] text-muted-foreground tnum">
+          <DialogTitle className="text-base font-semibold">{messages.schedule.pickRoutine}</DialogTitle>
+          <p className="font-mono text-micro text-muted-foreground tnum">
             {date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle}
           </p>
           <div className="relative pt-2">
@@ -813,7 +813,7 @@ function RoutineFieldNum({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </span>
       <input
@@ -933,12 +933,12 @@ function RoutineBuilderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[90] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-[14px] border-border p-0 sm:h-[90svh] sm:max-w-[680px]">
+      <DialogContent className="z-[90] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-xl border-border p-0 sm:h-[90svh] sm:max-w-[680px]">
         <DialogHeader className="shrink-0 gap-0 border-b border-border px-4 pb-[18px] pr-12 pt-5 text-left sm:px-7 sm:pr-12 sm:pt-6">
           <p className="label-micro mb-1.5 text-muted-foreground">
             {messages.schedule.newRoutineForDate(date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle)}
           </p>
-          <DialogTitle className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+          <DialogTitle className="text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
             {name.trim() || messages.workoutPage.untitledRoutine}
           </DialogTitle>
           <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -950,7 +950,7 @@ function RoutineBuilderDialog({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={messages.workoutPage.routineNamePlaceholder}
-              className="flex-1 text-[15px]"
+              className="flex-1 text-base"
               autoFocus
             />
             <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -979,14 +979,14 @@ function RoutineBuilderDialog({
             <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div>
           ) : null}
           {exercises.length === 0 ? (
-            <div className="mb-4 rounded-[10px] border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
+            <div className="mb-4 rounded-lg border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
               {messages.workoutPage.noExercisesYet}
             </div>
           ) : null}
 
           <div className="space-y-2.5">
             {exercises.map((exercise, index) => (
-              <div key={exercise.id} className="rounded-[10px] border border-border bg-background p-3.5 sm:px-[18px]">
+              <div key={exercise.id} className="rounded-lg border border-border bg-background p-3.5 sm:px-[18px]">
                 <div className="mb-2.5 flex items-center gap-2.5">
                   <span className="min-w-[18px] text-right font-mono text-xs font-semibold text-muted-foreground tnum">
                     {index + 1}
@@ -1001,7 +1001,7 @@ function RoutineBuilderDialog({
                     <p className="truncate text-sm font-medium text-foreground">
                       {getRoutineExerciseTitle(exercise) || messages.workoutPage.chooseExercise}
                     </p>
-                    <p className="mt-0.5 truncate font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <p className="mt-0.5 truncate font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {getRoutineExerciseMeta(exercise) || messages.workoutPage.chooseExercise}
                       <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
                     </p>
@@ -1086,7 +1086,7 @@ function RoutineBuilderDialog({
           <button
             type="button"
             className={cn(
-              "mt-3 flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-border py-3.5 text-sm font-medium text-primary transition-colors hover:bg-muted/50",
+              "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-3.5 text-sm font-medium text-primary transition-colors hover:bg-muted/50",
               (isLoadingExercises || isSaving || exerciseOptions.length === 0) && "cursor-not-allowed opacity-60",
             )}
             onClick={() => setPickerTarget("add")}
@@ -1606,7 +1606,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="whitespace-nowrap px-2 font-mono text-[11px] uppercase tracking-[0.08em] text-foreground tnum">
+              <span className="whitespace-nowrap px-2 font-mono text-micro uppercase tracking-[0.08em] text-foreground tnum">
                 {weekRangeLabel}
               </span>
               <button
@@ -1622,14 +1622,14 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
               <button
                 type="button"
                 onClick={() => setWeekOffset(0)}
-                className="rounded-full border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary transition-colors hover:bg-muted"
+                className="rounded-full border border-border px-3 py-1.5 font-mono text-micro uppercase tracking-[0.08em] text-primary transition-colors hover:bg-muted"
               >
                 {messages.schedule.todayLabel}
               </button>
             ) : null}
           </div>
-          <h1 className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{messages.schedule.plannedSessions(plannedCount)}</h1>
-          <p className="mt-2 font-mono text-[13px] text-muted-foreground tnum">
+          <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] sm:text-4xl">{messages.schedule.plannedSessions(plannedCount)}</h1>
+          <p className="mt-2 font-mono text-sm text-muted-foreground tnum">
             {messages.schedule.doneToGo(completedCount, plannedCount, Math.max(0, plannedCount - completedCount))}
           </p>
         </div>
@@ -1643,7 +1643,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
           // show exactly the wrong data this fix exists to prevent.
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-7" aria-busy="true">
             {Array.from({ length: 7 }, (_, index) => (
-              <div key={index} className="h-[164px] animate-pulse rounded-[10px] border border-border bg-muted/40" />
+              <div key={index} className="h-[164px] animate-pulse rounded-lg border border-border bg-muted/40" />
             ))}
           </div>
         ) : (
@@ -1689,12 +1689,12 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
       ) : null}
 
       <Dialog open={Boolean(selectedReviewLog)} onOpenChange={(open) => (!open ? setSelectedReviewLog(null) : undefined)}>
-        <DialogContent className="z-[95] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-[14px] border-border p-0 sm:h-[86svh] sm:max-w-[820px]">
+        <DialogContent className="z-[95] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-xl border-border p-0 sm:h-[86svh] sm:max-w-[820px]">
           <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pr-12 pt-5 text-left sm:px-6 sm:pr-12">
             <DialogTitle className="text-xl font-semibold leading-tight tracking-[0] text-foreground">
               {selectedReviewLog?.workout.name ?? messages.workoutPage.workout}
             </DialogTitle>
-            <DialogDescription className="font-mono text-[11px] uppercase tracking-[0.08em]">
+            <DialogDescription className="font-mono text-micro uppercase tracking-[0.08em]">
               {selectedReviewLog ? format(selectedReviewLog.startedAt, "EEE, MMM d · HH:mm") : ""}
             </DialogDescription>
           </DialogHeader>
@@ -1708,12 +1708,12 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
       </Dialog>
 
       <Dialog open={Boolean(selectedPreviewWorkout)} onOpenChange={(open) => (!open ? setSelectedPreviewWorkout(null) : undefined)}>
-        <DialogContent className="z-[95] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-[14px] border-border p-0 sm:h-[86svh] sm:max-w-[820px]">
+        <DialogContent className="z-[95] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-xl border-border p-0 sm:h-[86svh] sm:max-w-[820px]">
           <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pr-12 pt-5 text-left sm:px-6 sm:pr-12">
             <DialogTitle className="text-xl font-semibold leading-tight tracking-[0] text-foreground">
               {selectedPreviewWorkout?.workout.name ?? messages.workoutPage.workout}
             </DialogTitle>
-            <DialogDescription className="font-mono text-[11px] uppercase tracking-[0.08em]">
+            <DialogDescription className="font-mono text-micro uppercase tracking-[0.08em]">
               {selectedPreviewWorkout ? format(selectedPreviewWorkout.date, "EEE, MMM d") : ""}
             </DialogDescription>
           </DialogHeader>

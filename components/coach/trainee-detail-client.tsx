@@ -182,7 +182,7 @@ function WeeklyBarChart({ data }: WeeklyBarChartProps) {
             <div className="relative flex w-full items-end" style={{ height: "90%" }}>
               <div
                 className={cn(
-                  "w-full rounded-[3px] transition-all",
+                  "w-full rounded-sm transition-all",
                   sets === 0
                     ? "bg-border"
                     : isToday
@@ -194,7 +194,7 @@ function WeeklyBarChart({ data }: WeeklyBarChartProps) {
             </div>
             <span
               className={cn(
-                "font-mono text-[10px] tabular-nums tracking-tight",
+                "font-mono text-micro tabular-nums tracking-tight",
                 isToday ? "font-semibold text-primary" : "text-muted-foreground",
               )}
             >
@@ -227,7 +227,7 @@ function KeyLiftCard({ lift }: KeyLiftCardProps) {
 
   return (
     <div className="rounded-lg border border-border p-4">
-      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
         {lift.name}
       </span>
       <div className="mt-2 flex items-baseline gap-2">
@@ -296,10 +296,10 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
     <div className="overflow-hidden rounded-lg border border-border">
       {/* Header */}
       <div className="grid grid-cols-[80px_1fr_100px_80px] gap-3 border-b border-border bg-muted/30 px-4 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDateCol}</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionTypeCol}</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionVolumeCol}</span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDoneCol}</span>
+        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDateCol}</span>
+        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionTypeCol}</span>
+        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionVolumeCol}</span>
+        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDoneCol}</span>
       </div>
       {sessions.map((s, i) => (
         <div
@@ -595,15 +595,15 @@ export function CoachTraineeDetailClient({
         <div className="rounded-lg border border-border p-5">
           <div className="mb-4 flex items-baseline justify-between">
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.coach.thisWeekSetsPerDay}
               </p>
-              <p className="mt-1.5 font-mono text-[22px] font-medium tabular-nums text-foreground">
+              <p className="mt-1.5 font-mono text-2xl font-medium tabular-nums text-foreground">
                 {weeklyData.reduce((a, b) => a + b, 0)}{" "}
                 <span className="text-sm font-normal text-muted-foreground">{messages.coach.sets}</span>
               </p>
             </div>
-            <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
               {messages.coach.complianceSessions(detail.trainee.thisWeekWorkouts, plannedSessionsPerWeek || 0)}
             </span>
           </div>
@@ -613,7 +613,7 @@ export function CoachTraineeDetailClient({
         {/* 30-day stats (merged from the former Progress tab) */}
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-border p-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
               {messages.coach.progress30DaySessionsLabel}
             </p>
             <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
@@ -621,7 +621,7 @@ export function CoachTraineeDetailClient({
             </p>
           </div>
           <div className="rounded-lg border border-border p-4">
-            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
               {messages.coach.progress30DayVolumeLabel}
             </p>
             <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
@@ -633,7 +633,7 @@ export function CoachTraineeDetailClient({
 
         {/* Key lifts */}
         <div>
-          <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
             {messages.coach.keyMetrics}
           </p>
           <div className="grid grid-cols-3 gap-3">
@@ -645,7 +645,7 @@ export function CoachTraineeDetailClient({
 
         {/* Recent sessions */}
         <div>
-          <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
             {messages.coach.recentSessions}
           </p>
           <RecentSessionsTable sessions={recentSessions} />
@@ -1032,10 +1032,10 @@ export function CoachTraineeDetailClient({
                     month: "short",
                   })
                   return (
-                    <div key={checkIn.id} className="rounded-[10px] border border-border bg-card p-4">
+                    <div key={checkIn.id} className="rounded-lg border border-border bg-card p-4">
                       {/* Compact header: date · avg · adherence/energy/recovery/mood dot scales */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                        <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                           {dateShort}
                         </span>
                         {avg != null && (
@@ -1055,7 +1055,7 @@ export function CoachTraineeDetailClient({
                         ).map(([label, val]) => (
                           <span
                             key={label}
-                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                            className="flex items-center gap-1.5 text-micro text-muted-foreground"
                           >
                             <span className="uppercase tracking-[0.06em]">{label}</span>
                             <DotScale value={val} />
@@ -1063,13 +1063,13 @@ export function CoachTraineeDetailClient({
                         ))}
                       </div>
 
-                      <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+                      <p className="mt-2 font-mono text-micro text-muted-foreground">
                         {messages.coach.coachByName(checkIn.coachName)}
                       </p>
 
                       {checkIn.summary ? (
                         <div className="mt-3 rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
-                          <p className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                          <p className="mb-0.5 text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                             {messages.coach.checkInSummarySection}
                           </p>
                           {checkIn.summary}
@@ -1077,7 +1077,7 @@ export function CoachTraineeDetailClient({
                       ) : null}
 
                       <div className="mt-3 border-l-2 border-primary pl-3">
-                        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        <p className="text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                           {messages.coach.checkInFeedbackSection}
                         </p>
                         <p className="mt-0.5 text-sm leading-relaxed text-foreground">
@@ -1153,7 +1153,7 @@ export function CoachTraineeDetailClient({
                   return (
                     <div
                       key={row.date}
-                      className="overflow-hidden rounded-[10px] border border-border bg-card"
+                      className="overflow-hidden rounded-lg border border-border bg-card"
                     >
                       <button
                         type="button"
@@ -1165,12 +1165,12 @@ export function CoachTraineeDetailClient({
                         ) : (
                           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
-                        <span className="w-14 shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                        <span className="w-14 shrink-0 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                           {row.date}
                         </span>
                         <span
                           className={cn(
-                            "flex-1 truncate font-mono text-[13px] tabular-nums",
+                            "flex-1 truncate font-mono text-sm tabular-nums",
                             over ? "text-warning-text" : "text-foreground",
                           )}
                         >
@@ -1213,7 +1213,7 @@ export function CoachTraineeDetailClient({
                               ] as [string, number][]
                             ).map(([label, value]) => (
                               <div key={label}>
-                                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                                <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                                   {label}
                                 </p>
                                 <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums text-foreground">
@@ -1235,7 +1235,7 @@ export function CoachTraineeDetailClient({
                                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
                                     {mealTypeLabels[type]}
                                   </span>
-                                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                                  <span className="font-mono text-micro tabular-nums text-muted-foreground">
                                     {Math.round(mealCalories)} kcal
                                   </span>
                                 </div>
@@ -1245,13 +1245,13 @@ export function CoachTraineeDetailClient({
                                     className="flex items-center gap-3 border-t border-border/40 px-4 py-2 pl-11"
                                   >
                                     <div className="min-w-0 flex-1">
-                                      <p className="truncate text-[13px] text-foreground">
+                                      <p className="truncate text-sm text-foreground">
                                         {item.name}
                                         {item.amountLabel ? (
                                           <span className="text-muted-foreground"> {item.amountLabel}</span>
                                         ) : null}
                                       </p>
-                                      <p className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
+                                      <p className="mt-0.5 font-mono text-micro tabular-nums text-muted-foreground">
                                         P{Math.round(item.protein ?? 0)} · C{Math.round(item.carbs ?? 0)} · F{Math.round(item.fat ?? 0)}
                                       </p>
                                     </div>

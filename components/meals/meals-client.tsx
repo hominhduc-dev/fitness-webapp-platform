@@ -160,10 +160,10 @@ function CalorieRing({ consumed, target }: { consumed: number; target: number })
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-[26px] font-semibold leading-none text-foreground tnum">
+        <span className="font-mono text-3xl font-semibold leading-none text-foreground tnum">
           {Math.round(consumed).toLocaleString()}
         </span>
-        <span className="mt-1 font-mono text-[11px] text-muted-foreground tnum">
+        <span className="mt-1 font-mono text-micro text-muted-foreground tnum">
           / {Math.round(target).toLocaleString()}
         </span>
       </div>
@@ -188,7 +188,7 @@ function MacroBar({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <span className="text-[13px] text-muted-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
         <span className="font-mono text-xs text-muted-foreground tnum">
           <span className="font-semibold text-foreground">{formatMetric(consumed)}</span> / {target} g
         </span>
@@ -221,14 +221,14 @@ function MacroSplit({
   ]
 
   return (
-    <section className="rounded-[10px] border border-border bg-card p-[18px]">
+    <section className="rounded-lg border border-border bg-card p-[18px]">
       <p className="label-micro mb-3.5">{labels.title}</p>
       <div className="space-y-2.5">
         {rows.map((row) => {
           const pct = Math.round((row.value / totalMacroCals) * 100)
           return (
             <div key={row.label} className="grid grid-cols-[60px_minmax(0,1fr)_38px] items-center gap-2.5">
-              <span className="text-[13px] text-muted-foreground">{row.label}</span>
+              <span className="text-sm text-muted-foreground">{row.label}</span>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                 <div className={cn("h-full rounded-full", row.color)} style={{ width: `${pct}%` }} />
               </div>
@@ -262,13 +262,13 @@ function MealSection({
   const items = meal.items ?? []
 
   return (
-    <section className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <section className="overflow-hidden rounded-lg border border-border bg-card">
       <div className={cn("flex items-center gap-2.5 px-4 py-3.5", items.length > 0 && "border-b border-border")}>
         <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon className="h-[15px] w-[15px]" />
         </div>
-        <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">{label}</h3>
-        <span className="font-mono text-[13px] text-muted-foreground tnum">{Math.round(meal.calories)} kcal</span>
+        <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">{label}</h3>
+        <span className="font-mono text-sm text-muted-foreground tnum">{Math.round(meal.calories)} kcal</span>
         <Button
           className="h-[30px] w-[30px] shrink-0 rounded-md border-primary/60 text-primary"
           disabled={isSubmitting}
@@ -288,11 +288,11 @@ function MealSection({
               {item.name}
               {item.amountLabel ? <span className="text-muted-foreground"> {item.amountLabel}</span> : null}
             </p>
-            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground tnum">
+            <p className="mt-0.5 font-mono text-micro text-muted-foreground tnum">
               P{formatMetric(item.protein, 0)} · C{formatMetric(item.carbs, 0)} · F{formatMetric(item.fat, 0)}
             </p>
           </div>
-          <span className="font-mono text-[13px] text-muted-foreground tnum">{Math.round(item.calories)}</span>
+          <span className="font-mono text-sm text-muted-foreground tnum">{Math.round(item.calories)}</span>
           <button
             className="rounded p-1 text-ink-200 transition-colors hover:text-destructive-text"
             disabled={isSubmitting}
@@ -324,7 +324,7 @@ function CategoryChips({
           key={category.id}
           data-active={active === category.id}
           className={cn(
-            "meal-food-sheet__category shrink-0 rounded-full border px-3.5 py-2 text-[12px] font-semibold transition-all",
+            "meal-food-sheet__category shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all",
             active === category.id
               ? "border-primary bg-primary text-primary-foreground shadow-[0_6px_18px_-10px_var(--primary)]"
               : "border-border/80 bg-background/55 text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground",
@@ -408,7 +408,7 @@ function CreateFoodForm({
               <button
                 key={categoryOption.id}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-[13px] font-medium",
+                  "rounded-full border px-3 py-1.5 text-sm font-medium",
                   category === categoryOption.id
                     ? "border-foreground bg-foreground text-background"
                     : "border-border bg-card text-foreground",
@@ -424,7 +424,7 @@ function CreateFoodForm({
         <div>
           <p className="label-micro mb-1.5">{labels.serving}</p>
           <Input value={servingLabel} placeholder={labels.servingPlaceholder} onChange={(event) => setServingLabel(event.target.value)} />
-          <p className="mt-1.5 text-[11px] text-muted-foreground">{labels.servingHint}</p>
+          <p className="mt-1.5 text-micro text-muted-foreground">{labels.servingHint}</p>
         </div>
         <div>
           <p className="label-micro mb-1.5">{labels.calories}</p>
@@ -567,7 +567,7 @@ function AddFoodModal({
       onClick={onClose}
     >
       <div
-        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-[28px] border border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-[24px]"
+        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-full border border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         {creating ? (
@@ -620,7 +620,7 @@ function AddFoodModal({
                 <div className="border-b border-border/70 bg-primary-soft/25 px-4 py-3.5 sm:px-5">
                   <div className="mb-2.5 flex items-baseline justify-between gap-3">
                     <p className="label-micro">{labels.recentFoods}</p>
-                    <p className="hidden text-[11px] text-muted-foreground sm:block">{labels.recentFoodsHint}</p>
+                    <p className="hidden text-micro text-muted-foreground sm:block">{labels.recentFoodsHint}</p>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {recentFoods.map((food) => {
@@ -629,7 +629,7 @@ function AddFoodModal({
                         <button
                           key={food.id}
                           className={cn(
-                            "meal-food-sheet__control min-w-[156px] max-w-[200px] shrink-0 rounded-[14px] border bg-card/75 px-3 py-2.5 text-left transition-all",
+                            "meal-food-sheet__control min-w-[156px] max-w-[200px] shrink-0 rounded-xl border bg-card/75 px-3 py-2.5 text-left transition-all",
                             active
                               ? "border-primary bg-primary-soft shadow-[0_8px_24px_-18px_var(--primary)]"
                               : "border-border/80 hover:border-primary/25 hover:bg-muted",
@@ -637,8 +637,8 @@ function AddFoodModal({
                           type="button"
                           onClick={() => pickFood(food)}
                         >
-                          <p className="truncate text-[13px] font-semibold text-foreground">{food.name}</p>
-                          <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground tnum">
+                          <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
+                          <p className="mt-0.5 truncate font-mono text-micro text-muted-foreground tnum">
                             {Math.round(food.calories)} kcal · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F
                             {formatMetric(food.fat, 0)}
                           </p>
@@ -655,7 +655,7 @@ function AddFoodModal({
                     <button
                       key={food.id}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-3 text-left transition-all",
+                        "flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
                         active
                           ? "border-primary bg-primary-soft shadow-[0_8px_24px_-20px_var(--primary)]"
                           : "meal-food-sheet__row border-border/40 bg-card/35 hover:border-border hover:bg-muted/60",
@@ -671,12 +671,12 @@ function AddFoodModal({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
-                        <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground tnum">
+                        <p className="mt-1 truncate font-mono text-micro text-muted-foreground tnum">
                           {food.servingLabel} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-full bg-muted/80 px-2.5 py-1 font-mono text-[12px] font-medium text-foreground tnum">
-                        {Math.round(food.calories)} <span className="text-[9px] font-normal text-muted-foreground">kcal</span>
+                      <span className="shrink-0 rounded-full bg-muted/80 px-2.5 py-1 font-mono text-xs font-medium text-foreground tnum">
+                        {Math.round(food.calories)} <span className="text-micro font-normal text-muted-foreground">kcal</span>
                       </span>
                     </button>
                   )
@@ -688,7 +688,7 @@ function AddFoodModal({
             {!selectedFood ? (
               <div className="meal-food-sheet__chrome shrink-0 border-t border-border/70 bg-card/90 px-4 py-3 backdrop-blur-xl sm:px-5">
                 <button
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-[13px] font-semibold text-primary transition-colors hover:bg-primary-soft"
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft"
                   type="button"
                   onClick={() => setCreating(true)}
                 >
@@ -725,7 +725,7 @@ function AddFoodModal({
                       value={amountValue}
                       onChange={(event) => setAmountValue(Math.max(0, Number(event.target.value) || 0))}
                     />
-                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[11px] text-muted-foreground">
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-micro text-muted-foreground">
                       {amountUnit === "serving" ? "x" : amountUnit}
                     </span>
                   </div>
@@ -909,7 +909,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
           <p className="label-micro mb-2">
             {selectedDateKey === todayKey ? messages.meals.nutritionToday : messages.meals.nutritionOnDate(format(selectedDate, "dd/MM/yyyy"))}
           </p>
-          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-foreground md:text-4xl">
+          <h1 className="text-3xl font-semibold leading-tight tracking-[-0.02em] text-foreground md:text-4xl">
             {remaining >= 0
               ? messages.meals.caloriesLeftHeadline(Math.round(remaining))
               : messages.meals.caloriesOverHeadline(Math.abs(Math.round(remaining)))}
@@ -940,9 +940,9 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
         </Button>
       </div>
 
-      {error ? <div className="mb-5 rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div> : null}
+      {error ? <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div> : null}
 
-      <section className="mb-5 rounded-[10px] border border-border bg-card p-[18px] md:mb-6 md:p-6">
+      <section className="mb-5 rounded-lg border border-border bg-card p-[18px] md:mb-6 md:p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-9">
           <div className="flex items-center justify-center gap-4 md:justify-start">
             <CalorieRing consumed={totals.calories} target={targets.calories} />
@@ -952,7 +952,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
                 <span className={cn("text-3xl font-semibold tracking-[-0.03em] tnum", remaining < 0 ? "text-warning-text" : "text-foreground")}>
                   {Math.abs(Math.round(remaining)).toLocaleString()}
                 </span>
-                <span className="text-[13px] text-muted-foreground">{remaining < 0 ? messages.meals.kcalOver : messages.meals.kcalLeft}</span>
+                <span className="text-sm text-muted-foreground">{remaining < 0 ? messages.meals.kcalOver : messages.meals.kcalLeft}</span>
               </div>
               <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
                 {messages.meals.eatenGoal(Math.round(totals.calories).toLocaleString(), targets.calories.toLocaleString())}

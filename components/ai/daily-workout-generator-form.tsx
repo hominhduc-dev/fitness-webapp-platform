@@ -67,7 +67,7 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
 
   return (
     <div className="space-y-5">
-      <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
         <Label className="mb-1 block text-base font-semibold">{isVi ? "Hôm nay bạn muốn đạt điều gì?" : "What do you want to achieve today?"}</Label>
         <p className="mb-4 text-xs text-muted-foreground">{isVi ? "AI sẽ ưu tiên bài tập và rep range theo mục tiêu này." : "AI will prioritize exercises and rep ranges for this goal."}</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -78,15 +78,15 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
         </div>
       </section>
 
-      <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
         <Label className="mb-1 block text-base font-semibold">{isVi ? "Bạn cảm thấy thế nào?" : "How are you feeling?"}</Label>
         <p className="mb-4 text-xs text-muted-foreground">{isVi ? "AI dùng mức năng lượng để điều chỉnh số set và độ khó." : "AI uses your energy level to adjust volume and difficulty."}</p>
         <div className="grid grid-cols-3 gap-2">
-          {ENERGY.map(({ value, en, vi, hintEn, hintVi, icon: Icon }) => <button key={value} type="button" aria-pressed={values.energyLevel === value} onClick={() => setValues((current) => ({ ...current, energyLevel: value }))} className={cn("rounded-2xl border px-2 py-3 text-center transition-all", values.energyLevel === value ? "border-primary bg-primary-soft" : "border-border hover:border-primary/40")}><Icon className={cn("mx-auto size-5", values.energyLevel === value ? "text-primary" : "text-muted-foreground")} /><span className="mt-2 block text-xs font-semibold sm:text-sm">{isVi ? vi : en}</span><span className="mt-0.5 hidden text-[11px] text-muted-foreground sm:block">{isVi ? hintVi : hintEn}</span></button>)}
+          {ENERGY.map(({ value, en, vi, hintEn, hintVi, icon: Icon }) => <button key={value} type="button" aria-pressed={values.energyLevel === value} onClick={() => setValues((current) => ({ ...current, energyLevel: value }))} className={cn("rounded-2xl border px-2 py-3 text-center transition-all", values.energyLevel === value ? "border-primary bg-primary-soft" : "border-border hover:border-primary/40")}><Icon className={cn("mx-auto size-5", values.energyLevel === value ? "text-primary" : "text-muted-foreground")} /><span className="mt-2 block text-xs font-semibold sm:text-sm">{isVi ? vi : en}</span><span className="mt-0.5 hidden text-micro text-muted-foreground sm:block">{isVi ? hintVi : hintEn}</span></button>)}
         </div>
       </section>
 
-      <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <Label className="mb-2.5 block text-sm font-semibold">{isVi ? "Thời gian có thể tập" : "Available training time"}</Label>
@@ -95,24 +95,24 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
           </div>
           <div>
             <Label className="mb-2.5 block text-sm font-semibold">{isVi ? "Thiết bị hiện có" : "Available equipment"}</Label>
-            <div className="grid grid-cols-3 gap-1.5">{EQUIPMENT.map((equipment) => <button key={equipment.value} type="button" onClick={() => setValues((current) => ({ ...current, availableEquipment: equipment.value }))} className={cn("rounded-xl border px-1 py-2.5 text-[11px] font-medium transition-all sm:text-xs", values.availableEquipment === equipment.value ? "border-primary bg-primary-soft text-primary" : "border-border")}>{isVi ? equipment.vi : equipment.en}</button>)}</div>
+            <div className="grid grid-cols-3 gap-1.5">{EQUIPMENT.map((equipment) => <button key={equipment.value} type="button" onClick={() => setValues((current) => ({ ...current, availableEquipment: equipment.value }))} className={cn("rounded-xl border px-1 py-2.5 text-micro font-medium transition-all sm:text-xs", values.availableEquipment === equipment.value ? "border-primary bg-primary-soft text-primary" : "border-border")}>{isVi ? equipment.vi : equipment.en}</button>)}</div>
           </div>
         </div>
       </section>
 
-      <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
         <Label className="mb-1 block text-base font-semibold">{isVi ? "Nhóm cơ muốn tập hôm nay" : "Muscles to train today"}</Label>
         <p className="mb-4 text-xs text-muted-foreground">{isVi ? "Có thể chọn nhiều nhóm hoặc để trống để AI tự cân đối." : "Select multiple groups or leave blank for AI to balance the session."}</p>
         <div className="flex flex-wrap gap-2">{MUSCLES.map((muscle) => { const selected = values.focusAreas.includes(muscle.value); return <FilterChip key={muscle.value} active={selected} onClick={() => toggleMuscle(muscle.value)} className="px-3.5 py-2 text-sm">{selected && <Check className="mr-1.5 inline size-3.5" />}{isVi ? muscle.vi : muscle.value}</FilterChip> })}</div>
       </section>
 
-      <section className="glass-card rounded-[22px] border border-warning/20 bg-card p-4 sm:p-5">
+      <section className="glass-card rounded-3xl border border-warning/20 bg-card p-4 sm:p-5">
         <Label htmlFor="daily-injuries" className="mb-1 block text-base font-semibold">{isVi ? "Đau mỏi hoặc bài cần tránh?" : "Any soreness or exercises to avoid?"}</Label>
         <p className="mb-3 text-xs text-muted-foreground">{isVi ? "Bao gồm cả cảm giác bất thường chỉ xuất hiện hôm nay." : "Include any discomfort that appeared today."}</p>
         <textarea id="daily-injuries" rows={3} value={values.injuries} onChange={(event) => setValues((current) => ({ ...current, injuries: event.target.value }))} placeholder={isVi ? "Ví dụ: cổ tay hơi đau, tránh chống đẩy..." : "e.g. sore wrist, avoid push-ups..."} className="w-full resize-none rounded-xl border border-border bg-background/50 px-3.5 py-3 text-sm outline-none focus:border-primary" />
       </section>
 
-      <div className="glass-surface sticky bottom-3 z-20 rounded-[22px] border p-3 shadow-2xl backdrop-blur-xl">
+      <div className="glass-surface sticky bottom-3 z-20 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl">
         <Button size="lg" className="w-full gap-2 rounded-xl" disabled={isLoading} onClick={() => onSubmit(values)}>{isLoading ? <><Loader2 className="size-4 animate-spin" />{isVi ? "AI đang thiết kế buổi tập..." : "AI is building your workout..."}</> : <><Sparkles className="size-4" />{isVi ? "Tạo buổi tập hôm nay" : "Generate today's workout"}</>}</Button>
       </div>
     </div>

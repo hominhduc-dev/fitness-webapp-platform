@@ -168,7 +168,7 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="flex max-h-[90vh] max-w-[460px] flex-col gap-0 overflow-hidden rounded-[14px] p-0">
+      <DialogContent className="flex max-h-[90vh] max-w-[460px] flex-col gap-0 overflow-hidden rounded-xl p-0">
         <VisuallyHidden>
           <DialogTitle>{initial ? copy.editExercise : copy.newExercise}</DialogTitle>
         </VisuallyHidden>
@@ -177,7 +177,7 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
         <div className="flex items-start justify-between border-b border-border px-6 pb-4 pt-5">
           <div>
             <p className="label-micro text-muted-foreground">{initial ? copy.editExercise : copy.newExercise}</p>
-            <h2 className="mt-1 text-[19px] font-semibold tracking-tight text-foreground">
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
               {initial ? initial.name : copy.addToLibrary}
             </h2>
           </div>
@@ -242,7 +242,7 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
             </div>
           </div>
 
-          <div className="rounded-[10px] border border-border p-3">
+          <div className="rounded-lg border border-border p-3">
             <div className="flex items-center justify-between gap-2">
               <Label className="label-micro text-muted-foreground">Muscle targets</Label>
               <div className="flex gap-1">
@@ -252,7 +252,7 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
                     type="button"
                     onClick={() => setTargetRole(role)}
                     className={cn(
-                      "rounded-full border px-2 py-1 text-[10px] uppercase",
+                      "rounded-full border px-2 py-1 text-micro uppercase",
                       targetRole === role ? "border-primary bg-primary text-primary-foreground" : "border-border",
                     )}
                   >
@@ -333,7 +333,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
   const someSelected = selectableIds.some((id) => selected.has(id))
 
   return (
-    <div className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
       {/* Group header */}
       <div className={cn("flex w-full items-center gap-2.5 px-4 py-3 transition-colors", open && "bg-muted/30")}>
         {open && selectableIds.length > 0 && (
@@ -353,11 +353,11 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
           }
-          <span className="flex-1 text-[15px] font-semibold text-foreground">{group}</span>
-          <span className="font-mono text-[11px] text-muted-foreground tnum">
+          <span className="flex-1 text-base font-semibold text-foreground">{group}</span>
+          <span className="font-mono text-micro text-muted-foreground tnum">
             {copy.variationCount(exercises.length)}
           </span>
-          <Badge variant="outline" className="font-mono text-[11px] tnum">
+          <Badge variant="outline" className="font-mono text-micro tnum">
             {copy.usageCount(totalUses)}
           </Badge>
         </button>
@@ -403,26 +403,26 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
               {/* Name (+ variation/equipment inline on mobile) */}
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-[13px] font-medium text-foreground">{e.name}</span>
-                  <Badge variant={e.muscleProfileStatus === "approved" ? "secondary" : "outline"} className="shrink-0 px-1.5 py-0 font-mono text-[9px]">
+                  <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
+                  <Badge variant={e.muscleProfileStatus === "approved" ? "secondary" : "outline"} className="shrink-0 px-1.5 py-0 font-mono text-micro">
                     {e.muscleProfileStatus ?? "legacy"}{e.muscleProfileConfidence != null ? ` ${Math.round(e.muscleProfileConfidence * 100)}%` : ""}
                   </Badge>
                 </div>
                 {/* Mobile-only: show variation + equipment under the name */}
-                <span className="truncate text-[11px] text-muted-foreground sm:hidden">
+                <span className="truncate text-micro text-muted-foreground sm:hidden">
                   {e.variationName !== "Default" ? e.variationName : ""}
                   {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
                 </span>
               </div>
 
               {/* Variation name (desktop column) */}
-              <span className="hidden truncate text-[12px] text-muted-foreground sm:block">{e.variationName !== "Default" ? e.variationName : ""}</span>
+              <span className="hidden truncate text-xs text-muted-foreground sm:block">{e.variationName !== "Default" ? e.variationName : ""}</span>
 
               {/* Equipment (desktop column) */}
-              <span className="hidden text-[12px] text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
+              <span className="hidden text-xs text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
 
               {/* Usage count */}
-              <span className="text-right font-mono text-[12px] text-muted-foreground tnum">
+              <span className="text-right font-mono text-xs text-muted-foreground tnum">
                 {e.usageCount}
               </span>
 
@@ -624,7 +624,7 @@ export function ExerciseLibraryPanel({
   return (
     <div className="space-y-5">
       {importRequests.length > 0 ? (
-        <div className="rounded-[10px] border border-border bg-card">
+        <div className="rounded-lg border border-border bg-card">
           <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="label-micro text-muted-foreground">{copy.pendingReview}</p>
@@ -632,7 +632,7 @@ export function ExerciseLibraryPanel({
                 {copy.coachExerciseImports}
               </h3>
             </div>
-            <Badge variant="outline" className="w-fit font-mono text-[11px]">
+            <Badge variant="outline" className="w-fit font-mono text-micro">
               {importRequests.length} {copy.pending}
             </Badge>
           </div>
@@ -644,7 +644,7 @@ export function ExerciseLibraryPanel({
                     <p className="truncate text-sm font-medium text-foreground">
                       {request.fileName ?? copy.untitledImport}
                     </p>
-                    <Badge variant="secondary" className="font-mono text-[10px]">
+                    <Badge variant="secondary" className="font-mono text-micro">
                       {request.rowCount} {copy.rows}
                     </Badge>
                   </div>
@@ -729,7 +729,7 @@ export function ExerciseLibraryPanel({
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 rounded-[10px] border border-destructive/30 bg-destructive/5 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
           <span className="text-sm font-medium text-foreground">
             {copy.selected(selected.size)}
           </span>
@@ -796,7 +796,7 @@ export function ExerciseLibraryPanel({
           />
         ))}
         {grouped.length === 0 && (
-          <div className="rounded-[10px] border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
             {copy.noMatches}
           </div>
         )}

@@ -111,7 +111,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
 
   return (
     <div className="space-y-5">
-      <section className="glass-card rounded-[22px] border bg-card/80 p-4 sm:p-5">
+      <section className="glass-card rounded-3xl border bg-card/80 p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">{isVi ? "Thiết lập chương trình" : "Program setup"}</p>
@@ -125,7 +125,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
           {steps.map((label, index) => (
             <div key={label} className="min-w-0">
               <div className={cn("h-1 rounded-full transition-colors", index <= step ? "bg-primary" : "bg-muted")} />
-              <p className={cn("mt-2 truncate text-[11px] font-medium", index <= step ? "text-foreground" : "text-muted-foreground")}>{label}</p>
+              <p className={cn("mt-2 truncate text-micro font-medium", index <= step ? "text-foreground" : "text-muted-foreground")}>{label}</p>
             </div>
           ))}
         </div>
@@ -133,7 +133,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
 
       {step === 0 && (
         <div className="space-y-5">
-          <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+          <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
             <Label className="mb-1 block text-base font-semibold">{isVi ? "Mục tiêu chính của bạn?" : "What is your primary goal?"}</Label>
             <p className="mb-4 text-xs text-muted-foreground">{isVi ? "AI sẽ dựa vào đây để chọn split, số set và rep range." : "AI uses this to choose the split, sets, and rep ranges."}</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -150,7 +150,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
             </div>
           </section>
 
-          <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+          <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
             <Label className="mb-3 block text-base font-semibold">{isVi ? "Kinh nghiệm tập luyện" : "Training experience"}</Label>
             <div className="grid gap-2 sm:grid-cols-3">
               {LEVELS.map(({ value, en, vi, descEn, descVi }) => {
@@ -165,7 +165,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
             </div>
           </section>
 
-          <section className="glass-card rounded-[22px] border border-warning/20 bg-card p-4 sm:p-5">
+          <section className="glass-card rounded-3xl border border-warning/20 bg-card p-4 sm:p-5">
             <Label htmlFor="injuries" className="mb-1 block text-base font-semibold">{isVi ? "Chấn thương hoặc bài cần tránh?" : "Any injuries or exercises to avoid?"}</Label>
             <p className="mb-3 text-xs text-muted-foreground">{isVi ? "Thông tin này giúp AI ưu tiên an toàn. Có thể bỏ trống nếu không có." : "This helps AI prioritize safety. Leave blank if none."}</p>
             <textarea id="injuries" rows={3} placeholder={isVi ? "Ví dụ: đau vai phải, tránh overhead press..." : "e.g. right shoulder pain, avoid overhead press..."} value={values.injuries} onChange={(event) => setValues((current) => ({ ...current, injuries: event.target.value }))} className="w-full resize-none rounded-xl border border-border bg-background/50 px-3.5 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary" />
@@ -175,7 +175,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
 
       {step === 1 && (
         <div className="space-y-5">
-          <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+          <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
             <Label className="mb-1 block text-base font-semibold">{isVi ? "Lịch tập thực tế của bạn" : "Your realistic training schedule"}</Label>
             <p className="mb-5 text-xs text-muted-foreground">{isVi ? "Chọn lịch bạn có thể duy trì đều đặn, không phải lịch lý tưởng." : "Choose a schedule you can maintain consistently."}</p>
             <ChoiceRow label={isVi ? "Số buổi mỗi tuần" : "Sessions per week"} options={DAYS_PER_WEEK} value={values.daysPerWeek} onChange={(daysPerWeek) => setValues((current) => ({ ...current, daysPerWeek }))} suffix={isVi ? "buổi" : "sessions"} selectedLabel={isVi ? "Đã chọn" : "Selected"} />
@@ -183,7 +183,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
             <ChoiceRow label={isVi ? "Độ dài chương trình" : "Program length"} options={DURATIONS} value={values.durationWeeks} onChange={(durationWeeks) => setValues((current) => ({ ...current, durationWeeks }))} suffix={isVi ? "tuần" : "weeks"} selectedLabel={isVi ? "Đã chọn" : "Selected"} className="mt-5" />
           </section>
 
-          <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+          <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
             <Label className="mb-3 block text-base font-semibold">{isVi ? "Thiết bị bạn có" : "Available equipment"}</Label>
             <div className="grid gap-2 sm:grid-cols-3">
               {EQUIPMENT.map(({ value, en, vi, descEn, descVi }) => {
@@ -202,7 +202,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
 
       {step === 2 && (
         <div className="space-y-5">
-          <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
+          <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
             <Label className="mb-1 block text-base font-semibold">{isVi ? "Nhóm cơ muốn ưu tiên" : "Priority muscle groups"}</Label>
             <p className="mb-4 text-xs text-muted-foreground">{isVi ? "Không bắt buộc. Chọn tối đa những vùng bạn muốn AI tăng thêm volume." : "Optional. Select areas where you want AI to add more volume."}</p>
             <div className="flex flex-wrap gap-2">
@@ -213,7 +213,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
             </div>
           </section>
 
-          <section className="glass-card overflow-hidden rounded-[22px] border border-primary/20 bg-gradient-to-br from-primary-soft via-card to-card p-5">
+          <section className="glass-card overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary-soft via-card to-card p-5">
             <div className="flex items-start gap-3">
               <div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><Bot className="size-5" /></div>
               <div>
@@ -230,7 +230,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
         </div>
       )}
 
-      <div className="glass-surface sticky bottom-3 z-20 rounded-[22px] border p-3 shadow-2xl backdrop-blur-xl">
+      <div className="glass-surface sticky bottom-3 z-20 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl">
         {isLoading ? (
           <div className="flex min-h-12 items-center gap-3 px-2">
             <div className="relative grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft"><Loader2 className="size-5 animate-spin text-primary" /></div>

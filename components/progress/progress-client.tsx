@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils"
 const StrengthChart = dynamic(
   () => import("@/components/progress/strength-chart").then((mod) => mod.StrengthChart),
   {
-    loading: () => <div className="min-h-[14rem] rounded-[10px] border border-border bg-card" />,
+    loading: () => <div className="min-h-[14rem] rounded-lg border border-border bg-card" />,
     ssr: false,
   },
 )
@@ -163,7 +163,7 @@ function StatsSummary({
   return (
     <div className="grid grid-cols-3 gap-2 sm:gap-4">
       {/* Workouts */}
-      <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
+      <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.progressPage.sessions}</LabelMicro>
         <div className="flex items-baseline gap-2">
           <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
@@ -173,7 +173,7 @@ function StatsSummary({
         {workoutDelta !== null && (
           <div
             className={cn(
-              "mt-2 font-mono text-[10px] leading-tight tnum sm:text-[11px]",
+              "mt-2 font-mono text-micro leading-tight tnum sm:text-micro",
               workoutDelta >= 0 ? "text-[var(--success)]" : "text-[var(--warning)]",
             )}
           >
@@ -184,18 +184,18 @@ function StatsSummary({
       </div>
 
       {/* Volume */}
-      <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
+      <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.workoutPage.volume}</LabelMicro>
         <div className="flex min-w-0 items-baseline gap-1">
           <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
             {formatVolume(cur.totalVolume)}
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground sm:text-xs">kg</span>
+          <span className="shrink-0 text-micro text-muted-foreground sm:text-xs">kg</span>
         </div>
         {volumeDelta !== null && (
           <div
             className={cn(
-              "mt-2 font-mono text-[10px] leading-tight tnum sm:text-[11px]",
+              "mt-2 font-mono text-micro leading-tight tnum sm:text-micro",
               volumeDelta >= 0 ? "text-[var(--success)]" : "text-[var(--warning)]",
             )}
           >
@@ -206,13 +206,13 @@ function StatsSummary({
       </div>
 
       {/* Avg duration */}
-      <div className="min-w-0 rounded-[10px] border border-border bg-card p-3 sm:p-4">
+      <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.progressPage.avgDuration}</LabelMicro>
         <div className="whitespace-nowrap font-mono text-[1.55rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
           {formatDuration(cur.avgDurationMins, messages.dashboard.min)}
         </div>
         {prev.avgDurationMins > 0 && (
-          <div className="mt-2 font-mono text-[10px] leading-tight tnum text-muted-foreground sm:text-[11px]">
+          <div className="mt-2 font-mono text-micro leading-tight tnum text-muted-foreground sm:text-micro">
             {messages.progressPage.previousShort} {formatDuration(prev.avgDurationMins, messages.dashboard.min)}
           </div>
         )}
@@ -272,7 +272,7 @@ function WorkoutLogModal({
       onClick={handleOverlayClick}
       className="fixed inset-0 z-[80] flex items-end justify-center bg-foreground/20 backdrop-blur-[2px] sm:items-center"
     >
-      <div className="relative flex max-h-[calc(100svh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-[16px] border border-border bg-background shadow-2xl sm:max-h-[82svh] sm:rounded-[16px]">
+      <div className="relative flex max-h-[calc(100svh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-[16px] border border-border bg-background shadow-2xl sm:max-h-[82svh] sm:rounded-2xl">
         {/* Header */}
         <div className="shrink-0 flex items-start justify-between border-b border-border p-5">
           <div>
@@ -284,7 +284,7 @@ function WorkoutLogModal({
                 <h2 className="text-lg font-semibold tracking-tight text-foreground">
                   {log?.workout.name ?? messages.workoutPage.workout}
                 </h2>
-                <div className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
+                <div className="mt-1 font-mono text-micro tnum text-muted-foreground">
                   {completedSets}/{totalSets} {messages.workoutPage.setCount(totalSets)} {messages.workoutPage.completed}
                   {log?.totalVolume ? ` · ${messages.workoutPage.previewTotalKg(formatVolume(log.totalVolume))}` : ""}
                 </div>
@@ -305,7 +305,7 @@ function WorkoutLogModal({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
           {loading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-[8px]" />)}
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
             </div>
           ) : error ? (
             <p className="text-sm text-destructive-text">{error}</p>
@@ -323,7 +323,7 @@ function WorkoutLogModal({
                     <span className="text-sm font-medium text-foreground">{ex.exercise.name}</span>
                     <span className="label-micro ml-auto">{ex.exercise.muscleGroup}</span>
                   </div>
-                  <div className="overflow-x-auto rounded-[6px] border border-border">
+                  <div className="overflow-x-auto rounded-md border border-border">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-border">
@@ -342,13 +342,13 @@ function WorkoutLogModal({
                               set.completed ? "" : "opacity-40",
                             )}
                           >
-                            <td className="px-3 py-2 font-mono text-[12px] tnum text-muted-foreground">
+                            <td className="px-3 py-2 font-mono text-xs tnum text-muted-foreground">
                               {set.setNumber}
                             </td>
-                            <td className="px-3 py-2 font-mono text-[12px] font-medium tnum text-foreground">
+                            <td className="px-3 py-2 font-mono text-xs font-medium tnum text-foreground">
                               {set.weight != null ? `${set.weight} kg` : "—"}
                             </td>
-                            <td className="px-3 py-2 font-mono text-[12px] tnum text-foreground">
+                            <td className="px-3 py-2 font-mono text-xs tnum text-foreground">
                               {set.actualReps ?? set.targetReps}
                             </td>
                             <td className="px-3 py-2">
@@ -426,11 +426,11 @@ function CalendarSection({
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-5">
+    <div className="rounded-lg border border-border bg-card p-5">
       {calendarLoading ? (
         <div className="grid grid-cols-7 gap-1.5">
           {Array.from({ length: 35 }, (_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-[6px]" />
+            <Skeleton key={i} className="aspect-square rounded-md" />
           ))}
         </div>
       ) : (
@@ -472,7 +472,7 @@ function CalendarSection({
                   onMouseLeave={() => setHovered(null)}
                   onClick={() => { if (logs.length > 0) onDayClick(logs) }}
                   className={cn(
-                    "relative flex aspect-square flex-col items-start justify-between rounded-[6px] border p-1.5 text-left transition-colors",
+                    "relative flex aspect-square flex-col items-start justify-between rounded-md border p-1.5 text-left transition-colors",
                     isToday
                       ? "border-primary border-[1.5px] text-primary"
                       : "border-border text-foreground hover:bg-muted",
@@ -483,7 +483,7 @@ function CalendarSection({
                 >
                   <span
                     className={cn(
-                      "font-mono text-[11px] leading-none tnum",
+                      "font-mono text-micro leading-none tnum",
                       isToday ? "font-semibold text-primary" : "text-foreground",
                     )}
                   >
@@ -541,14 +541,14 @@ function RecentSessions({
   if (calendarLoading) {
     return (
       <div className="flex flex-col gap-2">
-        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-[8px]" />)}
+        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
       </div>
     )
   }
 
   if (logs.length === 0) {
     return (
-      <div className="flex min-h-[12rem] items-center justify-center rounded-[10px] border border-dashed border-border text-sm text-muted-foreground">
+      <div className="flex min-h-[12rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
         {messages.workoutPage.noSessionsThisMonth}
       </div>
     )
@@ -566,12 +566,12 @@ function RecentSessions({
             key={log.id}
             type="button"
             onClick={() => onLogClick(log.id)}
-            className="flex w-full cursor-pointer items-center gap-3.5 rounded-[8px] border border-border bg-card p-3 text-left transition-colors hover:bg-muted"
+            className="flex w-full cursor-pointer items-center gap-3.5 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-muted"
           >
             {/* Date column */}
             <div className="w-9 shrink-0 text-center">
               <div className="label-micro leading-tight">{dateLabel.split(" ")[0]}</div>
-              <div className="font-mono text-[17px] font-semibold leading-tight tnum text-foreground">
+              <div className="font-mono text-lg font-semibold leading-tight tnum text-foreground">
                 {dateLabel.split(" ")[1]}
               </div>
             </div>
@@ -582,7 +582,7 @@ function RecentSessions({
             {/* Content */}
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{log.workoutName}</div>
-              <div className="mt-0.5 font-mono text-[11px] tnum text-muted-foreground">
+              <div className="mt-0.5 font-mono text-micro tnum text-muted-foreground">
                 {log.totalVolume > 0 ? `${formatVolume(log.totalVolume)} kg` : "—"}
               </div>
             </div>
@@ -697,16 +697,16 @@ function YearView({
   const totalWorkouts = yearView?.days.reduce((s, d) => s + d.count, 0) ?? 0
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-5">
+    <div className="rounded-lg border border-border bg-card p-5">
       <div className="mb-4 flex items-baseline justify-between">
         <LabelMicro>{messages.progressPage.activity(year)}</LabelMicro>
-        <span className="font-mono text-[11px] tnum text-muted-foreground">
+        <span className="font-mono text-micro tnum text-muted-foreground">
           {messages.workoutPage.sessionCount(totalWorkouts)}
         </span>
       </div>
 
       {yearViewLoading ? (
-        <Skeleton className="h-28 w-full rounded-[6px]" />
+        <Skeleton className="h-28 w-full rounded-md" />
       ) : (
         <div className="w-full overflow-x-auto">
           <div className="min-w-[640px]">
@@ -728,14 +728,14 @@ function YearView({
               {grid.map((week, wi) => (
                 <div key={wi} className="flex flex-col gap-0.5">
                   {week.map((cell, di) => {
-                    if (!cell) return <div key={di} className="h-3 w-3 rounded-[2px]" />
+                    if (!cell) return <div key={di} className="h-3 w-3 rounded-sm" />
                     return (
                       <button
                         key={cell.date}
                         type="button"
                         title={cell.count > 0 ? `${cell.date}: ${messages.workoutPage.sessionCount(cell.count)}` : cell.date}
                         onClick={() => cell.count > 0 && onDayClick?.(cell.date)}
-                        className="h-3 w-3 rounded-[2px] transition-opacity hover:opacity-80"
+                        className="h-3 w-3 rounded-sm transition-opacity hover:opacity-80"
                         style={{ background: intensity(cell.count) }}
                       />
                     )
@@ -751,7 +751,7 @@ function YearView({
             >
               {["M", "", "W", "", "F", "", ""].map((label, i) => (
                 <div key={i} className="flex h-3 w-6 items-center justify-end pr-1">
-                  <span className="label-micro text-[9px]">{label}</span>
+                  <span className="label-micro text-micro">{label}</span>
                 </div>
               ))}
             </div>
@@ -765,7 +765,7 @@ function YearView({
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
           <div
             key={i}
-            className="h-3 w-3 rounded-[2px]"
+            className="h-3 w-3 rounded-sm"
             style={{ background: intensity(ratio) }}
           />
         ))}
@@ -796,10 +796,10 @@ function PrCard({
   ]
 
   return (
-    <div className="flex flex-col gap-3.5 rounded-[10px] border border-border bg-card p-5">
+    <div className="flex flex-col gap-3.5 rounded-lg border border-border bg-card p-5">
       <div className="flex items-center justify-between">
         <span className="label-micro">{record.exercise}</span>
-        <span className="rounded-full bg-[var(--secondary)] px-2 py-0.5 font-mono text-[10px] font-medium text-[var(--accent-foreground)]">
+        <span className="rounded-full bg-[var(--secondary)] px-2 py-0.5 font-mono text-micro font-medium text-[var(--accent-foreground)]">
           PR
         </span>
       </div>
@@ -809,7 +809,7 @@ function PrCard({
         </span>
         <span className="text-sm text-muted-foreground">{weightUnitLabel}</span>
       </div>
-      <div className="flex items-center gap-3 font-mono text-[11px] tnum">
+      <div className="flex items-center gap-3 font-mono text-micro tnum">
         <span className="text-[var(--success)]">↑ {messages.workoutPage.set} {formatShortDate(record.date, locale)}</span>
       </div>
       <div className="mt-1">
@@ -835,12 +835,12 @@ function ProgressPageSkeleton() {
         <Skeleton className="h-9 w-64 rounded" />
       </div>
       <div className="mb-6 grid grid-cols-3 gap-3">
-        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-[10px]" />)}
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <Skeleton className="h-[26rem] rounded-[10px]" />
+        <Skeleton className="h-[26rem] rounded-lg" />
         <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-[8px]" />)}
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
         </div>
       </div>
     </div>
@@ -856,10 +856,10 @@ function ProgressPrsSkeleton() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-44 rounded-[10px]" />
+          <Skeleton key={i} className="h-44 rounded-lg" />
         ))}
       </div>
-      <Skeleton className="h-64 rounded-[10px]" />
+      <Skeleton className="h-64 rounded-lg" />
     </div>
   )
 }
@@ -1117,7 +1117,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
         {/* ---- Error banner ---- */}
         {error ? (
-          <div className="mb-6 rounded-[8px] border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+          <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
             {error}
           </div>
         ) : null}
@@ -1218,7 +1218,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-[14rem] items-center justify-center rounded-[10px] border border-dashed border-border text-sm text-muted-foreground">
+              <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
                 {messages.progressPage.completeWeightedSetsForPr}
               </div>
             )}

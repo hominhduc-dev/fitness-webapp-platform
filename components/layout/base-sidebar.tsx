@@ -75,7 +75,7 @@ export function BaseSidebar({
         <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
         {!isCollapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
         {!isCollapsed && item.count != null ? (
-          <span className="rounded-full bg-background px-2 py-0.5 font-mono text-[11px] leading-none text-muted-foreground">
+          <span className="rounded-full bg-background px-2 py-0.5 font-mono text-micro leading-none text-muted-foreground">
             {item.count}
           </span>
         ) : null}
@@ -98,7 +98,7 @@ export function BaseSidebar({
             {brand}
           </div>
           {backLink && (
-            <div className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+            <div className="mb-6 px-1 text-micro text-muted-foreground transition-colors hover:text-foreground">
               {backLink}
             </div>
           )}

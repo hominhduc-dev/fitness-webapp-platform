@@ -25,7 +25,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
 
   return (
     <Link href="/meals" className="block h-full min-w-0">
-      <div className="glass-card flex h-full min-w-0 flex-col rounded-[10px] border border-border bg-card p-5 transition-all hover:border-primary/25">
+      <div className="glass-card flex h-full min-w-0 flex-col rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/25">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysNutrition}</span>
 
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">
@@ -67,14 +67,14 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
                 <p className="label-micro mb-0.5">{messages.dashboard.consumed}</p>
                 <p className="font-mono text-[1.5rem] font-semibold leading-none tnum text-foreground">
                   {nutrition.totalCalories.toLocaleString("en-US")}
-                  <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.remaining}</p>
                 <p className="font-mono text-[1.25rem] font-semibold leading-none tnum text-primary">
                   {remaining.toLocaleString("en-US")}
-                  <span className="ml-1 text-[13px] font-normal text-muted-foreground">kcal</span>
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
             </div>
@@ -92,10 +92,10 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
               return (
                 <div
                   key={mealType.key}
-                  className="flex min-w-0 items-center justify-between gap-2 rounded-[8px] border border-border bg-muted px-3 py-2"
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted px-3 py-2"
                 >
-                  <span className="min-w-0 truncate text-[12px] text-muted-foreground">{mealType.label}</span>
-                  <span className={meal ? "font-mono text-[12px] font-medium tnum text-foreground" : "font-mono text-[12px] text-muted-foreground"}>
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">{mealType.label}</span>
+                  <span className={meal ? "font-mono text-xs font-medium tnum text-foreground" : "font-mono text-xs text-muted-foreground"}>
                     {meal ? meal.calories : "—"}
                   </span>
                 </div>
@@ -104,7 +104,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
           </div>
 
           {/* Log meal hint */}
-          <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Utensils className="h-3.5 w-3.5 shrink-0" />
             <span>Tap to log a meal</span>
           </div>

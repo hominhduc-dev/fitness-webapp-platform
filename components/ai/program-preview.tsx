@@ -60,7 +60,7 @@ function ProgramPreview({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="glass-card rounded-[22px] border border-primary/20 bg-gradient-to-br from-primary-soft/80 via-card to-card p-5 sm:p-6">
+      <div className="glass-card rounded-3xl border border-primary/20 bg-gradient-to-br from-primary-soft/80 via-card to-card p-5 sm:p-6">
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-4" />{isVi ? "Chương trình AI đề xuất" : "AI-recommended program"}</div>
         <h2 className="text-xl font-semibold">{program.name}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{program.description}</p>
@@ -89,7 +89,7 @@ function ProgramPreview({
       {/* Workouts */}
       <div className="space-y-3">
         {program.workouts.map((workout, i) => (
-          <div key={i} className="glass-card overflow-hidden rounded-[20px] border bg-card">
+          <div key={i} className="glass-card overflow-hidden rounded-3xl border bg-card">
             <div className="flex items-start justify-between gap-3 border-b bg-muted/30 px-4 py-3.5">
               <div>
                 <span className="text-sm font-semibold">{workout.name}</span>
@@ -132,7 +132,7 @@ function ProgramPreview({
       </div>
 
       {/* Actions */}
-      <div className="glass-surface sticky bottom-3 z-20 flex gap-2 rounded-[20px] border p-3 shadow-2xl backdrop-blur-xl sm:gap-3">
+      <div className="glass-surface sticky bottom-3 z-20 flex gap-2 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl sm:gap-3">
         <Button
           variant="outline"
           className="flex-1 gap-2 rounded-xl"

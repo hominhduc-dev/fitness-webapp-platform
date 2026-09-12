@@ -94,11 +94,11 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
 
         <div className="min-w-0 flex-1">
           {activeProgram && (
-            <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <p className="mb-1 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
               {activeProgram.name}
             </p>
           )}
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-[32px] md:leading-[1.15]">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-4xl md:leading-[1.15]">
             {detail.trainee.name}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">

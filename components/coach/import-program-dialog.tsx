@@ -441,13 +441,13 @@ export function ImportProgramDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90svh] sm:max-w-[800px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[14px]"
+        className="left-0 top-0 flex h-[100svh] max-h-[100svh] min-h-0 max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border p-0 shadow-2xl sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90svh] sm:max-w-[800px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl"
       >
         <DialogHeader className="border-b border-border px-5 pb-4 pt-5 text-left sm:px-6 sm:pt-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="label-micro mb-1.5">Import program</p>
-              <DialogTitle className="text-[22px] font-semibold tracking-[-0.02em]">
+              <DialogTitle className="text-2xl font-semibold tracking-[-0.02em]">
                 {source === "notion" ? "Tạo program từ Notion" : "Tạo program từ Excel"}
               </DialogTitle>
             </div>
@@ -455,7 +455,7 @@ export function ImportProgramDialog({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
             {STEPS.map((item, index) => {
               const active = step === item.value
               const complete = STEPS.findIndex((candidate) => candidate.value === step) > index
@@ -463,7 +463,7 @@ export function ImportProgramDialog({
                 <span key={item.value} className="flex shrink-0 items-center gap-2">
                   <span
                     className={cn(
-                      "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold",
+                      "inline-flex h-5 w-5 items-center justify-center rounded-full text-micro font-semibold",
                       active || complete ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
                     )}
                   >
@@ -483,14 +483,14 @@ export function ImportProgramDialog({
             <div className="space-y-5">
               {error ? <p role="alert" className="whitespace-pre-line text-sm text-destructive-text">{error}</p> : null}
               {notionConfigured || googleConnection.configured ? (
-                <div className="flex gap-1 rounded-[10px] border border-border p-1">
+                <div className="flex gap-1 rounded-lg border border-border p-1">
                   {(["excel", ...(notionConfigured ? ["notion"] : []), ...(googleConnection.configured ? ["google"] : [])] as ImportSource[]).map((value) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => { setSource(value); setError(null); setNotionIssues([]) }}
                       className={cn(
-                        "flex-1 rounded-[7px] px-3 py-2 text-sm font-medium transition-colors",
+                        "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                         source === value
                           ? "bg-primary text-primary-foreground"
                           : "text-muted-foreground hover:bg-muted",
@@ -512,7 +512,7 @@ export function ImportProgramDialog({
                   <div>
                     <Label className="label-micro mb-1.5 block">Chọn program mẫu</Label>
                     {notionTemplates.length === 0 ? (
-                      <p className="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
+                      <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
                         Chưa có program mẫu nào ở trạng thái ready trong Notion.
                       </p>
                     ) : (
@@ -524,7 +524,7 @@ export function ImportProgramDialog({
                             disabled={isParsing}
                             onClick={() => { setNotionSelection(template.notionPageId); setNotionLink("") }}
                             className={cn(
-                              "flex w-full items-center justify-between gap-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors",
+                              "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
                               notionSelection === template.notionPageId
                                 ? "border-primary bg-primary-soft"
                                 : "border-border hover:border-input",
@@ -566,7 +566,7 @@ export function ImportProgramDialog({
                   </Button>
 
                   {notionIssues.length > 0 ? (
-                    <div className="rounded-[10px] border border-destructive/40 bg-destructive/5 px-4 py-3">
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3">
                       <p className="mb-2 text-xs font-semibold text-destructive">
                         {notionIssues.length} dòng cần sửa trên Notion
                       </p>
@@ -583,7 +583,7 @@ export function ImportProgramDialog({
               <button
                 type="button"
                 className={cn(
-                  "flex min-h-[210px] w-full flex-col items-center justify-center rounded-[10px] border border-dashed bg-muted/40 px-6 text-center transition-colors",
+                  "flex min-h-[210px] w-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/40 px-6 text-center transition-colors",
                   isDragging ? "border-primary bg-primary-soft" : "border-border hover:border-input",
                 )}
                 onClick={() => fileInputRef.current?.click()}
@@ -618,9 +618,9 @@ export function ImportProgramDialog({
                 </Button>
               </div>
 
-              <div className="rounded-[10px] border border-border px-4 py-3">
+              <div className="rounded-lg border border-border px-4 py-3">
                 <Label className="label-micro mb-2 block">Workbook cần các sheet</Label>
-                <div className="space-y-2 font-mono text-[11px] leading-5 text-muted-foreground">
+                <div className="space-y-2 font-mono text-micro leading-5 text-muted-foreground">
                   <SheetHint name="Program" columns="name · description · duration_weeks · difficulty · assign_to_emails" />
                   <SheetHint name="Week 1" columns="Day · Exercise · Sets · Rep Range · Weight (kg) · RIR · Rest (s) · Note" />
                   <SheetHint name="Exercise Table" columns={googleText.library} />
@@ -647,7 +647,7 @@ export function ImportProgramDialog({
                 }}>{googleText.overwrite}</Button>
               </div> : null}
               {notionExisting ? (
-                <div className="rounded-[10px] border border-warning/40 bg-warning/5 px-4 py-3">
+                <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
                   <p className="flex items-center gap-2 text-xs font-semibold text-foreground">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
                     Program mẫu này đã được import trước đó
@@ -686,7 +686,7 @@ export function ImportProgramDialog({
               ) : null}
 
               {notionWarnings.length > 0 ? (
-                <div className="rounded-[10px] border border-border bg-muted/40 px-4 py-3">
+                <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
                   <p className="mb-1.5 text-xs font-semibold text-foreground">Lưu ý từ dữ liệu Notion</p>
                   <ul className="space-y-1 text-xs leading-5 text-muted-foreground">
                     {notionWarnings.map((warning) => (
@@ -732,7 +732,7 @@ export function ImportProgramDialog({
                         key={item}
                         type="button"
                         className={cn(
-                          "h-9 rounded-full border px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors",
+                          "h-9 rounded-full border px-3 font-mono text-micro font-semibold uppercase tracking-[0.06em] transition-colors",
                           difficulty === item
                             ? "border-foreground bg-foreground text-background"
                             : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -747,7 +747,7 @@ export function ImportProgramDialog({
               </div>
 
               {error ? (
-                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+                <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   <div className="mb-1 flex items-center gap-2 font-medium">
                     <AlertTriangle className="h-4 w-4" />
                     File import chưa hợp lệ
@@ -773,12 +773,12 @@ export function ImportProgramDialog({
                   {draft.assignToUserIds && draft.assignToUserIds.length > 0 ? (
                     <button
                       type="button"
-                      className="flex w-full items-center gap-3 rounded-[10px] border border-border px-4 py-3 text-left text-sm"
+                      className="flex w-full items-center gap-3 rounded-lg border border-border px-4 py-3 text-left text-sm"
                       onClick={() => setAssignEnabled((current) => !current)}
                     >
                       <span
                         className={cn(
-                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border",
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
                           assignEnabled ? "border-primary bg-primary text-primary-foreground" : "border-border",
                         )}
                       >
@@ -792,14 +792,14 @@ export function ImportProgramDialog({
 
                   {/* Validation badge */}
                   {invalidVariationCount > 0 ? (
-                    <div className="flex items-center gap-2 rounded-[10px] bg-warn-soft px-4 py-3 text-sm text-warning-text">
+                    <div className="flex items-center gap-2 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warning-text">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>
                         <b>{invalidVariationCount}</b> variation_id không có trong thư viện hiện tại.
                       </span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 rounded-[10px] bg-ok-soft px-4 py-3 text-sm text-success-text">
+                    <div className="flex items-center gap-2 rounded-lg bg-ok-soft px-4 py-3 text-sm text-success-text">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span>Tất cả variation_id hợp lệ - sẵn sàng tạo.</span>
                     </div>
@@ -810,21 +810,21 @@ export function ImportProgramDialog({
                     {editableWorkouts.map((workout, workoutIdx) => (
                       <div
                         key={`${workout.scheduledDay}-${workoutIdx}`}
-                        className="rounded-[10px] border border-border px-4 py-3"
+                        className="rounded-lg border border-border px-4 py-3"
                       >
                         {/* Workout header */}
                         <div className="mb-3 flex flex-wrap items-center gap-2">
-                          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                             {typeof workout.scheduledDay === "number" ? DAY_LABELS[workout.scheduledDay] : "Day"}
                           </span>
                           <h3 className="text-sm font-semibold text-foreground">{workout.name}</h3>
-                          <span className="font-mono text-[11px] text-muted-foreground">
+                          <span className="font-mono text-micro text-muted-foreground">
                             · {workout.exercises.length} bài
                           </span>
                         </div>
 
                         {/* Column headers (desktop) */}
-                        <div className="mb-1 hidden grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px] items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground md:grid">
+                        <div className="mb-1 hidden grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px] items-center gap-1.5 font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground md:grid">
                           <span>Exercise</span>
                           <span className="text-center">ID</span>
                           <span className="text-center">Sets</span>
@@ -860,7 +860,7 @@ export function ImportProgramDialog({
                                   ) : (
                                     <AlertCircle className="h-3.5 w-3.5 text-destructive-text" />
                                   )}
-                                  <span className="font-mono text-[10px] text-muted-foreground">
+                                  <span className="font-mono text-micro text-muted-foreground">
                                     {ex.variationId.slice(0, 5)}…
                                   </span>
                                 </span>
@@ -1014,7 +1014,7 @@ function MobileField({
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
+      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
       <input
         type="text"
         inputMode="decimal"

@@ -74,7 +74,7 @@ export function ProgramCard({
   return (
     <div
       className={cn(
-        "flex min-h-[276px] flex-col gap-3.5 rounded-[10px] border border-border bg-card p-5 transition-colors hover:border-input",
+        "flex min-h-[276px] flex-col gap-3.5 rounded-lg border border-border bg-card p-5 transition-colors hover:border-input",
         busy && "pointer-events-none opacity-60",
         isArchived && "opacity-70",
       )}
@@ -83,7 +83,7 @@ export function ProgramCard({
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[17px] font-semibold leading-snug tracking-[-0.01em]">{program.name}</h3>
+            <h3 className="truncate text-lg font-semibold leading-snug tracking-[-0.01em]">{program.name}</h3>
             {isArchived ? (
               <Badge variant="micro" className="shrink-0 bg-muted text-muted-foreground">
                 Archived
@@ -141,7 +141,7 @@ export function ProgramCard({
       </div>
 
       {/* Description */}
-      <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
         {program.description || messages.coach.noDescription}
       </p>
 
@@ -153,13 +153,13 @@ export function ProgramCard({
               {assigned.slice(0, 4).map((trainee) => (
                 <Avatar key={trainee.id} className="h-6 w-6 border-2 border-muted">
                   <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                  <AvatarFallback className="bg-foreground text-[10px] font-semibold text-background">
+                  <AvatarFallback className="bg-foreground text-micro font-semibold text-background">
                     {getInitials(trainee.name)}
                   </AvatarFallback>
                 </Avatar>
               ))}
             </div>
-            <span className="font-mono text-[11px] tnum text-muted-foreground">
+            <span className="font-mono text-micro tnum text-muted-foreground">
               {messages.coach.activeClientsCount(assigned.length)}
             </span>
           </>

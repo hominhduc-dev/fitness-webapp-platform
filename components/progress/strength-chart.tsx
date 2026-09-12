@@ -13,7 +13,7 @@ export function StrengthChart({ analytics, weightUnitLabel: _weightUnitLabel }: 
   const { series, points } = analytics.strengthProgression
   if (series.length === 0) {
     return (
-      <div className="flex min-h-[14rem] items-center justify-center rounded-[10px] border border-dashed border-border text-sm text-muted-foreground">
+      <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
         Complete weighted sets across a few weeks to unlock strength progression.
       </div>
     )
@@ -22,7 +22,7 @@ export function StrengthChart({ analytics, weightUnitLabel: _weightUnitLabel }: 
   const chartData = points.map((point) => ({ label: point.label, ...point.values }))
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-5">
+    <div className="rounded-lg border border-border bg-card p-5">
       <span className="label-micro mb-4 block">Strength progression</span>
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">

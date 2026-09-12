@@ -174,14 +174,14 @@ export default function AIGeneratePage() {
           <ArrowLeft className="size-4" />
           {isVi ? "Quay lại" : "Back"}
         </Link>
-        <div className="glass-card flex items-start gap-3 rounded-[22px] border bg-gradient-to-br from-primary-soft/70 via-card to-card p-4 sm:p-5">
+        <div className="glass-card flex items-start gap-3 rounded-3xl border bg-gradient-to-br from-primary-soft/70 via-card to-card p-4 sm:p-5">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20">
             <Bot className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold sm:text-2xl">AI Workout Builder</h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />{isVi ? "Cá nhân hoá" : "Personalized"}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-micro font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />{isVi ? "Cá nhân hoá" : "Personalized"}</span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {isVi ? "Tạo một buổi tập hôm nay hoặc chương trình nhiều tuần" : "Build today's workout or a multi-week program"}

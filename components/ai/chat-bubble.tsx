@@ -124,7 +124,7 @@ function AIChatBubble() {
 
       {/* Chat Panel */}
       {open && (
-        <div ref={panelRef} className="glass-surface fixed left-3 right-3 top-[calc(5.25rem+env(safe-area-inset-top))] z-[59] flex h-[min(600px,calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-[24px] border bg-background shadow-2xl md:bottom-24 md:left-auto md:right-5 md:top-auto md:z-40 md:h-[min(520px,calc(100vh-120px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
+        <div ref={panelRef} className="glass-surface fixed left-3 right-3 top-[calc(5.25rem+env(safe-area-inset-top))] z-[59] flex h-[min(600px,calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border bg-background shadow-2xl md:bottom-24 md:left-auto md:right-5 md:top-auto md:z-40 md:h-[min(520px,calc(100vh-120px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
           {/* Header */}
           <div className="flex items-center gap-2.5 border-b bg-primary/5 px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
@@ -132,7 +132,7 @@ function AIChatBubble() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold">AI Coach</p>
-              <p className="text-[11px] text-muted-foreground">{copy.subtitle}</p>
+              <p className="text-micro text-muted-foreground">{copy.subtitle}</p>
             </div>
           </div>
 
@@ -156,7 +156,7 @@ function AIChatBubble() {
                       <div>
                         <p className="text-sm font-medium">{action.label}</p>
                         {"hint" in action && (
-                          <p className="text-[11px] text-muted-foreground">{action.hint}</p>
+                          <p className="text-micro text-muted-foreground">{action.hint}</p>
                         )}
                       </div>
                     </Link>

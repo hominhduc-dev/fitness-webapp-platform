@@ -23,7 +23,7 @@ function ProgramDetailSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2].map((item) => (
-          <Skeleton key={item} className="h-[286px] rounded-[10px]" />
+          <Skeleton key={item} className="h-[286px] rounded-lg" />
         ))}
       </div>
     </div>

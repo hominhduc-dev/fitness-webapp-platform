@@ -99,11 +99,11 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
       >
         {/* Left: label + countdown */}
         <div className="min-w-[90px] md:min-w-[110px] shrink-0">
-          <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-[2px]">
+          <div className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground mb-[2px]">
             {messages.workoutPage.rest}
           </div>
           <div
-            className="font-mono text-[26px] md:text-[30px] font-semibold text-primary leading-none"
+            className="font-mono text-3xl md:text-4xl font-semibold text-primary leading-none"
           >
             {String(mins)}:{String(secs).padStart(2, "0")}
           </div>
@@ -148,7 +148,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
             aria-label={messages.workoutPage.add30Seconds}
             className={cn(
               "flex items-center gap-1 rounded-md border border-border",
-              "px-3 py-1.5 text-[13px] font-medium text-foreground",
+              "px-3 py-1.5 text-sm font-medium text-foreground",
               "bg-transparent hover:bg-muted transition-colors duration-150",
             )}
           >
@@ -160,7 +160,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
             aria-label={messages.workoutPage.skipRest}
             className={cn(
               "flex items-center gap-1 rounded-md",
-              "px-3 py-1.5 text-[13px] font-medium",
+              "px-3 py-1.5 text-sm font-medium",
               "bg-transparent text-destructive-text hover:bg-destructive-soft transition-colors duration-150",
             )}
           >

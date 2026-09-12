@@ -109,15 +109,15 @@ export function WorkoutLogReview({ log }: { log: WorkoutLog }) {
           { label: "Sets", value: `${completedSets}/${totalSets}` },
           { label: "Volume", value: `${formatNumber(totalVolume)} kg` },
         ].map((item) => (
-          <div key={item.label} className="rounded-[8px] border border-border bg-muted/20 px-3 py-2.5">
+          <div key={item.label} className="rounded-lg border border-border bg-muted/20 px-3 py-2.5">
             <p className="label-micro text-muted-foreground">{item.label}</p>
-            <p className="mt-1 font-mono text-[13px] font-medium leading-tight text-foreground tnum">{item.value}</p>
+            <p className="mt-1 font-mono text-sm font-medium leading-tight text-foreground tnum">{item.value}</p>
           </div>
         ))}
       </div>
 
       {log.notes ? (
-        <div className="mt-4 rounded-[8px] border border-border bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+        <div className="mt-4 rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
           {log.notes}
         </div>
       ) : null}
@@ -127,7 +127,7 @@ export function WorkoutLogReview({ log }: { log: WorkoutLog }) {
           const exerciseVolume = exercise.sets.reduce((sum, set) => sum + (calculateSetVolume(set) ?? 0), 0)
 
           return (
-            <section key={exercise.id} className="rounded-[10px] border border-border bg-card">
+            <section key={exercise.id} className="rounded-lg border border-border bg-card">
               <div className="border-b border-border px-3 py-3 sm:px-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -144,10 +144,10 @@ export function WorkoutLogReview({ log }: { log: WorkoutLog }) {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {countCompletedExerciseSets(exercise)}/{exercise.sets.length} sets
                     </span>
-                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {formatNumber(exerciseVolume)} kg
                     </span>
                   </div>
@@ -157,7 +157,7 @@ export function WorkoutLogReview({ log }: { log: WorkoutLog }) {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/20 text-left font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <tr className="border-b border-border bg-muted/20 text-left font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       <th className="px-3 py-2 font-medium">Set</th>
                       <th className="px-3 py-2 font-medium">Target</th>
                       <th className="px-3 py-2 font-medium">Actual</th>
@@ -184,12 +184,12 @@ export function WorkoutLogReview({ log }: { log: WorkoutLog }) {
                         </td>
                         <td className="px-3 py-2.5">
                           {set.completed ? (
-                            <span className="inline-flex items-center gap-1 rounded-sm bg-primary-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
+                            <span className="inline-flex items-center gap-1 rounded-sm bg-primary-soft px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-primary">
                               <CheckCircle2 className="h-3 w-3" />
                               Done
                             </span>
                           ) : (
-                            <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                            <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                               --
                             </span>
                           )}
@@ -231,7 +231,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
           const isUpdateOpen = openUpdateIds.has(exercise.id)
 
           return (
-            <section key={exercise.id} className="rounded-[10px] border border-border bg-card">
+            <section key={exercise.id} className="rounded-lg border border-border bg-card">
               <div className="border-b border-border px-3 py-3 sm:px-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -250,7 +250,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
                           aria-label="Coach update"
                           aria-expanded={isUpdateOpen}
                           className={cn(
-                            "inline-flex shrink-0 items-center gap-1 rounded-[5px] border-0 px-[7px] py-[3px]",
+                            "inline-flex shrink-0 items-center gap-1 rounded border-0 px-[7px] py-[3px]",
                             "font-mono text-[9.5px] font-semibold uppercase tracking-[0.07em]",
                             "transition-colors duration-150",
                             isUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
@@ -269,17 +269,17 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
                       {exercise.restTime ? ` · Rest ${exercise.restTime}s` : ""}
                     </p>
                     {coachUpdate && isUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
-                      <div className={cn("mt-2 flex items-start gap-1.5 rounded-[7px] px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
+                      <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
                         <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
                         <span className="text-[12.5px] leading-[1.4] text-foreground">{coachUpdate.text}</span>
                       </div>
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {exercise.sets.length} sets
                     </span>
-                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       Preview
                     </span>
                   </div>
@@ -289,7 +289,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/20 text-left font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <tr className="border-b border-border bg-muted/20 text-left font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       <th className="px-3 py-2 font-medium">Set</th>
                       <th className="px-3 py-2 font-medium">Target</th>
                       <th className="px-3 py-2 font-medium">kg</th>

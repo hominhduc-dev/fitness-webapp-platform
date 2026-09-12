@@ -18,7 +18,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
 
   if (!workout) {
     return (
-      <div className="glass-card flex min-w-0 flex-col rounded-[24px] border border-border bg-card p-5 md:p-6">
+      <div className="glass-card flex min-w-0 flex-col rounded-3xl border border-border bg-card p-5 md:p-6">
         <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
         <div className="flex min-h-[190px] flex-1 flex-col items-center justify-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-soft">
@@ -32,7 +32,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
   }
 
   return (
-    <div className="glass-card flex min-w-0 flex-col rounded-[24px] border border-primary/20 bg-gradient-to-br from-primary-soft/80 via-card to-card p-5 shadow-[0_18px_50px_-32px_var(--primary)] md:p-6">
+    <div className="glass-card flex min-w-0 flex-col rounded-3xl border border-primary/20 bg-gradient-to-br from-primary-soft/80 via-card to-card p-5 shadow-[0_18px_50px_-32px_var(--primary)] md:p-6">
       <span className="label-micro mb-4 block">{messages.dashboard.todaysWorkout}</span>
 
       <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">
@@ -41,7 +41,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
           <h3 className="truncate text-[1.35rem] font-semibold leading-snug text-foreground">
             {workout.name}
           </h3>
-          <p className="mt-1 font-mono text-[11px] tnum text-muted-foreground">
+          <p className="mt-1 font-mono text-micro tnum text-muted-foreground">
             {workout.exercises.length} {messages.dashboard.exercises}
             {workout.duration ? ` · ${workout.duration} ${messages.dashboard.min}` : ""}
           </p>
@@ -51,14 +51,14 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
         <div className="min-w-0 space-y-2">
           {workout.exercises.slice(0, 4).map((exercise) => (
             <div key={exercise.id} className="flex min-w-0 items-baseline justify-between gap-3">
-              <span className="min-w-0 truncate text-[13px] text-foreground">
+              <span className="min-w-0 truncate text-sm text-foreground">
                 {formatExerciseVariationLabel({
                   exerciseName: exercise.exercise.name,
                   isDefault: exercise.variation.isDefault,
                   variationName: exercise.variation.name,
                 })}
               </span>
-              <span className="shrink-0 font-mono text-[12px] font-medium tnum text-muted-foreground">
+              <span className="shrink-0 font-mono text-xs font-medium tnum text-muted-foreground">
                 {exercise.sets.length}×{formatRepTarget({
                   reps: exercise.sets[0]?.targetReps,
                   repsMin: exercise.sets[0]?.targetRepsMin,
@@ -78,7 +78,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
           {[...new Set(workout.exercises.map((ex) => ex.exercise.muscleGroup))].slice(0, 4).map((group) => (
             <span
               key={group}
-              className="rounded-[4px] border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground"
+              className="rounded border border-border px-2 py-0.5 font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground"
             >
               {group}
             </span>

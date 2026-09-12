@@ -144,7 +144,7 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
                 <span className="flex-1 truncate text-sm font-medium">{trainee.name}</span>
                 <span
                   className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-[5px] border transition-colors",
+                    "flex h-5 w-5 items-center justify-center rounded border transition-colors",
                     on ? "border-primary bg-primary text-primary-foreground" : "border-input",
                   )}
                 >

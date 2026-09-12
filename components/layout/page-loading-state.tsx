@@ -36,7 +36,7 @@ export function AppLoadingScreen({
       <div className={cn("w-full", isMinimal ? "max-w-[280px]" : "max-w-[440px]")}>
         <div className={cn("flex items-center justify-center gap-2.5", isMinimal ? "mb-6" : "mb-8")}>
           <img src="/lift-mark.svg" alt="" className="h-7 w-8" />
-          <span className="text-[24px] font-semibold leading-none tracking-[-0.04em]">
+          <span className="text-2xl font-semibold leading-none tracking-[-0.04em]">
             yeahbuddy
           </span>
         </div>
@@ -46,24 +46,24 @@ export function AppLoadingScreen({
         </div>
 
         {!isMinimal && (
-          <div className="rounded-[14px] border border-border bg-card p-4 shadow-[var(--glass-shadow)]">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--glass-shadow)]">
             <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
               <div className="space-y-2">
                 <Skeleton className="h-5 w-36" />
                 <Skeleton className="h-3.5 w-52 max-w-[58vw]" />
               </div>
-              <Skeleton className="h-10 w-10 rounded-[10px]" />
+              <Skeleton className="h-10 w-10 rounded-lg" />
             </div>
 
             <div className="space-y-3 pt-4">
               {Array.from({ length: 3 }, (_, index) => (
                 <div key={index} className="grid grid-cols-[36px_1fr_54px] items-center gap-3">
-                  <Skeleton className="h-9 w-9 rounded-[10px]" />
+                  <Skeleton className="h-9 w-9 rounded-lg" />
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-3 w-24" />
                   </div>
-                  <Skeleton className="h-8 w-full rounded-[8px]" />
+                  <Skeleton className="h-8 w-full rounded-lg" />
                 </div>
               ))}
             </div>
@@ -72,7 +72,7 @@ export function AppLoadingScreen({
 
         <p
           className={cn(
-            "text-center font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground",
+            "text-center font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground",
             isMinimal ? "mt-2" : "mt-5",
           )}
         >
@@ -103,7 +103,7 @@ export function PageLoadingState({
         {showMetrics ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }, (_, index) => (
-              <div key={index} className="rounded-[28px] border border-border bg-card p-5 shadow-sm">
+              <div key={index} className="rounded-full border border-border bg-card p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-3">
                     <Skeleton className="h-4 w-24" />
@@ -118,7 +118,7 @@ export function PageLoadingState({
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_360px]">
-          <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-full border border-border bg-card p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-3">
                 <Skeleton className="h-8 w-44" />
@@ -143,7 +143,7 @@ export function PageLoadingState({
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
+            <div className="rounded-full border border-border bg-card p-6 shadow-sm">
               <div className="space-y-3">
                 <Skeleton className="h-8 w-36" />
                 <Skeleton className="h-28 w-28 rounded-full" />
@@ -152,7 +152,7 @@ export function PageLoadingState({
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
+            <div className="rounded-full border border-border bg-card p-6 shadow-sm">
               <Skeleton className="h-8 w-28" />
               <div className="mt-4 space-y-3">
                 {Array.from({ length: 3 }, (_, index) => (
@@ -163,11 +163,11 @@ export function PageLoadingState({
           </div>
         </div>
 
-        <div className="rounded-[30px] border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-full border border-border bg-card p-6 shadow-sm">
           <Skeleton className="h-8 w-40" />
           <div className="mt-6 space-y-4">
             {Array.from({ length: 3 }, (_, index) => (
-              <div key={index} className="rounded-[24px] bg-muted/60 p-4 sm:p-5">
+              <div key={index} className="rounded-3xl bg-muted/60 p-4 sm:p-5">
                 <div className="flex items-start gap-4">
                   <Skeleton className="h-11 w-11 rounded-full" />
                   <div className="min-w-0 flex-1 space-y-3">
@@ -211,7 +211,7 @@ export function WorkoutSessionLoadingState() {
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-6 pb-32">
         {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="rounded-[28px] border border-border bg-card p-5 shadow-sm">
+          <div key={index} className="rounded-full border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-3">
                 <Skeleton className="h-6 w-44" />

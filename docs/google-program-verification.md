@@ -35,6 +35,8 @@ Trước sửa, batch ghi tuần 1 mở từ 5 lên 7 cột kết quả, rồi m
 - Việc export hiện được coach kích hoạt bằng nút xuất log. Chưa có tác vụ tự động ghi Sheets ngay khi học viên hoàn thành buổi tập.
 - Chưa chạy lại màn hình consent hoặc thu hồi kết nối thật; các nhánh này được kiểm bằng test tự động.
 - Chưa kiểm chứng layout, màu sắc, công thức và validation với **file template chuẩn của người dùng**. Đang chờ đường dẫn mới; không dùng file khác làm chuẩn thay thế.
+- Đã kiểm tra trực tiếp spreadsheet `Coach Program Template` do người dùng gửi qua browser. `Week 1` khớp 17 cột, các vùng merge, E ẩn, công thức INDEX/MATCH và dropdown `Week 1!C3:C50` từ `=ExerciseChoices`; Google Sheets đặt chế độ invalid input là `Reject the input`. File có thêm tab `Copy of Week 1`, nhưng app vẫn mặc định dùng `Week 1`.
+- Phát hiện dữ liệu: ô `Week 1!G3` hiển thị `5-12` nhưng thanh công thức chứa ngày `5/12/2026`; Google đã tự nhận chuỗi rep range là ngày. API đọc dạng formatted vẫn trả `5-12`, nhưng nên nhập lại cột Rep Range dưới dạng Plain text trước khi dùng Excel export hoặc xử lý dữ liệu ngoài app.
 - Không bật Sleep khi phần đối chiếu bắt buộc này còn thiếu.
 
 ## Kiểm tra mã nguồn

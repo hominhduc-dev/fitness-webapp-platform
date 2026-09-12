@@ -42,14 +42,14 @@ export function ProgramGroupCard({ program, workouts }: ProgramGroupCardProps) {
   return (
     <Link
       href={`/workout/programs/${program.id}`}
-      className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-[10px] border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[286px]"
+      className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-lg border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[286px]"
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <Badge variant="micro" className="mb-2">
             {messages.workoutPage.programBadge}
           </Badge>
-          <h2 className="line-clamp-2 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
+          <h2 className="line-clamp-2 text-lg font-semibold leading-tight tracking-[-0.01em] text-foreground">
             {program.name}
           </h2>
         </div>

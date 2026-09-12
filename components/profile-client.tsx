@@ -471,7 +471,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-5">
-        <h1 className="text-[28px] font-semibold leading-none tracking-[-0.025em] md:text-[34px]">{messages.profile.title}</h1>
+        <h1 className="text-3xl font-semibold leading-none tracking-[-0.025em] md:text-4xl">{messages.profile.title}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">{messages.profile.subtitle}</p>
       </div>
 
@@ -489,7 +489,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)] lg:items-start lg:gap-5">
         <div className="min-w-0 space-y-4">
-      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <User className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.profile}</h2>
@@ -560,7 +560,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <Scale className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.preferences}</h2>
@@ -721,7 +721,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
 
         <div className="min-w-0 space-y-4">
-      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <Monitor className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.appearance}</h2>
@@ -733,7 +733,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <Palette className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.fitnessGoals}</h2>
@@ -759,7 +759,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <Bell className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.notifications}</h2>
@@ -776,7 +776,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
       </div>
 
-      <div className="rounded-[18px] border border-border bg-card p-4 sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <Lock className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.security}</h2>
@@ -800,7 +800,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       </div>
 
       {profile.role === "trainee" ? (
-        <details className="group rounded-[18px] border border-destructive/30 bg-destructive-soft">
+        <details className="group rounded-2xl border border-destructive/30 bg-destructive-soft">
           <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-destructive-text marker:hidden sm:p-5 [&::-webkit-details-marker]:hidden">
             <AlertTriangle className="h-5 w-5 shrink-0" />
             <span className="flex-1 text-base font-semibold">{messages.profile.resetData}</span>

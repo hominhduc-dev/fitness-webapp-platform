@@ -64,7 +64,7 @@ function TopBar() {
               className="size-full scale-[1.35] rounded-full object-cover"
             />
           </span>
-          <span className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.04em] text-foreground md:text-[19px]">
+          <span className="whitespace-nowrap text-lg font-semibold tracking-[-0.04em] text-foreground md:text-xl">
             YeahBuddy
           </span>
         </div>
@@ -122,14 +122,14 @@ function Hero() {
         <p className="label-micro mb-3.5">{messages.landing.version}</p>
 
         <h1
-          className="m-0 text-[44px] font-semibold leading-[0.96] tracking-[-0.035em] text-foreground md:text-[84px]"
+          className="m-0 text-5xl font-semibold leading-[0.96] tracking-[-0.035em] text-foreground md:text-7xl"
         >
           {messages.landing.heroTitle}{" "}
           <br />
           <span className="text-muted-foreground">{messages.landing.heroMutedTitle}</span>
         </h1>
 
-        <p className="mt-6 max-w-[540px] text-base leading-[1.55] text-muted-foreground md:text-[19px]">
+        <p className="mt-6 max-w-[540px] text-base leading-[1.55] text-muted-foreground md:text-xl">
           {messages.landing.heroCopy}
         </p>
 
@@ -154,13 +154,13 @@ function Hero() {
         </div>
 
         {/* Micro trust line */}
-        <p className="mt-[22px] font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground/70">
+        <p className="mt-[22px] font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground/70">
           {messages.landing.trustLine}
         </p>
       </div>
 
       {/* Product preview tile */}
-      <div className="glass-card landing-preview mt-10 rounded-[14px] border border-border bg-card p-4 shadow-[var(--glass-shadow)] md:mt-[72px] md:p-7">
+      <div className="glass-card landing-preview mt-10 rounded-xl border border-border bg-card p-4 shadow-[var(--glass-shadow)] md:mt-[72px] md:p-7">
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[1.4fr_1fr] md:gap-6">
           {/* Mock set-log card */}
           <MockSetLog />
@@ -182,7 +182,7 @@ function MockSetLog() {
   ]
 
   return (
-    <div className="glass-inset overflow-hidden rounded-[10px] border border-border bg-card">
+    <div className="glass-inset overflow-hidden rounded-lg border border-border bg-card">
       {/* Header */}
       <div className="border-b border-border px-[18px] py-3.5">
         <div className="text-base font-semibold text-foreground">{messages.landing.benchPress}</div>
@@ -194,7 +194,7 @@ function MockSetLog() {
         <div
           key={s.n}
           className={cn(
-            "grid items-center gap-2.5 border-b border-border px-[18px] py-2.5 font-mono text-[13px] last:border-b-0",
+            "grid items-center gap-2.5 border-b border-border px-[18px] py-2.5 font-mono text-sm last:border-b-0",
             "grid-cols-[40px_1fr_60px_60px_28px]",
             s.done && "bg-muted/60"
           )}
@@ -203,7 +203,7 @@ function MockSetLog() {
 
           <span
             className={cn(
-              "text-[10px] uppercase tracking-[0.08em]",
+              "text-micro uppercase tracking-[0.08em]",
               s.kind === "warm" ? "text-muted-foreground/60" : "text-muted-foreground"
             )}
           >
@@ -225,7 +225,7 @@ function MockSetLog() {
 
           <div
             className={cn(
-              "flex h-5 w-5 items-center justify-center rounded-[4px]",
+              "flex h-5 w-5 items-center justify-center rounded",
               s.done
                 ? "bg-success text-success-foreground"
                 : "border-[1.5px] border-border bg-transparent"
@@ -247,15 +247,15 @@ function MockChart() {
   const { messages } = useLocale()
 
   return (
-    <div className="glass-inset rounded-[10px] border border-border bg-card p-[18px]">
+    <div className="glass-inset rounded-lg border border-border bg-card p-[18px]">
       <p className="label-micro mb-1.5">{messages.landing.oneRmEstimate}</p>
 
       <div className="flex items-baseline gap-2">
-        <span className="font-sans text-[36px] font-semibold leading-none tracking-[-0.03em] text-foreground [font-feature-settings:'tnum'_1]">
+        <span className="font-sans text-4xl font-semibold leading-none tracking-[-0.03em] text-foreground [font-feature-settings:'tnum'_1]">
           112.5
         </span>
-        <span className="text-[13px] text-muted-foreground">kg</span>
-        <span className="ml-1 font-mono text-[12px] text-success-text">↑ 5.0 · 12 w</span>
+        <span className="text-sm text-muted-foreground">kg</span>
+        <span className="ml-1 font-mono text-xs text-success-text">↑ 5.0 · 12 w</span>
       </div>
 
       <svg
@@ -303,7 +303,7 @@ function FeaturesSection() {
       {/* Section header */}
       <div className="mb-7 max-w-[640px] md:mb-12">
         <p className="label-micro mb-3">{messages.landing.featuresEyebrow}</p>
-        <h2 className="m-0 text-[32px] font-semibold leading-[1.05] tracking-[-0.025em] text-foreground md:text-[48px]">
+        <h2 className="m-0 text-4xl font-semibold leading-[1.05] tracking-[-0.025em] text-foreground md:text-5xl">
           {messages.landing.featuresTitle}{" "}
           <span className="text-muted-foreground">{messages.landing.featuresMutedTitle}</span>
         </h2>
@@ -330,7 +330,7 @@ function FeaturesSection() {
                 )}
               >
                 <item.Icon className="h-[22px] w-[22px] text-foreground/80" />
-                <h3 className="mb-1.5 mt-3.5 text-[17px] font-semibold text-foreground">
+                <h3 className="mb-1.5 mt-3.5 text-lg font-semibold text-foreground">
                   {item.title}
                 </h3>
                 <p className="m-0 text-sm leading-[1.5] text-muted-foreground">
@@ -362,14 +362,14 @@ function TrainerCallout() {
       id="trainers"
       className="mx-auto max-w-[1200px] px-5 pb-10 pt-5 md:px-10 md:pb-20 md:pt-10"
     >
-      <div className="glass-card landing-trainer grid grid-cols-1 gap-6 rounded-[14px] bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
+      <div className="glass-card landing-trainer grid grid-cols-1 gap-6 rounded-xl bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
         {/* Left: copy */}
         <div>
           <p className="label-micro mb-3 text-inverse-muted">{messages.landing.trainerEyebrow}</p>
-          <h2 className="m-0 text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-inverse-foreground md:text-[42px]">
+          <h2 className="m-0 text-3xl font-semibold leading-[1.05] tracking-[-0.025em] text-inverse-foreground md:text-5xl">
             {messages.landing.trainerTitle}
           </h2>
-          <p className="mb-6 mt-[18px] max-w-[440px] text-[15px] leading-[1.55] text-inverse-secondary">
+          <p className="mb-6 mt-[18px] max-w-[440px] text-base leading-[1.55] text-inverse-secondary">
             {messages.landing.trainerCopy}
           </p>
 
@@ -392,7 +392,7 @@ function TrainerCallout() {
         </div>
 
         {/* Right: mock client table */}
-        <div className="rounded-[10px] border border-inverse-border bg-inverse-surface p-5 font-mono text-[13px] leading-[1.7] text-inverse-secondary">
+        <div className="rounded-lg border border-inverse-border bg-inverse-surface p-5 font-mono text-sm leading-[1.7] text-inverse-secondary">
           <div className="mb-2.5 text-inverse-foreground">{messages.landing.thisWeekClients}</div>
           {clientRows.map((row, i) => (
             <div
@@ -439,7 +439,7 @@ function FooterSection() {
             <Link
               key={label}
               href="#"
-              className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               {label}
             </Link>

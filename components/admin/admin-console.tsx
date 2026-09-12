@@ -306,8 +306,8 @@ function ChartPanel({
   const maxValue = Math.max(...points.map((point) => point.value), 1)
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-[18px] transition-colors duration-150 hover:border-primary/30">
-      <p className="text-[15px] font-semibold text-foreground">{title}</p>
+    <div className="rounded-lg border border-border bg-card p-[18px] transition-colors duration-150 hover:border-primary/30">
+      <p className="text-base font-semibold text-foreground">{title}</p>
       <p className="mb-4 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
 
       <div className="flex h-[132px] items-end gap-2">
@@ -317,14 +317,14 @@ function ChartPanel({
 
           return (
             <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-1.5">
-              <span className="font-mono text-[10px] text-muted-foreground tnum">
+              <span className="font-mono text-micro text-muted-foreground tnum">
                 {point.value >= 1000 ? `${(point.value / 1000).toFixed(1)}k` : point.value}
               </span>
               <div
-                className={`w-full rounded-[4px] ${isCurrent ? "bg-primary" : "bg-muted"}`}
+                className={`w-full rounded ${isCurrent ? "bg-primary" : "bg-muted"}`}
                 style={{ height: `${height}px` }}
               />
-              <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+              <span className="font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
                 {point.label}
               </span>
             </div>
@@ -336,7 +336,7 @@ function ChartPanel({
 }
 
 function EmptyState({ copy }: { copy: string }) {
-  return <div className="rounded-[10px] border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
+  return <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
 }
 
 type AdminSectionId = "dashboard" | "users" | "requests" | "connections" | "programs" | "exercises" | "audit"
@@ -435,7 +435,7 @@ function AdminShellHeader({
     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
         <p className="label-micro mb-2">{activeCopy.label}</p>
-        <h1 className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-foreground md:text-[34px]">
+        <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground md:text-4xl">
           {activeCopy.title}
         </h1>
         <p className="mt-2 font-mono text-sm text-muted-foreground tnum">{activeCopy.sub}</p>
@@ -450,7 +450,7 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {Array.from({ length: 5 }, (_, index) => (
-          <div key={index} className="rounded-[10px] border border-border bg-card p-5">
+          <div key={index} className="rounded-lg border border-border bg-card p-5">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-3 h-9 w-28" />
             <Skeleton className="mt-2 h-4 w-36" />
@@ -460,14 +460,14 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
 
       <div className="grid gap-4 xl:grid-cols-3">
         {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="rounded-[10px] border border-border bg-card p-4">
+          <div key={index} className="rounded-lg border border-border bg-card p-4">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="mt-2 h-4 w-48 max-w-full" />
             <div className="mt-6 flex h-44 items-end gap-2">
               {Array.from({ length: 6 }, (_, barIndex) => (
                 <div key={barIndex} className="flex flex-1 flex-col items-center gap-2">
                   <Skeleton className="h-3 w-8" />
-                  <Skeleton className="w-full rounded-[4px]" style={{ height: `${35 + barIndex * 8}%` }} />
+                  <Skeleton className="w-full rounded" style={{ height: `${35 + barIndex * 8}%` }} />
                   <Skeleton className="h-3 w-6" />
                 </div>
               ))}
@@ -1725,13 +1725,13 @@ export function AdminConsole() {
 
             <div className="min-h-[42px]">
               {error ? (
-                <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+                <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   {error}
                 </div>
               ) : null}
 
               {!error && notice ? (
-                <div className="rounded-[10px] border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
+                <div className="rounded-lg border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
                   {notice}
                 </div>
               ) : null}
@@ -1752,9 +1752,9 @@ export function AdminConsole() {
                 { label: locale === "en" ? "Active 7d" : "Active 7d", value: dashboard?.stats.activeUsersLast7Days ?? 0, sub: locale === "en" ? "activity in 7 days" : "hoạt động 7 ngày" },
                 { label: locale === "en" ? "Active 30d" : "Active 30d", value: dashboard?.stats.activeUsersLast30Days ?? 0, sub: locale === "en" ? "activity in 30 days" : "hoạt động 30 ngày", accent: true },
               ] as const).map((card) => (
-                <div key={card.label} className="rounded-[10px] border border-border bg-card p-[18px]">
+                <div key={card.label} className="rounded-lg border border-border bg-card p-[18px]">
                   <p className="label-micro text-muted-foreground">{card.label}</p>
-                  <div className={`mt-2 font-mono text-[30px] font-semibold leading-none tracking-[-0.02em] tnum ${"accent" in card && card.accent ? "text-primary" : "text-foreground"}`}>
+                  <div className={`mt-2 font-mono text-4xl font-semibold leading-none tracking-[-0.02em] tnum ${"accent" in card && card.accent ? "text-primary" : "text-foreground"}`}>
                     {card.value.toLocaleString()}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
@@ -1771,7 +1771,7 @@ export function AdminConsole() {
                     key={view}
                     type="button"
                     onClick={() => setChartView(view)}
-                    className={`rounded-[5px] px-3 py-1 font-mono text-[11px] transition-colors ${
+                    className={`rounded px-3 py-1 font-mono text-micro transition-colors ${
                       chartView === view
                         ? "bg-foreground text-background"
                         : "bg-muted text-muted-foreground hover:text-foreground"
@@ -1792,9 +1792,9 @@ export function AdminConsole() {
 
             {/* Bottom 2-col: recent users + pending requests */}
             <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-              <div className="rounded-[10px] border border-border bg-card p-[18px]">
+              <div className="rounded-lg border border-border bg-card p-[18px]">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[15px] font-semibold text-foreground">{locale === "en" ? "Recent users" : "Người dùng mới nhất"}</p>
+                  <p className="text-base font-semibold text-foreground">{locale === "en" ? "Recent users" : "Người dùng mới nhất"}</p>
                   <p className="label-micro text-muted-foreground">{locale === "en" ? "Newest accounts" : "Tài khoản mới nhất"}</p>
                 </div>
                 <div className="flex flex-col">
@@ -1811,21 +1811,21 @@ export function AdminConsole() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
-                          <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-[10px]">{user.role}</Badge>
-                          {!user.isActive ? <Badge variant="destructive" className="shrink-0 text-[10px]">{locale === "en" ? "Locked" : "Khoá"}</Badge> : null}
+                          <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-micro">{user.role}</Badge>
+                          {!user.isActive ? <Badge variant="destructive" className="shrink-0 text-micro">{locale === "en" ? "Locked" : "Khoá"}</Badge> : null}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                       </div>
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{formatDateTime(user.createdAt, locale)}</span>
+                      <span className="shrink-0 font-mono text-micro text-muted-foreground">{formatDateTime(user.createdAt, locale)}</span>
                     </button>
                   )) : <EmptyState copy={locale === "en" ? "No recent users." : "Chưa có user mới."} />}
                 </div>
               </div>
 
-              <div className="rounded-[10px] border border-border bg-card p-[18px]">
+              <div className="rounded-lg border border-border bg-card p-[18px]">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[15px] font-semibold text-foreground">{locale === "en" ? "Pending requests" : "Yêu cầu chờ duyệt"}</p>
-                  <Badge variant={pendingRequestCount > 0 ? "default" : "outline"} className="font-mono text-[10px]">
+                  <p className="text-base font-semibold text-foreground">{locale === "en" ? "Pending requests" : "Yêu cầu chờ duyệt"}</p>
+                  <Badge variant={pendingRequestCount > 0 ? "default" : "outline"} className="font-mono text-micro">
                     {pendingRequestCount} {locale === "en" ? "pending" : "chờ"}
                   </Badge>
                 </div>
@@ -1840,7 +1840,7 @@ export function AdminConsole() {
                         </div>
                         <p className="truncate text-xs text-muted-foreground">{request.trainee.email}</p>
                       </div>
-                      <span className="ml-3 shrink-0 font-mono text-[11px] text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
+                      <span className="ml-3 shrink-0 font-mono text-micro text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
                     </div>
                   )) : <EmptyState copy={locale === "en" ? "No pending coach requests." : "Không có yêu cầu chờ duyệt."} />}
                 </div>
@@ -1861,7 +1861,7 @@ export function AdminConsole() {
                     key={r}
                     type="button"
                     onClick={() => setUserRoleFilter(r)}
-                    className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                    className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
                       userRoleFilter === r
                         ? "bg-foreground text-background"
                         : "bg-muted text-muted-foreground hover:text-foreground"
@@ -1876,7 +1876,7 @@ export function AdminConsole() {
             {/* Master-detail */}
             <div className="grid items-start gap-4 xl:grid-cols-[360px_1fr]">
               {/* User list — rows with left border indicator */}
-              <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+              <div className="rounded-lg border border-border bg-card overflow-hidden">
                 {filteredUsers.length ? filteredUsers.map((user) => (
                   <button
                     key={user.id}
@@ -1898,7 +1898,7 @@ export function AdminConsole() {
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                     </div>
-                    <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-[10px]">{user.role}</Badge>
+                    <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-micro">{user.role}</Badge>
                   </button>
                 )) : (
                   <div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -1908,7 +1908,7 @@ export function AdminConsole() {
               </div>
 
               {/* User detail panel */}
-              <div className="rounded-[10px] border border-border bg-card p-[22px]">
+              <div className="rounded-lg border border-border bg-card p-[22px]">
                 {userDetail ? (
                   <div className="space-y-5">
                     {/* Header */}
@@ -1918,7 +1918,7 @@ export function AdminConsole() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-[19px] font-semibold tracking-[-0.01em] text-foreground">{userDetail.user.name}</h3>
+                          <h3 className="text-xl font-semibold tracking-[-0.01em] text-foreground">{userDetail.user.name}</h3>
                           <Badge variant={roleBadgeVariant(userDetail.user.role)}>{userDetail.user.role}</Badge>
                           {!userDetail.user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
                         </div>
@@ -1935,7 +1935,7 @@ export function AdminConsole() {
                             key={r}
                             type="button"
                             onClick={() => setSelectedRole(r)}
-                            className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                            className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
                               selectedRole === r
                                 ? "bg-foreground text-background"
                                 : "bg-muted text-muted-foreground hover:text-foreground"
@@ -1965,7 +1965,7 @@ export function AdminConsole() {
                     </div>
 
                     {/* Password reset */}
-                    <div className="rounded-[8px] border border-border bg-muted/20 p-4">
+                    <div className="rounded-lg border border-border bg-muted/20 p-4">
                       <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
                       <div className="flex gap-2">
                         <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} className="flex-1" />
@@ -1989,7 +1989,7 @@ export function AdminConsole() {
 
                     {/* Connected trainees (coach view) */}
                     {userDetail.connectedTrainees.length > 0 ? (
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
+                      <div className="rounded-lg border border-border bg-muted/20 p-4">
                         <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Connected trainees" : "Trainee đang kết nối"}</h4>
                         <div className="space-y-2">
                           {userDetail.connectedTrainees.map((trainee) => (
@@ -2004,13 +2004,13 @@ export function AdminConsole() {
 
                     {/* Recent workout logs */}
                     {userDetail.recentWorkoutLogs.length > 0 ? (
-                      <div className="rounded-[8px] border border-border bg-muted/20 p-4">
+                      <div className="rounded-lg border border-border bg-muted/20 p-4">
                         <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
                         <div className="space-y-0">
                           {userDetail.recentWorkoutLogs.map((log) => (
                             <div key={log.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
                               <span className="font-medium text-foreground">{log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Snapshot")}</span>
-                              <span className="font-mono text-[11px] text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
+                              <span className="font-mono text-micro text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
                             </div>
                           ))}
                         </div>
@@ -2038,7 +2038,7 @@ export function AdminConsole() {
                     key={s}
                     type="button"
                     onClick={() => setRequestStatusFilter(s)}
-                    className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                    className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
                       requestStatusFilter === s
                         ? "bg-foreground text-background"
                         : "bg-muted text-muted-foreground hover:text-foreground"
@@ -2053,12 +2053,12 @@ export function AdminConsole() {
             {/* Request list */}
             <div className="flex flex-col gap-2.5">
               {filteredRequests.length ? filteredRequests.map((request) => (
-                <div key={request.id} className="rounded-[10px] border border-border bg-card p-4">
+                <div key={request.id} className="rounded-lg border border-border bg-card p-4">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <span className="text-sm font-semibold text-foreground">{request.trainee.name}</span>
                     <span className="text-muted-foreground">→</span>
                     <span className="text-sm font-medium text-muted-foreground">{request.coach.name}</span>
-                    <Badge variant={requestBadgeVariant(request.status)} className="text-[10px]">{request.status}</Badge>
+                    <Badge variant={requestBadgeVariant(request.status)} className="text-micro">{request.status}</Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{request.trainee.email} · {formatDateTime(request.createdAt, locale)}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -2085,7 +2085,7 @@ export function AdminConsole() {
 
           <TabsContent value="connections" className="space-y-4">
             {/* Assign panel */}
-            <div className="rounded-[10px] border border-border bg-card p-[18px]">
+            <div className="rounded-lg border border-border bg-card p-[18px]">
               <p className="label-micro mb-3 text-muted-foreground">{locale === "en" ? "Assign coach to trainee" : "Gán coach cho trainee"}</p>
               <div className="flex flex-wrap gap-2">
                 <Select value={assignTraineeId} onValueChange={setAssignTraineeId}>
@@ -2121,7 +2121,7 @@ export function AdminConsole() {
               </div>
             </div>
 
-            <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
               {filteredConnections.length ? filteredConnections.map((connection) => (
                 <div key={connection.trainee.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
                   <div className="min-w-0 flex-1">
@@ -2153,7 +2153,7 @@ export function AdminConsole() {
             </div>
 
             {/* Program rows */}
-            <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
               {filteredPrograms.length ? filteredPrograms.map((program) => (
                 <div
                   key={program.id}
@@ -2162,13 +2162,13 @@ export function AdminConsole() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-semibold text-foreground">{program.name}</span>
-                      <Badge variant="outline" className="shrink-0 text-[10px]">{program.difficulty}</Badge>
+                      <Badge variant="outline" className="shrink-0 text-micro">{program.difficulty}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">{locale === "en" ? "by" : "bởi"} {program.createdBy.name}</p>
                   </div>
                   <span className="hidden font-mono text-xs text-muted-foreground sm:block">{program.duration} {locale === "en" ? "wks" : "tuần"}</span>
                   <span className="hidden font-mono text-xs text-muted-foreground sm:block">{program.assignmentCount} {locale === "en" ? "clients" : "người"}</span>
-                  <span className="hidden font-mono text-[11px] text-muted-foreground sm:block">{formatDateTime(program.createdAt, locale)}</span>
+                  <span className="hidden font-mono text-micro text-muted-foreground sm:block">{formatDateTime(program.createdAt, locale)}</span>
                   <Button size="sm" variant="destructive" onClick={() => setConfirmState({ id: program.id, kind: "program", label: program.name })}>
                     <Trash2 className="h-4 w-4" />
                     <span className="hidden sm:inline">{locale === "en" ? "Delete" : "Xoá"}</span>
@@ -2226,7 +2226,7 @@ export function AdminConsole() {
                     key={t}
                     type="button"
                     onClick={() => setAuditEntityType(t)}
-                    className={`rounded-[5px] px-3 py-1.5 font-mono text-xs transition-colors ${
+                    className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
                       auditEntityType === t
                         ? "bg-foreground text-background"
                         : "bg-muted text-muted-foreground hover:text-foreground"
@@ -2239,22 +2239,22 @@ export function AdminConsole() {
             </div>
 
             {/* Audit rows */}
-            <div className="rounded-[10px] border border-border bg-card overflow-hidden">
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
               {filteredAuditLogs.length ? filteredAuditLogs.map((log) => (
                 <div key={log.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-muted">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                     <Activity className="h-[15px] w-[15px] text-muted-foreground" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">{log.action}</span>
-                      <Badge variant="outline" className="text-[10px]">{log.entityType}</Badge>
+                      <Badge variant="outline" className="text-micro">{log.entityType}</Badge>
                     </div>
                     <p className="text-sm text-foreground">{log.entityLabel ?? (locale === "en" ? "—" : "—")}</p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-xs text-muted-foreground">{log.admin.name}</p>
-                    <p className="font-mono text-[11px] text-muted-foreground">{formatDateTime(log.createdAt, locale)}</p>
+                    <p className="font-mono text-micro text-muted-foreground">{formatDateTime(log.createdAt, locale)}</p>
                   </div>
                 </div>
               )) : (
@@ -2281,7 +2281,7 @@ export function AdminConsole() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="rounded-[10px] border border-dashed border-border bg-muted/20 p-4">
+            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="exercise-import-file">{locale === "en" ? "Select file" : "Chọn file"}</Label>
               <Input
                 key={importInputKey}
@@ -2311,7 +2311,7 @@ export function AdminConsole() {
             </div>
 
             {importFileName ? (
-              <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 sm:grid-cols-3">
+              <div className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "File" : "File"}</p>
                   <p className="mt-1 truncate text-sm font-medium">{importFileName}</p>
@@ -2328,14 +2328,14 @@ export function AdminConsole() {
             ) : null}
 
             {actionKey === "exercise-import-parse" ? (
-              <div className="flex items-center gap-2 rounded-[10px] border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>{locale === "en" ? "Reading file..." : "Đang đọc file..."}</span>
               </div>
             ) : null}
 
             {importIssues.length ? (
-              <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft p-4">
+              <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4">
                 <h4 className="text-sm font-semibold">{locale === "en" ? "Validation issues" : "Lỗi cần sửa"}</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (
@@ -2352,7 +2352,7 @@ export function AdminConsole() {
             ) : null}
 
             {importRows.length ? (
-              <div className="rounded-[10px] border border-border bg-card">
+              <div className="rounded-lg border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{locale === "en" ? "Preview" : "Xem trước"}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">

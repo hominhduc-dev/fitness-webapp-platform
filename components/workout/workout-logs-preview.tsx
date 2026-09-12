@@ -71,11 +71,11 @@ export function WorkoutLogsPreview({ logs }: { logs: WorkoutLog[] }) {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{log.workout?.name ?? messages.workoutPage.workout}</p>
-                  <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  <p className="font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
                     {formatDate(log.startedAt, locale)}
                   </p>
                 </div>
-                <span className="shrink-0 font-mono text-[11px] tnum text-muted-foreground">
+                <span className="shrink-0 font-mono text-micro tnum text-muted-foreground">
                   {messages.workoutPage.setCount(countSets(log))} · {formatVolume(log.totalVolume)} kg
                 </span>
               </button>
@@ -98,7 +98,7 @@ export function WorkoutLogsPreview({ logs }: { logs: WorkoutLog[] }) {
                             <span
                               key={set.id}
                               className={cn(
-                                "rounded border px-1.5 py-0.5 font-mono text-[10px] tnum",
+                                "rounded border px-1.5 py-0.5 font-mono text-micro tnum",
                                 set.completed
                                   ? "border-[var(--success)]/40 text-[var(--success)]"
                                   : "border-border text-muted-foreground",

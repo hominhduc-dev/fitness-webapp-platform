@@ -138,7 +138,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
           {messages.workoutPage.programBadge}
         </Badge>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-[36px]">
+          <h1 className="text-3xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-4xl">
             {program.name}
           </h1>
           {canEdit ? (
@@ -146,7 +146,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
               type="button"
               variant="outline"
               size="sm"
-              className="mt-1 h-8 gap-1.5 rounded-[8px] bg-transparent px-2.5 text-xs"
+              className="mt-1 h-8 gap-1.5 rounded-lg bg-transparent px-2.5 text-xs"
               onClick={() => {
                 setDraftName(program.name)
                 setDraftDescription(program.description ?? "")
@@ -240,7 +240,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
           ))}
         </div>
       ) : (
-        <div className="rounded-[10px] border border-dashed border-border px-6 py-14 text-center">
+        <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center">
           <p className="text-sm font-medium text-foreground">{messages.workoutPage.emptyWeekTitle}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {canEdit ? messages.workoutPage.emptyWeekOwnCopy : messages.workoutPage.emptyWeekCopy}
@@ -298,7 +298,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
                 rows={3}
                 value={draftDescription}
                 onChange={(event) => setDraftDescription(event.target.value)}
-                className="w-full rounded-[8px] border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>

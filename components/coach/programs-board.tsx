@@ -211,13 +211,13 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="label-micro">Programs</p>
-        <h1 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.02em] sm:text-[36px]">{visiblePrograms.length} authored.</h1>
-        <p className="mt-1.5 font-mono text-[13px] tnum text-muted-foreground">
+        <h1 className="mt-2 text-3xl font-semibold leading-none tracking-[-0.02em] sm:text-4xl">{visiblePrograms.length} authored.</h1>
+        <p className="mt-1.5 font-mono text-sm tnum text-muted-foreground">
           {totalAssignments} clients training on a program · {unassigned} unassigned
         </p>
       </div>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-        <label className="flex select-none items-center gap-2 text-[13px] text-muted-foreground sm:mr-2">
+        <label className="flex select-none items-center gap-2 text-sm text-muted-foreground sm:mr-2">
           <Switch checked={showArchived} onCheckedChange={setShowArchived} />
           Show archived
         </label>
@@ -246,7 +246,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
     return (
       <>
         {header}
-        <div className="rounded-[10px] border border-dashed border-border py-12 text-center">
+        <div className="rounded-lg border border-dashed border-border py-12 text-center">
           <h3 className="mb-2 text-lg font-semibold">No programs yet</h3>
           <p className="mb-4 text-sm text-muted-foreground">
             Create your first program to start assigning workouts to trainees.

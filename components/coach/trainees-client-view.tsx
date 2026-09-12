@@ -79,7 +79,7 @@ function ClientRow({ trainee }: { trainee: CoachTrainee }) {
     >
       <Avatar className="h-9 w-9 flex-shrink-0">
         <AvatarImage src={trainee.avatar ?? undefined} />
-        <AvatarFallback className="bg-muted text-[13px] font-medium text-foreground">
+        <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
           {getInitials(trainee.name)}
         </AvatarFallback>
       </Avatar>
@@ -93,7 +93,7 @@ function ClientRow({ trainee }: { trainee: CoachTrainee }) {
             title={getStatusLabel(status, messages)}
           />
         </div>
-        <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+        <div className="mt-0.5 truncate font-mono text-micro text-muted-foreground">
           {program} · {lastSeen}
         </div>
       </div>

@@ -118,7 +118,7 @@ export function ResumeWorkoutCard() {
       <div
         className={cn(
           "flex items-center gap-2 md:gap-5",
-          "rounded-[22px] border border-border md:rounded-xl",
+          "rounded-3xl border border-border md:rounded-xl",
           "bg-background/90 backdrop-blur-xl",
           "px-2.5 py-2 md:px-5 md:py-[14px]",
           "shadow-[var(--glass-shadow)]",
@@ -126,11 +126,11 @@ export function ResumeWorkoutCard() {
       >
         {/* Left: label + workout name */}
         <div className="min-w-0 flex-1 md:flex-none md:min-w-[160px] md:max-w-[240px]">
-          <div className="mb-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground md:text-[11px]">
+          <div className="mb-0.5 flex items-center gap-1.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground md:text-micro">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
             {messages.workoutPage.inProgress}
           </div>
-          <div className="truncate text-[13px] font-semibold leading-tight text-foreground md:text-[16px]">
+          <div className="truncate text-sm font-semibold leading-tight text-foreground md:text-base">
             {name}
           </div>
         </div>
@@ -138,11 +138,11 @@ export function ResumeWorkoutCard() {
         {/* Middle: elapsed + caption */}
         <div className="shrink-0 text-right md:min-w-0 md:flex-1 md:text-left">
           <div
-            className="font-mono text-[18px] font-semibold leading-none text-primary md:text-[24px]"
+            className="font-mono text-lg font-semibold leading-none text-primary md:text-2xl"
           >
             {elapsed}
           </div>
-          <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground md:mt-1.5 md:overflow-hidden md:text-ellipsis md:text-xs">
+          <p className="mt-1 whitespace-nowrap text-micro text-muted-foreground md:mt-1.5 md:overflow-hidden md:text-ellipsis md:text-xs">
             <span className="font-mono">
               {messages.workoutPage.setsProgress(session.completedSets, session.totalSets)}
             </span>
@@ -161,7 +161,7 @@ export function ResumeWorkoutCard() {
             onClick={handleResume}
             aria-label={messages.workoutPage.resume}
             className={cn(
-              "flex h-9 items-center gap-1 rounded-full px-2.5 text-[12px] font-medium md:h-auto md:rounded-md md:px-3 md:py-1.5 md:text-[13px]",
+              "flex h-9 items-center gap-1 rounded-full px-2.5 text-xs font-medium md:h-auto md:rounded-md md:px-3 md:py-1.5 md:text-sm",
               "bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-150",
             )}
           >
@@ -172,7 +172,7 @@ export function ResumeWorkoutCard() {
             onClick={handleDiscard}
             aria-label={messages.workoutPage.discard}
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-medium md:h-auto md:w-auto md:rounded-md md:px-3 md:py-1.5",
+              "flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium md:h-auto md:w-auto md:rounded-md md:px-3 md:py-1.5",
               "bg-transparent text-destructive-text hover:bg-destructive-soft transition-colors duration-150",
             )}
           >

@@ -100,7 +100,7 @@ export function SidebarAccountMenu({
         >
           <Avatar className={avatarClassName}>
             <AvatarImage src={profile?.avatar ?? undefined} alt={displayName} />
-            <AvatarFallback className="bg-foreground font-mono text-[11px] font-semibold text-background">
+            <AvatarFallback className="bg-foreground font-mono text-micro font-semibold text-background">
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -121,14 +121,14 @@ export function SidebarAccountMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5">
-          <p className="mb-1.5 px-1 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mb-1.5 px-1 font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
             {messages.common.language}
           </p>
           <LanguageToggle compact />
         </div>
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5">
-          <p className="mb-1.5 px-1 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="mb-1.5 px-1 font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
             {messages.common.theme}
           </p>
           <ThemeToggle compact />

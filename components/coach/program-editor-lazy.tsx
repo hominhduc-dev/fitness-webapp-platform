@@ -17,7 +17,7 @@ type ProgramEditorLazyProps = {
 const ProgramEditor = dynamic(
   () => import("@/components/coach/program-editor").then((mod) => mod.ProgramEditor),
   {
-    loading: () => <div className="min-h-[24rem] rounded-[10px] border border-border bg-card" />,
+    loading: () => <div className="min-h-[24rem] rounded-lg border border-border bg-card" />,
     ssr: false,
   },
 )

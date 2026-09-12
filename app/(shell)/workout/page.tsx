@@ -13,7 +13,7 @@ function RoutinesPageSkeleton() {
           <Skeleton className="h-3 w-20 rounded" />
           <Skeleton className="h-8 w-36 rounded sm:h-9" />
         </div>
-        <Skeleton className="h-10 w-full rounded-[8px] sm:w-36" />
+        <Skeleton className="h-10 w-full rounded-lg sm:w-36" />
       </div>
       <div className="mb-5 flex gap-2 overflow-hidden sm:mb-6">
         {[0, 1, 2, 3, 4, 5].map((item) => (
@@ -22,7 +22,7 @@ function RoutinesPageSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2, 3, 4, 5].map((item) => (
-          <Skeleton key={item} className="h-[286px] rounded-[10px]" />
+          <Skeleton key={item} className="h-[286px] rounded-lg" />
         ))}
       </div>
     </div>

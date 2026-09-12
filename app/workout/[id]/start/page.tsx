@@ -437,7 +437,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         {/* Set number */}
         <span
           className={cn(
-            "min-w-0 text-center font-mono text-[15px] font-semibold",
+            "min-w-0 text-center font-mono text-base font-semibold",
             completed ? "text-muted-foreground" : "text-foreground",
           )}
         >
@@ -447,7 +447,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         {/* Previous */}
         <span
           className={cn(
-            "min-w-0 font-mono text-[11px] leading-tight",
+            "min-w-0 font-mono text-micro leading-tight",
             exceededRange
               ? "inline-flex items-center justify-center gap-1 text-success-text"
               : "block truncate text-center text-muted-foreground",
@@ -478,7 +478,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         placeholder="—"
         aria-label={messages.workoutPage.weightInUnit(weightUnit)}
         className={cn(
-          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-[14px]",
+          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-sm",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 pointer-coarse:h-11 px-1",
@@ -506,7 +506,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         placeholder="—"
         aria-label={messages.workoutPage.reps}
         className={cn(
-          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-[14px]",
+          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-sm",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 pointer-coarse:h-11 px-1",
@@ -536,7 +536,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         min={0}
         max={10}
         className={cn(
-          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-[14px]",
+          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-sm",
           "border transition-colors duration-[180ms]",
           "focus:outline-none focus:ring-1 focus:ring-primary",
           "h-8 pointer-coarse:h-11 px-1",
@@ -565,7 +565,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           >
             <span
               className={cn(
-                "flex h-[22px] w-[22px] items-center justify-center rounded-[4px]",
+                "flex h-[22px] w-[22px] items-center justify-center rounded",
                 "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
                 completed
                   ? "bg-[var(--success)] border-0"
@@ -583,7 +583,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                 className="flex h-[22px] w-[22px] items-center justify-center pointer-coarse:h-11 text-muted-foreground transition-colors hover:text-foreground"
               >
                 {/* Same split as the tick: tall invisible target, small visual. */}
-                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-[4px] transition-colors hover:bg-muted">
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded transition-colors hover:bg-muted">
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </span>
               </button>
@@ -622,7 +622,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
               onChange({ notes: e.target.value || undefined })
             }}
             placeholder={messages.workoutPage.noteForSet}
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       )}
@@ -741,7 +741,7 @@ function LiftExerciseBlock({
   return (
     <div
       className={cn(
-        "mb-4 min-w-0 overflow-hidden rounded-[10px] border transition-colors duration-[180ms]",
+        "mb-4 min-w-0 overflow-hidden rounded-lg border transition-colors duration-[180ms]",
         allSetsCompleted
           ? "border-[color-mix(in_srgb,var(--success)_45%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)]"
           : "border-border bg-card",
@@ -759,7 +759,7 @@ function LiftExerciseBlock({
                 aria-label="Coach update"
                 aria-expanded={coachUpdateOpen}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1 rounded-[5px] border-0 px-[7px] py-[3px]",
+                  "inline-flex shrink-0 items-center gap-1 rounded border-0 px-[7px] py-[3px]",
                   "font-mono text-[9.5px] font-semibold uppercase tracking-[0.07em]",
                   "transition-colors duration-150",
                   coachUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
@@ -779,7 +779,7 @@ function LiftExerciseBlock({
             {note.trim() && ` · 📝`}
           </p>
           {coachUpdate && coachUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
-            <div className={cn("mt-2 flex items-start gap-1.5 rounded-[7px] px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
+            <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
               <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
               <span className="text-[12.5px] leading-[1.4] text-foreground">{coachUpdate.text}</span>
             </div>
@@ -846,7 +846,7 @@ function LiftExerciseBlock({
               onExerciseNoteChange(exercise.id, e.target.value)
             }}
             placeholder={messages.workoutPage.noteForExercise}
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       )}
@@ -862,7 +862,7 @@ function LiftExerciseBlock({
               "grid min-w-0 items-center border-b border-border",
               SET_ROW_GRID_CLASS,
               "py-2",
-              "font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground",
+              "font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground",
             )}
           >
             <span className="min-w-0 text-center">{messages.workoutPage.set}</span>
@@ -897,7 +897,7 @@ function LiftExerciseBlock({
           <button
             type="button"
             onClick={() => onAddSet(exercise.id)}
-            className="flex w-full items-center gap-1.5 px-4 py-[10px] text-[13px] font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
+            className="flex w-full items-center gap-1.5 px-4 py-[10px] text-sm font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
           >
             <Plus className="h-3.5 w-3.5" />
             {messages.workoutPage.addSet}
@@ -929,11 +929,11 @@ function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
         !lastRow && "border-b border-border md:border-b-0",
       )}
     >
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-1.5">
+      <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground mb-1.5">
         {label}
       </p>
       <p
-        className="truncate font-mono text-[22px] font-medium leading-none text-foreground"
+        className="truncate font-mono text-2xl font-medium leading-none text-foreground"
       >
         {value}
       </p>
@@ -1511,16 +1511,16 @@ export default function WorkoutStartPage() {
             <X className="h-4 w-4" />
             {messages.workoutPage.cancelWorkout}
           </button>
-          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mb-2">
+          <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground mb-2">
             {dateLabel}
           </p>
-          <h1 className="text-[28px] md:text-[40px] font-semibold tracking-[-0.02em] text-foreground m-0 leading-tight">
+          <h1 className="text-3xl md:text-5xl font-semibold tracking-[-0.02em] text-foreground m-0 leading-tight">
             {workout.name}
           </h1>
         </div>
 
         {/* Session stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-[10px] bg-card overflow-hidden mb-7">
+        <div className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-lg bg-card overflow-hidden mb-7">
           <StatCell
             label={messages.workoutPage.started}
             value={startedLabel}

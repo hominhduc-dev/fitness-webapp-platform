@@ -35,11 +35,11 @@ function ScheduleCalendarSkeleton() {
         </div>
         <Skeleton className="h-8 w-64 rounded-full" />
       </div>
-      <Skeleton className="mb-7 h-48 rounded-[12px]" />
+      <Skeleton className="mb-7 h-48 rounded-xl" />
       <Skeleton className="mb-3 h-3 w-24" />
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-7">
         {Array.from({ length: 7 }, (_, index) => (
-          <Skeleton key={index} className="h-[130px] rounded-[10px]" />
+          <Skeleton key={index} className="h-[130px] rounded-lg" />
         ))}
       </div>
     </section>

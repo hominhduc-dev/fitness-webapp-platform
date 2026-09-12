@@ -173,7 +173,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
             <div
               key={card.label}
               className={cn(
-                "glass-card min-w-0 rounded-[20px] border p-4 transition-all md:p-5",
+                "glass-card min-w-0 rounded-3xl border p-4 transition-all md:p-5",
                 card.tone === "primary" && "border-primary/20 bg-primary-soft",
                 card.tone === "blue" && "border-primary/20 bg-primary-soft",
                 card.tone === "neutral" && "border-border bg-card",
@@ -185,7 +185,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
                   <p className="font-mono text-2xl font-semibold leading-none tracking-tight tnum text-foreground md:text-[1.75rem]">
                     {card.value}
                   </p>
-                  <p className={cn("mt-2 text-[13px] leading-snug", isHelperAccent ? "font-medium text-success-text" : "text-muted-foreground")}>
+                  <p className={cn("mt-2 text-sm leading-snug", isHelperAccent ? "font-medium text-success-text" : "text-muted-foreground")}>
                     {card.helper}
                   </p>
                 </div>
@@ -208,7 +208,7 @@ function DashboardOverviewSkeleton() {
     <div className="space-y-6">
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="min-w-0 rounded-[20px] border border-border bg-card p-4 md:p-5">
+          <div key={index} className="min-w-0 rounded-3xl border border-border bg-card p-4 md:p-5">
             <Skeleton className="h-2.5 w-16 rounded" />
             <Skeleton className="mt-3 h-7 w-24" />
             <Skeleton className="mt-2 h-3 w-28" />
@@ -217,17 +217,17 @@ function DashboardOverviewSkeleton() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-[10px] border border-border bg-card p-5">
+        <div className="rounded-lg border border-border bg-card p-5">
           <Skeleton className="h-2.5 w-28 rounded" />
           <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center gap-4">
-            <Skeleton className="h-14 w-14 rounded-[10px]" />
+            <Skeleton className="h-14 w-14 rounded-lg" />
             <Skeleton className="h-5 w-40" />
             <Skeleton className="h-4 w-48" />
-            <Skeleton className="mt-2 h-9 w-full rounded-[8px]" />
+            <Skeleton className="mt-2 h-9 w-full rounded-lg" />
           </div>
         </div>
 
-        <div className="rounded-[10px] border border-border bg-card p-5">
+        <div className="rounded-lg border border-border bg-card p-5">
           <Skeleton className="h-2.5 w-32 rounded" />
           <div className="mt-6 flex items-center gap-6">
             <Skeleton className="h-24 w-24 shrink-0 rounded-full" />
@@ -238,7 +238,7 @@ function DashboardOverviewSkeleton() {
           </div>
           <div className="mt-5 grid grid-cols-2 gap-2">
             {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-9 rounded-[8px]" />
+              <Skeleton key={index} className="h-9 rounded-lg" />
             ))}
           </div>
         </div>
@@ -248,7 +248,7 @@ function DashboardOverviewSkeleton() {
         <Skeleton className="mb-4 h-2.5 w-28 rounded" />
         <div className="flex flex-col gap-2">
           {Array.from({ length: 3 }, (_, index) => (
-            <Skeleton key={index} className="h-[60px] rounded-[10px]" />
+            <Skeleton key={index} className="h-[60px] rounded-lg" />
           ))}
         </div>
       </section>

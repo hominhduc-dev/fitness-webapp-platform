@@ -54,7 +54,7 @@ export default function DesignSystemPage() {
                 <div className="h-20 border-b" style={{ background: `var(${token})` }} />
                 <div className="p-3">
                   <p className="text-sm font-medium">{label}</p>
-                  <code className="mt-1 block text-[11px] text-muted-foreground">{token}</code>
+                  <code className="mt-1 block text-micro text-muted-foreground">{token}</code>
                 </div>
               </div>
             ))}

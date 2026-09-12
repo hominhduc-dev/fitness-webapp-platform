@@ -206,7 +206,7 @@ export function ExercisePicker({
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-background px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    <span className="rounded-full bg-background px-2.5 py-1 text-micro font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       {group.items.length}
                     </span>
                     <ChevronDown
@@ -340,7 +340,7 @@ export function ExercisePicker({
       ) : null}
 
       {open && !isMobile ? (
-        <div className="absolute inset-x-0 bottom-full mb-3 rounded-[22px] border border-border/70 bg-background/95 p-3 shadow-[var(--glass-shadow)] backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-full mb-3 rounded-3xl border border-border/70 bg-background/95 p-3 shadow-[var(--glass-shadow)] backdrop-blur-sm">
           {pickerPanel}
         </div>
       ) : null}

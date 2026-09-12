@@ -59,7 +59,7 @@ export function TrainedAreasCard({ weekLogs, historyLogs }: TrainedAreasCardProp
   ]
 
   return (
-    <div className="rounded-[10px] border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-card p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <p className="label-micro">{messages.progressPage.trainedAreas}</p>
         <div className="flex gap-1.5">
@@ -88,7 +88,7 @@ export function TrainedAreasCard({ weekLogs, historyLogs }: TrainedAreasCardProp
           className="py-1"
         />
       ) : (
-        <div className="flex min-h-[8rem] items-center justify-center rounded-[8px] border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+        <div className="flex min-h-[8rem] items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
           {messages.progressPage.noTrainedAreas}
         </div>
       )}

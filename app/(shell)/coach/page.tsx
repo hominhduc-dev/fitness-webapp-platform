@@ -63,7 +63,7 @@ function CoachStatCard({
   const safeProgress = Math.max(0, Math.min(100, progress ?? 0))
 
   return (
-    <article className="group relative min-h-[158px] overflow-hidden rounded-[20px] border border-border/75 bg-card/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-lg sm:min-h-[170px] sm:p-5">
+    <article className="group relative min-h-[158px] overflow-hidden rounded-3xl border border-border/75 bg-card/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-lg sm:min-h-[170px] sm:p-5">
       <span className={cn("absolute inset-x-0 top-0 h-0.5", palette.accent)} />
       <span className={cn("pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-opacity group-hover:opacity-100", palette.glow)} />
 
@@ -75,10 +75,10 @@ function CoachStatCard({
           </span>
         </div>
 
-        <p className={cn("mt-2 font-mono text-[34px] font-bold leading-none tracking-[-0.06em] tnum sm:text-[40px]", palette.value)}>
+        <p className={cn("mt-2 font-mono text-4xl font-bold leading-none tracking-[-0.06em] tnum sm:text-5xl", palette.value)}>
           {value}
         </p>
-        <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground sm:text-xs">{subtitle}</p>
+        <p className="mt-2 line-clamp-2 text-micro leading-snug text-muted-foreground sm:text-xs">{subtitle}</p>
 
         <div className="mt-auto flex items-center gap-1 pt-3" aria-hidden="true">
           {progress === undefined ? (
@@ -194,7 +194,7 @@ export default async function CoachDashboardPage() {
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
           <div className="space-y-6">
             {/* 7-day bar chart */}
-            <div className="rounded-[10px] border border-border bg-card p-5">
+            <div className="rounded-lg border border-border bg-card p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="label-micro text-muted-foreground">{coachMessages.weeklyActivity}</p>
@@ -203,7 +203,7 @@ export default async function CoachDashboardPage() {
                     {coachMessages.weeklyActivityCopy}
                   </p>
                 </div>
-                <div className="rounded-[10px] border border-border bg-muted px-4 py-3 text-sm">
+                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm">
                   <p className="font-semibold text-foreground">
                     {coachMessages.sessionsLogged(dashboard.summary.workoutsThisWeek)}
                   </p>
@@ -233,7 +233,7 @@ export default async function CoachDashboardPage() {
             </div>
 
             {/* Recent logs */}
-            <div className="rounded-[10px] border border-border bg-card p-5">
+            <div className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="label-micro text-muted-foreground">{coachMessages.recentLogs}</p>
@@ -248,7 +248,7 @@ export default async function CoachDashboardPage() {
 
               <div className="mt-5 space-y-2">
                 {dashboard.recentWorkoutLogs.length === 0 ? (
-                  <div className="rounded-[10px] border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
                     {coachMessages.noRecentWorkoutLogs}
                   </div>
                 ) : (
@@ -256,7 +256,7 @@ export default async function CoachDashboardPage() {
                     <Link
                       key={log.id}
                       href={`/coach/trainees/${log.trainee.id}`}
-                      className="block rounded-[10px] border border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/25 hover:bg-muted/40"
+                      className="block rounded-lg border border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/25 hover:bg-muted/40"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
@@ -286,7 +286,7 @@ export default async function CoachDashboardPage() {
 
           <div className="space-y-6">
             {/* Quick actions */}
-            <div className="rounded-[10px] border border-border bg-card p-5">
+            <div className="rounded-lg border border-border bg-card p-5">
               <p className="label-micro text-muted-foreground">{coachMessages.quickActionsTitle}</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.coachControls}</h2>
 
@@ -322,7 +322,7 @@ export default async function CoachDashboardPage() {
             </div>
 
             {/* At-risk trainees */}
-            <div className="rounded-[10px] border border-border bg-card p-5">
+            <div className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-warning-text" />
                 <p className="label-micro text-muted-foreground">{coachMessages.needAttention}</p>
@@ -331,12 +331,12 @@ export default async function CoachDashboardPage() {
 
               <div className="mt-5 space-y-3">
                 {dashboard.atRiskTrainees.length === 0 ? (
-                  <div className="rounded-[10px] border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                     {coachMessages.noTraineesNeedAttention}
                   </div>
                 ) : (
                   dashboard.atRiskTrainees.map((trainee) => (
-                    <div key={trainee.id} className="rounded-[10px] border border-border bg-card p-4">
+                    <div key={trainee.id} className="rounded-lg border border-border bg-card p-4">
                       <div className="flex items-start gap-3">
                         <Avatar className="h-9 w-9 border border-border">
                           <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
@@ -377,7 +377,7 @@ export default async function CoachDashboardPage() {
         </section>
 
         {/* All trainees table */}
-        <section className="rounded-[10px] border border-border bg-card p-5">
+        <section className="rounded-lg border border-border bg-card p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="label-micro text-muted-foreground">{coachMessages.allTrainees}</p>
@@ -395,14 +395,14 @@ export default async function CoachDashboardPage() {
 
           <div className="mt-5 space-y-2">
             {dashboard.trainees.length === 0 ? (
-              <div className="rounded-[10px] border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
                 {coachMessages.noTraineesAssignedToCoach}
               </div>
             ) : (
               dashboard.trainees.map((trainee) => (
                 <div
                   key={trainee.id}
-                  className="grid gap-4 rounded-[10px] border border-border bg-card px-4 py-3.5 lg:grid-cols-[minmax(0,1.2fr)_200px_160px_220px]"
+                  className="grid gap-4 rounded-lg border border-border bg-card px-4 py-3.5 lg:grid-cols-[minmax(0,1.2fr)_200px_160px_220px]"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <Avatar className="h-9 w-9 border border-border">

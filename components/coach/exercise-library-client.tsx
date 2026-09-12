@@ -436,17 +436,17 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   return (
     <div className="space-y-5">
       {error ? (
-        <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+        <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="rounded-[10px] border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
+        <div className="rounded-lg border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
           {notice}
         </div>
       ) : null}
       {pendingImportRequests.length > 0 ? (
-        <div className="rounded-[10px] border border-border bg-card px-4 py-3">
+        <div className="rounded-lg border border-border bg-card px-4 py-3">
           <p className="label-micro text-muted-foreground">{copy.pendingApproval}</p>
           <p className="mt-1 text-sm text-foreground">
             {copy.pendingRequestCount(pendingImportRequests.length)}
@@ -481,7 +481,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="rounded-[10px] border border-dashed border-border bg-muted/20 p-4">
+            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="coach-exercise-import-file">{copy.selectFile}</Label>
               <Input
                 key={importInputKey}
@@ -508,7 +508,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             </div>
 
             {importFileName ? (
-              <div className="grid gap-3 rounded-[10px] border border-border bg-card p-4 sm:grid-cols-3">
+              <div className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{copy.file}</p>
                   <p className="mt-1 truncate text-sm font-medium">{importFileName}</p>
@@ -525,14 +525,14 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             ) : null}
 
             {actionKey === "exercise-import-parse" ? (
-              <div className="flex items-center gap-2 rounded-[10px] border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>{copy.readingFile}</span>
               </div>
             ) : null}
 
             {importIssues.length ? (
-              <div className="rounded-[10px] border border-destructive/30 bg-destructive-soft p-4">
+              <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4">
                 <h4 className="text-sm font-semibold">{copy.validationIssues}</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (
@@ -546,7 +546,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             ) : null}
 
             {importRows.length ? (
-              <div className="rounded-[10px] border border-border bg-card">
+              <div className="rounded-lg border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{copy.preview}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">

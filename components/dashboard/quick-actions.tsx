@@ -49,7 +49,7 @@ export function QuickActions() {
           key={action.href}
           href={action.href}
           className={cn(
-            "glass-card group flex min-w-0 flex-col items-center justify-center rounded-[16px] border px-1 py-3 text-center transition-all hover:-translate-y-0.5 md:min-h-[108px] md:rounded-[20px] md:px-3 md:py-4",
+            "glass-card group flex min-w-0 flex-col items-center justify-center rounded-2xl border px-1 py-3 text-center transition-all hover:-translate-y-0.5 md:min-h-[108px] md:rounded-3xl md:px-3 md:py-4",
             action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
             action.tone === "primary" && "border-border bg-card hover:border-primary/25",
             action.tone === "neutral" && "border-border bg-card hover:border-border/80",
@@ -65,7 +65,7 @@ export function QuickActions() {
           >
             <action.icon className="h-4 w-4 md:h-5 md:w-5" />
           </div>
-          <p className="mt-2 line-clamp-2 text-[10px] font-medium leading-[1.15] tracking-tight text-foreground md:mt-3 md:text-[13px]">
+          <p className="mt-2 line-clamp-2 text-micro font-medium leading-[1.15] tracking-tight text-foreground md:mt-3 md:text-sm">
             {action.label}
           </p>
         </Link>

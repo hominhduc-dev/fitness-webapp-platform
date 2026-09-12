@@ -188,7 +188,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
           fallbackEmail="coach@example.com"
           fallbackInitials="EK"
           fallbackName="Coach Eli K."
-          subtitle={<span className="font-mono text-[11px]">12 {messages.shell.activeClients}</span>}
+          subtitle={<span className="font-mono text-micro">12 {messages.shell.activeClients}</span>}
         />
       }
     />

@@ -19,7 +19,7 @@ const badgeVariants = cva(
 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
         // Lift micro-tag: SET 1 · WORKING · WARM-UP · PR · BEST
         micro:
-'border-transparent bg-muted text-muted-foreground font-mono text-[11px] uppercase tracking-[0.08em] font-medium px-1.5 py-0.5 rounded-sm',
+'border-transparent bg-muted text-muted-foreground font-mono text-micro uppercase tracking-[0.08em] font-medium px-1.5 py-0.5 rounded-sm',
       },
     },
     defaultVariants: {

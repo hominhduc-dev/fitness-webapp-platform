@@ -158,7 +158,7 @@ function FieldNum({
   const inputMode = allowRange ? "text" : allowDecimals ? "decimal" : "numeric"
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </span>
       <input
@@ -414,7 +414,7 @@ export function RoutineBuilderDialog({
 
       <DialogContent
         showCloseButton={false}
-        className="flex h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-full flex-col overflow-hidden p-0 sm:h-[90svh] sm:max-h-[900px] sm:max-w-[640px] sm:rounded-[14px]"
+        className="flex h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-full flex-col overflow-hidden p-0 sm:h-[90svh] sm:max-h-[900px] sm:max-w-[640px] sm:rounded-xl"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{isEditing ? messages.workoutPage.editRoutineMode : messages.workoutPage.newRoutine}</DialogTitle>
@@ -427,7 +427,7 @@ export function RoutineBuilderDialog({
                   <p className="label-micro mb-1.5 text-muted-foreground">
                     {isEditing ? messages.workoutPage.editRoutineMode : messages.workoutPage.newRoutine}
                   </p>
-                  <h2 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+                  <h2 className="text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
                     {name.trim() || messages.workoutPage.untitledRoutine}
                   </h2>
                   <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -457,7 +457,7 @@ export function RoutineBuilderDialog({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={messages.workoutPage.routineNamePlaceholder}
-                  className="flex-1 text-[15px]"
+                  className="flex-1 text-base"
                   autoFocus
                 />
                 <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -493,7 +493,7 @@ export function RoutineBuilderDialog({
               )}
 
               {exercises.length === 0 && (
-                <div className="mb-4 flex flex-col items-center justify-center rounded-[10px] border border-dashed border-border py-10 text-center text-muted-foreground">
+                <div className="mb-4 flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10 text-center text-muted-foreground">
                   <Dumbbell className="mb-2.5 h-5 w-5 opacity-50" />
                   <p className="text-sm">{messages.workoutPage.noExercisesYet}</p>
                 </div>
@@ -502,7 +502,7 @@ export function RoutineBuilderDialog({
               {exercises.map((ex, i) => (
                 <div
                   key={ex.id}
-                  className="mb-2.5 rounded-[10px] border border-border bg-background p-3.5 sm:px-[18px]"
+                  className="mb-2.5 rounded-lg border border-border bg-background p-3.5 sm:px-[18px]"
                 >
                   <div className="mb-2.5 flex items-center gap-2.5">
                     <span className="min-w-[18px] text-right font-mono text-xs font-semibold text-muted-foreground">
@@ -515,7 +515,7 @@ export function RoutineBuilderDialog({
                       className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
                     >
                       <p className="truncate text-sm font-medium text-foreground">{ex.displayName}</p>
-                      <p className="mt-0.5 truncate font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                      <p className="mt-0.5 truncate font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                         {ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}
                         <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
                       </p>
@@ -599,7 +599,7 @@ export function RoutineBuilderDialog({
                 type="button"
                 onClick={() => setPickerTarget("add")}
                 className={cn(
-                  "mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-[10px]",
+                  "mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg",
                   "border border-dashed border-border py-3.5 text-sm font-medium text-primary",
                   "transition-colors hover:bg-muted/50",
                 )}

@@ -47,7 +47,7 @@ function ChatProgramCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug">{program.name}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             {program.duration} {isVi ? "tuần" : "weeks"} · {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"} · {action.mappingRate}% {isVi ? "bài tập khớp" : "exercises matched"}
           </p>
         </div>
@@ -88,7 +88,7 @@ function ChatProgramCard({
         </Button>
       )}
 
-      {error && <p className="mt-2 text-[11px] text-destructive-text">{error}</p>}
+      {error && <p className="mt-2 text-micro text-destructive-text">{error}</p>}
     </div>
   )
 }

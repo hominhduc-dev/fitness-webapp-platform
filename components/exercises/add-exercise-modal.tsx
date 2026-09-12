@@ -204,14 +204,14 @@ export function AddExerciseModal({
                 >
                   <div className="min-w-0 flex-1">
                     <p className={cn("truncate text-sm font-medium", isCurrent ? "text-primary" : "text-foreground")}>{exercise.exerciseName}</p>
-                    <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <p className="mt-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {exercise.muscleGroup}
                       {exercise.equipment ? ` · ${exercise.equipment}` : ""}
                       {!exercise.isDefault && exercise.variationName ? ` · ${exercise.variationName}` : ""}
                     </p>
                   </div>
                   {isCurrent ? (
-                    <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-primary">current</span>
+                    <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-micro font-medium uppercase tracking-wider text-primary">current</span>
                   ) : added ? (
                     <span className="text-xs font-medium text-success-text">{messages.workoutPage.added}</span>
                   ) : (
@@ -229,7 +229,7 @@ export function AddExerciseModal({
       <Dialog open={showFilters} onOpenChange={setShowFilters}>
         <DialogContent
           showCloseButton={false}
-          className="flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[24px] border border-border bg-background shadow-2xl p-0 sm:rounded-[16px]"
+          className="flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[24px] border border-border bg-background shadow-2xl p-0 sm:rounded-2xl"
         >
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
               <div className="min-w-0">
@@ -249,7 +249,7 @@ export function AddExerciseModal({
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4">
               <section>
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  <p className="font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                     {filterCopy.muscle}
                   </p>
                   <button
@@ -261,7 +261,7 @@ export function AddExerciseModal({
                     {filterCopy.reset}
                   </button>
                 </div>
-                <div className="rounded-[14px] border border-border bg-card px-4 py-4">
+                <div className="rounded-xl border border-border bg-card px-4 py-4">
                   <MuscleMapPair
                     size="md"
                     label={filterCopy.hint}
@@ -278,7 +278,7 @@ export function AddExerciseModal({
               </section>
 
               <section>
-                <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                <p className="mb-2 font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                   {filterCopy.activity}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -302,7 +302,7 @@ export function AddExerciseModal({
 
               {equipmentList.length > 2 ? (
                 <section>
-                  <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  <p className="mb-2 font-mono text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
                     {filterCopy.equipment}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -334,14 +334,14 @@ export function AddExerciseModal({
                   setActivityType("all")
                   setEquipment("all")
                 }}
-                className="h-10 rounded-[8px] border border-border bg-background text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                className="h-10 rounded-lg border border-border bg-background text-sm font-semibold text-foreground transition-colors hover:bg-muted"
               >
                 {filterCopy.reset}
               </button>
               <button
                 type="button"
                 onClick={() => setShowFilters(false)}
-                className="h-10 rounded-[8px] bg-foreground text-sm font-semibold text-background transition-opacity hover:opacity-90"
+                className="h-10 rounded-lg bg-foreground text-sm font-semibold text-background transition-opacity hover:opacity-90"
               >
                 {filterCopy.done}
               </button>
