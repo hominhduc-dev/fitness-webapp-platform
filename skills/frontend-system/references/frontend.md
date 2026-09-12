@@ -207,9 +207,13 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 
 Heading feature thường dùng 26–36px, weight 600, tracking âm nhẹ. Body dùng semantic `text-foreground`; metadata dùng `text-muted-foreground`.
 
-### Kinetic Glass v2
+### Light SaaS editorial + Kinetic Glass dark
 
 Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ chọn vai trò (`primary`, `surface`, `success-text`), không tự chọn hue. Cobalt là nhận diện xuyên suốt cả hai theme; dark theme không được thay primary bằng trắng.
+
+- Light theme dùng hướng clean SaaS editorial: nền off-white phẳng, surface/card trắng opaque, line mảnh, shadow rất nhẹ và accent cobalt.
+- Dark theme giữ Kinetic Glass/liquid-glass: translucent surface, backdrop blur/refraction, rim highlight và shadow sâu.
+- Shared class `.glass-*` vẫn được dùng trong markup, nhưng `:root:not(.dark)` override chúng thành editorial surfaces. Không thêm class song song chỉ để phân biệt light/dark.
 
 ### Light palette (`:root`)
 
@@ -237,7 +241,7 @@ Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ
 | `--info-token`, `--info-token-text`, `--info-token-soft` | `#3b82f6`, `#1e40af`, `#dbeafe` | Info solid/text/soft |
 | `--danger`, `--danger-text`, `--danger-soft` | `#ef4444`, `#b91c1c`, `#fee2e2` | Destructive solid/text/soft |
 
-Light page backdrop là off-white với blue/green radial tint; không phải nền trắng phẳng.
+Light page backdrop là off-white rất nhẹ, gần phẳng; hierarchy đến từ border, spacing, surface trắng và cobalt accent thay vì blur/glass.
 
 ### Dark palette (`.dark`)
 
@@ -319,13 +323,14 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 - Landing owner: `components/landing/landing-page.tsx`, CSS cục bộ `landing-page.module.css`, copy song ngữ `lib/i18n/messages/landing.ts`. Preview dùng dữ liệu minh họa được gắn nhãn, CTA dùng auth modal qua query param.
 - Khi effect/canvas phụ thuộc theme, dùng `resolvedTheme`, không dùng raw `theme` vì mode `system` có thể đổi.
 
-### Glass layers
+### Glass/editorial layers
 
 | Layer | Cơ chế |
 |---|---|
-| Fallback mọi browser | CSS gradient + backdrop blur + semantic `--glass-*` tokens |
-| Chromium enhancement | SVG `backdrop-filter: url(#...)` khi capability probe pass |
-| Mobile nav enhancement | `@ybouane/liquidglass` WebGL qua `useLiquidGlass()` |
+| Light fallback | Opaque `var(--card)` surfaces, thin `var(--border)`, 0–2px editorial shadow |
+| Dark fallback | CSS gradient + backdrop blur + semantic `--glass-*` tokens |
+| Dark Chromium enhancement | SVG `backdrop-filter: url(#...)` khi capability probe pass |
+| Mobile nav enhancement | `@ybouane/liquidglass` WebGL qua `useLiquidGlass()`; light CSS can flatten the nav |
 
 Shared classes:
 
@@ -335,6 +340,8 @@ Shared classes:
 - `.lg-bevel`: Fresnel/specular rim;
 - `.lg-dome`, `.ai-bubble-trigger`: round glass control;
 - `.mobile-floating-nav`: mobile navigation pill.
+
+Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`, `.glass-card`, dialog/drawer content, sidebar, mobile nav, auth modal and skeletons. Dark mode keeps the original glass rules.
 
 ### Glass guardrails
 

@@ -610,7 +610,7 @@ export function RoutineBuilderDialog({
                 </Button>
               </DialogClose>
               <Button
-                className="w-full bg-foreground text-background hover:bg-foreground/90 sm:w-auto"
+                className="w-full sm:w-auto"
                 onClick={() => void handleSave()}
                 disabled={!canSave}
               >

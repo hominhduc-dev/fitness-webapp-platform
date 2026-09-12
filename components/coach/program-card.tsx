@@ -177,7 +177,7 @@ export function ProgramCard({
           </Button>
         ) : (
           <>
-            <Button className="flex-1 gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={onAssign}>
+            <Button className="flex-1 gap-1.5" onClick={onAssign}>
               <UserPlus className="h-3.5 w-3.5" />
               {messages.coach.assign}
             </Button>

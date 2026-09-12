@@ -70,14 +70,14 @@
   --card: var(--ink-50);
   --card-foreground: var(--ink-800);
   --surface: #ffffff;
-  --surface-subtle: #f7f9fc;
-  --surface-hover: #f1f4f8;
+  --surface-subtle: #eef3fb;
+  --surface-hover: #e8eef7;
 
   --popover: var(--ink-50);
   --popover-foreground: var(--ink-800);
 
   --muted: var(--surface-subtle);
-  --muted-foreground: var(--ink-400);
+  --muted-foreground: #667085;
 
   --text-primary: var(--ink-800);
   --text-secondary: var(--ink-600);
@@ -173,10 +173,7 @@
   /* Page backdrop. Flat white gives the glass nothing to blur or refract, so
      light gets faint brand-tinted pools over an off-white base. Deliberately
      subtle — its job is to make the material legible, not to tint the UI. */
-  --page-backdrop:
-    radial-gradient(circle at 12% 5%, rgb(19 73 236 / 7%), transparent 34rem),
-    radial-gradient(circle at 88% 82%, rgb(34 197 94 / 6%), transparent 30rem),
-    linear-gradient(145deg, #f7f9fc 0%, #eef2f8 48%, #f4f7fb 100%);
+  --page-backdrop: linear-gradient(180deg, #f7f9fc 0%, #f4f7fb 42%, #eef3fb 100%);
 
   /* ── Sidebar ─────────────────────────────────────────────────────────────── */
   --sidebar: var(--ink-50);
@@ -608,7 +605,8 @@ input[type="button"] {
 
 /* ============================================================
    Liquid Glass material
-   Every surface in the app is glass; light and dark differ only in colour.
+   Dark mode keeps the full liquid-glass treatment. Light mode later overrides
+   shared surfaces into a flatter clean SaaS editorial system.
    The values these rules read come from the --glass-* tokens defined per
    theme above, so nothing below is scoped to a theme class.
    ============================================================ */
@@ -1058,6 +1056,126 @@ aside.glass-surface::after,
 
 [data-liquid-glass-renderer="webgl"]::after {
   display: none;
+}
+
+/* ============================================================
+   Clean SaaS editorial light mode
+   Light theme favours opaque white surfaces, thin grid lines and cobalt
+   accents. Dark mode intentionally keeps the liquid-glass material above.
+   ============================================================ */
+
+:root:not(.dark) .app-shell {
+  background: var(--background);
+}
+
+:root:not(.dark) .glass-surface,
+:root:not(.dark) [data-slot="dialog-content"],
+:root:not(.dark) [data-slot="drawer-content"],
+:root:not(.dark)[data-liquid-glass="on"] .glass-surface,
+:root:not(.dark)[data-liquid-glass="on"] [data-slot="dialog-content"],
+:root:not(.dark)[data-liquid-glass="on"] [data-slot="drawer-content"] {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root:not(.dark) .auth-floating-panel,
+:root:not(.dark) .glass-surface.meal-food-sheet {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 14%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root:not(.dark) .glass-card,
+:root:not(.dark) .bg-card {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root:not(.dark) .glass-card::before,
+:root:not(.dark) .glass-card::after,
+:root:not(.dark) .glass-surface::after,
+:root:not(.dark) .mobile-floating-nav::after,
+:root:not(.dark) aside.glass-surface::after,
+:root:not(.dark) [data-slot="dialog-content"]::after,
+:root:not(.dark) [data-slot="drawer-content"]::after {
+  display: none;
+}
+
+:root:not(.dark) .glass-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+  box-shadow: 0 8px 22px rgb(15 23 42 / 8%);
+  transform: translateY(-1px);
+}
+
+@media (min-width: 768px) {
+  :root:not(.dark) aside.glass-surface,
+  :root:not(.dark)[data-liquid-glass="on"] aside.glass-surface {
+    border-color: var(--border);
+    background: var(--sidebar);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (max-width: 767px) {
+  :root:not(.dark) .mobile-floating-nav,
+  :root:not(.dark)[data-liquid-glass="on"] .mobile-floating-nav {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 12px 28px rgb(15 23 42 / 14%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  :root:not(.dark) .mobile-liquid-glass-scene {
+    background: transparent;
+  }
+}
+
+:root:not(.dark) .glass-inset,
+:root:not(.dark) .meal-food-sheet__chrome,
+:root:not(.dark) .meal-food-sheet__control,
+:root:not(.dark) .meal-food-sheet__row,
+:root:not(.dark) .meal-food-sheet__category[data-active="false"] {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root:not(.dark) input,
+:root:not(.dark) textarea,
+:root:not(.dark) select {
+  background-color: var(--card);
+}
+
+:root:not(.dark) .bg-foreground.text-background,
+:root:not(.dark) .border-foreground.bg-foreground.text-background {
+  border-color: var(--primary) !important;
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+:root:not(.dark) [data-slot="skeleton"] {
+  border-color: var(--border);
+  background-color: var(--surface-subtle);
+  background-image: linear-gradient(
+    110deg,
+    var(--surface-subtle) 20%,
+    var(--surface-hover) 42%,
+    var(--surface-subtle) 64%
+  );
+  box-shadow: none;
 }
 
 /* A small, self-contained capture scene keeps the WebGL nav inexpensive. The

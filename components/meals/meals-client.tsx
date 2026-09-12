@@ -852,7 +852,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
             <Bot className="h-4 w-4" />
             {messages.meals.aiSuggest}
           </Button>
-          <Button className="bg-foreground text-background hover:bg-ink-900" type="button" onClick={() => setAddTo("snack")}>
+          <Button type="button" onClick={() => setAddTo("snack")}>
             <Plus className="h-4 w-4" />
             {messages.meals.quickAdd}
           </Button>
