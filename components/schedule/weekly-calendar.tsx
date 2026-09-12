@@ -577,7 +577,7 @@ function DayCard({
           className="absolute right-4 top-[18px] h-2 w-2 rounded-full bg-primary"
         />
       ) : null}
-      <div className={cn("flex flex-wrap items-start justify-between gap-x-2 gap-y-1", hasCoachUpdate && "pr-5")}>
+      <div className={cn("flex items-start justify-between gap-x-1", hasCoachUpdate && "pr-5")}>
         <div className="min-w-0">
           <div className={cn("label-micro", entry.isToday ? "text-primary" : "text-muted-foreground")}>
             {format(entry.date, "EEE", { locale: dateLocale })}
@@ -588,7 +588,7 @@ function DayCard({
         </div>
         {badge ? (
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono text-micro uppercase tracking-[0.08em]", badge.className)}>
+            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono text-[10px] leading-3 uppercase tracking-[0.08em]", badge.className)}>
               {badge.label}
             </span>
           </div>
@@ -733,6 +733,7 @@ function RoutinePickerDialog({
       <DialogContent className="z-[80] flex max-h-[calc(100svh-1.5rem)] min-h-0 flex-col overflow-hidden rounded-xl border-border p-0 sm:max-h-[72svh] sm:max-w-[400px]">
         <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-5 text-left">
           <DialogTitle className="text-base font-semibold">{messages.schedule.pickRoutine}</DialogTitle>
+          <DialogDescription className="sr-only">{messages.schedule.searchRoutines}</DialogDescription>
           <p className="font-mono text-micro text-muted-foreground tnum">
             {date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle}
           </p>
@@ -941,6 +942,9 @@ function RoutineBuilderDialog({
           <DialogTitle className="text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
             {name.trim() || messages.workoutPage.untitledRoutine}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {messages.schedule.newRoutineForDate(date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle)}
+          </DialogDescription>
           <p className="mt-1 font-mono text-xs text-muted-foreground">
             {messages.workoutPage.exerciseCount(exercises.length)} · {messages.workoutPage.setCount(totalSets)}
           </p>
