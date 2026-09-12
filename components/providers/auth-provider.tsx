@@ -2,7 +2,9 @@
 
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
-import { createContext, startTransition, useContext, useEffect, useState } from "react"
+import { createContext, startTransition, useCallback, useContext, useEffect, useState } from "react"
+
+import { useQueryClient } from "@tanstack/react-query"
 
 import { fetchCurrentProfile, updateProfileRequest, uploadAvatarRequest } from "@/lib/auth/api"
 import type { AppProfile, UpdateProfileInput, UploadAvatarInput } from "@/lib/auth/types"
@@ -27,12 +29,21 @@ export function AuthProvider({
   children: React.ReactNode
   initialProfile?: AppProfile | null
 }) {
+  const queryClient = useQueryClient()
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<AppProfile | null>(initialProfile)
   const [isLoading, setIsLoading] = useState(!initialProfile)
 
-  async function syncProfile(nextSession: Session | null) {
+  // Memoized because it now closes over the query client, which makes it a
+  // reactive value for the auth-state effect below. The client is a singleton,
+  // so the identity is stable and the effect still runs once.
+  const syncProfile = useCallback(async function syncProfile(nextSession: Session | null) {
     if (!nextSession?.access_token) {
+      // Also covers a SIGNED_OUT broadcast from another tab, where signOut()
+      // below never runs. Dropping the cache here stops the next person signing
+      // in on this tab from seeing the previous user's data.
+      queryClient.clear()
+
       startTransition(() => {
         setSession(null)
         setProfile(null)
@@ -61,7 +72,7 @@ export function AuthProvider({
 
       return null
     }
-  }
+  }, [queryClient])
 
   useEffect(() => {
     let cancelled = false
@@ -125,7 +136,7 @@ export function AuthProvider({
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [initialProfile])
+  }, [initialProfile, syncProfile])
 
   async function refreshProfile() {
     const supabase = getOptionalBrowserSupabaseClient()
@@ -195,6 +206,10 @@ export function AuthProvider({
     if (supabase) {
       await supabase.auth.signOut({ scope: "local" })
     }
+
+    // clear(), not invalidateQueries(): invalidation keeps the rows resident, so
+    // the previous user's screen would render again while refetching.
+    queryClient.clear()
 
     startTransition(() => {
       setSession(null)
