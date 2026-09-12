@@ -170,6 +170,7 @@ model User {
   exerciseImportReviews  ExerciseImportRequest[] @relation("ExerciseImportReviewer")
   muscleProfilesReviewed Variation[]             @relation("MuscleProfileReviewer")
   foodsCreated           Food[]                  @relation("FoodCreator")
+  googleConnection       GoogleConnection?
   notifications          Notification[]
   programsCreated        Program[]               @relation("ProgramCreator")
   programAssignments     ProgramAssignment[]
@@ -312,6 +313,11 @@ model Program {
   difficulty      ProgramDifficulty
   workoutsPerWeek Int
   isAIGenerated   Boolean             @default(false)
+  /// Notion page id this program was imported from; null for every other source.
+  notionSourceId  String?
+  notionSyncedAt  DateTime?
+  googleSpreadsheetId String?
+  googleSheetName String?
   createdById     String              @db.Uuid
   createdBy       User                @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Cascade)
   workouts        Workout[]
@@ -320,8 +326,36 @@ model Program {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
+  @@unique([createdById, notionSourceId])
+  @@index([createdById, googleSpreadsheetId, googleSheetName])
   @@index([createdById])
   @@index([createdById, archivedAt])
+}
+
+/// One coach's Google account link, used to read program templates from their Sheets.
+///
+/// Tokens are stored encrypted (AES-256-GCM, key from GOOGLE_TOKEN_ENCRYPTION_KEY);
+/// the columns hold ciphertext, never the raw token. One row per user: reconnecting
+/// replaces the row rather than accumulating stale grants.
+model GoogleConnection {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @unique @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Google account this grant belongs to, shown in the UI so a coach can tell
+  /// which account is connected without another API round trip.
+  googleEmail           String?
+  accessTokenEncrypted  String
+  /// Google only returns a refresh token on the first consent, so a missing value
+  /// means the connection cannot outlive the current access token.
+  refreshTokenEncrypted String?
+  /// When the current access token stops working. Refreshed ahead of this.
+  expiresAt             DateTime
+  /// Space-separated scopes actually granted, which may be narrower than requested.
+  scope                 String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([expiresAt])
 }
 
 model ProgramAssignment {
@@ -361,6 +395,7 @@ model WorkoutExercise {
   id          String        @id @default(uuid()) @db.Uuid
   workoutId   String        @db.Uuid
   variationId String        @db.Uuid
+  originalVariationId String? @db.Uuid
   order       Int
   restTime    Int?
   notes       String?

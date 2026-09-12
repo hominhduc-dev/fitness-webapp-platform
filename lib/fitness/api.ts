@@ -39,6 +39,8 @@ import type {
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
+  NotionProgramImportResponse,
+  NotionProgramTemplate,
   NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
@@ -189,6 +191,33 @@ type ApiEnvelope<T> = {
   data: T
   error: null
   meta: unknown
+}
+
+export type GoogleConnectionStatus = { configured: boolean; connected: boolean; email: string | null }
+export type GoogleImportResult = {
+  rows: import("@/components/coach/program-import-rows").ProgramImportRow[]
+  spreadsheetId: string
+  sheetName: string
+  existingProgram: { id: string; name: string; archivedAt: string | null; assignedTraineeCount: number } | null
+}
+export async function fetchGoogleConnection(token: string) {
+  return (await request<ApiEnvelope<GoogleConnectionStatus>>("/api/coach/google/connection", token, { cache: "no-store" })).data
+}
+export async function authorizeGoogle(token: string) {
+  return (await request<ApiEnvelope<{ url: string }>>("/api/coach/google/authorize", token, { method: "POST", credentials: "include" })).data
+}
+export async function disconnectGoogle(token: string) {
+  return request("/api/coach/google/connection", token, { method: "DELETE" })
+}
+export async function fetchGoogleSpreadsheet(token: string, spreadsheet: string) {
+  return (await request<ApiEnvelope<{ spreadsheetId: string; title: string; sheets: string[] }>>("/api/coach/google/spreadsheet", token, { method: "POST", body: JSON.stringify({ spreadsheet }) })).data
+}
+export async function importGoogleProgram(token: string, spreadsheet: string, sheetName: string) {
+  return (await request<ApiEnvelope<GoogleImportResult>>("/api/coach/google/program-import", token, { method: "POST", body: JSON.stringify({ spreadsheet, sheetName }) })).data
+}
+export async function overwriteGoogleProgram(token: string, programId: string, input: CreateCoachProgramInput) {
+  const response = await request<ApiEnvelope<{ program: SerializedCoachProgram }>>(`/api/coach/google/program-import/${programId}`, token, { method: "PUT", body: JSON.stringify(input) })
+  return mapCoachProgram(response.data.program)
 }
 
 type NutritionTargets = {
@@ -1446,6 +1475,48 @@ async function createCoachProgram(accessToken: string, input: CreateCoachProgram
   return mapCoachProgram(response.program)
 }
 
+/**
+ * Program templates a coach authored in Notion.
+ *
+ * `configured` is false when the deployment has no Notion token, which is not an
+ * error: the import dialog simply hides its Notion tab.
+ */
+async function fetchNotionProgramTemplates(accessToken: string) {
+  return request<{ configured: boolean; templates: NotionProgramTemplate[] }>(
+    "/api/coach/notion/program-templates",
+    accessToken,
+  )
+}
+
+/** Reads one Notion template plus every exercise row that points at it. */
+async function importNotionProgram(accessToken: string, template: string) {
+  return request<NotionProgramImportResponse>("/api/coach/notion/program-import", accessToken, {
+    body: JSON.stringify({ template }),
+    method: "POST",
+  })
+}
+
+/**
+ * Replaces an existing program with a fresh read of the Notion template it came
+ * from. Omitting `assignToUserIds` keeps the program's current trainees.
+ */
+async function overwriteNotionProgram(
+  accessToken: string,
+  programId: string,
+  input: CreateCoachProgramInput & { notionSourceId: string },
+) {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/notion/program-import/${programId}`,
+    accessToken,
+    {
+      body: JSON.stringify(input),
+      method: "PUT",
+    },
+  )
+
+  return mapCoachProgram(response.program)
+}
+
 async function fetchCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
   const response = await request<{ program: SerializedCoachProgram }>(`/api/coach/programs/${programId}`, accessToken)
   return mapCoachProgram(response.program)
@@ -2166,6 +2237,9 @@ export {
   fetchCoachDashboard,
   fetchCoachExerciseImportRequests,
   fetchCoachNavCounts,
+  fetchNotionProgramTemplates,
+  importNotionProgram,
+  overwriteNotionProgram,
   fetchCoachProgram,
   fetchCoachPrograms,
   fetchCoachBodyMetrics,

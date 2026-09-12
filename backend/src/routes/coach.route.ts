@@ -36,9 +36,20 @@ import {
   updateWorkoutLogCommentForCoach,
   updateCoachRequestStatus,
 } from "../services/fitness-data.service"
+import {
+  importNotionProgram,
+  isNotionConfigured,
+  listNotionProgramTemplates,
+  overwriteNotionProgram,
+} from "../services/notion-program-import.service"
 import { getAccessToken, sendError } from "./route.utils"
+import { googleRouter } from "./google.route"
+import { assertCoach, ensurePrisma } from "../services/fitness-data/shared/guards"
+import { BadRequestError } from "../services/errors"
+import { sendData, sendApiError } from "./route.utils"
 
 const coachRouter = Router()
+coachRouter.use("/google", googleRouter)
 
 function getOptionalString(value: unknown) {
   return typeof value === "string" ? value : undefined
@@ -76,6 +87,9 @@ function parseProgramInput(body: Record<string, unknown>) {
       : ProgramDifficulty.beginner,
     duration: Number(body.duration ?? 0),
     name: String(body.name ?? ""),
+    notionSourceId: typeof body.notionSourceId === "string" ? body.notionSourceId : undefined,
+    googleSpreadsheetId: typeof body.googleSpreadsheetId === "string" ? body.googleSpreadsheetId : undefined,
+    googleSheetName: typeof body.googleSheetName === "string" ? body.googleSheetName : undefined,
     workouts: Array.isArray(body.workouts)
       ? body.workouts.map((workout: unknown) => {
           const record = workout && typeof workout === "object" ? workout : {}
@@ -94,6 +108,7 @@ function parseProgramInput(body: Record<string, unknown>) {
               ? safeRecord.exercises.map((exercise: unknown) => {
                   const exerciseRecord = exercise && typeof exercise === "object" ? exercise : {}
                   const safeExercise = exerciseRecord as {
+                    notes?: unknown
                     repsMin?: unknown
                     rir?: unknown
                     restTime?: unknown
@@ -104,6 +119,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                   }
 
                   return {
+                    notes: typeof safeExercise.notes === "string" ? safeExercise.notes : undefined,
                     repsMin: safeExercise.repsMin == null ? undefined : Number(safeExercise.repsMin),
                     rir: safeExercise.rir == null ? undefined : Number(safeExercise.rir),
                     restTime: safeExercise.restTime == null ? undefined : Number(safeExercise.restTime),
@@ -133,6 +149,24 @@ coachRouter.get("/dashboard", async (req, res) => {
   } catch (error) {
     sendError(res, error)
   }
+})
+
+coachRouter.put("/google/program-import/:programId", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    assertCoach(profile)
+    const input = parseProgramInput(req.body)
+    const existing = await ensurePrisma().program.findFirst({ where: {
+      id: String(req.params.programId), createdById: profile.id,
+    }, include: { assignments: true } })
+    if (!existing || !input.googleSpreadsheetId || existing.googleSpreadsheetId !== input.googleSpreadsheetId || existing.googleSheetName !== input.googleSheetName) {
+      throw new BadRequestError("Nguồn Google Sheets không khớp chương trình.")
+    }
+    const program = await updateCoachProgram(profile, existing.id, {
+      ...input, assignToUserIds: existing.assignments.map((assignment) => assignment.userId),
+    })
+    sendData(res, { program })
+  } catch (error) { sendApiError(res, error) }
 })
 
 coachRouter.get("/nav-counts", async (req, res) => {
@@ -302,6 +336,70 @@ coachRouter.post("/exercises", async (req, res) => {
 
     res.status(201).json({
       exercise,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.get("/notion/program-templates", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+
+    // Reported instead of thrown so the dialog can hide the Notion tab on a
+    // deployment that never configured the integration.
+    if (!isNotionConfigured()) {
+      res.json({
+        configured: false,
+        templates: [],
+      })
+
+      return
+    }
+
+    const templates = await listNotionProgramTemplates(profile.profile)
+
+    res.json({
+      configured: true,
+      templates,
+    })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/notion/program-import", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await importNotionProgram(profile.profile, {
+      template: String(req.body.template ?? ""),
+    })
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.put("/notion/program-import/:programId", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const input = parseProgramInput(req.body)
+    const program = await overwriteNotionProgram(profile.profile, {
+      // Omitted on purpose when the client does not send it: the service then
+      // keeps the program's current trainees instead of unassigning them.
+      assignToUserIds: Array.isArray(req.body.assignToUserIds) ? input.assignToUserIds : undefined,
+      description: input.description,
+      difficulty: input.difficulty,
+      duration: input.duration,
+      name: input.name,
+      notionSourceId: String(req.body.notionSourceId ?? ""),
+      programId: String(req.params.programId),
+      workouts: input.workouts,
+    })
+
+    res.json({
+      program,
     })
   } catch (error) {
     sendError(res, error)

@@ -30,6 +30,7 @@ import {
 } from "../../lib/library-cache"
 import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-export.service"
 import { logger } from "../../lib/logger"
+import { exportGoogleProgramLogs } from "../google-program-export.service"
 import { retryTransaction } from "../../lib/prisma"
 import {
   buildApprovedMuscleProfileData,
@@ -302,6 +303,7 @@ type CoachProgramInput = {
   workouts: Array<{
     duration?: number
     exercises: Array<{
+      notes?: string
       repsMin?: number
       rir?: number
       restTime?: number
@@ -590,6 +592,8 @@ function serializeWorkout(
         coachUpdate: options?.coachUpdatesByWorkoutExerciseId?.get(workoutExercise.id),
         exercise: serializeExerciseBase(workoutExercise.variation.exercise),
         id: workoutExercise.id,
+        originalVariationId: workoutExercise.originalVariationId ?? undefined,
+        order: workoutExercise.order,
         notes: workoutExercise.notes ?? undefined,
         restTime: workoutExercise.restTime ?? undefined,
         sets: buildExerciseSetsWithHistory(
@@ -1341,6 +1345,7 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
           programId?: string
           scheduledDate?: string
           scheduledDay?: number
+          weekIndex?: number
         })
       : null
 
@@ -1370,6 +1375,7 @@ function serializeWorkoutLog(log: WorkoutLogRecord) {
           programId: snapshotWorkout?.programId,
           scheduledDate: snapshotWorkout?.scheduledDate,
           scheduledDay: snapshotWorkout?.scheduledDay,
+          weekIndex: snapshotWorkout?.weekIndex,
         },
   }
 }
@@ -1965,6 +1971,7 @@ function buildProgramTreeCreateManyData(
 
       exerciseRows.push({
         id: workoutExerciseId,
+        notes: exercise.notes?.trim() || undefined,
         order: exerciseIndex + 1,
         restTime:
           exercise.restTime != null && Number.isFinite(exercise.restTime)
@@ -3680,7 +3687,11 @@ async function createWorkoutLogForTrainee(
       secondaryMuscles: entry.variation.secondaryMuscles,
     }]),
   )
-  const enrichedSnapshot = enrichExerciseSnapshot(input.exercises, profilesByVariationId).snapshot
+  const prescribedById = new Map(serializedWorkout.exercises.map((entry) => [entry.id, entry]))
+  const enrichedSnapshot = enrichExerciseSnapshot(input.exercises.map((entry) => {
+    const prescribed = prescribedById.get(entry.id)
+    return { ...entry, originalVariationId: prescribed?.originalVariationId, order: prescribed?.order }
+  }), profilesByVariationId).snapshot
 
   // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
   // round-trips over PgBouncer); retryTransaction still guards against transient
@@ -3705,6 +3716,7 @@ async function createWorkoutLogForTrainee(
           programId: workout.programId,
           scheduledDate: serializedWorkout.scheduledDate,
           scheduledDay: serializedWorkout.scheduledDay,
+          weekIndex: serializedWorkout.weekIndex,
         } as Prisma.InputJsonObject,
       },
       include: WORKOUT_LOG_INCLUDE,
@@ -4192,6 +4204,7 @@ async function copyTraineeProgramWeek(profile: SerializedProfile, programId: str
               duration: source.duration,
               exercises: {
                 create: source.exercises.map((exercise) => ({
+                  originalVariationId: exercise.originalVariationId,
                   notes: exercise.notes,
                   order: exercise.order,
                   restTime: exercise.restTime,
@@ -4468,9 +4481,14 @@ async function createCoachProgram(
     difficulty: ProgramDifficulty
     duration: number
     name: string
+    /** Notion page this program came from. Lets a later import find and update it. */
+    notionSourceId?: string | null
+    googleSpreadsheetId?: string
+    googleSheetName?: string
     workouts: Array<{
       duration?: number
       exercises: Array<{
+        notes?: string
         repsMin?: number
         rir?: number
         restTime?: number
@@ -4546,6 +4564,10 @@ async function createCoachProgram(
         duration: Math.max(1, Math.round(input.duration)),
         id: programId,
         name: input.name.trim(),
+        notionSourceId: input.notionSourceId?.trim() || undefined,
+        notionSyncedAt: input.notionSourceId?.trim() ? new Date() : undefined,
+        googleSpreadsheetId: input.googleSpreadsheetId?.trim() || undefined,
+        googleSheetName: input.googleSheetName?.trim() || undefined,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
     })
@@ -4935,6 +4957,8 @@ async function adjustCoachProgramForTrainee(
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
         id: programId,
+        googleSpreadsheetId: existingProgram.googleSpreadsheetId,
+        googleSheetName: existingProgram.googleSheetName,
         name: input.name.trim(),
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
@@ -5117,33 +5141,20 @@ async function swapExerciseForTraineeFromWorkout(
         ).map((candidate) => candidate.id)
       : [workout.id]
 
-    await db.workoutExercise.updateMany({
-      data: { variationId: input.newVariationId },
-      where: {
-        variationId: oldVariationId,
-        workoutId: { in: workoutIds },
-        ...(workout.programId
-          ? {}
-          : { workoutId: workout.id }),
-        // For the current workout only apply from targetOrder onward; for
-        // other workouts, apply to every matching variation.
-      },
-    })
-
-    // updateMany can't express "in current workout: order >= targetOrder,
-    // elsewhere: all". Correct that after the fact by re-checking earlier
-    // rows in the current workout: any occurrence of oldVariationId before
-    // targetOrder must be reverted.
-    if (workoutIds.length > 0) {
-      await db.workoutExercise.updateMany({
-        data: { variationId: oldVariationId },
-        where: {
-          order: { lt: targetOrder },
-          variationId: input.newVariationId,
-          workoutId: workout.id,
-        },
-      })
+    const swapWhere = {
+      variationId: oldVariationId,
+      OR: [
+        { workoutId: workout.id, order: { gte: targetOrder } },
+        { workoutId: { in: workoutIds.filter((id) => id !== workout.id) } },
+      ],
     }
+    await db.$transaction(async (tx) => {
+      await tx.workoutExercise.updateMany({
+        where: { ...swapWhere, originalVariationId: null },
+        data: { originalVariationId: oldVariationId },
+      })
+      await tx.workoutExercise.updateMany({ where: swapWhere, data: { variationId: input.newVariationId } })
+    })
 
     return {
       currentSetIdMap: {} as Record<string, string>,
@@ -5231,6 +5242,7 @@ async function swapExerciseForTraineeFromWorkout(
         order: sourceExercise.order,
         restTime: sourceExercise.restTime ?? undefined,
         variationId: shouldSwap ? input.newVariationId : sourceExercise.variationId,
+        originalVariationId: shouldSwap ? (sourceExercise.originalVariationId ?? sourceExercise.variationId) : sourceExercise.originalVariationId,
         workoutId: newWorkoutId,
       })
 
@@ -5272,6 +5284,8 @@ async function swapExerciseForTraineeFromWorkout(
         difficulty: originalProgram.difficulty,
         duration: originalProgram.duration,
         id: forkedProgramId,
+        googleSpreadsheetId: originalProgram.googleSpreadsheetId,
+        googleSheetName: originalProgram.googleSheetName,
         isAIGenerated: originalProgram.isAIGenerated,
         name: originalProgram.name,
         workoutsPerWeek: originalProgram.workoutsPerWeek,
@@ -5456,6 +5470,26 @@ async function assignCoachProgramToTrainee(profile: SerializedProfile, programId
 
   if (program.archivedAt) {
     throw new AuthServiceError("Program đã archive — hãy restore trước khi gán.", 409)
+  }
+
+  // A spreadsheet carries one result block, so a Sheets-backed program belongs to a
+  // single trainee. Refusing here rather than at export time means the coach finds
+  // out while they can still fix it, instead of after a week of logged sessions.
+  if (program.googleSpreadsheetId) {
+    const otherAssignee = await db.programAssignment.findFirst({
+      select: { user: { select: { name: true } } },
+      where: {
+        programId,
+        userId: { not: traineeId },
+      },
+    })
+
+    if (otherAssignee) {
+      throw new AuthServiceError(
+        `Program này import từ Google Sheets nên chỉ gán được cho một học viên. Hiện đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
+        409,
+      )
+    }
   }
 
   const assignment = await db.programAssignment.upsert({
@@ -6160,26 +6194,20 @@ async function exportCoachWorkoutLogsToGoogleSheetsForTrainee(
   options?: { from?: string; label?: string; programId?: string; to?: string; weekStart?: string },
 ) {
   assertCoach(profile)
-  const trainee = await assertCoachOwnsTrainee(profile.id, traineeId)
+  await assertCoachOwnsTrainee(profile.id, traineeId)
   const logs = await listCoachWorkoutLogsForExport(profile, traineeId, options)
 
   if (logs.length === 0) {
     throw new AuthServiceError("Không có workout log nào trong khoảng thời gian này.", 400)
   }
 
-  return exportWorkoutLogsToN8n({
-    event: "coach_trainee_workout_logs_export",
-    exportedBy: profile,
-    filters: {
-      from: options?.from,
-      label: options?.label,
-      programId: options?.programId,
-      to: options?.to,
-      weekStart: options?.weekStart,
-    },
-    logs,
-    trainee,
-    coachName: profile.name,
+  const sourceProgramCount = await ensurePrisma().program.count({ where: {
+    id: { in: logs.flatMap((log) => log.programId ? [log.programId] : []) }, googleSpreadsheetId: { not: null },
+  } })
+  if (sourceProgramCount > 0) return exportGoogleProgramLogs(profile, traineeId, logs.map((log) => log.id))
+  const trainee = await assertCoachOwnsTrainee(profile.id, traineeId)
+  return exportWorkoutLogsToN8n({ event: "coach_trainee_workout_logs_export", exportedBy: profile,
+    filters: { ...options }, logs, trainee, coachName: profile.name,
   })
 }
 
