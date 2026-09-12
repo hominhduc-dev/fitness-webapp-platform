@@ -1664,6 +1664,19 @@ function resolveProgramAnchorDate(startDate: Date | null | undefined, assignedAt
   return startDate ?? assignedAt
 }
 
+/**
+ * Whether the program has reached `weekStart` yet.
+ *
+ * `getAssignmentWeekIndex` clamps a negative elapsed count to week 0, which is
+ * right for an assignment (nobody is before their own assignment week) but wrong
+ * for a coach-set start date in the future: without this the program would serve
+ * its first week immediately. The client's `resolveProgramWeekForWeekStart`
+ * already reports `before` for the same case, so the two would disagree.
+ */
+function hasAssignmentStarted(anchorDate: Date, weekStart: Date) {
+  return weekStart.getTime() >= startOfUtcWeek(anchorDate).getTime()
+}
+
 function getAssignmentWeekIndex(assignedAt: Date, weekStart: Date, duration: number) {
   const assignmentWeekStart = startOfUtcWeek(assignedAt)
   const elapsedWeeks = Math.floor((weekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
@@ -1714,6 +1727,12 @@ function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "s
   }
 
   const datedWorkouts = workouts.filter((workout) => workout.scheduledDate)
+
+  // Before the program starts and after it ends, only workouts pinned to a real
+  // date show. Recurring sessions belong to the weeks the program actually runs.
+  if (!hasAssignmentStarted(anchorDate, weekStart)) {
+    return datedWorkouts
+  }
 
   if (isAssignmentProgramFinished(anchorDate, weekStart, duration)) {
     return datedWorkouts
