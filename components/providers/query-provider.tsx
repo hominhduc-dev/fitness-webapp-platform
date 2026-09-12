@@ -7,7 +7,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
 
 import { getQueryClient } from "@/lib/queries/client"
 
-const showDevtools = process.env.NODE_ENV === "development"
+const showDevtools = process.env.NEXT_PUBLIC_ENABLE_QUERY_DEVTOOLS === "true"
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   // Not `useState(() => new QueryClient())`: see the comment on getQueryClient.

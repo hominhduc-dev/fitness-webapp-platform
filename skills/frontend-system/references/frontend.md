@@ -141,6 +141,7 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 - Query/mutation lấy token mới trong callback bằng `requireAccessToken()`, không key theo token.
 - Browser server-state do TanStack Query cache; Next `revalidate` chỉ áp dụng server fetch.
 - Tái sử dụng API helper hiện có, không rải `fetch()` trực tiếp trong component.
+- TanStack Query Devtools mặc định tắt kể cả local development; chỉ bật khi cần debug bằng `NEXT_PUBLIC_ENABLE_QUERY_DEVTOOLS=true` rồi restart frontend.
 
 ### State boundaries
 
