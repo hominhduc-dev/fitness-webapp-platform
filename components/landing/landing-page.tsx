@@ -1,42 +1,84 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
+  ArrowDown,
+  ArrowRight,
   BarChart3,
-  Calendar,
+  CalendarDays,
+  Check,
+  ChevronRight,
   Dumbbell,
   Flame,
-  Play,
-  Ruler,
+  LayoutDashboard,
+  Menu,
+  Plus,
   Timer,
+  Users,
+  X,
 } from "lucide-react"
-
 import { AuthModalLauncher } from "@/components/auth/auth-modal-launcher"
+import { LanguageToggle } from "@/components/layout/language-toggle"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 import type { AppLocale } from "@/lib/i18n/config"
-/* ============================================================
-   LandingPage — Lift warm-minimal design (Step 3a)
-   All sections are named exports for clarity; the root export
-   is `LandingPage` which the page.tsx consumes.
-   ============================================================ */
+import { cn } from "@/lib/utils"
+import styles from "./landing-page.module.css"
 
 export function LandingPage(_props: { locale: AppLocale }) {
+  const { messages } = useLocale()
+  const c = messages.landing
   return (
-    <div className="landing-shell min-h-screen bg-background text-foreground">
+    <div
+      className={cn(styles.shell, "min-h-screen bg-background text-foreground")}
+    >
+      <a href="#main-content" className={styles.skipLink}>
+        {c.skipContent}
+      </a>
+      <div className={styles.announcement}>
+        <span>{c.announcement}</span>
+        <Link href="/?auth=register" scroll={false}>
+          {c.getStarted}
+          <ArrowRight size={14} />
+        </Link>
+      </div>
       <TopBar />
-
-      <main>
+      <main id="main-content" className={styles.frame}>
         <Hero />
+        <Specs />
         <FeaturesSection />
-        <TrainerCallout />
+        <TrainerSection />
+        <section className={styles.finalCta}>
+          <p className={styles.eyebrow}>{c.finalEyebrow}</p>
+          <h2 className={styles.sectionTitle}>
+            {c.finalHeading}
+            <br />
+            <span>{c.finalMuted}</span>
+          </h2>
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
+            {c.finalCopy}
+          </p>
+          <Button asChild size="lg" className="mt-7 rounded-full">
+            <Link href="/?auth=register" scroll={false}>
+              {c.primaryCta}
+              <ArrowRight />
+            </Link>
+          </Button>
+        </section>
       </main>
-
-      <FooterSection />
-
+      <footer className={styles.footer}>
+        <p>{c.footerLine}</p>
+        <div className="flex flex-wrap items-center gap-6">
+          <LanguageToggle />
+          <Link href="#features">{c.navFeatures}</Link>
+          <Link href="/?auth=login" scroll={false}>
+            {c.signIn}
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      </footer>
       <Suspense fallback={null}>
         <AuthModalLauncher />
       </Suspense>
@@ -44,408 +86,581 @@ export function LandingPage(_props: { locale: AppLocale }) {
   )
 }
 
-/* ─────────────────────────────────────────────────────────────
-   TopBar
-───────────────────────────────────────────────────────────── */
 function TopBar() {
   const { messages } = useLocale()
-
+  const c = messages.landing
+  const [menuOpen, setMenuOpen] = useState(false)
   return (
-    <header className="landing-header sticky top-0 z-30 px-3 pt-3 md:px-8 md:pt-4">
-      <div className="landing-header__inner glass-surface mx-auto flex max-w-[1200px] items-center justify-between rounded-full border border-border/70 px-2.5 py-2 shadow-lg backdrop-blur-xl md:px-4">
-        {/* Logo */}
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="landing-brand-mark grid size-9 place-items-center overflow-hidden rounded-full border border-border/70 bg-foreground text-background shadow-sm">
-            <Image
-              src="/android-icon-192x192.png"
-              alt="YeahBuddy"
-              width={36}
-              height={36}
-              className="size-full scale-[1.35] rounded-full object-cover"
-            />
+    <header className={styles.header}>
+      <div className={styles.headerInner}>
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
+        >
+          <Image
+            src="/android-icon-192x192.png"
+            width={30}
+            height={30}
+            alt=""
+            className="rounded-lg"
+          />
+          <span className="text-lg">
+            YeahBuddy<span className="text-primary">.</span>
           </span>
-          <span className="whitespace-nowrap text-lg font-semibold tracking-[-0.04em] text-foreground md:text-xl">
-            YeahBuddy
-          </span>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex items-center gap-1 md:gap-2 lg:gap-7">
-          <Link
-            href="#features"
-            className="hidden whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground lg:block"
-          >
-            {messages.landing.navFeatures}
+        </Link>
+        <nav
+          aria-label={c.navigation}
+          className="hidden items-center gap-7 text-sm text-muted-foreground md:flex"
+        >
+          <Link href="#features" className="hover:text-foreground">
+            {c.navFeatures}
           </Link>
-          <Link
-            href="#trainers"
-            className="hidden whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground lg:block"
-          >
-            {messages.landing.navTrainers}
+          <Link href="#demo" className="hover:text-foreground">
+            {c.productPreview}
           </Link>
+          <Link href="#trainers" className="hover:text-foreground">
+            {c.navTrainers}
+          </Link>
+        </nav>
+        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
-            size="sm"
             asChild
-            className="landing-auth-link hidden rounded-full px-3 text-sm font-medium min-[390px]:inline-flex"
+            className="hidden rounded-full sm:inline-flex"
+            onClick={() => setMenuOpen(false)}
           >
             <Link href="/?auth=login" scroll={false}>
-              {messages.landing.signIn}
+              {c.signIn}
             </Link>
           </Button>
-
           <Button
-            size="sm"
             asChild
-            className="landing-auth-cta rounded-full bg-foreground px-3.5 text-sm font-medium text-background hover:bg-foreground/90 md:px-4"
+            className="rounded-full"
+            onClick={() => setMenuOpen(false)}
           >
             <Link href="/?auth=register" scroll={false}>
-              {messages.landing.getStarted}
+              {c.getStarted}
+              <ArrowRight size={15} className="hidden sm:block" />
             </Link>
           </Button>
-        </nav>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label={menuOpen ? c.closeMenu : c.openMenu}
+            aria-expanded={menuOpen}
+            aria-controls="landing-navigation"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            {menuOpen ? <X /> : <Menu />}
+          </Button>
+        </div>
       </div>
+      {menuOpen && (
+        <nav
+          id="landing-navigation"
+          aria-label={c.navigation}
+          className={styles.mobileNav}
+        >
+          {[
+            { href: "#features", label: c.navFeatures },
+            { href: "#demo", label: c.productPreview },
+            { href: "#trainers", label: c.navTrainers },
+            { href: "/?auth=login", label: c.signIn },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMenuOpen(false)}
+            >
+              {item.label}
+              <ArrowRight size={16} />
+            </Link>
+          ))}
+        </nav>
+      )}
     </header>
   )
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Hero
-───────────────────────────────────────────────────────────── */
 function Hero() {
   const { messages } = useLocale()
-
+  const c = messages.landing
   return (
-    <section className="mx-auto max-w-[1200px] px-5 pb-16 pt-10 md:px-10 md:pb-16 md:pt-20">
-      {/* Headline block */}
-      <div className="max-w-[760px]">
-        <p className="label-micro mb-3.5">{messages.landing.version}</p>
-
-        <h1
-          className="m-0 text-5xl font-semibold leading-[0.96] tracking-[-0.035em] text-foreground md:text-7xl"
-        >
-          {messages.landing.heroTitle}{" "}
+    <section className={styles.hero}>
+      <div className={styles.heroIntro}>
+        <p className={styles.eyebrow}>
+          YEAHBUDDY <span className="text-muted-foreground">/</span>{" "}
+          {c.heroEyebrow}
+        </p>
+        <h1 className={styles.heroTitle}>
+          {c.heroTitle}
           <br />
-          <span className="text-muted-foreground">{messages.landing.heroMutedTitle}</span>
+          <span>{c.heroMutedTitle}</span>
         </h1>
-
-        <p className="mt-6 max-w-[540px] text-base leading-[1.55] text-muted-foreground md:text-xl">
-          {messages.landing.heroCopy}
-        </p>
-
-        {/* CTAs */}
-        <div className="mt-8 flex flex-wrap gap-2.5">
-          <Button
-            size="lg"
-            asChild
-            className="bg-foreground text-background font-medium hover:bg-foreground/90"
-          >
+        <p className={styles.heroCopy}>{c.heroCopy}</p>
+        <div className="mt-7 flex flex-wrap items-center gap-3">
+          <Button asChild size="lg" className="rounded-full px-6">
             <Link href="/?auth=register" scroll={false}>
-              {messages.landing.startLogging}
+              {c.startLogging}
+              <ArrowRight size={17} />
             </Link>
           </Button>
-
-          <Button variant="ghost" size="lg" className="gap-2 font-medium" asChild>
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="rounded-full bg-transparent px-6"
+          >
             <Link href="#demo">
-              <Play className="h-4 w-4" />
-              {messages.landing.watchDemo}
+              {c.watchDemo}
+              <ArrowDown size={17} />
             </Link>
           </Button>
         </div>
-
-        {/* Micro trust line */}
-        <p className="mt-[22px] font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground/70">
-          {messages.landing.trustLine}
+        <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
+          {c.trustLine}
         </p>
       </div>
+      <ProductPreview />
+    </section>
+  )
+}
 
-      {/* Product preview tile */}
-      <div className="glass-card landing-preview mt-10 rounded-xl border border-border bg-card p-4 shadow-[var(--glass-shadow)] md:mt-[72px] md:p-7">
-        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[1.4fr_1fr] md:gap-6">
-          {/* Mock set-log card */}
-          <MockSetLog />
-          {/* Mock sparkline chart */}
-          <MockChart />
+function ProductPreview() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  const nav = [
+    { Icon: LayoutDashboard, label: c.overview },
+    { Icon: Dumbbell, label: c.workouts },
+    { Icon: CalendarDays, label: c.weeklySchedule },
+    { Icon: Flame, label: c.nutrition },
+    { Icon: BarChart3, label: c.progress },
+  ]
+  return (
+    <figure id="demo" className={styles.previewFigure}>
+      <div className={styles.preview}>
+        <div className={styles.windowBar}>
+          <div className="flex gap-1.5" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <p>
+            YeahBuddy <span className="mx-2 text-muted-foreground">/</span>{" "}
+            {c.workspace}
+          </p>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            {c.sampleData}
+          </span>
+        </div>
+        <div className={styles.workspace}>
+          <aside className={styles.previewSidebar} aria-hidden="true">
+            <div className="mb-7 flex items-center gap-2 text-sm font-semibold">
+              <Dumbbell size={18} className="text-primary" />
+              YeahBuddy
+            </div>
+            {nav.map(({ Icon, label }, i) => (
+              <div
+                key={label}
+                className={cn(
+                  styles.previewNav,
+                  i === 1 && styles.previewNavActive
+                )}
+              >
+                <Icon size={15} />
+                {label}
+              </div>
+            ))}
+            <div className="mt-auto border-t border-border pt-5 text-xs text-muted-foreground">
+              {c.personalWorkspace}
+              <div className="mt-2 flex items-center gap-2 text-foreground">
+                <span className="grid size-7 place-items-center rounded-full bg-primary-soft text-primary">
+                  JD
+                </span>
+                Jamie D.
+              </div>
+            </div>
+          </aside>
+          <div className={styles.previewMain}>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {c.todaySession}
+                </p>
+                <h3 className="text-xl font-semibold tracking-tight">
+                  {c.pushDay}
+                </h3>
+              </div>
+              <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 font-mono text-xs">
+                <span className="size-1.5 rounded-full bg-success" />
+                {c.inProgress}
+              </span>
+            </div>
+            <div className={styles.sessionStats}>
+              {[
+                { value: "42:18", label: c.duration },
+                { value: "4,280 kg", label: c.volume },
+                { value: "12 / 18", label: c.sets },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {stat.label}
+                  </p>
+                  <p className="mt-1 font-mono text-lg font-medium">
+                    {stat.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className={styles.previewPanels}>
+              <MockSetLog />
+              <MockChart />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-2">
+                <Check size={13} className="text-success-text" />
+                {c.savedSets}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Timer size={13} />
+                {c.restTimer}
+                <span className="font-mono text-foreground">01:30</span>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
+      <figcaption className="mt-4 flex flex-wrap justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span>01 / {c.productPreview}</span>
+        <span>{c.previewCaption}</span>
+      </figcaption>
+    </figure>
   )
 }
 
 function MockSetLog() {
   const { messages } = useLocale()
+  const c = messages.landing
   const sets = [
-    { n: 1, kind: "warm", kg: 60, reps: 10, done: true, pr: false },
-    { n: 2, kind: "work", kg: 80, reps: 8, done: true, pr: false },
-    { n: 3, kind: "work", kg: 82.5, reps: 8, done: true, pr: true },
-    { n: 4, kind: "work", kg: 85, reps: null, done: false, pr: false },
+    { kg: 60, reps: 10, warm: true },
+    { kg: 80, reps: 8 },
+    { kg: 82.5, reps: 8 },
+    { kg: 85, reps: null },
   ]
-
   return (
-    <div className="glass-inset overflow-hidden rounded-lg border border-border bg-card">
-      {/* Header */}
-      <div className="border-b border-border px-[18px] py-3.5">
-        <div className="text-base font-semibold text-foreground">{messages.landing.benchPress}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground/70">{messages.landing.benchSummary}</div>
-      </div>
-
-      {/* Rows */}
-      {sets.map((s) => (
-        <div
-          key={s.n}
-          className={cn(
-            "grid items-center gap-2.5 border-b border-border px-[18px] py-2.5 font-mono text-sm last:border-b-0",
-            "grid-cols-[40px_1fr_60px_60px_28px]",
-            s.done && "bg-muted/60"
-          )}
-        >
-          <span className="font-semibold text-foreground">{s.n}</span>
-
-          <span
-            className={cn(
-              "text-micro uppercase tracking-[0.08em]",
-              s.kind === "warm" ? "text-muted-foreground/60" : "text-muted-foreground"
-            )}
-          >
-            {s.kind}
-            {s.pr ? " · pr" : ""}
-          </span>
-
-          <span
-            className={cn("text-center", s.done ? "text-muted-foreground/60" : "text-foreground")}
-          >
-            {s.kg}
-          </span>
-
-          <span
-            className={cn("text-center", s.done ? "text-muted-foreground/60" : "text-foreground")}
-          >
-            {s.reps ?? "—"}
-          </span>
-
-          <div
-            className={cn(
-              "flex h-5 w-5 items-center justify-center rounded",
-              s.done
-                ? "bg-success text-success-foreground"
-                : "border-[1.5px] border-border bg-transparent"
-            )}
-          >
-            {s.done && (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </div>
+    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-background">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold">{c.benchPress}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {c.benchSummary}
+          </p>
         </div>
-      ))}
+        <Dumbbell size={16} className="shrink-0 text-muted-foreground" />
+      </div>
+      <table className={styles.setTable}>
+        <thead>
+          <tr>
+            <th>{c.set}</th>
+            <th>kg</th>
+            <th>{c.reps}</th>
+            <th>
+              <span className="sr-only">{c.status}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sets.map((set, index) => (
+            <tr key={index} className={cn(index === 2 && styles.bestSet)}>
+              <td>
+                {index + 1}
+                <span className="ml-2 text-[9px] text-muted-foreground">
+                  {set.warm ? c.warmup : index === 2 ? "PR" : ""}
+                </span>
+              </td>
+              <td>{set.kg}</td>
+              <td>{set.reps ?? "—"}</td>
+              <td>
+                {set.reps ? (
+                  <Check
+                    size={14}
+                    className="mx-auto text-success-text"
+                    aria-label={c.completed}
+                  />
+                ) : (
+                  <span className="mx-auto block size-3 rounded-sm border border-border" />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="flex items-center justify-center gap-1.5 border-t border-border py-2.5 text-[11px] text-muted-foreground">
+        <Plus size={12} />
+        {c.nextSet}
+      </p>
     </div>
   )
 }
 
 function MockChart() {
   const { messages } = useLocale()
-
+  const c = messages.landing
   return (
-    <div className="glass-inset rounded-lg border border-border bg-card p-[18px]">
-      <p className="label-micro mb-1.5">{messages.landing.oneRmEstimate}</p>
-
-      <div className="flex items-baseline gap-2">
-        <span className="font-sans text-4xl font-semibold leading-none tracking-[-0.03em] text-foreground [font-feature-settings:'tnum'_1]">
-          112.5
-        </span>
-        <span className="text-sm text-muted-foreground">kg</span>
-        <span className="ml-1 font-mono text-xs text-success-text">↑ 5.0 · 12 w</span>
+    <div className="flex min-w-0 flex-col rounded-lg border border-border bg-background p-4">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {c.oneRmEstimate}
+      </p>
+      <div className="mt-3 flex items-baseline gap-2">
+        <span className="font-mono text-3xl tracking-tight">112.5</span>
+        <span className="text-xs text-muted-foreground">kg</span>
       </div>
-
+      <p className="mt-1 text-[10px] text-success-text">
+        +5.0 kg <span className="text-muted-foreground">/ {c.twelveWeeks}</span>
+      </p>
       <svg
-        viewBox="0 0 240 100"
-        className="mt-4 block w-full"
+        viewBox="0 0 240 112"
+        className="mt-auto w-full pt-5"
         aria-hidden="true"
       >
-        <line x1="0" y1="25" x2="240" y2="25" stroke="var(--border)" strokeWidth="1" />
-        <line x1="0" y1="60" x2="240" y2="60" stroke="var(--border)" strokeWidth="1" />
-        <polyline
+        <path
+          d="M0 20H240M0 55H240M0 90H240"
+          stroke="var(--border)"
+          strokeDasharray="3 4"
+        />
+        <path
+          d="M0 95L24 89L48 78L72 81L96 61L120 56L144 58L168 39L192 31L216 24L238 10V112H0Z"
+          fill="var(--primary-soft)"
+        />
+        <path
+          d="M0 95L24 89L48 78L72 81L96 61L120 56L144 58L168 39L192 31L216 24L238 10"
           fill="none"
           stroke="var(--primary)"
-          strokeWidth="1.75"
+          strokeWidth="2"
           strokeLinejoin="round"
-          strokeLinecap="round"
-          points="0,80 24,75 48,68 72,70 96,55 120,50 144,52 168,38 192,28 216,22 240,12"
         />
-        <circle cx="240" cy="12" r="3" fill="var(--primary)" />
+        <circle cx="238" cy="10" r="3" fill="var(--primary)" />
       </svg>
+      <div className="mt-2 flex justify-between font-mono text-[9px] text-muted-foreground">
+        <span>{c.weekOne}</span>
+        <span>{c.weekTwelve}</span>
+      </div>
     </div>
   )
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Features grid
-───────────────────────────────────────────────────────────── */
-const FEATURE_ICONS = [Dumbbell, Flame, BarChart3, Ruler, Timer, Calendar] as const
+function Specs() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  return (
+    <dl className={styles.specs}>
+      {[
+        {
+          label: c.specTraining,
+          value: c.specTrainingValue,
+          detail: c.specTrainingDetail,
+        },
+        {
+          label: c.specNutrition,
+          value: c.specNutritionValue,
+          detail: c.specNutritionDetail,
+        },
+        {
+          label: c.specProgress,
+          value: c.specProgressValue,
+          detail: c.specProgressDetail,
+        },
+        {
+          label: c.specCoaching,
+          value: c.specCoachingValue,
+          detail: c.specCoachingDetail,
+        },
+      ].map((spec) => (
+        <div key={spec.label}>
+          <dt className={styles.eyebrow}>{spec.label}</dt>
+          <dd className="mt-3 text-xl font-medium tracking-tight">
+            {spec.value}
+            <span className="mt-1.5 block text-xs font-normal tracking-normal text-muted-foreground">
+              {spec.detail}
+            </span>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
 
 function FeaturesSection() {
   const { messages } = useLocale()
-  const featureItems = [
-    { copy: messages.landing.featureLogCopy, Icon: FEATURE_ICONS[0], title: messages.landing.featureLogTitle },
-    { copy: messages.landing.featurePrCopy, Icon: FEATURE_ICONS[1], title: messages.landing.featurePrTitle },
-    { copy: messages.landing.featureChartsCopy, Icon: FEATURE_ICONS[2], title: messages.landing.featureChartsTitle },
-    { copy: messages.landing.featureBodyCopy, Icon: FEATURE_ICONS[3], title: messages.landing.featureBodyTitle },
-    { copy: messages.landing.featureTimerCopy, Icon: FEATURE_ICONS[4], title: messages.landing.featureTimerTitle },
-    { copy: messages.landing.featureHistoryCopy, Icon: FEATURE_ICONS[5], title: messages.landing.featureHistoryTitle },
+  const c = messages.landing
+  const features = [
+    { Icon: Dumbbell, title: c.featureLogTitle, body: c.featureLogCopy },
+    {
+      Icon: Flame,
+      title: c.featureNutritionTitle,
+      body: c.featureNutritionCopy,
+    },
+    { Icon: BarChart3, title: c.featureChartsTitle, body: c.featureChartsCopy },
+    {
+      Icon: CalendarDays,
+      title: c.featureHistoryTitle,
+      body: c.featureHistoryCopy,
+    },
+    { Icon: Timer, title: c.featureTimerTitle, body: c.featureTimerCopy },
+    { Icon: Users, title: c.featureCoachTitle, body: c.featureCoachCopy },
   ]
-
   return (
-    <section
-      id="features"
-      className="mx-auto max-w-[1200px] border-t border-border px-5 py-10 md:px-10 md:py-20"
-    >
-      {/* Section header */}
-      <div className="mb-7 max-w-[640px] md:mb-12">
-        <p className="label-micro mb-3">{messages.landing.featuresEyebrow}</p>
-        <h2 className="m-0 text-4xl font-semibold leading-[1.05] tracking-[-0.025em] text-foreground md:text-5xl">
-          {messages.landing.featuresTitle}{" "}
-          <span className="text-muted-foreground">{messages.landing.featuresMutedTitle}</span>
+    <section id="features" className={styles.section}>
+      <div className={styles.sectionIntro}>
+        <p className={styles.eyebrow}>{c.featuresEyebrow}</p>
+        <h2 className={styles.sectionTitle}>
+          {c.featuresTitle}
+          <br />
+          <span>{c.featuresMutedTitle}</span>
         </h2>
+        <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
+          {c.featuresCopy}
+        </p>
       </div>
-
-      {/* 3×2 grid with hairline dividers */}
-      <div className="glass-card overflow-hidden rounded-xl border border-border bg-card">
-        <div className="grid grid-cols-1 md:grid-cols-3">
-          {featureItems.map((item, i) => {
-            const col = i % 3
-            const row = Math.floor(i / 3)
-            const totalRows = Math.ceil(featureItems.length / 3)
-            return (
-              <div
-                key={item.title}
-                className={cn(
-                  "px-5 py-[22px] md:px-7 md:py-8",
-                  // Mobile: bottom border on all but the last item
-                  i < featureItems.length - 1 && "border-b border-border",
-                  // Desktop overrides: right border on cols 0 and 1
-                  col < 2 && "md:border-r md:border-border",
-                  // Desktop overrides: bottom border on all but last row
-                  row < totalRows - 1 ? "md:border-b md:border-border" : "md:border-b-0"
-                )}
-              >
-                <item.Icon className="h-[22px] w-[22px] text-foreground/80" />
-                <h3 className="mb-1.5 mt-3.5 text-lg font-semibold text-foreground">
-                  {item.title}
-                </h3>
-                <p className="m-0 text-sm leading-[1.5] text-muted-foreground">
-                  {item.copy}
-                </p>
-              </div>
-            )
-          })}
-        </div>
+      <div className={styles.featureGrid}>
+        {features.map(({ Icon, title, body }, index) => (
+          <article key={title} className={styles.feature}>
+            <div className="flex items-center justify-between">
+              <Icon size={21} strokeWidth={1.5} className="text-primary" />
+              <span className="font-mono text-[10px] text-muted-foreground">
+                0{index + 1}
+              </span>
+            </div>
+            <h3 className="mb-2 mt-7 text-base font-semibold tracking-tight">
+              {title}
+            </h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {body}
+            </p>
+          </article>
+        ))}
+      </div>
+      <div className={styles.sectionFoot}>
+        <p>{c.featuresFootnote}</p>
+        <Link href="/?auth=register" scroll={false}>
+          {c.getStarted}
+          <ArrowRight size={15} />
+        </Link>
       </div>
     </section>
   )
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Trainer callout
-───────────────────────────────────────────────────────────── */
-function TrainerCallout() {
+function TrainerSection() {
   const { messages } = useLocale()
-  const clientRows = [
-    { name: "Maya R.", activity: messages.landing.clientPulled, status: messages.landing.clientDeadliftPr, tone: "ok" as const },
-    { name: "Theo S.", activity: messages.landing.clientPushed, status: messages.landing.clientUnderPlan, tone: "warn" as const },
-    { name: "Hana K.", activity: messages.landing.clientRested, status: messages.landing.clientDaysOff, tone: "neutral" as const },
-    { name: "Devon L.", activity: messages.landing.clientPulled, status: messages.landing.clientOnTrack, tone: "neutral" as const },
+  const c = messages.landing
+  const rows = [
+    {
+      name: "Maya R.",
+      initials: "MR",
+      plan: c.pullDay,
+      status: c.clientOnTrack,
+      complete: true,
+    },
+    {
+      name: "Theo S.",
+      initials: "TS",
+      plan: c.pushDay,
+      status: c.clientUnderPlan,
+      complete: false,
+    },
+    {
+      name: "Hana K.",
+      initials: "HK",
+      plan: c.restDay,
+      status: c.clientOnTrack,
+      complete: true,
+    },
   ]
-
   return (
-    <section
-      id="trainers"
-      className="mx-auto max-w-[1200px] px-5 pb-10 pt-5 md:px-10 md:pb-20 md:pt-10"
-    >
-      <div className="glass-card landing-trainer grid grid-cols-1 gap-6 rounded-xl bg-foreground px-6 py-8 text-background md:grid-cols-[1.3fr_1fr] md:items-center md:gap-12 md:px-[52px] md:py-12">
-        {/* Left: copy */}
-        <div>
-          <p className="label-micro mb-3 text-inverse-muted">{messages.landing.trainerEyebrow}</p>
-          <h2 className="m-0 text-3xl font-semibold leading-[1.05] tracking-[-0.025em] text-inverse-foreground md:text-5xl">
-            {messages.landing.trainerTitle}
-          </h2>
-          <p className="mb-6 mt-[18px] max-w-[440px] text-base leading-[1.55] text-inverse-secondary">
-            {messages.landing.trainerCopy}
-          </p>
-
-          <div className="flex flex-wrap gap-2.5">
-            <Button
-              size="default"
-              asChild
-              className="bg-primary font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <Link href="/coach">{messages.landing.openTrainerView} →</Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="default"
-              className="font-medium text-inverse-foreground hover:bg-inverse-hover hover:text-inverse-foreground"
-            >
-              {messages.landing.requestInvite}
-            </Button>
-          </div>
+    <section id="trainers" className={styles.trainers}>
+      <div>
+        <p className={styles.eyebrow}>{c.trainerEyebrow}</p>
+        <h2 className={styles.sectionTitle}>
+          {c.trainerTitle}
+          <br />
+          <span>{c.trainerMuted}</span>
+        </h2>
+        <p className="mt-5 max-w-lg text-sm leading-relaxed text-muted-foreground">
+          {c.trainerCopy}
+        </p>
+        <ul className="my-6 space-y-3 text-sm">
+          {[
+            c.coachBenefitPlan,
+            c.coachBenefitProgress,
+            c.coachBenefitOverview,
+          ].map((item) => (
+            <li key={item} className="flex items-start gap-2.5">
+              <Check size={16} className="mt-0.5 shrink-0 text-primary" />
+              {item}
+            </li>
+          ))}
+        </ul>
+        <Button
+          asChild
+          variant="outline"
+          className="rounded-full bg-transparent"
+        >
+          <Link href="/?auth=register" scroll={false}>
+            {c.coachCta}
+            <ArrowRight size={16} />
+          </Link>
+        </Button>
+      </div>
+      <figure className={styles.coachPreview}>
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <span className="text-sm font-medium">{c.coachWorkspace}</span>
+          <Users size={16} className="text-primary" />
         </div>
-
-        {/* Right: mock client table */}
-        <div className="rounded-lg border border-inverse-border bg-inverse-surface p-5 font-mono text-sm leading-[1.7] text-inverse-secondary">
-          <div className="mb-2.5 text-inverse-foreground">{messages.landing.thisWeekClients}</div>
-          {clientRows.map((row, i) => (
+        <div className="p-5">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            {c.yourTrainees}
+          </p>
+          <p className="mb-5 mt-2 text-3xl font-semibold">
+            03{" "}
+            <span className="text-xs font-normal text-muted-foreground">
+              {c.sampleProfiles}
+            </span>
+          </p>
+          {rows.map((row) => (
             <div
               key={row.name}
-              className={cn(
-                "flex items-center justify-between py-1.5",
-                i > 0 && "border-t border-inverse-divider"
-              )}
+              className="flex items-center gap-3 border-t border-border py-4"
             >
-              <span className="text-inverse-foreground">{row.name}</span>
-              <span>{row.activity}</span>
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-subtle font-mono text-xs">
+                {row.initials}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{row.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{row.plan}</p>
+              </div>
               <span
                 className={cn(
-                  row.tone === "ok" && "text-inverse-success",
-                  row.tone === "warn" && "text-inverse-warning",
-                  row.tone === "neutral" && "text-inverse-muted"
+                  "max-w-28 rounded-full px-2 py-1 text-[10px]",
+                  row.complete
+                    ? "bg-success-soft text-success-text"
+                    : "bg-warning-soft text-warning-text"
                 )}
               >
                 {row.status}
               </span>
             </div>
           ))}
+          <div className="mt-2 flex items-center justify-between rounded-md border border-border p-3 text-xs text-muted-foreground">
+            {c.coachPreviewNote}
+            <ChevronRight size={14} />
+          </div>
         </div>
-      </div>
+        <figcaption className="border-t border-border px-5 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          02 / {c.sampleData}
+        </figcaption>
+      </figure>
     </section>
-  )
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Footer
-───────────────────────────────────────────────────────────── */
-function FooterSection() {
-  const { messages } = useLocale()
-  const footerLinks = [messages.landing.privacy, messages.landing.terms, messages.landing.changelog, messages.landing.contact]
-
-  return (
-    <footer className="border-t border-border">
-      <div className="mx-auto flex max-w-[1200px] flex-col items-start justify-between gap-3 px-5 py-6 md:flex-row md:items-center md:px-10 md:py-8">
-        <p className="font-mono text-xs tracking-[0.04em] text-muted-foreground/70">
-          {messages.landing.footerLine}
-        </p>
-        <div className="flex gap-[18px]">
-          {footerLinks.map((label) => (
-            <Link
-              key={label}
-              href="#"
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </footer>
   )
 }
