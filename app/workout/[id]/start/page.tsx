@@ -103,20 +103,6 @@ function getCompoundSetVolume(set: ExerciseSet) {
   )
 }
 
-function getCompoundSummary(compoundSet: CompoundSet, fallbackWeight?: number) {
-  const repsSummary = compoundSet.segments.map((segment) => segment.reps ?? "—").join("+")
-  if (compoundSet.type === "drop_set") {
-    return compoundSet.segments
-      .map((segment) => `${segment.weight ?? fallbackWeight ?? "—"}×${segment.reps ?? "—"}`)
-      .join(" → ")
-  }
-  if (compoundSet.type === "cluster") {
-    const restLabel = compoundSet.restSec != null ? ` · ${compoundSet.restSec}s` : ""
-    return `${compoundSet.segments.length}×${compoundSet.segments[0]?.reps ?? "—"}${restLabel}`
-  }
-  return `${repsSummary} = ${sumCompoundReps(compoundSet)}`
-}
-
 function getCompoundProgress(compoundSet: CompoundSet) {
   const total = sumCompoundReps(compoundSet)
   if (!compoundSet.targetReps) return `${total}`
@@ -622,41 +608,25 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         )}
 
         {/* Previous */}
-        {set.compoundSet && compoundMeta ? (
-          <button
-            type="button"
-            onClick={() => setCompoundOpen((value) => !value)}
-            aria-expanded={compoundOpen}
-            className="flex min-w-0 flex-col items-start justify-center gap-0.5 text-left"
-          >
-            <span className="max-w-full truncate text-xs font-semibold leading-tight text-foreground">
-              {compoundMeta.shortLabel}
-            </span>
-            <span className="max-w-full truncate font-mono text-micro leading-tight text-muted-foreground">
-              {getCompoundSummary(set.compoundSet, parsePositiveNumber(weight))}
-            </span>
-          </button>
-        ) : (
-          <span
-            className={cn(
-              "min-w-0 font-mono text-micro leading-tight",
-              exceededRange
-                ? "inline-flex items-center justify-center gap-1 text-success-text"
-                : "block truncate text-center text-muted-foreground",
-            )}
-            title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
-            aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
-          >
-            {exceededRange ? (
-              <>
-                <span className="truncate">{prevLabel}</span>
-                <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
-              </>
-            ) : (
-              prevLabel
-            )}
-          </span>
-        )}
+        <span
+          className={cn(
+            "min-w-0 font-mono text-micro leading-tight",
+            exceededRange
+              ? "inline-flex items-center justify-center gap-1 text-success-text"
+              : "block truncate text-center text-muted-foreground",
+          )}
+          title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
+          aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
+        >
+          {exceededRange ? (
+            <>
+              <span className="truncate">{prevLabel}</span>
+              <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
+            </>
+          ) : (
+            prevLabel
+          )}
+        </span>
 
       {/* Weight input */}
       <input
