@@ -166,7 +166,7 @@ function StatsSummary({
       <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.progressPage.sessions}</LabelMicro>
         <div className="flex items-baseline gap-2">
-          <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
+          <span className="min-w-0 whitespace-nowrap font-mono text-3xl font-semibold leading-none tnum text-foreground sm:text-3xl">
             {cur.totalWorkouts}
           </span>
         </div>
@@ -187,7 +187,7 @@ function StatsSummary({
       <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.workoutPage.volume}</LabelMicro>
         <div className="flex min-w-0 items-baseline gap-1">
-          <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
+          <span className="min-w-0 whitespace-nowrap font-mono text-3xl font-semibold leading-none tnum text-foreground sm:text-3xl">
             {formatVolume(cur.totalVolume)}
           </span>
           <span className="shrink-0 text-micro text-muted-foreground sm:text-xs">kg</span>
@@ -208,7 +208,7 @@ function StatsSummary({
       {/* Avg duration */}
       <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.progressPage.avgDuration}</LabelMicro>
-        <div className="whitespace-nowrap font-mono text-[1.55rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
+        <div className="whitespace-nowrap font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
           {formatDuration(cur.avgDurationMins, messages.dashboard.min)}
         </div>
         {prev.avgDurationMins > 0 && (
@@ -804,7 +804,7 @@ function PrCard({
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-[2.5rem] font-semibold leading-none tnum text-foreground">
+        <span className="font-mono text-4xl font-semibold leading-none tnum text-foreground">
           {record.weight}
         </span>
         <span className="text-sm text-muted-foreground">{weightUnitLabel}</span>
@@ -1055,7 +1055,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
             <div>
               <LabelMicro className="mb-1 block">{monthLabel(viewYear, viewMonth, locale)}</LabelMicro>
-              <h1 className="text-[2rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+              <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground">
                 {calendarLoading
                   ? "—"
                   : messages.workoutPage.sessionCount(calendar?.summary.totalWorkouts ?? 0)
@@ -1200,7 +1200,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
           <div className="space-y-6">
             <div>
               <LabelMicro className="mb-2 block">{messages.progressPage.personalRecords}</LabelMicro>
-              <h2 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground">
+              <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
                 {data.personalRecords.length > 0
                   ? messages.progressPage.trackedRecords(data.personalRecords.length)
                   : messages.progressPage.noRecords}

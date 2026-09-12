@@ -405,7 +405,7 @@ function MetricCard({
     <div className="rounded-lg border border-border bg-card p-4">
       <span className="label-micro block">{label}</span>
       <div className="mt-2 flex items-end gap-1.5">
-        <span className="font-mono text-[2rem] font-semibold leading-none tnum text-foreground">{value}</span>
+        <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">{value}</span>
         {unit ? <span className="mb-0.5 text-sm text-muted-foreground">{unit}</span> : null}
       </div>
       {footer ? <div className="mt-2 min-h-5 text-sm">{footer}</div> : null}
@@ -600,7 +600,7 @@ export function WeightTrackingClient() {
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="label-micro mb-2 block">{messages.progressPage.logIntro}</span>
-            <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+            <h1 className="text-4xl font-semibold leading-none tracking-[-0.02em] text-foreground">
               {messages.progressPage.title}
             </h1>
           </div>
@@ -638,7 +638,7 @@ export function WeightTrackingClient() {
             <div>
               <span className="label-micro mb-1 block">{messages.progressPage.currentWeight}</span>
               <div className="flex items-baseline gap-3">
-                <span className="font-mono text-[4rem] font-semibold leading-none tnum text-foreground">
+                <span className="font-mono text-6xl font-semibold leading-none tnum text-foreground">
                   {currentWeightDisplay}
                 </span>
                 <span className="text-base text-muted-foreground">{weightUnit}</span>
@@ -892,7 +892,7 @@ export function WeightTrackingClient() {
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeBmrLabel}</span>
                   <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-foreground">
+                    <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">
                       {Math.round(bmr as number)}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -907,7 +907,7 @@ export function WeightTrackingClient() {
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeTdeeLabel}</span>
                   <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-foreground">
+                    <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">
                       {Math.round(tdee as number)}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -922,7 +922,7 @@ export function WeightTrackingClient() {
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeSuggestedLabel}</span>
                   <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-primary">
+                    <span className="font-mono text-3xl font-semibold leading-none tnum text-primary">
                       {suggestedKcal ?? "--"}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">

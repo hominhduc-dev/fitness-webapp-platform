@@ -41,6 +41,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
       sections={[{ items: traineeNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="primary"
+      accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       brand={
         <Link href={getRoleLandingPath(role)} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -90,6 +91,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       sections={sections}
       isActiveItem={isAdminItemActive}
       activeStyle="muted"
+      accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       brand={
         <Link href={getRoleLandingPath("admin")} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -151,13 +153,13 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   }, [session?.access_token])
 
   const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
-    ["/coach/trainees", "/coach/programs", "/coach/exercises", "/progress"].includes(item.href),
+    ["/coach/trainees", "/coach/programs", "/coach/exercises", "/coach/stats"].includes(item.href),
   )
 
   return (
     <BaseSidebar
       collapsible={false}
-      sections={[{ title: "Coach", items: coachNavItems }]}
+      sections={[{ title: messages.shell.coach, items: coachNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="muted"
       brand={

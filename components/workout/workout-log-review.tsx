@@ -251,7 +251,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
                           aria-expanded={isUpdateOpen}
                           className={cn(
                             "inline-flex shrink-0 items-center gap-1 rounded border-0 px-[7px] py-[3px]",
-                            "font-mono text-[9.5px] font-semibold uppercase tracking-[0.07em]",
+                            "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
                             "transition-colors duration-150",
                             isUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
                             coachUpdateMeta.textClassName,
@@ -271,7 +271,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
                     {coachUpdate && isUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
                       <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
                         <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
-                        <span className="text-[12.5px] leading-[1.4] text-foreground">{coachUpdate.text}</span>
+                        <span className="text-xs leading-[1.4] text-foreground">{coachUpdate.text}</span>
                       </div>
                     ) : null}
                   </div>

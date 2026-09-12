@@ -12,6 +12,10 @@ vi.mock("../lib/google", () => ({
 import { exportGoogleProgramLogs } from "./google-program-export.service"
 
 const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
+type BatchRequest = {
+  duplicateSheet?: { newSheetName?: string }
+  insertDimension?: { range?: { sheetId?: number; startIndex?: number; endIndex?: number } }
+}
 describe("Google export batch across weeks", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -24,9 +28,9 @@ describe("Google export batch across weeks", () => {
     await exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a", "b", "c"])
     expect(mocks.batch).toHaveBeenCalledTimes(1)
     const requests = mocks.batch.mock.calls[0][2]
-    expect(requests.slice(0, 2).map((request: any) => request.duplicateSheet.newSheetName)).toEqual(["Week 2", "Week 3"])
+    expect(requests.slice(0, 2).map((request: BatchRequest) => request.duplicateSheet?.newSheetName)).toEqual(["Week 2", "Week 3"])
     expect(requests[2].insertDimension.range).toMatchObject({ sheetId: 1, startIndex: 14, endIndex: 16 })
-    expect(requests.slice(2).some((request: any) => request.duplicateSheet)).toBe(false)
+    expect(requests.slice(2).some((request: BatchRequest) => request.duplicateSheet)).toBe(false)
   })
   it("sends no writes or duplicates when a later week fails preflight", async () => {
     mocks.logs.mockResolvedValue([{ programId: "program", workoutSnapshot: { weekIndex: 2, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "missing" }, sets: [] }] }])

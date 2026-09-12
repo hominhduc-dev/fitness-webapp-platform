@@ -284,7 +284,7 @@ function MealSection({
       {items.map((item) => (
         <div key={item.id} className="flex items-center gap-2.5 border-b border-ink-50 px-4 py-2.5 last:border-b-0">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13.5px] text-foreground">
+            <p className="truncate text-sm text-foreground">
               {item.name}
               {item.amountLabel ? <span className="text-muted-foreground"> {item.amountLabel}</span> : null}
             </p>
@@ -589,7 +589,7 @@ function AddFoodModal({
                   </div>
                   <div className="min-w-0">
                     <p className="label-micro mb-1 truncate">{mealLabel}</p>
-                    <h2 className="text-[1.15rem] font-semibold leading-none text-foreground">{labels.logFood}</h2>
+                    <h2 className="text-lg font-semibold leading-none text-foreground">{labels.logFood}</h2>
                   </div>
                 </div>
                 <button

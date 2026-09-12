@@ -23,6 +23,7 @@ export interface BaseSidebarProps {
   cta?: React.ReactNode
   backLink?: React.ReactNode
   activeStyle?: "primary" | "muted"
+  accessibilityLabels?: { expand: string; collapse: string }
 }
 
 export function BaseSidebar({
@@ -36,6 +37,7 @@ export function BaseSidebar({
   cta,
   backLink,
   activeStyle = "primary",
+  accessibilityLabels = { expand: "Expand sidebar", collapse: "Collapse sidebar" },
 }: BaseSidebarProps) {
   const isFixed = !collapsible;
 
@@ -54,6 +56,8 @@ export function BaseSidebar({
               : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
             isCollapsed && "justify-center px-2",
           )}
+          aria-label={isCollapsed ? item.label : undefined}
+          title={isCollapsed ? item.label : undefined}
         >
           <item.icon className={cn("h-5 w-5 shrink-0 transition-transform", isActive && "scale-105")} />
           {!isCollapsed && <span>{item.label}</span>}
@@ -135,6 +139,8 @@ export function BaseSidebar({
               variant="ghost"
               size="icon"
               onClick={onToggleCollapse}
+              aria-label={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
+              title={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
               className={cn(collapsed && "mx-auto")}
             >
               {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

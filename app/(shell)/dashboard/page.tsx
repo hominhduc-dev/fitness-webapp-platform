@@ -182,7 +182,7 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="label-micro mb-2">{card.label}</p>
-                  <p className="font-mono text-2xl font-semibold leading-none tracking-tight tnum text-foreground md:text-[1.75rem]">
+                  <p className="font-mono text-2xl font-semibold leading-none tracking-tight tnum text-foreground md:text-3xl">
                     {card.value}
                   </p>
                   <p className={cn("mt-2 text-sm leading-snug", isHelperAccent ? "font-medium text-success-text" : "text-muted-foreground")}>
@@ -276,7 +276,7 @@ export default async function DashboardPage() {
 
         <section>
           <span className="label-micro mb-2 block">Dashboard</span>
-          <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+          <h1 className="text-4xl font-semibold leading-none tracking-[-0.02em] text-foreground">
             {messages.dashboard.welcomeBack},{" "}
             <span className="text-primary">{firstName}</span>
           </h1>
