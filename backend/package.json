@@ -17,6 +17,7 @@
     "dev": "tsx watch src/index.ts",
     "prisma:resolve:baseline": "prisma migrate resolve --applied 20260319_initial_schema_baseline",
     "seed:exercises": "tsx src/scripts/seed-exercise-library.ts",
+    "sync:exercise-dataset": "tsx src/scripts/sync-exercise-dataset.ts",
     "seed:foods": "tsx src/scripts/seed-vietnamese-foods.ts",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",

@@ -213,6 +213,8 @@ model Variation {
   isDefault                 Boolean                 @default(false)
   sortOrder                 Int                     @default(0)
   metadata                  Json?
+  source                    String?
+  sourceId                  String?
   activityType              ExerciseActivityType?
   muscleProfileStatus       MuscleProfileStatus     @default(pending)
   muscleProfileSource       MuscleProfileSource?
@@ -228,6 +230,7 @@ model Variation {
   updatedAt                 DateTime                @updatedAt
 
   @@unique([exerciseId, name])
+  @@unique([source, sourceId])
   @@index([equipment])
   @@index([exerciseId, sortOrder])
   @@index([activityType, muscleProfileStatus])

@@ -32,6 +32,7 @@ import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-expor
 import { logger } from "../../lib/logger"
 import { exportGoogleProgramLogs } from "../google-program-export.service"
 import { retryTransaction } from "../../lib/prisma"
+import { serializeExerciseMedia } from "../../lib/exercise-media"
 import {
   buildApprovedMuscleProfileData,
   buildApprovedMuscleProfileUpdate,
@@ -383,6 +384,7 @@ function serializeVariation(variation: VariationWithMuscleTargets, legacyMuscleG
       variation.metadata && typeof variation.metadata === "object" && !Array.isArray(variation.metadata)
         ? (variation.metadata as Record<string, unknown>)
         : undefined,
+    media: serializeExerciseMedia(variation.metadata),
     name: variation.name,
     sortOrder: variation.sortOrder,
     ...serializePublicMuscleProfile({

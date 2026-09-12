@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
+import { ExerciseAnimation } from "@/components/workout/exercise-animation"
 import { createWorkoutLog, fetchExercises, fetchWorkoutDetail, swapWorkoutExercise } from "@/lib/fitness/api"
 import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
 import { cn } from "@/lib/utils"
@@ -857,6 +858,9 @@ function LiftExerciseBlock({
 
       {!collapsed && (
         <>
+          {exercise.variation.media ? (
+            <ExerciseAnimation exerciseName={exerciseLabel} media={exercise.variation.media} />
+          ) : null}
           {/* Column headers */}
           <div
             className={cn(

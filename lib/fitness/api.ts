@@ -589,6 +589,7 @@ function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseV
     id: variation.id,
     isDefault: variation.isDefault,
     metadata: variation.metadata,
+    media: variation.media,
     name: variation.name,
     source: variation.source,
     sortOrder: variation.sortOrder,

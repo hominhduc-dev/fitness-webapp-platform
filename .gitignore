@@ -20,3 +20,4 @@ pnpm-debug.log*
 .backups/
 .vscode/
 .pr-worktrees/
+.exercise-sync-reports/

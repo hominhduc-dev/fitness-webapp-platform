@@ -20,6 +20,7 @@
     "prisma:deploy": "npm --prefix backend run prisma:deploy",
     "prisma:validate": "npm --prefix backend run prisma:validate",
     "seed:exercises": "npm --prefix backend run seed:exercises",
+    "sync:exercise-dataset": "npm --prefix backend run sync:exercise-dataset --",
     "seed:foods": "npm --prefix backend run seed:foods",
     "icons": "node scripts/generate-app-icons.mjs",
     "splash": "node scripts/generate-ios-splash.mjs",

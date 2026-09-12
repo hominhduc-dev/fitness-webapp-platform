@@ -52,12 +52,20 @@ export interface ExerciseMuscleProfile {
   secondaryMuscles: MuscleSlug[]
 }
 
+export interface ExerciseMedia {
+  animationUrl: string
+  height: 180
+  thumbnailUrl: string
+  width: 180
+}
+
 export interface ExerciseVariation extends ExerciseMuscleProfile {
   id: string
   name: string
   equipment?: string
   isDefault: boolean
   metadata?: Record<string, unknown>
+  media?: ExerciseMedia
   sortOrder: number
   canManage?: boolean
   createdById?: string
