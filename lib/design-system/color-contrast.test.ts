@@ -64,4 +64,10 @@ describe.each([
   it.each(requiredPairs)("keeps %s legible on %s", (foreground, background) => {
     expect(contrast(resolveToken(tokens, foreground), resolveToken(tokens, background))).toBeGreaterThanOrEqual(4.5)
   })
+
+  it("defines distinct semantic surface roles", () => {
+    expect(tokens.get("--surface")).toBeTruthy()
+    expect(tokens.get("--surface-subtle")).toBeTruthy()
+    expect(tokens.get("--surface-hover")).toBeTruthy()
+  })
 })

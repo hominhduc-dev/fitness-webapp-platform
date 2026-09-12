@@ -70,11 +70,13 @@
   --card: var(--ink-50);
   --card-foreground: var(--ink-800);
   --surface: #ffffff;
+  --surface-subtle: #f7f9fc;
+  --surface-hover: #f1f4f8;
 
   --popover: var(--ink-50);
   --popover-foreground: var(--ink-800);
 
-  --muted: var(--surface);
+  --muted: var(--surface-subtle);
   --muted-foreground: var(--ink-400);
 
   --text-primary: var(--ink-800);
@@ -249,6 +251,8 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-hover: var(--surface-hover);
 
   /* ── Semantic ── */
   --color-success: var(--success);
@@ -521,6 +525,8 @@ input[type="button"] {
   --card: rgb(31 33 39 / var(--glass-opacity));
   --card-foreground: var(--ink-800);
   --surface: rgb(255 255 255 / 7%);
+  --surface-subtle: rgb(255 255 255 / 5%);
+  --surface-hover: rgb(255 255 255 / 11%);
 
   --popover: rgb(27 29 35 / 82%);
   --popover-foreground: var(--ink-800);

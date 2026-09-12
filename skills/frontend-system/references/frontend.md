@@ -206,6 +206,8 @@ Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ
 | `--brand-accent` | `#3b82f6` | Info/chart |
 | `--ink-0` | `#f4f7fb` | Canvas/background |
 | `--ink-50` | `#ffffff` | Card/raised surface |
+| `--surface-subtle` | `#f7f9fc` | Recessed/quiet surface and muted fills |
+| `--surface-hover` | `#f1f4f8` | Surface hover |
 | `--ink-100` | `#e7eaf0` | Border subtle |
 | `--ink-150` | `#d8dde6` | Border/input default |
 | `--ink-200` | `#c8cfda` | Border strong/disabled |
@@ -232,6 +234,8 @@ Light page backdrop là off-white với blue/green radial tint; không phải n�
 | `--brand-accent` | `#89c8ff` | Info |
 | `--ink-0` | `#080a0f` | Background |
 | `--ink-50` | `rgb(20 24 33 / 78%)` | Raised glass |
+| `--surface-subtle` | `rgb(255 255 255 / 5%)` | Recessed/quiet surface and muted fills |
+| `--surface-hover` | `rgb(255 255 255 / 11%)` | Surface hover |
 | `--ink-100`, `--ink-150`, `--ink-200` | white `10%`, `14%`, `20%` | Border subtle/default/strong |
 | `--ink-400` | `#aeb4bf` | Muted text |
 | `--ink-600` | `#d0d4dc` | Secondary text |
@@ -259,6 +263,7 @@ Dark backdrop dùng radial cobalt `20%` + green `10%` trên gradient `#10131b �
 Trong JSX chỉ ưu tiên:
 
 - `bg-background`, `bg-card`, `bg-muted`, `bg-primary`, `bg-primary-soft`;
+- `bg-surface-subtle` and `bg-surface-hover` for recessed and hover surfaces;
 - `text-foreground`, `text-muted-foreground`, `text-primary`;
 - `border-border`, `border-input`, `ring-ring`;
 - trạng thái dạng chữ: `text-success-text`, `text-warning-text`, `text-info-text`, `text-destructive-text`;
