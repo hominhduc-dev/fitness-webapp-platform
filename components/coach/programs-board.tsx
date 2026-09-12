@@ -244,7 +244,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         </Button>
         <Button
           type="button"
-          className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90 sm:w-auto"
+          className="w-full gap-2 sm:w-auto"
           onClick={() => setEditorTarget("new")}
         >
           <Plus className="h-4 w-4" />

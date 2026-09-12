@@ -149,7 +149,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         </Link>
       }
       cta={
-        <Button asChild className="w-full justify-start gap-2 bg-foreground text-background hover:bg-foreground/90">
+        <Button asChild className="w-full justify-start gap-2">
           <Link href="/coach/trainees">
             <UserPlus className="h-4 w-4" />
             {messages.shell.addClient}
