@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import { ProgramEditorLazy } from "@/components/coach/program-editor-lazy"
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { useExercises, useExerciseLibrary } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { useQueryClient } from "@tanstack/react-query"
 import { userQueryKey } from "@/lib/queries/scoped"
@@ -23,6 +24,7 @@ import {
   fetchCoachTrainees,
   restoreCoachProgram,
 } from "@/lib/fitness/api"
+import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
 import type {
   AssignedTrainee,
   CoachProgram,
@@ -30,7 +32,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
-import { Plus, Upload } from "lucide-react"
+import { Loader2, Plus, Upload } from "lucide-react"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -66,11 +68,11 @@ function toCreateInput(program: CoachProgram, name: string): CreateCoachProgramI
 
 interface ProgramsBoardProps {
   exerciseOptions?: ExerciseVariationOption[]
-  initialPrograms: CoachProgram[]
-  trainees: CoachTrainee[]
+  initialPrograms?: CoachProgram[]
+  trainees?: CoachTrainee[]
 }
 
-export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees: initialTrainees }: ProgramsBoardProps) {
+export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initialPrograms, trainees: initialTrainees }: ProgramsBoardProps) {
   const { profile, session } = useAuth()
   const client = useQueryClient()
   const [assignTarget, setAssignTarget] = useState<CoachProgram | null>(null)
@@ -80,8 +82,23 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees:
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
 
-  const { data: programs = [], setData: setPrograms } = useCoachData(queryKeys.coach.programs({ includeArchived: showArchived }), (token) => fetchCoachPrograms(token, { includeArchived: showArchived }), showArchived ? undefined : initialPrograms)
-  const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
+  const programsQuery = useCoachData(queryKeys.coach.programs({ includeArchived: showArchived }), (token) => fetchCoachPrograms(token, { includeArchived: showArchived }), showArchived ? undefined : initialPrograms)
+  const programs = programsQuery.data ?? []
+  const setPrograms = programsQuery.setData
+  const traineesQuery = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
+  const trainees = traineesQuery.data ?? []
+  // The 4k+ exercise catalogue is only needed by the import dialog. Program
+  // cards and assignment actions should not pay that cost during initial load.
+  const importExercisesQuery = useExercises(undefined, undefined, importOpen)
+  const importLibraryQuery = useExerciseLibrary(undefined, undefined, importOpen)
+  const exerciseOptions = useMemo(() => {
+    if (initialExerciseOptions) return initialExerciseOptions
+    if (!importExercisesQuery.data || !importLibraryQuery.data) return []
+    return mergeExerciseOptions(
+      importExercisesQuery.data,
+      flattenExerciseLibraryToVariationOptions(importLibraryQuery.data),
+    )
+  }, [initialExerciseOptions, importExercisesQuery.data, importLibraryQuery.data])
   const createProgram = useCoachMutation(createCoachProgram)
   const archiveProgram = useCoachMutation(archiveCoachProgram)
   const restoreProgram = useCoachMutation(restoreCoachProgram)
@@ -236,6 +253,32 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees:
       </div>
     </div>
   )
+
+  if (programsQuery.isPending) {
+    return (
+      <>
+        {header}
+        <div className="flex min-h-72 items-center justify-center gap-2 rounded-lg border border-border bg-card text-sm text-muted-foreground" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading programs...
+        </div>
+      </>
+    )
+  }
+
+  if (programsQuery.isError) {
+    return (
+      <>
+        {header}
+        <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
+          <p className="text-sm text-destructive-text">Unable to load programs.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void programsQuery.refetch()}>
+            Try again
+          </Button>
+        </div>
+      </>
+    )
+  }
 
   if (visiblePrograms.length === 0) {
     return (
