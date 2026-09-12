@@ -57,6 +57,8 @@ const themeInitScript = `
       window.localStorage.setItem(storageKey, storedTheme);
     }
     var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "light";
+    // The public marketing route has a fixed light art direction. Keep the
+    // stored preference untouched so authenticated routes can restore it.
     if (window.location.pathname === "/") theme = "light";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
