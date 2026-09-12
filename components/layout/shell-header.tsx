@@ -141,7 +141,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <Fragment>
-      <div className="mobile-liquid-glass-root fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
+      <div className="mobile-liquid-glass-root fixed bottom-[calc(0.5rem+env(safe-area-inset-bottom))] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
         <nav ref={mobileNavRef} className="mobile-floating-nav glass-surface relative grid w-full grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
           {primaryItems.map((item) => {
