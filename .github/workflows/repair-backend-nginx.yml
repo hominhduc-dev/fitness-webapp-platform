@@ -79,12 +79,15 @@ jobs:
                 set -eu
                 master_pid=""
 
-                for cmdline in /proc/[0-9]*/cmdline; do
-                  command=$(tr "\000" " " < "$cmdline" 2>/dev/null || true)
+                for process_name in /proc/[0-9]*/comm; do
+                  name=$(cat "$process_name" 2>/dev/null || true)
+                  [ "$name" = "nginx" ] || continue
+
+                  process_dir=${process_name%/comm}
+                  command=$(tr "\000" " " < "${process_dir}/cmdline" 2>/dev/null || true)
                   case "$command" in
                     *"nginx: master process"*)
-                      master_pid=${cmdline#/proc/}
-                      master_pid=${master_pid%/cmdline}
+                      master_pid=${process_dir#/proc/}
                       break
                       ;;
                   esac
