@@ -1,5 +1,5 @@
 export const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
-export const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 5
+export const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 6
 
 export type StoredWorkoutSessionSet = {
   actualReps?: number

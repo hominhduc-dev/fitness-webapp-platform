@@ -47,6 +47,13 @@ import {
 } from "../../domain/muscle-profile"
 import { enrichExerciseSnapshot, type SnapshotMuscleProfile } from "../../domain/workout-muscle-snapshot"
 import {
+  buildSetIntensityTagMap,
+  normalizeSetIntensityAssignments,
+  SET_INTENSITY_TAG_BADGES,
+  type SetIntensityAssignment,
+  type SetIntensityTag,
+} from "../../domain/set-intensity-tag"
+import {
   addUtcDays,
   DAY_IN_MS,
   DAY_LABELS,
@@ -199,7 +206,7 @@ type TraineeProgramAssignmentWithWorkouts = Prisma.ProgramAssignmentGetPayload<{
 }>
 
 type CoachUpdate = {
-  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
+  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes" | "intensityTag"
   newValue?: number | string
   oldValue?: number | string
   text: string
@@ -282,6 +289,7 @@ type PersonalWorkoutInput = {
     notes?: string
     repsMin?: number
     rir?: number
+    setIntensityTags?: SetIntensityAssignment[]
     variationId: string
     reps: number
     restTime?: number
@@ -301,6 +309,8 @@ type CoachProgramInput = {
   difficulty: ProgramDifficulty
   duration: number
   name: string
+  /** `YYYY-MM-DD`; when set, week 1 starts here for every assigned trainee. */
+  startDate?: string | null
   workouts: Array<{
     duration?: number
     exercises: Array<{
@@ -308,6 +318,7 @@ type CoachProgramInput = {
       repsMin?: number
       rir?: number
       restTime?: number
+      setIntensityTags?: SetIntensityAssignment[]
       variationId: string
       reps: number
       sets: number
@@ -326,6 +337,7 @@ type NormalizedPersonalWorkoutInput = {
     notes?: string
     repsMin?: number
     rir?: number
+    setIntensityTags?: SetIntensityAssignment[]
     variationId: string
     reps: number
     restTime?: number
@@ -558,6 +570,7 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
     actualReps: set.actualReps ?? undefined,
     completed: set.completed,
     id: set.id,
+    intensityTag: set.intensityTag ?? undefined,
     notes: set.notes ?? undefined,
     previousPerformance: previousPerformance ? serializePreviousSetPerformance(previousPerformance) : undefined,
     rir: set.rir ?? undefined,
@@ -627,6 +640,24 @@ function formatNullablePlanNumber(value: number | null | undefined) {
 
 function formatRepTargetForCoachUpdate(set: ExerciseSet) {
   return set.targetRepsMin ? `${set.targetRepsMin}-${set.targetReps}` : String(set.targetReps)
+}
+
+/**
+ * "set 2 RP · set 3 DROP", or "—" when the coach tagged nothing. Trainees read
+ * this inside the coach-update banner, so it names the set the method landed on
+ * and uses the same badge they see in the logger.
+ */
+function formatSetIntensityTagsForCoachUpdate(assignments: readonly SetIntensityAssignment[]) {
+  if (!assignments.length) return "—"
+
+  return assignments.map(({ setNumber, tag }) => `set ${setNumber} ${SET_INTENSITY_TAG_BADGES[tag]}`).join(" · ")
+}
+
+function readSetIntensityAssignmentsFromSets(sets: readonly ExerciseSet[]): SetIntensityAssignment[] {
+  return sets
+    .filter((set): set is ExerciseSet & { intensityTag: SetIntensityTag } => set.intensityTag != null)
+    .map((set) => ({ setNumber: set.setNumber, tag: set.intensityTag }))
+    .sort((left, right) => left.setNumber - right.setNumber)
 }
 
 function normalizeProgramMatchLabel(value: string) {
@@ -863,6 +894,20 @@ function buildExerciseCoachUpdate(
     }
   }
 
+  const previousTags = formatSetIntensityTagsForCoachUpdate(readSetIntensityAssignmentsFromSets(previousSets))
+  const currentTags = formatSetIntensityTagsForCoachUpdate(readSetIntensityAssignmentsFromSets(currentSets))
+
+  if (previousTags !== currentTags) {
+    changes.push(`Method ${previousTags} → ${currentTags}`)
+    primaryUpdate ??= {
+      field: "intensityTag",
+      newValue: currentTags,
+      oldValue: previousTags,
+      text: "",
+      type: "edit",
+    }
+  }
+
   if (!primaryUpdate || changes.length === 0) return undefined
 
   return {
@@ -972,6 +1017,22 @@ function buildExerciseCoachUpdateFromProgramInput(
     }
   }
 
+  const previousTags = formatSetIntensityTagsForCoachUpdate(readSetIntensityAssignmentsFromSets(previousSets))
+  const nextTags = formatSetIntensityTagsForCoachUpdate(
+    normalizeSetIntensityAssignments(nextExercise.setIntensityTags, normalizeCoachProgramInputSetCount(nextExercise.sets)),
+  )
+
+  if (previousTags !== nextTags) {
+    changes.push(`Method ${previousTags} → ${nextTags}`)
+    primaryUpdate ??= {
+      field: "intensityTag",
+      newValue: nextTags,
+      oldValue: previousTags,
+      text: "",
+      type: "edit",
+    }
+  }
+
   if (!primaryUpdate || changes.length === 0) return undefined
 
   return {
@@ -1007,12 +1068,19 @@ function hasWorkoutInputChanged(
     const nextRepTarget = normalizeRepTarget(nextExercise.reps, nextExercise.repsMin)
     const nextRir = normalizeCoachProgramInputOptionalInt(nextExercise.rir)
     const nextWeight = normalizeCoachProgramInputWeight(nextExercise.weight)
+    const previousTags = formatSetIntensityTagsForCoachUpdate(
+      readSetIntensityAssignmentsFromSets(previousExercise.sets),
+    )
+    const nextTags = formatSetIntensityTagsForCoachUpdate(
+      normalizeSetIntensityAssignments(nextExercise.setIntensityTags, nextSetCount),
+    )
 
     return (
       (previousFirstSet.targetRepsMin ?? undefined) !== nextRepTarget.repsMin ||
       previousFirstSet.targetReps !== nextRepTarget.reps ||
       (previousFirstSet.rir ?? undefined) !== nextRir ||
-      (previousFirstSet.weight ?? undefined) !== nextWeight
+      (previousFirstSet.weight ?? undefined) !== nextWeight ||
+      previousTags !== nextTags
     )
   })
 }
@@ -1254,6 +1322,7 @@ function serializeProgram(program: ProgramRecord, options?: { viewerId?: string 
     duration: program.duration,
     id: program.id,
     name: program.name,
+    startDate: program.startDate ? formatUtcDateOnly(program.startDate) : undefined,
     workouts: program.workouts
       .slice()
       .sort((left, right) => {
@@ -1572,6 +1641,42 @@ function getRecurringWorkoutPlannedDateKey(workout: { scheduledDate?: string; sc
   return formatUtcDateOnly(addUtcDays(weekStart, displayIndex))
 }
 
+/**
+ * The day a program's week 1 begins for one trainee.
+ *
+ * A coach-set `startDate` pins every trainee to the same calendar week. Without
+ * one the anchor stays the trainee's own assignment, which is how every program
+ * behaved before the field existed.
+ */
+function normalizeProgramStartDateInput(value: string | null | undefined) {
+  if (value == null || value.trim() === "") return null
+
+  const parsed = parseScheduledDateInput(value)
+
+  if (!parsed) {
+    throw new AuthServiceError("Ngày bắt đầu chương trình không hợp lệ.", 400)
+  }
+
+  return parsed
+}
+
+function resolveProgramAnchorDate(startDate: Date | null | undefined, assignedAt: Date) {
+  return startDate ?? assignedAt
+}
+
+/**
+ * Whether the program has reached `weekStart` yet.
+ *
+ * `getAssignmentWeekIndex` clamps a negative elapsed count to week 0, which is
+ * right for an assignment (nobody is before their own assignment week) but wrong
+ * for a coach-set start date in the future: without this the program would serve
+ * its first week immediately. The client's `resolveProgramWeekForWeekStart`
+ * already reports `before` for the same case, so the two would disagree.
+ */
+function hasAssignmentStarted(anchorDate: Date, weekStart: Date) {
+  return weekStart.getTime() >= startOfUtcWeek(anchorDate).getTime()
+}
+
 function getAssignmentWeekIndex(assignedAt: Date, weekStart: Date, duration: number) {
   const assignmentWeekStart = startOfUtcWeek(assignedAt)
   const elapsedWeeks = Math.floor((weekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
@@ -1609,7 +1714,8 @@ function normalizeWeekIndexForVisibility(weekIndex: number | null | undefined) {
  */
 function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "scheduledDate" | "weekIndex">>(
   workouts: T[],
-  assignedAt: Date,
+  /** The program's start date when the coach set one, else the assignment date. */
+  anchorDate: Date,
   programDuration: number,
   weekStart: Date,
 ): T[] {
@@ -1622,7 +1728,13 @@ function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "s
 
   const datedWorkouts = workouts.filter((workout) => workout.scheduledDate)
 
-  if (isAssignmentProgramFinished(assignedAt, weekStart, duration)) {
+  // Before the program starts and after it ends, only workouts pinned to a real
+  // date show. Recurring sessions belong to the weeks the program actually runs.
+  if (!hasAssignmentStarted(anchorDate, weekStart)) {
+    return datedWorkouts
+  }
+
+  if (isAssignmentProgramFinished(anchorDate, weekStart, duration)) {
     return datedWorkouts
   }
 
@@ -1633,7 +1745,7 @@ function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "s
     return datedWorkouts
   }
 
-  const currentWeekIndex = getAssignmentWeekIndex(assignedAt, weekStart, duration)
+  const currentWeekIndex = getAssignmentWeekIndex(anchorDate, weekStart, duration)
   const weeksAtOrBefore = Array.from(authoredWeeks).filter((weekIndex) => weekIndex <= currentWeekIndex)
   const effectiveWeekIndex =
     weeksAtOrBefore.length > 0 ? Math.max(...weeksAtOrBefore) : Math.min(...Array.from(authoredWeeks))
@@ -1983,9 +2095,13 @@ function buildProgramTreeCreateManyData(
         workoutId,
       })
 
+      const setCount = Math.max(1, Math.round(exercise.sets))
+      const intensityTagBySetNumber = buildSetIntensityTagMap(exercise.setIntensityTags, setCount)
+
       setRows.push(
-        ...Array.from({ length: Math.max(1, Math.round(exercise.sets)) }, (_value, setIndex) => ({
+        ...Array.from({ length: setCount }, (_value, setIndex) => ({
           id: randomUUID(),
+          intensityTag: intensityTagBySetNumber.get(setIndex + 1),
           rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
             ? Math.max(0, Math.round(exercise.rir))
             : undefined,
@@ -3324,7 +3440,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     const isPersonalProgram = assignment.program.createdById === profile.id
     const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
-      assignment.assignedAt,
+      resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
     )
@@ -3420,6 +3536,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       duration: a.program.duration,
       id: a.program.id,
       name: a.program.name,
+      startDate: a.program.startDate ? formatUtcDateOnly(a.program.startDate) : undefined,
     })),
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
@@ -3513,7 +3630,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
     const isPersonalProgram = assignment.program.createdById === profile.id
     const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
-      assignment.assignedAt,
+      resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
     )
@@ -3692,7 +3809,19 @@ async function createWorkoutLogForTrainee(
   const prescribedById = new Map(serializedWorkout.exercises.map((entry) => [entry.id, entry]))
   const enrichedSnapshot = enrichExerciseSnapshot(input.exercises.map((entry) => {
     const prescribed = prescribedById.get(entry.id)
-    return { ...entry, originalVariationId: prescribed?.originalVariationId, order: prescribed?.order }
+    // The method tag belongs to the coach's plan, not to what the client posts
+    // back: take it from the stored workout by set number so a stale or edited
+    // payload cannot rewrite what the coach prescribed. Sets the trainee added
+    // beyond the plan have no tag.
+    const prescribedTagBySetNumber = new Map(
+      (prescribed?.sets ?? []).flatMap((set) => (set.intensityTag ? [[set.setNumber, set.intensityTag] as const] : [])),
+    )
+    return {
+      ...entry,
+      originalVariationId: prescribed?.originalVariationId,
+      order: prescribed?.order,
+      sets: entry.sets.map((set) => ({ ...set, intensityTag: prescribedTagBySetNumber.get(set.setNumber) })),
+    }
   }), profilesByVariationId).snapshot
 
   // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
@@ -3814,6 +3943,8 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
     exercises: input.exercises.map((exercise, exerciseIndex) => {
       const repTarget = normalizeRepTarget(exercise.reps, exercise.repsMin, `Bài tập ${exerciseIndex + 1}`)
 
+      const sets = Math.max(1, Math.round(exercise.sets))
+
       return {
         notes: exercise.notes?.trim() || undefined,
         reps: repTarget.reps,
@@ -3821,9 +3952,10 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
         rir: typeof exercise.rir === "number" && Number.isFinite(exercise.rir)
           ? Math.max(0, Math.round(exercise.rir))
           : undefined,
+        setIntensityTags: normalizeSetIntensityAssignments(exercise.setIntensityTags, sets),
         variationId: exercise.variationId,
         restTime: exercise.restTime ? Math.max(0, Math.round(exercise.restTime)) : undefined,
-        sets: Math.max(1, Math.round(exercise.sets)),
+        sets,
         weight:
           exercise.weight != null && Number.isFinite(exercise.weight)
             ? Math.max(0, exercise.weight)
@@ -3839,21 +3971,26 @@ async function normalizePersonalWorkoutInput(input: PersonalWorkoutInput): Promi
 }
 
 function buildPersonalWorkoutExerciseCreateData(exercises: NormalizedPersonalWorkoutInput["exercises"]) {
-  return exercises.map((exercise, exerciseIndex) => ({
-    notes: exercise.notes,
-    order: exerciseIndex + 1,
-    restTime: exercise.restTime,
-    sets: {
-      create: Array.from({ length: exercise.sets }, (_value, setIndex) => ({
-        setNumber: setIndex + 1,
-        targetRepsMin: exercise.repsMin,
-        targetReps: exercise.reps,
-        rir: exercise.rir,
-        weight: exercise.weight,
-      })),
-    },
-    variationId: exercise.variationId,
-  }))
+  return exercises.map((exercise, exerciseIndex) => {
+    const intensityTagBySetNumber = buildSetIntensityTagMap(exercise.setIntensityTags, exercise.sets)
+
+    return {
+      notes: exercise.notes,
+      order: exerciseIndex + 1,
+      restTime: exercise.restTime,
+      sets: {
+        create: Array.from({ length: exercise.sets }, (_value, setIndex) => ({
+          intensityTag: intensityTagBySetNumber.get(setIndex + 1),
+          setNumber: setIndex + 1,
+          targetRepsMin: exercise.repsMin,
+          targetReps: exercise.reps,
+          rir: exercise.rir,
+          weight: exercise.weight,
+        })),
+      },
+      variationId: exercise.variationId,
+    }
+  })
 }
 
 async function createPersonalWorkoutForTrainee(
@@ -4212,6 +4349,7 @@ async function copyTraineeProgramWeek(profile: SerializedProfile, programId: str
                   restTime: exercise.restTime,
                   sets: {
                     create: exercise.sets.map((set) => ({
+                      intensityTag: set.intensityTag,
                       notes: set.notes,
                       rir: set.rir,
                       setNumber: set.setNumber,
@@ -4482,6 +4620,7 @@ async function createCoachProgram(
     description?: string | null
     difficulty: ProgramDifficulty
     duration: number
+    startDate?: string | null
     name: string
     /** Notion page this program came from. Lets a later import find and update it. */
     notionSourceId?: string | null
@@ -4566,6 +4705,7 @@ async function createCoachProgram(
         duration: Math.max(1, Math.round(input.duration)),
         id: programId,
         name: input.name.trim(),
+        startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
         notionSourceId: input.notionSourceId?.trim() || undefined,
         notionSyncedAt: input.notionSourceId?.trim() ? new Date() : undefined,
         googleSpreadsheetId: input.googleSpreadsheetId?.trim() || undefined,
@@ -4783,6 +4923,7 @@ async function updateCoachProgram(
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
         name: input.name.trim(),
+        startDate: normalizeProgramStartDateInput(input.startDate),
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
       where: {
@@ -4872,6 +5013,7 @@ async function adjustCoachProgramForTrainee(
     difficulty: ProgramDifficulty
     duration: number
     name: string
+    startDate?: string | null
     workouts: Array<{
       duration?: number
       exercises: Array<{
@@ -4962,6 +5104,7 @@ async function adjustCoachProgramForTrainee(
         googleSpreadsheetId: existingProgram.googleSpreadsheetId,
         googleSheetName: existingProgram.googleSheetName,
         name: input.name.trim(),
+        startDate: normalizeProgramStartDateInput(input.startDate) ?? existingProgram.startDate,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
     })
@@ -5257,6 +5400,7 @@ async function swapExerciseForTraineeFromWorkout(
           actualReps: sourceSet.actualReps ?? undefined,
           completed: sourceSet.completed,
           id: newSetId,
+          intensityTag: sourceSet.intensityTag ?? undefined,
           notes: sourceSet.notes ?? undefined,
           rir: sourceSet.rir ?? undefined,
           setNumber: sourceSet.setNumber,
@@ -6938,6 +7082,7 @@ export {
   adjustCoachProgramForTrainee,
   archiveCoachProgram,
   assignCoachProgramToTrainee,
+  buildProgramTreeCreateManyData,
   copyTraineeProgramWeek,
   createBodyMetricForTrainee,
   createBodyMetricForCurrentTrainee,

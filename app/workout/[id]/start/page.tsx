@@ -35,6 +35,7 @@ import { useCreateWorkoutLog, useSwapWorkoutExercise, useWorkoutDetail } from "@
 import { useExercises } from "@/lib/queries/exercises"
 import { cn } from "@/lib/utils"
 import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
+import { IntensityTagBadge, getIntensityTagLabel } from "@/components/workout/set-intensity-tag"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -425,7 +426,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     set.previousPerformance?.reps != null &&
     programTarget?.reps != null &&
     set.previousPerformance.reps > programTarget.reps
-
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
     <div className={cn(completed ? "bg-muted" : "bg-transparent")}>
@@ -439,15 +439,36 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "transition-colors duration-[180ms]",
         )}
       >
-        {/* Set number */}
-        <span
-          className={cn(
-            "min-w-0 text-center font-mono text-base font-semibold",
-            completed ? "text-muted-foreground" : "text-foreground",
-          )}
-        >
-          {setIndex + 1}
-        </span>
+        {/* Set number, with the method the coach prescribed for this set */}
+        {set.intensityTag ? (
+          <span
+            className="flex min-w-0 flex-col items-center justify-center gap-0.5 text-center"
+            title={getIntensityTagLabel(set.intensityTag, messages)}
+            aria-label={messages.workoutPage.intensitySetMethodLabel(
+              setIndex + 1,
+              getIntensityTagLabel(set.intensityTag, messages),
+            )}
+          >
+            <span
+              className={cn(
+                "font-mono text-base font-semibold leading-none",
+                completed ? "text-muted-foreground" : "text-foreground",
+              )}
+            >
+              {setIndex + 1}
+            </span>
+            <IntensityTagBadge tag={set.intensityTag} />
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "min-w-0 text-center font-mono text-base font-semibold",
+              completed ? "text-muted-foreground" : "text-foreground",
+            )}
+          >
+            {setIndex + 1}
+          </span>
+        )}
 
         {/* Previous */}
         <span
@@ -593,7 +614,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                 </span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
                 <FileText className="mr-2 h-4 w-4" />
                 {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}

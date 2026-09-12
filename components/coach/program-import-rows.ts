@@ -1,4 +1,5 @@
 import type { CreateCoachProgramInput, ExerciseVariationOption } from "@/lib/fitness/types"
+import { parseSetIntensityMethodCell } from "@/lib/workout/intensity-tag"
 import { parseRepTargetText } from "@/lib/workout-reps"
 
 /**
@@ -16,6 +17,8 @@ import { parseRepTargetText } from "@/lib/workout-reps"
 type ProgramImportRow = {
   notes?: string
   exerciseName: string
+  /** Raw `Method` cell, e.g. "mrm", "all:drop", "1:warmup,3:mrm", "-, -, rp". */
+  method?: string
   /** Position inside the workout. Falls back to the order rows arrive in. */
   order?: number
   /** Raw text so ranges such as "8-12" survive; parsed with the shared helper. */
@@ -186,6 +189,13 @@ function buildWorkoutsFromRows(
       return
     }
 
+    const parsedMethod = parseSetIntensityMethodCell(row.method, sets)
+
+    if (!parsedMethod.assignments) {
+      issues.push({ message: `Dòng ${row.sourceRow}: ${parsedMethod.error}`, sourceRow: row.sourceRow })
+      return
+    }
+
     if (!row.variationId && !row.exerciseName) {
       issues.push({ message: `Dòng ${row.sourceRow}: cần tên Exercise hoặc variation id.`, sourceRow: row.sourceRow })
       return
@@ -213,6 +223,7 @@ function buildWorkoutsFromRows(
       repsMin: repTarget.repsMin,
       rir: row.rir,
       restTime: row.restTime,
+      setIntensityTags: parsedMethod.assignments.length ? parsedMethod.assignments : undefined,
       sets,
       variationId: variation.id,
       weight: typeof row.weight === "number" && Number.isFinite(row.weight) ? Math.max(0, row.weight) : undefined,
@@ -228,7 +239,10 @@ function buildWorkoutsFromRows(
         weekIndex,
       }
 
-      workout.exercises.push({ ...exercise })
+      workout.exercises.push({
+        ...exercise,
+        setIntensityTags: exercise.setIntensityTags?.map((assignment) => ({ ...assignment })),
+      })
       grouped.set(key, workout)
     }
   })

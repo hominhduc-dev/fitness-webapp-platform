@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { useAddWorkoutToProgram, useCopyProgramWeek, useUpdateTraineeProgram, useTraineeProgram, useWorkouts } from "@/lib/queries/workouts"
 import type { WorkoutCollection } from "@/lib/fitness/types"
-import { clampWeeks, resolveCurrentWeekProgress } from "@/lib/fitness/program-week"
+import { clampWeeks, resolveCurrentWeekProgress, resolveProgramAnchor } from "@/lib/fitness/program-week"
 import type { CoachProgram } from "@/lib/fitness/types"
 import type { AppLocale } from "@/lib/i18n/config"
 import type { Workout, WorkoutLog } from "@/lib/types"
@@ -57,7 +57,10 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
   const { locale, messages } = useLocale()
   const totalWeeks = clampWeeks(program.duration)
 
-  const progress = useMemo(() => resolveCurrentWeekProgress(assignedAt, totalWeeks), [assignedAt, totalWeeks])
+  const progress = useMemo(
+    () => resolveCurrentWeekProgress(resolveProgramAnchor(program.startDate, assignedAt), totalWeeks),
+    [assignedAt, program.startDate, totalWeeks],
+  )
 
   const currentWeekIndex =
     progress?.kind === "active" ? progress.weekIndex : progress?.kind === "completed" ? totalWeeks - 1 : 0

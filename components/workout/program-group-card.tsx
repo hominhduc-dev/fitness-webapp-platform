@@ -7,7 +7,7 @@ import { useMemo } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { resolveCurrentWeekProgress } from "@/lib/fitness/program-week"
+import { resolveCurrentWeekProgress, resolveProgramAnchor } from "@/lib/fitness/program-week"
 import type { TraineeProgram } from "@/lib/fitness/types"
 import type { Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -29,8 +29,8 @@ export function ProgramGroupCard({ program, workouts }: ProgramGroupCardProps) {
   const { messages } = useLocale()
 
   const progress = useMemo(
-    () => resolveCurrentWeekProgress(program.assignedAt, program.duration),
-    [program.assignedAt, program.duration],
+    () => resolveCurrentWeekProgress(resolveProgramAnchor(program.startDate, program.assignedAt), program.duration),
+    [program.assignedAt, program.duration, program.startDate],
   )
 
   const isCompleted = progress?.kind === "completed"

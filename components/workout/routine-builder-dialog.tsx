@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
+import { SetIntensityTagPicker } from "@/components/workout/set-intensity-tag"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -22,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { useCreateWorkout, useUpdateWorkout } from "@/lib/queries/workouts"
 import { useExercises } from "@/lib/queries/exercises"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
+import { normalizeSetIntensityAssignments, readSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 import type { AppMessages } from "@/lib/i18n/messages"
 import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug, Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -46,6 +48,8 @@ export type RoutineExerciseDraft = {
   rir: string
   restTime?: string
   notes?: string
+  /** Methods the coach prescribed per set; sets left out are normal sets. */
+  setIntensityTags?: SetIntensityAssignment[]
 }
 
 export type RoutineDraftData = {
@@ -127,6 +131,7 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
     rir: set0?.rir != null ? String(set0.rir) : "",
     restTime: exercise.restTime != null ? String(exercise.restTime) : "",
     notes: exercise.notes ?? "",
+    setIntensityTags: readSetIntensityAssignments(exercise.sets),
   }
 }
 
@@ -196,14 +201,17 @@ export function buildRoutineWorkoutPayload(
       const parsedWeight = Number(ex.weight)
       const parsedRir = Number(ex.rir)
       const parsedRest = Number(ex.restTime)
+      const sets = Math.max(1, Number(ex.sets) || 1)
+      const setIntensityTags = normalizeSetIntensityAssignments(ex.setIntensityTags, sets)
       return {
         notes: ex.notes?.trim() || undefined,
         reps: repTarget.reps,
         repsMin: repTarget.repsMin,
         rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
         restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
+        setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
         variationId: ex.variationId,
-        sets: Math.max(1, Number(ex.sets) || 1),
+        sets,
         weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
       }
     })
@@ -310,6 +318,7 @@ export function RoutineBuilderDialog({
           rir: "",
           restTime: "",
           notes: "",
+          setIntensityTags: [],
         },
       ])
     } else if (pickerTarget) {
@@ -573,6 +582,13 @@ export function RoutineBuilderDialog({
                       placeholder="90"
                     />
                   </div>
+
+                  <SetIntensityTagPicker
+                    messages={messages}
+                    setCount={Number(ex.sets) || 0}
+                    value={ex.setIntensityTags}
+                    onChange={(setIntensityTags) => updateExercise(ex.id, { setIntensityTags })}
+                  />
 
                   <textarea
                     value={ex.notes ?? ""}

@@ -366,9 +366,19 @@
 .pl-safe { padding-left: env(safe-area-inset-left); }
 .pr-safe { padding-right: env(safe-area-inset-right); }
 
-/* iOS Safari auto-zooms any focused field whose font is < 16px.
-   Scope the 16px floor to iOS only so other platforms keep their sizing. */
-@supports (-webkit-touch-callout: none) {
+/* iOS Safari auto-zooms any focused field whose font is < 16px, so touch
+   devices get a 16px floor. Desktop keeps its denser sizing.
+
+   Gated on `pointer: coarse` rather than on `@supports
+   (-webkit-touch-callout: none)`, which was really an "is this WebKit" probe.
+   That probe is false in Blink, so it never fired in Chrome's device mode while
+   always firing on a real iPhone: every dense field rendered 14px in DevTools
+   and 16px on the phone, and the two never agreed. Chrome's device mode does
+   emulate a coarse pointer, so this version is true in both.
+
+   Unlayered on purpose. Tailwind's `text-sm` on a field would otherwise win on
+   specificity; an unlayered rule beats anything in `@layer utilities`. */
+@media (pointer: coarse) {
   input,
   select,
   textarea {

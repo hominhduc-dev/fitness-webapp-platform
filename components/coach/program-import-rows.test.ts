@@ -76,6 +76,7 @@ describe("buildWorkoutsFromRows", () => {
     expect(issues).toEqual([])
     expect(workouts).toHaveLength(8)
     // Sorted for the review screen: both days of week 1, then both of week 2.
+    // weekIndex counts from 0, matching every other producer of a program.
     expect(workouts.map((workout) => workout.weekIndex)).toEqual([0, 0, 1, 1, 2, 2, 3, 3])
     expect(workouts.map((workout) => workout.scheduledDay)).toEqual([1, 2, 1, 2, 1, 2, 1, 2])
   })
@@ -92,6 +93,7 @@ describe("buildWorkoutsFromRows", () => {
 
     expect(issues).toEqual([])
     expect(workouts).toHaveLength(2)
+    // The source counts weeks from 1, so its weeks 1 and 3 are indexes 0 and 2.
     expect(workouts.map((workout) => workout.weekIndex)).toEqual([0, 2])
     expect(workouts.map((workout) => workout.exercises[0]?.rir)).toEqual([3, 1])
   })

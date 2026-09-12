@@ -1,6 +1,7 @@
 import { CoachRequestStatus, ProgramDifficulty } from "@prisma/client"
 import { Router } from "express"
 import { parseMuscleListValue, parseMuscleProfileInput } from "../domain/muscle-profile"
+import { isSetIntensityTag, type SetIntensityAssignment } from "../domain/set-intensity-tag"
 
 import { requireCurrentProfile } from "../services/auth.service"
 import {
@@ -76,6 +77,27 @@ function parseExerciseImportRows(body: Record<string, unknown>) {
     : []
 }
 
+/**
+ * Reads the per-set method tags a coach assigned. Anything that is not a known
+ * tag or a positive set number is dropped here; the service clamps what remains
+ * to the exercise's actual set count.
+ */
+function parseSetIntensityTags(value: unknown): SetIntensityAssignment[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const assignments = value.flatMap((entry: unknown) => {
+    const record = entry && typeof entry === "object" ? (entry as { setNumber?: unknown; tag?: unknown }) : {}
+    const setNumber = Number(record.setNumber)
+
+    if (!Number.isInteger(setNumber) || setNumber < 1) return []
+    if (!isSetIntensityTag(record.tag)) return []
+
+    return [{ setNumber, tag: record.tag }]
+  })
+
+  return assignments.length ? assignments : undefined
+}
+
 function parseProgramInput(body: Record<string, unknown>) {
   return {
     assignToUserIds: Array.isArray(body.assignToUserIds)
@@ -87,6 +109,7 @@ function parseProgramInput(body: Record<string, unknown>) {
       : ProgramDifficulty.beginner,
     duration: Number(body.duration ?? 0),
     name: String(body.name ?? ""),
+    startDate: typeof body.startDate === "string" ? body.startDate : null,
     notionSourceId: typeof body.notionSourceId === "string" ? body.notionSourceId : undefined,
     googleSpreadsheetId: typeof body.googleSpreadsheetId === "string" ? body.googleSpreadsheetId : undefined,
     googleSheetName: typeof body.googleSheetName === "string" ? body.googleSheetName : undefined,
@@ -112,6 +135,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                     repsMin?: unknown
                     rir?: unknown
                     restTime?: unknown
+                    setIntensityTags?: unknown
                     variationId?: unknown
                     reps?: unknown
                     sets?: unknown
@@ -123,6 +147,7 @@ function parseProgramInput(body: Record<string, unknown>) {
                     repsMin: safeExercise.repsMin == null ? undefined : Number(safeExercise.repsMin),
                     rir: safeExercise.rir == null ? undefined : Number(safeExercise.rir),
                     restTime: safeExercise.restTime == null ? undefined : Number(safeExercise.restTime),
+                    setIntensityTags: parseSetIntensityTags(safeExercise.setIntensityTags),
                     variationId: String(safeExercise.variationId ?? ""),
                     reps: Number(safeExercise.reps ?? 0),
                     sets: Number(safeExercise.sets ?? 0),

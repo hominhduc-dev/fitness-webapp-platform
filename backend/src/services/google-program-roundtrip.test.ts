@@ -7,13 +7,18 @@ import { createGoogleState, verifyGoogleState, GOOGLE_STATE_MAX_AGE } from "./go
 import { decryptToken, encryptToken } from "../lib/token-crypto"
 import { buildAuthorizationUrl, fetchSheetValues } from "../lib/google"
 
-const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
-const grid = () => [["Week 1"], headers, ["1", "Chest", "Bench", "Default", "v1", "3", "8-12", "40", "", "", "", "", "", "", "0", "90"], ["", "Chest", "Fly", "Default", "v2", "2", "12", "10"]]
+const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Method", "Rest (s)", "Note"]
+const grid = () => [["Week 1"], headers, ["1", "Chest", "Bench", "Default", "v1", "3", "8-12", "40", "", "", "", "", "", "", "0", "3:mrm", "90"], ["", "Chest", "Fly", "Default", "v2", "2", "12", "10"]]
+const legacyHeaders = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
 describe("Google sheet row parsing", () => {
   it("carries merged Day values, positional IDs, rep ranges and zero RIR", () => {
     const rows = parseGoogleProgramRows(grid())
-    expect(rows[0]).toMatchObject({ sourceRow: 3, scheduledDay: 1, order: 1, variationId: "v1", reps: "8-12", rir: 0, restTime: 90 })
+    expect(rows[0]).toMatchObject({ sourceRow: 3, scheduledDay: 1, order: 1, variationId: "v1", reps: "8-12", rir: 0, restTime: 90, method: "3:mrm" })
     expect(rows[1]).toMatchObject({ sourceRow: 4, scheduledDay: 1, order: 2 })
+  })
+  it("still reads sheets authored before the Method column existed", () => {
+    const rows = parseGoogleProgramRows([["Week 1"], legacyHeaders, ["1", "Chest", "Bench", "Default", "v1", "3", "8-12", "40", "", "", "", "", "", "", "0", "90"]])
+    expect(rows[0]).toMatchObject({ restTime: 90, method: undefined })
   })
   it("rejects old or shifted layouts and does not guess a missing variation ID", () => {
     expect(() => parseGoogleProgramRows([["Day", "Exercise"]])).toThrow()

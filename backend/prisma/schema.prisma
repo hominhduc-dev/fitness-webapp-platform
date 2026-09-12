@@ -36,6 +36,15 @@ enum WorkoutKind {
   other
 }
 
+enum SetIntensityTag {
+  mrm
+  drop_set
+  rest_pause
+  cluster
+  failure
+  warmup
+}
+
 enum CoachRequestStatus {
   pending
   approved
@@ -313,6 +322,9 @@ model Program {
   name            String
   description     String?
   duration        Int
+  /// Day the program's week 1 begins. Null keeps the old behaviour, where the
+  /// anchor is the week each trainee was assigned.
+  startDate       DateTime?           @db.Date
   difficulty      ProgramDifficulty
   workoutsPerWeek Int
   isAIGenerated   Boolean             @default(false)
@@ -421,6 +433,7 @@ model ExerciseSet {
   actualReps        Int?
   weight            Float?
   rir               Int?
+  intensityTag      SetIntensityTag?
   notes             String?
   completed         Boolean         @default(false)
   workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)

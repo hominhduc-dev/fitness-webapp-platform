@@ -1,3 +1,7 @@
+import type { IntensityTag, SetIntensityAssignment } from "@/lib/workout/intensity-tag"
+
+export type { IntensityTag, SetIntensityAssignment }
+
 export type UserRole = "trainee" | "coach" | "admin"
 
 export interface User {
@@ -112,6 +116,8 @@ export interface ExerciseSet {
   targetRepsMin?: number
   targetReps: number
   actualReps?: number
+  /** Method the coach prescribed for this set; absent means a normal set. */
+  intensityTag?: IntensityTag
   weight?: number
   rir?: number // Reps in Reserve
   notes?: string
@@ -122,7 +128,7 @@ export interface ExerciseSet {
 export type CoachUpdateType = "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"
 
 export interface CoachUpdate {
-  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
+  field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes" | "intensityTag"
   newValue?: number | string
   oldValue?: number | string
   text: string
@@ -274,6 +280,8 @@ export interface Program {
   name: string
   description?: string
   duration: number // weeks
+  /** `YYYY-MM-DD`. When set, week 1 starts here for every assigned trainee. */
+  startDate?: string
   difficulty: "beginner" | "intermediate" | "advanced"
   workoutsPerWeek: number
   workouts: Workout[]

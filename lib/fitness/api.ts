@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/auth/api"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
+import type { IntensityTag } from "@/lib/workout/intensity-tag"
 import type {
   DailyNutrition,
   ExerciseBase,
@@ -67,6 +68,7 @@ type SerializedExerciseSet = {
   actualReps?: number
   completed: boolean
   id: string
+  intensityTag?: IntensityTag
   notes?: string
   previousPerformance?: {
     completedAt: string
@@ -84,7 +86,7 @@ type SerializedExerciseSet = {
 
 type SerializedWorkoutExercise = {
   coachUpdate?: {
-    field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes"
+    field?: "weight" | "rir" | "sets" | "reps" | "exercise" | "notes" | "intensityTag"
     newValue?: number | string
     oldValue?: number | string
     text: string
@@ -199,6 +201,19 @@ export type GoogleImportResult = {
   spreadsheetId: string
   sheetName: string
   existingProgram: { id: string; name: string; archivedAt: string | null; assignedTraineeCount: number } | null
+}
+export type GoogleTemplateResult = {
+  exerciseCount: number
+  folderId?: string
+  /** Set only when the app filed the template in its own folder. */
+  folderName?: string
+  sheetName: string
+  spreadsheetId: string
+  spreadsheetUrl: string
+  title: string
+}
+export async function createGoogleProgramTemplate(token: string, input?: { folder?: string; title?: string }) {
+  return (await request<ApiEnvelope<GoogleTemplateResult>>("/api/coach/google/program-template", token, { method: "POST", body: JSON.stringify(input ?? {}) })).data
 }
 export async function fetchGoogleConnection(token: string) {
   return (await request<ApiEnvelope<GoogleConnectionStatus>>("/api/coach/google/connection", token, { cache: "no-store" })).data
@@ -562,6 +577,7 @@ function mapExerciseSet(set: SerializedExerciseSet): ExerciseSet {
     actualReps: set.actualReps,
     completed: set.completed,
     id: set.id,
+    intensityTag: set.intensityTag,
     notes: set.notes,
     previousPerformance: set.previousPerformance
       ? {
@@ -756,6 +772,7 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
     duration: program.duration,
     id: program.id,
     name: program.name,
+    startDate: program.startDate,
     workouts: program.workouts.map(mapWorkout),
     workoutsPerWeek: program.workoutsPerWeek,
   }
@@ -1361,7 +1378,9 @@ async function createWorkoutLog(accessToken: string, workoutId: string, input: W
       ...input,
       exercises: input.exercises.map((exercise) => ({
         ...exercise,
-        sets: exercise.sets.map(({ previousPerformance, ...set }) => set),
+        // `previousPerformance` is display-only history and `intensityTag` is the
+        // coach's, re-read from the plan server-side — neither belongs in a log.
+        sets: exercise.sets.map(({ intensityTag, previousPerformance, ...set }) => set),
       })),
     }),
     method: "POST",

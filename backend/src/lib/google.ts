@@ -16,6 +16,8 @@ const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const OAUTH_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 const SHEETS_API_URL = "https://sheets.googleapis.com/v4/spreadsheets"
+const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files"
+const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
 /**
  * Read/write Sheets access. The spreadsheets scope covers all spreadsheets;
@@ -95,7 +97,78 @@ function buildAuthorizationUrl(state: string) {
   return `${OAUTH_AUTH_URL}?${params.toString()}`
 }
 
+/**
+ * Socket-level failures, not HTTP replies.
+ *
+ * Google resets idle keep-alive connections often enough that a single read
+ * fails while the very next identical one succeeds. undici surfaces that as a
+ * `TypeError: fetch failed` whose cause carries the real code, so the chain has
+ * to be walked rather than the top-level error inspected.
+ */
+const RETRYABLE_NETWORK_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EPIPE",
+  "ETIMEDOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET",
+])
+
+const READ_RETRY_ATTEMPTS = 3
+const READ_RETRY_BASE_DELAY_MS = 300
+
+function hasRetryableNetworkCause(error: unknown, depth = 0): boolean {
+  if (depth > 4 || !(error instanceof Error)) {
+    return false
+  }
+
+  // Our own timeout aborts the request. Retrying stacks another 15 s onto a call
+  // that is already too slow, so a timeout is left to fail.
+  if (error.name === "AbortError" || error.name === "TimeoutError") {
+    return false
+  }
+
+  const code = (error as { code?: unknown }).code
+
+  if (typeof code === "string" && RETRYABLE_NETWORK_CODES.has(code)) {
+    return true
+  }
+
+  return hasRetryableNetworkCause((error as { cause?: unknown }).cause, depth + 1)
+}
+
+/**
+ * Retries reads only.
+ *
+ * A GET can be repeated safely. A POST cannot: if the response is lost after
+ * Google has already processed it, a retry of `spreadsheets.create` leaves an
+ * orphan file in the coach's Drive and a retry of a values write applies twice.
+ * Those surface their failure instead.
+ */
 async function googleFetch(url: string, init: RequestInit, label: string) {
+  const attempts = (init.method ?? "GET").toUpperCase() === "GET" ? READ_RETRY_ATTEMPTS : 1
+
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await googleFetchOnce(url, init, label)
+    } catch (error) {
+      const canRetry =
+        attempt < attempts &&
+        error instanceof ExternalServiceError &&
+        error.code === "GOOGLE_UNREACHABLE" &&
+        hasRetryableNetworkCause(error.cause)
+
+      if (!canRetry) {
+        throw error
+      }
+
+      logger.warn("google read failed, retrying", { attempt, label })
+      await new Promise((resolve) => setTimeout(resolve, READ_RETRY_BASE_DELAY_MS * attempt))
+    }
+  }
+}
+
+async function googleFetchOnce(url: string, init: RequestInit, label: string) {
   const controller = new AbortController()
   const timeout = setTimeout(() => {
     controller.abort()
@@ -264,6 +337,157 @@ async function fetchSpreadsheetMeta(accessToken: string, spreadsheetId: string) 
   }
 }
 
+type CreatedSpreadsheet = {
+  spreadsheetId?: string
+  spreadsheetUrl?: string
+  sheets?: Array<{ properties?: { sheetId?: number; title?: string } }>
+}
+
+/**
+ * Creates a spreadsheet in the coach's Drive.
+ *
+ * The `drive.file` scope covers files the app itself created, so no extra consent
+ * is needed for this or for anything written to it afterwards.
+ */
+async function createSpreadsheet(accessToken: string, title: string, sheets: unknown[]) {
+  const response = await googleFetch(
+    SHEETS_API_URL,
+    {
+      body: JSON.stringify({ properties: { title }, sheets }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      method: "POST",
+    },
+    "spreadsheet_create",
+  )
+
+  const payload = (await response.json()) as CreatedSpreadsheet
+
+  if (!payload.spreadsheetId) {
+    throw new BadRequestError("Google không trả về spreadsheet vừa tạo.")
+  }
+
+  return {
+    sheetIdsByTitle: new Map(
+      (payload.sheets ?? []).flatMap((sheet) =>
+        typeof sheet.properties?.sheetId === "number" && sheet.properties.title
+          ? [[sheet.properties.title, sheet.properties.sheetId] as const]
+          : [],
+      ),
+    ),
+    spreadsheetId: payload.spreadsheetId,
+    spreadsheetUrl:
+      payload.spreadsheetUrl ?? `https://docs.google.com/spreadsheets/d/${payload.spreadsheetId}/edit`,
+  }
+}
+
+/**
+ * Writes plain values and formulas across several ranges.
+ *
+ * `USER_ENTERED` rather than `RAW` so the `=IFERROR(INDEX(...))` lookups that fill
+ * Muscle Group, Variation and the hidden id are stored as formulas, not text.
+ */
+async function updateSpreadsheetValues(
+  accessToken: string,
+  spreadsheetId: string,
+  data: Array<{ range: string; values: Array<Array<string | number>> }>,
+) {
+  const response = await googleFetch(
+    `${SHEETS_API_URL}/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`,
+    {
+      body: JSON.stringify({ data, valueInputOption: "USER_ENTERED" }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      method: "POST",
+    },
+    "spreadsheet_values_write",
+  )
+
+  return response.json()
+}
+
+/**
+ * Finds the app's own folder by name, creating it the first time.
+ *
+ * Under `drive.file` a listing only ever returns files this app created, so this
+ * cannot collide with a folder of the coach's that happens to share the name —
+ * and equally cannot find one. That is the whole reason the app keeps a folder of
+ * its own rather than asking the coach to nominate one.
+ */
+async function findOrCreateDriveFolder(accessToken: string, name: string) {
+  const query = `mimeType='${DRIVE_FOLDER_MIME_TYPE}' and name='${name.replace(/'/g, "\\'")}' and trashed=false`
+  const found = await googleFetch(
+    `${DRIVE_API_URL}?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=1`,
+    { headers: { Authorization: `Bearer ${accessToken}` }, method: "GET" },
+    "drive_folder_list",
+  )
+
+  const existing = ((await found.json()) as { files?: Array<{ id?: string }> }).files?.[0]?.id
+
+  if (existing) {
+    return existing
+  }
+
+  const created = await googleFetch(
+    `${DRIVE_API_URL}?fields=id`,
+    {
+      body: JSON.stringify({ mimeType: DRIVE_FOLDER_MIME_TYPE, name }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      method: "POST",
+    },
+    "drive_folder_create",
+  )
+
+  const folderId = ((await created.json()) as { id?: string }).id
+
+  if (!folderId) {
+    throw new ExternalServiceError("Google không trả về thư mục vừa tạo.", { code: "GOOGLE_FOLDER_MISSING" })
+  }
+
+  return folderId
+}
+
+/**
+ * Moves a file the app created into `folderId`.
+ *
+ * A new spreadsheet always lands in My Drive root, so this runs afterwards. It
+ * fails with 404 for a folder the app cannot see, which under `drive.file` means
+ * any folder it did not create itself.
+ */
+async function moveFileToFolder(accessToken: string, fileId: string, folderId: string) {
+  const response = await googleFetch(
+    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?addParents=${encodeURIComponent(folderId)}&removeParents=root&fields=id,parents`,
+    {
+      body: JSON.stringify({}),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      method: "PATCH",
+    },
+    "drive_file_move",
+  )
+
+  return response.json()
+}
+
+/**
+ * Pulls a folder id out of a pasted Drive link, or accepts a bare id.
+ *
+ * Deliberately separate from `extractSpreadsheetId`, which rejects folder links
+ * on purpose so a coach cannot import a folder as if it were a sheet.
+ */
+function extractDriveFolderId(input: string) {
+  const trimmed = input.trim()
+
+  if (!trimmed) {
+    return undefined
+  }
+
+  const fromLink = /\/folders\/([A-Za-z0-9_-]{10,})/.exec(trimmed)?.[1]
+
+  if (fromLink) {
+    return fromLink
+  }
+
+  return /^[A-Za-z0-9_-]{10,}$/.test(trimmed) ? trimmed : undefined
+}
+
 /** One spreadsheet batch is atomic; callers must validate every row before submitting. */
 async function batchUpdateSpreadsheet(accessToken: string, spreadsheetId: string, requests: unknown[]) {
   const response = await googleFetch(`${SHEETS_API_URL}/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
@@ -322,7 +546,11 @@ export {
   EXPIRY_SKEW_MS,
   exchangeCodeForTokens,
   extractSpreadsheetId,
+  createSpreadsheet,
+  extractDriveFolderId,
   fetchGoogleEmail,
+  findOrCreateDriveFolder,
+  moveFileToFolder,
   fetchSheetValues,
   fetchSpreadsheetMeta,
   isGoogleOAuthConfigured,
@@ -330,4 +558,5 @@ export {
   requireGoogleOAuthConfig,
   revokeToken,
   SCOPES,
+  updateSpreadsheetValues,
 }

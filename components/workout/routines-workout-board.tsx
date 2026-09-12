@@ -53,10 +53,27 @@ export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, pr
   const workouts = data?.workouts ?? initialWorkouts
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
+  const matchesFilter = useMemo(
+    () => (workout: Workout) => filter === "all" || inferRoutineTag(workout) === filter,
+    [filter],
+  )
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])
-  const visibleWorkouts = useMemo(
-    () => reusableWorkouts.filter((workout) => filter === "all" || inferRoutineTag(workout) === filter),
-    [filter, reusableWorkouts],
+  const visibleWorkouts = useMemo(() => reusableWorkouts.filter(matchesFilter), [matchesFilter, reusableWorkouts])
+
+  /**
+   * Sessions pinned to a single date rather than to a weekday.
+   *
+   * They used to be filtered out of this board entirely, which left a routine a
+   * trainee created for one date with nowhere to be edited or deleted: the card
+   * that carries those two buttons only exists here. Newest first, because the
+   * one just created is the one being looked for.
+   */
+  const datedWorkouts = useMemo(
+    () =>
+      workouts
+        .filter((workout) => workout.scheduledDate && matchesFilter(workout))
+        .sort((left, right) => new Date(right.scheduledDate!).getTime() - new Date(left.scheduledDate!).getTime()),
+    [matchesFilter, workouts],
   )
 
   // A personal routine is wrapped in a synthetic one-week program by
@@ -93,8 +110,9 @@ export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, pr
   }, [multiWeekById, visibleWorkouts])
 
   // The heading sits directly above the grid, so it counts what is actually
-  // rendered: one entry per program card plus each standalone routine.
-  const cardCount = programGroups.length + standaloneWorkouts.length
+  // rendered: one entry per program card, each standalone routine, and each
+  // one-off below them.
+  const cardCount = programGroups.length + standaloneWorkouts.length + datedWorkouts.length
 
   return (
     <>
@@ -125,7 +143,7 @@ export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, pr
         ))}
       </div>
 
-      {cardCount > 0 ? (
+      {programGroups.length + standaloneWorkouts.length > 0 ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
           {programGroups.map((group) => (
             <ProgramGroupCard key={group.program.id} program={group.program} workouts={group.workouts} />
@@ -134,7 +152,25 @@ export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, pr
             <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
           ))}
         </div>
-      ) : (
+      ) : null}
+
+      {datedWorkouts.length > 0 ? (
+        <section className={programGroups.length + standaloneWorkouts.length > 0 ? "mt-8" : undefined}>
+          <div className="mb-3.5">
+            <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground">
+              {messages.workoutPage.oneOffSessions}
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{messages.workoutPage.oneOffSessionsCopy}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {datedWorkouts.map((workout) => (
+              <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {cardCount === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center">
           <p className="text-sm font-medium text-foreground">{messages.workoutPage.noRoutinesTitle}</p>
           <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.noRoutinesCopy}</p>
@@ -142,7 +178,7 @@ export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, pr
             <CreateRoutineButton />
           </div>
         </div>
-      )}
+      ) : null}
     </>
   )
 }

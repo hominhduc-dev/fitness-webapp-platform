@@ -23,7 +23,7 @@ describe("Google export batch across weeks", () => {
     mocks.programs.mockResolvedValueOnce([{ id: "program", googleSpreadsheetId: "spreadsheet", googleSheetName: "Week 1" }]).mockResolvedValueOnce([{ id: "program", assignments: [{ userId: "trainee" }] }])
     mocks.logCount.mockResolvedValue(0)
     mocks.values.mockResolvedValue([["Week 1"], headers, ["1", "Chest", "Bench", "Default", "v1", "7", "10"]])
-    mocks.logs.mockResolvedValue([1, 2, 3].map(week => ({ programId: "program", workoutSnapshot: { weekIndex: week, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "v1" }, sets: [{ setNumber: week === 1 ? 7 : 6, completed: true, actualReps: 10, weight: 35 }] }] })))
+    mocks.logs.mockResolvedValue([0, 1, 2].map(week => ({ programId: "program", workoutSnapshot: { weekIndex: week, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "v1" }, sets: [{ setNumber: week === 0 ? 7 : 6, completed: true, actualReps: 10, weight: 35 }] }] })))
   })
   it("duplicates every missing week before changing the source layout in one atomic batch", async () => {
     await exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a", "b", "c"])
@@ -34,7 +34,7 @@ describe("Google export batch across weeks", () => {
     expect(requests.slice(2).some((request) => request.duplicateSheet)).toBe(false)
   })
   it("sends no writes or duplicates when a later week fails preflight", async () => {
-    mocks.logs.mockResolvedValue([{ programId: "program", workoutSnapshot: { weekIndex: 2, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "missing" }, sets: [] }] }])
+    mocks.logs.mockResolvedValue([{ programId: "program", workoutSnapshot: { weekIndex: 1, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "missing" }, sets: [] }] }])
     await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/Không khớp/)
     expect(mocks.batch).not.toHaveBeenCalled()
   })
