@@ -1,19 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { ChevronLeft, ChevronRight, Dumbbell, UserPlus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { usePathname, useSearchParams } from "next/navigation"
+import { Dumbbell, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useAuth } from "@/components/providers/auth-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
 import { fetchCoachNavCounts } from "@/lib/fitness/api"
 import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
+import { BaseSidebar } from "@/components/layout/base-sidebar"
 
 interface SidebarProps {
   role?: AppRole
@@ -33,63 +32,30 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
   }
 
   const traineeNavItems = getTraineeNavItems(messages)
-  const navItems = traineeNavItems
 
   return (
-    <aside
-      className={cn(
-        "glass-surface sticky top-0 hidden h-dvh flex-col border-r border-border bg-sidebar transition-all duration-300 md:flex",
-        collapsed ? "w-16" : "w-64",
-      )}
-    >
-      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-        {!collapsed && (
-          <Link href={getRoleLandingPath(role)} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Dumbbell className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
-          </Link>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(collapsed && "mx-auto")}
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-        {navItems.map((item) => {
-          const isActive = isNavItemActive(pathname, item)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                isActive
-                  ? "bg-primary-soft text-primary shadow-sm"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                collapsed && "justify-center px-2",
-              )}
-            >
-              <item.icon className={cn("h-5 w-5 shrink-0 transition-transform", isActive && "scale-105")} />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          )
-        })}
-      </nav>
-
-      <div className="shrink-0 border-t border-sidebar-border p-2">
+    <BaseSidebar
+      collapsible
+      collapsed={collapsed}
+      onToggleCollapse={() => setCollapsed(!collapsed)}
+      sections={[{ items: traineeNavItems }]}
+      isActiveItem={(item) => isNavItemActive(pathname, item)}
+      activeStyle="primary"
+      brand={
+        <Link href={getRoleLandingPath(role)} className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <Dumbbell className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+        </Link>
+      }
+      footer={
         <SidebarAccountMenu
           collapsed={collapsed}
-          extraActions={role === "trainee" ? [{ href: "/coach/find", icon: UserPlus, label: messages.common.addCoach }] : []}
+          extraActions={[{ href: "/coach/find", icon: UserPlus, label: messages.common.addCoach }]}
         />
-      </div>
-    </aside>
+      }
+    />
   )
 }
 
@@ -113,84 +79,37 @@ function AdminSidebar({ pathname }: { pathname: string }) {
   const sectionItems = adminNavItems.filter((i) => !i.href.startsWith("/profile"))
   const settingsItems = adminNavItems.filter((i) => i.href.startsWith("/profile"))
 
+  const sections = [
+    { title: messages.shell.controlCenter, items: sectionItems },
+    ...(settingsItems.length > 0 ? [{ title: messages.shell.account, items: settingsItems }] : []),
+  ]
+
   return (
-    <aside className="glass-surface sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
-      <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
-        {/* Brand */}
-        <Link href={getRoleLandingPath("admin")} className="mb-4 flex items-center gap-2 px-1">
+    <BaseSidebar
+      collapsible={false}
+      sections={sections}
+      isActiveItem={isAdminItemActive}
+      activeStyle="muted"
+      brand={
+        <Link href={getRoleLandingPath("admin")} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
         </Link>
-
-        <Link
-          href="/dashboard"
-          className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-        >
+      }
+      backLink={
+        <Link href="/dashboard">
           ← {messages.shell.backToAthleteView}
         </Link>
-
-        {/* Nav sections */}
-        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-          <p className="label-micro mb-2 px-1 text-muted-foreground">{messages.shell.controlCenter}</p>
-          <nav className="flex flex-col gap-1">
-            {sectionItems.map((item) => {
-              const isActive = isAdminItemActive(item)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
-                    isActive
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
-
-          {settingsItems.length > 0 && (
-            <>
-              <p className="label-micro mb-2 mt-5 px-1 text-muted-foreground">{messages.shell.account}</p>
-              <nav className="flex flex-col gap-1">
-                {settingsItems.map((item) => {
-                  const isActive = isAdminItemActive(item)
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
-                        isActive
-                          ? "bg-muted text-foreground"
-                          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                      )}
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </nav>
-            </>
-          )}
-        </div>
-
-        {/* Account */}
-        <div className="shrink-0 border-t border-border pt-4">
-          <SidebarAccountMenu
-            avatarClassName="h-7 w-7"
-            buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
-          />
-        </div>
-      </div>
-    </aside>
+      }
+      footer={
+        <SidebarAccountMenu
+          avatarClassName="h-7 w-7"
+          buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
+        />
+      }
+    />
   )
 }
 
@@ -236,66 +155,42 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   )
 
   return (
-    <aside className="glass-surface sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-sidebar md:flex">
-      <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
-        <Link href={getRoleLandingPath("coach")} className="mb-4 flex items-center gap-2 px-1">
+    <BaseSidebar
+      collapsible={false}
+      sections={[{ title: "Coach", items: coachNavItems }]}
+      isActiveItem={(item) => isNavItemActive(pathname, item)}
+      activeStyle="muted"
+      brand={
+        <Link href={getRoleLandingPath("coach")} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
         </Link>
-
-        <Link href="/dashboard" className="mb-6 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+      }
+      backLink={
+        <Link href="/dashboard">
           ← {messages.shell.backToAthleteView}
         </Link>
-
-        <Button asChild className="mb-7 w-full justify-start gap-2 bg-foreground text-background hover:bg-foreground/90">
+      }
+      cta={
+        <Button asChild className="w-full justify-start gap-2 bg-foreground text-background hover:bg-foreground/90">
           <Link href="/coach/trainees">
             <UserPlus className="h-4 w-4" />
             {messages.shell.addClient}
           </Link>
         </Button>
-
-        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-          <p className="label-micro mb-2 px-1 text-muted-foreground">Coach</p>
-          <nav className="flex flex-col gap-1">
-            {coachNavItems.map((item) => {
-              const isActive = isNavItemActive(pathname, item)
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={cn(
-                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
-                    isActive
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {item.count != null ? (
-                    <span className="rounded-full bg-background px-2 py-0.5 font-mono text-[11px] leading-none text-muted-foreground">
-                      {item.count}
-                    </span>
-                  ) : null}
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
-
-        <div className="shrink-0 border-t border-border pt-4">
-          <SidebarAccountMenu
-            avatarClassName="h-7 w-7"
-            buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
-            fallbackEmail="coach@example.com"
-            fallbackInitials="EK"
-            fallbackName="Coach Eli K."
-            subtitle={<span className="font-mono text-[11px]">12 {messages.shell.activeClients}</span>}
-          />
-        </div>
-      </div>
-    </aside>
+      }
+      footer={
+        <SidebarAccountMenu
+          avatarClassName="h-7 w-7"
+          buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
+          fallbackEmail="coach@example.com"
+          fallbackInitials="EK"
+          fallbackName="Coach Eli K."
+          subtitle={<span className="font-mono text-[11px]">12 {messages.shell.activeClients}</span>}
+        />
+      }
+    />
   )
 }

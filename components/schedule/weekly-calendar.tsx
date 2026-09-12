@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import type { CoachProgram, TraineeProgram } from "@/lib/fitness/types"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
 import type { AppMessages } from "@/lib/i18n/messages"
+import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
 type WeeklyCalendarProps = {
   historyLogs?: WorkoutLog[]
@@ -63,14 +64,7 @@ type ScheduleEntry = WorkoutScheduleEntry
 
 const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
-const TAG_DOT_COLOR: Record<RoutineTag, string> = {
-  full: "var(--muted-foreground)",
-  legs: "var(--warning)",
-  lower: "var(--chart-5)",
-  pull: "var(--success)",
-  push: "var(--primary)",
-  upper: "var(--chart-4)",
-}
+
 
 function getRoutineTagLabel(tag: RoutineTag, messages: AppMessages) {
   const labels: Record<RoutineTag, string> = {
@@ -278,17 +272,8 @@ function mapWorkoutToRoutine(workout: Workout, index: number): Routine {
 }
 
 function getTagColor(tag: string) {
-  const colors: Record<string, string> = {
-    cardio: "var(--chart-5)",
-    full: "var(--muted-foreground)",
-    legs: "var(--warning)",
-    lower: "var(--chart-5)",
-    pull: "var(--success)",
-    push: "var(--primary)",
-    upper: "var(--chart-4)",
-  }
-
-  return colors[tag] ?? "var(--muted-foreground)"
+  if (tag === "cardio") return "var(--chart-5)"
+  return (TAG_DOT_COLOR as Record<string, string>)[tag] ?? "var(--muted-foreground)"
 }
 
 function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
@@ -840,7 +825,6 @@ function RoutineFieldNum({
         placeholder={placeholder ?? ""}
         onChange={(event) => onChange(event.target.value)}
         className={routineFieldInputClass}
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       />
     </div>
   )
@@ -1609,7 +1593,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
   })()
 
   return (
-    <section className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-10 md:py-8">
+    <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="mb-2.5 flex flex-wrap items-center gap-2">

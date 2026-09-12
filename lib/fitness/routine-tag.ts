@@ -12,6 +12,17 @@ export const TAG_DOT_COLOR: Record<Exclude<RoutineTag, "all">, string> = {
   upper: "var(--chart-4)",
 }
 
+/** Recharts-safe color mapping for workout kinds — uses --chart-* tokens */
+export const TAG_CHART_COLOR: Record<string, string> = {
+  push: "var(--chart-1)",
+  pull: "var(--success)",
+  legs: "var(--warning)",
+  upper: "var(--chart-4)",
+  lower: "var(--chart-2)",
+  full: "var(--ink-600)",
+  full_body: "var(--ink-600)",
+}
+
 function normalizeText(value?: string | null) {
   return value?.trim().toLowerCase() ?? ""
 }

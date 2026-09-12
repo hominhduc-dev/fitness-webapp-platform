@@ -432,7 +432,10 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Semantic color contract | `npm run lint:colors` |
 | Production integration | `npm run build` |
 
-- Tests frontend nằm trong `components/**/*.test.tsx`, `lib/**/*.test.ts(x)`.
+`npm run typecheck` chạy `next typegen` trước `tsc` để cập nhật route types theo source hiện tại, tránh dùng types từ một production build cũ.
+
+- Tests frontend nằm trong `components/**/*.test.ts(x)`, `lib/**/*.test.ts(x)`.
+- Import chương trình dùng `import-program-dialog.tsx` và mapper `program-import-rows.ts`; nguồn Google có panel `google-program-source.tsx`, API typed trong `lib/fitness/api.ts`. Tab ẩn khi backend báo chưa cấu hình. Excel template Week 1 do `program-excel.ts` tạo; các file Workouts cũ vẫn được nhập.
 - Với responsive/theme/glass, cần visual test trên mobile và desktop; unit test không xác nhận canvas/CSS rendering.
 - `npm run build` có thể cần network cho `next/font` và backend/Supabase-dependent SSR.
 

@@ -33,6 +33,7 @@
 - Đã áp dụng `20260912_google_program_roundtrip`: nguồn Sheets trên Program, originalVariationId trên WorkoutExercise, RLS và thu hồi quyền Data API cho GoogleConnection.
 - Các log cũ thiếu snapshot gốc/tuần không được suy đoán để ghi ngược. Backend ghi snapshot mới từ prescription đã lưu, không tin metadata gốc do client gửi.
 - Test gồm crypto/state, refresh giữ refresh token, disconnect, parser, key mismatch, thêm set, template XLSX xuất/nhập nhiều tuần.
-- Chưa xác nhận OAuth hoặc Sheets API thật: chủ dự án chưa cấu hình Google credentials. Cần kiểm tra consent → import → đổi bài → log → export Week 2 và >5 sets sau khi cấu hình.
+- Kiểm chứng ngày 12/09/2026: cấu hình và kết nối Google hiện hữu đã dùng được với API thật. Đã chạy import → tạo/ghi đè giữ assignments → đổi bài → lưu log → export tuần 1/2 bằng dữ liệu thử riêng; chi tiết tại [báo cáo kiểm chứng](google-program-verification.md).
+- Đã sửa lỗi batch nhiều tuần: sao chép tất cả sheet tuần mới trước khi thêm cột kết quả vào tuần mẫu. Nếu sửa tuần mẫu trước, sheet sao chép có bố cục khác với lúc lập kế hoạch, khiến Google từ chối vùng merge hoặc ghi lệch cột.
 
 Nguồn API: [Google OAuth web server](https://developers.google.com/identity/protocols/oauth2/web-server), [Sheets scopes](https://developers.google.com/workspace/sheets/api/scopes), [batchUpdate](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/batchUpdate).

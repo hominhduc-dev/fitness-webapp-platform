@@ -139,12 +139,11 @@ export function ResumeWorkoutCard() {
         <div className="shrink-0 text-right md:min-w-0 md:flex-1 md:text-left">
           <div
             className="font-mono text-[18px] font-semibold leading-none text-primary md:text-[24px]"
-            style={{ fontFeatureSettings: '"tnum" 1' }}
           >
             {elapsed}
           </div>
           <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground md:mt-1.5 md:overflow-hidden md:text-ellipsis md:text-xs">
-            <span style={{ fontFeatureSettings: '"tnum" 1' }} className="font-mono">
+            <span className="font-mono">
               {messages.workoutPage.setsProgress(session.completedSets, session.totalSets)}
             </span>
             {startedAgo && (

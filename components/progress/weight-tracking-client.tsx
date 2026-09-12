@@ -369,7 +369,7 @@ function buildCsv(entries: BodyMetricEntry[], unit: "kg" | "lbs") {
 
 function WeightTrackingSkeleton() {
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-7 space-y-2">
         <Skeleton className="h-4 w-20 rounded" />
         <Skeleton className="h-16 w-48 rounded" />
@@ -593,7 +593,7 @@ export function WeightTrackingClient() {
   const hasChartData = chartPoints.some((p) => p.value !== null)
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="flex flex-col gap-8">
 
         {/* ---- Header ---- */}

@@ -7,6 +7,7 @@ import type { ReactNode } from "react"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import type { MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { useLocale } from "@/components/providers/locale-provider"
+import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS } from "@/lib/fitness/muscle-profile"
@@ -15,6 +16,8 @@ import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug } from "
 import { cn } from "@/lib/utils"
 
 type AddExerciseModalProps = {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   /** Full exercise library to browse. */
   exercises: ExerciseVariationOption[]
   /** Variation id of the exercise being swapped — highlighted as "current". */
@@ -36,6 +39,8 @@ type AddExerciseModalProps = {
  * inside both the custom routine dialogs and Radix dialogs.
  */
 export function AddExerciseModal({
+  open = true,
+  onOpenChange,
   exercises,
   currentVariationId,
   existingVariationIds,
@@ -46,6 +51,7 @@ export function AddExerciseModal({
   footer,
 }: AddExerciseModalProps) {
   const { locale, messages } = useLocale()
+  const handleClose = () => { onOpenChange?.(false); onClose?.(); }
   const [query, setQuery] = useState("")
   const [muscle, setMuscle] = useState<"all" | MuscleSlug>("all")
   const [equipment, setEquipment] = useState("all")
@@ -83,18 +89,6 @@ export function AddExerciseModal({
     })
   }, [])
 
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
-      if (showFilters) {
-        setShowFilters(false)
-        return
-      }
-      onClose()
-    }
-    window.addEventListener("keydown", handleKey)
-    return () => window.removeEventListener("keydown", handleKey)
-  }, [onClose, showFilters])
 
   const NONE_EQUIPMENT = "__none__"
 
@@ -133,21 +127,19 @@ export function AddExerciseModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-overlay p-6 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[82vh] w-full max-w-[480px] flex-col overflow-hidden rounded-[12px] border border-border bg-background shadow-[var(--glass-shadow)]"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent showCloseButton={false} className="flex max-h-[82vh] w-full max-w-[480px] flex-col overflow-hidden p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{title ?? messages.workoutPage.addExercise}</DialogTitle>
+        </DialogHeader>
+
         {/* Header */}
         <div className="border-b border-border px-[22px] pb-3 pt-5">
           <div className="mb-3.5 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">{title ?? messages.workoutPage.addExercise}</h3>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="text-muted-foreground transition-colors hover:text-foreground"
             >
               <X className="h-[18px] w-[18px]" />
@@ -232,23 +224,13 @@ export function AddExerciseModal({
         </div>
 
         {footer ? <div className="border-t border-border px-[22px] py-3">{footer}</div> : null}
-      </div>
+      </DialogContent>
 
-      {showFilters ? (
-        <div
-          className="fixed inset-0 z-[130] flex items-end justify-center bg-overlay p-3 backdrop-blur-sm sm:items-center sm:p-6"
-          onClick={(event) => {
-            event.stopPropagation()
-            setShowFilters(false)
-          }}
+      <Dialog open={showFilters} onOpenChange={setShowFilters}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[24px] border border-border bg-background shadow-2xl p-0 sm:rounded-[16px]"
         >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="exercise-filter-title"
-            className="flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[24px] border border-border bg-background shadow-2xl sm:rounded-[16px]"
-            onClick={(event) => event.stopPropagation()}
-          >
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
               <div className="min-w-0">
                 <h4 id="exercise-filter-title" className="text-lg font-semibold text-foreground">{filterCopy.filter}</h4>
@@ -364,9 +346,8 @@ export function AddExerciseModal({
                 {filterCopy.done}
               </button>
             </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+        </DialogContent>
+      </Dialog>
+    </Dialog>
   )
 }

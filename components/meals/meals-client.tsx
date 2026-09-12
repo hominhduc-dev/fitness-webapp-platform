@@ -903,7 +903,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
   }
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-5 md:px-10 md:py-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="label-micro mb-2">

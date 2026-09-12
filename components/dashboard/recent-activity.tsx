@@ -7,21 +7,14 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import type { WorkoutLog } from "@/lib/types"
+import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
 // ---------------------------------------------------------------------------
 // Kind color map — matches workout page / progress page
 // ---------------------------------------------------------------------------
 
-const KIND_COLORS: Record<string, string> = {
-  push:      "var(--chart-1)",
-  pull:      "var(--chart-3)",
-  legs:      "var(--chart-4)",
-  full_body: "var(--chart-2)",
-  cardio:    "var(--chart-5, var(--chart-2))",
-}
-
 function kindColor(kind?: string | null) {
-  return kind ? (KIND_COLORS[kind] ?? "var(--border)") : "var(--border)"
+  return kind ? ((TAG_DOT_COLOR as Record<string, string>)[kind === "full_body" ? "full" : kind] ?? "var(--border)") : "var(--border)"
 }
 
 // ---------------------------------------------------------------------------

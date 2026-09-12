@@ -6,6 +6,7 @@ import { ChevronRight, Search } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { CoachTrainee } from "@/lib/fitness/types"
@@ -124,7 +125,7 @@ export function TraineesClientView({ initialTrainees }: Props) {
   })
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
       {/* Header */}
       <div className="border-b border-border px-6 pb-3 pt-5">
         <div className="mb-3.5 flex items-baseline justify-between">
@@ -148,18 +149,14 @@ export function TraineesClientView({ initialTrainees }: Props) {
         {/* Filter chips */}
         <div className="flex gap-1.5 overflow-x-auto pb-0.5">
           {FILTERS.map((key) => (
-            <button
+            <FilterChip
               key={key}
+              active={filter === key}
               onClick={() => setFilter(key)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
-                filter === key
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-              )}
+              className="uppercase tracking-[0.06em]"
             >
               {getFilterLabel(key, messages)}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>

@@ -440,7 +440,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
             "min-w-0 text-center font-mono text-[15px] font-semibold",
             completed ? "text-muted-foreground" : "text-foreground",
           )}
-          style={{ fontFeatureSettings: '"tnum" 1' }}
         >
           {setIndex + 1}
         </span>
@@ -453,7 +452,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
               ? "inline-flex items-center justify-center gap-1 text-success-text"
               : "block truncate text-center text-muted-foreground",
           )}
-          style={{ fontFeatureSettings: '"tnum" 1' }}
           title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
           aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
         >
@@ -493,7 +491,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
             // field instead — same target, much lighter on the eye.
             : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
         )}
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       />
 
       {/* Reps input */}
@@ -522,7 +519,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
             // field instead — same target, much lighter on the eye.
             : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
         )}
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       />
 
       {/* RIR input */}
@@ -553,7 +549,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
             // field instead — same target, much lighter on the eye.
             : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
         )}
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       />
 
         {/* Row actions: tick + more options */}
@@ -939,7 +934,6 @@ function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
       </p>
       <p
         className="truncate font-mono text-[22px] font-medium leading-none text-foreground"
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       >
         {value}
       </p>

@@ -104,7 +104,6 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
           </div>
           <div
             className="font-mono text-[26px] md:text-[30px] font-semibold text-primary leading-none"
-            style={{ fontFeatureSettings: '"tnum" 1' }}
           >
             {String(mins)}:{String(secs).padStart(2, "0")}
           </div>
@@ -134,7 +133,7 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
             {event.set && (
               <>
                 {" · "}
-                <span style={{ fontFeatureSettings: '"tnum" 1' }} className="font-mono">
+                <span className="font-mono">
                   {event.set.kg ?? "—"} kg × {event.set.reps ?? "—"}
                 </span>
               </>

@@ -168,7 +168,7 @@ export default function AIGeneratePage() {
   }
 
   return (
-    <main className="mx-auto max-w-[880px] px-4 pb-28 pt-5 sm:px-6 sm:py-8 md:px-10">
+    <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-28 md:px-6 md:pb-28">
       <div className="mb-6 sm:mb-8">
         <Link href="/workout" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
           <ArrowLeft className="size-4" />

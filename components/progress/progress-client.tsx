@@ -24,6 +24,7 @@ import type {
   TraineeProgram,
 } from "@/lib/fitness/types"
 import type { WorkoutLog } from "@/lib/types"
+import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { cn } from "@/lib/utils"
 
 const StrengthChart = dynamic(
@@ -49,14 +50,8 @@ const EMPTY_ANALYTICS: ProgressAnalytics = {
 type WorkoutKind = "all" | "push" | "pull" | "legs"
 type Tab = "history" | "year" | "prs"
 
-const KIND_COLORS: Record<string, string> = {
-  legs: "var(--chart-4)",
-  pull: "var(--chart-3)",
-  push: "var(--chart-1)",
-}
-
 function kindColor(k: string) {
-  return KIND_COLORS[k] ?? "var(--muted-foreground)"
+  return (TAG_DOT_COLOR as Record<string, string>)[k] ?? "var(--muted-foreground)"
 }
 
 /** Derive workout "kind" — uses explicit field, falls back to name heuristic */
@@ -834,7 +829,7 @@ function PrCard({
 
 function ProgressPageSkeleton() {
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-7 space-y-2">
         <Skeleton className="h-4 w-28 rounded" />
         <Skeleton className="h-9 w-64 rounded" />
@@ -1043,7 +1038,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
   return (
     <>
-      <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-10">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
 
         {/* ---- Page header ---- */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

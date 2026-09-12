@@ -270,7 +270,7 @@ export default async function DashboardPage() {
       : "Track today's training, nutrition, and progress from one dashboard."
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-10">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-8">
       <div className="space-y-6">
         <DashboardRefreshOnStale />
 

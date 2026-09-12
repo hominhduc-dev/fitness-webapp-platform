@@ -45,7 +45,7 @@ export function getCoachNavItems(messages: AppMessages, counts?: CoachCounts): S
     { count: counts?.trainees, href: "/coach/trainees", icon: Users, label: messages.shell.clients },
     { count: counts?.programs, href: "/coach/programs", icon: ListChecks, label: messages.shell.programs },
     { href: "/coach/exercises", icon: Activity, label: messages.shell.exercises },
-    { href: "/progress", icon: BarChart3, label: messages.shell.stats },
+    { href: "/coach/stats", icon: BarChart3, label: messages.shell.stats },
   ]
 }
 

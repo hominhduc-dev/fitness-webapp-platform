@@ -23,6 +23,7 @@ import { TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/comp
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
@@ -212,19 +213,14 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
             <Label className="label-micro text-muted-foreground">{locale === "en" ? "Muscle group" : "Nhóm cơ"}</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {MUSCLES.map((m) => (
-                <button
+                <FilterChip
                   key={m}
-                  type="button"
+                  active={muscleGroup === m}
                   onClick={() => setMuscle(m)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
-                    muscleGroup === m
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                  )}
+                  className="uppercase tracking-[0.06em]"
                 >
                   {m}
-                </button>
+                </FilterChip>
               ))}
             </div>
           </div>
@@ -234,19 +230,14 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
             <Label className="label-micro text-muted-foreground">{locale === "en" ? "Activity type" : "Loại hoạt động"}</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {ACTIVITY_TYPES.map((type) => (
-                <button
+                <FilterChip
                   key={type}
-                  type="button"
+                  active={activityType === type}
                   onClick={() => setActivityType(type)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em]",
-                    activityType === type
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground",
-                  )}
+                  className="uppercase tracking-[0.06em]"
                 >
                   {type}
-                </button>
+                </FilterChip>
               ))}
             </div>
           </div>
@@ -288,19 +279,14 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
             <Label className="label-micro text-muted-foreground">{copy.equipment}</Label>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {EQUIP.map((eq) => (
-                <button
+                <FilterChip
                   key={eq}
-                  type="button"
+                  active={equipment === eq}
                   onClick={() => setEquipment(eq)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-[0.06em] transition-colors",
-                    equipment === eq
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                  )}
+                  className="uppercase tracking-[0.06em]"
                 >
                   {eq}
-                </button>
+                </FilterChip>
               ))}
             </div>
           </div>
@@ -498,7 +484,7 @@ export type ExerciseSaveData = {
   equipment: string
 }
 
-type Props = {
+type ExerciseLibraryPanelProps = {
   exercises: AdminExerciseItem[]
   actionKey: string | null
   importRequests?: AdminExerciseImportRequest[]
@@ -509,12 +495,13 @@ type Props = {
   onBulkApprove?: (ids: string[]) => Promise<void>
   onImport: () => void
   onDownloadTemplate: () => void
-  onExportAll: () => void
-  onSyncImport: () => void
+  onExportAll?: () => void
+  onSyncImport?: () => void
   onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
+  capabilities?: { canExport?: boolean; canSync?: boolean; canBulkApprove?: boolean }
 }
 
-export function AdminExercisesPanel({
+export function ExerciseLibraryPanel({
   exercises,
   actionKey,
   importRequests = [],
@@ -528,7 +515,8 @@ export function AdminExercisesPanel({
   onExportAll,
   onSyncImport,
   onReviewImportRequest,
-}: Props) {
+  capabilities = {},
+}: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
   const [rawQ, setRawQ] = useState("")
   const [q, setQ] = useState("")
@@ -714,21 +702,25 @@ export function AdminExercisesPanel({
           <FileSpreadsheet className="mr-1.5 h-4 w-4" />
           {copy.importExcel}
         </Button>
-        <Button
-          variant="outline"
-          onClick={onExportAll}
-          disabled={actionKey === "exercise-export" || exercises.length === 0}
-        >
-          {actionKey === "exercise-export"
-            ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            : <Upload className="mr-1.5 h-4 w-4" />
-          }
-          {copy.exportAll}
-        </Button>
-        <Button variant="outline" onClick={onSyncImport}>
-          <ArrowDownUp className="mr-1.5 h-4 w-4" />
-          {copy.syncImport}
-        </Button>
+        {capabilities.canExport && onExportAll && (
+          <Button
+            variant="outline"
+            onClick={onExportAll}
+            disabled={actionKey === "exercise-export" || exercises.length === 0}
+          >
+            {actionKey === "exercise-export"
+              ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              : <Upload className="mr-1.5 h-4 w-4" />
+            }
+            {copy.exportAll}
+          </Button>
+        )}
+        {capabilities.canSync && onSyncImport && (
+          <Button variant="outline" onClick={onSyncImport}>
+            <ArrowDownUp className="mr-1.5 h-4 w-4" />
+            {copy.syncImport}
+          </Button>
+        )}
         <Button onClick={() => setModal("new")}>
           <Plus className="mr-1.5 h-4 w-4" />
           {copy.newExercise}
@@ -758,7 +750,7 @@ export function AdminExercisesPanel({
             {isBulkDeleting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
             {copy.deleteSelected(selected.size)}
           </Button>
-          {onBulkApprove ? (
+          {capabilities.canBulkApprove && onBulkApprove ? (
             <Button size="sm" disabled={actionKey === "exercise-bulk-approve"} onClick={() => void onBulkApprove(Array.from(selected))}>
               {actionKey === "exercise-bulk-approve" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
               Approve profiles
@@ -821,5 +813,14 @@ export function AdminExercisesPanel({
         />
       )}
     </div>
+  )
+}
+
+export function AdminExercisesPanel(props: Omit<ExerciseLibraryPanelProps, "capabilities">) {
+  return (
+    <ExerciseLibraryPanel
+      {...props}
+      capabilities={{ canExport: true, canSync: true, canBulkApprove: true }}
+    />
   )
 }

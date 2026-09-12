@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "lint:colors": "node scripts/check-ui-colors.mjs",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.json",
     "typecheck:backend": "npm --prefix backend run typecheck",
     "prisma:generate": "npm --prefix backend run prisma:generate",
     "prisma:migrate": "npm --prefix backend run prisma:migrate",

@@ -55,6 +55,7 @@ import type { AppMessages } from "@/lib/i18n/messages"
 import { cn } from "@/lib/utils"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft } from "@/components/workout/routine-builder-dialog"
+import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
 type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
@@ -149,14 +150,7 @@ const DAY_PATTERN_BY_DAYS_PER_WEEK: Record<number, number[]> = {
   6: [0, 1, 2, 4, 5, 6],
 }
 
-const TAG_DOT_COLOR: Record<RoutineTag, string> = {
-  full: "var(--muted-foreground)",
-  legs: "var(--warning)",
-  lower: "var(--chart-5)",
-  pull: "var(--success)",
-  push: "var(--primary)",
-  upper: "var(--chart-4)",
-}
+
 
 function createFormId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

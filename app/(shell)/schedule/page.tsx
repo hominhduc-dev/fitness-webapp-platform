@@ -26,7 +26,7 @@ async function ScheduleCalendar({ accessToken }: { accessToken: string }) {
 
 function ScheduleCalendarSkeleton() {
   return (
-    <section className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-10 md:py-8">
+    <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
           <Skeleton className="h-3 w-44" />

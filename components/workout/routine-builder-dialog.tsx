@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
 
@@ -11,6 +10,14 @@ import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { createWorkout, fetchExercises, updateWorkout } from "@/lib/fitness/api"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
@@ -163,7 +170,6 @@ function FieldNum({
         placeholder={placeholder ?? ""}
         onChange={(e) => onChange(e.target.value)}
         className={fieldInputClass}
-        style={{ fontFeatureSettings: '"tnum" 1' }}
       />
     </div>
   )
@@ -289,15 +295,6 @@ export function RoutineBuilderDialog({
       .finally(() => setLoadingLibrary(false))
   }, [pickerTarget, session?.access_token])
 
-  // ── Keyboard: Escape to close ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !pickerTarget) setOpen(false)
-    }
-    document.addEventListener("keydown", handler)
-    return () => document.removeEventListener("keydown", handler)
-  }, [open, pickerTarget])
 
   // ── Exercise handlers ─────────────────────────────────────────────────────
   const pickExercise = (ex: ExerciseVariationOption) => {
@@ -405,29 +402,26 @@ export function RoutineBuilderDialog({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <>
+    <Dialog open={open} onOpenChange={setOpen}>
       {/* Trigger (uncontrolled mode only) */}
       {trigger != null && (
-        <span onClick={() => !authLoading && setOpen(true)} className="contents">
-          {trigger}
-        </span>
+        <DialogTrigger asChild>
+          <span onClick={(e) => { if (authLoading) e.preventDefault(); }} className="contents">
+            {trigger}
+          </span>
+        </DialogTrigger>
       )}
 
-      {typeof document !== "undefined"
-        ? createPortal(
-          <>
-            {/* Backdrop + modal */}
-            {open && (
-        <div
-          className="fixed inset-0 z-[80] flex items-stretch justify-center bg-overlay backdrop-blur-sm sm:items-center sm:p-6"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="flex h-full max-h-full w-full flex-col overflow-hidden bg-background shadow-[var(--glass-shadow)] sm:h-auto sm:max-w-[640px] sm:rounded-[14px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="border-b border-border px-4 pb-[18px] pt-5 sm:px-7 sm:pt-6">
+      <DialogContent
+        showCloseButton={false}
+        className="flex h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-full flex-col overflow-hidden p-0 sm:h-[90svh] sm:max-h-[900px] sm:max-w-[640px] sm:rounded-[14px]"
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{isEditing ? messages.workoutPage.editRoutineMode : messages.workoutPage.newRoutine}</DialogTitle>
+        </DialogHeader>
+
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <div className="border-b border-border px-4 pb-[18px] pt-5 sm:px-7 sm:pt-6">
               <div className="mb-4 flex items-start justify-between">
                 <div>
                   <p className="label-micro mb-1.5 text-muted-foreground">
@@ -447,13 +441,14 @@ export function RoutineBuilderDialog({
                     label={messages.workoutPage.muscleMapLabel}
                     className="mt-0.5"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <X className="h-[18px] w-[18px]" />
-                  </button>
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <X className="h-[18px] w-[18px]" />
+                    </button>
+                  </DialogClose>
                 </div>
               </div>
 
@@ -616,9 +611,11 @@ export function RoutineBuilderDialog({
 
             {/* ── Footer ───────────────────────────────────────────────── */}
             <div className="flex flex-col-reverse gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:flex-row sm:justify-end sm:px-7 sm:pb-3">
-              <Button variant="ghost" className="w-full sm:w-auto" onClick={() => setOpen(false)}>
-                {messages.common.cancel}
-              </Button>
+              <DialogClose asChild>
+                <Button variant="ghost" className="w-full sm:w-auto">
+                  {messages.common.cancel}
+                </Button>
+              </DialogClose>
               <Button
                 className="w-full bg-foreground text-background hover:bg-foreground/90 sm:w-auto"
                 onClick={() => void handleSave()}
@@ -627,12 +624,10 @@ export function RoutineBuilderDialog({
                 {isSaving ? messages.workoutPage.saving : isEditing ? messages.workoutPage.saveChanges : messages.workoutPage.saveRoutine}
               </Button>
             </div>
-          </div>
-        </div>
-            )}
+      </DialogContent>
 
-            {/* Exercise picker sub-modal */}
-            {pickerTarget && (
+      {/* Exercise picker sub-modal */}
+      {pickerTarget && (
               <AddExerciseModal
                 exercises={loadingLibrary ? [] : library}
                 loading={loadingLibrary}
@@ -648,10 +643,6 @@ export function RoutineBuilderDialog({
                 onClose={() => setPickerTarget(null)}
               />
             )}
-          </>,
-          document.body,
-        )
-        : null}
-    </>
+    </Dialog>
   )
 }

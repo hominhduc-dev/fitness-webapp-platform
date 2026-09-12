@@ -4,6 +4,7 @@ import { BatteryLow, BatteryMedium, BatteryFull, Check, Dumbbell, Flame, Heart, 
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { FilterChip } from "@/components/ui/filter-chip"
 import { Label } from "@/components/ui/label"
 import { useLocale } from "@/components/providers/locale-provider"
 import { cn } from "@/lib/utils"
@@ -102,7 +103,7 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
       <section className="glass-card rounded-[22px] border bg-card p-4 sm:p-5">
         <Label className="mb-1 block text-base font-semibold">{isVi ? "Nhóm cơ muốn tập hôm nay" : "Muscles to train today"}</Label>
         <p className="mb-4 text-xs text-muted-foreground">{isVi ? "Có thể chọn nhiều nhóm hoặc để trống để AI tự cân đối." : "Select multiple groups or leave blank for AI to balance the session."}</p>
-        <div className="flex flex-wrap gap-2">{MUSCLES.map((muscle) => { const selected = values.focusAreas.includes(muscle.value); return <button key={muscle.value} type="button" aria-pressed={selected} onClick={() => toggleMuscle(muscle.value)} className={cn("rounded-full border px-3.5 py-2 text-sm transition-all", selected ? "border-primary bg-primary-soft font-medium text-primary" : "border-border")}>{selected && <Check className="mr-1.5 inline size-3.5" />}{isVi ? muscle.vi : muscle.value}</button> })}</div>
+        <div className="flex flex-wrap gap-2">{MUSCLES.map((muscle) => { const selected = values.focusAreas.includes(muscle.value); return <FilterChip key={muscle.value} active={selected} onClick={() => toggleMuscle(muscle.value)} className="px-3.5 py-2 text-sm">{selected && <Check className="mr-1.5 inline size-3.5" />}{isVi ? muscle.vi : muscle.value}</FilterChip> })}</div>
       </section>
 
       <section className="glass-card rounded-[22px] border border-warning/20 bg-card p-4 sm:p-5">

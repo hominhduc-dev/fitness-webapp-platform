@@ -81,6 +81,10 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   if (!source) throw new BadRequestError("Sheet tuần mẫu không còn tồn tại.")
   if (!meta.sheetProperties.some((sheet) => sheet.title === "Exercise Table")) throw new BadRequestError("Thiếu sheet Exercise Table để khôi phục dropdown bài tập.")
   const sourceValues = await fetchSheetValues(token, spreadsheetId, source.title)
+  // Every new week must copy the same source layout used during preflight.
+  // Duplicating after a Week 1 column insertion would shift the copied RIR/merge
+  // ranges before the new week's independently planned requests are applied.
+  const duplicateRequests: unknown[] = []
   const requests: unknown[] = []
   let rowCount = 0
   const ids = new Set(meta.sheetProperties.map((sheet) => sheet.sheetId))
@@ -91,7 +95,7 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
     if (sheetId == null) {
       do { sheetId = randomInt(1, 2_000_000_000) } while (ids.has(sheetId))
       ids.add(sheetId)
-      requests.push({ duplicateSheet: { sourceSheetId: source.sheetId, newSheetId: sheetId, newSheetName: title } })
+      duplicateRequests.push({ duplicateSheet: { sourceSheetId: source.sheetId, newSheetId: sheetId, newSheetName: title } })
     }
     const values = existing ? (existing.title === source.title ? sourceValues : await fetchSheetValues(token, spreadsheetId, title)) : sourceValues
     const built = buildGoogleResultRequests(values, group, sheetId, (existing ?? source).gridProperties?.rowCount ?? values.length, !existing)
@@ -102,6 +106,6 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
       rule: { condition: { type: "ONE_OF_RANGE", values: [{ userEnteredValue: "='Exercise Table'!$D$2:$D" }] }, strict: true, showCustomUi: true },
     } })
   }
-  await batchUpdateSpreadsheet(token, spreadsheetId, requests)
+  await batchUpdateSpreadsheet(token, spreadsheetId, [...duplicateRequests, ...requests])
   return { exported: true, logCount: logs.length, rowCount, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` }
 }

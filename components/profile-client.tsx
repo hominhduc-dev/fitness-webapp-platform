@@ -469,7 +469,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     resetConfirmation.trim().toUpperCase() === messages.profile.resetDataConfirmationWord.toUpperCase()
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-5 md:px-6 md:py-7">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       <div className="mb-5">
         <h1 className="text-[28px] font-semibold leading-none tracking-[-0.025em] md:text-[34px]">{messages.profile.title}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">{messages.profile.subtitle}</p>

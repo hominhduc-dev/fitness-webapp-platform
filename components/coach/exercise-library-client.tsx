@@ -3,7 +3,7 @@
 import { useMemo, useState, type ChangeEvent } from "react"
 import { Download, Loader2, Upload } from "lucide-react"
 
-import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { ExerciseLibraryPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -454,17 +454,15 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         </div>
       ) : null}
 
-      <AdminExercisesPanel
+      <ExerciseLibraryPanel
         actionKey={actionKey}
         exercises={panelExercises}
         locale={locale}
         onDelete={handleDeleteExercise}
         onBulkDelete={handleBulkDeleteExercises}
         onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
-        onExportAll={() => {}}
         onImport={() => setIsImportDialogOpen(true)}
         onSave={handleSaveExercise}
-        onSyncImport={() => {}}
       />
 
       <Dialog
