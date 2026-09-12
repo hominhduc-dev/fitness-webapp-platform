@@ -150,6 +150,49 @@
 .windowBar > div > span:first-child {
   background: var(--primary);
 }
+.demoSwitch {
+  display: flex;
+  gap: 2px;
+}
+.demoDot {
+  width: 14px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    transform 160ms ease;
+}
+.demoDot::before {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin: 8px 3px;
+  border-radius: 50%;
+  background: var(--input);
+  transition: background 160ms ease;
+}
+.demoDot:hover,
+.demoDot:focus-visible {
+  background: transparent;
+}
+.demoDot:hover::before,
+.demoDot:focus-visible::before {
+  background: var(--primary);
+}
+.demoDot:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+.demoDotActive::before {
+  background: var(--primary);
+}
+.demoDotActive {
+  transform: scale(1.12);
+}
 .workspace {
   display: grid;
   grid-template-columns: 172px minmax(0, 1fr);
@@ -219,6 +262,35 @@
 }
 .bestSet {
   background: var(--primary-soft);
+}
+.macroGrid,
+.progressPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.progressPreviewGrid {
+  grid-template-columns: 1fr 1fr;
+}
+.macroCard {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+}
+.progressTrack {
+  height: 6px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
 }
 .specs {
   display: grid;
@@ -372,6 +444,10 @@
   }
   .previewPanels > div:last-child {
     display: none;
+  }
+  .macroGrid,
+  .progressPreviewGrid {
+    grid-template-columns: 1fr;
   }
   .windowBar {
     padding: 10px;

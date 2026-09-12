@@ -312,7 +312,7 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 - Giá trị `yeahbuddy-theme` cũ (`glass`, `midnight`) được migrate về `dark` ở cả `migrateStoredTheme()` lẫn pre-paint script.
 - Root pre-paint script trong `app/layout.tsx` phải luôn ra **cùng kết quả** với `applyThemeToDocument()`: cùng class, cùng `color-scheme`, cùng `theme-color`. Lệch là flash khi reload.
 - Thêm theme color literal mới phải allowlist trong `scripts/check-ui-colors.mjs` và thêm case vào `lib/design-system/color-contrast.test.ts`.
-- Landing `/` luôn dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền phẳng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
+- Landing `/` luôn dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền sáng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
 - Landing owner: `components/landing/landing-page.tsx`, CSS cục bộ `landing-page.module.css`, copy song ngữ `lib/i18n/messages/landing.ts`. Preview dùng dữ liệu minh họa được gắn nhãn, CTA dùng auth modal qua query param.
 - Khi effect/canvas phụ thuộc theme, dùng `resolvedTheme`, không dùng raw `theme` vì mode `system` có thể đổi.
 
