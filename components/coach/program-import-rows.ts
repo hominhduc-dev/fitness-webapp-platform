@@ -30,7 +30,7 @@ type ProgramImportRow = {
   /** Set when the source names a variation id outright; skips name matching. */
   variationId?: string
   variationName: string
-  /** Absent when the source describes a single week that repeats. */
+  /** 1-based week number from the source; absent when one template week repeats. */
   week?: number
   weight?: number
   workoutName: string
@@ -147,8 +147,6 @@ function buildWorkoutsFromRows(
   const lookup = buildVariationLookup(exercises)
   const issues: ProgramImportIssue[] = []
 
-  // A week of 0 means "the source did not say", which is how the template mode is
-  // distinguished from an explicit week 1.
   const usesExplicitWeeks = rows.some((row) => row.week !== undefined)
   const repeatWeeks = usesExplicitWeeks ? 1 : Math.max(1, Math.round(options.duration ?? 1))
 
@@ -221,7 +219,7 @@ function buildWorkoutsFromRows(
     }
 
     for (let repeat = 0; repeat < repeatWeeks; repeat += 1) {
-      const weekIndex = row.week ?? repeat + 1
+      const weekIndex = row.week == null ? repeat : Math.max(0, row.week - 1)
       const key = `${weekIndex}::${row.workoutName}::${row.scheduledDay}`
       const workout = grouped.get(key) ?? {
         exercises: [],

@@ -689,9 +689,9 @@ export function ImportProgramDialog({
                     onChange={(e) => {
                       const nextDuration = Math.min(52, Math.max(1, Math.round(Number(e.target.value) || 1)))
                       if (draft?.weekTemplate) setEditableWorkouts((current) => {
-                        const next = current.filter((workout) => (workout.weekIndex ?? 1) <= nextDuration)
-                        const template = current.filter((workout) => workout.weekIndex === 1)
-                        for (let week = 2; week <= nextDuration; week++) if (!next.some((workout) => workout.weekIndex === week)) {
+                        const next = current.filter((workout) => (workout.weekIndex ?? 0) < nextDuration)
+                        const template = current.filter((workout) => (workout.weekIndex ?? 0) === 0)
+                        for (let week = 1; week < nextDuration; week++) if (!next.some((workout) => workout.weekIndex === week)) {
                           next.push(...template.map((workout) => ({ ...workout, weekIndex: week, exercises: workout.exercises.map((exercise) => ({ ...exercise })) })))
                         }
                         return next

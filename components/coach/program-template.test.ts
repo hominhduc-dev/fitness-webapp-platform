@@ -26,7 +26,7 @@ describe("program template round trip", () => {
     const file = { arrayBuffer: async () => buffer } as unknown as File
     const result = await importCoachProgramTemplate(file, exercises, [])
     expect(result.workouts).toHaveLength(8)
-    expect(result.workouts[0]).toMatchObject({ scheduledDay: 1, weekIndex: 1, exercises: [expect.objectContaining({ variationId: "bench-1", reps: 12, repsMin: 8, restTime: 90 })] })
-    expect(result.workouts[7].weekIndex).toBe(8)
+    expect(result.workouts[0]).toMatchObject({ scheduledDay: 1, weekIndex: 0, exercises: [expect.objectContaining({ variationId: "bench-1", reps: 12, repsMin: 8, restTime: 90 })] })
+    expect(result.workouts[7].weekIndex).toBe(7)
   })
 })

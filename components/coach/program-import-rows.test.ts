@@ -76,7 +76,7 @@ describe("buildWorkoutsFromRows", () => {
     expect(issues).toEqual([])
     expect(workouts).toHaveLength(8)
     // Sorted for the review screen: both days of week 1, then both of week 2.
-    expect(workouts.map((workout) => workout.weekIndex)).toEqual([1, 1, 2, 2, 3, 3, 4, 4])
+    expect(workouts.map((workout) => workout.weekIndex)).toEqual([0, 0, 1, 1, 2, 2, 3, 3])
     expect(workouts.map((workout) => workout.scheduledDay)).toEqual([1, 2, 1, 2, 1, 2, 1, 2])
   })
 
@@ -92,7 +92,7 @@ describe("buildWorkoutsFromRows", () => {
 
     expect(issues).toEqual([])
     expect(workouts).toHaveLength(2)
-    expect(workouts.map((workout) => workout.weekIndex)).toEqual([1, 3])
+    expect(workouts.map((workout) => workout.weekIndex)).toEqual([0, 2])
     expect(workouts.map((workout) => workout.exercises[0]?.rir)).toEqual([3, 1])
   })
 
@@ -167,6 +167,6 @@ describe("buildWorkoutsFromRows", () => {
     const { workouts } = buildWorkoutsFromRows([row({ sourceRow: 1 })], EXERCISES)
 
     expect(workouts).toHaveLength(1)
-    expect(workouts[0].weekIndex).toBe(1)
+    expect(workouts[0].weekIndex).toBe(0)
   })
 })
