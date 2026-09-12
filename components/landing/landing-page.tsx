@@ -27,6 +27,8 @@ import type { AppLocale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 import styles from "./landing-page.module.css"
 
+type DemoKey = "workout" | "nutrition" | "progress"
+
 export function LandingPage(_props: { locale: AppLocale }) {
   const { messages } = useLocale()
   const c = messages.landing
@@ -230,25 +232,46 @@ function Hero() {
 function ProductPreview() {
   const { messages } = useLocale()
   const c = messages.landing
+  const [activeDemo, setActiveDemo] = useState<DemoKey>("workout")
+  const demoTabs: Array<{ key: DemoKey; label: string }> = [
+    { key: "workout", label: c.workouts },
+    { key: "nutrition", label: c.nutrition },
+    { key: "progress", label: c.progress },
+  ]
   const nav = [
-    { Icon: LayoutDashboard, label: c.overview },
-    { Icon: Dumbbell, label: c.workouts },
-    { Icon: CalendarDays, label: c.weeklySchedule },
-    { Icon: Flame, label: c.nutrition },
-    { Icon: BarChart3, label: c.progress },
+    { Icon: LayoutDashboard, label: c.overview, active: false },
+    { Icon: Dumbbell, label: c.workouts, active: activeDemo === "workout" },
+    { Icon: CalendarDays, label: c.weeklySchedule, active: false },
+    { Icon: Flame, label: c.nutrition, active: activeDemo === "nutrition" },
+    { Icon: BarChart3, label: c.progress, active: activeDemo === "progress" },
   ]
   return (
     <figure id="demo" className={styles.previewFigure}>
       <div className={styles.preview}>
         <div className={styles.windowBar}>
-          <div className="flex gap-1.5" aria-hidden="true">
-            <span />
-            <span />
-            <span />
+          <div
+            className={styles.demoSwitch}
+            role="tablist"
+            aria-label={c.productPreview}
+          >
+            {demoTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={activeDemo === tab.key}
+                aria-label={tab.label}
+                className={cn(
+                  styles.demoDot,
+                  activeDemo === tab.key && styles.demoDotActive
+                )}
+                onClick={() => setActiveDemo(tab.key)}
+              />
+            ))}
           </div>
           <p>
             YeahBuddy <span className="mx-2 text-muted-foreground">/</span>{" "}
-            {c.workspace}
+            {demoTabs.find((tab) => tab.key === activeDemo)?.label}
           </p>
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             {c.sampleData}
@@ -260,12 +283,12 @@ function ProductPreview() {
               <Dumbbell size={18} className="text-primary" />
               YeahBuddy
             </div>
-            {nav.map(({ Icon, label }, i) => (
+            {nav.map(({ Icon, label, active }) => (
               <div
                 key={label}
                 className={cn(
                   styles.previewNav,
-                  i === 1 && styles.previewNavActive
+                  active && styles.previewNavActive
                 )}
               >
                 <Icon size={15} />
@@ -282,60 +305,75 @@ function ProductPreview() {
               </div>
             </div>
           </aside>
-          <div className={styles.previewMain}>
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {c.todaySession}
-                </p>
-                <h3 className="text-xl font-semibold tracking-tight">
-                  {c.pushDay}
-                </h3>
-              </div>
-              <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 font-mono text-xs">
-                <span className="size-1.5 rounded-full bg-success" />
-                {c.inProgress}
-              </span>
-            </div>
-            <div className={styles.sessionStats}>
-              {[
-                { value: "42:18", label: c.duration },
-                { value: "4,280 kg", label: c.volume },
-                { value: "12 / 18", label: c.sets },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {stat.label}
-                  </p>
-                  <p className="mt-1 font-mono text-lg font-medium">
-                    {stat.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className={styles.previewPanels}>
-              <MockSetLog />
-              <MockChart />
-            </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <Check size={13} className="text-success-text" />
-                {c.savedSets}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Timer size={13} />
-                {c.restTimer}
-                <span className="font-mono text-foreground">01:30</span>
-              </span>
-            </div>
-          </div>
+          {activeDemo === "workout" && <WorkoutDemo />}
+          {activeDemo === "nutrition" && <NutritionDemo />}
+          {activeDemo === "progress" && <ProgressDemo />}
         </div>
       </div>
       <figcaption className="mt-4 flex flex-wrap justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        <span>01 / {c.productPreview}</span>
-        <span>{c.previewCaption}</span>
+        <span>
+          {String(
+            demoTabs.findIndex((tab) => tab.key === activeDemo) + 1
+          ).padStart(2, "0")} /{" "}
+          {c.productPreview}
+        </span>
+        <span>
+          {activeDemo === "workout" && c.previewCaption}
+          {activeDemo === "nutrition" && c.nutritionTarget}
+          {activeDemo === "progress" && c.featureChartsTitle}
+        </span>
       </figcaption>
     </figure>
+  )
+}
+
+function WorkoutDemo() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  return (
+    <div className={styles.previewMain}>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+            {c.todaySession}
+          </p>
+          <h3 className="text-xl font-semibold tracking-tight">{c.pushDay}</h3>
+        </div>
+        <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 font-mono text-xs">
+          <span className="size-1.5 rounded-full bg-success" />
+          {c.inProgress}
+        </span>
+      </div>
+      <div className={styles.sessionStats}>
+        {[
+          { value: "42:18", label: c.duration },
+          { value: "4,280 kg", label: c.volume },
+          { value: "12 / 18", label: c.sets },
+        ].map((stat) => (
+          <div key={stat.label}>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {stat.label}
+            </p>
+            <p className="mt-1 font-mono text-lg font-medium">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className={styles.previewPanels}>
+        <MockSetLog />
+        <MockChart />
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <Check size={13} className="text-success-text" />
+          {c.savedSets}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Timer size={13} />
+          {c.restTimer}
+          <span className="font-mono text-foreground">01:30</span>
+        </span>
+      </div>
+    </div>
   )
 }
 
@@ -400,6 +438,116 @@ function MockSetLog() {
         <Plus size={12} />
         {c.nextSet}
       </p>
+    </div>
+  )
+}
+
+function NutritionDemo() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  const meals = [
+    { label: "Breakfast", value: "620 kcal", detail: "42g protein" },
+    { label: "Lunch", value: "810 kcal", detail: "58g protein" },
+    { label: "Dinner", value: "740 kcal", detail: "49g protein" },
+  ]
+  return (
+    <div className={styles.previewMain}>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+            {c.nutritionTarget}
+          </p>
+          <h3 className="text-xl font-semibold tracking-tight">
+            {c.featureNutritionTitle}
+          </h3>
+        </div>
+        <span className="rounded-full border border-border px-3 py-1.5 font-mono text-xs">
+          1,840 / 2,250 kcal
+        </span>
+      </div>
+      <div className={styles.macroGrid}>
+        {[
+          { label: c.protein, value: "149g", amount: "86%" },
+          { label: c.calories, value: "1,840", amount: "82%" },
+          { label: c.carbs, value: "205g", amount: "72%" },
+        ].map((item) => (
+          <div key={item.label} className={styles.macroCard}>
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span>{item.label}</span>
+              <span>{item.amount}</span>
+            </div>
+            <p className="mt-3 font-mono text-2xl font-medium">{item.value}</p>
+            <div className={styles.progressTrack}>
+              <span style={{ width: item.amount }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background">
+        {meals.map((meal) => (
+          <div
+            key={meal.label}
+            className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-b-0"
+          >
+            <div>
+              <p className="text-sm font-medium">{meal.label}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {meal.detail}
+              </p>
+            </div>
+            <span className="font-mono text-sm">{meal.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ProgressDemo() {
+  const { messages } = useLocale()
+  const c = messages.landing
+  return (
+    <div className={styles.previewMain}>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+            {c.progress}
+          </p>
+          <h3 className="text-xl font-semibold tracking-tight">
+            {c.featureChartsTitle}
+          </h3>
+        </div>
+        <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 font-mono text-xs">
+          <span className="size-1.5 rounded-full bg-success" />
+          +5.0 kg
+        </span>
+      </div>
+      <div className={styles.progressPreviewGrid}>
+        <MockChart />
+        <div className="rounded-lg border border-border bg-background p-4">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            {c.progress}
+          </p>
+          {[
+            { label: c.volume, value: "18,420 kg", trend: "+12%" },
+            { label: c.bodyWeight, value: "74.8 kg", trend: "-1.4 kg" },
+            { label: c.sets, value: "68", trend: "+8" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center justify-between gap-3 border-b border-border py-4 last:border-b-0"
+            >
+              <div>
+                <p className="text-sm font-medium">{item.label}</p>
+                <p className="mt-1 font-mono text-lg">{item.value}</p>
+              </div>
+              <span className="rounded-full bg-success-soft px-2.5 py-1 font-mono text-[11px] text-success-text">
+                {item.trend}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
