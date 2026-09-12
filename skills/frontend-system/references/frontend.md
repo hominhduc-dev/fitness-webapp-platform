@@ -102,9 +102,11 @@ app/layout.tsx
 | `/progress` | SSR parallel fetch → client feature/charts | `components/progress/progress-client.tsx` |
 | `/trackweight` | route wrapper → lazy client tracker | `components/progress/weight-tracking-*` |
 | `/profile` | SSR session/profile fetch → client form | `components/profile-client.tsx` |
-| `/coach` | SSR dashboard, coach guard | `app/(shell)/coach/page.tsx` |
-| `/coach/trainees*` | SSR guard/fetch → client detail/list | `components/coach/trainee-*` |
-| `/coach/programs*` | SSR guard/fetch → client editor/boards | `components/coach/program-*` |
+| `/coach` | SSR guard + Suspense-streamed dashboard | `app/(shell)/coach/page.tsx` |
+| `/coach/trainees` | SSR shell → TanStack client cache/fetch | `components/coach/trainees-client-view.tsx` |
+| `/coach/trainees/[id]` | SSR guard/fetch → client detail | `components/coach/trainee-detail-client.tsx` |
+| `/coach/programs` | SSR shell → TanStack client cache/fetch; exercise catalogue lazy on demand | `components/coach/programs-board.tsx` |
+| `/coach/programs/new`, `/coach/programs/[id]` | SSR shell/guard → lazy client editor + parallel cache-first queries | `components/coach/program-editor.tsx` |
 | `/coach/exercises` | SSR shell → TanStack client cache/fetch | `components/coach/exercise-library-client.tsx` |
 | `/coach/find` | trainee SSR fetch → client search | `components/coach/find-coach-client.tsx` |
 | `/admin` | SSR admin guard → client console | `components/admin/admin-console.tsx` |

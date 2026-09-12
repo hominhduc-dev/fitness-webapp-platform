@@ -1,12 +1,14 @@
 import Link from "next/link"
+import { Suspense } from "react"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, ArrowRight, BellRing, CalendarPlus, Dumbbell, TrendingUp, Users } from "lucide-react"
 
 import { PendingRequestsPanel } from "@/components/coach/pending-requests-panel"
+import { CoachDashboardLoading } from "./loading"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { requireAppSession } from "@/lib/auth/server"
+import { requireAppSession, requireAppUser } from "@/lib/auth/server"
 import { fetchCoachDashboard } from "@/lib/fitness/api"
 import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
 import { cn } from "@/lib/utils"
@@ -135,7 +137,7 @@ function getAdjustHref(trainee: Awaited<ReturnType<typeof fetchCoachDashboard>>[
   return `/coach/trainees/${trainee.id}`
 }
 
-export default async function CoachDashboardPage() {
+async function CoachDashboardContent() {
   const [{ accessToken }, locale, messages] = await Promise.all([
     requireAppSession({ role: "coach" }),
     getServerLocale(),
@@ -448,5 +450,15 @@ export default async function CoachDashboardPage() {
         </section>
       </div>
     </div>
+  )
+}
+
+export default async function CoachDashboardPage() {
+  await requireAppUser({ role: "coach" })
+
+  return (
+    <Suspense fallback={<CoachDashboardLoading />}>
+      <CoachDashboardContent />
+    </Suspense>
   )
 }

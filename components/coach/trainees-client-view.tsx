@@ -5,10 +5,11 @@ import { queryKeys } from "@/lib/queries/keys"
 import { fetchCoachTrainees } from "@/lib/fitness/api"
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronRight, Search } from "lucide-react"
+import { ChevronRight, Loader2, Search } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
 import type { CoachTrainee } from "@/lib/fitness/types"
@@ -110,12 +111,13 @@ function ClientRow({ trainee }: { trainee: CoachTrainee }) {
 /* ------------------------------------------------------------------ */
 
 type Props = {
-  initialTrainees: CoachTrainee[]
+  initialTrainees?: CoachTrainee[]
 }
 
 export function TraineesClientView({ initialTrainees }: Props) {
-  const { messages } = useLocale()
-  const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
+  const { locale, messages } = useLocale()
+  const traineesQuery = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
+  const trainees = traineesQuery.data ?? []
   const [q, setQ] = useState("")
   const [filter, setFilter] = useState<"all" | "on-track" | "behind" | "rest">("all")
 
@@ -165,7 +167,21 @@ export function TraineesClientView({ initialTrainees }: Props) {
 
       {/* Client rows */}
       <div>
-        {visible.length === 0 ? (
+        {traineesQuery.isPending ? (
+          <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            {messages.common.loading}
+          </div>
+        ) : traineesQuery.isError ? (
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center">
+            <p className="text-sm text-destructive-text">
+              {locale === "en" ? "Unable to load clients." : "Không thể tải danh sách khách hàng."}
+            </p>
+            <Button type="button" variant="outline" size="sm" onClick={() => void traineesQuery.refetch()}>
+              {locale === "en" ? "Try again" : "Thử lại"}
+            </Button>
+          </div>
+        ) : visible.length === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-muted-foreground">
             {messages.coach.noClientsMatch}
           </p>
