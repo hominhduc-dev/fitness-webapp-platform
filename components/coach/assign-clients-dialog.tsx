@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { assignCoachProgram, unassignCoachProgram } from "@/lib/fitness/api"
+import { useAssignCoachProgram, useUnassignCoachProgram } from "@/lib/queries/coach"
 import { cn } from "@/lib/utils"
 import type { AssignedTrainee, CoachProgram, CoachTrainee } from "@/lib/fitness/types"
 
@@ -39,6 +39,8 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
   const { session } = useAuth()
   const { messages } = useLocale()
   const [query, setQuery] = useState("")
+  const assignProgram = useAssignCoachProgram()
+  const unassignProgram = useUnassignCoachProgram()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,7 +72,6 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
 
   const handleSave = async () => {
     if (!program || !session?.access_token) return
-    const token = session.access_token
     const current = new Set((program.assignedTrainees ?? []).map((t) => t.id))
     const toAdd = [...selected].filter((id) => !current.has(id))
     const toRemove = [...current].filter((id) => !selected.has(id))
@@ -79,8 +80,8 @@ export function AssignClientsDialog({ program, trainees, onClose, onAssigned }: 
     setError(null)
     try {
       await Promise.all([
-        ...toAdd.map((id) => assignCoachProgram(token, program.id, id)),
-        ...toRemove.map((id) => unassignCoachProgram(token, program.id, id)),
+        ...toAdd.map((id) => assignProgram.mutateAsync({ programId: program.id, traineeId: id })),
+        ...toRemove.map((id) => unassignProgram.mutateAsync({ programId: program.id, traineeId: id })),
       ])
 
       const nextAssigned: AssignedTrainee[] = trainees

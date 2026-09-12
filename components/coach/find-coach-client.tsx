@@ -8,7 +8,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createCoachRequest } from "@/lib/fitness/api"
+import { useCreateCoachRequest } from "@/lib/queries/coach"
 import type { DiscoverableCoach } from "@/lib/fitness/types"
 
 function getInitials(name: string) {
@@ -22,6 +22,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [search, setSearch] = useState("")
+  const createCoachRequest = useCreateCoachRequest()
   const [coaches, setCoaches] = useState(initialCoaches)
   const [pendingCoachId, setPendingCoachId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -51,7 +52,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
     setError(null)
 
     try {
-      const request = await createCoachRequest(session.access_token, coachId)
+      const request = await createCoachRequest.mutateAsync(coachId)
       setCoaches((current) =>
         current.map((coach) =>
           coach.id === coachId

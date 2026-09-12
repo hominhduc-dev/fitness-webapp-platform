@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2, Trash2 } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
@@ -18,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { deleteWorkout } from "@/lib/fitness/api"
+import { useDeleteWorkout } from "@/lib/queries/workouts"
 import { cn } from "@/lib/utils"
 
 type DeleteWorkoutButtonProps = {
@@ -27,7 +26,6 @@ type DeleteWorkoutButtonProps = {
   confirmTitle?: string
   label?: string
   onDeleted?: () => void
-  refreshOnSuccess?: boolean
   size?: React.ComponentProps<typeof Button>["size"]
   variant?: React.ComponentProps<typeof Button>["variant"]
   workoutId: string
@@ -39,18 +37,17 @@ export function DeleteWorkoutButton({
   confirmTitle,
   label,
   onDeleted,
-  refreshOnSuccess = true,
   size = "icon",
   variant = "outline",
   workoutId,
 }: DeleteWorkoutButtonProps) {
-  const router = useRouter()
   const { isLoading: authLoading, session } = useAuth()
   const { messages } = useLocale()
+  const deleteWorkout = useDeleteWorkout()
   const [isMounted, setIsMounted] = useState(false)
   const [open, setOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isDeleting = deleteWorkout.isPending
 
   useEffect(() => {
     setIsMounted(true)
@@ -82,24 +79,18 @@ export function DeleteWorkoutButton({
   }
 
   const handleDelete = async () => {
-    if (!session?.access_token || isDeleting) {
+    if (!session?.access_token || deleteWorkout.isPending) {
       return
     }
 
-    setIsDeleting(true)
     setError(null)
 
     try {
-      await deleteWorkout(session.access_token, workoutId)
+      await deleteWorkout.mutateAsync(workoutId)
       onDeleted?.()
       handleOpenChange(false)
-      if (refreshOnSuccess) {
-        router.refresh()
-      }
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : messages.workoutPage.deleteWorkoutError)
-    } finally {
-      setIsDeleting(false)
     }
   }
 

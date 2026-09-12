@@ -38,11 +38,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
-  assignCoachProgram,
-  createCoachBodyMetric,
-  createCoachCheckIn,
-  unassignCoachProgram,
-} from "@/lib/fitness/api"
+  useAssignCoachProgram,
+  useCreateCoachBodyMetric,
+  useCreateCoachCheckIn,
+  useUnassignCoachProgram,
+} from "@/lib/queries/coach"
 import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
 import type { MealType } from "@/lib/types"
 
@@ -339,6 +339,10 @@ export function CoachTraineeDetailClient({
   const { locale, messages } = useLocale()
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
+  const assignProgram = useAssignCoachProgram()
+  const unassignProgram = useUnassignCoachProgram()
+  const createBodyMetric = useCreateCoachBodyMetric()
+  const createCheckIn = useCreateCoachCheckIn()
   const [detail, setDetail] = useState(initialDetail)
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
@@ -436,7 +440,7 @@ export function CoachTraineeDetailClient({
     setAssignNotice(null)
 
     try {
-      await assignCoachProgram(session.access_token, selectedProgramId, detail.trainee.id)
+      await assignProgram.mutateAsync({ programId: selectedProgramId, traineeId: detail.trainee.id })
       const assignedProgram = coachPrograms.find((program) => program.id === selectedProgramId)
 
       if (assignedProgram) {
@@ -464,7 +468,7 @@ export function CoachTraineeDetailClient({
     setAssignNotice(null)
 
     try {
-      await unassignCoachProgram(session.access_token, programId, detail.trainee.id)
+      await unassignProgram.mutateAsync({ programId, traineeId: detail.trainee.id })
       setDetail((current) => ({
         ...current,
         programs: current.programs.filter((program) => program.id !== programId),
@@ -487,7 +491,7 @@ export function CoachTraineeDetailClient({
     setMetricError(null)
 
     try {
-      const bodyMetric = await createCoachBodyMetric(session.access_token, detail.trainee.id, {
+      const bodyMetric = await createBodyMetric.mutateAsync({ traineeId: detail.trainee.id, input: {
         bodyFatPct: parseOptionalNumber(metricForm.bodyFatPct),
         chestCm: parseOptionalNumber(metricForm.chestCm),
         hipsCm: parseOptionalNumber(metricForm.hipsCm),
@@ -496,7 +500,7 @@ export function CoachTraineeDetailClient({
         thighCm: parseOptionalNumber(metricForm.thighCm),
         waistCm: parseOptionalNumber(metricForm.waistCm),
         weightKg: parseOptionalNumber(metricForm.weightKg),
-      })
+      } })
 
       setDetail((current) => ({
         ...current,
@@ -521,7 +525,7 @@ export function CoachTraineeDetailClient({
     setCheckInError(null)
 
     try {
-      const checkIn = await createCoachCheckIn(session.access_token, detail.trainee.id, {
+      const checkIn = await createCheckIn.mutateAsync({ traineeId: detail.trainee.id, input: {
         adherenceScore: parseOptionalNumber(checkInForm.adherenceScore),
         checkInDate: checkInForm.checkInDate,
         energyScore: parseOptionalNumber(checkInForm.energyScore),
@@ -530,7 +534,7 @@ export function CoachTraineeDetailClient({
         nextFocus: checkInForm.nextFocus.trim() || undefined,
         recoveryScore: parseOptionalNumber(checkInForm.recoveryScore),
         summary: checkInForm.summary.trim() || undefined,
-      })
+      } })
 
       setDetail((current) => ({
         ...current,

@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { ArrowLeft, Copy, Loader2, Pencil, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { FilterChip } from "@/components/workout/filter-chip"
 import { RoutineCard } from "@/components/workout/routine-card"
 import { RoutineBuilderDialog, buildRoutineWorkoutPayload, type RoutineDraftData } from "@/components/workout/routine-builder-dialog"
+import { useQueryClient } from "@tanstack/react-query"
+
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { addWorkoutToProgram, copyProgramWeek, updateTraineeProgram } from "@/lib/fitness/api"
+import { queryKeys } from "@/lib/queries/keys"
 import { clampWeeks, resolveCurrentWeekProgress } from "@/lib/fitness/program-week"
 import type { CoachProgram } from "@/lib/fitness/types"
 import type { AppLocale } from "@/lib/i18n/config"
@@ -49,7 +51,7 @@ function getDayLabels(locale: AppLocale) {
 export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, program }: ProgramWeekViewerProps) {
   const { locale, messages } = useLocale()
   const { session } = useAuth()
-  const router = useRouter()
+  const queryClient = useQueryClient()
   const totalWeeks = clampWeeks(program.duration)
 
   const progress = useMemo(() => resolveCurrentWeekProgress(assignedAt, totalWeeks), [assignedAt, totalWeeks])
@@ -104,7 +106,13 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs, pr
 
     try {
       await action(accessToken)
-      router.refresh()
+      // Was router.refresh(): re-running the whole RSC tree to pick up one
+      // program edit. Invalidating the two families the edit can touch is the
+      // same refresh without the server round trip for the layout.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workouts.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.progress.all }),
+      ])
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : messages.workoutPage.programActionFailed)
     } finally {

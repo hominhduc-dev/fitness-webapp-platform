@@ -6,7 +6,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { updateCoachRequestStatus } from "@/lib/fitness/api"
+import { useUpdateCoachRequestStatus } from "@/lib/queries/coach"
 import type { CoachRequestSummary } from "@/lib/fitness/types"
 
 function getInitials(name: string) {
@@ -19,6 +19,7 @@ function getInitials(name: string) {
 export function PendingRequestsPanel({ initialRequests }: { initialRequests: CoachRequestSummary[] }) {
   const { session } = useAuth()
   const { locale, messages } = useLocale()
+  const updateRequestStatus = useUpdateCoachRequestStatus()
   const [requests, setRequests] = useState(initialRequests)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +33,7 @@ export function PendingRequestsPanel({ initialRequests }: { initialRequests: Coa
     setError(null)
 
     try {
-      await updateCoachRequestStatus(session.access_token, requestId, status)
+      await updateRequestStatus.mutateAsync({ requestId, status })
       setRequests((current) => current.filter((request) => request.id !== requestId))
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : locale === "en" ? "Unable to update the coach request." : "Không thể cập nhật coach request.")
