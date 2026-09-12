@@ -94,6 +94,7 @@ app/layout.tsx
 | Route/nhóm | Strategy hiện tại | UI owner chính |
 |---|---|---|
 | `/` | SSR landing; redirect theo session/role | `components/landing/landing-page.tsx` |
+| `/privacy-policy`, `/terms-of-service` | Public SSR, không yêu cầu auth; locale cookie hoặc `?lang=vi/en` | `components/legal/legal-page.tsx`, `lib/i18n/messages/legal.ts` |
 | `/(shell)` | SSR auth shell | `app/(shell)/layout.tsx` |
 | `/dashboard` | SSR + Suspense streaming | `components/dashboard/*` |
 | `/workout` | SSR + Suspense; fetch collection rồi hydrate board | `components/workout/routines-workout-board.tsx` |

@@ -74,6 +74,8 @@ export function LandingPage(_props: { locale: AppLocale }) {
         <p>{c.footerLine}</p>
         <div className="flex flex-wrap items-center gap-6">
           <LanguageToggle />
+          <Link href="/privacy-policy">{c.privacy}</Link>
+          <Link href="/terms-of-service">{c.terms}</Link>
           <Link href="#features">{c.navFeatures}</Link>
           <Link href="/?auth=login" scroll={false}>
             {c.signIn}
