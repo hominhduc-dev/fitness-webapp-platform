@@ -72,11 +72,32 @@ jobs:
               exit 21
             fi
 
-            docker run --rm --privileged \
-              --entrypoint chroot \
-              -v /:/host:rw \
+            docker run --rm --privileged --pid=host \
+              --entrypoint sh \
               "$image" \
-              /host /usr/sbin/nginx -s reload
+              -c '
+                set -eu
+                master_pid=""
+
+                for cmdline in /proc/[0-9]*/cmdline; do
+                  command=$(tr "\000" " " < "$cmdline" 2>/dev/null || true)
+                  case "$command" in
+                    *"nginx: master process"*)
+                      master_pid=${cmdline#/proc/}
+                      master_pid=${master_pid%/cmdline}
+                      break
+                      ;;
+                  esac
+                done
+
+                if [ -z "$master_pid" ]; then
+                  echo "Unable to locate the Nginx master process" >&2
+                  exit 22
+                fi
+
+                echo "Reloading Nginx master process ${master_pid}"
+                kill -HUP "$master_pid"
+              '
 
             sleep 2
             curl -fsS https://backend.hominhduc.me/api/health
