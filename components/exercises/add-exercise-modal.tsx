@@ -7,7 +7,7 @@ import type { ReactNode } from "react"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import type { MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { useLocale } from "@/components/providers/locale-provider"
-import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS } from "@/lib/fitness/muscle-profile"
@@ -128,9 +128,14 @@ export function AddExerciseModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent showCloseButton={false} className="flex max-h-[82vh] w-full max-w-[480px] flex-col overflow-hidden p-0">
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[95]"
+        className="z-[100] flex max-h-[82vh] w-full max-w-[480px] flex-col overflow-hidden p-0"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{title ?? messages.workoutPage.addExercise}</DialogTitle>
+          <DialogDescription>{messages.workoutPage.searchShortPlaceholder}</DialogDescription>
         </DialogHeader>
 
         {/* Header */}
@@ -230,8 +235,13 @@ export function AddExerciseModal({
       <Dialog open={showFilters} onOpenChange={setShowFilters}>
         <DialogContent
           showCloseButton={false}
-          className="flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-3xl border border-border bg-background p-0 shadow-2xl sm:rounded-2xl"
+          overlayClassName="z-[105]"
+          className="z-[110] flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-3xl border border-border bg-background p-0 shadow-2xl sm:rounded-2xl"
         >
+          <DialogHeader className="sr-only">
+            <DialogTitle>{filterCopy.filter}</DialogTitle>
+            <DialogDescription>{filterCopy.hint}</DialogDescription>
+          </DialogHeader>
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
               <div className="min-w-0">
                 <h4 id="exercise-filter-title" className="text-lg font-semibold text-foreground">{filterCopy.filter}</h4>

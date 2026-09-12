@@ -14,6 +14,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -418,6 +419,7 @@ export function RoutineBuilderDialog({
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{isEditing ? messages.workoutPage.editRoutineMode : messages.workoutPage.newRoutine}</DialogTitle>
+          <DialogDescription>{messages.workoutPage.routineNamePlaceholder}</DialogDescription>
         </DialogHeader>
 
         {/* ── Header ──────────────────────────────────────────────────── */}
