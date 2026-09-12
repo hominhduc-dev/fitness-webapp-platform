@@ -578,7 +578,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
 
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
-    <div className={cn(completed ? "bg-muted" : "bg-transparent")}>
+    <div className={cn(completed ? "bg-muted" : set.compoundSet ? "bg-primary-soft/30" : "bg-transparent")}>
       <div
         className={cn(
           "grid min-w-0 items-center",
@@ -589,36 +589,74 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "transition-colors duration-[180ms]",
         )}
       >
-        {/* Set number */}
-        <span
-          className={cn(
-            "min-w-0 text-center font-mono text-base font-semibold",
-            completed ? "text-muted-foreground" : "text-foreground",
-          )}
-        >
-          {setIndex + 1}
-        </span>
+        {/* Set number + method badge */}
+        {set.compoundSet && compoundMeta ? (
+          <button
+            type="button"
+            onClick={() => setCompoundOpen((value) => !value)}
+            aria-label={`${compoundMeta.label} ${messages.workoutPage.set} ${setIndex + 1}`}
+            aria-expanded={compoundOpen}
+            className="flex min-w-0 flex-col items-center justify-center gap-0.5 text-center"
+          >
+            <span
+              className={cn(
+                "font-mono text-base font-semibold leading-none",
+                completed ? "text-muted-foreground" : "text-foreground",
+              )}
+            >
+              {setIndex + 1}
+            </span>
+            <span className="rounded-full bg-primary px-1.5 py-px font-mono text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-primary-foreground">
+              {compoundMeta.badge}
+            </span>
+          </button>
+        ) : (
+          <span
+            className={cn(
+              "min-w-0 text-center font-mono text-base font-semibold",
+              completed ? "text-muted-foreground" : "text-foreground",
+            )}
+          >
+            {setIndex + 1}
+          </span>
+        )}
 
         {/* Previous */}
-        <span
-          className={cn(
-            "min-w-0 font-mono text-micro leading-tight",
-            exceededRange
-              ? "inline-flex items-center justify-center gap-1 text-success-text"
-              : "block truncate text-center text-muted-foreground",
-          )}
-          title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
-          aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
-        >
-          {exceededRange ? (
-            <>
-              <span className="truncate">{prevLabel}</span>
-              <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
-            </>
-          ) : (
-            prevLabel
-          )}
-        </span>
+        {set.compoundSet && compoundMeta ? (
+          <button
+            type="button"
+            onClick={() => setCompoundOpen((value) => !value)}
+            aria-expanded={compoundOpen}
+            className="flex min-w-0 flex-col items-start justify-center gap-0.5 text-left"
+          >
+            <span className="max-w-full truncate text-xs font-semibold leading-tight text-foreground">
+              {compoundMeta.shortLabel}
+            </span>
+            <span className="max-w-full truncate font-mono text-micro leading-tight text-muted-foreground">
+              {getCompoundSummary(set.compoundSet, parsePositiveNumber(weight))}
+            </span>
+          </button>
+        ) : (
+          <span
+            className={cn(
+              "min-w-0 font-mono text-micro leading-tight",
+              exceededRange
+                ? "inline-flex items-center justify-center gap-1 text-success-text"
+                : "block truncate text-center text-muted-foreground",
+            )}
+            title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
+            aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
+          >
+            {exceededRange ? (
+              <>
+                <span className="truncate">{prevLabel}</span>
+                <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
+              </>
+            ) : (
+              prevLabel
+            )}
+          </span>
+        )}
 
       {/* Weight input */}
       <input
@@ -708,6 +746,17 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
 
         {/* Row actions: tick + more options */}
         <div className="flex items-center justify-end gap-1">
+          {set.compoundSet && compoundMeta ? (
+            <button
+              type="button"
+              onClick={() => setCompoundOpen((value) => !value)}
+              aria-label={`${compoundMeta.label} details`}
+              aria-expanded={compoundOpen}
+              className="flex h-[22px] w-[18px] items-center justify-center pointer-coarse:h-11 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", compoundOpen && "rotate-180")} />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleToggle}
@@ -785,35 +834,9 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
         </div>
       </div>
 
-      {set.compoundSet && compoundMeta ? (
-        <div className="border-t border-border/70 px-2 pb-2 pt-2 sm:px-4 md:px-5">
-          <button
-            type="button"
-            onClick={() => setCompoundOpen((value) => !value)}
-            aria-expanded={compoundOpen}
-            className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-surface-subtle px-2.5 py-2 text-left transition-colors hover:bg-surface-hover"
-          >
-            <span className="flex min-w-0 flex-col gap-1">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="rounded-full bg-primary-soft px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
-                  {compoundMeta.badge}
-                </span>
-                <span className="truncate text-xs font-semibold text-foreground">
-                  {compoundMeta.shortLabel}
-                </span>
-                <span className="truncate font-mono text-xs text-muted-foreground">
-                  {getCompoundSummary(set.compoundSet, parsePositiveNumber(weight))}
-                </span>
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {messages.workoutPage.compoundProgress(getCompoundProgress(set.compoundSet))}
-              </span>
-            </span>
-            <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", compoundOpen && "rotate-180")} />
-          </button>
-
-          {compoundOpen ? (
-            <div className="mt-2 rounded-xl border border-border bg-background p-3">
+      {set.compoundSet && compoundMeta && compoundOpen ? (
+        <div className="border-t border-primary/20 bg-primary-soft/25 px-2 pb-2 pt-2 sm:px-4 md:px-5">
+            <div className="rounded-xl border border-primary/20 bg-background p-3">
               <div className="mb-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -824,6 +847,9 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                     {compoundMeta.badge}
                   </span>
                 </div>
+                <p className="mt-2 font-mono text-xs text-muted-foreground">
+                  {messages.workoutPage.compoundProgress(getCompoundProgress(set.compoundSet))}
+                </p>
 
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {set.compoundSet.type !== "drop_set" ? (
@@ -946,7 +972,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                 </Button>
               </div>
             </div>
-          ) : null}
         </div>
       ) : null}
 
