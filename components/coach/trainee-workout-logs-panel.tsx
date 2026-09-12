@@ -833,7 +833,7 @@ export function TraineeWorkoutLogsPanel({
           <p className="mt-1 text-sm text-muted-foreground">
             {logs.length > 0
               ? `Loaded ${logs.length} sessions for the selected week. Export uses the weekly template report and adds a raw set sheet.`
-              : "Chọn tuần để xem full set detail và xuất weekly report theo template."}
+              : "Pick a week to see full set detail and export the weekly template report."}
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

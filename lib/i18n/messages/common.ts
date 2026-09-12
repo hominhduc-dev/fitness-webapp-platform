@@ -64,6 +64,7 @@ export const commonMessages = {
       startWorkout: "Start",
       yeahBuddyUser: "YeahBuddy User",
       loadingEmail: "Loading...",
+      loadingWorkspace: "Loading workspace",
     },
   },
   vi: {
@@ -119,7 +120,7 @@ export const commonMessages = {
       account: "Tài khoản",
       backToAthleteView: "Quay lại giao diện học viên",
       addClient: "Thêm học viên",
-      activeClients: "học viên đang hoạt động",
+      activeClients: "học viên hoạt động",
       home: "Trang chủ",
       coach: "Coach",
       meals: "Bữa ăn",
@@ -131,6 +132,7 @@ export const commonMessages = {
       startWorkout: "Bắt đầu",
       yeahBuddyUser: "Người dùng YeahBuddy",
       loadingEmail: "Đang tải...",
+      loadingWorkspace: "Đang tải workspace",
     },
   },
 } as const

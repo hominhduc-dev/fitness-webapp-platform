@@ -187,10 +187,13 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         <SidebarAccountMenu
           avatarClassName="h-7 w-7"
           buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
-          fallbackEmail="coach@example.com"
-          fallbackInitials="EK"
-          fallbackName="Coach Eli K."
-          subtitle={<span className="font-mono text-micro">12 {messages.shell.activeClients}</span>}
+          subtitle={
+            counts.trainees === undefined ? undefined : (
+              <span className="font-mono text-micro">
+                {counts.trainees} {messages.shell.activeClients}
+              </span>
+            )
+          }
         />
       }
     />

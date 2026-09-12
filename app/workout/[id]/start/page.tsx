@@ -52,11 +52,14 @@ import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 
 /** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
 const DEFAULT_REST_SECONDS = 90
-// The trailing column holds the complete-set tick and the row menu. Both keep
-// their original 22px footprint and grow only in height on touch, so the column
-// width — and therefore the room left for the number fields — is unchanged.
+// The trailing column holds the complete-set tick and the row menu; both keep
+// their 22px footprint and grow only in height on touch.
+// Prev carries the longest string in the row ("82.5×8-10") while kg, Reps and
+// RIR never hold more than a few digits, so on phones the width is weighted
+// towards Prev rather than split evenly — otherwise the target rep range is the
+// part that gets truncated away.
 const SET_ROW_GRID_CLASS =
-  "grid-cols-[28px_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_50px] gap-1.5 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_54px] sm:gap-2 sm:px-4 md:px-5"
+  "grid-cols-[26px_minmax(0,1.35fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_46px] gap-1 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_54px] sm:gap-2 sm:px-4 md:px-5"
 
 type ProgramSetTarget = {
   reps: number
@@ -411,8 +414,10 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
       ? String(set.previousPerformance.reps)
       : null
   const weightPart = prevWeight != null ? String(prevWeight) : null
+  // No spaces around the "×": at 375px the two of them are the difference
+  // between showing the target rep range and truncating it away.
   const prevLabel =
-    weightPart || repsPart ? `${weightPart ?? "—"} × ${repsPart ?? "—"}` : "— · —"
+    weightPart || repsPart ? `${weightPart ?? "—"}×${repsPart ?? "—"}` : "— · —"
   // Passive progression hint: if last session's reps exceeded the coach's upper
   // bound, tint the cell green and append a ↗ so trainee sees they've earned a
   // weight bump. No auto-adjustment — trainee decides.
@@ -751,7 +756,7 @@ function LiftExerciseBlock({
       <div className="flex items-center justify-between border-b border-border px-4 py-4 md:px-5">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="min-w-0 truncate text-base font-semibold leading-tight tracking-[0] text-foreground md:text-lg">{exerciseLabel}</p>
+            <p className="min-w-0 line-clamp-2 text-base font-semibold leading-tight tracking-[0] text-foreground md:text-lg">{exerciseLabel}</p>
             {coachUpdate && coachUpdateMeta && CoachUpdateIcon ? (
               <button
                 type="button"

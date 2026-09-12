@@ -155,7 +155,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               </Link>
             )
           })}
-          <button type="button" aria-controls="mobile-more-navigation" aria-expanded={open} aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title="More" onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+          <button type="button" aria-controls="mobile-more-navigation" aria-expanded={open} aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title={open ? messages.common.closeNavigation : messages.common.openNavigation} onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
             <MoreHorizontal className="h-5 w-5" />
             <span className="sr-only">More</span>
           </button>

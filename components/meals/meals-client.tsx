@@ -918,7 +918,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
         <div className="flex gap-2 self-start">
           <Button variant="outline" className="gap-1.5" type="button" onClick={() => setShowAIMealPlan(true)}>
             <Bot className="h-4 w-4" />
-            AI gợi ý
+            {messages.meals.aiSuggest}
           </Button>
           <Button className="bg-foreground text-background hover:bg-ink-900" type="button" onClick={() => setAddTo("snack")}>
             <Plus className="h-4 w-4" />

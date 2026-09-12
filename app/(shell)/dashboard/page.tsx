@@ -158,12 +158,12 @@ async function DashboardOverview({ accessToken, locale, messages, preferredWeigh
 
   return (
     <>
+      <QuickActions />
+
       <section className="grid min-w-0 gap-4 md:grid-cols-[1.15fr_0.85fr]">
         <TodayWorkout workout={dashboard.todayWorkout} />
         <NutritionSummary nutrition={dashboard.dailyNutrition} />
       </section>
-
-      <QuickActions />
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {statCards.map((card) => {
