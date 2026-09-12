@@ -67,7 +67,10 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   const sessions = new Map<number, ExportSession[]>()
   for (const log of logs) {
     const snapshot = log.workoutSnapshot as { scheduledDay?: number; weekIndex?: number } | null
-    if (!snapshot || !Number.isInteger(snapshot.weekIndex) || snapshot.weekIndex! < 1 || !Number.isInteger(snapshot.scheduledDay) || !Array.isArray(log.exerciseSnapshot)) throw new BadRequestError("Log cũ thiếu snapshot tuần/ngày. Không thể xác định sheet đích an toàn.")
+    // `weekIndex` counts from 0, so week 0 is the coach's "Week 1" sheet. Logs
+    // recorded before the importer was corrected carry a 1-based index and land
+    // one sheet late; they are the reason this only checks for a negative.
+    if (!snapshot || !Number.isInteger(snapshot.weekIndex) || snapshot.weekIndex! < 0 || !Number.isInteger(snapshot.scheduledDay) || !Array.isArray(log.exerciseSnapshot)) throw new BadRequestError("Log cũ thiếu snapshot tuần/ngày. Không thể xác định sheet đích an toàn.")
     const week = snapshot.weekIndex!
     const exercises = log.exerciseSnapshot as unknown as ExportExercise[]
     if (exercises.some((exercise) => !exercise || !Array.isArray(exercise.sets))) throw new BadRequestError("Snapshot bài tập không hợp lệ.")
@@ -89,7 +92,7 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   let rowCount = 0
   const ids = new Set(meta.sheetProperties.map((sheet) => sheet.sheetId))
   for (const [week, group] of sessions) {
-    const title = week === 1 ? source.title : `Week ${week}`
+    const title = week === 0 ? source.title : `Week ${week + 1}`
     const existing = meta.sheetProperties.find((sheet) => sheet.title === title)
     let sheetId = existing?.sheetId
     if (sheetId == null) {

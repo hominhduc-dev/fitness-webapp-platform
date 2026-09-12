@@ -1,4 +1,5 @@
 import type { CreateCoachProgramInput, ExerciseVariationOption } from "@/lib/fitness/types"
+import { parseSetIntensityMethodCell } from "@/lib/workout/intensity-tag"
 import { parseRepTargetText } from "@/lib/workout-reps"
 
 /**
@@ -16,6 +17,8 @@ import { parseRepTargetText } from "@/lib/workout-reps"
 type ProgramImportRow = {
   notes?: string
   exerciseName: string
+  /** Raw `Method` cell, e.g. "mrm", "all:drop", "1:warmup,3:mrm", "-, -, rp". */
+  method?: string
   /** Position inside the workout. Falls back to the order rows arrive in. */
   order?: number
   /** Raw text so ranges such as "8-12" survive; parsed with the shared helper. */
@@ -30,7 +33,11 @@ type ProgramImportRow = {
   /** Set when the source names a variation id outright; skips name matching. */
   variationId?: string
   variationName: string
-  /** Absent when the source describes a single week that repeats. */
+  /**
+   * Week as the coach numbers it in the source, counting from 1. Absent when the
+   * source describes a single week that repeats. Converted to the app's 0-based
+   * `weekIndex` on the way out.
+   */
   week?: number
   weight?: number
   workoutName: string
@@ -147,8 +154,6 @@ function buildWorkoutsFromRows(
   const lookup = buildVariationLookup(exercises)
   const issues: ProgramImportIssue[] = []
 
-  // A week of 0 means "the source did not say", which is how the template mode is
-  // distinguished from an explicit week 1.
   const usesExplicitWeeks = rows.some((row) => row.week !== undefined)
   const repeatWeeks = usesExplicitWeeks ? 1 : Math.max(1, Math.round(options.duration ?? 1))
 
@@ -188,6 +193,13 @@ function buildWorkoutsFromRows(
       return
     }
 
+    const parsedMethod = parseSetIntensityMethodCell(row.method, sets)
+
+    if (!parsedMethod.assignments) {
+      issues.push({ message: `Dòng ${row.sourceRow}: ${parsedMethod.error}`, sourceRow: row.sourceRow })
+      return
+    }
+
     if (!row.variationId && !row.exerciseName) {
       issues.push({ message: `Dòng ${row.sourceRow}: cần tên Exercise hoặc variation id.`, sourceRow: row.sourceRow })
       return
@@ -215,13 +227,15 @@ function buildWorkoutsFromRows(
       repsMin: repTarget.repsMin,
       rir: row.rir,
       restTime: row.restTime,
+      setIntensityTags: parsedMethod.assignments.length ? parsedMethod.assignments : undefined,
       sets,
       variationId: variation.id,
       weight: typeof row.weight === "number" && Number.isFinite(row.weight) ? Math.max(0, row.weight) : undefined,
     }
 
     for (let repeat = 0; repeat < repeatWeeks; repeat += 1) {
-      const weekIndex = row.week ?? repeat + 1
+      // `weekIndex` is 0-based everywhere downstream; the source counts from 1.
+      const weekIndex = row.week != null ? Math.max(0, row.week - 1) : repeat
       const key = `${weekIndex}::${row.workoutName}::${row.scheduledDay}`
       const workout = grouped.get(key) ?? {
         exercises: [],
@@ -230,7 +244,10 @@ function buildWorkoutsFromRows(
         weekIndex,
       }
 
-      workout.exercises.push({ ...exercise })
+      workout.exercises.push({
+        ...exercise,
+        setIntensityTags: exercise.setIntensityTags?.map((assignment) => ({ ...assignment })),
+      })
       grouped.set(key, workout)
     }
   })

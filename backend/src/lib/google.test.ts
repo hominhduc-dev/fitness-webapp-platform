@@ -9,7 +9,7 @@ vi.mock("../config/env", () => ({
   },
 }))
 
-import { extractSpreadsheetId, fetchSpreadsheetMeta } from "./google"
+import { batchUpdateSpreadsheet, extractDriveFolderId, extractSpreadsheetId, fetchSpreadsheetMeta, findOrCreateDriveFolder } from "./google"
 import { BadRequestError, ExternalServiceError } from "../services/errors"
 
 /** Verbatim reply from the Sheets API for an .xlsx that was uploaded, never converted. */
@@ -54,6 +54,114 @@ describe("Google Sheets error translation", () => {
 
     expect(failure).toBeInstanceOf(ExternalServiceError)
     expect((failure as ExternalServiceError).status).toBe(502)
+  })
+})
+
+/** How undici reports a connection Google dropped mid-response. */
+function connectionReset() {
+  return Object.assign(new TypeError("fetch failed"), {
+    cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+  })
+}
+
+function okReply() {
+  return { json: async () => ({}), ok: true, status: 200, text: async () => "{}" }
+}
+
+describe("transient connection failures", () => {
+  it("retries a read that Google reset, and returns the reply that follows", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(connectionReset())
+      .mockRejectedValueOnce(connectionReset())
+      .mockResolvedValue({ ...okReply(), json: async () => ({ properties: { title: "Training" } }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchSpreadsheetMeta("token", "sheet-id")).resolves.toMatchObject({ title: "Training" })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it("gives up on a read once the attempts run out", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(connectionReset())
+    vi.stubGlobal("fetch", fetchMock)
+
+    const failure = await fetchSpreadsheetMeta("token", "sheet-id").catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ExternalServiceError)
+    expect((failure as ExternalServiceError).code).toBe("GOOGLE_UNREACHABLE")
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it("never repeats a write, because Google may already have applied the lost one", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(connectionReset())
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(batchUpdateSpreadsheet("token", "sheet-id", [])).rejects.toBeInstanceOf(ExternalServiceError)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not retry its own timeout, which would only stack more waiting", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(Object.assign(new Error("aborted"), { name: "AbortError" }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchSpreadsheetMeta("token", "sheet-id")).rejects.toBeInstanceOf(ExternalServiceError)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not retry a real HTTP error, which says the same thing every time", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({}),
+      ok: false,
+      status: 404,
+      text: async () => JSON.stringify({ error: { code: 404 } }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchSpreadsheetMeta("token", "missing-id")).rejects.toBeInstanceOf(ExternalServiceError)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("the app's own Drive folder", () => {
+  it("reuses the folder when the app already made one", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ files: [{ id: "folder-1", name: "Templates" }] }),
+      ok: true,
+      status: 200,
+      text: async () => "{}",
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(findOrCreateDriveFolder("token", "Templates")).resolves.toBe("folder-1")
+    // One lookup, no creation.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("creates the folder the first time and returns the new id", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ files: [] }), ok: true, status: 200, text: async () => "{}" })
+      .mockResolvedValueOnce({ json: async () => ({ id: "folder-2" }), ok: true, status: 200, text: async () => "{}" })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(findOrCreateDriveFolder("token", "Templates")).resolves.toBe("folder-2")
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST" })
+  })
+})
+
+describe("extractDriveFolderId", () => {
+  const id = "1nJd29hdYscdLKJNd5y8jagFAnk6XT3Nw"
+
+  it("reads the id out of a pasted folder link, or takes a bare id", () => {
+    expect(extractDriveFolderId(`https://drive.google.com/drive/folders/${id}`)).toBe(id)
+    expect(extractDriveFolderId(`https://drive.google.com/drive/folders/${id}?usp=sharing`)).toBe(id)
+    expect(extractDriveFolderId(id)).toBe(id)
+  })
+
+  it("rejects anything that is not a folder", () => {
+    expect(extractDriveFolderId("")).toBeUndefined()
+    expect(extractDriveFolderId("   ")).toBeUndefined()
+    expect(extractDriveFolderId("short")).toBeUndefined()
   })
 })
 

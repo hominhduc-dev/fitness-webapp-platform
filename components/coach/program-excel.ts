@@ -6,6 +6,7 @@ import {
   parsePositiveInteger,
   resolveVariation,
 } from "@/components/coach/program-import-rows"
+import { INTENSITY_METHOD_CHOICES, parseSetIntensityMethodCell } from "@/lib/workout/intensity-tag"
 import { parseRepTargetText } from "@/lib/workout-reps"
 
 type RawCell = string | number | boolean | null | undefined
@@ -24,6 +25,7 @@ type ProgramFieldKey = "assignToEmails" | "description" | "difficulty" | "durati
 
 type WorkoutColumnKey =
   | "exerciseName"
+  | "method"
   | "reps"
   | "rirRpe"
   | "scheduledDay"
@@ -75,6 +77,7 @@ const PROGRAM_FIELD_ALIASES: Record<ProgramFieldKey, string[]> = {
 
 const WORKOUT_COLUMN_ALIASES: Record<WorkoutColumnKey, string[]> = {
   exerciseName: ["exercise", "exercise_name", "exercisename"],
+  method: ["method", "intensity_method", "intensitymethod", "set_method", "setmethod"],
   reps: ["reps", "reps_range", "repsrange", "target_reps", "targetreps", "target_reps_range", "targetrepsrange"],
   rirRpe: ["rir_rpe", "rirrpe", "rir&rpe", "rir", "rpe"],
   scheduledDay: ["day", "scheduled_day", "scheduledday", "weekday"],
@@ -466,6 +469,14 @@ function parseWorkoutRows(
     const parsedWeight = Number(weightRaw)
     const rirRaw = normalizeText(typeof columnMap.rirRpe === "number" ? row[columnMap.rirRpe] : "")
     const parsedRir = parsePositiveInteger(rirRaw)
+    const methodRaw = normalizeText(typeof columnMap.method === "number" ? row[columnMap.method] : "")
+    const parsedMethod = parseSetIntensityMethodCell(methodRaw, sets)
+
+    if (!parsedMethod.assignments) {
+      issues.push(`Dòng ${rowNumber}: ${parsedMethod.error}`)
+      return
+    }
+
     const key = `${workoutName}::${scheduledDay}`
     const workout = groupedWorkouts.get(key) ?? {
       exercises: [],
@@ -477,6 +488,7 @@ function parseWorkoutRows(
       reps: repTarget.reps,
       repsMin: repTarget.repsMin,
       rir: parsedRir,
+      setIntensityTags: parsedMethod.assignments.length ? parsedMethod.assignments : undefined,
       sets,
       variationId: variation.id,
       weight: weightRaw && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
@@ -513,6 +525,7 @@ async function importCoachProgramTemplate(
     const headerIndex = values.findIndex((row) => row[0] === "Day" && row[2] === "Exercise")
     if (headerIndex >= 0) {
       const header = values[headerIndex]
+      const methodColumn = header.indexOf("Method")
       let day = ""
       const rows = values.slice(headerIndex + 1).flatMap((row, index) => {
         if (normalizeText(row[0])) day = normalizeText(row[0])
@@ -524,6 +537,9 @@ async function importCoachProgramTemplate(
           variationId: normalizeText(row[4]) || "__missing_variation_id__", sets: optionalNumber(row[5]),
           reps: normalizeText(row[6]), weight: optionalNumber(row[7]),
           rir: optionalNumber(row[header.indexOf("RIR")]), restTime: optionalNumber(row[header.indexOf("Rest (s)")]),
+          // Older templates predate the Method column; indexOf returns -1 and the
+          // row simply carries no method.
+          method: methodColumn >= 0 ? normalizeText(row[methodColumn]) || undefined : undefined,
           notes: normalizeText(row[header.indexOf("Note")]) || undefined,
         }]
       })
@@ -608,9 +624,12 @@ async function buildCoachProgramTemplate(
 
   // A single authored week; the app expands it and export creates later weeks.
   const workoutsSheet = workbook.addWorksheet("Week 1")
-  const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
-  const widths = [7, 20, 44, 22, 38, 8, 12, 12, 44, 16, 16, 16, 16, 16, 8, 12, 30]
+  // Method follows RIR rather than preceding it: the set-result block is located
+  // by counting columns back from RIR, and inserting before it would shift that.
+  const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Method", "Rest (s)", "Note"]
+  const widths = [7, 20, 44, 22, 38, 8, 12, 12, 44, 16, 16, 16, 16, 16, 8, 18, 12, 30]
   const LAST_COLUMN = headers.length
+  const METHOD_COLUMN = headers.indexOf("Method") + 1
 
   // Palette the coach set on their own copy: banner and header in blue, and day
   // blocks alternating green and yellow so a session reads as one band.
@@ -675,6 +694,11 @@ async function buildCoachProgramTemplate(
 
     for (let row = firstRow; row <= lastRow; row++) {
       workoutsSheet.getCell(row, 3).dataValidation = { type: "list", allowBlank: true, formulae: ["ExerciseChoices"], showErrorMessage: true, errorStyle: "stop", errorTitle: "Choose an exercise", error: "Select an exercise from the library." }
+      // Method offers the two common cases and stays permissive: per-set syntax
+      // such as "1:warmup,3:mrm" must remain typeable, so no error is raised on
+      // a value outside the list. Inline Excel lists split on commas, which is
+      // why no choice may contain one.
+      workoutsSheet.getCell(row, METHOD_COLUMN).dataValidation = { type: "list", allowBlank: true, formulae: [`"${INTENSITY_METHOD_CHOICES.join(",")}"`], showErrorMessage: false, prompt: "Method for the last set, or all: for every set. Type 1:warmup,3:mrm to target sets.", promptTitle: "Set method", showInputMessage: true }
 
       // Muscle Group, Variation and the hidden id all derive from the chosen exercise.
       for (const [column, referenceColumn] of [[2, "E"], [4, "C"], [5, "A"]] as const) {
@@ -715,6 +739,9 @@ async function buildCoachProgramTemplate(
     "1. Fill Program metadata, then author Week 1 only. The app repeats the template for the requested weeks.",
     "2. Select Exercise from the dropdown. Muscle Group, Variation and the hidden ID are formulas.",
     "3. Fill Sets, Rep Range, Weight (kg), RIR, Rest (s) and Note. Keep prescription columns in order.",
+    "3b. Method tags one set with a training method: mrm, drop, rp, cluster, failure, warmup.",
+    "    Leave it blank for normal sets. 'mrm' = last set, 'all:drop' = every set,",
+    "    '1:warmup,3:mrm' = those sets, '-, -, rp' = one value per set in order.",
     "4. Leave Substitute Exercise and Actual rep per weight blank; completed sessions fill these cells.",
     "5. Each trainee uses a separate spreadsheet. Export creates Week N and extra set columns when needed.",
     "6. If converting through Google Sheets, check the exercise dropdowns; conversion may remove validation.",

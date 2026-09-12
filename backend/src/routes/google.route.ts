@@ -7,12 +7,22 @@ import { assertCoach } from "../services/fitness-data/shared/guards"
 import { connectGoogle, createGoogleState, disconnectGoogle, getGoogleConnection, GOOGLE_STATE_MAX_AGE, verifyGoogleState } from "../services/google-connection.service"
 import { getAccessToken, sendApiError, sendData } from "./route.utils"
 import { getGoogleSpreadsheet, importGoogleProgram } from "../services/google-program-import.service"
+import { createGoogleProgramTemplate } from "../services/google-program-template.service"
 
 export const googleRouter = Router()
 const cookieName = "fitness_google_oauth"
 const cookieOptions = { httpOnly: true, sameSite: "lax" as const, secure: env.isProduction, path: "/" }
 googleRouter.post("/spreadsheet", async (req, res) => {
   try { const { profile } = await requireCurrentProfile(getAccessToken(req)); sendData(res, await getGoogleSpreadsheet(profile, String(req.body.spreadsheet ?? ""))) } catch (error) { sendApiError(res, error) }
+})
+googleRouter.post("/program-template", async (req, res) => {
+  try {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await createGoogleProgramTemplate(profile, {
+      folder: typeof req.body?.folder === "string" ? req.body.folder : undefined,
+      title: typeof req.body?.title === "string" ? req.body.title : undefined,
+    }))
+  } catch (error) { sendApiError(res, error) }
 })
 googleRouter.post("/program-import", async (req, res) => {
   try { const { profile } = await requireCurrentProfile(getAccessToken(req)); sendData(res, await importGoogleProgram(profile, String(req.body.spreadsheet ?? ""), String(req.body.sheetName ?? ""))) } catch (error) { sendApiError(res, error) }

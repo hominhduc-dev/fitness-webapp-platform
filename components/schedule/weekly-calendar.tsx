@@ -18,7 +18,7 @@ import { useCreateWorkout, useTraineePrograms, useWorkoutDetail, useWorkouts } f
 import { useExercises } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { userQueryKey } from "@/lib/queries/scoped"
-import { resolveEffectiveWeekIndex, resolveProgramWeekForWeekStart } from "@/lib/fitness/program-week"
+import { resolveEffectiveWeekIndex, resolveProgramAnchor, resolveProgramWeekForWeekStart } from "@/lib/fitness/program-week"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { CoachProgram, TraineeProgram, WorkoutCollection } from "@/lib/fitness/types"
@@ -334,7 +334,11 @@ function buildWorkoutsForWeek({
   )
 
   const fromPrograms = Array.from(multiWeekById.values()).flatMap((program) => {
-    const placement = resolveProgramWeekForWeekStart(program.assignedAt, program.duration, weekStart)
+    const placement = resolveProgramWeekForWeekStart(
+      resolveProgramAnchor(program.startDate, program.assignedAt),
+      program.duration,
+      weekStart,
+    )
 
     if (placement?.kind !== "active") {
       return []

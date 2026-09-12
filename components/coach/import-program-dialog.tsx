@@ -13,6 +13,11 @@ import { Label } from "@/components/ui/label"
 import type { ImportedProgramDraft } from "@/components/coach/program-excel"
 import { buildWorkoutsFromRows } from "@/components/coach/program-import-rows"
 import {
+  INTENSITY_TAG_BADGES,
+  normalizeSetIntensityAssignments,
+  type SetIntensityAssignment,
+} from "@/lib/workout/intensity-tag"
+import {
   createCoachProgram,
   fetchNotionProgramTemplates,
   importNotionProgram,
@@ -69,6 +74,8 @@ type EditableExercise = {
   notes?: string
   restTime?: number
   variationId: string
+  /** Read from the sheet's Method column; shown as badges on the review row. */
+  setIntensityTags?: SetIntensityAssignment[]
   sets: string
   reps: string   // "8-12" or "10"
   weight: string
@@ -91,6 +98,7 @@ function workoutToEditable(workout: CreateCoachProgramInput["workouts"][number])
       notes: ex.notes,
       restTime: ex.restTime,
       variationId: ex.variationId,
+      setIntensityTags: ex.setIntensityTags,
       sets: String(ex.sets),
       reps: ex.repsMin != null && ex.repsMin !== ex.reps
         ? `${ex.repsMin}-${ex.reps}`
@@ -114,11 +122,16 @@ function editableToPayloadWorkout(
         const repTarget = parseRepTargetText(ex.reps) ?? { reps: Math.max(1, Number(ex.reps) || 1) }
         const parsedWeight = Number(ex.weight)
         const parsedRir = Number(ex.rir)
+        const sets = Math.max(1, Number(ex.sets) || 1)
+        // A coach who edits the set count down here loses the tags on the sets
+        // they removed, exactly as in the program editor.
+        const setIntensityTags = normalizeSetIntensityAssignments(ex.setIntensityTags, sets)
         return {
           notes: ex.notes,
           restTime: ex.restTime,
           variationId: ex.variationId,
-          sets: Math.max(1, Number(ex.sets) || 1),
+          setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
+          sets,
           reps: repTarget.reps,
           repsMin: repTarget.repsMin,
           weight: ex.weight.trim() && Number.isFinite(parsedWeight) ? Math.max(0, parsedWeight) : undefined,
@@ -689,9 +702,9 @@ export function ImportProgramDialog({
                     onChange={(e) => {
                       const nextDuration = Math.min(52, Math.max(1, Math.round(Number(e.target.value) || 1)))
                       if (draft?.weekTemplate) setEditableWorkouts((current) => {
-                        const next = current.filter((workout) => (workout.weekIndex ?? 1) <= nextDuration)
-                        const template = current.filter((workout) => workout.weekIndex === 1)
-                        for (let week = 2; week <= nextDuration; week++) if (!next.some((workout) => workout.weekIndex === week)) {
+                        const next = current.filter((workout) => (workout.weekIndex ?? 0) < nextDuration)
+                        const template = current.filter((workout) => (workout.weekIndex ?? 0) === 0)
+                        for (let week = 1; week < nextDuration; week++) if (!next.some((workout) => workout.weekIndex === week)) {
                           next.push(...template.map((workout) => ({ ...workout, weekIndex: week, exercises: workout.exercises.map((exercise) => ({ ...exercise })) })))
                         }
                         return next
@@ -828,6 +841,23 @@ export function ImportProgramDialog({
                                   <p className="truncate text-xs text-muted-foreground">
                                     {option?.variationName ?? ex.variationId}
                                   </p>
+                                  {normalizeSetIntensityAssignments(ex.setIntensityTags, Math.max(1, Number(ex.sets) || 1))
+                                    .length > 0 ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {normalizeSetIntensityAssignments(
+                                        ex.setIntensityTags,
+                                        Math.max(1, Number(ex.sets) || 1),
+                                      ).map(({ setNumber, tag }) => (
+                                        <span
+                                          key={setNumber}
+                                          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary-soft px-1.5 py-px font-mono text-micro font-semibold uppercase tracking-[0.08em] text-primary"
+                                        >
+                                          {setNumber}
+                                          <span>{INTENSITY_TAG_BADGES[tag]}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
 
                                 {/* ID badge */}

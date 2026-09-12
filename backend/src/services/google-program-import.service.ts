@@ -13,6 +13,9 @@ export function parseGoogleProgramRows(values: string[][]) {
   if (header[5] !== "Sets" || header[6] !== "Rep Range" || header[8] !== "Substitute Exercise" || rirColumn < 14) {
     throw new BadRequestError("Sheet không đúng bố cục template chương trình.")
   }
+  // Optional: sheets created before per-set methods existed have no Method
+  // column, and must keep importing unchanged.
+  const methodColumn = header.indexOf("Method")
   let day = ""
   const orders = new Map<number, number>()
   const number = (value?: string) => value?.trim() ? Number(value) : undefined
@@ -31,6 +34,7 @@ export function parseGoogleProgramRows(values: string[][]) {
       workoutName: scheduledDay ? `Day ${scheduledDay}` : "",
       sets: number(cells[5]), reps: cells[6]?.trim() ?? "", weight: number(cells[7]),
       rir: number(cells[rirColumn]), restTime: number(cells[restColumn]),
+      method: methodColumn >= 0 ? cells[methodColumn]?.trim() || undefined : undefined,
       notes: cells[header.indexOf("Note")]?.trim() || undefined,
     }]
   })

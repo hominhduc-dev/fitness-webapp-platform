@@ -13,6 +13,8 @@ import type { Prisma } from "@prisma/client"
 type WorkoutLogSnapshotSet = {
   actualReps?: number | null
   completed?: boolean
+  /** The method the coach prescribed for this set, copied from the plan. */
+  intensityTag?: string | null
   rir?: number | null
   setNumber?: number | null
   targetRepsMin?: number | null

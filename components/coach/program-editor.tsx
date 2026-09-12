@@ -40,8 +40,14 @@ import {
   MIN_WEEKS,
   clampWeeks,
   resolveCurrentWeekProgress,
+  resolveProgramAnchor,
   type CurrentWeekProgress,
 } from "@/lib/fitness/program-week"
+import {
+  normalizeSetIntensityAssignments,
+  readSetIntensityAssignments,
+  type SetIntensityAssignment,
+} from "@/lib/workout/intensity-tag"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import type {
   AssignedTrainee,
@@ -77,6 +83,7 @@ type RoutineExercise = {
   rir?: number | string
   reps: string
   restTime?: string
+  setIntensityTags?: SetIntensityAssignment[]
   sets: number
   variationId: string
   weight: string
@@ -274,6 +281,7 @@ function mapWorkoutExerciseToRoutineExercise(
       repsMin: workoutExercise.sets[0]?.targetRepsMin,
     }),
     restTime: workoutExercise.restTime != null ? String(workoutExercise.restTime) : "",
+    setIntensityTags: readSetIntensityAssignments(workoutExercise.sets),
     sets: workoutExercise.sets.length || 1,
     variationId: resolvedOption?.id ?? workoutExercise.variation.id,
     weight: workoutExercise.sets[0]?.weight != null ? String(workoutExercise.sets[0].weight) : "",
@@ -507,6 +515,7 @@ function routineToDraft(routine: Routine): RoutineDraftData {
       weight: ex.weight,
       rir: ex.rir != null ? String(ex.rir) : "",
       restTime: ex.restTime ?? "",
+      setIntensityTags: ex.setIntensityTags,
     })),
   }
 }
@@ -530,6 +539,7 @@ function draftToRoutine(draft: RoutineDraftData): Routine {
         fallbackIsDefault: parts.length === 1,
         rir: ex.rir.trim() && Number.isFinite(parsedRir) ? Math.max(0, Math.round(parsedRir)) : undefined,
         restTime: ex.restTime?.trim() && Number.isFinite(parsedRest) ? String(Math.max(0, Math.round(parsedRest))) : undefined,
+        setIntensityTags: ex.setIntensityTags,
         sets: ex.sets,
         reps: ex.reps,
         weight: ex.weight,
@@ -669,6 +679,7 @@ export function ProgramEditor({
   const isAdjustMode = Boolean(programId && adjustForTraineeId)
 
   const [programName, setProgramName] = useState("")
+  const [startDate, setStartDate] = useState("")
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
@@ -729,6 +740,7 @@ export function ProgramEditor({
           const mapped = mapProgramToSchedule(program, nextWeeks, nextDaysPerWeek, nextExerciseOptions, messages)
 
           setProgramName(program.name)
+          setStartDate(program.startDate ?? "")
           setDescription(program.description ?? "")
           setDuration(String(nextWeeks))
           setDurationDraft(String(nextWeeks))
@@ -748,7 +760,10 @@ export function ProgramEditor({
           const targetTrainee = adjustForTraineeId
             ? program.assignedTrainees.find((t) => t.id === adjustForTraineeId)
             : program.assignedTrainees[0]
-          setActiveWeek(resolveInitialActiveWeek(targetTrainee?.assignedAt, nextWeeks))
+          setActiveWeek(resolveInitialActiveWeek(
+            resolveProgramAnchor(program.startDate, targetTrainee?.assignedAt),
+            nextWeeks,
+          ))
   }
 
   const totalWeeks = Number(duration) || 8
@@ -772,8 +787,11 @@ export function ProgramEditor({
       ? assignedTrainees.find((t) => t.id === adjustForTraineeId)
       : assignedTrainees[0]
 
-    return resolveCurrentWeekProgress(targetTrainee?.assignedAt, totalWeeks)
-  }, [assignedTrainees, adjustForTraineeId, totalWeeks])
+    return resolveCurrentWeekProgress(
+      resolveProgramAnchor(startDate || undefined, targetTrainee?.assignedAt),
+      totalWeeks,
+    )
+  }, [assignedTrainees, adjustForTraineeId, startDate, totalWeeks])
 
   const currentWeekIndex = currentWeekProgress?.kind === "active" ? currentWeekProgress.weekIndex : null
 
@@ -931,12 +949,14 @@ export function ProgramEditor({
               const parsedWeight = Number(exercise.weight)
               const parsedRest = Number(exercise.restTime)
               const normalizedRir = normalizeOptionalWholeNumber(exercise.rir)
+              const setIntensityTags = normalizeSetIntensityAssignments(exercise.setIntensityTags, exercise.sets)
 
               return {
                 reps: repTarget.reps,
                 repsMin: repTarget.repsMin,
                 rir: normalizedRir,
                 restTime: exercise.restTime?.trim() && Number.isFinite(parsedRest) ? Math.max(0, Math.round(parsedRest)) : undefined,
+                setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
                 sets: exercise.sets,
                 variationId: exercise.variationId,
                 weight:
@@ -959,6 +979,7 @@ export function ProgramEditor({
       difficulty,
       duration: totalWeeks,
       name: programName.trim(),
+      startDate: startDate.trim() || null,
       workouts,
     }
   }
@@ -1115,7 +1136,7 @@ export function ProgramEditor({
             isArchived && "pointer-events-none opacity-60",
           )}>
             <p className="label-micro mb-3 text-muted-foreground">{messages.coach.programDetails}</p>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.45fr_0.65fr_0.9fr_0.9fr]">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.3fr_0.6fr_0.85fr_0.85fr_0.9fr]">
               <label className="col-span-2 space-y-1.5 md:col-span-1">
                 <span className="text-micro font-medium text-muted-foreground">{messages.coach.programName}</span>
                 <Input
@@ -1150,6 +1171,19 @@ export function ProgramEditor({
                     {messages.coach.weeksUnit}
                   </span>
                 </div>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programStartDate}</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  aria-describedby="program-start-date-hint"
+                  className="h-10 bg-background/65 tnum"
+                />
+                <span id="program-start-date-hint" className="block text-micro text-muted-foreground">
+                  {messages.coach.programStartDateHint}
+                </span>
               </label>
               <label className="space-y-1.5">
                 <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFrequency}</span>

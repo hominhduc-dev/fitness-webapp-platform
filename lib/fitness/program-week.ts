@@ -28,6 +28,17 @@ export function clampWeeks(value: number) {
   return Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, Math.round(value)))
 }
 
+/**
+ * The date a program's weeks count from.
+ *
+ * A coach-set start date pins every trainee to the same calendar week; without
+ * one each trainee's weeks run from their own assignment. Mirrors
+ * `resolveProgramAnchorDate` on the backend.
+ */
+export function resolveProgramAnchor(startDate: unknown, assignedAt: unknown) {
+  return startDate ?? assignedAt
+}
+
 export function parseValidDate(value: unknown) {
   if (value == null) return null
   const date = value instanceof Date ? value : new Date(value as string | number)

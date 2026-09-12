@@ -1,26 +1,10 @@
 export const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
-export const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 5
-
-export type StoredCompoundSetType = "drop_set" | "rest_pause" | "myo_rep_match" | "cluster"
-
-export type StoredCompoundSetSegment = {
-  id: string
-  reps?: number
-  weight?: number
-}
-
-export type StoredCompoundSet = {
-  restSec?: number
-  segments: StoredCompoundSetSegment[]
-  targetReps?: number
-  type: StoredCompoundSetType
-}
+export const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 6
 
 export type StoredWorkoutSessionSet = {
   actualReps?: number
   addedDuringSession?: boolean
   clientAddedToken?: string
-  compoundSet?: StoredCompoundSet
   completed: boolean
   id: string
   notes?: string
@@ -49,45 +33,6 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
-function sanitizeCompoundSet(rawCompoundSet: unknown): StoredCompoundSet | undefined {
-  if (typeof rawCompoundSet !== "object" || rawCompoundSet === null) return undefined
-  const compoundRecord = rawCompoundSet as {
-    restSec?: unknown
-    segments?: unknown
-    targetReps?: unknown
-    type?: unknown
-  }
-  if (
-    compoundRecord.type !== "drop_set" &&
-    compoundRecord.type !== "rest_pause" &&
-    compoundRecord.type !== "myo_rep_match" &&
-    compoundRecord.type !== "cluster"
-  ) {
-    return undefined
-  }
-
-  const rawSegments = Array.isArray(compoundRecord.segments) ? compoundRecord.segments : []
-  const segments = rawSegments.flatMap((segment: unknown) => {
-    if (typeof segment !== "object" || segment === null) return []
-    const segmentRecord = segment as { id?: unknown; reps?: unknown; weight?: unknown }
-    if (typeof segmentRecord.id !== "string") return []
-    return [
-      {
-        id: segmentRecord.id,
-        reps: isFiniteNumber(segmentRecord.reps) ? segmentRecord.reps : undefined,
-        weight: isFiniteNumber(segmentRecord.weight) ? segmentRecord.weight : undefined,
-      },
-    ]
-  })
-
-  return {
-    restSec: isFiniteNumber(compoundRecord.restSec) ? compoundRecord.restSec : undefined,
-    segments,
-    targetReps: isFiniteNumber(compoundRecord.targetReps) ? compoundRecord.targetReps : undefined,
-    type: compoundRecord.type,
-  }
-}
-
 function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSessionExercise[] {
   if (!Array.isArray(rawExercises)) return []
 
@@ -105,7 +50,6 @@ function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSes
             actualReps?: unknown
             addedDuringSession?: unknown
             clientAddedToken?: unknown
-            compoundSet?: unknown
             completed?: unknown
             id?: unknown
             notes?: unknown
@@ -118,7 +62,6 @@ function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSes
               actualReps: isFiniteNumber(setRecord.actualReps) ? setRecord.actualReps : undefined,
               addedDuringSession: setRecord.addedDuringSession === true,
               clientAddedToken: typeof setRecord.clientAddedToken === "string" ? setRecord.clientAddedToken : undefined,
-              compoundSet: sanitizeCompoundSet(setRecord.compoundSet),
               completed: Boolean(setRecord.completed),
               id: setRecord.id,
               notes: typeof setRecord.notes === "string" ? setRecord.notes : undefined,
@@ -165,7 +108,6 @@ export function storedSessionHasProgress(exercises: StoredWorkoutSessionExercise
     exercise.sets.some(
       (set) =>
         set.completed ||
-        set.compoundSet != null ||
         set.weight != null ||
         set.actualReps != null ||
         (typeof set.notes === "string" && set.notes.trim().length > 0) ||

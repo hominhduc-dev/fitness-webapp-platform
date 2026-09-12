@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveEffectiveWeekIndex, resolveProgramWeekForWeekStart } from "@/lib/fitness/program-week"
+import {
+  resolveCurrentWeekProgress,
+  resolveEffectiveWeekIndex,
+  resolveProgramAnchor,
+  resolveProgramWeekForWeekStart,
+} from "@/lib/fitness/program-week"
 
 /**
  * Assignment lands Thursday of the week starting Monday 2026-08-10 (UTC).
@@ -83,5 +88,32 @@ describe("resolveEffectiveWeekIndex", () => {
 
   it("returns null when nothing was authored", () => {
     expect(resolveEffectiveWeekIndex([], 3)).toBeNull()
+  })
+})
+
+describe("resolveProgramAnchor", () => {
+  const assignedAt = new Date("2026-09-07T00:00:00.000Z")
+
+  it("prefers the coach's start date, so every trainee shares week 1", () => {
+    expect(resolveProgramAnchor("2026-08-31", assignedAt)).toBe("2026-08-31")
+  })
+
+  it("falls back to the assignment when no start date is set", () => {
+    expect(resolveProgramAnchor(undefined, assignedAt)).toBe(assignedAt)
+    expect(resolveProgramAnchor(null, assignedAt)).toBe(assignedAt)
+  })
+
+  it("shifts which week is current, which is the whole point of the field", () => {
+    const now = new Date("2026-09-09T12:00:00.000Z")
+
+    // Assigned this week: week 1. Started a week earlier: week 2.
+    expect(resolveCurrentWeekProgress(resolveProgramAnchor(undefined, assignedAt), 4, now)).toEqual({
+      kind: "active",
+      weekIndex: 0,
+    })
+    expect(resolveCurrentWeekProgress(resolveProgramAnchor("2026-08-31", assignedAt), 4, now)).toEqual({
+      kind: "active",
+      weekIndex: 1,
+    })
   })
 })

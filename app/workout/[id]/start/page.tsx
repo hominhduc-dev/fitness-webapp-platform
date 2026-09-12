@@ -34,7 +34,8 @@ import { ExerciseAnimation } from "@/components/workout/exercise-animation"
 import { useCreateWorkoutLog, useSwapWorkoutExercise, useWorkoutDetail } from "@/lib/queries/workouts"
 import { useExercises } from "@/lib/queries/exercises"
 import { cn } from "@/lib/utils"
-import type { CoachUpdate, CompoundSet, CompoundSetType, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
+import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
+import { IntensityTagBadge, getIntensityTagLabel } from "@/components/workout/set-intensity-tag"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -67,79 +68,8 @@ type ProgramSetTarget = {
   weight?: number
 }
 
-type CompoundSetMeta = {
-  badge: string
-  label: string
-  shortLabel: string
-}
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
-}
-
-function createCompoundSegmentId() {
-  return `segment-${Math.random().toString(36).slice(2)}`
-}
-
-function parsePositiveNumber(value: string): number | undefined {
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
-}
-
-function parsePositiveInteger(value: string): number | undefined {
-  const parsed = Number.parseInt(value, 10)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
-}
-
-function sumCompoundReps(compoundSet?: CompoundSet) {
-  return compoundSet?.segments.reduce((sum, segment) => sum + (segment.reps ?? 0), 0) ?? 0
-}
-
-function getCompoundSetVolume(set: ExerciseSet) {
-  if (!set.compoundSet) return (set.weight ?? 0) * (set.actualReps ?? set.targetReps)
-  return set.compoundSet.segments.reduce(
-    (sum, segment) => sum + (segment.weight ?? set.weight ?? 0) * (segment.reps ?? 0),
-    0,
-  )
-}
-
-function getCompoundProgress(compoundSet: CompoundSet) {
-  const total = sumCompoundReps(compoundSet)
-  if (!compoundSet.targetReps) return `${total}`
-  return `${total}/${compoundSet.targetReps}`
-}
-
-function createDefaultCompoundSet(type: CompoundSetType, set: ExerciseSet): CompoundSet {
-  const baseWeight = set.weight ?? set.previousPerformance?.weight
-  const baseReps = set.actualReps ?? set.targetReps
-  const restSec = type === "cluster" ? 20 : 15
-
-  if (type === "drop_set") {
-    return {
-      segments: [
-        { id: createCompoundSegmentId(), reps: baseReps, weight: baseWeight },
-        { id: createCompoundSegmentId(), reps: undefined, weight: baseWeight != null ? Math.max(0, Math.round(baseWeight * 0.8)) : undefined },
-        { id: createCompoundSegmentId(), reps: undefined, weight: baseWeight != null ? Math.max(0, Math.round(baseWeight * 0.65)) : undefined },
-      ],
-      type,
-    }
-  }
-
-  if (type === "cluster") {
-    return {
-      restSec,
-      segments: Array.from({ length: 4 }, () => ({ id: createCompoundSegmentId(), reps: 2, weight: baseWeight })),
-      targetReps: 8,
-      type,
-    }
-  }
-
-  return {
-    restSec,
-    segments: [{ id: createCompoundSegmentId(), reps: baseReps, weight: baseWeight }],
-    targetReps: baseReps,
-    type,
-  }
 }
 
 function isGeneratedHistorySetId(exerciseId: string, setId: string) {
@@ -185,7 +115,6 @@ function hasSessionProgress(exercises: Workout["exercises"]) {
     exercise.sets.some(
       (set) =>
         set.completed ||
-        set.compoundSet != null ||
         set.weight != null ||
         set.actualReps != null ||
         set.notes?.trim() ||
@@ -210,7 +139,6 @@ function createStoredWorkoutSession(
         addedDuringSession: addedSetTokens.has(set.id),
         clientAddedToken: addedSetTokens.get(set.id),
         completed: set.completed,
-        compoundSet: set.compoundSet,
         id: set.id,
         notes: set.notes,
         rir: set.rir,
@@ -240,7 +168,6 @@ function restoreWorkoutSessionExercises(
       return {
         ...set,
         actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
-        compoundSet: storedSet.compoundSet,
         completed: Boolean(storedSet.completed),
         notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
         rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
@@ -267,7 +194,6 @@ function restoreWorkoutSessionExercises(
         targetReps: lastSet?.targetReps ?? 10,
         targetRepsMin: lastSet?.targetRepsMin,
         actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
-        compoundSet: storedSet.compoundSet,
         completed: Boolean(storedSet.completed),
         notes: typeof storedSet.notes === "string" ? storedSet.notes : undefined,
         rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
@@ -444,7 +370,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
   const [rir, setRir] = useState(set.rir?.toString() ?? "")
   const [completed, setCompleted] = useState(set.completed)
   const [noteOpen, setNoteOpen] = useState(false)
-  const [compoundOpen, setCompoundOpen] = useState(false)
   const [note, setNote] = useState(set.notes ?? "")
   const previousSetIdRef = useRef(set.id)
 
@@ -468,71 +393,13 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     setRir(set.rir?.toString() ?? "")
   }, [set.id, set.rir])
 
-  const getCompoundMeta = (type: CompoundSetType): CompoundSetMeta => {
-    switch (type) {
-      case "drop_set":
-        return { badge: "DROP", label: messages.workoutPage.compoundTypeDropSet, shortLabel: "Drop" }
-      case "rest_pause":
-        return { badge: "RP", label: messages.workoutPage.compoundTypeRestPause, shortLabel: "Rest-pause" }
-      case "cluster":
-        return { badge: "CLS", label: messages.workoutPage.compoundTypeCluster, shortLabel: "Cluster" }
-      case "myo_rep_match":
-      default:
-        return { badge: "MRM", label: messages.workoutPage.compoundTypeMyoMatch, shortLabel: "Myo match" }
-    }
-  }
-
-  const getCompoundDescription = (type: CompoundSetType) => {
-    switch (type) {
-      case "drop_set":
-        return messages.workoutPage.compoundDropSetDescription
-      case "rest_pause":
-        return messages.workoutPage.compoundRestPauseDescription
-      case "cluster":
-        return messages.workoutPage.compoundClusterDescription
-      case "myo_rep_match":
-      default:
-        return messages.workoutPage.compoundMyoMatchDescription
-    }
-  }
-
-  const updateCompoundSet = (compoundSet: CompoundSet) => {
-    const totalReps = sumCompoundReps(compoundSet)
-    const firstWeight = compoundSet.segments.find((segment) => segment.weight != null)?.weight
-    setReps(totalReps > 0 ? String(totalReps) : "")
-    if (firstWeight != null) {
-      setWeight(String(firstWeight))
-    }
-    onChange({
-      actualReps: totalReps || undefined,
-      compoundSet,
-      weight: firstWeight ?? set.weight,
-    })
-  }
-
-  const handleSetTypeSelect = (type: CompoundSetType | "normal") => {
-    if (type === "normal") {
-      setCompoundOpen(false)
-      onChange({ compoundSet: undefined })
-      return
-    }
-    const compoundSet = createDefaultCompoundSet(type, {
-      ...set,
-      actualReps: parsePositiveInteger(reps) ?? set.actualReps,
-      weight: parsePositiveNumber(weight) ?? set.weight,
-    })
-    setCompoundOpen(true)
-    updateCompoundSet(compoundSet)
-  }
-
   const handleToggle = () => {
     const next = !completed
-    const totalReps = sumCompoundReps(set.compoundSet)
     setCompleted(next)
     onToggle({
       completed: next,
       weight: Number.parseFloat(weight) || undefined,
-      actualReps: totalReps || Number.parseInt(reps) || set.targetReps,
+      actualReps: Number.parseInt(reps) || set.targetReps,
       rir: rir.trim() ? Number.parseInt(rir) : undefined,
     })
   }
@@ -559,12 +426,9 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     set.previousPerformance?.reps != null &&
     programTarget?.reps != null &&
     set.previousPerformance.reps > programTarget.reps
-  const compoundMeta = set.compoundSet ? getCompoundMeta(set.compoundSet.type) : null
-  const displayedReps = set.compoundSet ? (sumCompoundReps(set.compoundSet) || "") : reps
-
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
-    <div className={cn(completed ? "bg-muted" : set.compoundSet ? "bg-primary-soft/30" : "bg-transparent")}>
+    <div className={cn(completed ? "bg-muted" : "bg-transparent")}>
       <div
         className={cn(
           "grid min-w-0 items-center",
@@ -575,14 +439,15 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "transition-colors duration-[180ms]",
         )}
       >
-        {/* Set number + method badge */}
-        {set.compoundSet && compoundMeta ? (
-          <button
-            type="button"
-            onClick={() => setCompoundOpen((value) => !value)}
-            aria-label={`${compoundMeta.label} ${messages.workoutPage.set} ${setIndex + 1}`}
-            aria-expanded={compoundOpen}
+        {/* Set number, with the method the coach prescribed for this set */}
+        {set.intensityTag ? (
+          <span
             className="flex min-w-0 flex-col items-center justify-center gap-0.5 text-center"
+            title={getIntensityTagLabel(set.intensityTag, messages)}
+            aria-label={messages.workoutPage.intensitySetMethodLabel(
+              setIndex + 1,
+              getIntensityTagLabel(set.intensityTag, messages),
+            )}
           >
             <span
               className={cn(
@@ -592,10 +457,8 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
             >
               {setIndex + 1}
             </span>
-            <span className="rounded-full bg-primary px-1.5 py-px font-mono text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-primary-foreground">
-              {compoundMeta.badge}
-            </span>
-          </button>
+            <IntensityTagBadge tag={set.intensityTag} />
+          </span>
         ) : (
           <span
             className={cn(
@@ -660,8 +523,8 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
       <input
         type="number"
         inputMode="numeric"
-        value={displayedReps}
-        disabled={completed || Boolean(set.compoundSet)}
+        value={reps}
+        disabled={completed}
         onChange={(e) => {
           setReps(e.target.value)
           onChange({ actualReps: Number.parseInt(e.target.value) || undefined })
@@ -675,7 +538,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           "h-8 pointer-coarse:h-11 px-1",
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
           "disabled:cursor-not-allowed",
-          completed || set.compoundSet
+          completed
             ? "border-transparent bg-transparent text-muted-foreground"
             // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
             // dense grid. Drop the border there and let a soft fill carry the
@@ -716,17 +579,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
 
         {/* Row actions: tick + more options */}
         <div className="flex items-center justify-end gap-1">
-          {set.compoundSet && compoundMeta ? (
-            <button
-              type="button"
-              onClick={() => setCompoundOpen((value) => !value)}
-              aria-label={`${compoundMeta.label} details`}
-              aria-expanded={compoundOpen}
-              className="flex h-[22px] w-[18px] items-center justify-center pointer-coarse:h-11 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", compoundOpen && "rotate-180")} />
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={handleToggle}
@@ -768,25 +620,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                 {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
                 {note.trim() && !noteOpen && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled className="text-xs font-medium text-muted-foreground">
-                {messages.workoutPage.compoundSetMenuLabel}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTypeSelect("normal")}>
-                {messages.workoutPage.compoundNormalSet}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTypeSelect("myo_rep_match")}>
-                {messages.workoutPage.compoundTypeMyoMatch}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTypeSelect("drop_set")}>
-                {messages.workoutPage.compoundTypeDropSet}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTypeSelect("rest_pause")}>
-                {messages.workoutPage.compoundTypeRestPause}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTypeSelect("cluster")}>
-                {messages.workoutPage.compoundTypeCluster}
-              </DropdownMenuItem>
               {canRemove && (
                 <>
                   <DropdownMenuSeparator />
@@ -803,147 +636,6 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
           </DropdownMenu>
         </div>
       </div>
-
-      {set.compoundSet && compoundMeta && compoundOpen ? (
-        <div className="border-t border-primary/20 bg-primary-soft/25 px-2 pb-2 pt-2 sm:px-4 md:px-5">
-            <div className="rounded-xl border border-primary/20 bg-background p-3">
-              <div className="mb-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{compoundMeta.label}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{getCompoundDescription(set.compoundSet.type)}</p>
-                  </div>
-                  <span className="rounded-full bg-primary-soft px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
-                    {compoundMeta.badge}
-                  </span>
-                </div>
-                <p className="mt-2 font-mono text-xs text-muted-foreground">
-                  {messages.workoutPage.compoundProgress(getCompoundProgress(set.compoundSet))}
-                </p>
-
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {set.compoundSet.type !== "drop_set" ? (
-                    <label className="space-y-1">
-                      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                        {messages.workoutPage.compoundSetTarget}
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={set.compoundSet.targetReps ?? ""}
-                        onChange={(event) => updateCompoundSet({
-                          ...set.compoundSet!,
-                          targetReps: parsePositiveInteger(event.target.value),
-                        })}
-                        className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </label>
-                  ) : null}
-                  {set.compoundSet.type !== "drop_set" ? (
-                    <label className="space-y-1">
-                      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                        {messages.workoutPage.compoundMiniRest}
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={set.compoundSet.restSec ?? ""}
-                        onChange={(event) => updateCompoundSet({
-                          ...set.compoundSet!,
-                          restSec: parsePositiveInteger(event.target.value),
-                        })}
-                        className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </label>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {set.compoundSet.segments.map((segment, segmentIndex) => (
-                  <div key={segment.id} className="grid grid-cols-[minmax(0,1fr)_72px_72px_28px] items-end gap-2">
-                    <label className="space-y-1">
-                      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                        {messages.workoutPage.compoundSegment(segmentIndex + 1)}
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={segment.weight ?? ""}
-                        onChange={(event) => {
-                          const nextSegments = set.compoundSet!.segments.map((item) =>
-                            item.id === segment.id ? { ...item, weight: parsePositiveNumber(event.target.value) } : item,
-                          )
-                          updateCompoundSet({ ...set.compoundSet!, segments: nextSegments })
-                        }}
-                        placeholder={weightUnit}
-                        className="h-10 w-full rounded-md border border-border bg-background px-2 text-center font-mono text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                        {messages.workoutPage.reps}
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={segment.reps ?? ""}
-                        onChange={(event) => {
-                          const nextSegments = set.compoundSet!.segments.map((item) =>
-                            item.id === segment.id ? { ...item, reps: parsePositiveInteger(event.target.value) } : item,
-                          )
-                          updateCompoundSet({ ...set.compoundSet!, segments: nextSegments })
-                        }}
-                        className="h-10 w-full rounded-md border border-border bg-background px-2 text-center font-mono text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </label>
-                    <div className="pb-2 text-center font-mono text-xs text-muted-foreground">
-                      {segment.weight ?? parsePositiveNumber(weight) ?? "—"}×{segment.reps ?? "—"}
-                    </div>
-                    <button
-                      type="button"
-                      disabled={set.compoundSet!.segments.length <= 1}
-                      onClick={() => {
-                        const nextSegments = set.compoundSet!.segments.filter((item) => item.id !== segment.id)
-                        updateCompoundSet({ ...set.compoundSet!, segments: nextSegments })
-                      }}
-                      aria-label={messages.workoutPage.removeSet}
-                      className="mb-1 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive-text disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">{messages.workoutPage.compoundSetHelp}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-1"
-                  onClick={() => {
-                    const inheritedWeight =
-                      set.compoundSet!.type === "drop_set"
-                        ? set.compoundSet!.segments.at(-1)?.weight
-                        : parsePositiveNumber(weight)
-                    updateCompoundSet({
-                      ...set.compoundSet!,
-                      segments: [
-                        ...set.compoundSet!.segments,
-                        { id: createCompoundSegmentId(), reps: undefined, weight: inheritedWeight },
-                      ],
-                    })
-                  }}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {messages.workoutPage.compoundAddSegment}
-                </Button>
-              </div>
-            </div>
-        </div>
-      ) : null}
 
       {/* Set note (inline, collapsible) */}
       {noteOpen && (
@@ -1442,7 +1134,7 @@ function WorkoutSession() {
       acc +
       ex.sets
         .filter((s) => s.completed)
-        .reduce((a, s) => a + getCompoundSetVolume(s), 0),
+        .reduce((a, s) => a + (s.weight ?? 0) * (s.actualReps ?? s.targetReps), 0),
     0,
   )
   const elapsedMinutes = Math.max(1, Math.round((now.getTime() - startTime.getTime()) / 60000))

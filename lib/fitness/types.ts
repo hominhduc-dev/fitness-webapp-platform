@@ -1,3 +1,4 @@
+import type { SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 import type {
   DailyNutrition,
   ExerciseBase,
@@ -33,6 +34,8 @@ type TraineeProgram = {
   duration: number
   id: string
   name: string
+  /** `YYYY-MM-DD`. Overrides `assignedAt` as the week-1 anchor when set. */
+  startDate?: string
 }
 
 type CoachTrainee = {
@@ -319,6 +322,8 @@ type CreateCoachProgramInput = {
   difficulty: CoachProgram["difficulty"]
   duration: number
   name: string
+  /** `YYYY-MM-DD`, or null to clear it and fall back to each assignment date. */
+  startDate?: string | null
   /** Notion page this program was imported from; lets a later import update it. */
   notionSourceId?: string
   googleSpreadsheetId?: string
@@ -329,6 +334,8 @@ type CreateCoachProgramInput = {
       notes?: string
       repsMin?: number
       rir?: number
+      /** Per-set method tags; sets left out are normal straight sets. */
+      setIntensityTags?: SetIntensityAssignment[]
       variationId: string
       reps: number
       restTime?: number
@@ -348,6 +355,8 @@ type CreateWorkoutInput = {
     notes?: string
     repsMin?: number
     rir?: number
+    /** Per-set method tags; sets left out are normal straight sets. */
+    setIntensityTags?: SetIntensityAssignment[]
     variationId: string
     reps: number
     restTime?: number
@@ -617,6 +626,8 @@ type NotionProgramTemplate = {
 /** One exercise row, already normalised by the backend. */
 type NotionProgramRow = {
   exerciseName: string
+  /** Raw `Method` cell, parsed against the row's set count on import. */
+  method?: string
   notes: string
   order?: number
   /** Raw text so ranges such as "8-12" survive the trip. */

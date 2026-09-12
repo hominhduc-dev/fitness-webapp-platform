@@ -6,6 +6,7 @@ import { AuthProvider } from "@/components/providers/auth-provider"
 import { LocaleProvider } from "@/components/providers/locale-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { ThemeProvider, type ThemeMode } from "@/components/providers/theme-provider"
+import { ToastProvider } from "@/components/providers/toast-provider"
 import type { AppProfile } from "@/lib/auth/types"
 import type { AppLocale } from "@/lib/i18n/config"
 
@@ -30,7 +31,10 @@ export function AppProviders({
     <QueryProvider>
       <ThemeProvider initialTheme={initialTheme}>
         <LocaleProvider initialLocale={initialLocale}>
-          {withAuth ? <AuthProvider initialProfile={initialProfile}>{children}</AuthProvider> : children}
+          {/* Inside LocaleProvider: the dismiss label is translated. */}
+          <ToastProvider>
+            {withAuth ? <AuthProvider initialProfile={initialProfile}>{children}</AuthProvider> : children}
+          </ToastProvider>
         </LocaleProvider>
       </ThemeProvider>
     </QueryProvider>

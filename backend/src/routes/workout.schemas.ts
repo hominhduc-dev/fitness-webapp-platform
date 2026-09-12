@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { SET_INTENSITY_TAGS } from "../domain/set-intensity-tag"
+
 /**
  * Request schemas for `/api/workouts/*`.
  *
@@ -26,12 +28,23 @@ const logParams = z.object({ logId: uuid, workoutId: uuid })
 
 const swapParams = z.object({ workoutExerciseId: uuid, workoutId: uuid })
 
+/**
+ * A method tag on one set. Out-of-range set numbers are dropped rather than
+ * rejected in the service, because a coach who shrinks an exercise leaves stale
+ * assignments behind and that is not a request error.
+ */
+const setIntensityAssignment = z.object({
+  setNumber: z.number().int().min(1).max(100),
+  tag: z.enum(SET_INTENSITY_TAGS),
+})
+
 const personalWorkoutExercise = z.object({
   notes: z.string().max(500).optional(),
   reps: z.number().int().min(0).max(1000),
   repsMin: z.number().int().min(0).max(1000).optional(),
   restTime: z.number().int().min(0).max(3600).optional(),
   rir: z.number().min(0).max(10).optional(),
+  setIntensityTags: z.array(setIntensityAssignment).max(100).optional(),
   sets: z.number().int().min(0).max(100),
   variationId: z.string().max(64),
   weight: z.number().min(0).max(2000).optional(),
