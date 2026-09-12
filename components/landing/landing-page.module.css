@@ -152,10 +152,10 @@
 }
 .demoSwitch {
   display: flex;
-  gap: 6px;
+  gap: 2px;
 }
 .demoDot {
-  width: 24px;
+  width: 14px;
   height: 24px;
   padding: 0;
   border: 0;
@@ -170,7 +170,7 @@
   display: block;
   width: 8px;
   height: 8px;
-  margin: 8px;
+  margin: 8px 3px;
   border-radius: 50%;
   background: var(--input);
   transition: background 160ms ease;
