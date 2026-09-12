@@ -1,22 +1,34 @@
 "use client"
 
 import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, Loader2, Trash2, UploadCloud, X } from "lucide-react"
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ImportedProgramDraft } from "@/components/coach/program-excel"
-import { createCoachProgram } from "@/lib/fitness/api"
+import { buildWorkoutsFromRows } from "@/components/coach/program-import-rows"
+import {
+  createCoachProgram,
+  fetchNotionProgramTemplates,
+  importNotionProgram,
+  overwriteNotionProgram,
+} from "@/lib/fitness/api"
 import type {
   CoachProgram,
   CoachTrainee,
   CreateCoachProgramInput,
   ExerciseVariationOption,
+  NotionExistingProgram,
+  NotionProgramTemplate,
 } from "@/lib/fitness/types"
 import { parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
+import { GoogleProgramSource } from "./google-program-source"
+import { fetchGoogleConnection, overwriteGoogleProgram, type GoogleConnectionStatus, type GoogleImportResult } from "@/lib/fitness/api"
+import { useLocale } from "@/components/providers/locale-provider"
+import { googleImportMessages } from "@/lib/i18n/messages/google-import"
 
 type ImportProgramDialogProps = {
   exerciseOptions: ExerciseVariationOption[]
@@ -39,6 +51,7 @@ const DAY_LABELS: Record<number, string> = {
 
 type Step = "upload" | "review" | "done"
 type Difficulty = CreateCoachProgramInput["difficulty"]
+type ImportSource = "excel" | "notion" | "google"
 
 const STEPS: Array<{ label: string; value: Step }> = [
   { label: "Upload", value: "upload" },
@@ -51,6 +64,8 @@ const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced"]
 // ─── Editable workout types ─────────────────────────────────────────────────
 
 type EditableExercise = {
+  notes?: string
+  restTime?: number
   variationId: string
   sets: string
   reps: string   // "8-12" or "10"
@@ -59,6 +74,7 @@ type EditableExercise = {
 }
 
 type EditableWorkout = {
+  weekIndex?: number
   name: string
   scheduledDay?: number
   exercises: EditableExercise[]
@@ -67,8 +83,11 @@ type EditableWorkout = {
 function workoutToEditable(workout: CreateCoachProgramInput["workouts"][number]): EditableWorkout {
   return {
     name: workout.name,
+    weekIndex: workout.weekIndex,
     scheduledDay: workout.scheduledDay,
     exercises: workout.exercises.map((ex) => ({
+      notes: ex.notes,
+      restTime: ex.restTime,
       variationId: ex.variationId,
       sets: String(ex.sets),
       reps: ex.repsMin != null && ex.repsMin !== ex.reps
@@ -85,6 +104,7 @@ function editableToPayloadWorkout(
 ): CreateCoachProgramInput["workouts"][number] {
   return {
     name: editable.name,
+    weekIndex: editable.weekIndex,
     scheduledDay: editable.scheduledDay,
     exercises: editable.exercises
       .filter((ex) => ex.variationId)
@@ -93,6 +113,8 @@ function editableToPayloadWorkout(
         const parsedWeight = Number(ex.weight)
         const parsedRir = Number(ex.rir)
         return {
+          notes: ex.notes,
+          restTime: ex.restTime,
           variationId: ex.variationId,
           sets: Math.max(1, Number(ex.sets) || 1),
           reps: repTarget.reps,
@@ -114,6 +136,16 @@ export function ImportProgramDialog({
   token,
   trainees,
 }: ImportProgramDialogProps) {
+  const { locale } = useLocale()
+  const googleText = googleImportMessages[locale]
+  const [googleConnection, setGoogleConnection] = useState<GoogleConnectionStatus>({ configured: false, connected: false, email: null })
+  const [googleSource, setGoogleSource] = useState<GoogleImportResult | null>(null)
+  useEffect(() => {
+    if (!open || !token) return
+    let cancelled = false
+    void fetchGoogleConnection(token).then((value) => { if (!cancelled) setGoogleConnection(value) }).catch(() => { if (!cancelled) setGoogleConnection({ configured: false, connected: false, email: null }) })
+    return () => { cancelled = true }
+  }, [open, token])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
@@ -128,6 +160,17 @@ export function ImportProgramDialog({
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate")
   const [duration, setDuration] = useState(4)
   const [assignEnabled, setAssignEnabled] = useState(true)
+  const [source, setSource] = useState<ImportSource>("excel")
+  const [notionConfigured, setNotionConfigured] = useState(false)
+  const [notionTemplates, setNotionTemplates] = useState<NotionProgramTemplate[]>([])
+  const [notionTemplatesLoaded, setNotionTemplatesLoaded] = useState(false)
+  const [notionSelection, setNotionSelection] = useState("")
+  const [notionLink, setNotionLink] = useState("")
+  const [notionWarnings, setNotionWarnings] = useState<string[]>([])
+  const [notionIssues, setNotionIssues] = useState<string[]>([])
+  const [notionExisting, setNotionExisting] = useState<NotionExistingProgram | null>(null)
+  const [notionSourceId, setNotionSourceId] = useState("")
+  const [didOverwrite, setDidOverwrite] = useState(false)
 
   const variationById = useMemo(
     () => new Map(exerciseOptions.map((exercise) => [exercise.id, exercise] as const)),
@@ -143,11 +186,12 @@ export function ImportProgramDialog({
       difficulty,
       duration,
       name,
+      ...(googleSource ? { googleSpreadsheetId: googleSource.spreadsheetId, googleSheetName: googleSource.sheetName } : {}),
       workouts: editableWorkouts
         .map(editableToPayloadWorkout)
         .filter((w) => w.exercises.length > 0),
     }
-  }, [assignEnabled, difficulty, draft, duration, editableWorkouts, fileName, programName])
+  }, [assignEnabled, difficulty, draft, duration, editableWorkouts, fileName, programName, googleSource])
 
   const exerciseCount = useMemo(
     () => editableWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
@@ -163,6 +207,7 @@ export function ImportProgramDialog({
   }, [editableWorkouts, variationById])
 
   const reset = () => {
+    setGoogleSource(null)
     setStep("upload")
     setFileName("")
     setDraft(null)
@@ -176,7 +221,40 @@ export function ImportProgramDialog({
     setDifficulty("intermediate")
     setDuration(4)
     setAssignEnabled(true)
+    setSource("excel")
+    setNotionSelection("")
+    setNotionLink("")
+    setNotionWarnings([])
+    setNotionIssues([])
+    setNotionExisting(null)
+    setNotionSourceId("")
+    setDidOverwrite(false)
   }
+
+  // Loaded once per mount: the template list is small and rarely changes mid-session.
+  useEffect(() => {
+    if (!open || !token || notionTemplatesLoaded) return
+
+    let cancelled = false
+
+    void fetchNotionProgramTemplates(token)
+      .then((result) => {
+        if (cancelled) return
+        setNotionConfigured(result.configured)
+        setNotionTemplates(result.templates)
+      })
+      // A Notion outage must not break the Excel path, so the tab just stays hidden.
+      .catch(() => {
+        if (!cancelled) setNotionConfigured(false)
+      })
+      .finally(() => {
+        if (!cancelled) setNotionTemplatesLoaded(true)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [notionTemplatesLoaded, open, token])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -187,6 +265,8 @@ export function ImportProgramDialog({
 
   const handleFile = async (file?: File | null) => {
     if (!file) return
+    setGoogleSource(null)
+    setNotionSourceId("")
     setIsParsing(true)
     setError(null)
     setDraft(null)
@@ -211,6 +291,56 @@ export function ImportProgramDialog({
     }
   }
 
+  /**
+   * Pulls one Notion template and turns its rows into the same draft the Excel
+   * parser produces, so the review step downstream is unaware of the source.
+   */
+  const handleNotionImport = async (templateRef: string) => {
+    if (!token || !templateRef.trim()) return
+    setGoogleSource(null)
+
+    setIsParsing(true)
+    setError(null)
+    setDraft(null)
+    setEditableWorkouts([])
+    setNotionIssues([])
+    setNotionWarnings([])
+    setNotionExisting(null)
+    setNotionSourceId("")
+
+    try {
+      const result = await importNotionProgram(token, templateRef.trim())
+      const { issues, workouts } = buildWorkoutsFromRows(result.rows, exerciseOptions, {
+        duration: result.program.duration,
+      })
+
+      setNotionWarnings(result.warnings)
+
+      // Every failing row is listed at once: the coach fixes Notion in a single
+      // pass instead of re-importing to discover the next typo.
+      if (issues.length > 0) {
+        setNotionIssues(issues.map((issue) => issue.message))
+        setError(`${issues.length} dòng trong Notion chưa hợp lệ. Sửa trên Notion rồi import lại.`)
+        return
+      }
+
+      setNotionExisting(result.existingProgram)
+      setNotionSourceId(result.program.notionPageId)
+      setFileName(result.program.name)
+      setDraft({ workouts, weekTemplate: result.weekTemplateMode })
+      setEditableWorkouts(workouts.map(workoutToEditable))
+      setProgramName(result.program.name)
+      setDifficulty(result.program.difficulty)
+      setDuration(result.program.duration)
+      setAssignEnabled(false)
+      setStep("review")
+    } catch (notionError) {
+      setError(notionError instanceof Error ? notionError.message : "Không đọc được dữ liệu từ Notion.")
+    } finally {
+      setIsParsing(false)
+    }
+  }
+
   const handleDownloadTemplate = async () => {
     setError(null)
     try {
@@ -226,12 +356,47 @@ export function ImportProgramDialog({
     setIsSaving(true)
     setError(null)
     try {
-      const program = await createCoachProgram(token, payload)
+      const program = await createCoachProgram(
+        token,
+        notionSourceId ? { ...payload, notionSourceId } : payload,
+      )
       setSavedName(program.name)
       onImported(program)
       setStep("done")
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Không thể tạo program từ file Excel.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  /**
+   * Replaces the program a previous import of this same template produced.
+   *
+   * `assignToUserIds` is deliberately left out: the backend then keeps whoever is
+   * already following the program instead of unassigning every trainee.
+   */
+  const handleOverwrite = async () => {
+    if (!token || !payload || !notionExisting || !notionSourceId) return
+
+    setIsSaving(true)
+    setError(null)
+
+    try {
+      setDidOverwrite(true)
+      const program = await overwriteNotionProgram(token, notionExisting.id, {
+        description: payload.description,
+        difficulty: payload.difficulty,
+        duration: payload.duration,
+        name: payload.name,
+        notionSourceId,
+        workouts: payload.workouts,
+      })
+      setSavedName(program.name)
+      onImported(program)
+      setStep("done")
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Không ghi đè được program cũ.")
     } finally {
       setIsSaving(false)
     }
@@ -283,7 +448,7 @@ export function ImportProgramDialog({
             <div>
               <p className="label-micro mb-1.5">Import program</p>
               <DialogTitle className="text-[22px] font-semibold tracking-[-0.02em]">
-                Tạo program từ Excel
+                {source === "notion" ? "Tạo program từ Notion" : "Tạo program từ Excel"}
               </DialogTitle>
             </div>
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => handleOpenChange(false)} aria-label="Close">
@@ -316,6 +481,105 @@ export function ImportProgramDialog({
           {/* ── Upload step ── */}
           {step === "upload" ? (
             <div className="space-y-5">
+              {error ? <p role="alert" className="whitespace-pre-line text-sm text-destructive-text">{error}</p> : null}
+              {notionConfigured || googleConnection.configured ? (
+                <div className="flex gap-1 rounded-[10px] border border-border p-1">
+                  {(["excel", ...(notionConfigured ? ["notion"] : []), ...(googleConnection.configured ? ["google"] : [])] as ImportSource[]).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => { setSource(value); setError(null); setNotionIssues([]) }}
+                      className={cn(
+                        "flex-1 rounded-[7px] px-3 py-2 text-sm font-medium transition-colors",
+                        source === value
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      {value === "excel" ? "Từ file Excel" : value === "google" ? googleText.tab : "Từ Notion"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {source === "google" && token ? <GoogleProgramSource token={token} connection={googleConnection} onConnection={setGoogleConnection} onImport={(result, name, weeks) => {
+                const built = buildWorkoutsFromRows(result.rows, exerciseOptions, { duration: weeks })
+                if (built.issues.length) { setError(built.issues.map((issue) => issue.message).join("\n")); return }
+                setGoogleSource(result); setNotionSourceId(""); setNotionExisting(null); setNotionWarnings([]); setNotionIssues([]); setError(null)
+                setDraft({ workouts: built.workouts, weekTemplate: true }); setEditableWorkouts(built.workouts.map(workoutToEditable)); setFileName(name); setProgramName(name); setDuration(weeks); setAssignEnabled(false); setStep("review")
+              }} /> : source === "notion" ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="label-micro mb-1.5 block">Chọn program mẫu</Label>
+                    {notionTemplates.length === 0 ? (
+                      <p className="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
+                        Chưa có program mẫu nào ở trạng thái ready trong Notion.
+                      </p>
+                    ) : (
+                      <div className="max-h-[260px] space-y-1.5 overflow-y-auto">
+                        {notionTemplates.map((template) => (
+                          <button
+                            key={template.notionPageId}
+                            type="button"
+                            disabled={isParsing}
+                            onClick={() => { setNotionSelection(template.notionPageId); setNotionLink("") }}
+                            className={cn(
+                              "flex w-full items-center justify-between gap-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors",
+                              notionSelection === template.notionPageId
+                                ? "border-primary bg-primary-soft"
+                                : "border-border hover:border-input",
+                            )}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-foreground">{template.name}</span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {template.duration} tuần · {template.difficulty}
+                              </span>
+                            </span>
+                            {notionSelection === template.notionPageId ? (
+                              <Check className="h-4 w-4 shrink-0 text-primary" />
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="label-micro mb-1.5 block">Hoặc dán link Notion</Label>
+                    <Input
+                      value={notionLink}
+                      placeholder="https://www.notion.so/..."
+                      disabled={isParsing}
+                      onChange={(event) => { setNotionLink(event.target.value); setNotionSelection("") }}
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={isParsing || (!notionSelection && !notionLink.trim())}
+                    onClick={() => void handleNotionImport(notionLink.trim() || notionSelection)}
+                  >
+                    {isParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Đọc dữ liệu từ Notion
+                  </Button>
+
+                  {notionIssues.length > 0 ? (
+                    <div className="rounded-[10px] border border-destructive/40 bg-destructive/5 px-4 py-3">
+                      <p className="mb-2 text-xs font-semibold text-destructive">
+                        {notionIssues.length} dòng cần sửa trên Notion
+                      </p>
+                      <ul className="max-h-[200px] space-y-1 overflow-y-auto text-xs leading-5 text-muted-foreground">
+                        {notionIssues.map((issue) => (
+                          <li key={issue}>{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <>
               <button
                 type="button"
                 className={cn(
@@ -358,20 +622,80 @@ export function ImportProgramDialog({
                 <Label className="label-micro mb-2 block">Workbook cần các sheet</Label>
                 <div className="space-y-2 font-mono text-[11px] leading-5 text-muted-foreground">
                   <SheetHint name="Program" columns="name · description · duration_weeks · difficulty · assign_to_emails" />
-                  <SheetHint name="Workouts" columns="workout_name · scheduled_day · exercise_name · variation_id · sets · reps_range · weight · rir_rpe" />
+                  <SheetHint name="Week 1" columns="Day · Exercise · Sets · Rep Range · Weight (kg) · RIR · Rest (s) · Note" />
+                  <SheetHint name="Exercise Table" columns={googleText.library} />
                   <SheetHint name="Trainees" columns="trainee_name · email (tùy chọn, để gán)" />
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                  Mỗi dòng Workouts là một bài tập; các dòng cùng scheduled_day được gộp thành một buổi.
-                  variation_id được dùng trực tiếp từ file Excel.
+                  {googleText.templateHelp}
                 </p>
               </div>
+                </>
+              )}
             </div>
           ) : null}
 
           {/* ── Review step ── */}
           {step === "review" ? (
             <div className="space-y-4">
+              {googleSource?.existingProgram ? <div className="space-y-2 rounded-md border border-border p-3">
+                <p className="text-sm">{googleText.duplicate} {googleSource.existingProgram.name}</p>
+                <Button variant="outline" disabled={isSaving || !payload || !token || !!googleSource.existingProgram.archivedAt} onClick={() => {
+                  if (!token || !payload || !googleSource.existingProgram) return
+                  setIsSaving(true); setError(null)
+                  void overwriteGoogleProgram(token, googleSource.existingProgram.id, payload).then((program) => { setDidOverwrite(true); setSavedName(program.name); onImported(program); setStep("done") }).catch((error) => setError(error instanceof Error ? error.message : googleText.failed)).finally(() => setIsSaving(false))
+                }}>{googleText.overwrite}</Button>
+              </div> : null}
+              {notionExisting ? (
+                <div className="rounded-[10px] border border-warning/40 bg-warning/5 px-4 py-3">
+                  <p className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Program mẫu này đã được import trước đó
+                  </p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Bản cũ tên &quot;{notionExisting.name}&quot;
+                    {notionExisting.assignedTraineeCount > 0
+                      ? ` đang được ${notionExisting.assignedTraineeCount} trainee sử dụng`
+                      : " chưa gán cho trainee nào"}
+                    {notionExisting.archivedAt ? " và đang ở trạng thái lưu trữ" : ""}.
+                  </p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    {notionExisting.archivedAt
+                      ? "Phải restore bản cũ trước khi ghi đè. Tạo mới vẫn dùng được."
+                      : notionExisting.assignedTraineeCount > 0
+                        ? "Ghi đè thay toàn bộ buổi tập của bản cũ. Trainee đang theo vẫn giữ nguyên ngày bắt đầu."
+                        : "Ghi đè thay toàn bộ buổi tập của bản cũ."}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="bg-transparent"
+                      disabled={isSaving || Boolean(notionExisting.archivedAt) || !payload}
+                      onClick={() => void handleOverwrite()}
+                    >
+                      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Ghi đè bản cũ
+                    </Button>
+                    <span className="self-center text-xs text-muted-foreground">
+                      hoặc bấm tạo ở dưới để giữ cả hai
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {notionWarnings.length > 0 ? (
+                <div className="rounded-[10px] border border-border bg-muted/40 px-4 py-3">
+                  <p className="mb-1.5 text-xs font-semibold text-foreground">Lưu ý từ dữ liệu Notion</p>
+                  <ul className="space-y-1 text-xs leading-5 text-muted-foreground">
+                    {notionWarnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               {/* Program name + difficulty + weeks */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">
@@ -385,7 +709,18 @@ export function ImportProgramDialog({
                     min={1}
                     max={52}
                     value={duration}
-                    onChange={(e) => setDuration(Math.max(1, Number(e.target.value) || 1))}
+                    onChange={(e) => {
+                      const nextDuration = Math.min(52, Math.max(1, Math.round(Number(e.target.value) || 1)))
+                      if (draft?.weekTemplate) setEditableWorkouts((current) => {
+                        const next = current.filter((workout) => (workout.weekIndex ?? 1) <= nextDuration)
+                        const template = current.filter((workout) => workout.weekIndex === 1)
+                        for (let week = 2; week <= nextDuration; week++) if (!next.some((workout) => workout.weekIndex === week)) {
+                          next.push(...template.map((workout) => ({ ...workout, weekIndex: week, exercises: workout.exercises.map((exercise) => ({ ...exercise })) })))
+                        }
+                        return next
+                      })
+                      setDuration(nextDuration)
+                    }}
                     className="w-24 text-center font-mono"
                   />
                 </div>
@@ -591,8 +926,14 @@ export function ImportProgramDialog({
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-ok-soft">
                 <CheckCircle2 className="h-7 w-7 text-success-text" />
               </span>
-              <h3 className="mt-4 text-xl font-semibold">Đã tạo &ldquo;{savedName}&rdquo;</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Program mới đã được thêm vào danh sách của coach.</p>
+              <h3 className="mt-4 text-xl font-semibold">
+                {didOverwrite ? "Đã ghi đè" : "Đã tạo"} &ldquo;{savedName}&rdquo;
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {didOverwrite
+                  ? "Buổi tập của program cũ đã được thay mới. Trainee đang theo vẫn giữ nguyên."
+                  : "Program mới đã được thêm vào danh sách của coach."}
+              </p>
             </div>
           ) : null}
         </div>

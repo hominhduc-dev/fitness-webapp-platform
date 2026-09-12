@@ -228,7 +228,7 @@ export function ProgramsBoard({ exerciseOptions = [], initialPrograms, trainees 
           onClick={() => setImportOpen(true)}
         >
           <Upload className="h-4 w-4" />
-          Import Excel
+          Import program
         </Button>
         <Button
           type="button"

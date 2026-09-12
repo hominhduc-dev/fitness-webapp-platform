@@ -319,9 +319,14 @@ type CreateCoachProgramInput = {
   difficulty: CoachProgram["difficulty"]
   duration: number
   name: string
+  /** Notion page this program was imported from; lets a later import update it. */
+  notionSourceId?: string
+  googleSpreadsheetId?: string
+  googleSheetName?: string
   workouts: Array<{
     duration?: number
     exercises: Array<{
+      notes?: string
       repsMin?: number
       rir?: number
       variationId: string
@@ -595,6 +600,61 @@ type AIGenerateMealPlanResult = {
     fat: number
   }
   notes: string
+}
+
+/** A program template row in the coach's Notion "Program Templates" database. */
+type NotionProgramTemplate = {
+  description: string
+  difficulty: CoachProgram["difficulty"]
+  /** Length of the program in weeks. */
+  duration: number
+  lastEditedTime?: string
+  name: string
+  notionPageId: string
+  notionUrl?: string
+}
+
+/** One exercise row, already normalised by the backend. */
+type NotionProgramRow = {
+  exerciseName: string
+  notes: string
+  order?: number
+  /** Raw text so ranges such as "8-12" survive the trip. */
+  reps: string
+  rest?: number
+  rir?: number
+  scheduledDay?: number
+  sets?: number
+  sourceRow: number
+  variationName: string
+  week?: number
+  weight?: number
+  workoutName: string
+}
+
+/** A program already imported from the same template, if there is one. */
+type NotionExistingProgram = {
+  archivedAt: string | null
+  assignedTraineeCount: number
+  id: string
+  name: string
+  notionSyncedAt: string | null
+}
+
+type NotionProgramImportResponse = {
+  existingProgram: NotionExistingProgram | null
+  program: NotionProgramTemplate
+  rows: NotionProgramRow[]
+  warnings: string[]
+  /** True when no row carried a Week, so the rows describe one repeating week. */
+  weekTemplateMode: boolean
+}
+
+export type {
+  NotionExistingProgram,
+  NotionProgramImportResponse,
+  NotionProgramRow,
+  NotionProgramTemplate,
 }
 
 export type {

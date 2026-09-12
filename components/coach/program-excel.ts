@@ -1,9 +1,17 @@
 import type { CoachTrainee, CreateCoachProgramInput, ExerciseVariationOption } from "@/lib/fitness/types"
+import {
+  buildVariationLookup,
+  buildWorkoutsFromRows,
+  normalizeLookup,
+  parsePositiveInteger,
+  resolveVariation,
+} from "@/components/coach/program-import-rows"
 import { parseRepTargetText } from "@/lib/workout-reps"
 
 type RawCell = string | number | boolean | null | undefined
 
 type ImportedProgramDraft = {
+  weekTemplate?: boolean
   assignToUserIds?: string[]
   description?: string
   difficulty?: CreateCoachProgramInput["difficulty"]
@@ -28,7 +36,7 @@ type WorkoutColumnKey =
 const PROGRAM_SHEET_NAME = "Program"
 const WORKOUTS_SHEET_NAME = "Workouts"
 const INSTRUCTIONS_SHEET_NAME = "Instructions"
-const REFERENCE_SHEET_NAME = "Reference"
+const REFERENCE_SHEET_NAME = "Exercise Table"
 const TRAINEES_SHEET_NAME = "Trainees"
 
 const DIFFICULTY_MAP = new Map<string, CreateCoachProgramInput["difficulty"]>([
@@ -85,10 +93,6 @@ function normalizeKey(value: unknown) {
   return normalizeText(value).toLowerCase().replace(/[\s_-]+/g, "")
 }
 
-function normalizeLookup(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ")
-}
-
 function stripDiacritics(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 }
@@ -134,27 +138,15 @@ function isEmptyRow(row: RawCell[]) {
 function resolveProgramField(cell: unknown) {
   const normalized = normalizeKey(cell)
 
-  return (Object.entries(PROGRAM_FIELD_ALIASES).find(([, aliases]) => aliases.includes(normalized))?.[0] ??
+  return (Object.entries(PROGRAM_FIELD_ALIASES).find(([, aliases]) => aliases.some((alias) => normalizeKey(alias) === normalized))?.[0] ??
     undefined) as ProgramFieldKey | undefined
 }
 
 function resolveWorkoutColumn(cell: unknown) {
   const normalized = normalizeKey(cell)
 
-  return (Object.entries(WORKOUT_COLUMN_ALIASES).find(([, aliases]) => aliases.includes(normalized))?.[0] ??
+  return (Object.entries(WORKOUT_COLUMN_ALIASES).find(([, aliases]) => aliases.some((alias) => normalizeKey(alias) === normalized))?.[0] ??
     undefined) as WorkoutColumnKey | undefined
-}
-
-function parsePositiveInteger(value: string) {
-  const parsedValue = Number(value)
-
-  if (!Number.isFinite(parsedValue)) {
-    return undefined
-  }
-
-  const normalizedValue = Math.round(parsedValue)
-
-  return normalizedValue > 0 ? normalizedValue : undefined
 }
 
 function parseScheduledDay(value: string) {
@@ -201,164 +193,6 @@ function parseScheduledDay(value: string) {
   }
 
   return undefined
-}
-
-function buildVariationLookup(exercises: ExerciseVariationOption[]) {
-  const byExerciseAndVariation = new Map<string, ExerciseVariationOption>()
-  const byExerciseName = new Map<string, ExerciseVariationOption[]>()
-  const byId = new Map<string, ExerciseVariationOption>()
-
-  exercises.forEach((exercise) => {
-    const exerciseNameKey = normalizeLookup(exercise.exerciseName)
-    const variationKey = `${exerciseNameKey}::${normalizeLookup(exercise.variationName)}`
-
-    byId.set(exercise.id, exercise)
-    byExerciseAndVariation.set(variationKey, exercise)
-    byExerciseName.set(exerciseNameKey, [...(byExerciseName.get(exerciseNameKey) ?? []), exercise])
-  })
-
-  return {
-    byExerciseAndVariation,
-    byExerciseName,
-    byId,
-  }
-}
-
-function resolveVariation(
-  lookup: ReturnType<typeof buildVariationLookup>,
-  row: {
-    exerciseName: string
-    variationId: string
-    variationName: string
-  },
-) {
-  if (row.variationId) {
-    return lookup.byId.get(row.variationId)
-  }
-
-  if (row.exerciseName && row.variationName) {
-    return lookup.byExerciseAndVariation.get(
-      `${normalizeLookup(row.exerciseName)}::${normalizeLookup(row.variationName)}`,
-    )
-  }
-
-  if (row.exerciseName) {
-    const matches = lookup.byExerciseName.get(normalizeLookup(row.exerciseName)) ?? []
-
-    if (matches.length === 1) {
-      return matches[0]
-    }
-
-    const defaultMatch = matches.find((exercise) => exercise.isDefault)
-
-    if (defaultMatch) {
-      return defaultMatch
-    }
-  }
-
-  return undefined
-}
-
-type SampleWorkoutSlot = {
-  keywords: string[]
-  muscleGroups: string[]
-  repsRange: string
-  sets: number
-  weight?: number
-}
-
-type SampleWorkoutPlan = {
-  name: string
-  scheduledDay: string
-  slots: SampleWorkoutSlot[]
-}
-
-const SAMPLE_WORKOUT_PLANS: SampleWorkoutPlan[] = [
-  {
-    name: "Upper A",
-    scheduledDay: "Monday",
-    slots: [
-      { keywords: ["bench", "chest press", "incline"], muscleGroups: ["Chest"], repsRange: "6-8", sets: 4, weight: 40 },
-      { keywords: ["row", "pulldown", "pull up"], muscleGroups: ["Back"], repsRange: "8-10", sets: 4, weight: 35 },
-      {
-        keywords: ["shoulder press", "overhead press", "lateral raise"],
-        muscleGroups: ["Shoulders"],
-        repsRange: "10-12",
-        sets: 3,
-        weight: 20,
-      },
-    ],
-  },
-  {
-    name: "Lower A",
-    scheduledDay: "Tuesday",
-    slots: [
-      { keywords: ["squat", "leg press", "hack squat"], muscleGroups: ["Legs"], repsRange: "6-8", sets: 4, weight: 60 },
-      { keywords: ["romanian", "rdl", "deadlift", "leg curl"], muscleGroups: ["Legs", "Back"], repsRange: "8-10", sets: 3, weight: 50 },
-      { keywords: ["split squat", "lunge", "leg extension", "calf"], muscleGroups: ["Legs"], repsRange: "10-12", sets: 3, weight: 20 },
-    ],
-  },
-  {
-    name: "Upper B",
-    scheduledDay: "Thursday",
-    slots: [
-      { keywords: ["incline", "bench", "dip", "chest press"], muscleGroups: ["Chest"], repsRange: "8-10", sets: 4, weight: 35 },
-      { keywords: ["lat pulldown", "pull down", "row", "pull up"], muscleGroups: ["Back"], repsRange: "10-12", sets: 4, weight: 30 },
-      { keywords: ["curl", "tricep", "pushdown", "extension"], muscleGroups: ["Arms"], repsRange: "12-15", sets: 3, weight: 12.5 },
-    ],
-  },
-  {
-    name: "Lower B",
-    scheduledDay: "Saturday",
-    slots: [
-      { keywords: ["deadlift", "squat", "leg press"], muscleGroups: ["Legs", "Back"], repsRange: "5-6", sets: 4, weight: 70 },
-      { keywords: ["hip thrust", "glute", "lunge", "split squat"], muscleGroups: ["Legs"], repsRange: "8-10", sets: 3, weight: 40 },
-      { keywords: ["calf", "leg curl", "leg extension"], muscleGroups: ["Legs"], repsRange: "12-15", sets: 3, weight: 20 },
-    ],
-  },
-]
-
-function normalizeSearchText(value: string) {
-  return normalizeDayLookup(value).compact
-}
-
-function scoreSampleExercise(
-  exercise: ExerciseVariationOption,
-  slot: SampleWorkoutSlot,
-  usedVariationIds: Set<string>,
-) {
-  const exerciseName = normalizeSearchText(exercise.exerciseName)
-  const variationName = normalizeSearchText(exercise.variationName)
-  const displayName = normalizeSearchText(exercise.name)
-  const keywordMatches = slot.keywords.filter((keyword) => {
-    const normalizedKeyword = normalizeSearchText(keyword)
-    return exerciseName.includes(normalizedKeyword) || variationName.includes(normalizedKeyword) || displayName.includes(normalizedKeyword)
-  }).length
-  const muscleGroupMatch = slot.muscleGroups.some(
-    (muscleGroup) => normalizeSearchText(exercise.muscleGroup) === normalizeSearchText(muscleGroup),
-  )
-
-  return (
-    (usedVariationIds.has(exercise.id) ? 0 : 1000) +
-    keywordMatches * 100 +
-    (muscleGroupMatch ? 40 : 0) +
-    (exercise.isDefault ? 10 : 0) -
-    exercise.sortOrder
-  )
-}
-
-function selectSampleExercise(
-  exercises: ExerciseVariationOption[],
-  slot: SampleWorkoutSlot,
-  usedVariationIds: Set<string>,
-) {
-  if (exercises.length === 0) {
-    return undefined
-  }
-
-  return exercises
-    .slice()
-    .sort((left, right) => scoreSampleExercise(right, slot, usedVariationIds) - scoreSampleExercise(left, slot, usedVariationIds))[0]
 }
 
 async function getSheetRows(sheet: unknown) {
@@ -408,9 +242,9 @@ async function findSheetByHeader(
 function parseProgramSheet(
   rows: RawCell[][],
   trainees: CoachTrainee[],
-) {
+): ImportedProgramDraft {
   if (!rows.length) {
-    return {}
+    return { workouts: [] }
   }
 
   const headerRow = rows[0] ?? []
@@ -673,6 +507,35 @@ async function importCoachProgramTemplate(
     throw new Error("File Excel không có sheet nào.")
   }
 
+  const weekName = workbook.SheetNames.find((name) => /^week\s*1$/i.test(name))
+  if (weekName) {
+    const values = XLSX.utils.sheet_to_json<RawCell[]>(workbook.Sheets[weekName], { header: 1, defval: "" })
+    const headerIndex = values.findIndex((row) => row[0] === "Day" && row[2] === "Exercise")
+    if (headerIndex >= 0) {
+      const header = values[headerIndex]
+      let day = ""
+      const rows = values.slice(headerIndex + 1).flatMap((row, index) => {
+        if (normalizeText(row[0])) day = normalizeText(row[0])
+        if (!normalizeText(row[2]) && !normalizeText(row[4]) && !normalizeText(row[5]) && !normalizeText(row[6])) return []
+        const optionalNumber = (value: RawCell) => normalizeText(value) ? Number(value) : undefined
+        return [{
+          sourceRow: headerIndex + index + 2, scheduledDay: /^[1-6]$/.test(day) ? Number(day) : undefined,
+          workoutName: `Day ${day}`, exerciseName: normalizeText(row[2]), variationName: normalizeText(row[3]),
+          variationId: normalizeText(row[4]) || "__missing_variation_id__", sets: optionalNumber(row[5]),
+          reps: normalizeText(row[6]), weight: optionalNumber(row[7]),
+          rir: optionalNumber(row[header.indexOf("RIR")]), restTime: optionalNumber(row[header.indexOf("Rest (s)")]),
+          notes: normalizeText(row[header.indexOf("Note")]) || undefined,
+        }]
+      })
+      const metadataSheet = await findSheetByHeader(workbook, PROGRAM_SHEET_NAME, resolveProgramField, ["name"])
+      const draft = metadataSheet ? parseProgramSheet(metadataSheet.rows, trainees) : { workouts: [] }
+      const built = buildWorkoutsFromRows(rows, exercises, { duration: draft.duration ?? 1 })
+      if (built.issues.length) throw new Error(built.issues.map((issue) => issue.message).join("\n"))
+      if (!built.workouts.length) throw new Error("Sheet Week 1 chưa có bài tập.")
+      return { ...draft, weekTemplate: true, workouts: built.workouts }
+    }
+  }
+
   const programSheet = await findSheetByHeader(
     workbook,
     PROGRAM_SHEET_NAME,
@@ -705,38 +568,6 @@ async function importCoachProgramTemplate(
 
 // ── ExcelJS-based template download ──────────────────────────────────────────
 
-type SampleWorkoutRow = {
-  displayName: string
-  repsRange: string
-  scheduledDay: string
-  sets: number
-  weight: number | ""
-  workoutName: string
-}
-
-function buildSampleWorkoutExcelRows(exercises: ExerciseVariationOption[]): SampleWorkoutRow[] {
-  const usedVariationIds = new Set<string>()
-  const rows: SampleWorkoutRow[] = []
-
-  SAMPLE_WORKOUT_PLANS.forEach((plan) => {
-    plan.slots.forEach((slot) => {
-      const selected = selectSampleExercise(exercises, slot, usedVariationIds)
-      if (!selected) return
-      usedVariationIds.add(selected.id)
-      rows.push({
-        displayName: selected.name,
-        repsRange: slot.repsRange,
-        scheduledDay: plan.scheduledDay,
-        sets: slot.sets,
-        weight: slot.weight ?? "",
-        workoutName: plan.name,
-      })
-    })
-  })
-
-  return rows
-}
-
 function styleHeaderRow(sheet: import("exceljs").Worksheet) {
   sheet.getRow(1).eachCell((cell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 }
@@ -746,7 +577,7 @@ function styleHeaderRow(sheet: import("exceljs").Worksheet) {
   sheet.getRow(1).height = 20
 }
 
-async function downloadCoachProgramTemplate(
+async function buildCoachProgramTemplate(
   exercises: ExerciseVariationOption[],
   trainees: CoachTrainee[],
 ) {
@@ -756,8 +587,6 @@ async function downloadCoachProgramTemplate(
   workbook.created = new Date()
 
   const exerciseCount = exercises.length
-  // Data rows to apply dropdown/formula to (enough for any realistic program)
-  const DATA_ROWS = 500
 
   // ── 1. Program sheet ──────────────────────────────────────────────────────
   const programSheet = workbook.addWorksheet(PROGRAM_SHEET_NAME)
@@ -777,68 +606,118 @@ async function downloadCoachProgramTemplate(
   programFieldData.forEach(([f, v]) => programSheet.addRow([f, v]))
   programSheet.views = [{ state: "frozen", xSplit: 1, ySplit: 1 }]
 
-  // ── 2. Workouts sheet ─────────────────────────────────────────────────────
-  const workoutsSheet = workbook.addWorksheet(WORKOUTS_SHEET_NAME)
-  workoutsSheet.columns = [
-    { header: "workout_name", key: "workout_name", width: 24 },
-    { header: "scheduled_day", key: "scheduled_day", width: 16 },
-    { header: "exercise_name", key: "exercise_name", width: 36 },
-    { header: "variation_id", key: "variation_id", width: 40 },
-    { header: "sets", key: "sets", width: 10 },
-    { header: "reps_range", key: "reps_range", width: 12 },
-    { header: "weight", key: "weight", width: 12 },
-    { header: "rir_rpe", key: "rir_rpe", width: 12 },
-  ]
-  styleHeaderRow(workoutsSheet)
+  // A single authored week; the app expands it and export creates later weeks.
+  const workoutsSheet = workbook.addWorksheet("Week 1")
+  const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
+  const widths = [7, 20, 44, 22, 38, 8, 12, 12, 44, 16, 16, 16, 16, 16, 8, 12, 30]
+  const LAST_COLUMN = headers.length
 
-  // Add dropdown (data validation) on exercise_name column (C) for all data rows
-  const droplistFormula = `Reference!$D$2:$D$${exerciseCount + 1}`
-  for (let row = 2; row <= DATA_ROWS + 1; row++) {
-    workoutsSheet.getCell(row, 3).dataValidation = {
-      type: "list",
-      allowBlank: true,
-      formulae: [droplistFormula],
-      showErrorMessage: false,
+  // Palette the coach set on their own copy: banner and header in blue, and day
+  // blocks alternating green and yellow so a session reads as one band.
+  const BANNER_FILL = "FF00B0F0"
+  const DAY_FILLS = ["FF00B050", "FFFFFF00"]
+  type BorderSide = NonNullable<import("exceljs").Borders["top"]>
+  const MEDIUM: BorderSide = { color: { argb: "FF000000" }, style: "medium" }
+  const THIN: BorderSide = { style: "thin" }
+  /** Only the two text columns are left aligned; every other column is centred. */
+  const LEFT_ALIGNED = new Set([2, 3])
+
+  const paint = (row: number, column: number, fill: string) => {
+    const cell = workoutsSheet.getCell(row, column)
+    cell.fill = { fgColor: { argb: fill }, pattern: "solid", type: "pattern" }
+
+    return cell
+  }
+
+  workoutsSheet.getCell(1, 1).value = "Week 1"
+  workoutsSheet.mergeCells(1, 1, 1, 3)
+  workoutsSheet.getRow(1).height = 18.4
+  // Centring is set on the whole banner row, while the blue fill stops at column 3.
+  workoutsSheet.getRow(1).alignment = { horizontal: "center", vertical: "middle" }
+
+  // The banner is deliberately narrow: it fills only the three merged columns,
+  // leaving the rest of the row blank above the header.
+  for (let column = 1; column <= 3; column += 1) {
+    const cell = paint(1, column, BANNER_FILL)
+    cell.font = { bold: true, color: { theme: 1 }, family: 2, name: "Calibri", scheme: "minor", size: 14 }
+    cell.alignment = { horizontal: "center", vertical: "middle" }
+    cell.border = { bottom: MEDIUM }
+  }
+
+  workoutsSheet.addRow(headers)
+  widths.forEach((width, index) => { workoutsSheet.getColumn(index + 1).width = width })
+  workoutsSheet.getColumn(5).hidden = true
+  workoutsSheet.mergeCells(2, 10, 2, 14)
+  workoutsSheet.getRow(2).height = 28.05
+
+  for (let column = 1; column <= LAST_COLUMN; column += 1) {
+    const cell = paint(2, column, BANNER_FILL)
+    cell.font = { bold: true, name: "Calibri", size: 11 }
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }
+    cell.border = {
+      bottom: MEDIUM,
+      left: column === 1 ? MEDIUM : THIN,
+      right: column === LAST_COLUMN ? MEDIUM : THIN,
+      top: MEDIUM,
     }
   }
 
-  // Add formula for variation_id (col D) for all data rows
-  for (let row = 2; row <= DATA_ROWS + 1; row++) {
-    workoutsSheet.getCell(row, 4).value = {
-      formula: `IFERROR(INDEX(Reference!$A:$A,MATCH(C${row},Reference!$D:$D,0)),"")`,
+  const referenceLastRow = Math.max(2, exerciseCount + 1)
+  workbook.definedNames.add(`'Exercise Table'!$D$2:$D$${referenceLastRow}`, "ExerciseChoices")
+
+  for (let day = 1; day <= 6; day++) {
+    const firstRow = 3 + (day - 1) * 8
+    const lastRow = firstRow + 7
+    const dayFill = DAY_FILLS[(day - 1) % DAY_FILLS.length]
+
+    workoutsSheet.mergeCells(firstRow, 1, lastRow, 1)
+    workoutsSheet.getCell(firstRow, 1).value = day
+
+    for (let row = firstRow; row <= lastRow; row++) {
+      workoutsSheet.getCell(row, 3).dataValidation = { type: "list", allowBlank: true, formulae: ["ExerciseChoices"], showErrorMessage: true, errorStyle: "stop", errorTitle: "Choose an exercise", error: "Select an exercise from the library." }
+
+      // Muscle Group, Variation and the hidden id all derive from the chosen exercise.
+      for (const [column, referenceColumn] of [[2, "E"], [4, "C"], [5, "A"]] as const) {
+        workoutsSheet.getCell(row, column).value = { formula: `IFERROR(INDEX('Exercise Table'!$${referenceColumn}$2:$${referenceColumn}$${referenceLastRow},MATCH(C${row},'Exercise Table'!$D$2:$D$${referenceLastRow},0)),"")`, result: "" }
+      }
+
+      for (let column = 1; column <= LAST_COLUMN; column += 1) {
+        // The Day column is one merged cell per block, so only its master row
+        // carries a border; writing to the covered rows fights the merge.
+        if (column === 1 && row !== firstRow) {
+          paint(row, column, dayFill)
+          continue
+        }
+
+        const cell = paint(row, column, dayFill)
+        cell.alignment = { horizontal: LEFT_ALIGNED.has(column) ? "left" : "center", vertical: "middle" }
+        // Medium rules box each day block in; thin lines separate cells inside it.
+        cell.border = {
+          bottom: column === 1 ? THIN : row === lastRow ? MEDIUM : THIN,
+          left: column === 1 ? MEDIUM : THIN,
+          right: column === LAST_COLUMN ? MEDIUM : THIN,
+          top: row === firstRow ? MEDIUM : THIN,
+        }
+      }
+
+      workoutsSheet.getRow(row).height = 24
     }
   }
 
-  // Add sample data rows on top of the formulas
-  const sampleRows = buildSampleWorkoutExcelRows(exercises)
-  sampleRows.forEach((row, idx) => {
-    const rowNum = idx + 2
-    workoutsSheet.getCell(rowNum, 1).value = row.workoutName
-    workoutsSheet.getCell(rowNum, 2).value = row.scheduledDay
-    workoutsSheet.getCell(rowNum, 3).value = row.displayName
-    // Col D: keep the formula (already set above — will auto-resolve on open)
-    workoutsSheet.getCell(rowNum, 5).value = row.sets
-    workoutsSheet.getCell(rowNum, 6).value = row.repsRange
-    workoutsSheet.getCell(rowNum, 7).value = row.weight
-    workoutsSheet.getCell(rowNum, 8).value = ""
-  })
-
-  workoutsSheet.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }]
+  workoutsSheet.views = [{ state: "frozen", xSplit: 3, ySplit: 2 }]
+  workbook.calcProperties.fullCalcOnLoad = true
 
   // ── 3. Instructions sheet ─────────────────────────────────────────────────
   const instructionsSheet = workbook.addWorksheet(INSTRUCTIONS_SHEET_NAME)
   instructionsSheet.columns = [{ header: "Coach program import template", key: "text", width: 110 }]
   instructionsSheet.getRow(1).font = { bold: true, size: 13 }
   const instructions = [
-    "1. This workbook includes a ready-to-import sample schedule.",
-    "2. Edit the Program sheet for metadata and trainee assignment before importing.",
-    "3. The Workouts sheet is prefilled with sample rows based on your exercise library.",
-    "4. Each row in Workouts is one exercise inside one workout day.",
-    "5. exercise_name has a dropdown — pick from the list and variation_id fills automatically.",
-    "6. scheduled_day accepts 0-6, 7, English day names, Vietnamese aliases like T2/CN, and Day 1-Day 7.",
-    "7. reps_range accepts a single target like 10 or a range like 8-12.",
-    "8. rir_rpe is optional. Enter a target RIR (e.g. 2) or RPE (e.g. 8) as a number.",
-    "9. assign_to_emails is optional. Use emails from the Trainees sheet to assign the program on save.",
+    "1. Fill Program metadata, then author Week 1 only. The app repeats the template for the requested weeks.",
+    "2. Select Exercise from the dropdown. Muscle Group, Variation and the hidden ID are formulas.",
+    "3. Fill Sets, Rep Range, Weight (kg), RIR, Rest (s) and Note. Keep prescription columns in order.",
+    "4. Leave Substitute Exercise and Actual rep per weight blank; completed sessions fill these cells.",
+    "5. Each trainee uses a separate spreadsheet. Export creates Week N and extra set columns when needed.",
+    "6. If converting through Google Sheets, check the exercise dropdowns; conversion may remove validation.",
   ]
   instructions.forEach((text) => instructionsSheet.addRow([text]))
 
@@ -884,6 +763,11 @@ async function downloadCoachProgramTemplate(
   trainees.forEach((t) => traineesSheet.addRow([t.name, t.email]))
   traineesSheet.views = [{ state: "frozen", ySplit: 1 }]
 
+  return workbook
+}
+
+async function downloadCoachProgramTemplate(exercises: ExerciseVariationOption[], trainees: CoachTrainee[]) {
+  const workbook = await buildCoachProgramTemplate(exercises, trainees)
   // ── Download ──────────────────────────────────────────────────────────────
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], {
@@ -897,5 +781,5 @@ async function downloadCoachProgramTemplate(
   URL.revokeObjectURL(url)
 }
 
-export { downloadCoachProgramTemplate, importCoachProgramTemplate }
+export { buildCoachProgramTemplate, downloadCoachProgramTemplate, importCoachProgramTemplate }
 export type { ImportedProgramDraft }
