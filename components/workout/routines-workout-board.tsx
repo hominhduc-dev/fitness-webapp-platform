@@ -13,9 +13,12 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { getTagLabel, inferRoutineTag, type RoutineTag } from "@/lib/fitness/routine-tag"
 import type { TraineeProgram } from "@/lib/fitness/types"
+import type { WorkoutCollection } from "@/lib/fitness/types"
+import { useWorkouts } from "@/lib/queries/workouts"
 import type { Workout, WorkoutLog } from "@/lib/types"
 
 type RoutinesWorkoutBoardProps = {
+  initialData?: WorkoutCollection
   historyLogs: WorkoutLog[]
   programs: TraineeProgram[]
   workouts: Workout[]
@@ -43,7 +46,11 @@ function CreateRoutineButton() {
   )
 }
 
-export function RoutinesWorkoutBoard({ historyLogs, programs, workouts }: RoutinesWorkoutBoardProps) {
+export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, programs: initialPrograms, workouts: initialWorkouts }: RoutinesWorkoutBoardProps) {
+  const { data } = useWorkouts(initialData)
+  const historyLogs = data?.historyLogs ?? initialLogs
+  const programs = data?.programs ?? initialPrograms
+  const workouts = data?.workouts ?? initialWorkouts
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const reusableWorkouts = useMemo(() => workouts.filter((workout) => !workout.scheduledDate), [workouts])

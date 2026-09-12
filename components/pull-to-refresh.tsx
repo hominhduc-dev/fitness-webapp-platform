@@ -1,8 +1,8 @@
 "use client"
 
 import { RefreshCw } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -13,9 +13,7 @@ const RESISTANCE = 0.5 // finger travel → visual travel (rubber-band feel)
 interface PullToRefreshProps {
   children: ReactNode
   /**
-   * Custom refresh handler. If omitted, falls back to `router.refresh()`
-   * (re-fetches server components — ideal for the SSR `force-dynamic` pages).
-   * Pass an async fn on CSR pages to re-run their client-side fetch.
+   * Custom refresh handler. By default revalidates active client queries.
    */
   onRefresh?: () => Promise<void> | void
   className?: string
@@ -27,13 +25,12 @@ interface PullToRefreshProps {
  * container is already at the top; on desktop (no touch events) it's inert.
  */
 export function PullToRefresh({ children, onRefresh, className }: PullToRefreshProps) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [pull, setPull] = useState(0)
   const [dragging, setDragging] = useState(false)
 
-  const refreshing = busy || isPending
+  const refreshing = busy
   const refreshingRef = useRef(refreshing)
   refreshingRef.current = refreshing
 
@@ -79,16 +76,15 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
     }
 
     const run = async () => {
-      if (onRefresh) {
-        setBusy(true)
-        try {
+      setBusy(true)
+      try {
+        if (onRefresh) {
           await onRefresh()
-        } finally {
-          setBusy(false)
+        } else {
+          await queryClient.invalidateQueries()
         }
-      } else {
-        // isPending stays true until the server components finish refetching.
-        startTransition(() => router.refresh())
+      } finally {
+        setBusy(false)
       }
     }
 
@@ -141,7 +137,7 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
       el.removeEventListener("touchend", onEnd)
       el.removeEventListener("touchcancel", onEnd)
     }
-  }, [onRefresh, router])
+  }, [onRefresh, queryClient])
 
   const visualPull = refreshing ? THRESHOLD : pull
   const progress = Math.min(1, visualPull / THRESHOLD)

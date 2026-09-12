@@ -55,7 +55,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
                 )}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="font-mono text-[1.1rem] font-semibold tnum text-foreground">
+                <span className="font-mono text-lg font-semibold tnum text-foreground">
                   {percentage}%
                 </span>
               </div>
@@ -65,14 +65,14 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
             <div className="min-w-0 space-y-3">
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.consumed}</p>
-                <p className="font-mono text-[1.5rem] font-semibold leading-none tnum text-foreground">
+                <p className="font-mono text-2xl font-semibold leading-none tnum text-foreground">
                   {nutrition.totalCalories.toLocaleString("en-US")}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
                 </p>
               </div>
               <div>
                 <p className="label-micro mb-0.5">{messages.dashboard.remaining}</p>
-                <p className="font-mono text-[1.25rem] font-semibold leading-none tnum text-primary">
+                <p className="font-mono text-xl font-semibold leading-none tnum text-primary">
                   {remaining.toLocaleString("en-US")}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
                 </p>

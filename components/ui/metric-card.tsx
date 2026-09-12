@@ -130,7 +130,7 @@ export function MetricCard({
           // Typography classes by variant
           isDefault && "font-mono text-3xl font-semibold leading-none tracking-tight tnum",
           isDefault && palette.value,
-          isGlass && "font-mono text-2xl font-semibold leading-none tracking-tight tnum md:text-[1.75rem] text-foreground",
+          isGlass && "font-mono text-2xl font-semibold leading-none tracking-tight tnum md:text-3xl text-foreground",
           isFeatured && "font-mono text-4xl font-bold leading-none tracking-[-0.06em] tnum sm:text-5xl",
           isFeatured && palette.value
         )}>

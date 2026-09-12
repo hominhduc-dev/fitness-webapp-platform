@@ -3,12 +3,14 @@
 import { useDeferredValue, useMemo, useState } from "react"
 import { Check, Clock, Search, Users } from "lucide-react"
 
-import { useAuth } from "@/components/providers/auth-provider"
+import { useCoachData } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { fetchDiscoverableCoaches } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createCoachRequest } from "@/lib/fitness/api"
+import { useCreateCoachRequest } from "@/lib/queries/coach"
 import type { DiscoverableCoach } from "@/lib/fitness/types"
 
 function getInitials(name: string) {
@@ -19,10 +21,10 @@ function getInitials(name: string) {
 }
 
 export function FindCoachClient({ initialCoaches }: { initialCoaches: DiscoverableCoach[] }) {
-  const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [search, setSearch] = useState("")
-  const [coaches, setCoaches] = useState(initialCoaches)
+  const createCoachRequest = useCreateCoachRequest()
+  const { data: coaches = initialCoaches, setData: setCoaches } = useCoachData(queryKeys.coach.discover(), fetchDiscoverableCoaches, initialCoaches)
   const [pendingCoachId, setPendingCoachId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const deferredSearch = useDeferredValue(search)
@@ -43,15 +45,12 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
   const connectedCoach = coaches.find((coach) => coach.requestStatus === "connected")
 
   const handleSendRequest = async (coachId: string) => {
-    if (!session?.access_token) {
-      return
-    }
 
     setPendingCoachId(coachId)
     setError(null)
 
     try {
-      const request = await createCoachRequest(session.access_token, coachId)
+      const request = await createCoachRequest.mutateAsync(coachId)
       setCoaches((current) =>
         current.map((coach) =>
           coach.id === coachId

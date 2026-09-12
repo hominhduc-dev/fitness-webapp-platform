@@ -73,7 +73,7 @@ export const scheduleMessages = {
       loadExerciseLibraryError: "Unable to load exercise library.",
       moveExerciseDown: "Move exercise down",
       moveExerciseUp: "Move exercise up",
-      plannedSessions: (count: number) => `${count} sessions planned.`,
+      plannedSessions: (count: number) => `${count} session${count === 1 ? "" : "s"} planned.`,
       doneToGo: (done: number, planned: number, remaining: number) => `${done}/${planned} done this week · ${remaining} to go`,
       repsRange: "Reps range",
       unableAddRoutine: "Unable to add this routine.",

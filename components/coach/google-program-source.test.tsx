@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { renderWithProviders as render } from "@/lib/queries/test-utils"
 import { GoogleProgramSource } from "./google-program-source"
 import { ImportProgramDialog } from "./import-program-dialog"
+vi.mock("@/components/providers/auth-provider", () => ({ useAuth: () => ({ profile: { id: "coach-1" } }) }))
+vi.mock("@/lib/queries/token", () => ({ requireAccessToken: vi.fn().mockResolvedValue("test") }))
 const api = vi.hoisted(() => ({ connection: vi.fn(), spreadsheet: vi.fn(), import: vi.fn(), disconnect: vi.fn() }))
 vi.mock("@/components/providers/locale-provider", () => ({ useLocale: () => ({ locale: "en" }) }))
 vi.mock("@/lib/fitness/api", () => ({ fetchGoogleConnection: api.connection, fetchGoogleSpreadsheet: api.spreadsheet, importGoogleProgram: api.import, disconnectGoogle: api.disconnect, authorizeGoogle: vi.fn(), createCoachProgram: vi.fn(), overwriteGoogleProgram: vi.fn(), overwriteNotionProgram: vi.fn(), importNotionProgram: vi.fn(), fetchNotionProgramTemplates: vi.fn().mockResolvedValue({ configured: false, templates: [] }) }))

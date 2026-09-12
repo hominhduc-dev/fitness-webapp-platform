@@ -56,7 +56,7 @@ export function LanguageToggle({ compact = false, className, variant = "toggle" 
             type="button"
             aria-pressed={locale === option.value}
             className={cn(
-              "h-7 rounded-md px-2.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-colors",
+              "h-7 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
               locale === option.value
                 ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                 : "text-muted-foreground hover:text-foreground",

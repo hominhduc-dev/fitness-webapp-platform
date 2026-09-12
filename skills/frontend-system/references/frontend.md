@@ -36,6 +36,7 @@
 | Auth | Supabase Auth, SSR cookie session qua `@supabase/ssr` |
 | Visual material | CSS/SVG liquid glass + optional `@ybouane/liquidglass` WebGL |
 | Test | Vitest 4 + jsdom + Testing Library |
+| Client server-state | TanStack Query 5, hooks trong `lib/queries/` |
 | PWA/observability | manifest + iOS splash, Vercel Analytics/Speed Insights trên Vercel |
 
 Không có `react-hook-form` hoặc `zod` trong dependency hiện tại. Form phức tạp đang dùng controlled state và validation thủ công; đừng giả định RHF/Zod đã được cài.
@@ -60,6 +61,7 @@ app/layout.tsx
    ├─ app/page.tsx                     landing/auth entry
    ├─ app/(shell)/layout.tsx            authenticated application shell
    │  └─ AppProviders
+   │     ├─ QueryProvider              outermost, browser singleton
    │     ├─ ThemeProvider
    │     ├─ LocaleProvider
    │     └─ AuthProvider
@@ -83,7 +85,7 @@ app/layout.tsx
 ### Authenticated shell
 
 - `app/(shell)/layout.tsx` gọi `requireAppUser()` trước render.
-- Provider order cố định: Theme → Locale → Auth.
+- Provider order cố định: Query → Theme → Locale → Auth.
 - `main` có mobile bottom padding tính cả safe area; desktop giảm padding.
 - Desktop sidebar lazy client-only qua `SidebarClient` để giảm SSR/hydration coupling.
 
@@ -103,7 +105,7 @@ app/layout.tsx
 | `/coach` | SSR dashboard, coach guard | `app/(shell)/coach/page.tsx` |
 | `/coach/trainees*` | SSR guard/fetch → client detail/list | `components/coach/trainee-*` |
 | `/coach/programs*` | SSR guard/fetch → client editor/boards | `components/coach/program-*` |
-| `/coach/exercises` | SSR fetch → client library | `components/coach/exercise-library-client.tsx` |
+| `/coach/exercises` | SSR shell → TanStack client cache/fetch | `components/coach/exercise-library-client.tsx` |
 | `/coach/find` | trainee SSR fetch → client search | `components/coach/find-coach-client.tsx` |
 | `/admin` | SSR admin guard → client console | `components/admin/admin-console.tsx` |
 | `/workout/[id]/start` | CSR focused session/logger | `app/workout/[id]/start/page.tsx` |
@@ -133,8 +135,8 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 
 - Browser dùng base `/backend`.
 - `next.config.mjs` rewrite `/backend/:path*` sang Express origin (`NEXT_PUBLIC_API_URL`, mặc định port 4000).
-- Authenticated request gửi `Authorization: Bearer <accessToken>` từ `useAuth().session`.
-- GET có thể revalidate; mutation dùng `no-store`.
+- Query/mutation lấy token mới trong callback bằng `requireAccessToken()`, không key theo token.
+- Browser server-state do TanStack Query cache; Next `revalidate` chỉ áp dụng server fetch.
 - Tái sử dụng API helper hiện có, không rải `fetch()` trực tiếp trong component.
 
 ### State boundaries
@@ -144,11 +146,23 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 | Theme | `ThemeProvider`, localStorage `yeahbuddy-theme` |
 | Locale | `LocaleProvider`, cookie `yeahbuddy-locale` |
 | Auth session/profile | `AuthProvider`, Supabase browser client |
+| Client server-state | `lib/queries/*`, QueryClient singleton phía browser, client riêng phía server |
 | Route/filter state | URL/search params khi cần share/back-forward |
 | Feature interaction | client component gần nhất |
 | Long workout session | `lib/workout/session-storage.ts` + focused workout page |
 
 Không có global Redux/Zustand store. Không thêm global store nếu state chỉ thuộc một feature.
+
+### Query cache (migration 2026-09-12)
+
+- Key riêng tư gắn `profile.id` qua `useUserQuery`/`userQueryKey`; logout và đổi tài khoản gọi `clear()`.
+- Seed SSR dùng `initialData`, lỗi seed `null` đổi thành `undefined`; không dehydrate dữ liệu `Date`.
+- Mặc định: stale 30 giây, GC 5 phút, không retry 4xx, tối đa 2 retry khác; focus không refetch.
+- Exercises/foods stale 30 phút; coach programs/profile 5 phút; dữ liệu biến động 30 giây.
+- Session đang tập dùng staleTime `"static"`, tắt refetch mount/focus/reconnect; draft và localStorage vẫn thuộc UI.
+- Mutation invalidate theo domain; meals writeback theo ngày lúc bắt đầu mutation. Không dùng cờ sessionStorage dashboard-refresh.
+- Pull-to-refresh invalidate cache; `router.refresh()` chỉ giữ cho thay đổi locale cần render lại server.
+- Xem `docs/tanstack-query-migration.md` cho phạm vi, invalidation và giới hạn kiểm chứng.
 
 ## 5. Cấu trúc component
 
@@ -298,7 +312,7 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 - Giá trị `yeahbuddy-theme` cũ (`glass`, `midnight`) được migrate về `dark` ở cả `migrateStoredTheme()` lẫn pre-paint script.
 - Root pre-paint script trong `app/layout.tsx` phải luôn ra **cùng kết quả** với `applyThemeToDocument()`: cùng class, cùng `color-scheme`, cùng `theme-color`. Lệch là flash khi reload.
 - Thêm theme color literal mới phải allowlist trong `scripts/check-ui-colors.mjs` và thêm case vào `lib/design-system/color-contrast.test.ts`.
-- Landing `/` dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền sáng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
+- Landing `/` luôn dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền sáng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
 - Landing owner: `components/landing/landing-page.tsx`, CSS cục bộ `landing-page.module.css`, copy song ngữ `lib/i18n/messages/landing.ts`. Preview dùng dữ liệu minh họa được gắn nhãn, CTA dùng auth modal qua query param.
 - Khi effect/canvas phụ thuộc theme, dùng `resolvedTheme`, không dùng raw `theme` vì mode `system` có thể đổi.
 
@@ -441,6 +455,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 `npm run typecheck` chạy `next typegen` trước `tsc` để cập nhật route types theo source hiện tại, tránh dùng types từ một production build cũ.
 
 - Tests frontend nằm trong `components/**/*.test.ts(x)`, `lib/**/*.test.ts(x)`.
+- Component dùng query phải bọc QueryClientProvider; dùng helper `renderWithProviders` với client riêng, retry tắt cho mỗi test.
 - Import chương trình dùng `import-program-dialog.tsx` và mapper `program-import-rows.ts`; nguồn Google có panel `google-program-source.tsx`, API typed trong `lib/fitness/api.ts`. Tab ẩn khi backend báo chưa cấu hình. Excel template Week 1 do `program-excel.ts` tạo; các file Workouts cũ vẫn được nhập.
 - Với responsive/theme/glass, cần visual test trên mobile và desktop; unit test không xác nhận canvas/CSS rendering.
 - `npm run build` có thể cần network cho `next/font` và backend/Supabase-dependent SSR.

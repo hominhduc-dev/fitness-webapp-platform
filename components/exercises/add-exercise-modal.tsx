@@ -144,6 +144,7 @@ export function AddExerciseModal({
             <h3 className="text-lg font-semibold text-foreground">{title ?? messages.workoutPage.addExercise}</h3>
             <button
               type="button"
+              aria-label={messages.workoutPage.cancel}
               onClick={handleClose}
               className="text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -216,7 +217,7 @@ export function AddExerciseModal({
                     </p>
                   </div>
                   {isCurrent ? (
-                    <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-micro font-medium uppercase tracking-wider text-primary">current</span>
+                    <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-micro font-medium uppercase tracking-wider text-primary">{messages.workoutPage.current}</span>
                   ) : added ? (
                     <span className="text-xs font-medium text-success-text">{messages.workoutPage.added}</span>
                   ) : (
@@ -235,7 +236,7 @@ export function AddExerciseModal({
         <DialogContent
           showCloseButton={false}
           overlayClassName="z-[105]"
-          className="z-[110] flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-[24px] border border-border bg-background shadow-2xl p-0 sm:rounded-2xl"
+          className="z-[110] flex max-h-[92dvh] w-full max-w-[520px] flex-col overflow-hidden rounded-t-3xl border border-border bg-background p-0 shadow-2xl sm:rounded-2xl"
         >
           <DialogHeader className="sr-only">
             <DialogTitle>{filterCopy.filter}</DialogTitle>
@@ -328,7 +329,7 @@ export function AddExerciseModal({
                             : "border-border bg-background text-foreground hover:border-foreground/30",
                         )}
                       >
-                        {eq === "all" ? messages.workoutPage.all : eq === NONE_EQUIPMENT ? "Bodyweight" : eq}
+                        {eq === "all" ? messages.workoutPage.all : eq === NONE_EQUIPMENT ? messages.workoutPage.bodyweight : eq}
                       </button>
                     ))}
                   </div>

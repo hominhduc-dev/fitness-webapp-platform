@@ -2,11 +2,16 @@
 
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
-import { createContext, startTransition, useContext, useEffect, useState } from "react"
+import { createContext, startTransition, useCallback, useContext, useEffect, useRef, useState } from "react"
 
-import { fetchCurrentProfile, updateProfileRequest, uploadAvatarRequest } from "@/lib/auth/api"
+import { useQueryClient } from "@tanstack/react-query"
+
+import { fetchCurrentProfile } from "@/lib/auth/api"
 import type { AppProfile, UpdateProfileInput, UploadAvatarInput } from "@/lib/auth/types"
 import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
+import { useCurrentProfile, useUpdateProfile, useUploadAvatar } from "@/lib/queries/profile"
+import { userQueryKey } from "@/lib/queries/scoped"
+import { queryKeys } from "@/lib/queries/keys"
 
 type AuthContextValue = {
   isLoading: boolean
@@ -27,12 +32,34 @@ export function AuthProvider({
   children: React.ReactNode
   initialProfile?: AppProfile | null
 }) {
+  const queryClient = useQueryClient()
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<AppProfile | null>(initialProfile)
   const [isLoading, setIsLoading] = useState(!initialProfile)
+  const accountRef = useRef<string | null>(initialProfile?.supabaseAuthUserId ?? null)
+  const revisionRef = useRef(0)
+  const profileQuery = useCurrentProfile(profile, Boolean(session))
+  const updateMutation = useUpdateProfile()
+  const avatarMutation = useUploadAvatar()
 
-  async function syncProfile(nextSession: Session | null) {
+  // Memoized because it now closes over the query client, which makes it a
+  // reactive value for the auth-state effect below. The client is a singleton,
+  // so the identity is stable and the effect still runs once.
+  const syncProfile = useCallback(async function syncProfile(nextSession: Session | null) {
+    const account = nextSession?.user.id ?? null
+    if (accountRef.current !== account) {
+      accountRef.current = account
+      revisionRef.current += 1
+      queryClient.clear()
+      setProfile(null)
+    }
+    const revision = revisionRef.current
     if (!nextSession?.access_token) {
+      // Also covers a SIGNED_OUT broadcast from another tab, where signOut()
+      // below never runs. Dropping the cache here stops the next person signing
+      // in on this tab from seeing the previous user's data.
+      queryClient.clear()
+
       startTransition(() => {
         setSession(null)
         setProfile(null)
@@ -43,7 +70,15 @@ export function AuthProvider({
     }
 
     try {
-      const nextProfile = await fetchCurrentProfile(nextSession.access_token)
+      const nextProfile = await queryClient.fetchQuery({
+        queryKey: ["profile", "bootstrap", account],
+        queryFn: () => fetchCurrentProfile(nextSession.access_token),
+        // Bootstrap must not overwrite a newer profile mutation with its old
+        // cached snapshot when SIGNED_IN is emitted again for this account.
+        staleTime: 0,
+      })
+      if (revision !== revisionRef.current) return null
+      if (nextProfile) queryClient.setQueryData(userQueryKey(queryKeys.profile.current(), nextProfile.id), nextProfile)
 
       startTransition(() => {
         setSession(nextSession)
@@ -53,6 +88,7 @@ export function AuthProvider({
 
       return nextProfile
     } catch {
+      if (revision !== revisionRef.current) return null
       startTransition(() => {
         setSession(nextSession)
         setProfile(null)
@@ -61,7 +97,7 @@ export function AuthProvider({
 
       return null
     }
-  }
+  }, [queryClient])
 
   useEffect(() => {
     let cancelled = false
@@ -87,6 +123,11 @@ export function AuthProvider({
       }
 
       if (initialSession?.access_token && initialProfile) {
+        if (initialProfile.supabaseAuthUserId && initialProfile.supabaseAuthUserId !== initialSession.user.id) {
+          await syncProfile(initialSession)
+          return
+        }
+        accountRef.current = initialSession.user.id
         startTransition(() => {
           setSession(initialSession)
           setProfile(initialProfile)
@@ -108,7 +149,17 @@ export function AuthProvider({
         return
       }
 
+      if (event === "TOKEN_REFRESHED" && accountRef.current === nextSession?.user.id) {
+        setSession(nextSession)
+        return
+      }
+
       if (event === "INITIAL_SESSION" && nextSession?.access_token && initialProfile) {
+        if (initialProfile.supabaseAuthUserId && initialProfile.supabaseAuthUserId !== nextSession.user.id) {
+          setTimeout(() => { if (!cancelled) void syncProfile(nextSession) }, 0)
+          return
+        }
+        accountRef.current = nextSession.user.id
         startTransition(() => {
           setSession(nextSession)
           setProfile(initialProfile)
@@ -118,14 +169,21 @@ export function AuthProvider({
         return
       }
 
-      void syncProfile(nextSession)
+      // Do not enter Supabase getSession from inside its auth callback lock.
+      if (accountRef.current !== (nextSession?.user.id ?? null)) {
+        revisionRef.current += 1
+        accountRef.current = nextSession?.user.id ?? null
+        queryClient.clear()
+        setProfile(null)
+      }
+      setTimeout(() => { if (!cancelled) void syncProfile(nextSession) }, 0)
     })
 
     return () => {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [initialProfile])
+  }, [initialProfile, syncProfile, queryClient])
 
   async function refreshProfile() {
     const supabase = getOptionalBrowserSupabaseClient()
@@ -138,6 +196,9 @@ export function AuthProvider({
       data: { session: currentSession },
     } = await supabase.auth.getSession()
 
+    if (profile?.id && currentSession?.user.id === accountRef.current) {
+      return (await profileQuery.refetch()).data ?? null
+    }
     return syncProfile(currentSession)
   }
 
@@ -156,7 +217,11 @@ export function AuthProvider({
       throw new Error("Bạn chưa đăng nhập.")
     }
 
-    const response = await updateProfileRequest(currentSession.access_token, input)
+    const revision = revisionRef.current
+    const response = await updateMutation.mutateAsync(input)
+    if (revision !== revisionRef.current) return null
+    if (response.profile) queryClient.setQueryData(userQueryKey(queryKeys.profile.current(), response.profile.id), response.profile)
+    void queryClient.invalidateQueries({ queryKey: queryKeys.meals.all })
 
     startTransition(() => {
       setProfile(response.profile)
@@ -180,7 +245,10 @@ export function AuthProvider({
       throw new Error("Bạn chưa đăng nhập.")
     }
 
-    const response = await uploadAvatarRequest(currentSession.access_token, input)
+    const revision = revisionRef.current
+    const response = await avatarMutation.mutateAsync(input)
+    if (revision !== revisionRef.current) return null
+    if (response.profile) queryClient.setQueryData(userQueryKey(queryKeys.profile.current(), response.profile.id), response.profile)
 
     startTransition(() => {
       setProfile(response.profile)
@@ -190,11 +258,18 @@ export function AuthProvider({
   }
 
   async function signOut() {
+    revisionRef.current += 1
+    accountRef.current = null
+    queryClient.clear()
     const supabase = getOptionalBrowserSupabaseClient()
 
     if (supabase) {
       await supabase.auth.signOut({ scope: "local" })
     }
+
+    // clear(), not invalidateQueries(): invalidation keeps the rows resident, so
+    // the previous user's screen would render again while refetching.
+    queryClient.clear()
 
     startTransition(() => {
       setSession(null)
@@ -207,7 +282,7 @@ export function AuthProvider({
     <AuthContext.Provider
       value={{
         isLoading,
-        profile,
+        profile: profile ? profileQuery.data ?? profile : null,
         refreshProfile,
         session,
         signOut,

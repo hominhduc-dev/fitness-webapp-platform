@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { startTransition, useEffect, useMemo, useState } from "react"
+import { startTransition, useMemo, useState } from "react"
 import {
   CartesianGrid,
   Line,
@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { createWeightEntry, fetchWeightEntries } from "@/lib/fitness/api"
+import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
 
@@ -405,7 +405,7 @@ function MetricCard({
     <div className="rounded-lg border border-border bg-card p-4">
       <span className="label-micro block">{label}</span>
       <div className="mt-2 flex items-end gap-1.5">
-        <span className="font-mono text-[2rem] font-semibold leading-none tnum text-foreground">{value}</span>
+        <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">{value}</span>
         {unit ? <span className="mb-0.5 text-sm text-muted-foreground">{unit}</span> : null}
       </div>
       {footer ? <div className="mt-2 min-h-5 text-sm">{footer}</div> : null}
@@ -454,48 +454,21 @@ export function WeightTrackingClient() {
   const sex = profile?.sex ?? undefined
   const activityLevel = profile?.activityLevel ?? undefined
 
-  const [entries, setEntries] = useState<BodyMetricEntry[]>([])
   const [selectedRange, setSelectedRange] = useState<RangeValue>(30)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [inputValue, setInputValue] = useState("")
-  const [isLoadingPage, setIsLoadingPage] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadEntries() {
-      if (authLoading) return
-      if (!session?.access_token) {
-        startTransition(() => {
-          setEntries([])
-          setIsLoadingPage(false)
-        })
-        return
-      }
-
-      setIsLoadingPage(true)
-      setError(null)
-
-      try {
-        const nextEntries = await fetchWeightEntries(session.access_token, selectedRange)
-        if (cancelled) return
-        startTransition(() => {
-          setEntries(nextEntries.sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()))
-          setShowAllHistory(false)
-        })
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : messages.progressPage.loadFailed)
-      } finally {
-        if (!cancelled) setIsLoadingPage(false)
-      }
-    }
-
-    void loadEntries()
-    return () => { cancelled = true }
-  }, [authLoading, messages.progressPage.loadFailed, selectedRange, session?.access_token])
+  const weightQuery = useWeightEntries(selectedRange)
+  const createEntry = useCreateWeightEntry()
+  // The list is rendered newest-first everywhere; sort once here rather than at
+  // each of the five read sites.
+  const entries = useMemo(
+    () => [...(weightQuery.data ?? [])].sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()),
+    [weightQuery.data],
+  )
 
   const summary = useMemo(
     () => buildWeightSummary(entries, targetWeightKg, goalStartWeightKg),
@@ -546,16 +519,11 @@ export function WeightTrackingClient() {
     setInfoMessage(null)
 
     try {
-      const bodyMetric = await createWeightEntry(session.access_token, {
+      await createEntry.mutateAsync({
         recordedAt: new Date().toISOString(),
         weightKg: Number(convertWeightToKg(parsedValue, weightUnit).toFixed(2)),
       })
       startTransition(() => {
-        setEntries((curr) =>
-          [bodyMetric, ...curr]
-            .filter((e, i, arr) => arr.findIndex((x) => x.id === e.id) === i)
-            .sort((l, r) => r.recordedAt.getTime() - l.recordedAt.getTime()),
-        )
         setInputValue("")
       })
       setInfoMessage(messages.progressPage.saveSuccess)
@@ -575,7 +543,10 @@ export function WeightTrackingClient() {
     setInfoMessage(null)
   }
 
-  if (authLoading || isLoadingPage) return <WeightTrackingSkeleton />
+  // isPending, not isLoading: this page has no SSR seed, so "no data yet" is
+  // the right skeleton condition and a background refetch must not blank it.
+  if (authLoading || (session && weightQuery.isPending)) return <WeightTrackingSkeleton />
+  const displayError = error ?? weightQuery.error?.message
 
   const currentWeightDisplay = formatWeight(summary.currentWeightKg, weightUnit)
 
@@ -600,7 +571,7 @@ export function WeightTrackingClient() {
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="label-micro mb-2 block">{messages.progressPage.logIntro}</span>
-            <h1 className="text-[2.25rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+            <h1 className="text-4xl font-semibold leading-none tracking-[-0.02em] text-foreground">
               {messages.progressPage.title}
             </h1>
           </div>
@@ -618,16 +589,16 @@ export function WeightTrackingClient() {
         </section>
 
         {/* ---- Feedback messages ---- */}
-        {(error || infoMessage) && (
+        {(displayError || infoMessage) && (
           <div
             className={cn(
               "rounded-lg border px-4 py-3 text-sm",
-              error
+              displayError
                 ? "border-destructive/20 bg-destructive-soft text-destructive-text"
                 : "border-primary/15 bg-primary-soft text-primary",
             )}
           >
-            {error ?? infoMessage}
+            {displayError ?? infoMessage}
           </div>
         )}
 
@@ -638,7 +609,7 @@ export function WeightTrackingClient() {
             <div>
               <span className="label-micro mb-1 block">{messages.progressPage.currentWeight}</span>
               <div className="flex items-baseline gap-3">
-                <span className="font-mono text-[4rem] font-semibold leading-none tnum text-foreground">
+                <span className="font-mono text-6xl font-semibold leading-none tnum text-foreground">
                   {currentWeightDisplay}
                 </span>
                 <span className="text-base text-muted-foreground">{weightUnit}</span>
@@ -670,7 +641,10 @@ export function WeightTrackingClient() {
                 <button
                   key={r}
                   type="button"
-                  onClick={() => setSelectedRange(r)}
+                  onClick={() => {
+                    setSelectedRange(r)
+                    setShowAllHistory(false)
+                  }}
                   className={cn(
                     "rounded-full border px-3 py-1 font-mono text-xs tnum transition-colors",
                     selectedRange === r
@@ -892,7 +866,7 @@ export function WeightTrackingClient() {
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeBmrLabel}</span>
                   <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-foreground">
+                    <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">
                       {Math.round(bmr as number)}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -907,7 +881,7 @@ export function WeightTrackingClient() {
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeTdeeLabel}</span>
                   <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-foreground">
+                    <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">
                       {Math.round(tdee as number)}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -922,7 +896,7 @@ export function WeightTrackingClient() {
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeSuggestedLabel}</span>
                   <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-[1.75rem] font-semibold leading-none tnum text-primary">
+                    <span className="font-mono text-3xl font-semibold leading-none tnum text-primary">
                       {suggestedKcal ?? "--"}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">

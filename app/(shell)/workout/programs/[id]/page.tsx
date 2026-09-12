@@ -53,6 +53,7 @@ async function ProgramDetailContent({ programId }: { programId: string }) {
 
   return (
     <ProgramWeekViewer
+      initialData={workoutData}
       assignedAt={assignedAt}
       canEdit={canEdit}
       historyLogs={workoutData.historyLogs}

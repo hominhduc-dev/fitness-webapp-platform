@@ -10,12 +10,14 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
 import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useWorkouts } from "@/lib/queries/workouts"
+import type { WorkoutCollection } from "@/lib/fitness/types"
 import {
-  fetchProgressAnalytics,
-  fetchProgressCalendar,
-  fetchProgressYearView,
-  fetchWorkoutLogDetail,
-} from "@/lib/fitness/api"
+  useProgressAnalytics,
+  useProgressCalendar,
+  useProgressYearView,
+  useWorkoutLogDetail,
+} from "@/lib/queries/progress"
 import type {
   ProgressAnalytics,
   ProgressCalendar,
@@ -166,7 +168,7 @@ function StatsSummary({
       <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.progressPage.sessions}</LabelMicro>
         <div className="flex items-baseline gap-2">
-          <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
+          <span className="min-w-0 whitespace-nowrap font-mono text-3xl font-semibold leading-none tnum text-foreground sm:text-3xl">
             {cur.totalWorkouts}
           </span>
         </div>
@@ -187,7 +189,7 @@ function StatsSummary({
       <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.workoutPage.volume}</LabelMicro>
         <div className="flex min-w-0 items-baseline gap-1">
-          <span className="min-w-0 whitespace-nowrap font-mono text-[1.7rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
+          <span className="min-w-0 whitespace-nowrap font-mono text-3xl font-semibold leading-none tnum text-foreground sm:text-3xl">
             {formatVolume(cur.totalVolume)}
           </span>
           <span className="shrink-0 text-micro text-muted-foreground sm:text-xs">kg</span>
@@ -208,7 +210,7 @@ function StatsSummary({
       {/* Avg duration */}
       <div className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
         <LabelMicro className="mb-2 block">{messages.progressPage.avgDuration}</LabelMicro>
-        <div className="whitespace-nowrap font-mono text-[1.55rem] font-semibold leading-none tnum text-foreground sm:text-[2rem]">
+        <div className="whitespace-nowrap font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
           {formatDuration(cur.avgDurationMins, messages.dashboard.min)}
         </div>
         {prev.avgDurationMins > 0 && (
@@ -227,7 +229,6 @@ function StatsSummary({
 
 function WorkoutLogModal({
   logId,
-  accessToken,
   onClose,
 }: {
   logId: string
@@ -235,19 +236,11 @@ function WorkoutLogModal({
   onClose: () => void
 }) {
   const { locale, messages } = useLocale()
-  const [log, setLog] = useState<WorkoutLog | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const logQuery = useWorkoutLogDetail(logId)
+  const log = logQuery.data ?? null
+  const loading = logQuery.isPending
+  const error = logQuery.error?.message
   const overlayRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetchWorkoutLogDetail(accessToken, logId)
-      .then((data) => { if (!cancelled) { setLog(data); setLoading(false) } })
-      .catch((err) => { if (!cancelled) { setError(err.message ?? messages.progressPage.loadFailed); setLoading(false) } })
-    return () => { cancelled = true }
-  }, [logId, accessToken])
 
   // Close on Escape
   useEffect(() => {
@@ -804,7 +797,7 @@ function PrCard({
         </span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-[2.5rem] font-semibold leading-none tnum text-foreground">
+        <span className="font-mono text-4xl font-semibold leading-none tnum text-foreground">
           {record.weight}
         </span>
         <span className="text-sm text-muted-foreground">{weightUnitLabel}</span>
@@ -869,6 +862,7 @@ function ProgressPrsSkeleton() {
 // ---------------------------------------------------------------------------
 
 export type ProgressClientInitialData = {
+  workoutCollection?: WorkoutCollection
   calendar: ProgressCalendar
   historyLogs?: WorkoutLog[]
   prevCalendar: ProgressCalendar | null
@@ -880,34 +874,20 @@ export type ProgressClientInitialData = {
 }
 
 export function ProgressClient({ initialData }: { initialData: ProgressClientInitialData }) {
+  const workoutsQuery = useWorkouts(initialData.workoutCollection)
   const { isLoading: authLoading, session } = useAuth()
   const { locale, messages } = useLocale()
-  const hasConsumedInitialCalendar = useRef(false)
-  const hasConsumedInitialPrevCalendar = useRef(false)
-
-  // Analytics (PRs + strength)
-  const [analytics, setAnalytics] = useState<ProgressAnalytics | null>(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(true)
 
   // Month navigation
   const now = new Date()
   const [viewYear, setViewYear] = useState(initialData.viewYear)
   const [viewMonth, setViewMonth] = useState(initialData.viewMonth) // 1-based
 
-  // Calendar (current + prev month for stats comparison)
-  const [calendar, setCalendar] = useState<ProgressCalendar | null>(initialData.calendar)
-  const [prevCalendar, setPrevCalendar] = useState<ProgressCalendar | null>(initialData.prevCalendar)
-  const [calendarLoading, setCalendarLoading] = useState(false)
-
-  // Year view
-  const [yearView, setYearView] = useState<ProgressYearView | null>(null)
-  const [yearViewLoading, setYearViewLoading] = useState(true)
   const [yearViewYear, setYearViewYear] = useState(now.getFullYear())
 
   // UI state
   const [tab, setTab] = useState<Tab>("history")
   const [filter, setFilter] = useState<WorkoutKind>("all")
-  const [error, setError] = useState<string | null>(null)
 
   // Modal
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
@@ -915,89 +895,25 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
   const weightUnitLabel = initialData.weightUnitLabel
   const token = session?.access_token
 
-  // Load analytics only when the PR tab needs it. This query parses workout
-  // snapshots across history, so keeping it out of the initial History view
-  // makes first paint depend only on the month calendar.
-  useEffect(() => {
-    if (authLoading || !token || tab !== "prs" || analytics) return
-    let cancelled = false
-    setAnalyticsLoading(true)
-    fetchProgressAnalytics(token)
-      .then((d) => { if (!cancelled) { setAnalytics(d); setAnalyticsLoading(false) } })
-      .catch((err) => { if (!cancelled) { setError(err.message); setAnalyticsLoading(false) } })
-    return () => { cancelled = true }
-  }, [analytics, authLoading, tab, token])
-
-  // Load calendar when month changes
-  useEffect(() => {
-    if (authLoading || !token) return
-
-    if (
-      !hasConsumedInitialCalendar.current &&
-      viewYear === initialData.viewYear &&
-      viewMonth === initialData.viewMonth
-    ) {
-      hasConsumedInitialCalendar.current = true
-      return
-    }
-
-    let cancelled = false
-    setCalendarLoading(true)
-    setPrevCalendar(null)
-
-    fetchProgressCalendar(token, viewYear, viewMonth)
-      .then((cur) => {
-        if (!cancelled) {
-          setCalendar(cur)
-          setCalendarLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) { setError(err.message); setCalendarLoading(false) }
-      })
-
-    return () => { cancelled = true }
-  }, [authLoading, initialData.viewMonth, initialData.viewYear, token, viewYear, viewMonth])
-
-  // Load previous month summary in the background for "vs prev" metrics.
-  useEffect(() => {
-    if (authLoading || !token || calendarLoading) return
-
-    if (
-      !hasConsumedInitialPrevCalendar.current &&
-      viewYear === initialData.viewYear &&
-      viewMonth === initialData.viewMonth
-    ) {
-      hasConsumedInitialPrevCalendar.current = true
-      return
-    }
-
-    let cancelled = false
-
-    const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1
-    const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear
-
-    fetchProgressCalendar(token, prevYear, prevMonth, { summaryOnly: true })
-      .then((prev) => {
-        if (!cancelled) setPrevCalendar(prev)
-      })
-      .catch(() => {
-        if (!cancelled) setPrevCalendar(null)
-      })
-
-    return () => { cancelled = true }
-  }, [authLoading, calendarLoading, initialData.viewMonth, initialData.viewYear, token, viewMonth, viewYear])
-
-  // Load year view when year tab is active
-  useEffect(() => {
-    if (authLoading || !token || tab !== "year") return
-    let cancelled = false
-    setYearViewLoading(true)
-    fetchProgressYearView(token, yearViewYear)
-      .then((d) => { if (!cancelled) { setYearView(d); setYearViewLoading(false) } })
-      .catch((err) => { if (!cancelled) { setError(err.message); setYearViewLoading(false) } })
-    return () => { cancelled = true }
-  }, [authLoading, token, tab, yearViewYear])
+  const isSeedMonth = viewYear === initialData.viewYear && viewMonth === initialData.viewMonth
+  const calendarQuery = useProgressCalendar(viewYear, viewMonth, {
+    initialData: isSeedMonth ? initialData.calendar : undefined,
+  })
+  const previousQuery = useProgressCalendar(viewMonth === 1 ? viewYear - 1 : viewYear, viewMonth === 1 ? 12 : viewMonth - 1, {
+    summaryOnly: true,
+    initialData: isSeedMonth ? initialData.prevCalendar : undefined,
+    enabled: calendarQuery.isSuccess,
+  })
+  const analyticsQuery = useProgressAnalytics({ enabled: tab === "prs" })
+  const yearQuery = useProgressYearView(yearViewYear, { enabled: tab === "year" })
+  const calendar = calendarQuery.data ?? null
+  const prevCalendar = previousQuery.data ?? null
+  const analytics = analyticsQuery.data ?? null
+  const yearView = yearQuery.data ?? null
+  const calendarLoading = calendarQuery.isPending
+  const analyticsLoading = analyticsQuery.isPending
+  const yearViewLoading = yearQuery.isPending
+  const error = (calendarQuery.error ?? analyticsQuery.error ?? yearQuery.error)?.message
 
   // Month nav helpers
   const goToPrevMonth = useCallback(() => {
@@ -1055,7 +971,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
             <div>
               <LabelMicro className="mb-1 block">{monthLabel(viewYear, viewMonth, locale)}</LabelMicro>
-              <h1 className="text-[2rem] font-semibold leading-none tracking-[-0.02em] text-foreground">
+              <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground">
                 {calendarLoading
                   ? "—"
                   : messages.workoutPage.sessionCount(calendar?.summary.totalWorkouts ?? 0)
@@ -1087,7 +1003,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                       : messages.workoutPage.tagLegs}
               </Chip>
             ))}
-            <ExportWorkoutDialog programs={initialData.programs ?? []} />
+            <ExportWorkoutDialog programs={workoutsQuery.data?.programs ?? initialData.programs ?? []} />
           </div>
         </div>
 
@@ -1138,8 +1054,8 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
             <div className="space-y-6">
               <TrainedAreasCard
-                weekLogs={initialData.weekLogs ?? []}
-                historyLogs={initialData.historyLogs ?? []}
+                weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
+                historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
               />
 
               <div>
@@ -1200,7 +1116,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
           <div className="space-y-6">
             <div>
               <LabelMicro className="mb-2 block">{messages.progressPage.personalRecords}</LabelMicro>
-              <h2 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground">
+              <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
                 {data.personalRecords.length > 0
                   ? messages.progressPage.trackedRecords(data.personalRecords.length)
                   : messages.progressPage.noRecords}

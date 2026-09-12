@@ -1,10 +1,12 @@
 "use client"
 
+import { useAcceptAIMealPlan } from "@/lib/queries/ai"
+
 import { Check, Loader2, UtensilsCrossed } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { acceptAIMealPlan, type AIChatAction } from "@/lib/fitness/api"
+import type { AIChatAction } from "@/lib/fitness/api"
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
   breakfast: "Sáng",
@@ -22,25 +24,23 @@ type MealPlanAction = Extract<AIChatAction, { type: "meal_plan_draft" }>
  */
 function ChatMealPlanCard({
   action,
-  accessToken,
 }: {
   action: MealPlanAction
-  accessToken: string
 }) {
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const { mutateAsync: acceptAIMealPlan, isPending: acceptAIMealPlanPending } = useAcceptAIMealPlan()
+  const [saved, setSaved] = useState(false)
+  const status = acceptAIMealPlanPending ? "saving" : saved ? "saved" : "idle"
   const [error, setError] = useState<string | null>(null)
 
-  const handleAccept = useCallback(async () => {
-    setStatus("saving")
+  const handleAccept = async () => {
     setError(null)
     try {
-      await acceptAIMealPlan(accessToken, action.generationId, action.date)
-      setStatus("saved")
+      await acceptAIMealPlan([action.generationId, action.date])
+      setSaved(true)
     } catch (err) {
-      setStatus("error")
       setError(err instanceof Error ? err.message : "Không lưu được thực đơn.")
     }
-  }, [accessToken, action.generationId, action.date])
+  }
 
   const { totals } = action
 

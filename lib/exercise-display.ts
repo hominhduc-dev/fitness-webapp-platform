@@ -14,14 +14,29 @@ function getTrimmedValue(value?: string | null) {
   return trimmed ? trimmed : ""
 }
 
+const DEFAULT_VARIATION_NAME = "Default"
+
 function getVariationDisplayName(input: ExerciseVariationLabelInput) {
   const variationName = getTrimmedValue(input.variationName)
 
   if (!variationName) {
-    return "Default"
+    return DEFAULT_VARIATION_NAME
   }
 
   return variationName
+}
+
+/**
+ * A variation only earns a slot in the label when it actually distinguishes the
+ * exercise. The placeholder "Default" carries no information and, on a phone,
+ * eats the width the exercise name needs mid-set.
+ */
+function isDefaultVariation(input: ExerciseVariationLabelInput) {
+  if (input.isDefault) {
+    return true
+  }
+
+  return getVariationDisplayName(input) === DEFAULT_VARIATION_NAME
 }
 
 function formatExerciseVariationLabel(input: ExerciseVariationLabelInput) {
@@ -30,6 +45,10 @@ function formatExerciseVariationLabel(input: ExerciseVariationLabelInput) {
 
   if (!exerciseName) {
     return variationName
+  }
+
+  if (isDefaultVariation(input)) {
+    return exerciseName
   }
 
   return `${exerciseName} / ${variationName}`

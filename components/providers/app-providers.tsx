@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { LocaleProvider } from "@/components/providers/locale-provider"
+import { QueryProvider } from "@/components/providers/query-provider"
 import { ThemeProvider, type ThemeMode } from "@/components/providers/theme-provider"
 import type { AppProfile } from "@/lib/auth/types"
 import type { AppLocale } from "@/lib/i18n/config"
@@ -24,10 +25,14 @@ export function AppProviders({
   withAuth = true,
 }: AppProvidersProps) {
   return (
-    <ThemeProvider initialTheme={initialTheme}>
-      <LocaleProvider initialLocale={initialLocale}>
-        {withAuth ? <AuthProvider initialProfile={initialProfile}>{children}</AuthProvider> : children}
-      </LocaleProvider>
-    </ThemeProvider>
+    // QueryProvider sits outermost so AuthProvider can reach the cache: signing
+    // out has to clear it, and that has to happen from inside AuthProvider.
+    <QueryProvider>
+      <ThemeProvider initialTheme={initialTheme}>
+        <LocaleProvider initialLocale={initialLocale}>
+          {withAuth ? <AuthProvider initialProfile={initialProfile}>{children}</AuthProvider> : children}
+        </LocaleProvider>
+      </ThemeProvider>
+    </QueryProvider>
   )
 }

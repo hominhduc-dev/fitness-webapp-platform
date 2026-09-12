@@ -1,8 +1,5 @@
 "use client"
 
-import { useRef } from "react"
-
-import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { buildPlannedSessions, type PlannedSession } from "@/components/workout-export-excel"
 import {
@@ -11,18 +8,18 @@ import {
   type ExportSelection,
   type ResolvedExportRange,
 } from "@/components/workout/workout-export-dialog"
-import { exportWorkoutLogsToGoogleSheets, fetchTraineeProgram, fetchWeightEntries, fetchWorkoutLogsForExport } from "@/lib/fitness/api"
+import { useExportQueries, useWorkoutSheetsExport } from "@/lib/queries/exports"
 import { formatDateToISO, getProgramStartDate } from "@/lib/fitness/date-range"
-import type { CoachProgram, TraineeProgram } from "@/lib/fitness/types"
+import type { TraineeProgram } from "@/lib/fitness/types"
 
 type ExportWorkoutDialogProps = {
   programs?: TraineeProgram[]
 }
 
 export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps) {
-  const { session } = useAuth()
+  const queries = useExportQueries()
+  const sheetsExport = useWorkoutSheetsExport()
   const { messages } = useLocale()
-  const programCacheRef = useRef<Map<string, CoachProgram>>(new Map())
 
   // Resolve which program a selection refers to: the picked one, or the only
   // assigned program when none is picked (e.g. Week mode).
@@ -49,11 +46,10 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   }
 
   const loadLogs = async (context: ExportContext) => {
-    if (!session?.access_token) return []
     // Scope to the picked program (or the sole assigned program in Week mode) so
     // logs from other programs the trainee was on don't leak into this export.
     const scopedProgramId = resolveProgram(context)?.id
-    return fetchWorkoutLogsForExport(session.access_token, {
+    return queries.workoutLogs({
       from: context.range.from,
       programId: scopedProgramId,
       to: context.range.to,
@@ -61,13 +57,11 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   }
 
   const loadBodyMetrics = async (context: ExportContext) => {
-    if (!session?.access_token) return []
-    return fetchWeightEntries(session.access_token, { from: context.range.from, to: context.range.to })
+    return queries.bodyMetrics({ from: context.range.from, to: context.range.to })
   }
 
   const exportToSheets = async (context: ExportContext) => {
-    if (!session?.access_token) throw new Error("No active session.")
-    return exportWorkoutLogsToGoogleSheets(session.access_token, {
+    return sheetsExport.mutateAsync({
       from: context.range.from,
       label: context.range.label,
       to: context.range.to,
@@ -78,15 +72,10 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
   // Mirrors the coach flow: fetch the full program (all weeks) by id, not the
   // tuần-hiện-tại view from /api/workouts.
   const resolvePlannedSessions = async (selection: ExportSelection): Promise<PlannedSession[]> => {
-    if (!session?.access_token) return []
     const program = resolveProgram(selection)
     if (!program) return []
 
-    let detail = programCacheRef.current.get(program.id)
-    if (!detail) {
-      detail = await fetchTraineeProgram(session.access_token, program.id)
-      programCacheRef.current.set(program.id, detail)
-    }
+    const detail = await queries.traineeProgram(program.id)
 
     const start = formatDateToISO(getProgramStartDate(program.assignedAt, program.duration))
     return buildPlannedSessions(detail.workouts, start)

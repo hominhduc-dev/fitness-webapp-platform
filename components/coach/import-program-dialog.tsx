@@ -1,8 +1,11 @@
 "use client"
 
 import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, Loader2, Trash2, UploadCloud, X } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
+import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -21,12 +24,11 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
   NotionExistingProgram,
-  NotionProgramTemplate,
 } from "@/lib/fitness/types"
 import { parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import { GoogleProgramSource } from "./google-program-source"
-import { fetchGoogleConnection, overwriteGoogleProgram, type GoogleConnectionStatus, type GoogleImportResult } from "@/lib/fitness/api"
+import { fetchGoogleConnection, overwriteGoogleProgram, type GoogleImportResult } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
 import { googleImportMessages } from "@/lib/i18n/messages/google-import"
 
@@ -133,19 +135,23 @@ export function ImportProgramDialog({
   onClose,
   onImported,
   open,
-  token,
   trainees,
 }: ImportProgramDialogProps) {
   const { locale } = useLocale()
   const googleText = googleImportMessages[locale]
-  const [googleConnection, setGoogleConnection] = useState<GoogleConnectionStatus>({ configured: false, connected: false, email: null })
+  const { profile } = useAuth()
+  const authenticated = Boolean(profile?.id)
+  const googleQuery = useCoachData(queryKeys.coach.googleConnection(), fetchGoogleConnection, undefined, open, 30_000)
+  const googleConnection = googleQuery.data ?? { configured: false, connected: false, email: null }
+  const setGoogleConnection = googleQuery.setData
   const [googleSource, setGoogleSource] = useState<GoogleImportResult | null>(null)
-  useEffect(() => {
-    if (!open || !token) return
-    let cancelled = false
-    void fetchGoogleConnection(token).then((value) => { if (!cancelled) setGoogleConnection(value) }).catch(() => { if (!cancelled) setGoogleConnection({ configured: false, connected: false, email: null }) })
-    return () => { cancelled = true }
-  }, [open, token])
+  const templatesQuery = useCoachData(queryKeys.coach.notionTemplates(), fetchNotionProgramTemplates, undefined, open)
+  const notionConfigured = templatesQuery.data?.configured ?? false
+  const notionTemplates = templatesQuery.data?.templates ?? []
+  const createProgram = useCoachMutation(createCoachProgram)
+  const overwriteNotion = useCoachMutation(overwriteNotionProgram)
+  const overwriteGoogle = useCoachMutation(overwriteGoogleProgram)
+  const notionPreview = useCoachMutation(importNotionProgram, [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
@@ -161,9 +167,6 @@ export function ImportProgramDialog({
   const [duration, setDuration] = useState(4)
   const [assignEnabled, setAssignEnabled] = useState(true)
   const [source, setSource] = useState<ImportSource>("excel")
-  const [notionConfigured, setNotionConfigured] = useState(false)
-  const [notionTemplates, setNotionTemplates] = useState<NotionProgramTemplate[]>([])
-  const [notionTemplatesLoaded, setNotionTemplatesLoaded] = useState(false)
   const [notionSelection, setNotionSelection] = useState("")
   const [notionLink, setNotionLink] = useState("")
   const [notionWarnings, setNotionWarnings] = useState<string[]>([])
@@ -231,31 +234,6 @@ export function ImportProgramDialog({
     setDidOverwrite(false)
   }
 
-  // Loaded once per mount: the template list is small and rarely changes mid-session.
-  useEffect(() => {
-    if (!open || !token || notionTemplatesLoaded) return
-
-    let cancelled = false
-
-    void fetchNotionProgramTemplates(token)
-      .then((result) => {
-        if (cancelled) return
-        setNotionConfigured(result.configured)
-        setNotionTemplates(result.templates)
-      })
-      // A Notion outage must not break the Excel path, so the tab just stays hidden.
-      .catch(() => {
-        if (!cancelled) setNotionConfigured(false)
-      })
-      .finally(() => {
-        if (!cancelled) setNotionTemplatesLoaded(true)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [notionTemplatesLoaded, open, token])
-
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       reset()
@@ -296,7 +274,7 @@ export function ImportProgramDialog({
    * parser produces, so the review step downstream is unaware of the source.
    */
   const handleNotionImport = async (templateRef: string) => {
-    if (!token || !templateRef.trim()) return
+    if (!authenticated || !templateRef.trim()) return
     setGoogleSource(null)
 
     setIsParsing(true)
@@ -309,7 +287,7 @@ export function ImportProgramDialog({
     setNotionSourceId("")
 
     try {
-      const result = await importNotionProgram(token, templateRef.trim())
+      const result = await notionPreview.mutateAsync([templateRef.trim()])
       const { issues, workouts } = buildWorkoutsFromRows(result.rows, exerciseOptions, {
         duration: result.program.duration,
       })
@@ -352,14 +330,13 @@ export function ImportProgramDialog({
   }
 
   const handleCreate = async () => {
-    if (!token || !payload) return
+    if (!authenticated || !payload) return
     setIsSaving(true)
     setError(null)
     try {
-      const program = await createCoachProgram(
-        token,
+      const program = await createProgram.mutateAsync([
         notionSourceId ? { ...payload, notionSourceId } : payload,
-      )
+      ])
       setSavedName(program.name)
       onImported(program)
       setStep("done")
@@ -377,21 +354,21 @@ export function ImportProgramDialog({
    * already following the program instead of unassigning every trainee.
    */
   const handleOverwrite = async () => {
-    if (!token || !payload || !notionExisting || !notionSourceId) return
+    if (!authenticated || !payload || !notionExisting || !notionSourceId) return
 
     setIsSaving(true)
     setError(null)
 
     try {
       setDidOverwrite(true)
-      const program = await overwriteNotionProgram(token, notionExisting.id, {
+      const program = await overwriteNotion.mutateAsync([notionExisting.id, {
         description: payload.description,
         difficulty: payload.difficulty,
         duration: payload.duration,
         name: payload.name,
         notionSourceId,
         workouts: payload.workouts,
-      })
+      }])
       setSavedName(program.name)
       onImported(program)
       setStep("done")
@@ -502,7 +479,7 @@ export function ImportProgramDialog({
                 </div>
               ) : null}
 
-              {source === "google" && token ? <GoogleProgramSource token={token} connection={googleConnection} onConnection={setGoogleConnection} onImport={(result, name, weeks) => {
+              {source === "google" && authenticated ? <GoogleProgramSource connection={googleConnection} onConnection={setGoogleConnection} onImport={(result, name, weeks) => {
                 const built = buildWorkoutsFromRows(result.rows, exerciseOptions, { duration: weeks })
                 if (built.issues.length) { setError(built.issues.map((issue) => issue.message).join("\n")); return }
                 setGoogleSource(result); setNotionSourceId(""); setNotionExisting(null); setNotionWarnings([]); setNotionIssues([]); setError(null)
@@ -640,10 +617,10 @@ export function ImportProgramDialog({
             <div className="space-y-4">
               {googleSource?.existingProgram ? <div className="space-y-2 rounded-md border border-border p-3">
                 <p className="text-sm">{googleText.duplicate} {googleSource.existingProgram.name}</p>
-                <Button variant="outline" disabled={isSaving || !payload || !token || !!googleSource.existingProgram.archivedAt} onClick={() => {
-                  if (!token || !payload || !googleSource.existingProgram) return
+                <Button variant="outline" disabled={isSaving || !payload || !authenticated || !!googleSource.existingProgram.archivedAt} onClick={() => {
+                  if (!authenticated || !payload || !googleSource.existingProgram) return
                   setIsSaving(true); setError(null)
-                  void overwriteGoogleProgram(token, googleSource.existingProgram.id, payload).then((program) => { setDidOverwrite(true); setSavedName(program.name); onImported(program); setStep("done") }).catch((error) => setError(error instanceof Error ? error.message : googleText.failed)).finally(() => setIsSaving(false))
+                  void overwriteGoogle.mutateAsync([googleSource.existingProgram.id, payload]).then((program) => { setDidOverwrite(true); setSavedName(program.name); onImported(program); setStep("done") }).catch((error) => setError(error instanceof Error ? error.message : googleText.failed)).finally(() => setIsSaving(false))
                 }}>{googleText.overwrite}</Button>
               </div> : null}
               {notionExisting ? (
@@ -955,7 +932,7 @@ export function ImportProgramDialog({
                 <Button
                   type="button"
                   onClick={() => void handleCreate()}
-                  disabled={!payload || Boolean(error) || isSaving || !token}
+                  disabled={!payload || Boolean(error) || isSaving || !authenticated}
                 >
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   {isSaving ? "Đang tạo..." : "Tạo program"}

@@ -15,6 +15,7 @@ export default async function ProgressPage() {
     fetchWorkouts(accessToken).catch(() => null),
   ])
   const initialData: ProgressClientInitialData = {
+    workoutCollection: workoutCollection ?? undefined,
     calendar,
     // The calendar endpoint returns log stubs without exercises, so the muscle
     // map is fed from the workout collection instead: weekLogs is every session

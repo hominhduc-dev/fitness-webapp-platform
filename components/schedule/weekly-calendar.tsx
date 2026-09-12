@@ -13,16 +13,21 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { WorkoutLogReview, WorkoutPlanPreview } from "@/components/workout/workout-log-review"
-import { createWorkout, fetchExercises, fetchTraineeProgram, fetchWorkoutDetail } from "@/lib/fitness/api"
+import { useQueryClient } from "@tanstack/react-query"
+import { useCreateWorkout, useTraineePrograms, useWorkoutDetail, useWorkouts } from "@/lib/queries/workouts"
+import { useExercises } from "@/lib/queries/exercises"
+import { queryKeys } from "@/lib/queries/keys"
+import { userQueryKey } from "@/lib/queries/scoped"
 import { resolveEffectiveWeekIndex, resolveProgramWeekForWeekStart } from "@/lib/fitness/program-week"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
-import type { CoachProgram, TraineeProgram } from "@/lib/fitness/types"
+import type { CoachProgram, TraineeProgram, WorkoutCollection } from "@/lib/fitness/types"
 import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
 type WeeklyCalendarProps = {
+  initialData?: WorkoutCollection
   historyLogs?: WorkoutLog[]
   programs?: TraineeProgram[]
   recentLogs: WorkoutLog[]
@@ -1250,38 +1255,35 @@ function RoutineDialogs({
   )
 }
 
-export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, schedule, scheduleEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
-  const { session } = useAuth()
+export function WeeklyCalendar({ initialData, historyLogs: initialHistoryLogs = [], programs: initialPrograms = [], recentLogs, scheduleEntries: initialEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
+  const { session, profile } = useAuth()
+  const queryClient = useQueryClient()
+  const collectionQuery = useWorkouts(initialData)
+  const collection = collectionQuery.data as (WorkoutCollection & { optimisticScheduleByDate?: Record<string, Workout | null> }) | undefined
+  const historyLogs = collection?.historyLogs ?? initialHistoryLogs
+  const programs = collection?.programs ?? initialPrograms
+  const scheduleEntries = collection?.scheduleEntries ?? initialEntries
+  const collectionKey = userQueryKey(queryKeys.workouts.collection(), profile?.id)
+  const createMutation = useCreateWorkout()
   const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [weekOffset, setWeekOffset] = useState(0)
-  const [optimisticScheduleByDate, setOptimisticScheduleByDate] = useState<Record<string, Workout | null>>({})
-  const [visibleWorkouts, setVisibleWorkouts] = useState(workouts)
-  const [visibleRecentLogs, setVisibleRecentLogs] = useState(recentLogs)
-  const [visibleWeekLogs, setVisibleWeekLogs] = useState(weekLogs ?? [])
+  const optimisticScheduleByDate = useMemo(() => collection?.optimisticScheduleByDate ?? {}, [collection])
+  const visibleWorkouts = collection?.workouts ?? workouts
+  const visibleRecentLogs = collection?.recentLogs ?? recentLogs
+  const visibleWeekLogs = useMemo(() => collection?.weekLogs ?? weekLogs ?? [], [collection, weekLogs])
   const [extraRoutineLibrary, setExtraRoutineLibrary] = useState<Routine[]>([])
   const [selectedRestDate, setSelectedRestDate] = useState<Date | null>(null)
   const [selectedPreviewWorkout, setSelectedPreviewWorkout] = useState<{ date: Date; workout: Workout } | null>(null)
   const [selectedReviewLog, setSelectedReviewLog] = useState<WorkoutLog | null>(null)
-  const [isLoadingPreviewWorkout, setIsLoadingPreviewWorkout] = useState(false)
+  const previewQuery = useWorkoutDetail(selectedPreviewWorkout?.workout.id ?? "", { enabled: Boolean(selectedPreviewWorkout) })
+  const isLoadingPreviewWorkout = previewQuery.isFetching
   const [isRoutineBuilderOpen, setIsRoutineBuilderOpen] = useState(false)
-  const [exerciseOptions, setExerciseOptions] = useState<ExerciseVariationOption[]>([])
-  const [isLoadingExercises, setIsLoadingExercises] = useState(false)
+  const exercisesQuery = useExercises(undefined, undefined, isRoutineBuilderOpen)
+  const exerciseOptions = exercisesQuery.data ?? []
+  const isLoadingExercises = exercisesQuery.isFetching
   const [isSavingRoutine, setIsSavingRoutine] = useState(false)
   const [routineError, setRoutineError] = useState<string | null>(null)
-  // null records a fetch that failed, so a broken program is not retried forever
-  // and does not leave the grid spinning.
-  const [programDetailsById, setProgramDetailsById] = useState<Record<string, CoachProgram | null>>({})
-
-  useEffect(() => {
-    setOptimisticScheduleByDate({})
-    setVisibleWorkouts(workouts)
-  }, [schedule, workouts])
-
-  useEffect(() => {
-    setVisibleRecentLogs(recentLogs)
-    setVisibleWeekLogs(weekLogs ?? [])
-  }, [recentLogs, weekLogs])
 
   const weekStart = useMemo(() => startOfUtcWeekAsLocal(new Date()), [])
   const displayWeekStart = useMemo(() => addDays(weekStart, weekOffset * 7), [weekStart, weekOffset])
@@ -1303,42 +1305,14 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
 
   const multiWeekPrograms = useMemo(() => programs.filter((program) => program.duration > 1), [programs])
 
-  // Only the current week arrives with the page. Browsing to another week needs
-  // that program's own schedule, which getTraineeProgramDetail already returns
-  // in full — fetched once per program and cached for the session.
-  useEffect(() => {
-    if (weekOffset === 0 || multiWeekPrograms.length === 0 || !session?.access_token) {
-      return
-    }
-
-    const missing = multiWeekPrograms.filter((program) => !(program.id in programDetailsById))
-
-    if (missing.length === 0) {
-      return
-    }
-
-    let cancelled = false
-
-    void Promise.all(
-      missing.map((program) =>
-        fetchTraineeProgram(session.access_token, program.id)
-          .then((detail) => [program.id, detail] as const)
-          .catch(() => [program.id, null] as const),
-      ),
-    ).then((results) => {
-      if (cancelled) return
-      setProgramDetailsById((current) => ({ ...current, ...Object.fromEntries(results) }))
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [weekOffset, multiWeekPrograms, programDetailsById, session?.access_token])
-
-  // Derived rather than stored: a program is pending until its fetch settles
-  // either way, which keeps the effect free of a synchronous setState.
-  const isLoadingProgramWeeks =
-    weekOffset !== 0 && multiWeekPrograms.some((program) => !(program.id in programDetailsById))
+  const programQueries = useTraineePrograms(multiWeekPrograms.map((program) => program.id), weekOffset !== 0)
+  const programDetailsById: Record<string, CoachProgram | null> = Object.fromEntries(
+    multiWeekPrograms.flatMap((program, index) => {
+      const query = programQueries[index]
+      return query.data ? [[program.id, query.data] as [string, CoachProgram]] : query.isError ? [[program.id, null] as [string, CoachProgram | null]] : []
+    }),
+  )
+  const isLoadingProgramWeeks = weekOffset !== 0 && programQueries.some((query) => query.isLoading)
 
   const displayWeekEntries = useMemo(() => {
     if (weekOffset === 0) {
@@ -1383,23 +1357,18 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
   )
 
   const handleWorkoutSaved = (workout: Workout, previousWorkout?: Workout, referenceDate?: Date) => {
-    const nextVisibleWorkouts = [...visibleWorkouts.filter((currentWorkout) => currentWorkout.id !== workout.id), workout]
-
-    setVisibleWorkouts(nextVisibleWorkouts)
-
-    if (referenceDate) {
-      setOptimisticScheduleByDate((current) => ({
-        ...current,
-        [getDateKey(referenceDate)]: workout,
-      }))
-    }
-
-    if (previousWorkout?.scheduledDate) {
-      setOptimisticScheduleByDate((current) => ({
-        ...current,
-        [getDateKey(previousWorkout.scheduledDate as Date)]: null,
-      }))
-    }
+    void queryClient.cancelQueries({ queryKey: collectionKey, exact: true })
+    queryClient.setQueryData<typeof collection>(collectionKey, (current) => {
+      if (!current) return current
+      const overlay = { ...current.optimisticScheduleByDate }
+      if (previousWorkout?.scheduledDate) overlay[getDateKey(previousWorkout.scheduledDate)] = null
+      const targetDate = referenceDate ?? workout.scheduledDate
+      if (targetDate) overlay[getDateKey(targetDate)] = workout
+      return { ...current, workouts: [...current.workouts.filter((item) => item.id !== workout.id), workout],
+        optimisticScheduleByDate: overlay }
+    })
+    // A successful authoritative response replaces the overlay, including null tombstones.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
   }
 
   const closeRoutineFlow = () => {
@@ -1408,31 +1377,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
     setRoutineError(null)
   }
 
-  const ensureExerciseOptions = async () => {
-    if (exerciseOptions.length > 0 || isLoadingExercises) {
-      return
-    }
-
-    if (!session?.access_token) {
-      setRoutineError("You need to be signed in to create a routine.")
-      return
-    }
-
-    setIsLoadingExercises(true)
-    setRoutineError(null)
-
-    try {
-      const exercises = await fetchExercises(session.access_token)
-      setExerciseOptions(exercises)
-    } catch (loadError) {
-      setRoutineError(loadError instanceof Error ? loadError.message : messages.schedule.loadExerciseLibraryError)
-    } finally {
-      setIsLoadingExercises(false)
-    }
-  }
-
   const openRoutineBuilder = () => {
-    void ensureExerciseOptions()
     setSelectedRestDate((currentDate) => {
       if (!currentDate) {
         return currentDate
@@ -1446,29 +1391,8 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
     })
   }
 
-  const openWorkoutPreview = async (workout: Workout, date: Date) => {
+  const openWorkoutPreview = (workout: Workout, date: Date) => {
     setSelectedPreviewWorkout({ date, workout })
-
-    if (!session?.access_token) {
-      return
-    }
-
-    setIsLoadingPreviewWorkout(true)
-
-    try {
-      const workoutDetail = await fetchWorkoutDetail(session.access_token, workout.id)
-      setSelectedPreviewWorkout({
-        date,
-        workout: {
-          ...workoutDetail,
-          hasCoachUpdate: workout.hasCoachUpdate,
-        },
-      })
-    } catch {
-      setSelectedPreviewWorkout({ date, workout })
-    } finally {
-      setIsLoadingPreviewWorkout(false)
-    }
   }
 
   const saveTemplateToRestDate = async (routine: Routine) => {
@@ -1485,7 +1409,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
     setRoutineError(null)
 
     try {
-      const createdWorkout = await createWorkout(session.access_token, {
+      const createdWorkout = await createMutation.mutateAsync({
         duration: Math.max(30, routine.exercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)),
         exercises: routine.exercises.map((exercise) => {
           const repTarget = parseRepTargetText(exercise.reps) ?? { reps: 1, repsMin: undefined }
@@ -1570,7 +1494,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
     setRoutineError(null)
 
     try {
-      const createdWorkout = await createWorkout(session.access_token, {
+      const createdWorkout = await createMutation.mutateAsync({
         duration: Math.max(30, normalizedExercises.reduce((sum, exercise) => sum + exercise.sets * 3, 0)),
         exercises: normalizedExercises,
         kind: mapRoutineTagToWorkoutKind(routine.tag),
@@ -1727,7 +1651,7 @@ export function WeeklyCalendar({ historyLogs = [], programs = [], recentLogs, sc
               {messages.common.loading}
             </div>
           ) : selectedPreviewWorkout ? (
-            <WorkoutPlanPreview workout={selectedPreviewWorkout.workout} />
+            <WorkoutPlanPreview workout={previewQuery.data ? { ...previewQuery.data, hasCoachUpdate: selectedPreviewWorkout.workout.hasCoachUpdate } : selectedPreviewWorkout.workout} />
           ) : null}
           <DialogFooter className="shrink-0 border-t border-border px-4 py-3 sm:px-6">
             <Button type="button" variant="ghost" onClick={() => setSelectedPreviewWorkout(null)}>

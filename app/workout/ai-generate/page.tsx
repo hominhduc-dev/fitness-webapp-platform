@@ -1,18 +1,18 @@
 "use client"
 
+import { useGenerateAIProgram, useAcceptAIProgram, useGenerateAIDailyWorkout, useAcceptAIDailyWorkout, useAIExerciseLibrary } from "@/lib/queries/ai"
+
 import { ArrowLeft, Bot, ShieldCheck, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { ProgramGeneratorForm, type FormValues } from "@/components/ai/program-generator-form"
 import { ProgramPreview } from "@/components/ai/program-preview"
 import { DailyWorkoutGeneratorForm, type DailyWorkoutFormValues } from "@/components/ai/daily-workout-generator-form"
 import { DailyWorkoutPreview } from "@/components/ai/daily-workout-preview"
-import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
-import { acceptAIDailyWorkout, acceptAIProgram, fetchExerciseLibrary, generateAIDailyWorkout, generateAIProgram, type AIDailyWorkout } from "@/lib/fitness/api"
-import { markDashboardForRefresh } from "@/lib/fitness/dashboard-refresh"
+import type { AIDailyWorkout } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
 type GenerateResult = {
@@ -57,41 +57,35 @@ function formatLocalDate(date: Date) {
 }
 
 export default function AIGeneratePage() {
-  const { session } = useAuth()
+  const { mutateAsync: generateAIProgram, isPending: generateAIProgramPending } = useGenerateAIProgram()
+  const { mutateAsync: acceptAIProgram, isPending: acceptAIProgramPending } = useAcceptAIProgram()
+  const { mutateAsync: generateAIDailyWorkout, isPending: generateAIDailyWorkoutPending } = useGenerateAIDailyWorkout()
+  const { mutateAsync: acceptAIDailyWorkout, isPending: acceptAIDailyWorkoutPending } = useAcceptAIDailyWorkout()
   const { locale } = useLocale()
   const isVi = locale === "vi"
   const router = useRouter()
   const [mode, setMode] = useState<"daily" | "program">("daily")
   const [result, setResult] = useState<GenerateResult | null>(null)
   const [dailyResult, setDailyResult] = useState<DailyGenerateResult | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isAccepting, setIsAccepting] = useState(false)
+  const isGenerating = generateAIProgramPending || generateAIDailyWorkoutPending
+  const isAccepting = acceptAIProgramPending || acceptAIDailyWorkoutPending
   const [error, setError] = useState<string | null>(null)
-  const [exerciseNames, setExerciseNames] = useState<Map<string, string>>(new Map())
+  const libraryQuery = useAIExerciseLibrary()
+  const exerciseNames = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const exercise of libraryQuery.data ?? []) {
+      for (const variation of exercise.variations) names.set(variation.id, `${exercise.name} (${variation.name})`)
+    }
+    return names
+  }, [libraryQuery.data])
 
-  useEffect(() => {
-    if (!session?.access_token) return
-    fetchExerciseLibrary(session.access_token)
-      .then((exercises) => {
-        const nameMap = new Map<string, string>()
-        for (const ex of exercises) {
-          for (const v of ex.variations) {
-            nameMap.set(v.id, `${ex.name} (${v.name})`)
-          }
-        }
-        setExerciseNames(nameMap)
-      })
-      .catch(() => {})
-  }, [session?.access_token])
+  const handleGenerate = async (values: FormValues) => {
 
-  const handleGenerate = useCallback(async (values: FormValues) => {
-    if (!session?.access_token) return
-    setIsGenerating(true)
     setError(null)
     setResult(null)
 
     try {
-      const data = await generateAIProgram(session.access_token, {
+      const data = await generateAIProgram([{
         goal: values.goal,
         experienceLevel: values.experienceLevel,
         daysPerWeek: values.daysPerWeek,
@@ -100,65 +94,56 @@ export default function AIGeneratePage() {
         focusAreas: values.focusAreas.length > 0 ? values.focusAreas : undefined,
         injuries: values.injuries || undefined,
         durationWeeks: values.durationWeeks,
-      })
+      }])
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : isVi ? "Không thể tạo chương trình. Vui lòng thử lại." : "Unable to generate a program. Please try again.")
-    } finally {
-      setIsGenerating(false)
     }
-  }, [isVi, session?.access_token])
+  }
 
-  const handleAccept = useCallback(async () => {
-    if (!session?.access_token || !result) return
-    setIsAccepting(true)
+  const handleAccept = async () => {
+    if (!result) return
+
     setError(null)
 
     try {
-      await acceptAIProgram(session.access_token, result.generationId)
-      markDashboardForRefresh()
+      await acceptAIProgram([result.generationId])
+
       router.push("/workout")
     } catch (err) {
       setError(err instanceof Error ? err.message : isVi ? "Không thể lưu chương trình. Vui lòng thử lại." : "Unable to save the program. Please try again.")
-    } finally {
-      setIsAccepting(false)
     }
-  }, [isVi, session?.access_token, result, router])
+  }
 
-  const handleGenerateDaily = useCallback(async (values: DailyWorkoutFormValues) => {
-    if (!session?.access_token) return
-    setIsGenerating(true)
+  const handleGenerateDaily = async (values: DailyWorkoutFormValues) => {
+
     setError(null)
     setDailyResult(null)
     try {
-      const data = await generateAIDailyWorkout(session.access_token, {
+      const data = await generateAIDailyWorkout([{
         ...values,
         date: formatLocalDate(new Date()),
         focusAreas: values.focusAreas.length ? values.focusAreas : undefined,
         injuries: values.injuries || undefined,
-      })
+      }])
       setDailyResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : isVi ? "Không thể tạo buổi tập hôm nay. Vui lòng thử lại." : "Unable to generate today's workout. Please try again.")
-    } finally {
-      setIsGenerating(false)
     }
-  }, [isVi, session?.access_token])
+  }
 
-  const handleAcceptDaily = useCallback(async () => {
-    if (!session?.access_token || !dailyResult) return
-    setIsAccepting(true)
+  const handleAcceptDaily = async () => {
+    if (!dailyResult) return
+
     setError(null)
     try {
-      const accepted = await acceptAIDailyWorkout(session.access_token, dailyResult.generationId)
-      markDashboardForRefresh()
+      const accepted = await acceptAIDailyWorkout([dailyResult.generationId])
+
       router.push(`/workout/${accepted.workoutId}/start`)
     } catch (err) {
       setError(err instanceof Error ? err.message : isVi ? "Không thể lưu buổi tập hôm nay. Vui lòng thử lại." : "Unable to save today's workout. Please try again.")
-    } finally {
-      setIsAccepting(false)
     }
-  }, [dailyResult, isVi, router, session?.access_token])
+  }
 
   function changeMode(nextMode: "daily" | "program") {
     setMode(nextMode)

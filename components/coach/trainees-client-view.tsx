@@ -1,5 +1,8 @@
 "use client"
 
+import { useCoachData } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { fetchCoachTrainees } from "@/lib/fitness/api"
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronRight, Search } from "lucide-react"
@@ -112,7 +115,7 @@ type Props = {
 
 export function TraineesClientView({ initialTrainees }: Props) {
   const { messages } = useLocale()
-  const [trainees] = useState(initialTrainees)
+  const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
   const [q, setQ] = useState("")
   const [filter, setFilter] = useState<"all" | "on-track" | "behind" | "rest">("all")
 

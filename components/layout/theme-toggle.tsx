@@ -66,7 +66,7 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
               aria-pressed={active}
               title={option.label}
               className={cn(
-                "inline-flex h-7 items-center justify-center gap-1 rounded-md px-2.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] transition-colors",
+                "inline-flex h-7 items-center justify-center gap-1 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
                 active
                   ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
                   : "text-muted-foreground hover:text-foreground",

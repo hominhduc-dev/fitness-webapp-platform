@@ -20,7 +20,9 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
-import { useAuth } from "@/components/providers/auth-provider"
+import { useCoachData } from "@/lib/queries/coach-data"
+import { queryKeys } from "@/lib/queries/keys"
+import { fetchCoachTraineeDetail, fetchCoachPrograms } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,11 +40,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
-  assignCoachProgram,
-  createCoachBodyMetric,
-  createCoachCheckIn,
-  unassignCoachProgram,
-} from "@/lib/fitness/api"
+  useAssignCoachProgram,
+  useCreateCoachBodyMetric,
+  useCreateCoachCheckIn,
+  useUnassignCoachProgram,
+} from "@/lib/queries/coach"
 import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
 import type { MealType } from "@/lib/types"
 
@@ -332,14 +334,18 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
 
 /* ─── Main export ────────────────────────────────────────────────────────── */
 export function CoachTraineeDetailClient({
-  coachPrograms,
+  coachPrograms: initialCoachPrograms,
   initialDetail,
 }: CoachTraineeDetailClientProps) {
-  const { session } = useAuth()
+  const { data: coachPrograms = initialCoachPrograms } = useCoachData(queryKeys.coach.programs(), fetchCoachPrograms, initialCoachPrograms)
   const { locale, messages } = useLocale()
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
-  const [detail, setDetail] = useState(initialDetail)
+  const assignProgram = useAssignCoachProgram()
+  const unassignProgram = useUnassignCoachProgram()
+  const createBodyMetric = useCreateCoachBodyMetric()
+  const createCheckIn = useCreateCoachCheckIn()
+  const { data: detail = initialDetail, setData: setDetail } = useCoachData(queryKeys.coach.traineeDetail(initialDetail.trainee.id), (token) => fetchCoachTraineeDetail(token, initialDetail.trainee.id), initialDetail, true, 30_000)
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
   const [checkInForm, setCheckInForm] = useState<CheckInFormState>(createDefaultCheckInForm)
@@ -427,7 +433,7 @@ export function CoachTraineeDetailClient({
   const latestNote = detail.checkIns[0]?.feedback ?? null
 
   async function handleAssignProgram() {
-    if (!session?.access_token || !selectedProgramId) {
+    if (!selectedProgramId) {
       return
     }
 
@@ -436,7 +442,7 @@ export function CoachTraineeDetailClient({
     setAssignNotice(null)
 
     try {
-      await assignCoachProgram(session.access_token, selectedProgramId, detail.trainee.id)
+      await assignProgram.mutateAsync({ programId: selectedProgramId, traineeId: detail.trainee.id })
       const assignedProgram = coachPrograms.find((program) => program.id === selectedProgramId)
 
       if (assignedProgram) {
@@ -455,16 +461,13 @@ export function CoachTraineeDetailClient({
   }
 
   async function handleUnassignProgram(programId: string) {
-    if (!session?.access_token) {
-      return
-    }
 
     setRemovingProgramId(programId)
     setAssignError(null)
     setAssignNotice(null)
 
     try {
-      await unassignCoachProgram(session.access_token, programId, detail.trainee.id)
+      await unassignProgram.mutateAsync({ programId, traineeId: detail.trainee.id })
       setDetail((current) => ({
         ...current,
         programs: current.programs.filter((program) => program.id !== programId),
@@ -479,15 +482,12 @@ export function CoachTraineeDetailClient({
   async function handleCreateBodyMetric(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!session?.access_token) {
-      return
-    }
 
     setIsSavingMetric(true)
     setMetricError(null)
 
     try {
-      const bodyMetric = await createCoachBodyMetric(session.access_token, detail.trainee.id, {
+      const bodyMetric = await createBodyMetric.mutateAsync({ traineeId: detail.trainee.id, input: {
         bodyFatPct: parseOptionalNumber(metricForm.bodyFatPct),
         chestCm: parseOptionalNumber(metricForm.chestCm),
         hipsCm: parseOptionalNumber(metricForm.hipsCm),
@@ -496,7 +496,7 @@ export function CoachTraineeDetailClient({
         thighCm: parseOptionalNumber(metricForm.thighCm),
         waistCm: parseOptionalNumber(metricForm.waistCm),
         weightKg: parseOptionalNumber(metricForm.weightKg),
-      })
+      } })
 
       setDetail((current) => ({
         ...current,
@@ -513,15 +513,12 @@ export function CoachTraineeDetailClient({
   async function handleCreateCheckIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!session?.access_token) {
-      return
-    }
 
     setIsSavingCheckIn(true)
     setCheckInError(null)
 
     try {
-      const checkIn = await createCoachCheckIn(session.access_token, detail.trainee.id, {
+      const checkIn = await createCheckIn.mutateAsync({ traineeId: detail.trainee.id, input: {
         adherenceScore: parseOptionalNumber(checkInForm.adherenceScore),
         checkInDate: checkInForm.checkInDate,
         energyScore: parseOptionalNumber(checkInForm.energyScore),
@@ -530,7 +527,7 @@ export function CoachTraineeDetailClient({
         nextFocus: checkInForm.nextFocus.trim() || undefined,
         recoveryScore: parseOptionalNumber(checkInForm.recoveryScore),
         summary: checkInForm.summary.trim() || undefined,
-      })
+      } })
 
       setDetail((current) => ({
         ...current,

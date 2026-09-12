@@ -1,8 +1,10 @@
 "use client"
 
+import { useSendAIChatMessage } from "@/lib/queries/ai"
+
 import { Bot, Dumbbell, Loader2, Send, Sparkles, UtensilsCrossed } from "lucide-react"
 import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { AIMessage } from "@/components/ai/ai-message"
 import { ChatMealPlanCard } from "@/components/ai/chat-meal-plan-card"
@@ -10,7 +12,7 @@ import { ChatProgramCard } from "@/components/ai/chat-program-card"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
-import { sendAIChatMessage, type AIChatAction } from "@/lib/fitness/api"
+import type { AIChatAction } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
 type Message = { role: "user" | "assistant"; content: string; action?: AIChatAction }
@@ -50,13 +52,14 @@ function getChatCopy(locale: "en" | "vi") {
 }
 
 function AIChatBubble() {
-  const { session } = useAuth()
+  const { mutateAsync: sendAIChatMessage, isPending: sendAIChatMessagePending } = useSendAIChatMessage()
+  const { profile } = useAuth()
   const { locale } = useLocale()
   const copy = getChatCopy(locale)
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const isLoading = sendAIChatMessagePending
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -84,29 +87,27 @@ function AIChatBubble() {
     return () => document.removeEventListener("pointerdown", handleOutsidePointer)
   }, [open])
 
-  const handleSend = useCallback(async (text?: string) => {
+  const handleSend = async (text?: string) => {
     const msg = (text ?? input).trim()
-    if (!msg || !session?.access_token || isLoading) return
+    if (!msg || !profile || isLoading) return
 
     setInput("")
     const userMsg: Message = { role: "user", content: msg }
     setMessages((prev) => [...prev, userMsg])
-    setIsLoading(true)
+
 
     try {
       // Only the plain transcript goes back to the model — action payloads are
       // client-side render state, not conversation history.
       const transcript = messages.map(({ role, content }) => ({ role, content }))
-      const result = await sendAIChatMessage(session.access_token, msg, transcript)
+      const result = await sendAIChatMessage([msg, transcript])
       setMessages((prev) => [...prev, { role: "assistant", content: result.reply, action: result.action }])
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: copy.error }])
-    } finally {
-      setIsLoading(false)
     }
-  }, [copy.error, input, session?.access_token, isLoading, messages])
+  }
 
-  if (!session) return null
+  if (!profile) return null
 
   return (
     <>
@@ -195,11 +196,11 @@ function AIChatBubble() {
                     )}
                   >
                     {msg.role === "user" ? msg.content : <AIMessage content={msg.content} />}
-                    {msg.action && session?.access_token && (
+                    {msg.action && (
                       msg.action.type === "program_draft" ? (
-                        <ChatProgramCard action={msg.action} accessToken={session.access_token} />
+                        <ChatProgramCard action={msg.action} />
                       ) : (
-                        <ChatMealPlanCard action={msg.action} accessToken={session.access_token} />
+                        <ChatMealPlanCard action={msg.action} />
                       )
                     )}
                   </div>

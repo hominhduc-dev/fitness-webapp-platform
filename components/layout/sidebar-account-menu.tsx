@@ -80,7 +80,6 @@ export function SidebarAccountMenu({
     try {
       await signOut()
       router.push("/")
-      router.refresh()
     } finally {
       setIsSigningOut(false)
     }

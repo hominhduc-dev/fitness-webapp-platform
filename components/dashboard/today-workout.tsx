@@ -38,7 +38,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
       <div className="flex min-w-0 flex-1 flex-col justify-between gap-5">
         {/* Workout header */}
         <div className="min-w-0">
-          <h3 className="truncate text-[1.35rem] font-semibold leading-snug text-foreground">
+          <h3 className="truncate text-2xl font-semibold leading-snug text-foreground">
             {workout.name}
           </h3>
           <p className="mt-1 font-mono text-micro tnum text-muted-foreground">

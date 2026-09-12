@@ -21,6 +21,8 @@ export function AppLoadingScreen({
   label,
 }: AppLoadingScreenProps) {
   const isMinimal = variant === "minimal"
+  // No locale provider exists above a loading boundary, so callers pass the
+  // localized label in; the English default is only a last resort.
   const displayLabel = label ?? (isMinimal ? "Loading" : "Loading workspace")
 
   return (
@@ -103,7 +105,7 @@ export function PageLoadingState({
         {showMetrics ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }, (_, index) => (
-              <div key={index} className="rounded-full border border-border bg-card p-5 shadow-sm">
+              <div key={index} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-3">
                     <Skeleton className="h-4 w-24" />
@@ -118,7 +120,7 @@ export function PageLoadingState({
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_360px]">
-          <div className="rounded-full border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-3">
                 <Skeleton className="h-8 w-44" />
@@ -143,7 +145,7 @@ export function PageLoadingState({
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-full border border-border bg-card p-6 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
               <div className="space-y-3">
                 <Skeleton className="h-8 w-36" />
                 <Skeleton className="h-28 w-28 rounded-full" />
@@ -152,7 +154,7 @@ export function PageLoadingState({
               </div>
             </div>
 
-            <div className="rounded-full border border-border bg-card p-6 shadow-sm">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
               <Skeleton className="h-8 w-28" />
               <div className="mt-4 space-y-3">
                 {Array.from({ length: 3 }, (_, index) => (
@@ -163,7 +165,7 @@ export function PageLoadingState({
           </div>
         </div>
 
-        <div className="rounded-full border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <Skeleton className="h-8 w-40" />
           <div className="mt-6 space-y-4">
             {Array.from({ length: 3 }, (_, index) => (
@@ -211,7 +213,7 @@ export function WorkoutSessionLoadingState() {
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-6 pb-32">
         {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="rounded-full border border-border bg-card p-5 shadow-sm">
+          <div key={index} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-3">
                 <Skeleton className="h-6 w-44" />

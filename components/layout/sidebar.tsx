@@ -6,11 +6,13 @@ import { Dumbbell, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
-import { useAuth } from "@/components/providers/auth-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
 import { fetchCoachNavCounts } from "@/lib/fitness/api"
+import { useUserQuery } from "@/lib/queries/scoped"
+import { queryKeys } from "@/lib/queries/keys"
+import { requireAccessToken } from "@/lib/queries/token"
 import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
 import { BaseSidebar } from "@/components/layout/base-sidebar"
 
@@ -41,6 +43,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
       sections={[{ items: traineeNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="primary"
+      accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       brand={
         <Link href={getRoleLandingPath(role)} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -90,6 +93,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       sections={sections}
       isActiveItem={isAdminItemActive}
       activeStyle="muted"
+      accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       brand={
         <Link href={getRoleLandingPath("admin")} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -114,50 +118,21 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 }
 
 function CoachSidebar({ pathname }: { pathname: string }) {
-  const { session } = useAuth()
   const { messages } = useLocale()
-  const [counts, setCounts] = useState<{ programs?: number; trainees?: number }>({})
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadCounts() {
-      if (!session?.access_token) {
-        setCounts({})
-        return
-      }
-
-      try {
-        const navCounts = await fetchCoachNavCounts(session.access_token)
-
-        if (!cancelled) {
-          setCounts({
-            programs: navCounts.programs,
-            trainees: navCounts.trainees,
-          })
-        }
-      } catch {
-        if (!cancelled) {
-          setCounts({})
-        }
-      }
-    }
-
-    void loadCounts()
-
-    return () => {
-      cancelled = true
-    }
-  }, [session?.access_token])
+  const countsQuery = useUserQuery({
+    queryKey: queryKeys.coach.navCounts(),
+    queryFn: async () => fetchCoachNavCounts(await requireAccessToken()),
+  })
+  const counts: { programs?: number; trainees?: number } = countsQuery.data ?? {}
 
   const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
-    ["/coach/trainees", "/coach/programs", "/coach/exercises", "/progress"].includes(item.href),
+    ["/coach/trainees", "/coach/programs", "/coach/exercises", "/coach/stats"].includes(item.href),
   )
 
   return (
     <BaseSidebar
       collapsible={false}
-      sections={[{ title: "Coach", items: coachNavItems }]}
+      sections={[{ title: messages.shell.coach, items: coachNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="muted"
       brand={
@@ -185,10 +160,13 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         <SidebarAccountMenu
           avatarClassName="h-7 w-7"
           buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
-          fallbackEmail="coach@example.com"
-          fallbackInitials="EK"
-          fallbackName="Coach Eli K."
-          subtitle={<span className="font-mono text-micro">12 {messages.shell.activeClients}</span>}
+          subtitle={
+            counts.trainees === undefined ? undefined : (
+              <span className="font-mono text-micro">
+                {counts.trainees} {messages.shell.activeClients}
+              </span>
+            )
+          }
         />
       }
     />

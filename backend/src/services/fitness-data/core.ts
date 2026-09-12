@@ -2754,7 +2754,7 @@ async function listExerciseLibrary(
 async function listCoachExercises(profile: SerializedProfile, options?: { search?: string }) {
   const db = ensurePrisma()
   assertCoach(profile)
-  await ensureDefaultExercises()
+  await seedDefaultExercisesIfNeeded()
   const search = options?.search?.trim().toLowerCase()
 
   const exercises = await db.exercise.findMany({

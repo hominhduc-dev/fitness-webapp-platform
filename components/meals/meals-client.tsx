@@ -18,14 +18,15 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { addMealItem, createCustomFood, deleteMealItem, fetchNutritionDay } from "@/lib/fitness/api"
+import type { createCustomFood } from "@/lib/fitness/api"
+import { useAddMealItem, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay } from "@/lib/queries/meals"
 import { cn } from "@/lib/utils"
 import type { FoodCategory, Meal, MealType, NutritionFood } from "@/lib/types"
 
@@ -85,55 +86,6 @@ function formatDateKey(date: Date) {
 function formatMetric(value?: number, digits = 1) {
   const safeValue = value ?? 0
   return Number.isInteger(safeValue) ? String(safeValue) : safeValue.toFixed(digits)
-}
-
-function getMacro(meal: Meal, key: "carbs" | "fat" | "protein") {
-  return meal[key] ?? 0
-}
-
-function getOptionalMetric(meal: Meal, key: "fiber" | "sodium" | "sugar") {
-  return meal[key] ?? 0
-}
-
-function recalculateTotals(meals: Meal[]): NutritionTotals {
-  return meals.reduce<NutritionTotals>(
-    (totals, meal) => ({
-      calories: totals.calories + meal.calories,
-      carbs: totals.carbs + getMacro(meal, "carbs"),
-      fat: totals.fat + getMacro(meal, "fat"),
-      fiber: (totals.fiber ?? 0) + getOptionalMetric(meal, "fiber"),
-      protein: totals.protein + getMacro(meal, "protein"),
-      sodium: (totals.sodium ?? 0) + getOptionalMetric(meal, "sodium"),
-      sugar: (totals.sugar ?? 0) + getOptionalMetric(meal, "sugar"),
-    }),
-    {
-      calories: 0,
-      carbs: 0,
-      fat: 0,
-      fiber: 0,
-      protein: 0,
-      sodium: 0,
-      sugar: 0,
-    },
-  )
-}
-
-function replaceMeal(nutritionDay: NutritionDay, meal: Meal, dateKey: string): NutritionDay {
-  if (formatDateKey(nutritionDay.date) !== dateKey) {
-    return nutritionDay
-  }
-
-  const meals = nutritionDay.meals.map((currentMeal) => (currentMeal.type === meal.type ? meal : currentMeal))
-
-  return {
-    ...nutritionDay,
-    meals,
-    totals: recalculateTotals(meals),
-  }
-}
-
-function prependRecentFood(recentFoods: NutritionFood[], food: NutritionFood) {
-  return [food, ...recentFoods.filter((recentFood) => recentFood.id !== food.id)].slice(0, 10)
 }
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
@@ -284,7 +236,7 @@ function MealSection({
       {items.map((item) => (
         <div key={item.id} className="flex items-center gap-2.5 border-b border-ink-50 px-4 py-2.5 last:border-b-0">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13.5px] text-foreground">
+            <p className="truncate text-sm text-foreground">
               {item.name}
               {item.amountLabel ? <span className="text-muted-foreground"> {item.amountLabel}</span> : null}
             </p>
@@ -589,7 +541,7 @@ function AddFoodModal({
                   </div>
                   <div className="min-w-0">
                     <p className="label-micro mb-1 truncate">{mealLabel}</p>
-                    <h2 className="text-[1.15rem] font-semibold leading-none text-foreground">{labels.logFood}</h2>
+                    <h2 className="text-lg font-semibold leading-none text-foreground">{labels.logFood}</h2>
                   </div>
                 </div>
                 <button
@@ -756,38 +708,27 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const [selectedDate, setSelectedDate] = useState(() => new Date(`${initialData.selectedDateKey}T00:00:00`))
-  const [nutritionDay, setNutritionDay] = useState<NutritionDay>(initialData.nutritionDay)
-  const [foods, setFoods] = useState(initialData.foods)
   const [addTo, setAddTo] = useState<MealType | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAIMealPlan, setShowAIMealPlan] = useState(false)
   const selectedDateKey = formatDateKey(selectedDate)
 
-  async function loadDay(dateKey = selectedDateKey) {
-    if (!session?.access_token) {
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-    try {
-      setNutritionDay(await fetchNutritionDay(session.access_token, dateKey))
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : messages.meals.loadNutritionError)
-    } finally {
-      setIsLoading(false)
-    }
+  const dayQuery = useNutritionDay(selectedDateKey, {
+    initialData: selectedDateKey === initialData.selectedDateKey ? initialData.nutritionDay : undefined,
+  })
+  const foodsQuery = useFoods(undefined, { initialData: initialData.foods })
+  const addItem = useAddMealItem(selectedDateKey)
+  const deleteItem = useDeleteMealItem(selectedDateKey)
+  const createFood = useCreateCustomFood()
+  const nutritionDay = dayQuery.data ?? {
+    date: selectedDate, meals: [], recentFoods: [], targets: initialData.nutritionDay.targets,
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
   }
-
-  useEffect(() => {
-    if (selectedDateKey === initialData.selectedDateKey) {
-      return
-    }
-
-    void loadDay(selectedDateKey)
-  }, [selectedDateKey, session?.access_token])
+  const foods = foodsQuery.data ?? []
+  const isLoading = dayQuery.isPending
+  const loadDay = () => dayQuery.refetch()
+  const displayError = error ?? dayQuery.error?.message ?? foodsQuery.error?.message
 
   const mealsByType = useMemo(() => new Map(nutritionDay.meals.map((meal) => [meal.type, meal])), [nutritionDay.meals])
   const totals = nutritionDay.totals
@@ -845,19 +786,12 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     setAddTo(null)
     setError(null)
     try {
-      const meal = await addMealItem(session.access_token, {
+      await addItem.mutateAsync({
         amountUnit: input.amountUnit,
         amountValue: input.amountValue,
         date: dateKey,
         foodId: input.food.id,
         mealType,
-      })
-      setNutritionDay((current) => {
-        const updated = replaceMeal(current, meal, dateKey)
-        return {
-          ...updated,
-          recentFoods: prependRecentFood(updated.recentFoods, input.food),
-        }
       })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.addFoodError)
@@ -874,8 +808,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     setIsSubmitting(true)
     setError(null)
     try {
-      const food = await createCustomFood(session.access_token, input)
-      setFoods((current) => [food, ...current.filter((item) => item.id !== food.id)])
+      const food = await createFood.mutateAsync(input)
       return food
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.createFoodError)
@@ -893,8 +826,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     setIsSubmitting(true)
     setError(null)
     try {
-      const meal = await deleteMealItem(session.access_token, itemId)
-      setNutritionDay((current) => replaceMeal(current, meal, selectedDateKey))
+      await deleteItem.mutateAsync(itemId)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.deleteFoodError)
     } finally {
@@ -918,7 +850,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
         <div className="flex gap-2 self-start">
           <Button variant="outline" className="gap-1.5" type="button" onClick={() => setShowAIMealPlan(true)}>
             <Bot className="h-4 w-4" />
-            AI gợi ý
+            {messages.meals.aiSuggest}
           </Button>
           <Button className="bg-foreground text-background hover:bg-ink-900" type="button" onClick={() => setAddTo("snack")}>
             <Plus className="h-4 w-4" />
@@ -940,7 +872,7 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
         </Button>
       </div>
 
-      {error ? <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div> : null}
+      {displayError ? <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{displayError}</div> : null}
 
       <section className="mb-5 rounded-lg border border-border bg-card p-[18px] md:mb-6 md:p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-9">
