@@ -53,6 +53,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
             <div key={exercise.id} className="flex min-w-0 items-baseline justify-between gap-3">
               <span className="min-w-0 truncate text-sm text-foreground">
                 {formatExerciseVariationLabel({
+                  displayName: exercise.variation.displayName,
                   exerciseName: exercise.exercise.name,
                   isDefault: exercise.variation.isDefault,
                   variationName: exercise.variation.name,

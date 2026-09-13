@@ -44,11 +44,11 @@ describe("ExerciseAnimation", () => {
     vi.restoreAllMocks()
   })
 
-  it("autoplays the GIF and shows attribution when motion is allowed", () => {
+  it("autoplays the GIF without an attribution link when motion is allowed", () => {
     mockReducedMotion(false)
     render(<ExerciseAnimation exerciseName="Row" media={media} />)
     expect(screen.getByRole("img")).toHaveAttribute("src", media.animationUrl)
-    expect(screen.getByRole("link", { name: "© Gym visual" })).toBeVisible()
+    expect(screen.queryByRole("link")).not.toBeInTheDocument()
   })
 
   it("keeps the thumbnail for reduced motion until explicit playback", () => {
@@ -65,5 +65,14 @@ describe("ExerciseAnimation", () => {
     fireEvent.error(screen.getByRole("img"))
     expect(screen.queryByRole("img")).not.toBeInTheDocument()
     expect(screen.getByRole("status")).toHaveTextContent("Media unavailable")
+  })
+
+  it("renders MP4 media as video with the thumbnail poster", () => {
+    mockReducedMotion(false)
+    render(<ExerciseAnimation exerciseName="Row" media={{ ...media, animationUrl: "https://project.supabase.co/animation.mp4", type: "video" }} />)
+    const video = screen.getByLabelText("Row animation")
+    expect(video.tagName).toBe("VIDEO")
+    expect(video).toHaveAttribute("src", "https://project.supabase.co/animation.mp4")
+    expect(video).toHaveAttribute("poster", media.thumbnailUrl)
   })
 })

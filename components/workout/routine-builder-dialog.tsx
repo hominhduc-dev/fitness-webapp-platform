@@ -37,6 +37,7 @@ export type RoutineExerciseDraft = {
   id: string
   variationId: string
   displayName: string
+  media?: import("@/lib/types").ExerciseMedia
   muscleGroup: string
   activityType?: ExerciseActivityType
   primaryMuscles?: MuscleSlug[]
@@ -119,7 +120,8 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
   return {
     id: draftId(),
     variationId: exercise.variation.id,
-    displayName: exercise.exercise.name,
+    displayName: exercise.variation.displayName ?? exercise.exercise.name,
+    media: exercise.variation.media,
     muscleGroup: exercise.exercise.muscleGroup,
     activityType: exercise.variation.activityType,
     primaryMuscles: exercise.variation.primaryMuscles,
@@ -268,7 +270,8 @@ export function RoutineBuilderDialog({
         {
           id,
           variationId: ex.id,
-          displayName: ex.exerciseName,
+          displayName: ex.displayName ?? ex.name,
+          media: ex.media,
           muscleGroup: ex.muscleGroup,
           activityType: ex.activityType,
           primaryMuscles: ex.primaryMuscles,
@@ -292,7 +295,8 @@ export function RoutineBuilderDialog({
             ? {
                 ...item,
                 variationId: ex.id,
-                displayName: ex.exerciseName,
+                displayName: ex.displayName ?? ex.name,
+                media: ex.media,
                 muscleGroup: ex.muscleGroup,
                 activityType: ex.activityType,
                 primaryMuscles: ex.primaryMuscles,
@@ -490,6 +494,7 @@ export function RoutineBuilderDialog({
                     index={i}
                     total={exercises.length}
                     title={ex.displayName}
+                    media={ex.media}
                     meta={[ex.muscleGroup, ex.equipment].filter(Boolean).join(" · ")}
                     values={{
                       notes: ex.notes ?? "",

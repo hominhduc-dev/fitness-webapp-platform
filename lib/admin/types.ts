@@ -1,4 +1,4 @@
-import type { ExerciseActivityType, ExerciseMuscleProfile, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
+import type { ExerciseActivityType, ExerciseMedia, ExerciseMuscleProfile, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
 
 type AdminMiniUser = {
   avatar?: string
@@ -65,6 +65,7 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   equipment?: string
   id: string
   isDefault: boolean
+  media?: ExerciseMedia
   muscleGroup: string
   muscleProfileConfidence?: number
   muscleProfileRationale?: string

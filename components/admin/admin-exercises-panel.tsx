@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
@@ -400,7 +401,9 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                 )}
               </div>
 
-              {/* Name (+ variation/equipment inline on mobile) */}
+              {/* Thumbnail (previews the animation) + name, with variation/equipment inline on mobile */}
+              <div className="flex min-w-0 items-center gap-2.5">
+              <ExerciseThumbnail media={e.media} name={e.name} previewable />
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
@@ -413,6 +416,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                   {e.variationName !== "Default" ? e.variationName : ""}
                   {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
                 </span>
+              </div>
               </div>
 
               {/* Variation name (desktop column) */}

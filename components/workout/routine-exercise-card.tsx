@@ -3,6 +3,7 @@
 import { useId, useState } from "react"
 import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, NotebookPen, Pencil, Trash2 } from "lucide-react"
 
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { IntensityTagBadge, SetIntensityTagPicker } from "@/components/workout/set-intensity-tag"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { cn } from "@/lib/utils"
@@ -16,6 +17,8 @@ export type RoutineExerciseCardProps = {
   total: number
   title: string
   meta?: string
+  /** Thumbnail source; the card shows an icon when absent. */
+  media?: import("@/lib/types").ExerciseMedia
   values: Record<RoutineExerciseField, string>
   messages: AppMessages
   onFieldChange: (field: RoutineExerciseField, value: string) => void
@@ -109,6 +112,7 @@ export function RoutineExerciseCard({
   disabled,
   expanded: controlledExpanded,
   index,
+  media,
   messages,
   meta,
   onFieldChange,
@@ -158,6 +162,8 @@ export function RoutineExerciseCard({
         <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-xs font-semibold text-primary-foreground tnum">
           {index + 1}
         </span>
+        {/* Inside the header toggle, so no preview button here. */}
+        <ExerciseThumbnail media={media} name={title} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5">

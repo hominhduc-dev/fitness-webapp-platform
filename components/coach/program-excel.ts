@@ -776,7 +776,7 @@ async function buildCoachProgramTemplate(
   })
 
   sortedReferenceExercises.forEach((ex) => {
-    referenceSheet.addRow([ex.id, ex.exerciseName, ex.variationName, ex.name, ex.muscleGroup, ex.equipment ?? ""])
+    referenceSheet.addRow([ex.id, ex.exerciseName, ex.variationName, ex.displayName ?? ex.name, ex.muscleGroup, ex.equipment ?? ""])
   })
   referenceSheet.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }]
 

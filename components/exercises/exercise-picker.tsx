@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, ChevronDown, Search } from "lucide-react"
 
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
@@ -14,6 +15,7 @@ type ExercisePickerProps = {
   disabled?: boolean
   exercises: ExerciseVariationOption[]
   fallbackSelection?: {
+    displayName?: string
     equipment?: string
     exerciseName?: string
     isDefault?: boolean
@@ -241,8 +243,9 @@ export function ExercisePicker({
                           >
                             {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                           </span>
+                          <ExerciseThumbnail media={exercise.media} name={exercise.displayName ?? exercise.name} />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{exercise.exerciseName}</span>
+                            <span className="block truncate text-sm font-medium">{exercise.displayName ?? exercise.name}</span>
                             <span className="block text-xs text-muted-foreground">
                               {formatExerciseVariationMeta({
                                 equipment: exercise.equipment,
@@ -292,12 +295,14 @@ export function ExercisePicker({
           >
             {selectedExercise
               ? formatExerciseVariationLabel({
+                  displayName: selectedExercise.displayName,
                   exerciseName: selectedExercise.exerciseName,
                   isDefault: selectedExercise.isDefault,
                   variationName: selectedExercise.variationName,
                 })
               : fallbackSelection
                 ? formatExerciseVariationLabel({
+                    displayName: fallbackSelection.displayName,
                     exerciseName: fallbackSelection.exerciseName,
                     isDefault: fallbackSelection.isDefault,
                     variationName: fallbackSelection.variationName,

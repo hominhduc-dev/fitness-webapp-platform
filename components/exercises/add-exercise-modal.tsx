@@ -5,6 +5,7 @@ import { Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import type { MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogHeader } from "@/components/ui/dialog"
@@ -114,11 +115,11 @@ export function AddExerciseModal({
         else if (exercise.equipment !== equipment) return false
       }
       return matchesExerciseSearch(
-        [exercise.name, exercise.exerciseName, exercise.variationName, exercise.muscleGroup, exercise.equipment],
+        [exercise.displayName, exercise.name, exercise.exerciseName, exercise.variationName, exercise.muscleGroup, exercise.equipment],
         query,
       )
     })
-    return sortByExerciseRelevance(filtered, query, (exercise) => exercise.exerciseName)
+    return sortByExerciseRelevance(filtered, query, (exercise) => exercise.displayName ?? exercise.name)
   }, [activityType, exercises, muscle, equipment, query])
 
   function toggleMuscle(slug: MapMuscleSlug) {
@@ -208,8 +209,9 @@ export function AddExerciseModal({
                     isCurrent ? "bg-primary/8 ring-1 ring-inset ring-primary/25" : added ? "cursor-default opacity-50" : "hover:bg-muted",
                   )}
                 >
+                  <ExerciseThumbnail media={exercise.media} name={exercise.displayName ?? exercise.name} />
                   <div className="min-w-0 flex-1">
-                    <p className={cn("truncate text-sm font-medium", isCurrent ? "text-primary" : "text-foreground")}>{exercise.exerciseName}</p>
+                    <p className={cn("truncate text-sm font-medium", isCurrent ? "text-primary" : "text-foreground")}>{exercise.displayName ?? exercise.name}</p>
                     <p className="mt-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {exercise.muscleGroup}
                       {exercise.equipment ? ` · ${exercise.equipment}` : ""}

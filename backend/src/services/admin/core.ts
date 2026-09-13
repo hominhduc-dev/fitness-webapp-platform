@@ -21,6 +21,7 @@ import {
   type ExerciseActivityTypeValue,
   type MuscleProfileInput,
 } from "../../domain/muscle-profile"
+import { serializeExerciseMedia } from "../../lib/exercise-media"
 import { logger } from "../../lib/logger"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import { prisma } from "../../lib/prisma"
@@ -326,6 +327,7 @@ function serializeExerciseSummary(exercise: ExerciseSummaryRecord) {
     equipment: exercise.equipment ?? undefined,
     id: exercise.id,
     isDefault: exercise.isDefault,
+    media: serializeExerciseMedia(exercise.metadata),
     muscleGroup: exercise.exercise.muscleGroup,
     name: exercise.exercise.name,
     updatedAt: exercise.updatedAt,
