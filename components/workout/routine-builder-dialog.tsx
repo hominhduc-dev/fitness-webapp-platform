@@ -211,6 +211,9 @@ export function RoutineBuilderDialog({
   const [name, setName] = useState("")
   const [tag, setTag] = useState<RoutineTag>("push")
   const [exercises, setExercises] = useState<RoutineExerciseDraft[]>([])
+  // Exercises already in the routine when the dialog opened start collapsed so
+  // an existing routine reads as a compact list; ones added after start open.
+  const [initialExerciseIds, setInitialExerciseIds] = useState<ReadonlySet<string>>(() => new Set())
   // "add" = add new exercise; exerciseId = swap that exercise; null = closed
   const [pickerTarget, setPickerTarget] = useState<string | "add" | null>(null)
   const libraryQuery = useExercises(undefined, undefined, Boolean(pickerTarget))
@@ -231,19 +234,21 @@ export function RoutineBuilderDialog({
 
   // ── Reset form on open/close ──────────────────────────────────────────────
   const resetForm = () => {
+    let initialExercises: RoutineExerciseDraft[] = []
     if (draftToEdit) {
       setName(draftToEdit.name)
       setTag(draftToEdit.tag)
-      setExercises(draftToEdit.exercises)
+      initialExercises = draftToEdit.exercises
     } else if (workoutToEdit) {
       setName(workoutToEdit.name)
       setTag(inferTag(workoutToEdit))
-      setExercises(workoutToEdit.exercises.map(toDraft))
+      initialExercises = workoutToEdit.exercises.map(toDraft)
     } else {
       setName("")
       setTag("push")
-      setExercises([])
     }
+    setExercises(initialExercises)
+    setInitialExerciseIds(new Set(initialExercises.map((ex) => ex.id)))
     setError(null)
   }
 
@@ -464,6 +469,7 @@ export function RoutineBuilderDialog({
                 {exercises.map((ex, i) => (
                   <RoutineExerciseCard
                     key={ex.id}
+                    defaultExpanded={!initialExerciseIds.has(ex.id)}
                     index={i}
                     total={exercises.length}
                     title={ex.displayName}
