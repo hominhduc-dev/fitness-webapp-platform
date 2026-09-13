@@ -29,11 +29,17 @@ export function MuscleDistributionChart({ data }: Props) {
                 <Cell key={`cell-${index}`} fill={entry.fill} />
               ))}
             </Pie>
-            <Tooltip 
-              formatter={(value: number, name: string, props: { payload: { volume: number } }) => [`${props.payload.volume.toLocaleString()} kg`, name]}
+            <Tooltip
+              formatter={(_value, name, item) => {
+                const volume = item.payload?.volume
+
+                return [
+                  typeof volume === "number" ? `${volume.toLocaleString()} kg` : "—",
+                  String(name),
+                ]
+              }}
               contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)" }}
             />
-
           </PieChart>
         </ResponsiveContainer>
       </div>
