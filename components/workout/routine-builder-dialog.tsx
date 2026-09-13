@@ -211,9 +211,9 @@ export function RoutineBuilderDialog({
   const [name, setName] = useState("")
   const [tag, setTag] = useState<RoutineTag>("push")
   const [exercises, setExercises] = useState<RoutineExerciseDraft[]>([])
-  // Exercises already in the routine when the dialog opened start collapsed so
-  // an existing routine reads as a compact list; ones added after start open.
-  const [initialExerciseIds, setInitialExerciseIds] = useState<ReadonlySet<string>>(() => new Set())
+  // The builder coordinates card expansion so adding a new exercise can fold
+  // the previous one and keep the compact editor from becoming a long scroll.
+  const [expandedExerciseIds, setExpandedExerciseIds] = useState<ReadonlySet<string>>(() => new Set())
   // "add" = add new exercise; exerciseId = swap that exercise; null = closed
   const [pickerTarget, setPickerTarget] = useState<string | "add" | null>(null)
   const libraryQuery = useExercises(undefined, undefined, Boolean(pickerTarget))
@@ -248,7 +248,7 @@ export function RoutineBuilderDialog({
       setTag("push")
     }
     setExercises(initialExercises)
-    setInitialExerciseIds(new Set(initialExercises.map((ex) => ex.id)))
+    setExpandedExerciseIds(new Set())
     setError(null)
   }
 
@@ -261,11 +261,12 @@ export function RoutineBuilderDialog({
   // ── Exercise handlers ─────────────────────────────────────────────────────
   const pickExercise = (ex: ExerciseVariationOption) => {
     if (pickerTarget === "add") {
+      const id = draftId()
       // Add new exercise at the end
       setExercises((prev) => [
         ...prev,
         {
-          id: draftId(),
+          id,
           variationId: ex.id,
           displayName: ex.exerciseName,
           muscleGroup: ex.muscleGroup,
@@ -282,6 +283,7 @@ export function RoutineBuilderDialog({
           setIntensityTags: [],
         },
       ])
+      setExpandedExerciseIds(new Set([id]))
     } else if (pickerTarget) {
       // Swap in-place — keep sets/reps/weight/rir, replace identity
       setExercises((prev) =>
@@ -316,6 +318,12 @@ export function RoutineBuilderDialog({
 
   const removeExercise = (id: string) => {
     setExercises((prev) => prev.filter((ex) => ex.id !== id))
+    setExpandedExerciseIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
   }
 
   const moveExercise = (idx: number, dir: -1 | 1) => {
@@ -469,7 +477,16 @@ export function RoutineBuilderDialog({
                 {exercises.map((ex, i) => (
                   <RoutineExerciseCard
                     key={ex.id}
-                    defaultExpanded={!initialExerciseIds.has(ex.id)}
+                    defaultExpanded={false}
+                    expanded={expandedExerciseIds.has(ex.id)}
+                    onExpandedChange={(expanded) =>
+                      setExpandedExerciseIds((prev) => {
+                        const next = new Set(prev)
+                        if (expanded) next.add(ex.id)
+                        else next.delete(ex.id)
+                        return next
+                      })
+                    }
                     index={i}
                     total={exercises.length}
                     title={ex.displayName}

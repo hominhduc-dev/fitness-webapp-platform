@@ -97,6 +97,24 @@ describe("RoutineExerciseCard", () => {
     expect(props.onFieldChange).toHaveBeenCalledWith("reps", "8-12")
   })
 
+  it("reports note edits from the compact note input", () => {
+    const props = renderCard()
+
+    fireEvent.change(screen.getByLabelText("Add note"), { target: { value: "Slow eccentric" } })
+
+    expect(props.onFieldChange).toHaveBeenCalledWith("notes", "Slow eccentric")
+  })
+
+  it("can be controlled by the routine builder", () => {
+    const onExpandedChange = vi.fn()
+    renderCard({ expanded: true, onExpandedChange })
+
+    fireEvent.click(screen.getByRole("button", { name: `Collapse exercise: ${title}` }))
+
+    expect(onExpandedChange).toHaveBeenCalledWith(false)
+    expect(screen.getByLabelText("Reps")).toBeInTheDocument()
+  })
+
   it("only offers per-set methods when the caller can store them", () => {
     renderCard()
     expect(screen.queryByText("Method")).not.toBeInTheDocument()

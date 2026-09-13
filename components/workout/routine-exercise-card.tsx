@@ -24,6 +24,9 @@ export type RoutineExerciseCardProps = {
   onSwap: () => void
   /** Whether the card starts open. Read on mount only; the card owns it after. */
   defaultExpanded?: boolean
+  /** Controlled expanded state for flows that coordinate multiple cards. */
+  expanded?: boolean
+  onExpandedChange?: (expanded: boolean) => void
   /** Locks every editing control, e.g. while the routine is saving. */
   disabled?: boolean
   /** Locks only the swap button, e.g. while the exercise library loads. */
@@ -104,10 +107,12 @@ export function formatPrescriptionSummary(values: Record<RoutineExerciseField, s
 export function RoutineExerciseCard({
   defaultExpanded = true,
   disabled,
+  expanded: controlledExpanded,
   index,
   messages,
   meta,
   onFieldChange,
+  onExpandedChange,
   onMove,
   onRemove,
   onSetIntensityTagsChange,
@@ -119,12 +124,21 @@ export function RoutineExerciseCard({
   values,
 }: RoutineExerciseCardProps) {
   const t = messages.workoutPage
-  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [uncontrolledExpanded, setUncontrolledExpanded] = useState(defaultExpanded)
+  const expanded = controlledExpanded ?? uncontrolledExpanded
   const bodyId = useId()
   const setCount = Number(values.sets) || 0
   const methodBadges = onSetIntensityTagsChange
     ? [...new Set(normalizeSetIntensityAssignments(setIntensityTags, setCount).map(({ tag }) => tag))]
     : []
+
+  const setExpanded = (next: boolean | ((current: boolean) => boolean)) => {
+    const nextValue = typeof next === "function" ? next(expanded) : next
+    if (controlledExpanded === undefined) {
+      setUncontrolledExpanded(nextValue)
+    }
+    onExpandedChange?.(nextValue)
+  }
 
   return (
     <div
@@ -220,14 +234,14 @@ export function RoutineExerciseCard({
                 aria-hidden
                 className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
               />
-              <textarea
+              <input
+                type="text"
                 value={values.notes}
                 onChange={(event) => onFieldChange("notes", event.target.value)}
                 placeholder={t.addNote}
                 aria-label={t.addNote}
-                rows={1}
                 disabled={disabled}
-                className="block min-h-8 w-full resize-none rounded-md border border-input bg-background py-1.5 pl-8 pr-2.5 text-sm leading-5 text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
+                className="block h-9 w-full rounded-md border border-input bg-background py-1.5 pl-8 pr-2.5 text-sm leading-5 text-foreground placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
               />
             </div>
           </div>
