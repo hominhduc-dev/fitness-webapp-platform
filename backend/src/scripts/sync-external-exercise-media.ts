@@ -18,6 +18,7 @@ import {
   EXERCISE_MEDIA_UPLOAD_CONCURRENCY,
   EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
   assertMediaUploadFlags,
+  ensureExerciseMediaBucket,
   uploadWithRetry,
 } from "../lib/exercise-media-upload"
 import { supabaseAdmin } from "../lib/supabase"
@@ -365,29 +366,6 @@ function buildPlan(rows: NormalizedRow[], variations: VariationRecord[]) {
   }
 
   return { conflicts, unmatched, updates }
-}
-
-function isNotFoundMessage(message: string) {
-  const normalized = message.toLowerCase()
-  return normalized.includes("not found") || normalized.includes("does not exist")
-}
-
-async function ensureExerciseMediaBucket() {
-  if (!supabaseAdmin) throw new Error("Supabase service-role client is not configured.")
-  const configuration = {
-    allowedMimeTypes: ["image/jpeg", "image/gif", "video/mp4"],
-    fileSizeLimit: EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
-    public: true,
-  }
-  const { error } = await supabaseAdmin.storage.getBucket(EXERCISE_MEDIA_BUCKET)
-  if (error && isNotFoundMessage(error.message)) {
-    const { error: createError } = await supabaseAdmin.storage.createBucket(EXERCISE_MEDIA_BUCKET, configuration)
-    if (createError && !createError.message.toLowerCase().includes("already exists")) throw createError
-    return
-  }
-  if (error) throw error
-  const { error: updateError } = await supabaseAdmin.storage.updateBucket(EXERCISE_MEDIA_BUCKET, configuration)
-  if (updateError) throw updateError
 }
 
 function localPathFromUrl(value: string | undefined, label: string, row: NormalizedRow) {

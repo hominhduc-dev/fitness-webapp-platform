@@ -1,5 +1,7 @@
 import type { ExerciseDatasetRecord } from "../domain/exercise-dataset"
 import { ExternalServiceError, ValidationError } from "../services/errors"
+import { EXERCISE_MEDIA_ALLOWED_MIME_TYPES, EXERCISE_MEDIA_BUCKET } from "./exercise-media"
+import { supabaseAdmin } from "./supabase"
 
 const EXERCISE_MEDIA_MAX_FILE_SIZE = 1024 * 1024
 const EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -63,6 +65,32 @@ function isRetryableStorageError(error: unknown) {
   return status === 429 || Boolean(status && status >= 500) || message.includes("timeout") || message.includes("fetch failed")
 }
 
+function isNotFoundMessage(message: string) {
+  const normalized = message.toLowerCase()
+  return normalized.includes("not found") || normalized.includes("does not exist")
+}
+
+/** Creates the public media bucket, or brings its type and size limits up to date. */
+async function ensureExerciseMediaBucket() {
+  if (!supabaseAdmin) throw new ExternalServiceError("Supabase service-role client is not configured.")
+  const configuration = {
+    allowedMimeTypes: EXERCISE_MEDIA_ALLOWED_MIME_TYPES,
+    fileSizeLimit: EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
+    public: true,
+  }
+  const { error } = await supabaseAdmin.storage.getBucket(EXERCISE_MEDIA_BUCKET)
+  if (error && isNotFoundMessage(error.message)) {
+    const { error: createError } = await supabaseAdmin.storage.createBucket(EXERCISE_MEDIA_BUCKET, configuration)
+    if (createError && !createError.message.toLowerCase().includes("already exists")) {
+      throw new ExternalServiceError(`Storage bucket setup failed: ${createError.message}`, { cause: createError })
+    }
+    return
+  }
+  if (error) throw new ExternalServiceError(`Storage bucket lookup failed: ${error.message}`, { cause: error })
+  const { error: updateError } = await supabaseAdmin.storage.updateBucket(EXERCISE_MEDIA_BUCKET, configuration)
+  if (updateError) throw new ExternalServiceError(`Storage bucket update failed: ${updateError.message}`, { cause: updateError })
+}
+
 async function uploadWithRetry(
   upload: () => Promise<{ error: unknown | null }>,
   wait: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -86,6 +114,7 @@ export {
   EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
   assertMediaUploadFlags,
   buildMediaUploadEntries,
+  ensureExerciseMediaBucket,
   isAlreadyExistsError,
   uploadWithRetry,
 }

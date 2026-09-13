@@ -21,12 +21,27 @@ import {
   type ExerciseActivityTypeValue,
   type MuscleProfileInput,
 } from "../../domain/muscle-profile"
-import { serializeExerciseMedia } from "../../lib/exercise-media"
+import { env } from "../../config/env"
+import {
+  CUSTOM_EXERCISE_MEDIA_METADATA_KEY,
+  EXERCISE_MEDIA_BUCKET,
+  buildCustomExerciseMedia,
+  createCustomExerciseMediaObjectPath,
+  customExerciseMediaObjectPaths,
+  exerciseMediaFileError,
+  isCustomExerciseMediaObjectPathFor,
+  readCustomExerciseMedia,
+  resolveExerciseMedia,
+  serializeExerciseMedia,
+  type ExerciseMediaKind,
+} from "../../lib/exercise-media"
+import { ensureExerciseMediaBucket } from "../../lib/exercise-media-upload"
 import { logger } from "../../lib/logger"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import { prisma } from "../../lib/prisma"
 import { supabaseAdmin } from "../../lib/supabase"
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
+import { ExternalServiceError, NotFoundError, ValidationError } from "../errors"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -321,13 +336,16 @@ function serializeProgramSummary(program: ProgramSummaryRecord) {
 }
 
 function serializeExerciseSummary(exercise: ExerciseSummaryRecord) {
+  const resolvedMedia = resolveExerciseMedia(exercise.metadata)
+
   return {
     createdAt: exercise.createdAt,
     createdBy: exercise.exercise.createdBy ? serializeMiniUser(exercise.exercise.createdBy) : null,
     equipment: exercise.equipment ?? undefined,
     id: exercise.id,
     isDefault: exercise.isDefault,
-    media: serializeExerciseMedia(exercise.metadata),
+    media: resolvedMedia?.media,
+    mediaSource: resolvedMedia?.source,
     muscleGroup: exercise.exercise.muscleGroup,
     name: exercise.exercise.name,
     updatedAt: exercise.updatedAt,
@@ -2234,6 +2252,199 @@ async function updateAdminExercise(
   return serializeExerciseSummary(exercise as ExerciseSummaryRecord)
 }
 
+let exerciseMediaBucketReady: Promise<void> | undefined
+
+/** Brings the bucket's type and size limits up to date once per process. */
+function prepareExerciseMediaBucket() {
+  exerciseMediaBucketReady ??= ensureExerciseMediaBucket().catch((error: unknown) => {
+    exerciseMediaBucketReady = undefined
+    throw error
+  })
+  return exerciseMediaBucketReady
+}
+
+function requireExerciseMediaStorage() {
+  if (!supabaseAdmin || !env.supabaseUrl) {
+    throw new ExternalServiceError("Supabase Storage is not configured for exercise media.")
+  }
+  return { bucket: supabaseAdmin.storage.from(EXERCISE_MEDIA_BUCKET), supabaseUrl: env.supabaseUrl }
+}
+
+type ExerciseMediaStorageBucket = ReturnType<typeof requireExerciseMediaStorage>["bucket"]
+
+async function findAdminExerciseVariation(db: DbClient, variationId: string) {
+  const variation = await db.variation.findUnique({
+    include: ADMIN_VARIATION_INCLUDE,
+    where: { id: variationId },
+  })
+  if (!variation) throw new NotFoundError("Không tìm thấy bài tập.")
+  return variation
+}
+
+function toMetadataObject(metadata: Prisma.JsonValue | null): Prisma.JsonObject {
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}
+}
+
+/** Best effort: a leftover object costs storage, not correctness. */
+async function removeExerciseMediaObjects(bucket: ExerciseMediaStorageBucket, objectPaths: string[]) {
+  if (objectPaths.length === 0) return
+  const { error } = await bucket.remove(objectPaths)
+  if (error) logger.warn("unable to remove exercise media objects", { error, objectPaths })
+}
+
+async function createAdminExerciseMediaUpload(
+  profile: SerializedProfile,
+  variationId: string,
+  input: { contentType: string; kind: ExerciseMediaKind; size: number },
+) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const fileError = exerciseMediaFileError(input.kind, input.contentType, input.size)
+  if (fileError) throw new ValidationError(fileError)
+
+  await findAdminExerciseVariation(db, variationId)
+  const { bucket } = requireExerciseMediaStorage()
+  await prepareExerciseMediaBucket()
+
+  const objectPath = createCustomExerciseMediaObjectPath(variationId, input.kind, input.contentType)
+  const { data, error } = await bucket.createSignedUploadUrl(objectPath)
+  if (error || !data) {
+    throw new ExternalServiceError(`Storage signed upload failed: ${error?.message ?? "no data"}`, { cause: error })
+  }
+
+  return {
+    bucket: EXERCISE_MEDIA_BUCKET,
+    contentType: input.contentType,
+    kind: input.kind,
+    objectPath,
+    token: data.token,
+  }
+}
+
+/** Checks an uploaded object against the path and file rules for its kind. */
+async function verifyUploadedExerciseMedia(
+  bucket: ExerciseMediaStorageBucket,
+  variationId: string,
+  kind: ExerciseMediaKind,
+  objectPath: string | undefined,
+) {
+  if (!objectPath) return undefined
+  if (!isCustomExerciseMediaObjectPathFor(variationId, kind, objectPath)) {
+    throw new ValidationError("Đường dẫn media không hợp lệ.")
+  }
+
+  const { data, error } = await bucket.info(objectPath)
+  if (error || !data) {
+    throw new ValidationError("Không tìm thấy file vừa tải lên, hãy thử tải lại.")
+  }
+
+  const fileMetadata = (data.metadata ?? {}) as { mimetype?: unknown; size?: unknown }
+  const contentType = data.contentType ?? (typeof fileMetadata.mimetype === "string" ? fileMetadata.mimetype : "")
+  const size = data.size ?? (typeof fileMetadata.size === "number" ? fileMetadata.size : 0)
+  const fileError = exerciseMediaFileError(kind, contentType, size)
+  if (fileError) {
+    await removeExerciseMediaObjects(bucket, [objectPath])
+    throw new ValidationError(fileError)
+  }
+
+  return { contentType, objectPath }
+}
+
+async function saveAdminExerciseMedia(
+  profile: SerializedProfile,
+  variationId: string,
+  input: { animationObjectPath?: string; thumbnailObjectPath?: string },
+) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  if (!input.thumbnailObjectPath && !input.animationObjectPath) {
+    throw new ValidationError("Chọn ít nhất một file media.")
+  }
+
+  const existing = await findAdminExerciseVariation(db, variationId)
+  const { bucket, supabaseUrl } = requireExerciseMediaStorage()
+  const thumbnail = await verifyUploadedExerciseMedia(bucket, variationId, "thumbnail", input.thumbnailObjectPath)
+  const animation = await verifyUploadedExerciseMedia(bucket, variationId, "animation", input.animationObjectPath)
+  const previousCustom = readCustomExerciseMedia(existing.metadata)
+
+  const nextMedia = buildCustomExerciseMedia({
+    animation,
+    current: serializeExerciseMedia(existing.metadata, supabaseUrl),
+    previousCustom,
+    supabaseUrl,
+    thumbnail,
+    updatedAt: new Date(),
+    updatedById: profile.id,
+  })
+  if (!nextMedia) {
+    await removeExerciseMediaObjects(bucket, [thumbnail?.objectPath, animation?.objectPath].filter((path): path is string => Boolean(path)))
+    throw new ValidationError("Bài tập chưa có media: cần tải lên cả thumbnail và animation.")
+  }
+
+  const exercise = await db.variation.update({
+    data: {
+      metadata: { ...toMetadataObject(existing.metadata), [CUSTOM_EXERCISE_MEDIA_METADATA_KEY]: nextMedia },
+    },
+    include: ADMIN_VARIATION_INCLUDE,
+    where: { id: existing.id },
+  })
+  invalidateExerciseLibrary()
+
+  const keptPaths = new Set([nextMedia.thumbnailObjectPath, nextMedia.animationObjectPath])
+  await removeExerciseMediaObjects(
+    bucket,
+    customExerciseMediaObjectPaths(previousCustom, variationId).filter((path) => !keptPaths.has(path)),
+  )
+
+  await logAdminAudit(db, profile.id, {
+    action: "exercise.media_updated",
+    entityId: exercise.id,
+    entityLabel: exercise.exercise.name,
+    entityType: "exercise",
+    metadata: {
+      animationObjectPath: animation?.objectPath ?? null,
+      thumbnailObjectPath: thumbnail?.objectPath ?? null,
+      variationName: exercise.name,
+    },
+  })
+
+  return serializeExerciseSummary(exercise)
+}
+
+/** Drops uploaded media; the variation falls back to its synced media, if any. */
+async function removeAdminExerciseMedia(profile: SerializedProfile, variationId: string) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const existing = await findAdminExerciseVariation(db, variationId)
+  const previousCustom = readCustomExerciseMedia(existing.metadata)
+  if (!previousCustom) return serializeExerciseSummary(existing)
+
+  const { [CUSTOM_EXERCISE_MEDIA_METADATA_KEY]: _removedMedia, ...metadata } = toMetadataObject(existing.metadata)
+  const exercise = await db.variation.update({
+    data: { metadata },
+    include: ADMIN_VARIATION_INCLUDE,
+    where: { id: existing.id },
+  })
+  invalidateExerciseLibrary()
+
+  if (supabaseAdmin) {
+    await removeExerciseMediaObjects(
+      supabaseAdmin.storage.from(EXERCISE_MEDIA_BUCKET),
+      customExerciseMediaObjectPaths(previousCustom, variationId),
+    )
+  }
+
+  await logAdminAudit(db, profile.id, {
+    action: "exercise.media_removed",
+    entityId: exercise.id,
+    entityLabel: exercise.exercise.name,
+    entityType: "exercise",
+    metadata: { variationName: exercise.name },
+  })
+
+  return serializeExerciseSummary(exercise)
+}
+
 async function approveAdminMuscleProfiles(profile: SerializedProfile, variationIds: string[]) {
   assertAdmin(profile)
   const db = ensurePrisma()
@@ -2881,5 +3092,8 @@ export {
   reviewExerciseImportRequest,
   updateAdminCoachRequest,
   updateAdminExercise,
+  createAdminExerciseMediaUpload,
+  removeAdminExerciseMedia,
+  saveAdminExerciseMedia,
   updateAdminUser,
 }

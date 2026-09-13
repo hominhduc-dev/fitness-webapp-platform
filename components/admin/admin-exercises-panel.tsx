@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ArrowDownUp,
   ChevronDown,
@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react"
 
+import { ExerciseMediaEditor } from "@/components/admin/exercise-media-editor"
 import { Badge } from "@/components/ui/badge"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
@@ -30,7 +31,7 @@ import { Label } from "@/components/ui/label"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
-import type { AdminExerciseImportRequest, AdminExerciseItem } from "@/lib/admin/types"
+import type { AdminExerciseImportRequest, AdminExerciseItem, AdminExerciseMediaFiles } from "@/lib/admin/types"
 import type { ExerciseActivityType, MuscleSlug } from "@/lib/types"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
@@ -112,12 +113,14 @@ function getExercisePanelCopy(locale: "en" | "vi") {
 type ExerciseFormModalProps = {
   initial: AdminExerciseItem | null
   locale: "en" | "vi"
+  /** Media upload for the exercise being edited; it saves independently of the form. */
+  mediaEditor?: ReactNode
   saving: boolean
   onClose: () => void
   onSave: (data: FormData) => void
 }
 
-function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: ExerciseFormModalProps) {
+function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSave }: ExerciseFormModalProps) {
   const copy = getExercisePanelCopy(locale)
   const [name, setName] = useState(initial?.name ?? "")
   const [variationName, setVariation] = useState(initial?.variationName === "Default" ? "" : (initial?.variationName ?? ""))
@@ -186,6 +189,8 @@ function ExerciseFormModal({ initial, locale, saving, onClose, onSave }: Exercis
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {mediaEditor}
+
           {/* Name */}
           <div>
             <Label className="label-micro text-muted-foreground">{copy.exerciseName}</Label>
@@ -494,6 +499,9 @@ type ExerciseLibraryPanelProps = {
   importRequests?: AdminExerciseImportRequest[]
   locale: "en" | "vi"
   onSave: (data: ExerciseSaveData) => Promise<void>
+  /** Admin only: without both handlers the edit dialog has no media section. */
+  onSaveMedia?: (exerciseId: string, files: AdminExerciseMediaFiles) => Promise<void>
+  onRemoveMedia?: (exerciseId: string) => Promise<void>
   onDelete: (exercise: AdminExerciseItem) => Promise<void>
   onBulkDelete: (ids: string[]) => Promise<void>
   onBulkApprove?: (ids: string[]) => Promise<void>
@@ -511,6 +519,8 @@ export function ExerciseLibraryPanel({
   importRequests = [],
   locale,
   onSave,
+  onSaveMedia,
+  onRemoveMedia,
   onDelete,
   onBulkDelete,
   onBulkApprove,
@@ -532,6 +542,7 @@ export function ExerciseLibraryPanel({
   const [profileFilter, setProfileFilter] = useState<"all" | "pending" | "approved">("all")
   const [activityFilter, setActivityFilter] = useState<"all" | ExerciseActivityType>("all")
   const [maxConfidence, setMaxConfidence] = useState("")
+  const [mediaFilter, setMediaFilter] = useState<"all" | "missing" | "present">("all")
 
   function handleSearchChange(value: string) {
     setRawQ(value)
@@ -547,12 +558,18 @@ export function ExerciseLibraryPanel({
       if (!matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)) return false
       if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
       if (activityFilter !== "all" && e.activityType !== activityFilter) return false
+      if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return false
       const confidenceLimit = Number(maxConfidence)
       if (maxConfidence.trim() && Number.isFinite(confidenceLimit) && (e.muscleProfileConfidence ?? 0) > confidenceLimit) return false
       return true
     }),
-    [activityFilter, exercises, maxConfidence, profileFilter, q],
+    [activityFilter, exercises, maxConfidence, mediaFilter, profileFilter, q],
   )
+
+  // The dialog reads the latest list entry, so a media upload shows up without reopening it.
+  const editingExercise = typeof modal === "object" && modal !== null
+    ? exercises.find((exercise) => exercise.id === modal.id) ?? modal
+    : null
 
   const grouped = useMemo(() => {
     const map: Record<string, AdminExerciseItem[]> = {}
@@ -764,7 +781,7 @@ export function ExerciseLibraryPanel({
       )}
 
       {/* Search */}
-      <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px_140px]">
+      <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px_150px_140px]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
           <Input value={rawQ} onChange={(e) => handleSearchChange(e.target.value)} placeholder={copy.searchExercises} className="pl-9" />
@@ -777,6 +794,16 @@ export function ExerciseLibraryPanel({
         <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
           <option value="all">Activity: all</option>
           {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+        </select>
+        <select
+          aria-label="Media"
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          value={mediaFilter}
+          onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
+        >
+          <option value="all">{locale === "en" ? "Media: all" : "Media: tất cả"}</option>
+          <option value="missing">{locale === "en" ? "Missing media" : "Chưa có media"}</option>
+          <option value="present">{locale === "en" ? "Has media" : "Đã có media"}</option>
         </select>
         <Input type="number" min="0" max="1" step="0.01" value={maxConfidence} onChange={(event) => setMaxConfidence(event.target.value)} placeholder="Max confidence" />
       </div>
@@ -809,8 +836,16 @@ export function ExerciseLibraryPanel({
       {/* Modal */}
       {modal !== null && (
         <ExerciseFormModal
-          initial={modal === "new" ? null : modal}
+          initial={modal === "new" ? null : editingExercise}
           locale={locale}
+          mediaEditor={editingExercise && onSaveMedia && onRemoveMedia ? (
+            <ExerciseMediaEditor
+              exercise={editingExercise}
+              locale={locale}
+              onRemove={() => onRemoveMedia(editingExercise.id)}
+              onSave={(files) => onSaveMedia(editingExercise.id, files)}
+            />
+          ) : undefined}
           saving={isSaving}
           onClose={() => setModal(null)}
           onSave={handleSave}

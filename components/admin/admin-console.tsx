@@ -38,6 +38,7 @@ import type {
   AdminCoachRequest,
   AdminDashboardData,
   AdminExerciseItem,
+  AdminExerciseMediaFiles,
   AdminExerciseImportRow,
   ExerciseSyncPreview,
   ExerciseSyncRow,
@@ -475,6 +476,8 @@ export function AdminConsole() {
   const { mutateAsync: reviewAdminExerciseImportRequest } = queries.useReviewAdminExerciseImportRequest()
   const { mutateAsync: updateAdminCoachRequestStatus } = queries.useUpdateAdminCoachRequestStatus()
   const { mutateAsync: updateAdminExerciseRequest } = queries.useUpdateAdminExerciseRequest()
+  const { mutateAsync: saveAdminExerciseMedia } = queries.useSaveAdminExerciseMedia()
+  const { mutateAsync: removeAdminExerciseMediaRequest } = queries.useRemoveAdminExerciseMediaRequest()
   const { mutateAsync: updateAdminUserRequest } = queries.useUpdateAdminUserRequest()
   const [selectedRole, setSelectedRole] = useState<UserRole>("trainee")
   const [resetPassword, setResetPassword] = useState("")
@@ -928,6 +931,19 @@ export function AdminConsole() {
     } finally {
       setActionKey(null)
     }
+  }
+
+  // The media editor shows its own success/error inline, so these only rethrow.
+  async function handleSaveExerciseMedia(exerciseId: string, files: AdminExerciseMediaFiles) {
+    setError(null)
+    setNotice(null)
+    await saveAdminExerciseMedia([exerciseId, files])
+  }
+
+  async function handleRemoveExerciseMedia(exerciseId: string) {
+    setError(null)
+    setNotice(null)
+    await removeAdminExerciseMediaRequest([exerciseId])
   }
 
   async function handleDeleteExerciseDirect(exercise: AdminExerciseItem) {
@@ -2051,6 +2067,8 @@ export function AdminConsole() {
               importRequests={exerciseImportRequests}
               locale={locale}
               onSave={handleSaveExerciseData}
+              onSaveMedia={handleSaveExerciseMedia}
+              onRemoveMedia={handleRemoveExerciseMedia}
               onDelete={handleDeleteExerciseDirect}
               onBulkDelete={handleBulkDeleteExercises}
               onBulkApprove={handleBulkApproveProfiles}

@@ -12,6 +12,7 @@ import {
   assignAdminCoachToTrainee,
   bulkDeleteAdminExercises,
   createAdminExercise,
+  createAdminExerciseMediaUpload,
   approveAdminMuscleProfiles,
   deleteAdminCoachRequest,
   deleteAdminExercise,
@@ -29,12 +30,16 @@ import {
   listAdminUsers,
   previewExerciseSync,
   removeAdminCoachFromTrainee,
+  removeAdminExerciseMedia,
   resetAdminUserPassword,
   reviewExerciseImportRequest,
+  saveAdminExerciseMedia,
   updateAdminCoachRequest,
   updateAdminExercise,
   updateAdminUser,
 } from "../services/admin.service"
+import { validated } from "../middleware/validate"
+import { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema } from "./admin.schemas"
 import { getAccessToken, sendError } from "./route.utils"
 
 const adminRouter = Router()
@@ -378,6 +383,33 @@ adminRouter.patch("/exercises/:exerciseId", async (req, res) => {
     sendError(res, error)
   }
 })
+
+// Media files go from the browser straight to Storage through a signed upload
+// URL, so large animations never pass through the API's JSON body limit. The
+// save call then verifies each uploaded object before pointing the variation at it.
+adminRouter.post(
+  "/exercises/:exerciseId/media/upload-url",
+  validated({ body: exerciseMediaUploadSchema, params: exerciseIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.status(201).json({ upload: await createAdminExerciseMediaUpload(profile, req.params.exerciseId, req.body) })
+  }),
+)
+
+adminRouter.put(
+  "/exercises/:exerciseId/media",
+  validated({ body: saveExerciseMediaSchema, params: exerciseIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ exercise: await saveAdminExerciseMedia(profile, req.params.exerciseId, req.body) })
+  }),
+)
+
+adminRouter.delete(
+  "/exercises/:exerciseId/media",
+  validated({ params: exerciseIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ exercise: await removeAdminExerciseMedia(profile, req.params.exerciseId) })
+  }),
+)
 
 adminRouter.post("/exercises/sync-preview", async (req, res) => {
   try {
