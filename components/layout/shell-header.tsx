@@ -141,7 +141,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <Fragment>
-      <div className="mobile-liquid-glass-root fixed bottom-[calc(0.5rem+env(safe-area-inset-bottom))] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
+      <div className="mobile-liquid-glass-root fixed bottom-[var(--mobile-nav-offset)] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
         <nav ref={mobileNavRef} className="mobile-floating-nav glass-surface relative grid w-full grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
           {primaryItems.map((item) => {
@@ -170,7 +170,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40 bg-background/45 backdrop-blur-[2px]"
           />
-          <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 max-h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] overflow-y-auto rounded-3xl border border-border bg-background p-2.5 shadow-2xl">
+          <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(var(--mobile-nav-offset)+5.25rem)] left-3 right-3 z-50 max-h-[calc(100dvh-var(--mobile-nav-offset)-8.25rem)] overflow-y-auto rounded-3xl border border-border bg-background p-2.5 shadow-2xl">
             <div className="mb-2 flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2"><Dumbbell className="h-4 w-4" /><span className="font-semibold">YeahBuddy</span>{badge ? <span className="label-micro">{badge}</span> : null}</div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
