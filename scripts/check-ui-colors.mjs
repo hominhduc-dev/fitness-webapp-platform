@@ -14,7 +14,7 @@ const allowedFiles = new Set([
 const allowedLiterals = new Map([
   ["app/layout.tsx", new Set(["#080a0f", "#e8ecf3"])],
   ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#e8ecf3"])],
-  ["components/auth/auth-modal.tsx", new Set(["#4285f4", "#34a853", "#fbbc05", "#ea4335"])],
+  ["components/ui/brand-icons.tsx", new Set(["#4285f4", "#34a853", "#fbbc05", "#ea4335"])],
 ])
 
 const literalColorPattern = /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab)\s*\(\s*(?:[.\d+-]|var\()/g
