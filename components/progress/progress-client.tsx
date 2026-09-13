@@ -3,7 +3,6 @@
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
-import dynamic from "next/dynamic"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -14,13 +13,12 @@ import { useWorkouts } from "@/lib/queries/workouts"
 import type { WorkoutCollection } from "@/lib/fitness/types"
 import {
   useDashboardAnalytics,
-  useProgressAnalytics,
   useProgressCalendar,
   useProgressYearView,
   useWorkoutLogDetail,
 } from "@/lib/queries/progress"
+
 import type {
-  ProgressAnalytics,
   ProgressCalendar,
   ProgressCalendarLogStub,
   ProgressYearView,
@@ -30,25 +28,9 @@ import type { WorkoutLog } from "@/lib/types"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { cn } from "@/lib/utils"
 
-const StrengthChart = dynamic(
-  () => import("@/components/progress/strength-chart").then((mod) => mod.StrengthChart),
-  {
-    loading: () => <div className="min-h-[14rem] rounded-lg border border-border bg-card" />,
-    ssr: false,
-  },
-)
-
 // ---------------------------------------------------------------------------
 // Constants & helpers
 // ---------------------------------------------------------------------------
-
-const EMPTY_ANALYTICS: ProgressAnalytics = {
-  muscleGroupDistribution: [],
-  personalRecords: [],
-  strengthProgression: { points: [], series: [] },
-  summary: { bestStreakDays: 0, currentStreakDays: 0, totalVolumeThisMonth: 0, workoutsThisMonth: 0 },
-  weeklyVolume: [],
-}
 
 type WorkoutKind = "all" | "push" | "pull" | "legs"
 type Tab = "history" | "year" | "prs"
@@ -119,23 +101,6 @@ function Chip({
     >
       {children}
     </button>
-  )
-}
-
-function Sparkline({ data, width = 220, height = 56 }: { data: number[]; width?: number; height?: number }) {
-  if (!data || data.length < 2) return null
-  const min = Math.min(...data)
-  const max = Math.max(...data)
-  const range = max - min || 1
-  const stepX = width / (data.length - 1)
-  const pts = data.map((v, i) => [i * stepX, height - ((v - min) / range) * (height - 8) - 4])
-  const d = pts.map(([x, y], i) => (i === 0 ? `M${x},${y}` : `L${x},${y}`)).join(" ")
-  const [lx, ly] = pts[pts.length - 1]
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden className="block w-full" preserveAspectRatio="none">
-      <path d={d} fill="none" stroke="var(--chart-1)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={lx} cy={ly} r="3" fill="var(--chart-1)" />
-    </svg>
   )
 }
 
@@ -770,53 +735,8 @@ function YearView({
 }
 
 // ---------------------------------------------------------------------------
-// PR card + strength chart (unchanged from original)
+// Page Component
 // ---------------------------------------------------------------------------
-
-function PrCard({
-  record,
-  weightUnitLabel,
-}: {
-  record: ProgressAnalytics["personalRecords"][number]
-  weightUnitLabel: string
-}) {
-  const { locale, messages } = useLocale()
-  const sparkData = [
-    record.weight * 0.88,
-    record.weight * 0.92,
-    record.weight * 0.95,
-    record.weight * 0.97,
-    record.weight,
-  ]
-
-  return (
-    <div className="flex flex-col gap-3.5 rounded-lg border border-border bg-card p-5">
-      <div className="flex items-center justify-between">
-        <span className="label-micro">{record.exercise}</span>
-        <span className="rounded-full bg-[var(--secondary)] px-2 py-0.5 font-mono text-micro font-medium text-[var(--accent-foreground)]">
-          PR
-        </span>
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span className="font-mono text-4xl font-semibold leading-none tnum text-foreground">
-          {record.weight}
-        </span>
-        <span className="text-sm text-muted-foreground">{weightUnitLabel}</span>
-      </div>
-      <div className="flex items-center gap-3 font-mono text-micro tnum">
-        <span className="text-[var(--success)]">↑ {messages.workoutPage.set} {formatShortDate(record.date, locale)}</span>
-      </div>
-      <div className="mt-1">
-        <Sparkline data={sparkData} height={48} />
-      </div>
-      <div className="label-micro flex justify-between">
-        <span>{messages.progressPage.earlier}</span>
-        <span>{messages.progressPage.now}</span>
-      </div>
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Skeleton
 // ---------------------------------------------------------------------------
@@ -903,8 +823,8 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
     return { start, end }
   })
 
-  const weightUnitLabel = initialData.weightUnitLabel
   const token = session?.access_token
+
 
   const isSeedMonth = viewYear === initialData.viewYear && viewMonth === initialData.viewMonth
   const calendarQuery = useProgressCalendar(viewYear, viewMonth, {

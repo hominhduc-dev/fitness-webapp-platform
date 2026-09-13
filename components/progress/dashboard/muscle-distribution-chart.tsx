@@ -30,9 +30,10 @@ export function MuscleDistributionChart({ data }: Props) {
               ))}
             </Pie>
             <Tooltip 
-              formatter={(value: number, name: string, props: any) => [`${props.payload.volume.toLocaleString()} kg`, name]}
+              formatter={(value: number, name: string, props: { payload: { volume: number } }) => [`${props.payload.volume.toLocaleString()} kg`, name]}
               contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)" }}
             />
+
           </PieChart>
         </ResponsiveContainer>
       </div>
