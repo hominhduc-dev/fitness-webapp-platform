@@ -941,6 +941,9 @@ export function AdminConsole() {
   async function handleSaveExerciseMedia(exerciseId: string, files: AdminExerciseMediaFiles) {
     setError(null)
     await saveAdminExerciseMedia([exerciseId, files])
+    // The media editor lives inside the exercise dialog. Refresh the active
+    // list explicitly so the newly stored URLs replace the stale row immediately.
+    await exercisesQuery.refetch()
   }
 
   async function handleRemoveExerciseMedia(exerciseId: string) {
