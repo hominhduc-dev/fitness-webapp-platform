@@ -1,4 +1,5 @@
 "use client"
+import { CirclePlus, ExternalLink, File, Folder, Link2, Sheet } from "lucide-react"
 import { useCoachMutation } from "@/lib/queries/coach-data"
 import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -6,8 +7,12 @@ import { userQueryKey } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { GoogleIcon } from "@/components/ui/brand-icons"
 import { Button } from "@/components/ui/button"
+import { DisclosureCard } from "@/components/ui/disclosure-card"
+import { IconTile } from "@/components/ui/icon-tile"
 import { Input } from "@/components/ui/input"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/providers/toast-provider"
@@ -39,6 +44,7 @@ export function GoogleProgramSource({ connection, onConnection, onImport }: {
   const [createdUrl, setCreatedUrl] = useState("")
   const [folder, setFolder] = useState("")
   const [templateName, setTemplateName] = useState("")
+  const [existingOpen, setExistingOpen] = useState(false)
 
   async function run(action: () => Promise<void>) {
     setPending(true); setError("")
@@ -62,6 +68,8 @@ export function GoogleProgramSource({ connection, onConnection, onImport }: {
       }])
       setCreatedUrl(created.spreadsheetUrl)
       setLink(created.spreadsheetUrl); setSheets([]); setSheet("")
+      // The new link lands in the "existing file" section, so open it.
+      setExistingOpen(true)
       toast({
         description: created.folderName ? text.savedTo(created.folderName) : created.title,
         title: text.createSucceeded,
@@ -78,91 +86,98 @@ export function GoogleProgramSource({ connection, onConnection, onImport }: {
     }
   }
 
-  const sectionClass = "rounded-xl border border-border bg-background/60 p-3.5"
-  const headingClass = "text-sm font-semibold leading-5 text-foreground"
-  const hintClass = "text-xs leading-relaxed text-muted-foreground"
+  if (!connection.connected) {
+    return <div className="space-y-3">
+      <div className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:p-4">
+        <IconTile size="lg" tone="surface"><GoogleIcon /></IconTile>
+        <p className="min-w-0 flex-1 text-sm leading-6 text-muted-foreground">{text.connectHelp}</p>
+        <Button className="shrink-0" disabled={pending} onClick={() => void run(async () => { window.location.assign((await authorize.mutateAsync([])).url) })}>{text.connect}</Button>
+      </div>
+      {error ? <Alert role="alert" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
+    </div>
+  }
 
   return <div className="space-y-3">
-    {connection.connected ? <>
-      {/* Account, and the way out of it, on one line instead of stacked. */}
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-subtle px-3 py-2">
-        <div className="min-w-0">
-          <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{text.account}</p>
-          <p className="truncate text-sm font-medium text-foreground">{connection.email ?? "Google"}</p>
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 sm:gap-4 sm:p-4">
+      <IconTile size="lg" tone="surface"><GoogleIcon /></IconTile>
+      <div className="min-w-0 flex-1">
+        <p className="label-micro">{text.account}</p>
+        <p className="truncate text-sm font-semibold text-foreground sm:text-base">{connection.email ?? "Google"}</p>
+      </div>
+      <Button size="sm" variant="secondary" className="shrink-0" disabled={pending} onClick={() => void run(async () => { await disconnect.mutateAsync([]); onConnection({ ...connection, connected: false, email: null }) })}>{text.disconnect}</Button>
+    </div>
+
+    {/* Path one: start from a template the app builds. */}
+    <DisclosureCard
+      defaultOpen
+      icon={<IconTile size="lg" tone="primary"><CirclePlus /></IconTile>}
+      title={text.createTitle}
+      description={text.createTemplateHelp}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="google-template-name">{text.templateName}</Label>
+          <InputWithIcon id="google-template-name" icon={<File />} value={templateName} disabled={pending} placeholder={text.templateNamePlaceholder} onChange={(event) => setTemplateName(event.target.value)} />
         </div>
-        <Button size="sm" variant="outline" className="h-8 shrink-0 bg-transparent px-3" disabled={pending} onClick={() => void run(async () => { await disconnect.mutateAsync([]); onConnection({ ...connection, connected: false, email: null }) })}>{text.disconnect}</Button>
+        <div className="space-y-1.5">
+          <Label htmlFor="google-template-folder">{text.folder}</Label>
+          <InputWithIcon id="google-template-folder" icon={<Folder />} value={folder} disabled={pending} placeholder={text.folderPlaceholder} aria-describedby="google-template-folder-help" onChange={(event) => setFolder(event.target.value)} />
+        </div>
       </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* Path one: start from a template the app builds. */}
-        <section className={sectionClass}>
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className={headingClass}>{text.createTitle}</h3>
-              <p className={`mt-0.5 line-clamp-2 ${hintClass}`}>{text.createTemplateHelp}</p>
-            </div>
-            {createdUrl ? <a className="shrink-0 text-xs font-medium text-primary underline" href={createdUrl} rel="noreferrer" target="_blank">{text.openTemplate}</a> : null}
-          </div>
-
-          <div className="grid gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="google-template-name" className="text-xs">{text.templateName}</Label>
-              <Input id="google-template-name" className="h-9" value={templateName} disabled={pending} placeholder={text.templateNamePlaceholder} onChange={(event) => setTemplateName(event.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="google-template-folder" className="text-xs">{text.folder}</Label>
-              <Input id="google-template-folder" className="h-9" value={folder} disabled={pending} placeholder={text.folderPlaceholder} onChange={(event) => setFolder(event.target.value)} />
-            </div>
-            <p className={`line-clamp-2 ${hintClass}`}>{text.folderHelp}</p>
-            <Button className="mt-1 w-full sm:w-fit" size="sm" variant="outline" disabled={pending} onClick={() => void handleCreateTemplate()}>{text.createTemplate}</Button>
-          </div>
-        </section>
-
-        {/* Path two: a spreadsheet that already exists. */}
-        <section className={sectionClass}>
-          <div className="mb-3">
-            <h3 className={headingClass}>{text.useExistingTitle}</h3>
-            <p className={`mt-0.5 ${hintClass}`}>{text.templateHelp}</p>
-          </div>
-
-          <div className="space-y-2.5">
-            <div className="space-y-1">
-              <Label htmlFor="google-sheet-link" className="text-xs">{text.link}</Label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input id="google-sheet-link" className="h-9 sm:flex-1" value={link} disabled={pending} onChange={(event) => { setLink(event.target.value); setSheets([]); setSheet("") }} />
-                <Button size="sm" className="shrink-0" disabled={pending || !link.trim()} onClick={() => void run(async () => {
-                  const result = await client.fetchQuery({ queryKey: userQueryKey(["coach", "google-spreadsheet", link.trim()], profile?.id), queryFn: async () => fetchGoogleSpreadsheet(await requireAccessToken(), link.trim()), staleTime: 30_000 })
-                  setSheets(result.sheets); setSheet(result.sheets.find((name) => /^week\s*1$/i.test(name)) ?? result.sheets[0] ?? ""); setTitle(result.title)
-                })}>{text.load}</Button>
-              </div>
-            </div>
-
-            {sheets.length > 0 ? <>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_96px]">
-                <div className="space-y-1">
-                  <Label htmlFor="google-week-sheet" className="text-xs">{text.sheet}</Label>
-                  <Select value={sheet} disabled={pending} onValueChange={setSheet}>
-                    <SelectTrigger id="google-week-sheet" className="h-9 w-full">
-                      <SelectValue placeholder={text.sheet} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sheets.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="google-program-weeks" className="text-xs">{text.weeks}</Label>
-                  <Input id="google-program-weeks" className="h-9" type="number" min={1} max={52} value={weeks} onChange={(event) => setWeeks(Number(event.target.value))} />
-                </div>
-              </div>
-              <Button size="sm" className="w-full sm:w-auto" disabled={pending || !sheet || !Number.isInteger(weeks) || weeks < 1 || weeks > 52} onClick={() => void run(async () => onImport(await preview.mutateAsync([link, sheet]), title, weeks))}>{text.read}</Button>
-            </> : null}
-          </div>
-        </section>
+      <p id="google-template-folder-help" className="mt-2 text-xs leading-5 text-muted-foreground">{text.folderHelp}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Button disabled={pending} onClick={() => void handleCreateTemplate()}><Sheet />{text.createTemplate}</Button>
+        {createdUrl ? <a className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline" href={createdUrl} rel="noreferrer" target="_blank">{text.openTemplate}<ExternalLink aria-hidden="true" className="size-4" /></a> : null}
       </div>
-    </> : <Button disabled={pending} onClick={() => void run(async () => { window.location.assign((await authorize.mutateAsync([])).url) })}>{text.connect}</Button>}
+    </DisclosureCard>
+
+    {/* Path two: a spreadsheet that already exists. */}
+    <DisclosureCard
+      open={existingOpen}
+      onOpenChange={setExistingOpen}
+      icon={<IconTile size="lg"><Link2 /></IconTile>}
+      title={text.useExistingTitle}
+      description={text.useExistingHelp}
+    >
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="google-sheet-link">{text.link}</Label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="sm:flex-1">
+              <InputWithIcon id="google-sheet-link" icon={<Link2 />} value={link} disabled={pending} placeholder="https://docs.google.com/spreadsheets/..." onChange={(event) => { setLink(event.target.value); setSheets([]); setSheet("") }} />
+            </div>
+            <Button variant="outline" className="shrink-0" disabled={pending || !link.trim()} onClick={() => void run(async () => {
+              const result = await client.fetchQuery({ queryKey: userQueryKey(["coach", "google-spreadsheet", link.trim()], profile?.id), queryFn: async () => fetchGoogleSpreadsheet(await requireAccessToken(), link.trim()), staleTime: 30_000 })
+              setSheets(result.sheets); setSheet(result.sheets.find((name) => /^week\s*1$/i.test(name)) ?? result.sheets[0] ?? ""); setTitle(result.title)
+            })}>{text.load}</Button>
+          </div>
+        </div>
+
+        {sheets.length > 0 ? <>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+            <div className="space-y-1.5">
+              <Label htmlFor="google-week-sheet">{text.sheet}</Label>
+              <Select value={sheet} disabled={pending} onValueChange={setSheet}>
+                <SelectTrigger id="google-week-sheet" className="w-full">
+                  <SelectValue placeholder={text.sheet} />
+                </SelectTrigger>
+                <SelectContent className="z-[100]">
+                  {sheets.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="google-program-weeks">{text.weeks}</Label>
+              <Input id="google-program-weeks" className="tnum" type="number" min={1} max={52} value={weeks} onChange={(event) => setWeeks(Number(event.target.value))} />
+            </div>
+          </div>
+          <Button className="w-full sm:w-auto" disabled={pending || !sheet || !Number.isInteger(weeks) || weeks < 1 || weeks > 52} onClick={() => void run(async () => onImport(await preview.mutateAsync([link, sheet]), title, weeks))}>{text.read}</Button>
+        </> : null}
+
+        <p className="text-xs leading-5 text-muted-foreground">{text.templateHelp}</p>
+      </div>
+    </DisclosureCard>
 
     {error ? <Alert role="alert" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-
   </div>
 }

@@ -21,7 +21,7 @@ describe("Google program import UI", () => {
     api.connection.mockResolvedValue({ configured: false, connected: false, email: null })
     render(<ImportProgramDialog open token="test" exerciseOptions={[]} trainees={[]} onClose={vi.fn()} onImported={vi.fn()} />)
     await waitFor(() => expect(api.connection).toHaveBeenCalled())
-    expect(screen.queryByRole("button", { name: "Google Sheets" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("tab", { name: "Google Sheets" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Connect Google" })).not.toBeInTheDocument()
   })
   it("loads sheets and passes selected template plus weeks to the shared preview", async () => {
@@ -30,6 +30,9 @@ describe("Google program import UI", () => {
     api.spreadsheet.mockResolvedValue({ spreadsheetId: "id", title: "Training", sheets: ["Exercise Table", "Week 1"] })
     api.import.mockResolvedValue(result)
     render(<GoogleProgramSource token="test" connection={{ configured: true, connected: true, email: "coach@example.invalid" }} onConnection={vi.fn()} onImport={onImport} />)
+    // The existing-file path starts collapsed behind its disclosure header.
+    expect(screen.queryByLabelText("Spreadsheet link")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Or use an existing file/ }))
     fireEvent.change(screen.getByLabelText("Spreadsheet link"), { target: { value: "sheet-link" } })
     fireEvent.click(screen.getByRole("button", { name: "Load sheets" }))
     await screen.findByLabelText("Template week sheet")
