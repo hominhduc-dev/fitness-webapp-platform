@@ -246,7 +246,7 @@ function MealSection({
           </div>
           <span className="font-mono text-sm text-muted-foreground tnum">{Math.round(item.calories)}</span>
           <button
-            className="rounded p-1 text-ink-200 transition-colors hover:text-destructive-text"
+            className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded text-ink-200 transition-colors hover:text-destructive-text pointer-coarse:size-11"
             disabled={isSubmitting}
             title={deleteLabel}
             type="button"
@@ -338,7 +338,7 @@ function CreateFoodForm({
 
   return (
     <>
-      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-5">
         <div>
           <p className="label-micro mb-1.5">{labels.foodLibrary}</p>
           <h2 className="text-lg font-semibold text-foreground">{labels.createFoodTitle}</h2>
@@ -348,7 +348,7 @@ function CreateFoodForm({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
         <div>
           <p className="label-micro mb-1.5">{labels.foodName}</p>
           <Input value={name} placeholder={labels.foodNamePlaceholder} onChange={(event) => setName(event.target.value)} />
@@ -402,7 +402,7 @@ function CreateFoodForm({
         </div>
       </div>
 
-      <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
+      <div className="flex shrink-0 justify-end gap-2 border-t border-border px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:pb-4">
         <Button type="button" variant="ghost" onClick={onCancel}>
           {labels.cancel}
         </Button>
@@ -519,7 +519,7 @@ function AddFoodModal({
       onClick={onClose}
     >
       <div
-        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-full border border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-3xl"
+        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px]"
         onClick={(event) => event.stopPropagation()}
       >
         {creating ? (
@@ -652,7 +652,7 @@ function AddFoodModal({
 
             {selectedFood ? (
               <div className="meal-food-sheet__chrome flex shrink-0 flex-wrap items-center gap-3 border-t border-border/70 bg-card/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:px-5 sm:pb-4">
-                <div className="min-w-[130px] flex-1">
+                <div className="w-full sm:w-auto sm:min-w-[130px] sm:flex-1">
                   <p className="text-sm font-semibold text-foreground">{selectedFood.name}</p>
                   <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">
                     {Math.round(selectedFood.calories * multiplier)} kcal · P{Math.round(selectedFood.protein * multiplier)} C
@@ -671,7 +671,7 @@ function AddFoodModal({
                   </Button>
                   <div className="relative">
                     <Input
-                      className="h-[30px] w-[76px] pr-8 text-right font-mono text-sm tnum"
+                      className="h-[30px] w-24 pr-8 text-right font-mono tnum sm:w-[76px]"
                       inputMode="decimal"
                       type="number"
                       value={amountValue}
@@ -691,7 +691,7 @@ function AddFoodModal({
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <Button className="h-10 rounded-full px-5" disabled={submitting || amountValue <= 0} type="button" onClick={() => onAdd({ amountUnit, amountValue, food: selectedFood })}>
+                <Button className="h-10 flex-1 rounded-full px-5 sm:flex-none" disabled={submitting || amountValue <= 0} type="button" onClick={() => onAdd({ amountUnit, amountValue, food: selectedFood })}>
                   <Check className="h-4 w-4" />
                   {labels.addFoodItem}
                 </Button>
