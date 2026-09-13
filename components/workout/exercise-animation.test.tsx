@@ -44,11 +44,11 @@ describe("ExerciseAnimation", () => {
     vi.restoreAllMocks()
   })
 
-  it("autoplays the GIF and shows attribution when motion is allowed", () => {
+  it("autoplays the GIF without an attribution link when motion is allowed", () => {
     mockReducedMotion(false)
     render(<ExerciseAnimation exerciseName="Row" media={media} />)
     expect(screen.getByRole("img")).toHaveAttribute("src", media.animationUrl)
-    expect(screen.getByRole("link", { name: "© Gym visual" })).toBeVisible()
+    expect(screen.queryByRole("link")).not.toBeInTheDocument()
   })
 
   it("keeps the thumbnail for reduced motion until explicit playback", () => {

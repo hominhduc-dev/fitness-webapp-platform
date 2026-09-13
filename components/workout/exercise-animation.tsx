@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
 import type { ExerciseMedia } from "@/lib/types"
 
-const GYM_VISUAL_URL = "https://gymvisual.com/"
-
 interface ExerciseAnimationProps {
   exerciseName: string
   media: ExerciseMedia
@@ -92,19 +90,9 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
             {messages.workoutPage.playExerciseAnimation}
           </Button>
         ) : null}
-        <figcaption className="mt-2 text-xs text-muted-foreground">
-          <a
-            className="underline underline-offset-2 hover:text-foreground"
-            href={GYM_VISUAL_URL}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            © Gym visual
-          </a>
-        </figcaption>
       </div>
     </figure>
   )
 }
 
-export { ExerciseAnimation, GYM_VISUAL_URL }
+export { ExerciseAnimation }
