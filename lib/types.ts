@@ -88,6 +88,7 @@ export interface ExerciseVariationOption extends ExerciseMuscleProfile {
   muscleGroup: string
   equipment?: string
   isDefault: boolean
+  media?: ExerciseMedia
   metadata?: Record<string, unknown>
   sortOrder: number
   canManage?: boolean

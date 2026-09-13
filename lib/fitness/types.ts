@@ -390,6 +390,8 @@ type CoachExercise = ExerciseMuscleProfile & {
   createdByName?: string
   equipment?: string
   id: string
+  /** Media of the default variation, when it has any. */
+  media?: import("@/lib/types").ExerciseMedia
   muscleGroup: string
   name: string
   source: ExerciseSource

@@ -607,6 +607,7 @@ function serializeVariationOption(
       variation.metadata && typeof variation.metadata === "object" && !Array.isArray(variation.metadata)
         ? (variation.metadata as Record<string, unknown>)
         : undefined,
+    media: serializeExerciseMedia(variation.metadata),
     muscleGroup: variation.exercise.muscleGroup,
     name: displayName,
     source: visibility.source,
@@ -2048,6 +2049,8 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
     createdByName: exercise.createdBy?.name ?? undefined,
     equipment: defaultVariation?.equipment ?? undefined,
     id: exercise.id,
+    // The library row shows the default variation, so its media stands in for the exercise.
+    media: defaultVariation ? serializeExerciseMedia(defaultVariation.metadata) : undefined,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
     source: visibility.source,

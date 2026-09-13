@@ -104,6 +104,7 @@ function mapCoachExerciseToPanelItem(exercise: CoachExercise): AdminExerciseItem
     equipment: exercise.equipment,
     id: exercise.id,
     isDefault: exercise.variationName === "Default",
+    media: exercise.media,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
     updatedAt: exercise.updatedAt,
