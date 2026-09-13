@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto"
 
 import {
   buildApprovedMuscleProfileData,
+  buildApprovedMuscleProfileUpdate,
   buildMuscleTargetRows,
   muscleProfileInputSchema,
   parseMuscleListValue,
