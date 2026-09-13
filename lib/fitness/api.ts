@@ -40,6 +40,7 @@ import type {
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
+  DashboardAnalytics,
   NotionProgramImportResponse,
   NotionProgramTemplate,
   NotificationList,
@@ -1208,6 +1209,20 @@ async function fetchProgressAnalytics(accessToken: string): Promise<ProgressAnal
   return mapProgressAnalytics(response.analytics)
 }
 
+async function fetchDashboardAnalytics(
+  accessToken: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<DashboardAnalytics> {
+  const searchParams = new URLSearchParams({
+    endDate: endDate.toISOString().slice(0, 10),
+    startDate: startDate.toISOString().slice(0, 10),
+  })
+  const response = await request<{ data: DashboardAnalytics }>(`/api/progress/dashboard?${searchParams.toString()}`, accessToken)
+  return response.data
+}
+
+
 async function fetchProgressCalendar(
   accessToken: string,
   year: number,
@@ -2253,6 +2268,7 @@ export {
   exportWorkoutLogsToGoogleSheets,
   fetchFoods,
   fetchCoachExercises,
+  fetchDashboardAnalytics,
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,

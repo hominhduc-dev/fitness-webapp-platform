@@ -8,6 +8,7 @@ import { requireAccessToken } from "@/lib/queries/token"
 import type { BodyMetricQueryOptions } from "@/lib/queries/types"
 import {
   createWeightEntry,
+  fetchDashboardAnalytics,
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,
@@ -62,6 +63,19 @@ export function useProgressAnalytics(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.progress.analytics(),
     queryFn: async () => fetchProgressAnalytics(await requireAccessToken()),
+    enabled: options?.enabled ?? true,
+    staleTime: PROGRESS_STALE_TIME_MS,
+  })
+}
+
+export function useDashboardAnalytics(
+  startDate: Date,
+  endDate: Date,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.progress.dashboard(startDate, endDate),
+    queryFn: async () => fetchDashboardAnalytics(await requireAccessToken(), startDate, endDate),
     enabled: options?.enabled ?? true,
     staleTime: PROGRESS_STALE_TIME_MS,
   })

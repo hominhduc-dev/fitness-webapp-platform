@@ -220,6 +220,64 @@ type ProgressPersonalRecord = {
   weight: number
 }
 
+type DashboardAnalyticsSummary = {
+  avgDurationMins: number
+  completedDelta: number
+  completedWorkouts: number
+  completionRate: number
+  e1rmChangePct: number
+  e1rmChangeTotalKg: number
+  latestPR: { deltaKg: number; exerciseName: string } | null
+  newPRsCount: number
+  planAdherencePct: number
+  plannedWorkouts: number
+  sessionsPerWeek: number
+  totalVolume: number
+  trainingDays: number
+  volumeDeltaPct: number
+}
+
+type DashboardWorkoutFrequencyPoint = {
+  completed: number
+  label: string
+  planned: number
+}
+
+type DashboardBodyProgress = {
+  bodyFat: Array<{ date: string; value: number }>
+  measurements: {
+    arm: Array<{ date: string; value: number }>
+    chest: Array<{ date: string; value: number }>
+    hips: Array<{ date: string; value: number }>
+    thigh: Array<{ date: string; value: number }>
+    waist: Array<{ date: string; value: number }>
+  }
+  weight: Array<{ date: string; value: number }>
+}
+
+type DashboardAnalytics = {
+  bodyProgress: DashboardBodyProgress
+  muscleGroupDistribution: {
+    groups: Array<{ fill: string; name: string; value: number; volume: number }>
+    totalVolume: number
+  }
+  recentPRs: Array<{
+    date: string
+    delta: number
+    exerciseName: string
+    type: "weight" | "e1rm"
+    unit: string
+    value: number
+  }>
+  strengthProgress: {
+    points: Array<{ label: string; values: Record<string, number | null> }>
+    series: Array<{ color: string; exerciseName: string; key: string }>
+  }
+  summary: DashboardAnalyticsSummary
+  trainingVolume: Array<{ label: string; volume: number }>
+  workoutFrequency: DashboardWorkoutFrequencyPoint[]
+}
+
 type ProgressAnalytics = {
   muscleGroupDistribution: ProgressMuscleGroupPoint[]
   personalRecords: ProgressPersonalRecord[]
@@ -505,6 +563,10 @@ export type {
   CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
+  DashboardAnalytics,
+  DashboardAnalyticsSummary,
+  DashboardBodyProgress,
+  DashboardWorkoutFrequencyPoint,
   DiscoverableCoach,
   MealHistoryPage,
   MealCollection,

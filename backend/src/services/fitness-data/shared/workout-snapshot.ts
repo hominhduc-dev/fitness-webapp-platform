@@ -1,5 +1,7 @@
 import type { Prisma } from "@prisma/client"
 
+import { getBestE1RMFromSets } from "./e1rm"
+
 /**
  * Readers for the exercise snapshot stored on every `WorkoutLog`.
  *
@@ -107,9 +109,35 @@ function getSnapshotMaxWeight(exercise: WorkoutLogSnapshotExercise) {
   return maxWeight
 }
 
+/** Best estimated 1-rep max across all completed sets in this exercise. */
+function getSnapshotMaxE1RM(exercise: WorkoutLogSnapshotExercise) {
+  return getBestE1RMFromSets(exercise.sets ?? [])
+}
+
+/** Total volume (weight × reps) for all completed sets in this exercise. */
+function getSnapshotExerciseVolume(exercise: WorkoutLogSnapshotExercise) {
+  let volume = 0
+
+  for (const set of exercise.sets ?? []) {
+    if (set?.completed === false) continue
+
+    const weight = toFiniteNumber(set?.weight)
+    if (weight == null || weight <= 0) continue
+
+    const reps = toFiniteNumber(set?.actualReps) ?? toFiniteNumber(set?.targetReps) ?? 0
+    if (reps <= 0) continue
+
+    volume += weight * reps
+  }
+
+  return volume
+}
+
 export {
   getSnapshotExerciseId,
   getSnapshotExerciseName,
+  getSnapshotExerciseVolume,
+  getSnapshotMaxE1RM,
   getSnapshotMaxWeight,
   getSnapshotMuscleGroup,
   getSnapshotVariationId,
@@ -117,3 +145,4 @@ export {
   toFiniteNumber,
 }
 export type { WorkoutLogSnapshotExercise, WorkoutLogSnapshotSet }
+
