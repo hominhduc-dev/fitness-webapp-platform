@@ -914,6 +914,7 @@ export function AdminConsole() {
       const { mediaFiles, ...exerciseData } = data
       if (data.id) {
         await updateAdminExerciseRequest([data.id, exerciseData])
+        await exercisesQuery.refetch()
 
         showSuccess(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
       } else {
