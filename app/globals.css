@@ -20,9 +20,9 @@
   --brand-accent:        #3b82f6;
 
   /* ── Neutral ramp ──────────────────────────────────────────────────────── */
-  --ink-0:   #f4f7fb;    /* page background */
+  --ink-0:   #e8ecf3;    /* page background */
   --ink-50:  #ffffff;    /* card / raised surface */
-  --ink-100: #e7eaf0;    /* subtle border */
+  --ink-100: #dde3ec;    /* subtle border */
   --ink-150: #d8dde6;    /* default divider / input */
   --ink-200: #c8cfda;    /* strong divider / disabled background */
   --ink-400: #6b6b6b;    /* muted text */
@@ -77,7 +77,7 @@
   --popover-foreground: var(--ink-800);
 
   --muted: var(--surface-subtle);
-  --muted-foreground: #667085;
+  --muted-foreground: #606a7e;
 
   --text-primary: var(--ink-800);
   --text-secondary: var(--ink-600);
