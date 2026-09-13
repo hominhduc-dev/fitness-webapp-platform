@@ -85,6 +85,8 @@ export const queryKeys = {
   progress: {
     all: ["progress"] as const,
     analytics: () => ["progress", "analytics"] as const,
+    dashboard: (startDate: Date, endDate: Date) =>
+      ["progress", "dashboard", startDate.toISOString(), endDate.toISOString()] as const,
     calendar: (year: number, month: number, options?: { summaryOnly?: boolean }) =>
       ["progress", "calendar", year, month, { summaryOnly: options?.summaryOnly ?? false }] as const,
     yearView: (year: number) => ["progress", "year-view", year] as const,

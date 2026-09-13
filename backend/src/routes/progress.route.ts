@@ -4,6 +4,7 @@ import { requireCurrentProfile } from "../services/auth.service"
 import {
   createBodyMetricForCurrentTrainee,
   getCalendarForTrainee,
+  getDashboardAnalyticsForTrainee,
   getProgressAnalyticsForCurrentTrainee,
   getWorkoutLogDetailForTrainee,
   getYearViewForTrainee,
@@ -21,6 +22,38 @@ progressRouter.get("/analytics", async (req, res) => {
     res.json({
       analytics,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+progressRouter.get("/dashboard", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+
+    const startDateStr = typeof req.query.startDate === "string" ? req.query.startDate.trim() : ""
+    const endDateStr = typeof req.query.endDate === "string" ? req.query.endDate.trim() : ""
+
+    if (!startDateStr || !endDateStr) {
+      res.status(400).json({ error: "startDate and endDate are required (YYYY-MM-DD)." })
+      return
+    }
+
+    const startDate = new Date(`${startDateStr}T00:00:00.000Z`)
+    const endDate = new Date(`${endDateStr}T23:59:59.999Z`)
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD." })
+      return
+    }
+
+    if (startDate >= endDate) {
+      res.status(400).json({ error: "startDate must be before endDate." })
+      return
+    }
+
+    const data = await getDashboardAnalyticsForTrainee(profile.profile, startDate, endDate)
+    res.json({ data })
   } catch (error) {
     sendError(res, error)
   }

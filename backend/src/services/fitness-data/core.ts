@@ -61,12 +61,18 @@ import {
   toRecentWindow,
 } from "./shared/dates"
 import {
+  buildDashboardSummary,
   buildMuscleGroupDistribution,
   buildPersonalRecords,
   buildStrengthProgression,
+  buildStrengthProgressionE1RM,
+  buildTrainingVolumeByWeek,
   buildWeeklyVolume,
+  buildWorkoutFrequency,
   calculateWorkoutStreaks,
   calculateWorkoutVolume,
+  detectRecentPRs,
+  type DashboardLogRecord,
   type ProgressAnalyticsLogRecord,
 } from "./shared/analytics"
 import { assertCoach, assertCoachOwnsTrainee, assertTrainee, ensurePrisma } from "./shared/guards"
@@ -5748,7 +5754,7 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
   const { bestStreakDays, currentStreakDays } = calculateWorkoutStreaks(workoutLogs as ProgressAnalyticsLogRecord[])
 
   return {
-    muscleGroupDistribution: buildMuscleGroupDistribution(workoutLogs as ProgressAnalyticsLogRecord[]),
+    muscleGroupDistribution: buildMuscleGroupDistribution(workoutLogs as ProgressAnalyticsLogRecord[]).groups,
     personalRecords: buildPersonalRecords(workoutLogs as ProgressAnalyticsLogRecord[]),
     strengthProgression: buildStrengthProgression(workoutLogs as ProgressAnalyticsLogRecord[]),
     summary: {
@@ -5758,6 +5764,159 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
       workoutsThisMonth: workoutsThisMonth.length,
     },
     weeklyVolume: buildWeeklyVolume(workoutLogs as ProgressAnalyticsLogRecord[]),
+  }
+}
+
+async function getDashboardAnalyticsForTrainee(
+  profile: SerializedProfile,
+  startDate: Date,
+  endDate: Date,
+) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  // Duration of the selected period in milliseconds
+  const periodDurationMs = endDate.getTime() - startDate.getTime()
+  const prevStartDate = new Date(startDate.getTime() - periodDurationMs)
+
+  // Fetch all workout logs for the trainee (need full history for PR baselines)
+  const allWorkoutLogs = await db.workoutLog.findMany({
+    orderBy: { startedAt: "asc" },
+    select: {
+      completedAt: true,
+      exerciseSnapshot: true,
+      startedAt: true,
+      totalVolume: true,
+    },
+    where: { userId: profile.id },
+  })
+
+  // Split logs into current period, previous period, and all logs
+  const currentLogs = allWorkoutLogs.filter(
+    (log) => log.startedAt >= startDate && log.startedAt < endDate,
+  ) as DashboardLogRecord[]
+
+  const prevLogs = allWorkoutLogs.filter(
+    (log) => log.startedAt >= prevStartDate && log.startedAt < startDate,
+  ) as DashboardLogRecord[]
+
+  // Get active program's workoutsPerWeek
+  const activeAssignment = await db.programAssignment.findFirst({
+    orderBy: { assignedAt: "desc" },
+    select: {
+      program: {
+        select: { workoutsPerWeek: true },
+      },
+    },
+    where: { userId: profile.id },
+  })
+
+  const workoutsPerWeek = activeAssignment?.program?.workoutsPerWeek ?? 0
+
+  // Body metrics for the body progress section (last 3 months from endDate)
+  const bodyMetricsStartDate = new Date(endDate)
+  bodyMetricsStartDate.setUTCMonth(bodyMetricsStartDate.getUTCMonth() - 3)
+
+  const bodyMetrics = await db.bodyMetricEntry.findMany({
+    orderBy: { recordedAt: "asc" },
+    select: {
+      armCm: true,
+      bodyFatPct: true,
+      chestCm: true,
+      hipsCm: true,
+      recordedAt: true,
+      thighCm: true,
+      waistCm: true,
+      weightKg: true,
+    },
+    where: {
+      recordedAt: { gte: bodyMetricsStartDate, lt: endDate },
+      traineeId: profile.id,
+    },
+  })
+
+  // Build all analytics
+  const summary = buildDashboardSummary(
+    currentLogs,
+    prevLogs,
+    allWorkoutLogs as ProgressAnalyticsLogRecord[],
+    workoutsPerWeek,
+    startDate,
+    endDate,
+  )
+
+  const workoutFrequency = buildWorkoutFrequency(
+    currentLogs as ProgressAnalyticsLogRecord[],
+    startDate,
+    endDate,
+    workoutsPerWeek,
+  )
+
+  const trainingVolume = buildTrainingVolumeByWeek(
+    currentLogs as ProgressAnalyticsLogRecord[],
+    startDate,
+    endDate,
+  )
+
+  const strengthProgress = buildStrengthProgressionE1RM(
+    currentLogs as ProgressAnalyticsLogRecord[],
+    startDate,
+    endDate,
+  )
+
+  const muscleDistribution = buildMuscleGroupDistribution(
+    currentLogs as ProgressAnalyticsLogRecord[],
+    "volume",
+  )
+
+  const recentPRs = detectRecentPRs(
+    allWorkoutLogs as ProgressAnalyticsLogRecord[],
+    startDate,
+    endDate,
+  ).slice(0, 5)
+
+  // Body progress data
+  const bodyProgress = {
+    bodyFat: bodyMetrics
+      .filter((m) => m.bodyFatPct != null)
+      .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.bodyFatPct! })),
+    measurements: {
+      arm: bodyMetrics
+        .filter((m) => m.armCm != null)
+        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.armCm! })),
+      chest: bodyMetrics
+        .filter((m) => m.chestCm != null)
+        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.chestCm! })),
+      hips: bodyMetrics
+        .filter((m) => m.hipsCm != null)
+        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.hipsCm! })),
+      thigh: bodyMetrics
+        .filter((m) => m.thighCm != null)
+        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.thighCm! })),
+      waist: bodyMetrics
+        .filter((m) => m.waistCm != null)
+        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.waistCm! })),
+    },
+    weight: bodyMetrics
+      .filter((m) => m.weightKg != null)
+      .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.weightKg! })),
+  }
+
+  return {
+    bodyProgress,
+    muscleGroupDistribution: muscleDistribution,
+    recentPRs: recentPRs.map((pr) => ({
+      date: formatUtcDateOnly(pr.date),
+      delta: pr.delta,
+      exerciseName: pr.exerciseName,
+      type: pr.type,
+      unit: pr.unit,
+      value: pr.value,
+    })),
+    strengthProgress,
+    summary,
+    trainingVolume,
+    workoutFrequency,
   }
 }
 
@@ -6959,6 +7118,7 @@ export {
   exportWorkoutLogsToGoogleSheetsForTrainee,
   getCoachDashboard,
   getCoachNavCounts,
+  getDashboardAnalyticsForTrainee,
   getDashboardForTrainee,
   getCoachProgramDetail,
   getCoachTraineeDetail,

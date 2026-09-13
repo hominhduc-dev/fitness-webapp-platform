@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkouts } from "@/lib/queries/workouts"
 import type { WorkoutCollection } from "@/lib/fitness/types"
 import {
+  useDashboardAnalytics,
   useProgressAnalytics,
   useProgressCalendar,
   useProgressYearView,
@@ -861,6 +862,8 @@ function ProgressPrsSkeleton() {
 // Page
 // ---------------------------------------------------------------------------
 
+import { AnalyticsDashboard } from "./dashboard/analytics-dashboard"
+
 export type ProgressClientInitialData = {
   workoutCollection?: WorkoutCollection
   calendar: ProgressCalendar
@@ -892,6 +895,14 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
   // Modal
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
 
+  // Dashboard date range
+  const [dashboardRange] = useState(() => {
+    const end = new Date()
+    const start = new Date(end)
+    start.setDate(end.getDate() - 90)
+    return { start, end }
+  })
+
   const weightUnitLabel = initialData.weightUnitLabel
   const token = session?.access_token
 
@@ -904,16 +915,20 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
     initialData: isSeedMonth ? initialData.prevCalendar : undefined,
     enabled: calendarQuery.isSuccess,
   })
-  const analyticsQuery = useProgressAnalytics({ enabled: tab === "prs" })
+  
+  // Dashboard hook replacing the old analytics query
+  const dashboardQuery = useDashboardAnalytics(dashboardRange.start, dashboardRange.end, { enabled: tab === "prs" })
   const yearQuery = useProgressYearView(yearViewYear, { enabled: tab === "year" })
+  
   const calendar = calendarQuery.data ?? null
   const prevCalendar = previousQuery.data ?? null
-  const analytics = analyticsQuery.data ?? null
+  const dashboardData = dashboardQuery.data ?? null
   const yearView = yearQuery.data ?? null
+  
   const calendarLoading = calendarQuery.isPending
-  const analyticsLoading = analyticsQuery.isPending
+  const dashboardLoading = dashboardQuery.isPending
   const yearViewLoading = yearQuery.isPending
-  const error = (calendarQuery.error ?? analyticsQuery.error ?? yearQuery.error)?.message
+  const error = (calendarQuery.error ?? dashboardQuery.error ?? yearQuery.error)?.message
 
   // Month nav helpers
   const goToPrevMonth = useCallback(() => {
@@ -945,8 +960,6 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
     setViewMonth(m)
     setTab("history")
   }, [])
-
-  const data = analytics ?? EMPTY_ANALYTICS
 
   if (authLoading || (calendarLoading && calendar == null)) {
     return <ProgressPageSkeleton />
@@ -1026,7 +1039,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {t === "history" ? messages.progressPage.historyTab : t === "year" ? messages.progressPage.yearView : messages.progressPage.personalRecords}
+              {t === "history" ? messages.progressPage.historyTab : t === "year" ? messages.progressPage.yearView : "Analytics"}
             </button>
           ))}
         </div>
@@ -1110,37 +1123,14 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             PRs TAB
             ================================================================ */}
         {tab === "prs" && (
-          analyticsLoading ? (
+          dashboardLoading ? (
             <ProgressPrsSkeleton />
+          ) : dashboardData ? (
+            <AnalyticsDashboard data={dashboardData} />
           ) : (
-          <div className="space-y-6">
-            <div>
-              <LabelMicro className="mb-2 block">{messages.progressPage.personalRecords}</LabelMicro>
-              <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
-                {data.personalRecords.length > 0
-                  ? messages.progressPage.trackedRecords(data.personalRecords.length)
-                  : messages.progressPage.noRecords}
-              </h2>
+            <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+              No analytics data available.
             </div>
-
-            {data.personalRecords.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {data.personalRecords.map((record) => (
-                  <PrCard
-                    key={`${record.exercise}-${record.date.toISOString()}`}
-                    record={record}
-                    weightUnitLabel={weightUnitLabel}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
-                {messages.progressPage.completeWeightedSetsForPr}
-              </div>
-            )}
-
-            <StrengthChart analytics={data} weightUnitLabel={weightUnitLabel} />
-          </div>
           )
         )}
       </div>
