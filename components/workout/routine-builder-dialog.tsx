@@ -520,25 +520,29 @@ export function RoutineBuilderDialog({
               </Button>
             </div>
 
+        {/* Exercise picker sub-modal. It must stay inside DialogContent: Radix
+            decides "outside" by the React tree, not the DOM. Rendered as a
+            sibling of the content, a touch on a picker row registers as a
+            pointerdown outside this dialog, which Radix defers to the next
+            click — and once the pick has closed the picker, that click
+            dismisses the whole routine dialog. */}
+        {pickerTarget && (
+          <AddExerciseModal
+            exercises={loadingLibrary ? [] : library}
+            loading={loadingLibrary}
+            currentVariationId={pickerTarget !== "add" ? exercises.find((e) => e.id === pickerTarget)?.variationId : undefined}
+            existingVariationIds={
+              // When swapping: exclude the exercise being swapped so it shows as pickable
+              (pickerTarget === "add"
+                ? exercises
+                : exercises.filter((e) => e.id !== pickerTarget)
+              ).map((e) => e.variationId)
+            }
+            onPick={pickExercise}
+            onClose={() => setPickerTarget(null)}
+          />
+        )}
       </DialogContent>
-
-      {/* Exercise picker sub-modal */}
-      {pickerTarget && (
-              <AddExerciseModal
-                exercises={loadingLibrary ? [] : library}
-                loading={loadingLibrary}
-                currentVariationId={pickerTarget !== "add" ? exercises.find((e) => e.id === pickerTarget)?.variationId : undefined}
-                existingVariationIds={
-                  // When swapping: exclude the exercise being swapped so it shows as pickable
-                  (pickerTarget === "add"
-                    ? exercises
-                    : exercises.filter((e) => e.id !== pickerTarget)
-                  ).map((e) => e.variationId)
-                }
-                onPick={pickExercise}
-                onClose={() => setPickerTarget(null)}
-              />
-            )}
     </Dialog>
   )
 }
