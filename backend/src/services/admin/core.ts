@@ -2222,17 +2222,38 @@ async function updateAdminExercise(
         },
       })
 
-      return transaction.variation.update({
+      await transaction.variationMuscleTarget.deleteMany({
+        where: { variationId: existingExercise.id },
+      })
+
+      const updatedVariation = await transaction.variation.update({
         data: {
           equipment,
           isDefault: variationName === "Default",
           name: variationName,
-          ...buildApprovedMuscleProfileUpdate(input.muscleProfile, profile.id),
+          activityType: input.muscleProfile.activityType,
+          muscleProfileRationale: null,
+          muscleProfileReviewedAt: new Date(),
+          muscleProfileReviewedById: profile.id,
+          muscleProfileSource: "manual",
+          muscleProfileStatus: "approved",
         },
         include: ADMIN_VARIATION_INCLUDE,
         where: {
           id: existingExercise.id,
         },
+      })
+
+      const muscleTargets = buildMuscleTargetRows(input.muscleProfile)
+      if (muscleTargets.length > 0) {
+        await transaction.variationMuscleTarget.createMany({
+          data: muscleTargets.map((target) => ({ ...target, variationId: existingExercise.id })),
+        })
+      }
+
+      return transaction.variation.findUniqueOrThrow({
+        include: ADMIN_VARIATION_INCLUDE,
+        where: { id: updatedVariation.id },
       })
     })
   } catch (error) {
