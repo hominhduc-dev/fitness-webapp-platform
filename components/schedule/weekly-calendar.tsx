@@ -4,7 +4,7 @@ import Link from "next/link"
 import { memo, useEffect, useMemo, useState } from "react"
 import { addDays, differenceInMinutes, format, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Play, Plus, Search, Trash2, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Play, Plus, Search, User } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -12,6 +12,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { RoutineExerciseCard } from "@/components/workout/routine-exercise-card"
 import { WorkoutLogReview, WorkoutPlanPreview } from "@/components/workout/workout-log-review"
 import { useQueryClient } from "@tanstack/react-query"
 import { useCreateWorkout, useTraineePrograms, useWorkoutDetail, useWorkouts } from "@/lib/queries/workouts"
@@ -802,44 +803,6 @@ function RoutinePickerDialog({
   )
 }
 
-const routineFieldInputClass = cn(
-  "h-9 w-full rounded border border-border bg-background px-2 text-center font-mono text-sm text-foreground",
-  "focus:outline-none focus:ring-1 focus:ring-ring",
-  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-)
-
-function RoutineFieldNum({
-  allowDecimals,
-  label,
-  onChange,
-  placeholder,
-  value,
-}: {
-  allowDecimals?: boolean
-  label: string
-  onChange: (value: string) => void
-  placeholder?: string
-  value: string
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </span>
-      <input
-        type={allowDecimals ? "number" : "text"}
-        inputMode={allowDecimals ? "decimal" : "numeric"}
-        min="0"
-        step={allowDecimals ? "0.5" : "1"}
-        value={value}
-        placeholder={placeholder ?? ""}
-        onChange={(event) => onChange(event.target.value)}
-        className={routineFieldInputClass}
-      />
-    </div>
-  )
-}
-
 
 function getRoutineExerciseTitle(exercise: RoutineExercise) {
   return exercise.fallbackExerciseName || exercise.variationId
@@ -999,100 +962,35 @@ function RoutineBuilderDialog({
 
           <div className="space-y-2.5">
             {exercises.map((exercise, index) => (
-              <div key={exercise.id} className="rounded-lg border border-border bg-background p-3.5 sm:px-[18px]">
-                <div className="mb-2.5 flex items-center gap-2.5">
-                  <span className="min-w-[18px] text-right font-mono text-xs font-semibold text-muted-foreground tnum">
-                    {index + 1}
-                  </span>
-                  <button
-                    type="button"
-                    title={messages.workoutPage.swapExercise}
-                    onClick={() => setPickerTarget(exercise.id)}
-                    disabled={isLoadingExercises || isSaving || exerciseOptions.length === 0}
-                    className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {getRoutineExerciseTitle(exercise) || messages.workoutPage.chooseExercise}
-                    </p>
-                    <p className="mt-0.5 truncate font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                      {getRoutineExerciseMeta(exercise) || messages.workoutPage.chooseExercise}
-                      <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
-                    </p>
-                  </button>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => moveExercise(index, -1)}
-                      disabled={index === 0 || isSaving}
-                      aria-label={messages.schedule.moveExerciseUp}
-                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-                    >
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveExercise(index, 1)}
-                      disabled={index === exercises.length - 1 || isSaving}
-                      aria-label={messages.schedule.moveExerciseDown}
-                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
-                      aria-label={messages.workoutPage.removeExercise}
-                      disabled={isSaving}
-                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text disabled:opacity-30"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-5 gap-2">
-                  <RoutineFieldNum
-                    label={messages.workoutPage.set}
-                    value={String(exercise.sets)}
-                    onChange={(value) => updateExercise(exercise.id, { sets: Math.max(1, Number(value) || 1) })}
-                  />
-                  <RoutineFieldNum
-                    label={messages.workoutPage.reps}
-                    value={exercise.reps}
-                    onChange={(value) => updateExercise(exercise.id, { reps: value })}
-                    placeholder="8-12"
-                  />
-                  <RoutineFieldNum
-                    label="kg"
-                    value={exercise.weight}
-                    onChange={(value) => updateExercise(exercise.id, { weight: value })}
-                    allowDecimals
-                  />
-                  <RoutineFieldNum
-                    label="RIR"
-                    value={exercise.rir ?? ""}
-                    onChange={(value) => updateExercise(exercise.id, { rir: value })}
-                    placeholder="0-4"
-                  />
-                  <RoutineFieldNum
-                    label="REST"
-                    value={exercise.restTime ?? ""}
-                    onChange={(value) => updateExercise(exercise.id, { restTime: value })}
-                    placeholder="90"
-                  />
-                </div>
-
-                <textarea
-                  value={exercise.notes ?? ""}
-                  onChange={(event) => updateExercise(exercise.id, { notes: event.target.value })}
-                  placeholder={messages.workoutPage.addNote}
-                  rows={1}
-                  className={cn(
-                    "mt-2 w-full resize-none rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60",
-                    "focus:outline-none focus:ring-1 focus:ring-ring",
-                  )}
-                />
-              </div>
+              <RoutineExerciseCard
+                key={exercise.id}
+                index={index}
+                total={exercises.length}
+                title={getRoutineExerciseTitle(exercise) || messages.workoutPage.chooseExercise}
+                meta={getRoutineExerciseMeta(exercise)}
+                values={{
+                  notes: exercise.notes ?? "",
+                  reps: exercise.reps,
+                  restTime: exercise.restTime ?? "",
+                  rir: exercise.rir ?? "",
+                  sets: String(exercise.sets),
+                  weight: exercise.weight,
+                }}
+                messages={messages}
+                disabled={isSaving}
+                swapDisabled={isLoadingExercises || exerciseOptions.length === 0}
+                onFieldChange={(field, value) =>
+                  updateExercise(
+                    exercise.id,
+                    field === "sets"
+                      ? { sets: Math.max(1, Number(value) || 1) }
+                      : ({ [field]: value } as Partial<RoutineExercise>),
+                  )
+                }
+                onMove={(direction) => moveExercise(index, direction)}
+                onRemove={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
+                onSwap={() => setPickerTarget(exercise.id)}
+              />
             ))}
           </div>
 

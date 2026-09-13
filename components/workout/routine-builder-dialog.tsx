@@ -2,10 +2,10 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { ChevronDown, ChevronUp, Dumbbell, Trash2, X } from "lucide-react"
+import { Dumbbell, X } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
-import { SetIntensityTagPicker } from "@/components/workout/set-intensity-tag"
+import { RoutineExerciseCard } from "@/components/workout/routine-exercise-card"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -136,50 +136,6 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
 }
 
 // ─── FieldNum ────────────────────────────────────────────────────────────────
-
-const fieldInputClass = cn(
-  "w-full rounded border border-border bg-background px-2 py-1.5 text-center font-mono text-sm text-foreground",
-  "focus:outline-none focus:ring-1 focus:ring-ring",
-  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-)
-
-function FieldNum({
-  label,
-  value,
-  onChange,
-  allowDecimals,
-  allowRange,
-  placeholder,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  allowDecimals?: boolean
-  allowRange?: boolean
-  placeholder?: string
-}) {
-  const inputType = allowDecimals ? "number" : "text"
-  // allowRange fields (reps / RIR) accept values like "8-12" — mobile numeric
-  // keypads have no "-" key, so fall back to the full text keyboard for those.
-  const inputMode = allowRange ? "text" : allowDecimals ? "decimal" : "numeric"
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </span>
-      <input
-        type={inputType}
-        inputMode={inputMode}
-        value={value}
-        step={allowDecimals ? "0.5" : "1"}
-        min="0"
-        placeholder={placeholder ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        className={fieldInputClass}
-      />
-    </div>
-  )
-}
 
 
 /**
@@ -501,107 +457,37 @@ export function RoutineBuilderDialog({
                 </div>
               )}
 
-              {exercises.map((ex, i) => (
-                <div
-                  key={ex.id}
-                  className="mb-2.5 rounded-lg border border-border bg-background p-3.5 sm:px-[18px]"
-                >
-                  <div className="mb-2.5 flex items-center gap-2.5">
-                    <span className="min-w-[18px] text-right font-mono text-xs font-semibold text-muted-foreground">
-                      {i + 1}
-                    </span>
-                    <button
-                      type="button"
-                      title={messages.workoutPage.swapExercise}
-                      onClick={() => setPickerTarget(ex.id)}
-                      className="min-w-0 flex-1 rounded-lg border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50"
-                    >
-                      <p className="truncate text-sm font-medium text-foreground">{ex.displayName}</p>
-                      <p className="mt-0.5 truncate font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                        {ex.muscleGroup}{ex.equipment ? ` · ${ex.equipment}` : ""}
-                        <span className="ml-1.5 text-primary/70">{messages.workoutPage.tapToSwap}</span>
-                      </p>
-                    </button>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => moveExercise(i, -1)}
-                        disabled={i === 0}
-                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-                      >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveExercise(i, 1)}
-                        disabled={i === exercises.length - 1}
-                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeExercise(ex.id)}
-                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-                    <FieldNum
-                      label={messages.workoutPage.set}
-                      value={String(ex.sets)}
-                      onChange={(v) => updateExercise(ex.id, { sets: Number(v) || 0 })}
-                    />
-                    <FieldNum
-                      label={messages.workoutPage.reps}
-                      value={ex.reps}
-                      onChange={(v) => updateExercise(ex.id, { reps: v })}
-                      placeholder="8-12"
-                      allowRange
-                    />
-                    <FieldNum
-                      label="kg"
-                      value={ex.weight}
-                      onChange={(v) => updateExercise(ex.id, { weight: v })}
-                      allowDecimals
-                    />
-                    <FieldNum
-                      label="RIR"
-                      value={ex.rir}
-                      onChange={(v) => updateExercise(ex.id, { rir: v })}
-                      placeholder="0-4"
-                      allowRange
-                    />
-                    <FieldNum
-                      label="REST"
-                      value={ex.restTime ?? ""}
-                      onChange={(v) => updateExercise(ex.id, { restTime: v })}
-                      placeholder="90"
-                    />
-                  </div>
-
-                  <SetIntensityTagPicker
+              <div className="space-y-3">
+                {exercises.map((ex, i) => (
+                  <RoutineExerciseCard
+                    key={ex.id}
+                    index={i}
+                    total={exercises.length}
+                    title={ex.displayName}
+                    meta={[ex.muscleGroup, ex.equipment].filter(Boolean).join(" · ")}
+                    values={{
+                      notes: ex.notes ?? "",
+                      reps: ex.reps,
+                      restTime: ex.restTime ?? "",
+                      rir: ex.rir,
+                      sets: String(ex.sets),
+                      weight: ex.weight,
+                    }}
                     messages={messages}
-                    setCount={Number(ex.sets) || 0}
-                    value={ex.setIntensityTags}
-                    onChange={(setIntensityTags) => updateExercise(ex.id, { setIntensityTags })}
+                    onFieldChange={(field, value) =>
+                      updateExercise(
+                        ex.id,
+                        field === "sets" ? { sets: Number(value) || 0 } : ({ [field]: value } as Partial<RoutineExerciseDraft>),
+                      )
+                    }
+                    onMove={(direction) => moveExercise(i, direction)}
+                    onRemove={() => removeExercise(ex.id)}
+                    onSwap={() => setPickerTarget(ex.id)}
+                    setIntensityTags={ex.setIntensityTags}
+                    onSetIntensityTagsChange={(setIntensityTags) => updateExercise(ex.id, { setIntensityTags })}
                   />
-
-                  <textarea
-                    value={ex.notes ?? ""}
-                    onChange={(e) => updateExercise(ex.id, { notes: e.target.value })}
-                    placeholder={messages.workoutPage.addNote}
-                    rows={1}
-                    className={cn(
-                      "mt-2 w-full resize-none rounded border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60",
-                      "focus:outline-none focus:ring-1 focus:ring-ring",
-                    )}
-                  />
-                </div>
-              ))}
+                ))}
+              </div>
 
               {/* Add exercise button */}
               <button
@@ -633,6 +519,7 @@ export function RoutineBuilderDialog({
                 {isSaving ? messages.workoutPage.saving : isEditing ? messages.workoutPage.saveChanges : messages.workoutPage.saveRoutine}
               </Button>
             </div>
+
       </DialogContent>
 
       {/* Exercise picker sub-modal */}
