@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import { Play } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -20,6 +20,7 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null)
   const [manualPlayback, setManualPlayback] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -39,27 +40,50 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
 
   const showAnimation = reducedMotion === false || manualPlayback
   const source = showAnimation ? media.animationUrl : media.thumbnailUrl
+  const isVideo = media.type === "video" || media.animationUrl.toLowerCase().endsWith(".mp4")
+
+  const playAnimation = () => {
+    setManualPlayback(true)
+    requestAnimationFrame(() => {
+      void videoRef.current?.play().catch(() => undefined)
+    })
+  }
 
   return (
     <figure className="border-b border-border px-4 py-3 md:px-5">
       <div className="flex flex-col items-center">
         <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-          <Image
-            alt={messages.workoutPage.exerciseAnimationAlt(exerciseName)}
-            className="h-[180px] w-[180px] object-cover"
-            height={media.height}
-            loading="eager"
-            onError={() => setUnavailable(true)}
-            priority={false}
-            src={source}
-            unoptimized
-            width={media.width}
-          />
+          {isVideo ? (
+            <video
+              ref={videoRef}
+              aria-label={messages.workoutPage.exerciseAnimationAlt(exerciseName)}
+              autoPlay={showAnimation}
+              className="h-[180px] w-[180px] object-cover"
+              loop
+              muted
+              onError={() => setUnavailable(true)}
+              playsInline
+              poster={media.thumbnailUrl}
+              src={showAnimation ? media.animationUrl : undefined}
+            />
+          ) : (
+            <Image
+              alt={messages.workoutPage.exerciseAnimationAlt(exerciseName)}
+              className="h-[180px] w-[180px] object-cover"
+              height={media.height}
+              loading="eager"
+              onError={() => setUnavailable(true)}
+              priority={false}
+              src={source}
+              unoptimized
+              width={media.width}
+            />
+          )}
         </div>
         {reducedMotion && !manualPlayback ? (
           <Button
             className="mt-2"
-            onClick={() => setManualPlayback(true)}
+            onClick={playAnimation}
             size="sm"
             type="button"
             variant="outline"

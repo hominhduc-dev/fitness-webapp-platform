@@ -60,10 +60,12 @@ export interface ExerciseMedia {
   animationUrl: string
   height: 180
   thumbnailUrl: string
+  type?: "gif" | "video"
   width: 180
 }
 
 export interface ExerciseVariation extends ExerciseMuscleProfile {
+  displayName?: string
   id: string
   name: string
   equipment?: string
@@ -77,6 +79,7 @@ export interface ExerciseVariation extends ExerciseMuscleProfile {
 }
 
 export interface ExerciseVariationOption extends ExerciseMuscleProfile {
+  displayName?: string
   id: string
   exerciseId: string
   exerciseName: string

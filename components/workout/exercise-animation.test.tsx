@@ -66,4 +66,13 @@ describe("ExerciseAnimation", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument()
     expect(screen.getByRole("status")).toHaveTextContent("Media unavailable")
   })
+
+  it("renders MP4 media as video with the thumbnail poster", () => {
+    mockReducedMotion(false)
+    render(<ExerciseAnimation exerciseName="Row" media={{ ...media, animationUrl: "https://project.supabase.co/animation.mp4", type: "video" }} />)
+    const video = screen.getByLabelText("Row animation")
+    expect(video.tagName).toBe("VIDEO")
+    expect(video).toHaveAttribute("src", "https://project.supabase.co/animation.mp4")
+    expect(video).toHaveAttribute("poster", media.thumbnailUrl)
+  })
 })

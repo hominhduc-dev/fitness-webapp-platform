@@ -2,11 +2,12 @@ import type { ExerciseDatasetRecord } from "../domain/exercise-dataset"
 import { ExternalServiceError, ValidationError } from "../services/errors"
 
 const EXERCISE_MEDIA_MAX_FILE_SIZE = 1024 * 1024
+const EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE = 10 * 1024 * 1024
 const EXERCISE_MEDIA_UPLOAD_CONCURRENCY = 8
 const EXERCISE_MEDIA_UPLOAD_MAX_ATTEMPTS = 3
 
 type UploadEntry = {
-  contentType: "image/gif" | "image/jpeg"
+  contentType: "image/gif" | "image/jpeg" | "video/mp4"
   localPath: string
   objectPath: string
 }
@@ -82,6 +83,7 @@ export {
   EXERCISE_MEDIA_MAX_FILE_SIZE,
   EXERCISE_MEDIA_UPLOAD_CONCURRENCY,
   EXERCISE_MEDIA_UPLOAD_MAX_ATTEMPTS,
+  EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
   assertMediaUploadFlags,
   buildMediaUploadEntries,
   isAlreadyExistsError,
