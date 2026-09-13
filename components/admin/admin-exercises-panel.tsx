@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
-import { buildMuscleProfileHighlights, muscleGroupFromSlug } from "@/lib/fitness/muscle-map"
+import { buildMuscleProfileHighlights, muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
 import type { AdminExerciseImportRequest, AdminExerciseItem, AdminExerciseMediaFiles } from "@/lib/admin/types"
 import { EXERCISE_MEDIA_FILE_RULES, exerciseMediaFileProblem, exerciseMediaMaxMegabytes } from "@/lib/admin/exercise-media-files"
@@ -793,7 +793,12 @@ export function ExerciseLibraryPanel({
   const filtered = useMemo(
     () => exercises.filter((e) => {
       if (!matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)) return false
-      if (muscleFilter !== "all" && !e.primaryMuscles.includes(muscleFilter) && !e.secondaryMuscles.includes(muscleFilter)) return false
+      if (
+        muscleFilter !== "all" &&
+        !e.primaryMuscles.includes(muscleFilter) &&
+        !e.secondaryMuscles.includes(muscleFilter) &&
+        !muscleGroupToSlugs(e.muscleGroup).includes(muscleFilter)
+      ) return false
       if (equipmentFilter !== "all" && (e.equipment ?? "").toLowerCase() !== equipmentFilter.toLowerCase()) return false
       if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
       if (activityFilter !== "all" && e.activityType !== activityFilter) return false
