@@ -92,7 +92,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const importExercisesQuery = useExercises(undefined, undefined, importOpen)
   const importLibraryQuery = useExerciseLibrary(undefined, undefined, importOpen)
   const exerciseOptions = useMemo(() => {
-    if (initialExerciseOptions) return initialExerciseOptions
+    if (initialExerciseOptions?.length) return initialExerciseOptions
     if (!importExercisesQuery.data || !importLibraryQuery.data) return []
     return mergeExerciseOptions(
       importExercisesQuery.data,
