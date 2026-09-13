@@ -76,6 +76,7 @@ import {
   calculateWorkoutVolume,
   type ProgressAnalyticsLogRecord,
 } from "./shared/analytics"
+import { readExternalSourceMetadata } from "../../lib/exercise-media"
 import { assertCoach, assertCoachOwnsTrainee, assertTrainee, ensurePrisma } from "./shared/guards"
 import {
   getSnapshotExerciseId,
@@ -387,8 +388,66 @@ function serializeMiniUser(user: Pick<User, "avatar" | "email" | "id" | "name">)
 
 type VariationWithMuscleTargets = Variation & { muscleTargets?: VariationMuscleTarget[] }
 
+function readVariationDisplayName(metadata: Prisma.JsonValue | null | undefined) {
+  const displayName = readExternalSourceMetadata(metadata)?.displayName
+  return typeof displayName === "string" && displayName.trim() ? displayName.trim() : undefined
+}
+
+function normalizeExerciseDisplayParts(parts: string[]) {
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function normalizeExerciseDisplayText(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US")
+}
+
+function buildExerciseDisplayName(input: { exerciseName?: string | null; isDefault?: boolean | null; metadata?: Prisma.JsonValue | null; variationName?: string | null }) {
+  const metadataDisplayName = readVariationDisplayName(input.metadata)
+  if (metadataDisplayName) return metadataDisplayName
+
+  const exerciseName = input.exerciseName?.trim() ?? ""
+  const variationName = input.variationName?.trim() || "Default"
+  if (!exerciseName) return variationName
+  const exerciseParenthesisMatch = exerciseName.match(/^(.*?)\s*\(([^()]+)\)\s*$/)
+  const exerciseNameWithoutEquipment = exerciseParenthesisMatch?.[1]?.trim() || exerciseName
+  const exerciseEquipment = exerciseParenthesisMatch?.[2]?.trim() || ""
+  const dashMatch = exerciseNameWithoutEquipment.match(/^(.*?)\s+-\s+(.+)$/)
+  const baseExerciseName = dashMatch?.[1]?.trim() || exerciseNameWithoutEquipment
+  const exerciseModifier = dashMatch?.[2]?.trim() || ""
+
+  if (input.isDefault || variationName === "Default") {
+    return exerciseEquipment
+      ? normalizeExerciseDisplayParts([exerciseEquipment, exerciseModifier, baseExerciseName])
+      : exerciseName
+  }
+
+  const parenthesisMatch = variationName.match(/^(.*?)\s*\(([^()]+)\)\s*$/)
+  const variationModifier = parenthesisMatch?.[1]?.trim() || variationName
+  const equipment = parenthesisMatch?.[2]?.trim() || ""
+
+  if (equipment) {
+    const modifier = normalizeExerciseDisplayText(exerciseModifier) === normalizeExerciseDisplayText(variationModifier)
+      ? exerciseModifier
+      : normalizeExerciseDisplayParts([exerciseModifier, variationModifier])
+    return normalizeExerciseDisplayParts([equipment, modifier, baseExerciseName])
+  }
+
+  return normalizeExerciseDisplayParts([variationName, exerciseModifier, baseExerciseName])
+}
+
 function serializeVariation(variation: VariationWithMuscleTargets, legacyMuscleGroup?: string | null) {
   return {
+    displayName: buildExerciseDisplayName({
+      exerciseName: "exercise" in variation ? (variation as VariationWithMuscleTargets & { exercise?: Exercise }).exercise?.name : undefined,
+      isDefault: variation.isDefault,
+      metadata: variation.metadata,
+      variationName: variation.name,
+    }),
     equipment: variation.equipment ?? undefined,
     id: variation.id,
     isDefault: variation.isDefault,
@@ -528,6 +587,12 @@ function serializeVariationOption(
   profile?: SerializedProfile,
 ) {
   const visibility = getExerciseSourceForProfile(variation.exercise.createdById, profile)
+  const displayName = buildExerciseDisplayName({
+    exerciseName: variation.exercise.name,
+    isDefault: variation.isDefault,
+    metadata: variation.metadata,
+    variationName: variation.name,
+  })
 
   return {
     canManage: visibility.canManage,
@@ -535,6 +600,7 @@ function serializeVariationOption(
     equipment: variation.equipment ?? undefined,
     exerciseId: variation.exerciseId,
     exerciseName: variation.exercise.name,
+    displayName,
     id: variation.id,
     isDefault: variation.isDefault,
     metadata:
@@ -542,7 +608,7 @@ function serializeVariationOption(
         ? (variation.metadata as Record<string, unknown>)
         : undefined,
     muscleGroup: variation.exercise.muscleGroup,
-    name: variation.isDefault ? variation.exercise.name : `${variation.exercise.name} (${variation.name})`,
+    name: displayName,
     source: visibility.source,
     sortOrder: variation.sortOrder,
     variationName: variation.name,

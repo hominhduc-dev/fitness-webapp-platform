@@ -432,6 +432,7 @@ export function TraineeWorkoutLogsPanel({
                 <div>
                   <p className="font-medium">
                     {formatExerciseVariationLabel({
+                      displayName: exercise.variation.displayName,
                       exerciseName: exercise.exercise.name,
                       isDefault: exercise.variation.isDefault,
                       variationName: exercise.variation.name,

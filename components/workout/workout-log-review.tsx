@@ -133,6 +133,7 @@ export function WorkoutLogReview({ log }: { log: WorkoutLog }) {
                   <div className="min-w-0">
                     <h3 className="truncate text-sm font-semibold text-foreground">
                       {formatExerciseVariationLabel({
+                        displayName: exercise.variation.displayName,
                         exerciseName: exercise.exercise.name,
                         isDefault: exercise.variation.isDefault,
                         variationName: exercise.variation.name,
@@ -238,6 +239,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <h3 className="truncate text-sm font-semibold text-foreground">
                         {formatExerciseVariationLabel({
+                          displayName: exercise.variation.displayName,
                           exerciseName: exercise.exercise.name,
                           isDefault: exercise.variation.isDefault,
                           variationName: exercise.variation.name,

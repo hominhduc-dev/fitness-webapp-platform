@@ -732,6 +732,7 @@ function LiftExerciseBlock({
   const coachUpdateMeta = coachUpdate ? getCoachUpdateMeta(coachUpdate.type) : null
   const CoachUpdateIcon = coachUpdateMeta?.icon
   const exerciseLabel = formatExerciseVariationLabel({
+    displayName: exercise.variation.displayName,
     exerciseName: exercise.exercise.name,
     isDefault: exercise.variation.isDefault,
     variationName: exercise.variation.name,
@@ -1330,6 +1331,7 @@ function WorkoutSession() {
   ) => {
     if (data.completed) {
       const exerciseLabel = formatExerciseVariationLabel({
+        displayName: exercise.variation.displayName,
         exerciseName: exercise.exercise.name,
         isDefault: exercise.variation.isDefault,
         variationName: exercise.variation.name,

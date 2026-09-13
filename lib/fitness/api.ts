@@ -601,6 +601,7 @@ function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseV
     activityType: variation.activityType,
     canManage: variation.canManage,
     createdById: variation.createdById,
+    displayName: variation.displayName,
     equipment: variation.equipment,
     id: variation.id,
     isDefault: variation.isDefault,
@@ -616,6 +617,7 @@ function mapExerciseVariation(variation: SerializedExerciseVariation): ExerciseV
 
 function synthesizeExerciseVariation(exercise: SerializedWorkoutExercise): ExerciseVariation {
   return {
+    displayName: exercise.exercise.name,
     equipment: exercise.exercise.equipment,
     id: exercise.exercise.id,
     isDefault: true,
@@ -919,6 +921,7 @@ function flattenExerciseLibraryToVariationOptions(
     exercise.variations.map((variation) => ({
       canManage: variation.canManage ?? exercise.canManage,
       createdById: variation.createdById ?? exercise.createdById,
+      displayName: variation.displayName ?? (variation.isDefault ? exercise.name : variation.name),
       equipment: variation.equipment,
       exerciseId: exercise.id,
       exerciseName: exercise.name,
@@ -926,7 +929,7 @@ function flattenExerciseLibraryToVariationOptions(
       isDefault: variation.isDefault,
       metadata: variation.metadata,
       muscleGroup: exercise.muscleGroup,
-      name: variation.isDefault ? exercise.name : `${exercise.name} (${variation.name})`,
+      name: variation.displayName ?? (variation.isDefault ? exercise.name : variation.name),
       source: variation.source ?? exercise.source,
       sortOrder: variation.sortOrder,
       variationName: variation.name,

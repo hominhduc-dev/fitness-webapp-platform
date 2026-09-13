@@ -499,6 +499,7 @@ function buildRawSetRows(logs: WorkoutLog[], weekStart: string) {
           day_no: dayNumber,
           exercise_id: exercise.id,
           exercise_label: formatExerciseVariationLabel({
+            displayName: exercise.variation.displayName,
             exerciseName: exercise.exercise.name,
             isDefault: exercise.variation.isDefault,
             variationName: exercise.variation.name,

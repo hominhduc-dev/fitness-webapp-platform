@@ -119,7 +119,7 @@ function toDraft(exercise: Workout["exercises"][number]): RoutineExerciseDraft {
   return {
     id: draftId(),
     variationId: exercise.variation.id,
-    displayName: exercise.exercise.name,
+    displayName: exercise.variation.displayName ?? exercise.exercise.name,
     muscleGroup: exercise.exercise.muscleGroup,
     activityType: exercise.variation.activityType,
     primaryMuscles: exercise.variation.primaryMuscles,
@@ -268,7 +268,7 @@ export function RoutineBuilderDialog({
         {
           id,
           variationId: ex.id,
-          displayName: ex.exerciseName,
+          displayName: ex.displayName ?? ex.name,
           muscleGroup: ex.muscleGroup,
           activityType: ex.activityType,
           primaryMuscles: ex.primaryMuscles,
@@ -292,7 +292,7 @@ export function RoutineBuilderDialog({
             ? {
                 ...item,
                 variationId: ex.id,
-                displayName: ex.exerciseName,
+                displayName: ex.displayName ?? ex.name,
                 muscleGroup: ex.muscleGroup,
                 activityType: ex.activityType,
                 primaryMuscles: ex.primaryMuscles,

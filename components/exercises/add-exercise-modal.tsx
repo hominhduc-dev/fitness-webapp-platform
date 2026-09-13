@@ -114,11 +114,11 @@ export function AddExerciseModal({
         else if (exercise.equipment !== equipment) return false
       }
       return matchesExerciseSearch(
-        [exercise.name, exercise.exerciseName, exercise.variationName, exercise.muscleGroup, exercise.equipment],
+        [exercise.displayName, exercise.name, exercise.exerciseName, exercise.variationName, exercise.muscleGroup, exercise.equipment],
         query,
       )
     })
-    return sortByExerciseRelevance(filtered, query, (exercise) => exercise.exerciseName)
+    return sortByExerciseRelevance(filtered, query, (exercise) => exercise.displayName ?? exercise.name)
   }, [activityType, exercises, muscle, equipment, query])
 
   function toggleMuscle(slug: MapMuscleSlug) {
@@ -209,7 +209,7 @@ export function AddExerciseModal({
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className={cn("truncate text-sm font-medium", isCurrent ? "text-primary" : "text-foreground")}>{exercise.exerciseName}</p>
+                    <p className={cn("truncate text-sm font-medium", isCurrent ? "text-primary" : "text-foreground")}>{exercise.displayName ?? exercise.name}</p>
                     <p className="mt-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                       {exercise.muscleGroup}
                       {exercise.equipment ? ` · ${exercise.equipment}` : ""}
