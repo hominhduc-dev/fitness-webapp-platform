@@ -369,9 +369,12 @@ export function RoutineBuilderDialog({
         </DialogTrigger>
       )}
 
+      {/* z-[90] / overlay z-[85]: the coach program editor opens this dialog
+          over its own fixed z-[80] modal, which the default z-50 sat beneath. */}
       <DialogContent
         showCloseButton={false}
-        className="flex h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-full flex-col overflow-hidden p-0 sm:h-[90svh] sm:max-h-[900px] sm:max-w-[640px] sm:rounded-xl"
+        overlayClassName="z-[85]"
+        className="z-[90] flex h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] w-full flex-col overflow-hidden p-0 sm:h-[90svh] sm:max-h-[900px] sm:max-w-[640px] sm:rounded-xl"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{isEditing ? messages.workoutPage.editRoutineMode : messages.workoutPage.newRoutine}</DialogTitle>

@@ -105,7 +105,8 @@ export function SetIntensityTagPicker({ messages, onChange, setCount, value }: S
                 {tag ? <span className="font-mono font-semibold">{INTENSITY_TAG_BADGES[tag]}</span> : null}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
+            {/* Above the routine builder dialog (z-[90]) that hosts this picker. */}
+            <DropdownMenuContent align="start" className="z-[100] w-48">
               <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
                 {messages.workoutPage.intensitySetChip(setNumber)}
               </DropdownMenuLabel>
