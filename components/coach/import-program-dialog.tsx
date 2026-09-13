@@ -11,6 +11,7 @@ import { GoogleIcon, NotionIcon } from "@/components/ui/brand-icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import { IconTile } from "@/components/ui/icon-tile"
 import { Input } from "@/components/ui/input"
@@ -850,6 +851,12 @@ export function ImportProgramDialog({
                                 className="grid items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-2 py-2 md:grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px]"
                               >
                                 {/* Exercise name */}
+                                <div className="flex min-w-0 items-start gap-2.5">
+                                <ExerciseThumbnail
+                                  media={option?.media}
+                                  name={option?.displayName ?? option?.name ?? t.review.unknownExercise}
+                                  previewable
+                                />
                                 <div className="min-w-0">
                                   <p className="truncate text-sm font-medium text-foreground">
                                     {option?.displayName ?? option?.name ?? t.review.unknownExercise}
@@ -874,6 +881,7 @@ export function ImportProgramDialog({
                                       ))}
                                     </div>
                                   ) : null}
+                                </div>
                                 </div>
 
                                 {/* ID badge */}
