@@ -43,15 +43,12 @@ function asUrl(value: unknown) {
 
 /**
  * Variation metadata synced from an external exercise workbook: display name,
- * source exercise id and media. Rows synced before the key was renamed still
- * carry it under the legacy key, which is read as a fallback.
+ * source exercise id and media.
  */
 const EXTERNAL_SOURCE_METADATA_KEY = "externalSource"
-const LEGACY_EXTERNAL_SOURCE_METADATA_KEY = "hevy"
 
 function readExternalSourceMetadata(metadata: unknown) {
-  const root = asRecord(metadata)
-  return asRecord(root?.[EXTERNAL_SOURCE_METADATA_KEY]) ?? asRecord(root?.[LEGACY_EXTERNAL_SOURCE_METADATA_KEY])
+  return asRecord(asRecord(metadata)?.[EXTERNAL_SOURCE_METADATA_KEY])
 }
 
 function serializeExerciseMedia(metadata: unknown, supabaseUrl = env.supabaseUrl) {
@@ -102,7 +99,6 @@ export {
   EXERCISE_MEDIA_BUCKET,
   EXERCISE_MEDIA_DIMENSION,
   EXTERNAL_SOURCE_METADATA_KEY,
-  LEGACY_EXTERNAL_SOURCE_METADATA_KEY,
   publicObjectUrl,
   readExternalSourceMetadata,
   serializeExerciseMedia,

@@ -11,7 +11,6 @@ import { env } from "../config/env"
 import {
   EXERCISE_MEDIA_BUCKET,
   EXTERNAL_SOURCE_METADATA_KEY,
-  LEGACY_EXTERNAL_SOURCE_METADATA_KEY,
   publicObjectUrl,
   readExternalSourceMetadata,
 } from "../lib/exercise-media"
@@ -248,7 +247,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function buildMetadata(existingMetadata: Prisma.JsonValue | null, row: NormalizedRow, uploadedMedia?: UploadedMedia) {
-  const { [LEGACY_EXTERNAL_SOURCE_METADATA_KEY]: _legacy, ...existing } = asRecord(existingMetadata)
+  const existing = asRecord(existingMetadata)
   const animationUrl = uploadedMedia?.animationUrl ?? row.animationUrl
   const thumbnailUrl = uploadedMedia?.thumbnailUrl ?? row.thumbnailUrl
   const media: Record<string, Prisma.InputJsonValue> = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { LEGACY_EXTERNAL_SOURCE_METADATA_KEY, serializeExerciseMedia } from "./exercise-media"
+import { serializeExerciseMedia } from "./exercise-media"
 
 describe("serializeExerciseMedia", () => {
   it("serializes external remote media URLs", () => {
@@ -18,20 +18,6 @@ describe("serializeExerciseMedia", () => {
       thumbnailUrl: "https://cdn.example.com/exercise.jpg",
       type: "video",
       width: 180,
-    })
-  })
-
-  it("still reads external media stored under the legacy metadata key", () => {
-    expect(serializeExerciseMedia({
-      [LEGACY_EXTERNAL_SOURCE_METADATA_KEY]: {
-        media: {
-          animationUrl: "https://cdn.example.com/exercise.gif",
-          thumbnailUrl: "https://cdn.example.com/exercise.jpg",
-        },
-      },
-    }, "https://project.supabase.co")).toMatchObject({
-      animationUrl: "https://cdn.example.com/exercise.gif",
-      type: "gif",
     })
   })
 
