@@ -8,7 +8,7 @@ export function WorkoutFrequencyChart({ data }: { data: DashboardWorkoutFrequenc
     <div className="h-[250px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+          <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--border)" />
           <XAxis 
             dataKey="label" 
             axisLine={false}
@@ -23,10 +23,10 @@ export function WorkoutFrequencyChart({ data }: { data: DashboardWorkoutFrequenc
           />
           <Tooltip 
             cursor={{ fill: "var(--muted)" }}
-            contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)" }}
+            contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }}
           />
-          <Bar dataKey="planned" fill="var(--muted)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-          <Bar dataKey="completed" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+          <Bar dataKey="planned" fill="var(--border)" radius={[4, 4, 0, 0]} maxBarSize={12} />
+          <Bar dataKey="completed" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={12} />
         </BarChart>
       </ResponsiveContainer>
     </div>

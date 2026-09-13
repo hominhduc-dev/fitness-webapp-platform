@@ -1,6 +1,6 @@
 "use client"
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import { useLocale } from "@/components/providers/locale-provider"
 
 type Props = {
   data: {
@@ -10,50 +10,19 @@ type Props = {
 }
 
 export function MuscleDistributionChart({ data }: Props) {
+  const { locale, messages } = useLocale()
+  if (!data.groups.length) return <p className="flex h-48 items-center justify-center text-sm text-muted-foreground">{messages.progressPage.analytics.empty}</p>
   return (
-    <div className="flex h-[250px] w-full items-center">
-      <div className="h-full w-1/2 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data.groups}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={80}
-              paddingAngle={2}
-              dataKey="value"
-              stroke="none"
-            >
-              {data.groups.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(_value, name, item) => {
-                const volume = item.payload?.volume
-
-                return [
-                  typeof volume === "number" ? `${volume.toLocaleString()} kg` : "—",
-                  String(name),
-                ]
-              }}
-              contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)" }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="w-1/2 flex flex-col justify-center gap-2 pr-4">
-        {data.groups.map((group, index) => (
-          <div key={index} className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.fill }} />
-              <span className="text-muted-foreground">{group.name}</span>
-            </div>
-            <span className="font-mono tnum text-foreground">{group.value}%</span>
+    <div className="space-y-4">
+      {[...data.groups].sort((a, b) => b.value - a.value).map((group) => (
+        <div key={group.name} className="grid grid-cols-[6rem_1fr_3rem] items-center gap-4 text-xs">
+          <span className="truncate text-muted-foreground" title={group.name}>{group.name}</span>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted" title={`${group.volume.toLocaleString(locale)} kg`}>
+            <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(0, Math.min(100, group.value))}%` }} />
           </div>
-        ))}
-      </div>
+          <span className="text-right tabular-nums">{group.value}%</span>
+        </div>
+      ))}
     </div>
   )
 }

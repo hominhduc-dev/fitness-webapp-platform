@@ -1,6 +1,7 @@
 export const progressMessages = {
   en: {
     progressPage: {
+      analytics: { title: "Progress", tab: "Analytics", period: "Last 90 days", description: "Your training, at a glance.", completed: "Workouts", planned: "planned", volume: "Training volume", strength: "Strength · e1RM", records: "Personal records", comparison: "vs previous period", frequency: "Workout frequency", weekly: "Weekly sessions", body: "Body weight", muscles: "Muscle distribution", recent: "Recent records", empty: "No data for this period yet.", noRecords: "No personal records in this period.", completedLegend: "Completed", plannedLegend: "Planned" },
       title: "Weight Tracking",
       subtitle: "Your physiological journey at a glance.",
       exportCsv: "Export CSV",
@@ -93,6 +94,7 @@ export const progressMessages = {
   },
   vi: {
     progressPage: {
+      analytics: { title: "Tiến độ", tab: "Phân tích", period: "90 ngày gần nhất", description: "Tổng quan quá trình tập luyện của bạn.", completed: "Buổi tập", planned: "theo kế hoạch", volume: "Khối lượng tập", strength: "Sức mạnh · e1RM", records: "Kỷ lục cá nhân", comparison: "so với kỳ trước", frequency: "Tần suất tập luyện", weekly: "Số buổi mỗi tuần", body: "Cân nặng", muscles: "Phân bố nhóm cơ", recent: "Kỷ lục gần đây", empty: "Chưa có dữ liệu trong giai đoạn này.", noRecords: "Chưa có kỷ lục cá nhân trong giai đoạn này.", completedLegend: "Đã hoàn thành", plannedLegend: "Kế hoạch" },
       title: "Theo doi can nang",
       subtitle: "Tong quan hanh trinh the chat cua ban.",
       exportCsv: "Xuat CSV",

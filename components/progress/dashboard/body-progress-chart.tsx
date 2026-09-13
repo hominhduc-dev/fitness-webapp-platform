@@ -9,7 +9,7 @@ export function BodyProgressChart({ data }: { data: DashboardBodyProgress }) {
     <div className="h-[250px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data.weight} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+          <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--border)" />
           <XAxis 
             dataKey="date" 
             axisLine={false}
@@ -29,9 +29,9 @@ export function BodyProgressChart({ data }: { data: DashboardBodyProgress }) {
           />
           <Tooltip 
             labelFormatter={(label) => new Date(label).toLocaleDateString()}
-            contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)" }}
+            contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }}
           />
-          <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot={{ fill: "var(--primary)", r: 4 }} activeDot={{ r: 6 }} />
+          <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>

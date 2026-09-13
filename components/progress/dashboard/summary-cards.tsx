@@ -1,46 +1,30 @@
 "use client"
 
-import { MetricCard } from "@/components/ui/metric-card"
 import type { DashboardAnalyticsSummary } from "@/lib/fitness/types"
-import { CalendarCheck, Dumbbell, TrendingUp, Trophy } from "lucide-react"
+import { useLocale } from "@/components/providers/locale-provider"
 
 export function SummaryCards({ summary }: { summary: DashboardAnalyticsSummary }) {
+  const { locale, messages } = useLocale()
+  const copy = messages.progressPage.analytics
+  const number = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
+  const signed = (value: number) => `${value > 0 ? "+" : ""}${number.format(value)}`
+  const metrics = [
+    { label: copy.completed, value: number.format(summary.completedWorkouts), detail: `${summary.plannedWorkouts} ${copy.planned}` },
+    { label: copy.volume, value: number.format(summary.totalVolume), unit: "kg", detail: `${signed(summary.volumeDeltaPct)}% ${copy.comparison}` },
+    { label: copy.strength, value: `${signed(summary.e1rmChangePct)}%`, detail: `${signed(summary.e1rmChangeTotalKg)} kg ${copy.comparison}` },
+    { label: copy.records, value: number.format(summary.newPRsCount), detail: summary.latestPR?.exerciseName ?? copy.noRecords },
+  ]
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <MetricCard
-        title="Completed Workouts"
-        value={`${summary.completedWorkouts} / ${summary.plannedWorkouts}`}
-        subtitle={`${summary.completedDelta >= 0 ? "+" : ""}${summary.completedDelta} sessions vs last month`}
-        progress={summary.completionRate}
-        icon={CalendarCheck}
-        variant="featured"
-        tone="success"
-      />
-      <MetricCard
-        title="Total Volume"
-        value={`${summary.totalVolume.toLocaleString()} kg`}
-        subtitle="vs last month"
-        trend={{ value: summary.volumeDeltaPct, positive: summary.volumeDeltaPct >= 0 }}
-        icon={Dumbbell}
-        variant="featured"
-        tone="violet"
-      />
-      <MetricCard
-        title="Strength (e1RM)"
-        value={`${summary.e1rmChangePct >= 0 ? "+" : ""}${summary.e1rmChangePct}%`}
-        subtitle={`${summary.e1rmChangeTotalKg >= 0 ? "+" : ""}${summary.e1rmChangeTotalKg} kg (total) vs last month`}
-        icon={TrendingUp}
-        variant="featured"
-        tone="primary"
-      />
-      <MetricCard
-        title="New PRs"
-        value={summary.newPRsCount.toString()}
-        subtitle={summary.latestPR ? `${summary.latestPR.exerciseName} +${summary.latestPR.deltaKg}kg` : "No recent PRs"}
-        icon={Trophy}
-        variant="featured"
-        tone="warning"
-      />
-    </div>
+    <dl className="grid grid-cols-2 gap-y-6 border-y border-border py-6 lg:grid-cols-4">
+      {metrics.map((metric, index) => (
+        <div key={metric.label} className={`min-w-0 px-4 first:pl-0 sm:px-6 ${index % 2 === 1 ? "border-l border-border" : "lg:border-l lg:border-border"}`}>
+          <dt className="text-xs text-muted-foreground">{metric.label}</dt>
+          <dd className="mt-3 flex flex-wrap items-baseline gap-x-1.5 text-3xl font-medium tabular-nums tracking-tight xl:text-4xl">
+            {metric.value}<span className="text-sm font-normal tracking-normal text-muted-foreground">{metric.unit}</span>
+          </dd>
+          <dd className="mt-2 truncate text-xs text-muted-foreground" title={metric.detail}>{metric.detail}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }

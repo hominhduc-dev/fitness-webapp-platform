@@ -9,11 +9,11 @@ export function TrainingVolumeChart({ data }: { data: Array<{ label: string; vol
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
           <defs>
             <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.12} />
               <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+          <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--border)" />
           <XAxis 
             dataKey="label" 
             axisLine={false}
@@ -28,7 +28,7 @@ export function TrainingVolumeChart({ data }: { data: Array<{ label: string; vol
             tickFormatter={(val) => val >= 1000 ? `${val / 1000}k` : val}
           />
           <Tooltip 
-            contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)" }}
+            contentStyle={{ borderRadius: "8px", border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 12 }}
           />
           <Area type="monotone" dataKey="volume" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorVolume)" />
         </AreaChart>

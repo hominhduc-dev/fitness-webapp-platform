@@ -892,7 +892,12 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
         {/* ---- Page header ---- */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Month nav */}
-          <div className="flex items-center gap-3">
+          {tab === "prs" ? (
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight">{messages.progressPage.analytics.title}</h1>
+              <p className="mt-2 text-sm text-muted-foreground">{messages.progressPage.analytics.description}</p>
+            </div>
+          ) : <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={goToPrevMonth}
@@ -923,9 +928,12 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             </button>
           </div>
 
+          }
           {/* Filter chips + export */}
           <div className="flex flex-wrap items-center gap-2">
-            {(["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
+            {tab === "prs" ? (
+              <span className="mr-2 text-xs text-muted-foreground">{messages.progressPage.analytics.period}</span>
+            ) : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
               <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
                 {k === "all"
                   ? messages.workoutPage.all
@@ -941,9 +949,9 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
         </div>
 
         {/* ---- Stats summary ---- */}
-        <div className="mb-6">
+        {tab !== "prs" && <div className="mb-6">
           <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />
-        </div>
+        </div>}
 
         {/* ---- Tab strip ---- */}
         <div className="mb-6 flex gap-1 border-b border-border">
@@ -959,7 +967,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {t === "history" ? messages.progressPage.historyTab : t === "year" ? messages.progressPage.yearView : "Analytics"}
+              {t === "history" ? messages.progressPage.historyTab : t === "year" ? messages.progressPage.yearView : messages.progressPage.analytics.tab}
             </button>
           ))}
         </div>
@@ -1049,7 +1057,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             <AnalyticsDashboard data={dashboardData} />
           ) : (
             <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
-              No analytics data available.
+              {messages.progressPage.analytics.empty}
             </div>
           )
         )}
