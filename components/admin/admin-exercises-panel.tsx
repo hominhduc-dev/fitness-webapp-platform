@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 
 import { ExerciseMediaEditor } from "@/components/admin/exercise-media-editor"
+import { MuscleProfileSummary, canApproveMuscleProfile } from "@/components/admin/muscle-profile-summary"
 import { Badge } from "@/components/ui/badge"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
@@ -65,6 +66,18 @@ function getExercisePanelCopy(locale: "en" | "vi") {
   return {
     addToLibrary: locale === "en" ? "Add to library" : "Thêm vào thư viện",
     approve: locale === "en" ? "Approve" : "Duyệt",
+    approveProfile: locale === "en" ? "Approve muscle profile" : "Duyệt profile cơ",
+    approveProfiles: locale === "en" ? "Approve muscle profiles" : "Duyệt profile cơ",
+    cannotApproveProfile: locale === "en" ? "Add a primary muscle before approving" : "Cần có cơ chính trước khi duyệt",
+    profileStatus: (status?: "pending" | "approved") =>
+      status === "approved"
+        ? (locale === "en" ? "approved" : "đã duyệt")
+        : status === "pending"
+          ? (locale === "en" ? "needs review" : "chờ duyệt")
+          : "legacy",
+    profileFilterAll: locale === "en" ? "Muscles: all" : "Cơ: tất cả",
+    profileFilterPending: locale === "en" ? "Needs review" : "Chờ duyệt",
+    profileFilterApproved: locale === "en" ? "Approved" : "Đã duyệt",
     cancel: locale === "en" ? "Cancel" : "Hủy",
     cannotDeleteInUse: locale === "en" ? "Cannot delete - in use" : "Không thể xóa - đang được dùng",
     cannotManageShared: locale === "en" ? "Cannot manage shared exercise" : "Không thể sửa bài tập dùng chung",
@@ -327,11 +340,14 @@ type GroupBlockProps = {
   onToggleGroupSelect: (ids: string[]) => void
   onEdit: (e: AdminExerciseItem) => void
   onDelete: (e: AdminExerciseItem) => void
+  /** Approves one pending muscle profile; the row button is hidden without it. */
+  onApproveProfile?: (e: AdminExerciseItem) => void
+  approvingProfiles: boolean
   deletingId: string | null
   locale: "en" | "vi"
 }
 
-function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, deletingId, locale }: GroupBlockProps) {
+function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
   const totalUses = exercises.reduce((a, e) => a + e.usageCount, 0)
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
@@ -373,7 +389,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
       {open && (
         <div className="border-t border-border">
           {/* Column header */}
-          <div className="grid grid-cols-[24px_minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]">
+          <div className="grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_84px]">
             <span />
             <span className="label-micro text-muted-foreground">{copy.exercise}</span>
             <span className="label-micro hidden text-muted-foreground sm:block">{copy.variation}</span>
@@ -390,7 +406,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <div
               key={e.id}
               className={cn(
-                "grid grid-cols-[24px_minmax(0,1.4fr)_56px_56px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_56px]",
+                "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_84px]",
                 isSelected ? "bg-primary/5" : "hover:bg-muted/20",
               )}
             >
@@ -413,9 +429,10 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
                   <Badge variant={e.muscleProfileStatus === "approved" ? "secondary" : "outline"} className="shrink-0 px-1.5 py-0 font-mono text-micro">
-                    {e.muscleProfileStatus ?? "legacy"}{e.muscleProfileConfidence != null ? ` ${Math.round(e.muscleProfileConfidence * 100)}%` : ""}
+                    {copy.profileStatus(e.muscleProfileStatus)}
                   </Badge>
                 </div>
+                <MuscleProfileSummary exercise={e} locale={locale} />
                 {/* Mobile-only: show variation + equipment under the name */}
                 <span className="truncate text-micro text-muted-foreground sm:hidden">
                   {e.variationName !== "Default" ? e.variationName : ""}
@@ -437,6 +454,18 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-0.5">
+                {onApproveProfile && canManage && e.muscleProfileStatus === "pending" ? (
+                  <button
+                    type="button"
+                    aria-label={`${copy.approveProfile}: ${e.name}`}
+                    title={canApproveMuscleProfile(e) ? copy.approveProfile : copy.cannotApproveProfile}
+                    disabled={approvingProfiles || !canApproveMuscleProfile(e)}
+                    onClick={() => onApproveProfile(e)}
+                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   title="Edit"
@@ -774,7 +803,7 @@ export function ExerciseLibraryPanel({
           {capabilities.canBulkApprove && onBulkApprove ? (
             <Button size="sm" disabled={actionKey === "exercise-bulk-approve"} onClick={() => void onBulkApprove(Array.from(selected))}>
               {actionKey === "exercise-bulk-approve" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
-              Approve profiles
+              {copy.approveProfiles}
             </Button>
           ) : null}
         </div>
@@ -787,9 +816,9 @@ export function ExerciseLibraryPanel({
           <Input value={rawQ} onChange={(e) => handleSearchChange(e.target.value)} placeholder={copy.searchExercises} className="pl-9" />
         </div>
         <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
-          <option value="all">Profile: all</option>
-          <option value="pending">Pending review</option>
-          <option value="approved">Approved</option>
+          <option value="all">{copy.profileFilterAll}</option>
+          <option value="pending">{copy.profileFilterPending}</option>
+          <option value="approved">{copy.profileFilterApproved}</option>
         </select>
         <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
           <option value="all">Activity: all</option>
@@ -822,6 +851,8 @@ export function ExerciseLibraryPanel({
             onToggleGroupSelect={toggleGroupSelect}
             onEdit={(e) => setModal(e)}
             onDelete={handleDelete}
+            onApproveProfile={capabilities.canBulkApprove && onBulkApprove ? (e) => void onBulkApprove([e.id]) : undefined}
+            approvingProfiles={actionKey === "exercise-bulk-approve"}
             deletingId={deletingId}
             locale={locale}
           />

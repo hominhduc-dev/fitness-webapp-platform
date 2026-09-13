@@ -31,6 +31,8 @@ async function main() {
     throw new Error(`Refusing partial apply: report covers ${existing.length}/${totalVariations} variations. Finish the dry-run first.`)
   }
   const force = process.argv.includes("--force")
+  // Keeps every AI profile pending so an admin reviews all of them, not only the low-confidence ones.
+  const autoApprove = !process.argv.includes("--no-auto-approve")
   const classifications = existing
     .filter((variation) => force || variation.muscleProfileSource === null)
     .flatMap((variation) => byId.get(variation.id) ?? [])
@@ -38,7 +40,7 @@ async function main() {
   for (let offset = 0; offset < classifications.length; offset += 50) {
     const batch = classifications.slice(offset, offset + 50)
     await prisma.$transaction(batch.map((classification) => {
-      const approved = shouldAutoApprove(classification)
+      const approved = autoApprove && shouldAutoApprove(classification)
       return prisma!.variation.update({
         data: {
           activityType: classification.activityType,
@@ -60,7 +62,7 @@ async function main() {
     }))
   }
 
-  const approvedCount = classifications.filter(shouldAutoApprove).length
+  const approvedCount = autoApprove ? classifications.filter(shouldAutoApprove).length : 0
   process.stdout.write(`${JSON.stringify({
     applied: classifications.length,
     approved: approvedCount,
