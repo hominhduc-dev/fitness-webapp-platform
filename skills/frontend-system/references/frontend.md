@@ -193,6 +193,11 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 - Import từ `@/components/ui/*`; không dùng raw Radix trong feature nếu primitive đã tồn tại.
 - Dùng `Button` variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`.
 - Dialog dùng Radix `DialogContent`; drawer dùng Vaul `DrawerContent`; cả hai tự nhận `glass-surface`.
+- Sheet đáy trên mobile / dialog canh giữa từ `sm` dùng `BottomSheet` (`components/ui/bottom-sheet.tsx`)
+  cùng `BottomSheetHeader/Body/Footer`. Primitive lo sẵn dvh sizing, safe-area đáy, Escape và scroll lock —
+  không hand-roll `fixed inset-0` mới. Variant `floating` (overlay ôm inset) và `flush` (sheet chạm mép đáy);
+  variant set `--sheet-safe-bottom` nên không call site nào lặp lại `env(safe-area-inset-bottom)`.
+  Cần focus trap thì dùng `ui/dialog` (Radix) thay vì mở rộng primitive này.
 - Dùng `data-slot` cho styling/test ổn định.
 - Dùng `cn()` từ `lib/utils.ts` cho conditional classes.
 
@@ -372,7 +377,7 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 
 ### Touch và safe area
 
-- Dùng `env(safe-area-inset-*)` ở shell, fixed footer, modal footer.
+- Dùng `env(safe-area-inset-*)` ở shell và fixed footer; sheet/modal thì để `BottomSheet` lo (xem Primitive conventions).
 - Touch control mặc định tối thiểu 44px qua `pointer-coarse:*`; chip dense tối thiểu khoảng 40px.
 - Input/select/textarea trên iOS có font floor 16px để tránh auto zoom.
 - `touch-action: manipulation` trên interactive controls; pinch zoom của trang vẫn bật.

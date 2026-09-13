@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import dynamic from "next/dynamic"
 
@@ -9,6 +9,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
 import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
+import { BottomSheet, BottomSheetBody, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useWorkouts } from "@/lib/queries/workouts"
 import type { WorkoutCollection } from "@/lib/fitness/types"
@@ -240,19 +241,6 @@ function WorkoutLogModal({
   const log = logQuery.data ?? null
   const loading = logQuery.isPending
   const error = logQuery.error?.message
-  const overlayRef = useRef<HTMLDivElement>(null)
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
-    document.addEventListener("keydown", handler)
-    return () => document.removeEventListener("keydown", handler)
-  }, [onClose])
-
-  function handleOverlayClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) onClose()
-  }
-
   const startDate = log ? formatShortDate(log.startedAt, locale) : ""
   const totalSets = log?.exercises.reduce((s, ex) => s + ex.sets.length, 0) ?? 0
   const completedSets = log?.exercises.reduce(
@@ -260,112 +248,110 @@ function WorkoutLogModal({
   ) ?? 0
 
   return (
-    <div
-      ref={overlayRef}
-      onClick={handleOverlayClick}
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-foreground/20 backdrop-blur-[2px] sm:items-center"
+    <BottomSheet
+      ariaLabel={messages.workoutPage.workout}
+      className="sm:max-h-[82svh]"
+      overlayClassName="z-[80] bg-foreground/20 backdrop-blur-[2px]"
+      variant="flush"
+      onClose={onClose}
     >
-      <div className="relative flex max-h-[calc(100svh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-[16px] border border-border bg-background shadow-2xl sm:max-h-[82svh] sm:rounded-2xl">
-        {/* Header */}
-        <div className="shrink-0 flex items-start justify-between border-b border-border p-5">
-          <div>
-            {loading ? (
-              <Skeleton className="h-6 w-40 rounded" />
-            ) : (
-              <>
-                <LabelMicro className="mb-1 block">{startDate}</LabelMicro>
-                <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                  {log?.workout.name ?? messages.workoutPage.workout}
-                </h2>
-                <div className="mt-1 font-mono text-micro tnum text-muted-foreground">
-                  {completedSets}/{totalSets} {messages.workoutPage.setCount(totalSets)} {messages.workoutPage.completed}
-                  {log?.totalVolume ? ` · ${messages.workoutPage.previewTotalKg(formatVolume(log.totalVolume))}` : ""}
-                </div>
-              </>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-4 inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label={messages.common.closeNavigation}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+      <BottomSheetHeader>
+        <div>
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
-            </div>
-          ) : error ? (
-            <p className="text-sm text-destructive-text">{error}</p>
-          ) : log && log.exercises.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{messages.workoutPage.noExerciseData}</p>
+            <Skeleton className="h-6 w-40 rounded" />
           ) : (
-            <div className="space-y-4">
-              {log?.exercises.map((ex, i) => (
-                <div key={ex.id ?? i}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <div
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ background: kindColor(inferKind(ex.exercise.muscleGroup, ex.exercise.name)) }}
-                    />
-                    <span className="text-sm font-medium text-foreground">{ex.exercise.name}</span>
-                    <span className="label-micro ml-auto">{ex.exercise.muscleGroup}</span>
-                  </div>
-                  <div className="overflow-x-auto rounded-md border border-border">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="label-micro px-3 py-2">{messages.workoutPage.set}</th>
-                          <th className="label-micro px-3 py-2">{messages.workoutPage.weight}</th>
-                          <th className="label-micro px-3 py-2">{messages.workoutPage.reps}</th>
-                          <th className="label-micro px-3 py-2">{messages.workoutPage.done}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ex.sets.map((set, si) => (
-                          <tr
-                            key={set.id ?? si}
-                            className={cn(
-                              "border-b border-border last:border-0",
-                              set.completed ? "" : "opacity-40",
-                            )}
-                          >
-                            <td className="px-3 py-2 font-mono text-xs tnum text-muted-foreground">
-                              {set.setNumber}
-                            </td>
-                            <td className="px-3 py-2 font-mono text-xs font-medium tnum text-foreground">
-                              {set.weight != null ? `${set.weight} kg` : "—"}
-                            </td>
-                            <td className="px-3 py-2 font-mono text-xs tnum text-foreground">
-                              {set.actualReps ?? set.targetReps}
-                            </td>
-                            <td className="px-3 py-2">
-                              <span
-                                className={cn(
-                                  "h-4 w-4 rounded-sm border",
-                                  set.completed
-                                    ? "border-[var(--success)] bg-[var(--success)]/10"
-                                    : "border-border",
-                                )}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <>
+              <LabelMicro className="mb-1 block">{startDate}</LabelMicro>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                {log?.workout.name ?? messages.workoutPage.workout}
+              </h2>
+              <div className="mt-1 font-mono text-micro tnum text-muted-foreground">
+                {completedSets}/{totalSets} {messages.workoutPage.setCount(totalSets)} {messages.workoutPage.completed}
+                {log?.totalVolume ? ` · ${messages.workoutPage.previewTotalKg(formatVolume(log.totalVolume))}` : ""}
+              </div>
+            </>
           )}
         </div>
-      </div>
-    </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-4 inline-flex items-center justify-center rounded-lg border border-border p-1.5 pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={messages.common.closeNavigation}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </BottomSheetHeader>
+
+      <BottomSheetBody>
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+          </div>
+        ) : error ? (
+          <p className="text-sm text-destructive-text">{error}</p>
+        ) : log && log.exercises.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{messages.workoutPage.noExerciseData}</p>
+        ) : (
+          <div className="space-y-4">
+            {log?.exercises.map((ex, i) => (
+              <div key={ex.id ?? i}>
+                <div className="mb-2 flex items-center gap-2">
+                  <div
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: kindColor(inferKind(ex.exercise.muscleGroup, ex.exercise.name)) }}
+                  />
+                  <span className="text-sm font-medium text-foreground">{ex.exercise.name}</span>
+                  <span className="label-micro ml-auto">{ex.exercise.muscleGroup}</span>
+                </div>
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="label-micro px-3 py-2">{messages.workoutPage.set}</th>
+                        <th className="label-micro px-3 py-2">{messages.workoutPage.weight}</th>
+                        <th className="label-micro px-3 py-2">{messages.workoutPage.reps}</th>
+                        <th className="label-micro px-3 py-2">{messages.workoutPage.done}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ex.sets.map((set, si) => (
+                        <tr
+                          key={set.id ?? si}
+                          className={cn(
+                            "border-b border-border last:border-0",
+                            set.completed ? "" : "opacity-40",
+                          )}
+                        >
+                          <td className="px-3 py-2 font-mono text-xs tnum text-muted-foreground">
+                            {set.setNumber}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs font-medium tnum text-foreground">
+                            {set.weight != null ? `${set.weight} kg` : "—"}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs tnum text-foreground">
+                            {set.actualReps ?? set.targetReps}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={cn(
+                                "h-4 w-4 rounded-sm border",
+                                set.completed
+                                  ? "border-[var(--success)] bg-[var(--success)]/10"
+                                  : "border-border",
+                              )}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </BottomSheetBody>
+    </BottomSheet>
   )
 }
 

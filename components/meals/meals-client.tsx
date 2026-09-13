@@ -23,6 +23,7 @@ import { useMemo, useState } from "react"
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { createCustomFood } from "@/lib/fitness/api"
@@ -246,7 +247,7 @@ function MealSection({
           </div>
           <span className="font-mono text-sm text-muted-foreground tnum">{Math.round(item.calories)}</span>
           <button
-            className="rounded p-1 text-ink-200 transition-colors hover:text-destructive-text"
+            className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded text-ink-200 transition-colors hover:text-destructive-text pointer-coarse:size-11"
             disabled={isSubmitting}
             title={deleteLabel}
             type="button"
@@ -338,7 +339,7 @@ function CreateFoodForm({
 
   return (
     <>
-      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+      <BottomSheetHeader>
         <div>
           <p className="label-micro mb-1.5">{labels.foodLibrary}</p>
           <h2 className="text-lg font-semibold text-foreground">{labels.createFoodTitle}</h2>
@@ -346,9 +347,9 @@ function CreateFoodForm({
         <button className="rounded p-1 text-muted-foreground hover:bg-muted" type="button" onClick={onCancel}>
           <X className="h-4 w-4" />
         </button>
-      </div>
+      </BottomSheetHeader>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+      <BottomSheetBody className="space-y-4">
         <div>
           <p className="label-micro mb-1.5">{labels.foodName}</p>
           <Input value={name} placeholder={labels.foodNamePlaceholder} onChange={(event) => setName(event.target.value)} />
@@ -400,9 +401,9 @@ function CreateFoodForm({
             </div>
           ))}
         </div>
-      </div>
+      </BottomSheetBody>
 
-      <div className="flex shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
+      <BottomSheetFooter className="justify-end">
         <Button type="button" variant="ghost" onClick={onCancel}>
           {labels.cancel}
         </Button>
@@ -424,7 +425,7 @@ function CreateFoodForm({
           <Check className="h-4 w-4" />
           {labels.saveFood}
         </Button>
-      </div>
+      </BottomSheetFooter>
     </>
   )
 }
@@ -514,193 +515,189 @@ function AddFoodModal({
       : amountValue
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-overlay-soft px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md sm:items-center sm:p-6"
-      onClick={onClose}
+    <BottomSheet
+      ariaLabel={labels.logFood}
+      className="meal-food-sheet glass-surface h-full max-h-[min(780px,100%)] border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-w-[540px]"
+      overlayClassName="z-[70]"
+      onClose={onClose}
     >
-      <div
-        className="meal-food-sheet glass-surface flex h-[min(780px,calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full flex-col overflow-hidden rounded-full border border-border/80 bg-card shadow-[var(--glass-shadow)] sm:h-auto sm:max-h-[min(780px,calc(100dvh-3rem))] sm:max-w-[540px] sm:rounded-3xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {creating ? (
-          <CreateFoodForm
-            getCategoryLabel={getCategoryLabel}
-            labels={labels}
-            saving={submitting}
-            onCancel={() => setCreating(false)}
-            onSave={handleCreateFood}
-          />
-        ) : (
-          <>
-            <div className="meal-food-sheet__chrome shrink-0 border-b border-border/70 bg-card/90 px-4 pb-3.5 pt-2 backdrop-blur-xl sm:px-5 sm:pb-4 sm:pt-4">
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-foreground/15 sm:hidden" />
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                    <Utensils className="size-4.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="label-micro mb-1 truncate">{mealLabel}</p>
-                    <h2 className="text-lg font-semibold leading-none text-foreground">{labels.logFood}</h2>
-                  </div>
+      {creating ? (
+        <CreateFoodForm
+          getCategoryLabel={getCategoryLabel}
+          labels={labels}
+          saving={submitting}
+          onCancel={() => setCreating(false)}
+          onSave={handleCreateFood}
+        />
+      ) : (
+        <>
+          <div className="meal-food-sheet__chrome shrink-0 border-b border-border/70 bg-card/90 px-4 pb-3.5 pt-3 backdrop-blur-xl sm:px-5 sm:pb-4 sm:pt-4">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+                  <Utensils className="size-4.5" />
                 </div>
-                <button
-                  aria-label={labels.cancel}
-                  className="meal-food-sheet__control flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  type="button"
-                  onClick={onClose}
-                >
-                  <X className="size-4" />
-                </button>
+                <div className="min-w-0">
+                  <p className="label-micro mb-1 truncate">{mealLabel}</p>
+                  <h2 className="text-lg font-semibold leading-none text-foreground">{labels.logFood}</h2>
+                </div>
               </div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="meal-food-sheet__control h-11 rounded-full border-border/80 bg-muted/55 pl-10 pr-4 shadow-none focus-visible:ring-primary/25"
-                  value={query}
-                  placeholder={labels.searchFoodPlaceholder}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </div>
-              <div className="-mr-4 mt-3 overflow-hidden pr-4 sm:-mr-5 sm:pr-5">
-                <CategoryChips active={category} getLabel={getCategoryLabel} onChange={setCategory} />
-              </div>
+              <button
+                aria-label={labels.cancel}
+                className="meal-food-sheet__control flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                type="button"
+                onClick={onClose}
+              >
+                <X className="size-4" />
+              </button>
             </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="meal-food-sheet__control h-11 rounded-full border-border/80 bg-muted/55 pl-10 pr-4 shadow-none focus-visible:ring-primary/25"
+                value={query}
+                placeholder={labels.searchFoodPlaceholder}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+            <div className="-mr-4 mt-3 overflow-hidden pr-4 sm:-mr-5 sm:pr-5">
+              <CategoryChips active={category} getLabel={getCategoryLabel} onChange={setCategory} />
+            </div>
+          </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
-              {showRecentFoods ? (
-                <div className="border-b border-border/70 bg-primary-soft/25 px-4 py-3.5 sm:px-5">
-                  <div className="mb-2.5 flex items-baseline justify-between gap-3">
-                    <p className="label-micro">{labels.recentFoods}</p>
-                    <p className="hidden text-micro text-muted-foreground sm:block">{labels.recentFoodsHint}</p>
-                  </div>
-                  <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {recentFoods.map((food) => {
-                      const active = selectedFood?.id === food.id
-                      return (
-                        <button
-                          key={food.id}
-                          className={cn(
-                            "meal-food-sheet__control min-w-[156px] max-w-[200px] shrink-0 rounded-xl border bg-card/75 px-3 py-2.5 text-left transition-all",
-                            active
-                              ? "border-primary bg-primary-soft shadow-[0_8px_24px_-18px_var(--primary)]"
-                              : "border-border/80 hover:border-primary/25 hover:bg-muted",
-                          )}
-                          type="button"
-                          onClick={() => pickFood(food)}
-                        >
-                          <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
-                          <p className="mt-0.5 truncate font-mono text-micro text-muted-foreground tnum">
-                            {Math.round(food.calories)} kcal · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F
-                            {formatMetric(food.fat, 0)}
-                          </p>
-                        </button>
-                      )
-                    })}
-                  </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+            {showRecentFoods ? (
+              <div className="border-b border-border/70 bg-primary-soft/25 px-4 py-3.5 sm:px-5">
+                <div className="mb-2.5 flex items-baseline justify-between gap-3">
+                  <p className="label-micro">{labels.recentFoods}</p>
+                  <p className="hidden text-micro text-muted-foreground sm:block">{labels.recentFoodsHint}</p>
                 </div>
-              ) : null}
-              <div className="space-y-2 px-3 py-3 sm:px-4">
-                {filteredFoods.map((food) => {
-                  const active = selectedFood?.id === food.id
-                  return (
-                    <button
-                      key={food.id}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
-                        active
-                          ? "border-primary bg-primary-soft shadow-[0_8px_24px_-20px_var(--primary)]"
-                          : "meal-food-sheet__row border-border/40 bg-card/35 hover:border-border hover:bg-muted/60",
-                      )}
-                      type="button"
-                      onClick={() => pickFood(food)}
-                    >
-                      <div className={cn(
-                        "flex size-9 shrink-0 items-center justify-center rounded-full",
-                        active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                      )}>
-                        {active ? <Check className="size-4" /> : <Utensils className="size-3.5" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
+                <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {recentFoods.map((food) => {
+                    const active = selectedFood?.id === food.id
+                    return (
+                      <button
+                        key={food.id}
+                        className={cn(
+                          "meal-food-sheet__control min-w-[156px] max-w-[200px] shrink-0 rounded-xl border bg-card/75 px-3 py-2.5 text-left transition-all",
+                          active
+                            ? "border-primary bg-primary-soft shadow-[0_8px_24px_-18px_var(--primary)]"
+                            : "border-border/80 hover:border-primary/25 hover:bg-muted",
+                        )}
+                        type="button"
+                        onClick={() => pickFood(food)}
+                      >
                         <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
-                        <p className="mt-1 truncate font-mono text-micro text-muted-foreground tnum">
-                          {food.servingLabel} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
+                        <p className="mt-0.5 truncate font-mono text-micro text-muted-foreground tnum">
+                          {Math.round(food.calories)} kcal · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F
+                          {formatMetric(food.fat, 0)}
                         </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-muted/80 px-2.5 py-1 font-mono text-xs font-medium text-foreground tnum">
-                        {Math.round(food.calories)} <span className="text-micro font-normal text-muted-foreground">kcal</span>
-                      </span>
-                    </button>
-                  )
-                })}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-              {filteredFoods.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted-foreground">{labels.noFoodsFound}</div> : null}
+            ) : null}
+            <div className="space-y-2 px-3 py-3 sm:px-4">
+              {filteredFoods.map((food) => {
+                const active = selectedFood?.id === food.id
+                return (
+                  <button
+                    key={food.id}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
+                      active
+                        ? "border-primary bg-primary-soft shadow-[0_8px_24px_-20px_var(--primary)]"
+                        : "meal-food-sheet__row border-border/40 bg-card/35 hover:border-border hover:bg-muted/60",
+                    )}
+                    type="button"
+                    onClick={() => pickFood(food)}
+                  >
+                    <div className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-full",
+                      active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                    )}>
+                      {active ? <Check className="size-4" /> : <Utensils className="size-3.5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
+                      <p className="mt-1 truncate font-mono text-micro text-muted-foreground tnum">
+                        {food.servingLabel} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-muted/80 px-2.5 py-1 font-mono text-xs font-medium text-foreground tnum">
+                      {Math.round(food.calories)} <span className="text-micro font-normal text-muted-foreground">kcal</span>
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+            {filteredFoods.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted-foreground">{labels.noFoodsFound}</div> : null}
+          </div>
 
-            {!selectedFood ? (
-              <div className="meal-food-sheet__chrome shrink-0 border-t border-border/70 bg-card/90 px-4 py-3 backdrop-blur-xl sm:px-5">
-                <button
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft"
+          {!selectedFood ? (
+            <BottomSheetFooter className="meal-food-sheet__chrome border-border/70 bg-card/90 backdrop-blur-xl">
+              <button
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft"
+                type="button"
+                onClick={() => setCreating(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {labels.createNewFood}
+              </button>
+            </BottomSheetFooter>
+          ) : null}
+
+          {selectedFood ? (
+            <BottomSheetFooter className="meal-food-sheet__chrome flex-wrap gap-3 border-border/70 bg-card/95 backdrop-blur-xl">
+              <div className="w-full sm:w-auto sm:min-w-[130px] sm:flex-1">
+                <p className="text-sm font-semibold text-foreground">{selectedFood.name}</p>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">
+                  {Math.round(selectedFood.calories * multiplier)} kcal · P{Math.round(selectedFood.protein * multiplier)} C
+                  {Math.round(selectedFood.carbs * multiplier)} F{Math.round(selectedFood.fat * multiplier)}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  className="h-[30px] w-[30px] rounded-md"
+                  size="icon"
                   type="button"
-                  onClick={() => setCreating(true)}
+                  variant="outline"
+                  onClick={() => setAmountValue((value) => Math.max(amountUnit === "serving" ? 0.5 : 1, amountUnit === "serving" ? value - 0.5 : value - 10))}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </Button>
+                <div className="relative">
+                  <Input
+                    className="h-[30px] w-24 pr-8 text-right font-mono tnum sm:w-[76px]"
+                    inputMode="decimal"
+                    type="number"
+                    value={amountValue}
+                    onChange={(event) => setAmountValue(Math.max(0, Number(event.target.value) || 0))}
+                  />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-micro text-muted-foreground">
+                    {amountUnit === "serving" ? "x" : amountUnit}
+                  </span>
+                </div>
+                <Button
+                  className="h-[30px] w-[30px] rounded-md"
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setAmountValue((value) => (amountUnit === "serving" ? value + 0.5 : value + 10))}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  {labels.createNewFood}
-                </button>
-              </div>
-            ) : null}
-
-            {selectedFood ? (
-              <div className="meal-food-sheet__chrome flex shrink-0 flex-wrap items-center gap-3 border-t border-border/70 bg-card/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:px-5 sm:pb-4">
-                <div className="min-w-[130px] flex-1">
-                  <p className="text-sm font-semibold text-foreground">{selectedFood.name}</p>
-                  <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">
-                    {Math.round(selectedFood.calories * multiplier)} kcal · P{Math.round(selectedFood.protein * multiplier)} C
-                    {Math.round(selectedFood.carbs * multiplier)} F{Math.round(selectedFood.fat * multiplier)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    className="h-[30px] w-[30px] rounded-md"
-                    size="icon"
-                    type="button"
-                    variant="outline"
-                    onClick={() => setAmountValue((value) => Math.max(amountUnit === "serving" ? 0.5 : 1, amountUnit === "serving" ? value - 0.5 : value - 10))}
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </Button>
-                  <div className="relative">
-                    <Input
-                      className="h-[30px] w-[76px] pr-8 text-right font-mono text-sm tnum"
-                      inputMode="decimal"
-                      type="number"
-                      value={amountValue}
-                      onChange={(event) => setAmountValue(Math.max(0, Number(event.target.value) || 0))}
-                    />
-                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-micro text-muted-foreground">
-                      {amountUnit === "serving" ? "x" : amountUnit}
-                    </span>
-                  </div>
-                  <Button
-                    className="h-[30px] w-[30px] rounded-md"
-                    size="icon"
-                    type="button"
-                    variant="outline"
-                    onClick={() => setAmountValue((value) => (amountUnit === "serving" ? value + 0.5 : value + 10))}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <Button className="h-10 rounded-full px-5" disabled={submitting || amountValue <= 0} type="button" onClick={() => onAdd({ amountUnit, amountValue, food: selectedFood })}>
-                  <Check className="h-4 w-4" />
-                  {labels.addFoodItem}
                 </Button>
               </div>
-            ) : null}
-          </>
-        )}
-      </div>
-    </div>
+              <Button className="h-10 flex-1 rounded-full px-5 sm:flex-none" disabled={submitting || amountValue <= 0} type="button" onClick={() => onAdd({ amountUnit, amountValue, food: selectedFood })}>
+                <Check className="h-4 w-4" />
+                {labels.addFoodItem}
+              </Button>
+            </BottomSheetFooter>
+          ) : null}
+        </>
+      )}
+    </BottomSheet>
   )
 }
 
