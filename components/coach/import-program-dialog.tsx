@@ -557,7 +557,7 @@ export function ImportProgramDialog({
 
                   {notionIssues.length > 0 ? (
                     <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3">
-                      <p className="mb-2 text-xs font-semibold text-destructive">
+                      <p className="mb-2 text-xs font-semibold text-destructive-text">
                         {notionIssues.length} dòng cần sửa trên Notion
                       </p>
                       <ul className="max-h-[200px] space-y-1 overflow-y-auto text-xs leading-5 text-muted-foreground">

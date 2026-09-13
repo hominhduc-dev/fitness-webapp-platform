@@ -13,7 +13,7 @@ type ThemeContextValue = {
 
 export const themeStorageKey = "yeahbuddy-theme"
 const darkQuery = "(prefers-color-scheme: dark)"
-const lightThemeColor = "#f4f7fb"
+const lightThemeColor = "#e8ecf3"
 const darkThemeColor = "#080a0f"
 const defaultTheme: ThemeMode = "light"
 

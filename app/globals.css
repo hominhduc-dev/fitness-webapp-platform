@@ -131,8 +131,8 @@
 
   /* ── Body map ───────────────────────────────────────────────────────────── */
   /* The anatomical figure is an object drawn *on* a surface, not a surface, so
-     it cannot borrow --muted: that token is #f5f5f5 here and near-invisible on
-     the white card. The two neutral ramps also run opposite ways — solid greys
+     it cannot borrow the muted fill: that token is a near-white tint here and
+     near-invisible on the white card. The two neutral ramps also run opposite ways — solid greys
      in light, white-alpha in dark — so the body needs its own pair to land at
      the same contrast on both sides. --body-line covers the internal striations
      as well as the silhouette, so it carries most of the definition. */
@@ -178,10 +178,10 @@
      fill has to stay dark and fairly opaque or the icon disappears. */
   --glass-dome-fill: rgb(15 23 42 / 62%);
 
-  /* Page backdrop. Flat white gives the glass nothing to blur or refract, so
-     light gets faint brand-tinted pools over an off-white base. Deliberately
-     subtle — its job is to make the material legible, not to tint the UI. */
-  --page-backdrop: linear-gradient(180deg, #f7f9fc 0%, #f4f7fb 42%, #eef3fb 100%);
+  /* Page backdrop. Light mode flattens the glass into opaque cards, so the
+     backdrop is just the canvas: it must match --background (and the
+     theme-color meta) or the landing page and the app shell drift apart. */
+  --page-backdrop: var(--ink-0);
 
   /* ── Sidebar ─────────────────────────────────────────────────────────────── */
   --sidebar: var(--ink-50);

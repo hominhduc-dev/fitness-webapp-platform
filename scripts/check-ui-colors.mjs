@@ -12,13 +12,16 @@ const allowedFiles = new Set([
 ])
 
 const allowedLiterals = new Map([
-  ["app/layout.tsx", new Set(["#080a0f", "#f4f7fb"])],
-  ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#f4f7fb"])],
+  ["app/layout.tsx", new Set(["#080a0f", "#e8ecf3"])],
+  ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#e8ecf3"])],
   ["components/auth/auth-modal.tsx", new Set(["#4285f4", "#34a853", "#fbbc05", "#ea4335"])],
 ])
 
 const literalColorPattern = /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|oklch|oklab)\s*\(\s*(?:[.\d+-]|var\()/g
 const rawTailwindPattern = /\b(?:bg|text|border|ring|outline|fill|stroke|from|via|to)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:\b|[-/[])/g
+// Solid status hues are fills. As text they fail AA on light surfaces
+// (text-warning is ~2.2:1 on a white card); use the matching *-text role.
+const solidStatusTextPattern = /\btext-(?:success|warning|info|destructive|ok|warn|danger)(?![-\w])/g
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -57,6 +60,10 @@ for (const root of roots) {
 
     for (const match of source.matchAll(rawTailwindPattern)) {
       failures.push(`${normalized}:${lineNumber(source, match.index)} raw Tailwind palette class ${match[0]}`)
+    }
+
+    for (const match of source.matchAll(solidStatusTextPattern)) {
+      failures.push(`${normalized}:${lineNumber(source, match.index)} solid status hue used as text ${match[0]} (use the matching *-text role, e.g. text-destructive-text)`)
     }
   }
 }

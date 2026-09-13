@@ -231,11 +231,11 @@ Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ
 | `--brand-primary-soft` | `#eff3ff` | Active/soft accent |
 | `--brand-secondary` | `#22c55e` | Success |
 | `--brand-accent` | `#3b82f6` | Info/chart |
-| `--ink-0` | `#f4f7fb` | Canvas/background |
+| `--ink-0` | `#e8ecf3` | Canvas/background, `--page-backdrop`, `theme-color` |
 | `--ink-50` | `#ffffff` | Card/raised surface |
-| `--surface-subtle` | `#f7f9fc` | Recessed/quiet surface and muted fills |
-| `--surface-hover` | `#f1f4f8` | Surface hover |
-| `--ink-100` | `#e7eaf0` | Border subtle |
+| `--surface-subtle` | `#eef3fb` | Recessed/quiet surface and muted fills |
+| `--surface-hover` | `#e8eef7` | Surface hover |
+| `--ink-100` | `#dde3ec` | Border subtle |
 | `--ink-150` | `#d8dde6` | Border/input default |
 | `--ink-200` | `#c8cfda` | Border strong/disabled |
 | `--ink-400` | `#6b6b6b` | Muted text |
