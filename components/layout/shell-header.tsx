@@ -148,7 +148,11 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             const active = isNavItemActive(pathname, item)
             const visuallyActive = active && !open
             return (
-              <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+              // Close the More sheet on tap rather than waiting for the route
+              // change: tapping the current page's icon never changes the
+              // pathname, so the sheet used to stay open until "More" was
+              // tapped again.
+              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
                 <item.icon className="h-5 w-5" strokeWidth={1.7} />
                 <span className="sr-only">{item.label}</span>
               </Link>

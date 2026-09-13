@@ -1113,118 +1113,127 @@ export function ProgramEditor({
             )}
           </div>
 
-          <button
-            type="button"
-            className="mb-3 flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/35 px-3.5 py-3 text-left md:hidden"
-            aria-expanded={isDetailsExpanded}
-            onClick={() => setIsDetailsExpanded((current) => !current)}
-          >
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold text-foreground">{messages.coach.programDetails}</span>
-              <span className="mt-0.5 block truncate font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
-                {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty}
-              </span>
-            </span>
-            <ChevronDown
-              className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isDetailsExpanded && "rotate-180")}
-            />
-          </button>
-
-          <div className={cn(
-            "rounded-2xl border border-border/70 bg-background/30 p-3.5 sm:p-4",
-            !isDetailsExpanded && "hidden md:block",
-            isArchived && "pointer-events-none opacity-60",
-          )}>
-            <p className="label-micro mb-3 text-muted-foreground">{messages.coach.programDetails}</p>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-[1.3fr_0.6fr_0.85fr_0.85fr_0.9fr]">
-              <label className="col-span-2 space-y-1.5 md:col-span-1">
-                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programName}</span>
-                <Input
-                  value={programName}
-                  onChange={(event) => setProgramName(event.target.value)}
-                  placeholder={messages.coach.programNamePlaceholder}
-                  className="h-10 bg-background/65"
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDuration}</span>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min={MIN_WEEKS}
-                    max={MAX_WEEKS}
-                    value={durationDraft}
-                    onChange={(event) => setDurationDraft(event.target.value)}
-                    onBlur={(event) => commitDuration(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault()
-                        commitDuration(event.currentTarget.value)
-                        event.currentTarget.blur()
-                      }
-                    }}
-                    aria-label={messages.coach.weeks(totalWeeks)}
-                    className="h-10 bg-background/65 pr-14 tnum"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                    {messages.coach.weeksUnit}
-                  </span>
-                </div>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programStartDate}</span>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  aria-describedby="program-start-date-hint"
-                  className="h-10 bg-background/65 tnum"
-                />
-                <span id="program-start-date-hint" className="block text-micro text-muted-foreground">
-                  {messages.coach.programStartDateHint}
+          {/* One surface for the details: on mobile its header is the collapse
+              toggle (with a one-line summary), so the title is not repeated
+              inside; from md up the fields are always shown. */}
+          <div className="rounded-xl border border-border bg-surface-subtle">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left md:hidden"
+              aria-expanded={isDetailsExpanded}
+              aria-controls="program-details-fields"
+              onClick={() => setIsDetailsExpanded((current) => !current)}
+            >
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-foreground">{messages.coach.programDetails}</span>
+                <span className="mt-0.5 block truncate font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
+                  {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty}
                 </span>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFrequency}</span>
-                <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
-                  <SelectTrigger className="h-10 bg-background/65">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[100] border-border bg-card">
-                    {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
-                      <SelectItem key={dayCount} value={String(dayCount)}>
-                        {messages.coach.daysPerWeek(dayCount)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDifficulty}</span>
-                <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
-                  <SelectTrigger className="h-10 bg-background/65 capitalize">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[100] border-border bg-card">
-                    {DIFFICULTY_OPTIONS.map((option) => (
-                      <SelectItem key={option} value={option} className="capitalize">
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5 md:col-span-4">
-                <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFocus}</span>
-                <Input
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder={messages.coach.descriptionPlaceholder}
-                  className="h-10 bg-background/65 text-sm"
-                  disabled={isArchived}
-                />
-              </label>
+              </span>
+              <ChevronDown
+                className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", isDetailsExpanded && "rotate-180")}
+              />
+            </button>
+
+            <div
+              id="program-details-fields"
+              className={cn(
+                "border-t border-border px-3 pb-3 pt-2.5 md:border-t-0 md:p-4",
+                !isDetailsExpanded && "hidden md:block",
+                isArchived && "pointer-events-none opacity-60",
+              )}
+            >
+              <p className="label-micro mb-2.5 hidden text-muted-foreground md:block">{messages.coach.programDetails}</p>
+              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2.5 md:grid-cols-[1.3fr_0.6fr_0.85fr_0.85fr_0.9fr] md:gap-3">
+                <label className="col-span-2 space-y-1 md:col-span-1">
+                  <span className="text-micro font-medium text-muted-foreground">{messages.coach.programName}</span>
+                  <Input
+                    value={programName}
+                    onChange={(event) => setProgramName(event.target.value)}
+                    placeholder={messages.coach.programNamePlaceholder}
+                    className="h-9 pointer-coarse:h-10 bg-background/65"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDuration}</span>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_WEEKS}
+                      max={MAX_WEEKS}
+                      value={durationDraft}
+                      onChange={(event) => setDurationDraft(event.target.value)}
+                      onBlur={(event) => commitDuration(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          commitDuration(event.currentTarget.value)
+                          event.currentTarget.blur()
+                        }
+                      }}
+                      aria-label={messages.coach.weeks(totalWeeks)}
+                      className="h-9 pointer-coarse:h-10 bg-background/65 pr-14 tnum"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      {messages.coach.weeksUnit}
+                    </span>
+                  </div>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFrequency}</span>
+                  <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
+                    <SelectTrigger className="h-9 pointer-coarse:h-10 w-full bg-background/65">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[100] border-border bg-card">
+                      {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
+                        <SelectItem key={dayCount} value={String(dayCount)}>
+                          {messages.coach.daysPerWeek(dayCount)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDifficulty}</span>
+                  <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
+                    <SelectTrigger className="h-9 pointer-coarse:h-10 w-full bg-background/65 capitalize">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[100] border-border bg-card">
+                      {DIFFICULTY_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option} className="capitalize">
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-micro font-medium text-muted-foreground">{messages.coach.programStartDate}</span>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    aria-describedby="program-start-date-hint"
+                    className="h-9 pointer-coarse:h-10 bg-background/65 tnum"
+                  />
+                  <span id="program-start-date-hint" className="line-clamp-2 block text-micro leading-tight text-muted-foreground">
+                    {messages.coach.programStartDateHint}
+                  </span>
+                </label>
+                <label className="col-span-2 space-y-1 md:col-span-5">
+                  <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFocus}</span>
+                  <Input
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder={messages.coach.descriptionPlaceholder}
+                    className="h-9 pointer-coarse:h-10 bg-background/65 text-sm"
+                    disabled={isArchived}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 

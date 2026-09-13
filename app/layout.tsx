@@ -69,7 +69,7 @@ const themeInitScript = `
     root.style.colorScheme = resolvedTheme;
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      var themeColors = { light: "#f4f7fb", dark: "#080a0f" };
+      var themeColors = { light: "#e8ecf3", dark: "#080a0f" };
       themeColor.setAttribute("content", themeColors[resolvedTheme] || themeColors.light);
     }
     // -- Liquid glass capability probe --------------------------------
@@ -178,7 +178,7 @@ export const metadata: Metadata = {
   category: "health & fitness",
   // Windows tiles (msapplication) — favicon set referenced via browserconfig
   other: {
-    "msapplication-TileColor": "#f4f7fb",
+    "msapplication-TileColor": "#e8ecf3",
     "msapplication-TileImage": "/ms-icon-144x144.png",
     "msapplication-config": "/browserconfig.xml",
   },
@@ -191,7 +191,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#f4f7fb",
+  themeColor: "#e8ecf3",
   width: "device-width",
   initialScale: 1,
   // Pinch-zoom stays available — WCAG 1.4.4 wants it, and iOS Safari has

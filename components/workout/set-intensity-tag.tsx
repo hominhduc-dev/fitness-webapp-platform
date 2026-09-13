@@ -49,6 +49,7 @@ export function IntensityTagBadge({ className, tag }: { className?: string; tag:
 }
 
 type SetIntensityTagPickerProps = {
+  className?: string
   messages: AppMessages
   onChange: (assignments: SetIntensityAssignment[]) => void
   setCount: number
@@ -56,13 +57,17 @@ type SetIntensityTagPickerProps = {
 }
 
 /**
- * Coach-side control: one chip per set, each opening the method list.
+ * Coach-side control: one round chip per set, numbered, each opening the method
+ * list. A tagged set turns primary and carries its badge.
+ *
+ * The chips are 28px so five sets still share a row with the note on a phone;
+ * `tap-target` gives each an invisible 44px hit area on touch screens.
  *
  * The chips are rendered from `setCount`, so shrinking an exercise drops the
  * chips for the sets that no longer exist — and the assignments with them, via
  * the same normalisation the service applies when saving.
  */
-export function SetIntensityTagPicker({ messages, onChange, setCount, value }: SetIntensityTagPickerProps) {
+export function SetIntensityTagPicker({ className, messages, onChange, setCount, value }: SetIntensityTagPickerProps) {
   const sets = Math.max(0, Math.min(20, Math.round(setCount) || 0))
   const assignments = normalizeSetIntensityAssignments(value, sets)
   const tagBySetNumber = new Map(assignments.map(({ setNumber, tag }) => [setNumber, tag]))
@@ -76,10 +81,12 @@ export function SetIntensityTagPicker({ messages, onChange, setCount, value }: S
   }
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
         {messages.workoutPage.intensityMethodLabel}
       </span>
+      {/* pt-2 leaves room for the method badge that floats above a tagged chip. */}
+      <div className="flex flex-wrap items-center gap-1 pt-2">
       {Array.from({ length: sets }, (_value, index) => {
         const setNumber = index + 1
         const tag = tagBySetNumber.get(setNumber)
@@ -95,17 +102,24 @@ export function SetIntensityTagPicker({ messages, onChange, setCount, value }: S
                     : messages.workoutPage.intensitySetMethodLabel(setNumber, messages.workoutPage.intensityNormalSet)
                 }
                 className={cn(
-                  "inline-flex h-7 pointer-coarse:h-9 shrink-0 items-center gap-1 rounded-full border px-2 text-micro font-medium transition-colors",
+                  "tap-target relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-semibold tnum transition-colors",
                   tag
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-border bg-background text-muted-foreground hover:border-foreground/30",
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground",
                 )}
               >
-                {messages.workoutPage.intensitySetChip(setNumber)}
-                {tag ? <span className="font-mono font-semibold">{INTENSITY_TAG_BADGES[tag]}</span> : null}
+                {setNumber}
+                {/* The badge floats above the chip instead of widening it, so a
+                    tagged set stays 28px and five sets still fit beside the note. */}
+                {tag ? (
+                  <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border border-primary bg-card px-1 font-mono text-[8px] font-semibold leading-3 tracking-[0.04em] text-primary">
+                    {INTENSITY_TAG_BADGES[tag]}
+                  </span>
+                ) : null}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
+            {/* Above the routine builder dialog (z-[90]) that hosts this picker. */}
+            <DropdownMenuContent align="start" className="z-[100] w-48">
               <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
                 {messages.workoutPage.intensitySetChip(setNumber)}
               </DropdownMenuLabel>
@@ -125,6 +139,7 @@ export function SetIntensityTagPicker({ messages, onChange, setCount, value }: S
           </DropdownMenu>
         )
       })}
+      </div>
     </div>
   )
 }

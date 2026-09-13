@@ -236,7 +236,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
         </div>
       ) : null}
 
-      {error ? <p className="mb-4 text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="mb-4 text-sm text-destructive-text">{error}</p> : null}
 
       {weekWorkouts.length > 0 ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">

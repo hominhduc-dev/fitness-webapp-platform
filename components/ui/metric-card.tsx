@@ -144,7 +144,7 @@ export function MetricCard({
                 "inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-micro font-medium tnum",
                 trend.positive 
                   ? "bg-success/15 text-success-text" 
-                  : "bg-destructive/15 text-destructive"
+                  : "bg-destructive/15 text-destructive-text"
               )}>
                 {trend.positive ? "+" : "-"}{Math.abs(trend.value)}%
               </span>
