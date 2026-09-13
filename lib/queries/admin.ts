@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query"
 import * as api from "@/lib/admin/api"
+import { uploadAdminExerciseMedia } from "@/lib/admin/exercise-media-upload"
 import { queryKeys } from "@/lib/queries/keys"
 import { useUserQuery } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
@@ -163,6 +164,14 @@ export function useUpdateAdminCoachRequestStatus() {
 
 export function useUpdateAdminExerciseRequest() {
   return useAdminMutation(api.updateAdminExerciseRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
+}
+
+export function useSaveAdminExerciseMedia() {
+  return useAdminMutation(uploadAdminExerciseMedia, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
+}
+
+export function useRemoveAdminExerciseMediaRequest() {
+  return useAdminMutation(api.removeAdminExerciseMediaRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
 }
 
 export function useUpdateAdminUserRequest() {

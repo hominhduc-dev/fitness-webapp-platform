@@ -59,6 +59,20 @@ type AdminProgramSummary = {
   workoutsPerWeek: number
 }
 
+type AdminExerciseMediaKind = "thumbnail" | "animation"
+
+/** Files an admin picked for a variation; a missing side keeps the current media. */
+type AdminExerciseMediaFiles = Partial<Record<AdminExerciseMediaKind, File>>
+
+/** A one-time grant to upload one media file straight to Storage. */
+type AdminExerciseMediaUpload = {
+  bucket: string
+  contentType: string
+  kind: AdminExerciseMediaKind
+  objectPath: string
+  token: string
+}
+
 type AdminExerciseItem = ExerciseMuscleProfile & {
   createdAt: Date
   createdBy: AdminMiniUser | null
@@ -66,6 +80,8 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   id: string
   isDefault: boolean
   media?: ExerciseMedia
+  /** Where `media` comes from: uploaded by an admin, synced from a workbook, or the exercise dataset. */
+  mediaSource?: "custom" | "external" | "dataset"
   muscleGroup: string
   muscleProfileConfidence?: number
   muscleProfileRationale?: string
@@ -287,6 +303,9 @@ export type {
   AdminDashboardData,
   AdminDashboardStats,
   AdminExerciseItem,
+  AdminExerciseMediaFiles,
+  AdminExerciseMediaKind,
+  AdminExerciseMediaUpload,
   AdminExerciseImportResult,
   AdminExerciseImportRequest,
   AdminExerciseImportRow,

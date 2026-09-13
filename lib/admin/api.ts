@@ -10,6 +10,8 @@ import type {
   AdminExerciseGroupDeleteResult,
   AdminExerciseItem,
   AdminExerciseImportResult,
+  AdminExerciseMediaKind,
+  AdminExerciseMediaUpload,
   AdminExerciseImportRequest,
   AdminExerciseImportRow,
   AdminMiniUser,
@@ -102,13 +104,16 @@ type SerializedAdminDashboardData = Omit<AdminDashboardData, "charts" | "pending
 }
 
 async function parseJson<T>(response: Response) {
-  const payload = (await response.json().catch(() => null)) as T | { error?: string; message?: string } | null
+  const payload = (await response.json().catch(() => null)) as T | { error?: string | { message?: string } | null; message?: string } | null
 
   if (!response.ok) {
+    // The API sends `{ error: { code, message } }`; older handlers sent a bare string.
+    const errorValue = payload && typeof payload === "object" && "error" in payload ? payload.error : undefined
     const message =
-      payload && typeof payload === "object" && ("error" in payload || "message" in payload)
-        ? payload.error ?? payload.message ?? "Request failed"
-        : "Request failed"
+      (typeof errorValue === "string" && errorValue) ||
+      (errorValue && typeof errorValue === "object" && typeof errorValue.message === "string" && errorValue.message) ||
+      (payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string" && payload.message) ||
+      "Request failed"
 
     throw new ApiError(message, response.status)
   }
@@ -441,6 +446,41 @@ async function updateAdminExerciseRequest(
   return mapAdminExerciseItem(response.exercise)
 }
 
+async function createAdminExerciseMediaUploadRequest(
+  accessToken: string,
+  exerciseId: string,
+  input: { contentType: string; kind: AdminExerciseMediaKind; size: number },
+) {
+  const response = await request<{ upload: AdminExerciseMediaUpload }>(
+    `/api/admin/exercises/${exerciseId}/media/upload-url`,
+    accessToken,
+    { body: JSON.stringify(input), method: "POST" },
+  )
+  return response.upload
+}
+
+async function saveAdminExerciseMediaRequest(
+  accessToken: string,
+  exerciseId: string,
+  input: { animationObjectPath?: string; thumbnailObjectPath?: string },
+) {
+  const response = await request<{ exercise: SerializedAdminExerciseItem }>(
+    `/api/admin/exercises/${exerciseId}/media`,
+    accessToken,
+    { body: JSON.stringify(input), method: "PUT" },
+  )
+  return mapAdminExerciseItem(response.exercise)
+}
+
+async function removeAdminExerciseMediaRequest(accessToken: string, exerciseId: string) {
+  const response = await request<{ exercise: SerializedAdminExerciseItem }>(
+    `/api/admin/exercises/${exerciseId}/media`,
+    accessToken,
+    { method: "DELETE" },
+  )
+  return mapAdminExerciseItem(response.exercise)
+}
+
 async function deleteAdminExerciseRequest(accessToken: string, exerciseId: string) {
   return request<{ deleted: boolean; id: string }>(`/api/admin/exercises/${exerciseId}`, accessToken, {
     method: "DELETE",
@@ -553,6 +593,7 @@ export {
   assignAdminCoachConnection,
   bulkApproveAdminMuscleProfilesRequest,
   bulkDeleteAdminExercisesRequest,
+  createAdminExerciseMediaUploadRequest,
   createAdminExerciseRequest,
   deleteAdminCoachRequestRequest,
   deleteAdminExerciseRequest,
@@ -570,8 +611,10 @@ export {
   importAdminExercisesRequest,
   previewExerciseSyncRequest,
   removeAdminCoachConnection,
+  removeAdminExerciseMediaRequest,
   resetAdminUserPasswordRequest,
   reviewAdminExerciseImportRequest,
+  saveAdminExerciseMediaRequest,
   updateAdminCoachRequestStatus,
   updateAdminExerciseRequest,
   updateAdminUserRequest,
