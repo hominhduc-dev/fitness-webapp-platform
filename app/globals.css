@@ -166,6 +166,14 @@
   --glass-skeleton-sheen: rgb(15 23 42 / 11%);
   /* Opaque fallback for prefers-reduced-transparency. */
   --glass-solid: #f4f6fa;
+  /* Where the floating mobile nav sits above the bottom edge. The nav is
+     chrome rather than content, so it may sit inside the home-indicator
+     inset instead of clearing it entirely; 1rem back off the inset keeps its
+     touch targets out of the swipe-up zone. Everything stacked on the nav
+     (the More sheet, the resume-workout chip) offsets from this, so the whole
+     stack moves together instead of drifting apart. */
+  --mobile-nav-offset: max(0.5rem, calc(env(safe-area-inset-bottom) - 1rem));
+
   /* The dome keeps a white glyph in both themes, so on a pale backdrop its
      fill has to stay dark and fairly opaque or the icon disappears. */
   --glass-dome-fill: rgb(15 23 42 / 62%);
@@ -1151,6 +1159,27 @@ aside.glass-surface::after,
   }
 }
 
+/* The dome fill is a dark scrim so a white glyph survives on either theme. On
+   a pale page that reads as a grey ball, which leaves the app's one primary
+   floating action off-brand — and the `bg-primary` utility on the button
+   cannot win it back, because the `.lg-dome, .ai-bubble-trigger` rule above is
+   unlayered and so beats Tailwind's `@layer utilities`. Give the trigger the
+   brand fill here. Dark mode keeps the glass dome, where it reads correctly. */
+:root:not(.dark) .ai-bubble-trigger {
+  border-color: rgb(255 255 255 / 72%);
+  background: var(--brand-primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 34%),
+    0 10px 28px rgb(19 73 236 / 32%);
+  color: #ffffff;
+}
+
+/* An opaque fill has nothing to refract, so the lens filter is just cost. */
+:root:not(.dark)[data-liquid-glass="on"] .ai-bubble-trigger {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 :root:not(.dark) .glass-inset,
 :root:not(.dark) .meal-food-sheet__chrome,
 :root:not(.dark) .meal-food-sheet__control,
@@ -1209,18 +1238,6 @@ aside.glass-surface::after,
     background: var(--glass-solid);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-  }
-
-  /* The generic light glass fallback is nearly white. The AI trigger keeps a
-     white glyph, so give this primary action an opaque brand fill instead of
-     letting the icon disappear against the page. */
-  :root:not(.dark) .ai-bubble-trigger {
-    border-color: rgb(255 255 255 / 72%);
-    background: var(--brand-primary);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 34%),
-      0 10px 28px rgb(19 73 236 / 32%);
-    color: #ffffff;
   }
 
   .lg-bevel::after,
