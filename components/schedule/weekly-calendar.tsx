@@ -6,24 +6,22 @@ import { addDays, differenceInMinutes, format, startOfDay } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Play, Plus, Search, User } from "lucide-react"
 
-import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { RoutineExerciseCard } from "@/components/workout/routine-exercise-card"
+import { RoutineBuilderDialog, type RoutineDraftData } from "@/components/workout/routine-builder-dialog"
 import { WorkoutLogReview, WorkoutPlanPreview } from "@/components/workout/workout-log-review"
 import { useQueryClient } from "@tanstack/react-query"
 import { useCreateWorkout, useTraineePrograms, useWorkoutDetail, useWorkouts } from "@/lib/queries/workouts"
-import { useExercises } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { resolveEffectiveWeekIndex, resolveProgramAnchor, resolveProgramWeekForWeekStart } from "@/lib/fitness/program-week"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { CoachProgram, TraineeProgram, WorkoutCollection } from "@/lib/fitness/types"
-import type { ExerciseVariationOption, Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
+import type { Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
@@ -71,20 +69,6 @@ type ScheduleEntry = WorkoutScheduleEntry
 const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
 
-
-function getRoutineTagLabel(tag: RoutineTag, messages: AppMessages) {
-  const labels: Record<RoutineTag, string> = {
-    full: messages.workoutPage.tagFull,
-    legs: messages.workoutPage.tagLegs,
-    lower: messages.workoutPage.tagLower,
-    pull: messages.workoutPage.tagPull,
-    push: messages.workoutPage.tagPush,
-    upper: messages.workoutPage.tagUpper,
-  }
-
-  return labels[tag]
-}
-
 function createDraftId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
@@ -102,18 +86,6 @@ function startOfUtcWeekAsLocal(date: Date): Date {
   const utcMondayMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) + offset * 86_400_000
   const utcMonday = new Date(utcMondayMs)
   return new Date(utcMonday.getUTCFullYear(), utcMonday.getUTCMonth(), utcMonday.getUTCDate())
-}
-
-function createEmptyRoutineExercise(defaultVariationId = ""): RoutineExercise {
-  return {
-    id: createDraftId(),
-    reps: "8-12",
-    rir: "",
-    restTime: "",
-    sets: 3,
-    variationId: defaultVariationId,
-    weight: "",
-  }
 }
 
 function mapRoutineTagToWorkoutKind(tag: RoutineTag): RoutineKind {
@@ -274,6 +246,27 @@ function mapWorkoutToRoutine(workout: Workout, index: number): Routine {
     id: workout.id || createDraftId(),
     name: workout.name || `Routine ${index + 1}`,
     tag: getRoutineTagForLibrary(workout, index),
+  }
+}
+
+function mapRoutineDraftToScheduleRoutine(draft: RoutineDraftData): Routine {
+  return {
+    exercises: draft.exercises.map((exercise) => ({
+      fallbackEquipment: exercise.equipment,
+      fallbackExerciseName: exercise.displayName,
+      fallbackMuscleGroup: exercise.muscleGroup,
+      id: exercise.id || createDraftId(),
+      notes: exercise.notes ?? "",
+      reps: exercise.reps,
+      rir: exercise.rir,
+      restTime: exercise.restTime,
+      sets: exercise.sets,
+      variationId: exercise.variationId,
+      weight: exercise.weight,
+    })),
+    id: draft.id || createDraftId(),
+    name: draft.name,
+    tag: draft.tag,
   }
 }
 
@@ -804,251 +797,6 @@ function RoutinePickerDialog({
 }
 
 
-function getRoutineExerciseTitle(exercise: RoutineExercise) {
-  return exercise.fallbackExerciseName || exercise.variationId
-}
-
-function getRoutineExerciseMeta(exercise: RoutineExercise) {
-  return [exercise.fallbackMuscleGroup, exercise.fallbackEquipment].filter(Boolean).join(" · ")
-}
-
-function RoutineBuilderDialog({
-  date,
-  error,
-  exerciseOptions,
-  isLoadingExercises,
-  isSaving,
-  onClose,
-  onSave,
-  open,
-}: {
-  date: Date | null
-  error: string | null
-  exerciseOptions: ExerciseVariationOption[]
-  isLoadingExercises: boolean
-  isSaving: boolean
-  onClose: () => void
-  onSave: (routine: Routine) => void
-  open: boolean
-}) {
-  const { locale, messages } = useLocale()
-  const dateLocale = locale === "vi" ? vi : enUS
-  const [name, setName] = useState("")
-  const [tag, setTag] = useState<RoutineTag>("push")
-  const [exercises, setExercises] = useState<RoutineExercise[]>([])
-  const [pickerTarget, setPickerTarget] = useState<string | "add" | null>(null)
-
-  useEffect(() => {
-    if (!open) {
-      setName("")
-      setTag("push")
-      setExercises([])
-      setPickerTarget(null)
-    }
-  }, [open])
-
-  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
-  const canSave = name.trim().length > 0 && exercises.length > 0 && exercises.every((exercise) => exercise.variationId) && !isSaving
-
-  const updateExercise = (exerciseId: string, patch: Partial<RoutineExercise>) => {
-    setExercises((current) => {
-      const isFirst = current.length > 0 && current[0].id === exerciseId
-      if (isFirst && patch.rir !== undefined) {
-        return current.map((exercise) => ({ ...exercise, rir: patch.rir ?? exercise.rir, ...(exercise.id === exerciseId ? patch : {}) }))
-      }
-      return current.map((exercise) => (exercise.id === exerciseId ? { ...exercise, ...patch } : exercise))
-    })
-  }
-
-  const moveExercise = (index: number, direction: -1 | 1) => {
-    setExercises((current) => {
-      const target = index + direction
-
-      if (target < 0 || target >= current.length) {
-        return current
-      }
-
-      const next = current.slice()
-      const moving = next[index]
-      next[index] = next[target]
-      next[target] = moving
-      return next
-    })
-  }
-
-  const pickExercise = (option: ExerciseVariationOption) => {
-    if (pickerTarget === "add") {
-      setExercises((current) => [
-        ...current,
-        {
-          ...createEmptyRoutineExercise(),
-          fallbackEquipment: option.equipment,
-          fallbackExerciseName: option.exerciseName,
-          fallbackIsDefault: option.isDefault,
-          fallbackMuscleGroup: option.muscleGroup,
-          fallbackVariationName: option.variationName,
-          variationId: option.id,
-        },
-      ])
-    } else if (pickerTarget) {
-      updateExercise(pickerTarget, {
-        fallbackEquipment: option.equipment,
-        fallbackExerciseName: option.exerciseName,
-        fallbackIsDefault: option.isDefault,
-        fallbackMuscleGroup: option.muscleGroup,
-        fallbackVariationName: option.variationName,
-        variationId: option.id,
-      })
-    }
-
-    setPickerTarget(null)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="z-[90] flex h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)] min-h-0 flex-col gap-0 overflow-hidden rounded-xl border-border p-0 sm:h-[90svh] sm:max-w-[680px]">
-        <DialogHeader className="shrink-0 gap-0 border-b border-border px-4 pb-[18px] pr-12 pt-5 text-left sm:px-7 sm:pr-12 sm:pt-6">
-          <p className="label-micro mb-1.5 text-muted-foreground">
-            {messages.schedule.newRoutineForDate(date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle)}
-          </p>
-          <DialogTitle className="text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
-            {name.trim() || messages.workoutPage.untitledRoutine}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            {messages.schedule.newRoutineForDate(date ? format(date, "EEE, MMM d", { locale: dateLocale }) : messages.schedule.restDayTitle)}
-          </DialogDescription>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {messages.workoutPage.exerciseCount(exercises.length)} · {messages.workoutPage.setCount(totalSets)}
-          </p>
-
-          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={messages.workoutPage.routineNamePlaceholder}
-              className="flex-1 text-base"
-              autoFocus
-            />
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {ROUTINE_TAGS.map((tagOption) => (
-                <button
-                  key={tagOption}
-                  type="button"
-                  onClick={() => setTag(tagOption)}
-                  className={cn(
-                    "inline-flex h-8 pointer-coarse:h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                    tag === tagOption
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background text-foreground hover:border-foreground/30",
-                  )}
-                >
-                  <RoutineDot tag={tagOption} />
-                  {getRoutineTagLabel(tagOption, messages)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-7">
-          {error ? (
-            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{error}</div>
-          ) : null}
-          {exercises.length === 0 ? (
-            <div className="mb-4 rounded-lg border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">
-              {messages.workoutPage.noExercisesYet}
-            </div>
-          ) : null}
-
-          <div className="space-y-2.5">
-            {exercises.map((exercise, index) => (
-              <RoutineExerciseCard
-                key={exercise.id}
-                index={index}
-                total={exercises.length}
-                title={getRoutineExerciseTitle(exercise) || messages.workoutPage.chooseExercise}
-                meta={getRoutineExerciseMeta(exercise)}
-                values={{
-                  notes: exercise.notes ?? "",
-                  reps: exercise.reps,
-                  restTime: exercise.restTime ?? "",
-                  rir: exercise.rir ?? "",
-                  sets: String(exercise.sets),
-                  weight: exercise.weight,
-                }}
-                messages={messages}
-                disabled={isSaving}
-                swapDisabled={isLoadingExercises || exerciseOptions.length === 0}
-                onFieldChange={(field, value) =>
-                  updateExercise(
-                    exercise.id,
-                    field === "sets"
-                      ? { sets: Math.max(1, Number(value) || 1) }
-                      : ({ [field]: value } as Partial<RoutineExercise>),
-                  )
-                }
-                onMove={(direction) => moveExercise(index, direction)}
-                onRemove={() => setExercises((current) => current.filter((item) => item.id !== exercise.id))}
-                onSwap={() => setPickerTarget(exercise.id)}
-              />
-            ))}
-          </div>
-
-          <button
-            type="button"
-            className={cn(
-              "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-3.5 text-sm font-medium text-primary transition-colors hover:bg-muted/50",
-              (isLoadingExercises || isSaving || exerciseOptions.length === 0) && "cursor-not-allowed opacity-60",
-            )}
-            onClick={() => setPickerTarget("add")}
-            disabled={isLoadingExercises || isSaving || exerciseOptions.length === 0}
-          >
-            {isLoadingExercises ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            {messages.workoutPage.addExercise}
-          </button>
-        </div>
-
-        <DialogFooter className="flex-row items-center justify-end gap-2.5 border-t border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:pb-3">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
-            {messages.common.cancel}
-          </Button>
-          <Button
-            type="button"
-            className="bg-foreground text-background hover:bg-foreground/90"
-            disabled={!canSave}
-            onClick={() => onSave({ exercises, id: createDraftId(), name: name.trim(), tag })}
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {messages.schedule.saveRoutine}
-          </Button>
-        </DialogFooter>
-
-        {pickerTarget ? (
-          <AddExerciseModal
-            currentVariationId={pickerTarget !== "add" ? exercises.find((exercise) => exercise.id === pickerTarget)?.variationId : undefined}
-            existingVariationIds={exercises.map((exercise) => exercise.variationId).filter(Boolean)}
-            exercises={exerciseOptions}
-            onClose={() => setPickerTarget(null)}
-            footer={
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full text-primary hover:text-primary"
-                disabled
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {messages.schedule.createCustomExercise}
-              </Button>
-            }
-            onPick={pickExercise}
-          />
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 const SourceFilters = memo(function SourceFilters({
   showSource,
   onChange,
@@ -1106,8 +854,6 @@ const CalendarGrid = memo(function CalendarGrid({
 function RoutineDialogs({
   date,
   error,
-  exerciseOptions,
-  isLoadingExercises,
   isRoutineBuilderOpen,
   isSavingRoutine,
   library,
@@ -1119,8 +865,6 @@ function RoutineDialogs({
 }: {
   date: Date
   error: string | null
-  exerciseOptions: ExerciseVariationOption[]
-  isLoadingExercises: boolean
   isRoutineBuilderOpen: boolean
   isSavingRoutine: boolean
   library: Routine[]
@@ -1128,7 +872,7 @@ function RoutineDialogs({
   onCreateNew: () => void
   onPick: (routine: Routine) => void
   onBuilderClose: () => void
-  onSaveDraft: (routine: Routine) => void
+  onSaveDraft: (routine: RoutineDraftData) => void
 }) {
   return (
     <>
@@ -1144,14 +888,11 @@ function RoutineDialogs({
       />
 
       <RoutineBuilderDialog
-        date={date}
-        error={error}
-        exerciseOptions={exerciseOptions}
-        isLoadingExercises={isLoadingExercises}
-        isSaving={isSavingRoutine}
         open={isRoutineBuilderOpen}
-        onClose={onBuilderClose}
-        onSave={onSaveDraft}
+        onOpenChange={(open) => {
+          if (!open) onBuilderClose()
+        }}
+        onSaveDraft={onSaveDraft}
       />
     </>
   )
@@ -1181,9 +922,6 @@ export function WeeklyCalendar({ initialData, historyLogs: initialHistoryLogs = 
   const previewQuery = useWorkoutDetail(selectedPreviewWorkout?.workout.id ?? "", { enabled: Boolean(selectedPreviewWorkout) })
   const isLoadingPreviewWorkout = previewQuery.isFetching
   const [isRoutineBuilderOpen, setIsRoutineBuilderOpen] = useState(false)
-  const exercisesQuery = useExercises(undefined, undefined, isRoutineBuilderOpen)
-  const exerciseOptions = exercisesQuery.data ?? []
-  const isLoadingExercises = exercisesQuery.isFetching
   const [isSavingRoutine, setIsSavingRoutine] = useState(false)
   const [routineError, setRoutineError] = useState<string | null>(null)
 
@@ -1502,8 +1240,6 @@ export function WeeklyCalendar({ initialData, historyLogs: initialHistoryLogs = 
         <RoutineDialogs
           date={selectedRestDate}
           error={routineError}
-          exerciseOptions={exerciseOptions}
-          isLoadingExercises={isLoadingExercises}
           isRoutineBuilderOpen={isRoutineBuilderOpen}
           isSavingRoutine={isSavingRoutine}
           library={routineLibrary}
@@ -1514,7 +1250,7 @@ export function WeeklyCalendar({ initialData, historyLogs: initialHistoryLogs = 
             setIsRoutineBuilderOpen(false)
             setRoutineError(null)
           }}
-          onSaveDraft={(routine) => void saveDraftToRestDate(routine)}
+          onSaveDraft={(routine) => void saveDraftToRestDate(mapRoutineDraftToScheduleRoutine(routine))}
         />
       ) : null}
 
