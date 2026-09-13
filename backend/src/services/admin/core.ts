@@ -15,11 +15,13 @@ import {
   buildApprovedMuscleProfileData,
   buildApprovedMuscleProfileUpdate,
   buildMuscleTargetRows,
+  legacyMuscleGroupsForSlug,
   muscleProfileInputSchema,
   parseMuscleListValue,
   serializeMuscleProfile,
   type ExerciseActivityTypeValue,
   type MuscleProfileInput,
+  type MuscleSlugValue,
 } from "../../domain/muscle-profile"
 import { env } from "../../config/env"
 import {
@@ -1557,7 +1559,8 @@ async function listAdminExercises(
   profile: SerializedProfile,
   options?: {
     activityType?: ExerciseActivityTypeValue
-    maxConfidence?: number
+    equipment?: string
+    muscle?: MuscleSlugValue
     muscleGroup?: string
     profileStatus?: "approved" | "pending"
     search?: string
@@ -1571,20 +1574,23 @@ async function listAdminExercises(
   })
 
   const search = normalizeSearch(options?.search)
+  const equipment = options?.equipment?.trim().toLowerCase()
+  const muscle = options?.muscle
 
   return exercises
     .filter((exercise) => {
       const matchesText = matchesSearch([exercise.exercise.name, exercise.exercise.muscleGroup, exercise.equipment], search)
       const matchesActivity = !options?.activityType || exercise.activityType === options.activityType
+      const matchesEquipment = !equipment || (exercise.equipment ?? "").toLowerCase() === equipment
       const matchesStatus = !options?.profileStatus || exercise.muscleProfileStatus === options.profileStatus
       const matchesGroup =
         !options?.muscleGroup || exercise.exercise.muscleGroup.toLowerCase() === options.muscleGroup.toLowerCase()
-      const matchesConfidence =
-        options?.maxConfidence == null ||
-        exercise.muscleProfileConfidence == null ||
-        exercise.muscleProfileConfidence <= options.maxConfidence
-
-      return matchesText && matchesActivity && matchesStatus && matchesGroup && matchesConfidence
+      const matchesMuscle =
+        !muscle ||
+        (exercise.muscleProfileStatus === "approved"
+          ? exercise.muscleTargets.some((target) => target.muscleSlug === muscle)
+          : legacyMuscleGroupsForSlug(muscle).includes(exercise.exercise.muscleGroup.trim().toLowerCase()))
+      return matchesText && matchesActivity && matchesEquipment && matchesStatus && matchesGroup && matchesMuscle
     })
     .map((exercise) => serializeExerciseSummary(exercise as ExerciseSummaryRecord))
 }

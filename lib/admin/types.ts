@@ -83,7 +83,6 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   /** Where `media` comes from: uploaded by an admin, synced from a workbook, or the exercise dataset. */
   mediaSource?: "custom" | "external" | "dataset"
   muscleGroup: string
-  muscleProfileConfidence?: number
   muscleProfileRationale?: string
   muscleProfileSource?: MuscleProfileSource
   muscleProfileStatus?: MuscleProfileStatus

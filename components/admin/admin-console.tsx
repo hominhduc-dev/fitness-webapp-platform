@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
 import { useLocale } from "@/components/providers/locale-provider"
+import { useToast } from "@/components/providers/toast-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,7 +69,6 @@ type ExerciseFormState = {
   name: string
   variationName: string
 }
-
 type ExerciseImportIssue = {
   message: string
   rowNumber?: number
@@ -283,7 +283,6 @@ function ChartPanel({
     </div>
   )
 }
-
 function EmptyState({ copy }: { copy: string }) {
   return <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
 }
@@ -507,6 +506,7 @@ export function AdminConsole() {
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
   const VALID_SECTIONS: AdminSectionId[] = ["dashboard", "users", "requests", "connections", "programs", "exercises", "audit"]
   const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
@@ -528,7 +528,6 @@ export function AdminConsole() {
   }
   const [actionError, setError] = useState<string | null>(null)
   const error = actionError ?? queryError?.message ?? null
-  const [notice, setNotice] = useState<string | null>(null)
   const [actionKey, setActionKey] = useState<string | null>(null)
   const [confirmState, setConfirmState] = useState<ConfirmState>(null)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -541,6 +540,10 @@ export function AdminConsole() {
   const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false)
   // Only the setter is used — bumping it remounts the sync file input.
   const [, setSyncInputKey] = useState(0)
+
+  function showSuccess(title: string) {
+    toast({ title, tone: "success" })
+  }
 
   useEffect(() => {
     if (!userDetail) {
@@ -582,7 +585,6 @@ export function AdminConsole() {
   async function handleDownloadExerciseTemplate() {
     setActionKey("exercise-template-download")
     setError(null)
-    setNotice(null)
 
     try {
       const XLSX = await import("xlsx")
@@ -642,7 +644,7 @@ export function AdminConsole() {
 
       XLSX.writeFile(workbook, locale === "en" ? "exercise-import-template.xlsx" : "mau-import-bai-tap.xlsx")
 
-      setNotice(locale === "en" ? "Exercise import template downloaded." : "Đã tải file mẫu import bài tập.")
+      showSuccess(locale === "en" ? "Exercise import template downloaded." : "Đã tải file mẫu import bài tập.")
     } catch (templateError) {
       setError(
         templateError instanceof Error
@@ -665,7 +667,6 @@ export function AdminConsole() {
 
     setActionKey("exercise-import-parse")
     setError(null)
-    setNotice(null)
 
     try {
       const XLSX = await import("xlsx")
@@ -825,12 +826,11 @@ export function AdminConsole() {
 
     setActionKey(`user-${userDetail.user.id}`)
     setError(null)
-    setNotice(null)
 
     try {
       await updateAdminUserRequest([userDetail.user.id, input])
 
-      setNotice(locale === "en" ? "User updated successfully." : "Đã cập nhật tài khoản người dùng.")
+      showSuccess(locale === "en" ? "User updated successfully." : "Đã cập nhật tài khoản người dùng.")
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : "Không thể cập nhật người dùng.")
     } finally {
@@ -845,13 +845,12 @@ export function AdminConsole() {
 
     setActionKey(`password-${userDetail.user.id}`)
     setError(null)
-    setNotice(null)
 
     try {
       await resetAdminUserPasswordRequest([userDetail.user.id, resetPassword])
       setResetPassword("")
 
-      setNotice(locale === "en" ? "Password reset successfully." : "Đã reset mật khẩu thủ công.")
+      showSuccess(locale === "en" ? "Password reset successfully." : "Đã reset mật khẩu thủ công.")
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : "Không thể reset mật khẩu.")
     } finally {
@@ -864,12 +863,11 @@ export function AdminConsole() {
 
     setActionKey(`request-${requestId}-${status}`)
     setError(null)
-    setNotice(null)
 
     try {
       await updateAdminCoachRequestStatus([requestId, status])
 
-      setNotice(
+      showSuccess(
         status === "approved"
           ? locale === "en"
             ? "Coach request approved."
@@ -892,7 +890,6 @@ export function AdminConsole() {
 
     setActionKey("connection-assign")
     setError(null)
-    setNotice(null)
 
     try {
       await assignAdminCoachConnection([{
@@ -900,7 +897,7 @@ export function AdminConsole() {
         traineeId: assignTraineeId,
       }])
 
-      setNotice(locale === "en" ? "Coach assigned successfully." : "Đã gán coach cho trainee.")
+      showSuccess(locale === "en" ? "Coach assigned successfully." : "Đã gán coach cho trainee.")
     } catch (assignError) {
       setError(assignError instanceof Error ? assignError.message : "Không thể gán coach.")
     } finally {
@@ -913,16 +910,23 @@ export function AdminConsole() {
 
     setActionKey(data.id ? `exercise-update-${data.id}` : "exercise-create")
     setError(null)
-    setNotice(null)
     try {
+      const { mediaFiles, ...exerciseData } = data
       if (data.id) {
-        await updateAdminExerciseRequest([data.id, data])
+        await updateAdminExerciseRequest([data.id, exerciseData])
 
-        setNotice(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
+        showSuccess(locale === "en" ? "Exercise updated." : "Đã cập nhật bài tập.")
       } else {
-        await createAdminExerciseRequest([data])
+        const exercise = await createAdminExerciseRequest([exerciseData])
+        if (mediaFiles && (mediaFiles.thumbnail || mediaFiles.animation)) {
+          await saveAdminExerciseMedia([exercise.id, mediaFiles])
+        }
 
-        setNotice(locale === "en" ? "Exercise created." : "Đã tạo bài tập mới.")
+        showSuccess(
+          mediaFiles && (mediaFiles.thumbnail || mediaFiles.animation)
+            ? (locale === "en" ? "Exercise and media created." : "Đã tạo bài tập và media.")
+            : (locale === "en" ? "Exercise created." : "Đã tạo bài tập mới."),
+        )
       }
 
     } catch (err) {
@@ -936,24 +940,21 @@ export function AdminConsole() {
   // The media editor shows its own success/error inline, so these only rethrow.
   async function handleSaveExerciseMedia(exerciseId: string, files: AdminExerciseMediaFiles) {
     setError(null)
-    setNotice(null)
     await saveAdminExerciseMedia([exerciseId, files])
   }
 
   async function handleRemoveExerciseMedia(exerciseId: string) {
     setError(null)
-    setNotice(null)
     await removeAdminExerciseMediaRequest([exerciseId])
   }
 
   async function handleDeleteExerciseDirect(exercise: AdminExerciseItem) {
 
     setError(null)
-    setNotice(null)
     try {
       await deleteAdminExerciseRequest([exercise.id])
 
-      setNotice(locale === "en" ? "Exercise deleted." : "Đã xóa bài tập.")
+      showSuccess(locale === "en" ? "Exercise deleted." : "Đã xóa bài tập.")
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
@@ -965,7 +966,6 @@ export function AdminConsole() {
     if (!ids.length) return
     setActionKey("exercise-bulk-delete")
     setError(null)
-    setNotice(null)
     try {
       const result = await bulkDeleteAdminExercisesRequest([ids])
 
@@ -974,7 +974,7 @@ export function AdminConsole() {
         locale === "en"
           ? `Deleted ${result.deletedCount} exercise(s)${result.skippedCount ? `, skipped ${result.skippedCount} in use` : ""}.`
           : `Đã xóa ${result.deletedCount} bài tập${result.skippedCount ? `, bỏ qua ${result.skippedCount} đang dùng` : ""}.`
-      setNotice(msg)
+      showSuccess(msg)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể xóa bài tập.")
@@ -989,7 +989,7 @@ export function AdminConsole() {
     setError(null)
     try {
       const result = await bulkApproveAdminMuscleProfilesRequest([ids])
-      setNotice(locale === "en" ? `Approved ${result.approvedCount} profile(s); skipped ${result.skippedCount}.` : `Đã duyệt ${result.approvedCount} profile; bỏ qua ${result.skippedCount}.`)
+      showSuccess(locale === "en" ? `Approved ${result.approvedCount} profile(s); skipped ${result.skippedCount}.` : `Đã duyệt ${result.approvedCount} profile; bỏ qua ${result.skippedCount}.`)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể duyệt muscle profiles.")
@@ -1003,7 +1003,6 @@ export function AdminConsole() {
     if (exercises.length === 0) return
     setActionKey("exercise-export")
     setError(null)
-    setNotice(null)
 
     try {
       const ExcelJS = await import("exceljs")
@@ -1150,7 +1149,7 @@ export function AdminConsole() {
       a.click()
       URL.revokeObjectURL(url)
 
-      setNotice(locale === "en" ? "Exported all exercises to Excel." : "Đã export tất cả bài tập ra Excel.")
+      showSuccess(locale === "en" ? "Exported all exercises to Excel." : "Đã export tất cả bài tập ra Excel.")
     } catch (exportError) {
       setError(
         exportError instanceof Error
@@ -1180,7 +1179,6 @@ export function AdminConsole() {
 
     setActionKey("exercise-sync-preview")
     setError(null)
-    setNotice(null)
 
     try {
       const XLSX = await import("xlsx")
@@ -1254,7 +1252,6 @@ export function AdminConsole() {
     if (syncRows.length === 0) return
     setActionKey("exercise-sync-apply")
     setError(null)
-    setNotice(null)
 
     try {
       const result = await applyExerciseSyncRequest([syncRows])
@@ -1265,7 +1262,7 @@ export function AdminConsole() {
       if (result.skippedModifyCount > 0) parts.push(locale === "en" ? `${result.skippedModifyCount} skipped (conflict)` : `${result.skippedModifyCount} bỏ qua (trùng tên)`)
       if (result.skippedDeleteCount > 0) parts.push(locale === "en" ? `${result.skippedDeleteCount} skipped (in use)` : `${result.skippedDeleteCount} bỏ qua (đang dùng)`)
 
-      setNotice(
+      showSuccess(
         locale === "en"
           ? `Sync completed: ${parts.join(", ")}.`
           : `Sync hoàn tất: ${parts.join(", ")}.`,
@@ -1294,11 +1291,10 @@ export function AdminConsole() {
 
     setActionKey("exercise-import")
     setError(null)
-    setNotice(null)
 
     try {
       const result = await importAdminExercisesRequest([importRows])
-      setNotice(
+      showSuccess(
         locale === "en"
           ? `Imported ${result.createdCount} exercise variations and skipped ${result.skippedCount} rows.`
           : `Đã import ${result.createdCount} variation bài tập và bỏ qua ${result.skippedCount} dòng.`,
@@ -1318,11 +1314,10 @@ export function AdminConsole() {
 
     setActionKey(`exercise-import-review-${requestId}`)
     setError(null)
-    setNotice(null)
 
     try {
       const response = await reviewAdminExerciseImportRequest([requestId, { status }])
-      setNotice(
+      showSuccess(
         status === "approved"
           ? locale === "en"
             ? `Approved import. Created ${response.result?.createdCount ?? 0} variations and skipped ${response.result?.skippedCount ?? 0}.`
@@ -1346,7 +1341,6 @@ export function AdminConsole() {
 
     setActionKey(`confirm-${confirmState.kind}-${confirmState.id}`)
     setError(null)
-    setNotice(null)
 
     try {
       let nextNotice = locale === "en" ? "Action completed successfully." : "Đã thực hiện thao tác thành công."
@@ -1435,7 +1429,7 @@ export function AdminConsole() {
 
 
       setConfirmState(null)
-      setNotice(nextNotice)
+      showSuccess(nextNotice)
     } catch (confirmError) {
       setError(confirmError instanceof Error ? confirmError.message : "Không thể hoàn tất thao tác.")
     } finally {
@@ -1601,16 +1595,10 @@ export function AdminConsole() {
               userCount={users.length}
             />
 
-            <div className="min-h-[42px]">
+            <div className={error ? "min-h-[42px]" : "hidden"}>
               {error ? (
                 <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   {error}
-                </div>
-              ) : null}
-
-              {!error && notice ? (
-                <div className="rounded-lg border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
-                  {notice}
                 </div>
               ) : null}
             </div>
@@ -2314,4 +2302,5 @@ export function AdminConsole() {
     </>
   )
 }
+
 

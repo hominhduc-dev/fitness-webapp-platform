@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import { buildMuscleTargetRows } from "../domain/muscle-profile"
-import { parseMuscleClassification, shouldAutoApprove } from "../domain/muscle-profile-classifier"
+import { parseMuscleClassification } from "../domain/muscle-profile-classifier"
 import { prisma } from "../lib/prisma"
 
 function readArg(name: string) {
@@ -38,15 +38,13 @@ async function main() {
   for (let offset = 0; offset < classifications.length; offset += 50) {
     const batch = classifications.slice(offset, offset + 50)
     await prisma.$transaction(batch.map((classification) => {
-      const approved = shouldAutoApprove(classification)
       return prisma!.variation.update({
         data: {
           activityType: classification.activityType,
-          muscleProfileConfidence: classification.confidence,
           muscleProfileRationale: classification.rationale,
-          muscleProfileReviewedAt: approved ? new Date() : null,
+          muscleProfileReviewedAt: null,
           muscleProfileSource: MuscleProfileSource.ai,
-          muscleProfileStatus: approved ? MuscleProfileStatus.approved : MuscleProfileStatus.pending,
+          muscleProfileStatus: MuscleProfileStatus.pending,
           muscleTargets: {
             create: buildMuscleTargetRows(classification).map((target) => ({
               ...target,
@@ -60,11 +58,9 @@ async function main() {
     }))
   }
 
-  const approvedCount = classifications.filter(shouldAutoApprove).length
   process.stdout.write(`${JSON.stringify({
     applied: classifications.length,
-    approved: approvedCount,
-    pending: classifications.length - approvedCount,
+    pending: classifications.length,
     reportPath,
     skippedExisting: parsed.length - classifications.length,
     unresolvedReportFailures: totalVariations - existing.length,

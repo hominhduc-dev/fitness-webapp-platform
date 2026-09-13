@@ -386,7 +386,8 @@ async function fetchAdminExercises(
   accessToken: string,
   options?: {
     activityType?: ExerciseActivityType
-    maxConfidence?: number
+    equipment?: string
+    muscle?: MuscleSlug
     muscleGroup?: string
     profileStatus?: MuscleProfileStatus
     search?: string
@@ -394,7 +395,8 @@ async function fetchAdminExercises(
 ) {
   const query = buildQuery({
     activityType: options?.activityType,
-    maxConfidence: options?.maxConfidence?.toString(),
+    equipment: options?.equipment,
+    muscle: options?.muscle,
     muscleGroup: options?.muscleGroup,
     profileStatus: options?.profileStatus,
     search: options?.search,

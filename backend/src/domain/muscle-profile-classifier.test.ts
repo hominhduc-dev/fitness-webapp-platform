@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { AIProvider } from "../lib/ai/types"
-import { classifyBatchWithRetry, isRateLimitError, parseClassificationBatch, shouldAutoApprove } from "./muscle-profile-classifier"
+import { classifyBatchWithRetry, isRateLimitError, parseClassificationBatch } from "./muscle-profile-classifier"
 
 const id = "11111111-1111-4111-8111-111111111111"
 const valid = {
   activityType: "strength" as const,
-  confidence: 0.95,
   primaryMuscles: ["gluteal" as const],
   rationale: "Hip extension is the main movement.",
   secondaryMuscles: ["hamstring" as const],
@@ -14,9 +13,8 @@ const valid = {
 }
 
 describe("AI muscle profile classifier", () => {
-  it("validates exact batch membership and confidence gate", () => {
-    const [classification] = parseClassificationBatch({ classifications: [valid] }, [id])
-    expect(shouldAutoApprove(classification)).toBe(true)
+  it("validates exact batch membership", () => {
+    parseClassificationBatch({ classifications: [valid] }, [id])
     expect(() => parseClassificationBatch({ classifications: [{ ...valid, variationId: "22222222-2222-4222-8222-222222222222" }] }, [id])).toThrow("unexpected")
   })
 
