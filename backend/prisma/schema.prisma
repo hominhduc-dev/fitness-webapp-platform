@@ -227,7 +227,6 @@ model Variation {
   activityType              ExerciseActivityType?
   muscleProfileStatus       MuscleProfileStatus     @default(pending)
   muscleProfileSource       MuscleProfileSource?
-  muscleProfileConfidence   Float?
   muscleProfileRationale    String?
   muscleProfileReviewedAt   DateTime?
   muscleProfileReviewedById String?                 @db.Uuid

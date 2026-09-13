@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 
 type MuscleProfileSummaryProps = {
   className?: string
-  exercise: Pick<AdminExerciseItem, "muscleProfileConfidence" | "muscleProfileRationale" | "muscleProfileSource" | "primaryMuscles" | "secondaryMuscles">
+  exercise: Pick<AdminExerciseItem, "muscleProfileRationale" | "muscleProfileSource" | "primaryMuscles" | "secondaryMuscles">
   locale: "en" | "vi"
 }
 
@@ -23,7 +23,7 @@ export function MuscleProfileSummary({ className, exercise, locale }: MuscleProf
 
   const en = locale === "en"
   const source = exercise.muscleProfileSource === "ai"
-    ? `AI${exercise.muscleProfileConfidence != null ? ` ${Math.round(exercise.muscleProfileConfidence * 100)}%` : ""}`
+    ? "AI"
     : exercise.muscleProfileSource === "manual"
       ? (en ? "Manual" : "Thủ công")
       : undefined

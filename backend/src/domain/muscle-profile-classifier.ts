@@ -5,7 +5,6 @@ import { AppError } from "../services/errors"
 import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS, muscleProfileInputSchema } from "./muscle-profile"
 
 const classificationSchema = muscleProfileInputSchema.safeExtend({
-  confidence: z.number().min(0).max(1),
   rationale: z.string().trim().min(1).max(1_000),
   variationId: z.string().uuid(),
 })
@@ -46,10 +45,6 @@ export function parseClassificationBatch(value: unknown, expectedVariationIds: r
 
 export function parseMuscleClassification(value: unknown) {
   return classificationSchema.parse(value)
-}
-
-export function shouldAutoApprove(classification: MuscleClassification) {
-  return classification.confidence >= 0.9
 }
 
 export function isRateLimitError(error: unknown) {
@@ -100,8 +95,7 @@ export async function classifyBatchWithRetry(
           "Strength requires at least one primary muscle. Primary and secondary must not overlap.",
           "Cardio and mobility may still have muscle targets. Never infer a generic target for Other.",
           "Never output anatomical names outside the provided slugs (for example lats, hip-flexors, rotator-cuff, erector-spinae). Map to the closest allowed slug or omit that secondary target.",
-          "Use confidence >= 0.90 only when the anatomy and activity classification are unambiguous.",
-          "Return JSON: { classifications: [{ variationId, activityType, primaryMuscles, secondaryMuscles, confidence, rationale }] }.",
+          "Return JSON: { classifications: [{ variationId, activityType, primaryMuscles, secondaryMuscles, rationale }] }.",
         ].join("\n"),
         userPrompt: JSON.stringify({ variations: rows }),
       })

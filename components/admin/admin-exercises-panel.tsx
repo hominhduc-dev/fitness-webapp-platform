@@ -8,6 +8,7 @@ import {
   Check,
   Download,
   FileSpreadsheet,
+  ImageUp,
   Loader2,
   Pencil,
   Plus,
@@ -25,14 +26,15 @@ import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { FilterChip } from "@/components/ui/filter-chip"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
-import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
+import { buildMuscleProfileHighlights, muscleGroupFromSlug } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
 import type { AdminExerciseImportRequest, AdminExerciseItem, AdminExerciseMediaFiles } from "@/lib/admin/types"
+import { EXERCISE_MEDIA_FILE_RULES, exerciseMediaFileProblem, exerciseMediaMaxMegabytes } from "@/lib/admin/exercise-media-files"
 import type { ExerciseActivityType, MuscleSlug } from "@/lib/types"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
@@ -50,10 +52,30 @@ const EQUIP = [
   "Pull-up Bar", "Bench", "Medicine Ball", "TRX", "Other",
 ]
 const ACTIVITY_TYPES: ExerciseActivityType[] = ["strength", "cardio", "mobility", "sport", "other"]
+const EXERCISE_FORM_LABEL_CLASS = "text-[10px] font-semibold uppercase tracking-[0.045em] text-muted-foreground"
+const MUSCLE_FILTERS: MuscleSlug[] = [
+  "abs",
+  "adductors",
+  "biceps",
+  "calves",
+  "chest",
+  "deltoids",
+  "forearm",
+  "gluteal",
+  "hamstring",
+  "lower-back",
+  "obliques",
+  "quadriceps",
+  "tibialis",
+  "trapezius",
+  "triceps",
+  "upper-back",
+]
 
 type FormData = {
   activityType: ExerciseActivityType
   id?: string
+  mediaFiles?: AdminExerciseMediaFiles
   name: string
   variationName: string
   muscleGroup: string
@@ -69,12 +91,6 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     approveProfile: locale === "en" ? "Approve muscle profile" : "Duyệt profile cơ",
     approveProfiles: locale === "en" ? "Approve muscle profiles" : "Duyệt profile cơ",
     cannotApproveProfile: locale === "en" ? "Add a primary muscle before approving" : "Cần có cơ chính trước khi duyệt",
-    profileStatus: (status?: "pending" | "approved") =>
-      status === "approved"
-        ? (locale === "en" ? "approved" : "đã duyệt")
-        : status === "pending"
-          ? (locale === "en" ? "needs review" : "chờ duyệt")
-          : "legacy",
     profileFilterAll: locale === "en" ? "Muscles: all" : "Cơ: tất cả",
     profileFilterPending: locale === "en" ? "Needs review" : "Chờ duyệt",
     profileFilterApproved: locale === "en" ? "Approved" : "Đã duyệt",
@@ -87,14 +103,27 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     delete: locale === "en" ? "Delete" : "Xóa",
     deleteConfirm: (name: string, variation: string) =>
       locale === "en" ? `Delete "${name} · ${variation}"?` : `Xóa "${name} · ${variation}"?`,
+    deleteDescription:
+      locale === "en"
+        ? "This exercise variation will be removed from the library."
+        : "Biến thể bài tập này sẽ bị xóa khỏi thư viện.",
     deleteSelected: (count: number) =>
       locale === "en" ? `Delete ${count} selected` : `Xóa ${count} đã chọn`,
+    deleteSelectedConfirm: (count: number) =>
+      locale === "en"
+        ? `Delete ${count} selected exercise(s)?`
+        : `Xóa ${count} bài tập đã chọn?`,
+    deleteSelectedDescription:
+      locale === "en"
+        ? "Exercises that are already in use will be skipped."
+        : "Bài tập đang được dùng sẽ được bỏ qua.",
     deselectAll: locale === "en" ? "Deselect all" : "Bỏ chọn tất cả",
     downloadTemplate: locale === "en" ? "Download template" : "Tải file mẫu",
     exportAll: locale === "en" ? "Export Excel" : "Export Excel",
     syncImport: locale === "en" ? "Sync from Excel" : "Sync từ Excel",
     editExercise: locale === "en" ? "Edit exercise" : "Sửa bài tập",
     equipment: locale === "en" ? "Equipment" : "Thiết bị",
+    equipmentFilterAll: locale === "en" ? "Equipment: all" : "Dụng cụ: tất cả",
     exercise: locale === "en" ? "Exercise" : "Bài tập",
     exerciseName: locale === "en" ? "Exercise name" : "Tên bài tập",
     importExcel: locale === "en" ? "Import Excel" : "Import Excel",
@@ -117,6 +146,153 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     variation: locale === "en" ? "Variation" : "Variation",
     variationCount: (count: number) => (locale === "en" ? `${count} variation${count === 1 ? "" : "s"}` : `${count} variation`),
   }
+}
+
+function formatMuscleSlug(slug: MuscleSlug) {
+  return slug.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
+}
+
+function hasDraftMedia(files: AdminExerciseMediaFiles) {
+  return Boolean(files.thumbnail || files.animation)
+}
+
+function hasCompleteDraftMedia(files: AdminExerciseMediaFiles) {
+  return Boolean(files.thumbnail && files.animation)
+}
+
+function CreateExerciseMediaDraft({
+  files,
+  locale,
+  onChange,
+}: {
+  files: AdminExerciseMediaFiles
+  locale: "en" | "vi"
+  onChange: (files: AdminExerciseMediaFiles) => void
+}) {
+  const [message, setMessage] = useState<string | null>(null)
+
+  function pickFile(kind: keyof AdminExerciseMediaFiles, file: File | undefined) {
+    if (!file) return
+    const problem = exerciseMediaFileProblem(kind, file)
+    if (problem) {
+      setMessage(
+        problem === "type"
+          ? `${kind === "thumbnail" ? "Thumbnail" : "Animation"} chỉ nhận ${EXERCISE_MEDIA_FILE_RULES[kind].extensions}.`
+          : `${kind === "thumbnail" ? "Thumbnail" : "Animation"} tối đa ${exerciseMediaMaxMegabytes(kind)}MB.`,
+      )
+      return
+    }
+    setMessage(null)
+    onChange({ ...files, [kind]: file })
+  }
+
+  function clearFile(kind: keyof AdminExerciseMediaFiles) {
+    const next = { ...files }
+    delete next[kind]
+    onChange(next)
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-col items-center justify-center gap-3 py-2">
+        <div className="flex size-24 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <ImageUp className="size-8" />
+        </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          {(["thumbnail", "animation"] as const).map((kind) => (
+            <label key={kind} className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/80">
+              <ImageUp className="size-4" />
+              {kind === "thumbnail"
+                ? (files.thumbnail ? (locale === "en" ? "Thumbnail added" : "Đã chọn ảnh") : (locale === "en" ? "Add image" : "Thêm ảnh"))
+                : (files.animation ? (locale === "en" ? "Animation added" : "Đã chọn animation") : (locale === "en" ? "Add animation" : "Thêm animation"))}
+              <input
+                type="file"
+                accept={EXERCISE_MEDIA_FILE_RULES[kind].contentTypes.join(",")}
+                className="sr-only"
+                onChange={(event) => pickFile(kind, event.target.files?.[0])}
+              />
+            </label>
+          ))}
+        </div>
+        <p className="text-center text-xs text-muted-foreground">
+          {locale === "en"
+            ? "Media is optional. Add both image and animation to upload now."
+            : "Media không bắt buộc. Chọn cả ảnh và animation nếu muốn tải lên ngay."}
+        </p>
+      </div>
+
+      {hasDraftMedia(files) ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+        {(["thumbnail", "animation"] as const).map((kind) => {
+          const file = files[kind]
+          return file ? (
+            <div key={kind} className="rounded-md border border-dashed border-input bg-surface-subtle p-2.5">
+              <p className="text-xs font-medium text-foreground">{kind === "thumbnail" ? "Thumbnail" : "Animation"}</p>
+              <p className="text-micro text-muted-foreground">
+                {EXERCISE_MEDIA_FILE_RULES[kind].extensions} · {locale === "en" ? "max" : "tối đa"} {exerciseMediaMaxMegabytes(kind)}MB
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground">{file.name}</span>
+                <button
+                  type="button"
+                  aria-label={locale === "en" ? `Remove ${kind} file` : `Bỏ file ${kind}`}
+                  onClick={() => clearFile(kind)}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : null
+        })}
+        </div>
+      ) : null}
+      {message ? <p role="alert" className="mt-2 text-xs text-destructive-text">{message}</p> : null}
+      {!message && hasDraftMedia(files) && !hasCompleteDraftMedia(files) ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {locale === "en"
+            ? "Either add the other media file or remove the selected file to create without media."
+            : "Thêm file media còn lại, hoặc bỏ file đã chọn để tạo bài không có media."}
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+function ExerciseFormSelect({
+  label,
+  onValueChange,
+  options,
+  placeholder,
+  value,
+}: {
+  label: string
+  onValueChange: (value: string) => void
+  options: Array<{ label: string; value: string }>
+  placeholder: string
+  value: string
+}) {
+  return (
+    <div>
+      <Label className={EXERCISE_FORM_LABEL_CLASS}>{label}</Label>
+      <Select value={value || undefined} onValueChange={onValueChange}>
+        <SelectTrigger className="mt-1.5 h-10 w-full bg-background">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent className="z-[120] max-h-[220px] border-border bg-popover p-0">
+          {options.map((option) => (
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              className="rounded-none px-3 py-2.5 text-sm font-medium"
+            >
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -142,9 +318,11 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
   const [activityType, setActivityType] = useState<ExerciseActivityType>(initial?.activityType ?? "strength")
   const [primaryMuscles, setPrimaryMuscles] = useState<MuscleSlug[]>(initial?.primaryMuscles ?? [])
   const [secondaryMuscles, setSecondaryMuscles] = useState<MuscleSlug[]>(initial?.secondaryMuscles ?? [])
+  const [mediaFiles, setMediaFiles] = useState<AdminExerciseMediaFiles>({})
   const [targetRole, setTargetRole] = useState<"primary" | "secondary">("primary")
 
-  const canSave = name.trim().length > 0 && (activityType !== "strength" || primaryMuscles.length > 0)
+  const hasIncompleteMedia = hasDraftMedia(mediaFiles) && !hasCompleteDraftMedia(mediaFiles)
+  const canSave = name.trim().length > 0 && (activityType !== "strength" || primaryMuscles.length > 0) && !hasIncompleteMedia
   const muscleHighlights = buildMuscleProfileHighlights(
     [{ activityType, muscleProfileStatus: "approved", primaryMuscles, secondaryMuscles }],
     "var(--primary)",
@@ -169,12 +347,31 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
     )
   }
 
+  function setPrimaryMuscle(value: string) {
+    const next = value as MuscleSlug | ""
+    if (!next) {
+      setPrimaryMuscles([])
+      return
+    }
+    setPrimaryMuscles([next])
+    setSecondaryMuscles((current) => current.filter((entry) => entry !== next))
+    const nextGroup = muscleGroupFromSlug(next)
+    if (nextGroup) setMuscle(nextGroup)
+  }
+
+  function addSecondaryMuscle(value: string) {
+    const next = value as MuscleSlug | ""
+    if (!next || primaryMuscles.includes(next)) return
+    setSecondaryMuscles((current) => current.includes(next) ? current : [...current, next])
+  }
+
   function handleSave() {
     if (!canSave) return
     onSave({
       activityType,
       equipment,
       id: initial?.id,
+      mediaFiles: !initial && hasCompleteDraftMedia(mediaFiles) ? mediaFiles : undefined,
       muscleGroup,
       name: name.trim(),
       primaryMuscles,
@@ -185,28 +382,29 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="flex max-h-[90vh] max-w-[460px] flex-col gap-0 overflow-hidden rounded-xl p-0">
+      <DialogContent className="flex max-h-[90vh] max-w-[560px] flex-col gap-0 overflow-hidden rounded-xl p-0">
         <VisuallyHidden>
           <DialogTitle>{initial ? copy.editExercise : copy.newExercise}</DialogTitle>
         </VisuallyHidden>
 
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-border px-6 pb-4 pt-5">
+        <div className="border-b border-border px-6 pb-4 pt-5">
           <div>
-            <p className="label-micro text-muted-foreground">{initial ? copy.editExercise : copy.newExercise}</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">
-              {initial ? initial.name : copy.addToLibrary}
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              {initial ? copy.editExercise : (locale === "en" ? "Add New Exercise" : "Thêm bài tập mới")}
             </h2>
           </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {mediaEditor}
+          {initial ? mediaEditor : (
+            <CreateExerciseMediaDraft files={mediaFiles} locale={locale} onChange={setMediaFiles} />
+          )}
 
           {/* Name */}
           <div>
-            <Label className="label-micro text-muted-foreground">{copy.exerciseName}</Label>
+            <Label className={EXERCISE_FORM_LABEL_CLASS}>{copy.exerciseName}</Label>
             <Input
               className="mt-1.5"
               value={name}
@@ -218,7 +416,7 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
 
           {/* Variation */}
           <div>
-            <Label className="label-micro text-muted-foreground">{copy.variation}</Label>
+            <Label className={EXERCISE_FORM_LABEL_CLASS}>{copy.variation}</Label>
             <Input
               className="mt-1.5"
               value={variationName}
@@ -227,43 +425,59 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
             />
           </div>
 
-          {/* Muscle group chips */}
-          <div>
-            <Label className="label-micro text-muted-foreground">{locale === "en" ? "Muscle group" : "Nhóm cơ"}</Label>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {MUSCLES.map((m) => (
-                <FilterChip
-                  key={m}
-                  active={muscleGroup === m}
-                  onClick={() => setMuscle(m)}
-                  className="uppercase tracking-[0.06em]"
-                >
-                  {m}
-                </FilterChip>
-              ))}
-            </div>
-          </div>
+          <ExerciseFormSelect
+            label={locale === "en" ? "Exercise Type" : "Loại bài tập"}
+            options={ACTIVITY_TYPES.map((type) => ({ label: type, value: type }))}
+            placeholder={locale === "en" ? "Select..." : "Chọn..."}
+            value={activityType}
+            onValueChange={(value) => setActivityType(value as ExerciseActivityType)}
+          />
 
-          {/* Equipment chips */}
+          <ExerciseFormSelect
+            label={copy.equipment}
+            options={EQUIP.map((eq) => ({ label: eq, value: eq }))}
+            placeholder={locale === "en" ? "Select..." : "Chọn..."}
+            value={equipment}
+            onValueChange={setEquipment}
+          />
+
+          <ExerciseFormSelect
+            label={locale === "en" ? "Primary Muscle Group" : "Cơ chính"}
+            options={MUSCLE_FILTERS.map((muscle) => ({ label: formatMuscleSlug(muscle), value: muscle }))}
+            placeholder={locale === "en" ? "Select..." : "Chọn..."}
+            value={primaryMuscles[0] ?? ""}
+            onValueChange={setPrimaryMuscle}
+          />
+
           <div>
-            <Label className="label-micro text-muted-foreground">{locale === "en" ? "Activity type" : "Loại hoạt động"}</Label>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {ACTIVITY_TYPES.map((type) => (
-                <FilterChip
-                  key={type}
-                  active={activityType === type}
-                  onClick={() => setActivityType(type)}
-                  className="uppercase tracking-[0.06em]"
-                >
-                  {type}
-                </FilterChip>
-              ))}
-            </div>
+            <ExerciseFormSelect
+              label={locale === "en" ? "Other Muscles" : "Cơ phụ"}
+              options={MUSCLE_FILTERS
+                .filter((muscle) => !primaryMuscles.includes(muscle) && !secondaryMuscles.includes(muscle))
+                .map((muscle) => ({ label: formatMuscleSlug(muscle), value: muscle }))}
+              placeholder={locale === "en" ? "Select..." : "Chọn..."}
+              value=""
+              onValueChange={addSecondaryMuscle}
+            />
+            {secondaryMuscles.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {secondaryMuscles.map((muscle) => (
+                  <button
+                    key={muscle}
+                    type="button"
+                    className="rounded-full border border-border px-2 py-1 text-micro uppercase text-muted-foreground hover:bg-muted"
+                    onClick={() => setSecondaryMuscles((current) => current.filter((entry) => entry !== muscle))}
+                  >
+                    {formatMuscleSlug(muscle)} ×
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-lg border border-border p-3">
             <div className="flex items-center justify-between gap-2">
-              <Label className="label-micro text-muted-foreground">Muscle targets</Label>
+              <Label className={EXERCISE_FORM_LABEL_CLASS}>Muscle targets</Label>
               <div className="flex gap-1">
                 {(["primary", "secondary"] as const).map((role) => (
                   <button
@@ -293,22 +507,6 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
             </div>
           </div>
 
-          {/* Equipment chips */}
-          <div>
-            <Label className="label-micro text-muted-foreground">{copy.equipment}</Label>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {EQUIP.map((eq) => (
-                <FilterChip
-                  key={eq}
-                  active={equipment === eq}
-                  onClick={() => setEquipment(eq)}
-                  className="uppercase tracking-[0.06em]"
-                >
-                  {eq}
-                </FilterChip>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
@@ -428,9 +626,6 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
-                  <Badge variant={e.muscleProfileStatus === "approved" ? "secondary" : "outline"} className="shrink-0 px-1.5 py-0 font-mono text-micro">
-                    {copy.profileStatus(e.muscleProfileStatus)}
-                  </Badge>
                 </div>
                 <MuscleProfileSummary exercise={e} locale={locale} />
                 {/* Mobile-only: show variation + equipment under the name */}
@@ -514,6 +709,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 export type ExerciseSaveData = {
   activityType: ExerciseActivityType
   id?: string
+  mediaFiles?: AdminExerciseMediaFiles
   name: string
   variationName: string
   muscleGroup: string
@@ -566,11 +762,17 @@ export function ExerciseLibraryPanel({
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const [openGroups, setOpenGroups] = useState<string[]>([])
   const [modal, setModal] = useState<"new" | AdminExerciseItem | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<
+    | { type: "single"; exercise: AdminExerciseItem }
+    | { type: "bulk"; ids: string[] }
+    | null
+  >(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [muscleFilter, setMuscleFilter] = useState<"all" | MuscleSlug>("all")
+  const [equipmentFilter, setEquipmentFilter] = useState("all")
   const [profileFilter, setProfileFilter] = useState<"all" | "pending" | "approved">("all")
   const [activityFilter, setActivityFilter] = useState<"all" | ExerciseActivityType>("all")
-  const [maxConfidence, setMaxConfidence] = useState("")
   const [mediaFilter, setMediaFilter] = useState<"all" | "missing" | "present">("all")
 
   function handleSearchChange(value: string) {
@@ -581,18 +783,24 @@ export function ExerciseLibraryPanel({
 
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
 
+  const equipmentOptions = useMemo(
+    () => Array.from(new Set(exercises.map((exercise) => exercise.equipment?.trim()).filter(Boolean) as string[]))
+      .sort((left, right) => left.localeCompare(right, locale, { sensitivity: "base" })),
+    [exercises, locale],
+  )
+
   /* Derived: filter + group */
   const filtered = useMemo(
     () => exercises.filter((e) => {
       if (!matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)) return false
+      if (muscleFilter !== "all" && !e.primaryMuscles.includes(muscleFilter) && !e.secondaryMuscles.includes(muscleFilter)) return false
+      if (equipmentFilter !== "all" && (e.equipment ?? "").toLowerCase() !== equipmentFilter.toLowerCase()) return false
       if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
       if (activityFilter !== "all" && e.activityType !== activityFilter) return false
       if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return false
-      const confidenceLimit = Number(maxConfidence)
-      if (maxConfidence.trim() && Number.isFinite(confidenceLimit) && (e.muscleProfileConfidence ?? 0) > confidenceLimit) return false
       return true
     }),
-    [activityFilter, exercises, maxConfidence, mediaFilter, profileFilter, q],
+    [activityFilter, equipmentFilter, exercises, mediaFilter, muscleFilter, profileFilter, q],
   )
 
   // The dialog reads the latest list entry, so a media upload shows up without reopening it.
@@ -645,10 +853,24 @@ export function ExerciseLibraryPanel({
   }
 
   async function handleDelete(e: AdminExerciseItem) {
-    if (!confirm(copy.deleteConfirm(e.name, e.variationName))) return
+    setDeleteDialog({ type: "single", exercise: e })
+  }
+
+  async function confirmDelete() {
+    if (!deleteDialog) return
+
+    if (deleteDialog.type === "bulk") {
+      await onBulkDelete(deleteDialog.ids)
+      setSelected(new Set())
+      setDeleteDialog(null)
+      return
+    }
+
+    const e = deleteDialog.exercise
     setDeletingId(e.id)
     try {
       await onDelete(e)
+      setDeleteDialog(null)
     } finally {
       setDeletingId(null)
     }
@@ -657,12 +879,7 @@ export function ExerciseLibraryPanel({
   async function handleBulkDelete() {
     const ids = Array.from(selected)
     if (!ids.length) return
-    const msg = locale === "en"
-      ? `Delete ${ids.length} selected exercise(s)? Exercises in use will be skipped.`
-      : `Xóa ${ids.length} bài tập đã chọn? Bài tập đang dùng sẽ được bỏ qua.`
-    if (!confirm(msg)) return
-    await onBulkDelete(ids)
-    setSelected(new Set())
+    setDeleteDialog({ type: "bulk", ids })
   }
 
   const isSaving =
@@ -670,6 +887,13 @@ export function ExerciseLibraryPanel({
     (typeof modal === "object" && modal !== null && actionKey === `exercise-update-${modal.id}`)
 
   const isBulkDeleting = actionKey === "exercise-bulk-delete"
+  const isDeleting = Boolean(deletingId) || isBulkDeleting
+  const deleteTitle = deleteDialog?.type === "single"
+    ? copy.deleteConfirm(deleteDialog.exercise.name, deleteDialog.exercise.variationName)
+    : deleteDialog?.type === "bulk"
+      ? copy.deleteSelectedConfirm(deleteDialog.ids.length)
+      : ""
+  const deleteDescription = deleteDialog?.type === "bulk" ? copy.deleteSelectedDescription : copy.deleteDescription
 
   return (
     <div className="space-y-5">
@@ -735,46 +959,85 @@ export function ExerciseLibraryPanel({
         </div>
       ) : null}
 
-      {/* Actions toolbar */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          onClick={onDownloadTemplate}
-          disabled={actionKey === "exercise-template-download"}
-        >
-          {actionKey === "exercise-template-download"
-            ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            : <Download className="mr-1.5 h-4 w-4" />
-          }
-          {copy.downloadTemplate}
-        </Button>
-        <Button variant="outline" onClick={onImport}>
-          <FileSpreadsheet className="mr-1.5 h-4 w-4" />
-          {copy.importExcel}
-        </Button>
-        {capabilities.canExport && onExportAll && (
-          <Button
-            variant="outline"
-            onClick={onExportAll}
-            disabled={actionKey === "exercise-export" || exercises.length === 0}
+      <div className="rounded-lg border border-border bg-card/80 p-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button
+              variant="outline"
+              className="justify-start bg-background sm:w-auto"
+              onClick={onDownloadTemplate}
+              disabled={actionKey === "exercise-template-download"}
+            >
+              {actionKey === "exercise-template-download"
+                ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                : <Download className="mr-1.5 h-4 w-4" />
+              }
+              {copy.downloadTemplate}
+            </Button>
+            <Button variant="outline" className="justify-start bg-background sm:w-auto" onClick={onImport}>
+              <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+              {copy.importExcel}
+            </Button>
+            {capabilities.canExport && onExportAll && (
+              <Button
+                variant="outline"
+                className="justify-start bg-background sm:w-auto"
+                onClick={onExportAll}
+                disabled={actionKey === "exercise-export" || exercises.length === 0}
+              >
+                {actionKey === "exercise-export"
+                  ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  : <Upload className="mr-1.5 h-4 w-4" />
+                }
+                {copy.exportAll}
+              </Button>
+            )}
+            {capabilities.canSync && onSyncImport && (
+              <Button variant="outline" className="justify-start bg-background sm:w-auto" onClick={onSyncImport}>
+                <ArrowDownUp className="mr-1.5 h-4 w-4" />
+                {copy.syncImport}
+              </Button>
+            )}
+          </div>
+          <Button className="justify-start sm:w-fit xl:shrink-0" onClick={() => setModal("new")}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            {copy.newExercise}
+          </Button>
+        </div>
+
+        <div className="mt-3 grid gap-2 border-t border-border/70 pt-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_repeat(5,minmax(120px,150px))]">
+          <div className="relative sm:col-span-2 xl:col-span-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
+            <Input value={rawQ} onChange={(e) => handleSearchChange(e.target.value)} placeholder={copy.searchExercises} className="bg-background pl-9" />
+          </div>
+          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
+            <option value="all">{copy.profileFilterAll}</option>
+            {MUSCLE_FILTERS.map((muscle) => <option key={muscle} value={muscle}>{formatMuscleSlug(muscle)}</option>)}
+          </select>
+          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
+            <option value="all">{copy.equipmentFilterAll}</option>
+            {equipmentOptions.map((equipment) => <option key={equipment} value={equipment}>{equipment}</option>)}
+          </select>
+          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
+            <option value="all">Activity: all</option>
+            {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
+            <option value="all">{locale === "en" ? "Review: all" : "Duyệt: tất cả"}</option>
+            <option value="pending">{copy.profileFilterPending}</option>
+            <option value="approved">{copy.profileFilterApproved}</option>
+          </select>
+          <select
+            aria-label="Media"
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            value={mediaFilter}
+            onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
           >
-            {actionKey === "exercise-export"
-              ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              : <Upload className="mr-1.5 h-4 w-4" />
-            }
-            {copy.exportAll}
-          </Button>
-        )}
-        {capabilities.canSync && onSyncImport && (
-          <Button variant="outline" onClick={onSyncImport}>
-            <ArrowDownUp className="mr-1.5 h-4 w-4" />
-            {copy.syncImport}
-          </Button>
-        )}
-        <Button onClick={() => setModal("new")}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          {copy.newExercise}
-        </Button>
+            <option value="all">{locale === "en" ? "Media: all" : "Media: tất cả"}</option>
+            <option value="missing">{locale === "en" ? "Missing media" : "Chưa có media"}</option>
+            <option value="present">{locale === "en" ? "Has media" : "Đã có media"}</option>
+          </select>
+        </div>
       </div>
 
       {/* Bulk action bar */}
@@ -808,34 +1071,6 @@ export function ExerciseLibraryPanel({
           ) : null}
         </div>
       )}
-
-      {/* Search */}
-      <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px_150px_140px]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
-          <Input value={rawQ} onChange={(e) => handleSearchChange(e.target.value)} placeholder={copy.searchExercises} className="pl-9" />
-        </div>
-        <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
-          <option value="all">{copy.profileFilterAll}</option>
-          <option value="pending">{copy.profileFilterPending}</option>
-          <option value="approved">{copy.profileFilterApproved}</option>
-        </select>
-        <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
-          <option value="all">Activity: all</option>
-          {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-        </select>
-        <select
-          aria-label="Media"
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          value={mediaFilter}
-          onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
-        >
-          <option value="all">{locale === "en" ? "Media: all" : "Media: tất cả"}</option>
-          <option value="missing">{locale === "en" ? "Missing media" : "Chưa có media"}</option>
-          <option value="present">{locale === "en" ? "Has media" : "Đã có media"}</option>
-        </select>
-        <Input type="number" min="0" max="1" step="0.01" value={maxConfidence} onChange={(event) => setMaxConfidence(event.target.value)} placeholder="Max confidence" />
-      </div>
 
       {/* Groups */}
       <div className="flex flex-col gap-2.5">
@@ -882,6 +1117,26 @@ export function ExerciseLibraryPanel({
           onSave={handleSave}
         />
       )}
+
+      <Dialog open={deleteDialog !== null} onOpenChange={(open) => {
+        if (!open && !isDeleting) setDeleteDialog(null)
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{deleteTitle}</DialogTitle>
+            <DialogDescription>{deleteDescription}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" className="bg-transparent" onClick={() => setDeleteDialog(null)} disabled={isDeleting}>
+              {copy.cancel}
+            </Button>
+            <Button type="button" variant="destructive" className="gap-2" onClick={() => void confirmDelete()} disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {deleteDialog?.type === "bulk" ? copy.deleteSelected(deleteDialog.ids.length) : copy.delete}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

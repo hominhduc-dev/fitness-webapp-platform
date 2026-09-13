@@ -82,7 +82,6 @@ type MuscleTargetRecord = {
 
 type MuscleProfileRecord = {
   activityType: ExerciseActivityTypeValue | null
-  muscleProfileConfidence: number | null
   muscleProfileRationale: string | null
   muscleProfileSource: "ai" | "manual" | null
   muscleProfileStatus: "pending" | "approved"
@@ -147,7 +146,6 @@ function buildMuscleTargetRows(profile: MuscleProfileInput) {
 function buildApprovedMuscleProfileData(profile: MuscleProfileInput, reviewedById?: string) {
   return {
     activityType: profile.activityType,
-    muscleProfileConfidence: null,
     muscleProfileRationale: null,
     muscleProfileReviewedAt: new Date(),
     muscleProfileReviewedById: reviewedById ?? null,
@@ -162,7 +160,6 @@ function buildApprovedMuscleProfileData(profile: MuscleProfileInput, reviewedByI
 function buildApprovedMuscleProfileUpdate(profile: MuscleProfileInput, reviewedById?: string) {
   return {
     activityType: profile.activityType,
-    muscleProfileConfidence: null,
     muscleProfileRationale: null,
     muscleProfileReviewedAt: new Date(),
     muscleProfileReviewedById: reviewedById ?? null,
@@ -180,7 +177,6 @@ function serializeMuscleProfile(record: MuscleProfileRecord) {
 
   return {
     activityType: record.activityType ?? undefined,
-    muscleProfileConfidence: record.muscleProfileConfidence ?? undefined,
     muscleProfileRationale: record.muscleProfileRationale ?? undefined,
     muscleProfileSource: record.muscleProfileSource ?? undefined,
     muscleProfileStatus: record.muscleProfileStatus,

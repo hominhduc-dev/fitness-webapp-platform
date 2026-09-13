@@ -6,12 +6,11 @@ import { MuscleProfileSummary, canApproveMuscleProfile } from "./muscle-profile-
 afterEach(cleanup)
 
 describe("MuscleProfileSummary", () => {
-  it("shows the AI confidence, targets and the rationale as a tooltip", () => {
+  it("shows the AI source, targets and the rationale as a tooltip", () => {
     render(
       <MuscleProfileSummary
         locale="en"
         exercise={{
-          muscleProfileConfidence: 0.92,
           muscleProfileRationale: "Rows pull the shoulder blades together.",
           muscleProfileSource: "ai",
           primaryMuscles: ["upper-back", "trapezius"],
@@ -21,7 +20,7 @@ describe("MuscleProfileSummary", () => {
     )
 
     const summary = screen.getByText(/Primary: upper back, trapezius/).closest("p")
-    expect(summary).toHaveTextContent("AI 92% · Primary: upper back, trapezius · Secondary: biceps")
+    expect(summary).toHaveTextContent("AI · Primary: upper back, trapezius · Secondary: biceps")
     expect(summary).toHaveAttribute("title", "Rows pull the shoulder blades together.")
   })
 

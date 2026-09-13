@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { buildMuscleTargetRows } from "../domain/muscle-profile"
-import { classifyBatchWithRetry, isRateLimitError, shouldAutoApprove } from "../domain/muscle-profile-classifier"
+import { classifyBatchWithRetry, isRateLimitError } from "../domain/muscle-profile-classifier"
 import { getAIProvider } from "../lib/ai/ai-client"
 import { prisma } from "../lib/prisma"
 
@@ -37,15 +37,13 @@ async function writeReport(reportPath: string, report: { failures: ReportRow[]; 
   const activities = report.results.map((row) => String(row.activityType))
   const primaryMuscles = report.results.flatMap((row) => Array.isArray(row.primaryMuscles) ? row.primaryMuscles.map(String) : [])
   const secondaryMuscles = report.results.flatMap((row) => Array.isArray(row.secondaryMuscles) ? row.secondaryMuscles.map(String) : [])
-  const approved = report.results.filter((row) => row.autoApproved === true).length
   const payload = {
     ...report,
     generatedAt: new Date().toISOString(),
     summary: {
       activities: countBy(activities),
-      approved,
       failed: report.failures.length,
-      pending: report.results.length - approved + report.failures.length,
+      pending: report.results.length + report.failures.length,
       primaryMuscles: countBy(primaryMuscles),
       processed: report.results.length + report.failures.length,
       secondaryMuscles: countBy(secondaryMuscles),
@@ -80,7 +78,7 @@ async function main() {
   })).filter((row) => !completedIds.has(row.id))
 
   const provider = getAIProvider()
-  const summary = { approved: 0, failed: 0, pending: 0, processed: 0, tokenUsage: 0 }
+  const summary = { failed: 0, pending: 0, processed: 0, tokenUsage: 0 }
 
   for (let offset = 0; offset < rows.length; offset += batchSize) {
     const batch = rows.slice(offset, offset + batchSize)
@@ -95,9 +93,7 @@ async function main() {
     try {
       const result = await classifyBatchWithRetry(provider, input)
       summary.tokenUsage += result.tokenUsage
-      const approved = result.classifications.filter(shouldAutoApprove).length
-      summary.approved += approved
-      summary.pending += result.classifications.length - approved + result.failedVariationIds.length
+      summary.pending += result.classifications.length + result.failedVariationIds.length
       summary.failed += result.failedVariationIds.length
       summary.processed += batch.length
 
@@ -109,7 +105,6 @@ async function main() {
         report.results = report.results.filter((row) => row.variationId !== variation.id)
         report.results.push({
           ...classification,
-          autoApproved: shouldAutoApprove(classification),
           equipment: variation.equipment,
           exerciseName: variation.exercise.name,
           legacyMuscleGroup: variation.exercise.muscleGroup,
@@ -132,15 +127,13 @@ async function main() {
       if (apply) {
         await prisma.$transaction(
           result.classifications.map((classification) => {
-            const isApproved = shouldAutoApprove(classification)
             return prisma!.variation.update({
               data: {
                 activityType: classification.activityType,
-                muscleProfileConfidence: classification.confidence,
                 muscleProfileRationale: classification.rationale,
-                muscleProfileReviewedAt: isApproved ? new Date() : null,
+                muscleProfileReviewedAt: null,
                 muscleProfileSource: MuscleProfileSource.ai,
-                muscleProfileStatus: isApproved ? MuscleProfileStatus.approved : MuscleProfileStatus.pending,
+                muscleProfileStatus: MuscleProfileStatus.pending,
                 muscleTargets: {
                   create: buildMuscleTargetRows(classification).map((target) => ({
                     ...target,

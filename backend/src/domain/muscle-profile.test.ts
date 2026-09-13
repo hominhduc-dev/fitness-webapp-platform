@@ -58,16 +58,14 @@ describe("muscle profile validation", () => {
   it("keeps review metadata admin-only and resolves pending profiles publicly through legacy targets", () => {
     const record = {
       activityType: "strength" as const,
-      muscleProfileConfidence: 0.72,
       muscleProfileRationale: "Needs review",
       muscleProfileSource: "ai" as const,
       muscleProfileStatus: "pending" as const,
       muscleTargets: [{ muscleSlug: "tibialis", position: 0, role: "primary" as const }],
     }
-    expect(serializeMuscleProfile(record)).toMatchObject({ muscleProfileConfidence: 0.72, muscleProfileStatus: "pending" })
+    expect(serializeMuscleProfile(record)).toMatchObject({ muscleProfileStatus: "pending" })
     const publicProfile = serializePublicMuscleProfile(record, "Legs")
     expect(publicProfile.primaryMuscles).toContain("gluteal")
-    expect(publicProfile).not.toHaveProperty("muscleProfileConfidence")
     expect(publicProfile).not.toHaveProperty("muscleProfileStatus")
   })
 })

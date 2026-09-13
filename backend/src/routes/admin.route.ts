@@ -2,6 +2,7 @@ import { CoachRequestStatus, ExerciseImportRequestStatus, UserRole } from "@pris
 import { Router } from "express"
 import {
   EXERCISE_ACTIVITY_TYPES,
+  MUSCLE_SLUGS,
   parseMuscleListValue,
   parseMuscleProfileInput,
 } from "../domain/muscle-profile"
@@ -261,14 +262,15 @@ adminRouter.delete("/programs/:programId", async (req, res) => {
 adminRouter.get("/exercises", async (req, res) => {
   try {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const muscle = getOptionalString(req.query.muscle)?.toLowerCase()
     const exercises = await listAdminExercises(profile, {
       activityType: EXERCISE_ACTIVITY_TYPES.includes(req.query.activityType as (typeof EXERCISE_ACTIVITY_TYPES)[number])
         ? (req.query.activityType as (typeof EXERCISE_ACTIVITY_TYPES)[number])
         : undefined,
-      maxConfidence:
-        typeof req.query.maxConfidence === "string" && Number.isFinite(Number(req.query.maxConfidence))
-          ? Math.max(0, Math.min(1, Number(req.query.maxConfidence)))
-          : undefined,
+      equipment: getOptionalString(req.query.equipment),
+      muscle: muscle && MUSCLE_SLUGS.includes(muscle as (typeof MUSCLE_SLUGS)[number])
+        ? (muscle as (typeof MUSCLE_SLUGS)[number])
+        : undefined,
       muscleGroup: getOptionalString(req.query.muscleGroup),
       profileStatus:
         req.query.profileStatus === "approved" || req.query.profileStatus === "pending"
