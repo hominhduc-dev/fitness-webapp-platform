@@ -164,7 +164,6 @@ export function DashboardOverviewClient({
             workoutName: log?.workout.name ?? getWorkoutForDate(dashboard.workouts, dashboard.schedule, date)?.name ?? null,
           }
         }}
-        summary={{ completed: workoutsThisWeek, scheduled: scheduledThisWeek }}
       />
 
       <CheckInPrompt />
