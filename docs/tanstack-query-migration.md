@@ -17,6 +17,7 @@ Các nhóm code 0–7 đã tích hợp; nghiệm thu browser đầy đủ còn c
 | 5 | Session seed kết hợp localStorage, cache không tự refetch; lịch giữ optimistic null tombstone và lỗi program query |
 | 6 | Admin queries/mutations và các luồng AI |
 | 7 | Xóa hai module dashboard-refresh cũ; pull-to-refresh invalidate; auth clear cache khi logout/đổi tài khoản |
+| 8 | Schedule/Workout/Meals chuyển sang client cache-first; trainee shell idle-prefetch dữ liệu dùng chung |
 
 ## Quy ước cache
 
@@ -27,6 +28,7 @@ Các nhóm code 0–7 đã tích hợp; nghiệm thu browser đầy đủ còn c
 - Workout start dùng `staleTime: "static"` thay `Infinity` trong plan: chặn cả refetch do invalidation khi đang nhập set. UI vẫn reconcile kết quả swap riêng, giữ draft/localStorage.
 - Export và infinite-list có key riêng để không trộn page object với InfiniteData.
 - Meals writeback giữ user/date lúc mutation bắt đầu, tránh vá nhầm ngày khi người dùng điều hướng trước lúc API trả về.
+- `/schedule` và `/workout` dùng chung `workouts.collection`; `/meals` dùng `nutritionDay(today)` và `foods`. Shell prefetch ba nhóm này khi browser rảnh, còn route layout tiếp tục enforce role phía server.
 - Auth có revision guard cho response đến muộn; bootstrap profile luôn đọc mới, không lấy snapshot cũ ghi đè profile hiện tại.
 - `router.refresh()` còn ở locale-provider là có chủ đích: locale cần render lại Server Components, không phải refresh dữ liệu fitness.
 

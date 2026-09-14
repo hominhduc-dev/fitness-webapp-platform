@@ -99,11 +99,22 @@ const requiredPairs: ReadonlyArray<readonly [string, ...string[]]> = [
 
 const lightTokens = tokenBlock(":root")
 const darkTokens = new Map([...lightTokens, ...tokenBlock(".dark")])
+const paletteTokens: ReadonlyArray<readonly [string, Map<string, string>]> = [
+  ["performance-green", new Map([...lightTokens, ...tokenBlock(".performance-green")])],
+  ["electric-blue", new Map([...lightTokens, ...tokenBlock(".electric-blue")])],
+  ["volt-lime", new Map([...lightTokens, ...tokenBlock(".volt-lime")])],
+  ["iron-orange", new Map([...lightTokens, ...tokenBlock(".iron-orange")])],
+  ["black-volt", new Map([...darkTokens, ...tokenBlock(".black-volt")])],
+  ["crimson-performance", new Map([...lightTokens, ...tokenBlock(".crimson-performance")])],
+]
 
-describe.each([
+const themeTokens: ReadonlyArray<readonly [string, Map<string, string>]> = [
   ["light", lightTokens],
+  ...paletteTokens,
   ["dark", darkTokens],
-])("%s theme contrast", (_theme, tokens) => {
+]
+
+describe.each(themeTokens)("%s theme contrast", (_theme, tokens) => {
   it.each(requiredPairs)("keeps %s legible on %s", (foreground, ...surfaces) => {
     const background = flatten(tokens, surfaces)
     const text = composite(parseColor(resolveToken(tokens, foreground)), background)
@@ -128,6 +139,14 @@ describe("light canvas", () => {
     ]
 
     for (const source of sources) {
+      const content = readFileSync(path.join(process.cwd(), source), "utf8").toLowerCase()
+      expect(content, source).toContain(background)
+    }
+  })
+
+  it.each(paletteTokens)("keeps %s browser chrome colour in sync with its background", (_theme, tokens) => {
+    const background = resolveToken(tokens, "--background").toLowerCase()
+    for (const source of ["app/layout.tsx", "components/providers/theme-provider.tsx"]) {
       const content = readFileSync(path.join(process.cwd(), source), "utf8").toLowerCase()
       expect(content, source).toContain(background)
     }

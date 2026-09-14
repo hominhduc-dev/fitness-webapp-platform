@@ -2,8 +2,15 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-export type ThemeMode = "light" | "dark" | "system"
-export type ResolvedTheme = "light" | "dark"
+export type PaletteTheme =
+  | "performance-green"
+  | "electric-blue"
+  | "volt-lime"
+  | "iron-orange"
+  | "black-volt"
+  | "crimson-performance"
+export type ThemeMode = "light" | PaletteTheme | "dark" | "system"
+export type ResolvedTheme = Exclude<ThemeMode, "system">
 
 type ThemeContextValue = {
   resolvedTheme: ResolvedTheme
@@ -16,11 +23,19 @@ const darkQuery = "(prefers-color-scheme: dark)"
 const lightThemeColor = "#e8ecf3"
 const darkThemeColor = "#080a0f"
 const defaultTheme: ThemeMode = "light"
+const paletteThemes: readonly PaletteTheme[] = [
+  "performance-green",
+  "electric-blue",
+  "volt-lime",
+  "iron-orange",
+  "black-volt",
+  "crimson-performance",
+]
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function isThemeMode(value: string | null): value is ThemeMode {
-  return value === "light" || value === "dark" || value === "system"
+  return value === "light" || value === "dark" || value === "system" || paletteThemes.includes(value as PaletteTheme)
 }
 
 /**
@@ -32,6 +47,7 @@ function isThemeMode(value: string | null): value is ThemeMode {
  */
 function migrateStoredTheme(value: string | null): ThemeMode {
   if (value === "glass" || value === "midnight") return "dark"
+  if (value === "sport") return "electric-blue"
   return isThemeMode(value) ? value : defaultTheme
 }
 
@@ -60,7 +76,17 @@ function resolveTheme(theme: ThemeMode): ResolvedTheme {
 
 const themeColors: Record<ResolvedTheme, string> = {
   light: lightThemeColor,
+  "performance-green": "#f5f8f6",
+  "electric-blue": "#f3f6fc",
+  "volt-lime": "#f7f9f3",
+  "iron-orange": "#fafaf9",
+  "black-volt": "#0d0f0e",
+  "crimson-performance": "#f8f8f7",
   dark: darkThemeColor,
+}
+
+function isDarkTheme(theme: ResolvedTheme) {
+  return theme === "dark" || theme === "black-volt"
 }
 
 /**
@@ -69,8 +95,12 @@ const themeColors: Record<ResolvedTheme, string> = {
  */
 function applyThemeToDocument(resolvedTheme: ResolvedTheme) {
   const root = document.documentElement
-  root.classList.toggle("dark", resolvedTheme !== "light")
-  root.style.colorScheme = resolvedTheme
+  root.classList.remove("sport", ...paletteThemes)
+  root.classList.toggle("dark", isDarkTheme(resolvedTheme))
+  if (paletteThemes.includes(resolvedTheme as PaletteTheme)) {
+    root.classList.add(resolvedTheme)
+  }
+  root.style.colorScheme = isDarkTheme(resolvedTheme) ? "dark" : "light"
 
   const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   themeColor?.setAttribute("content", themeColors[resolvedTheme])

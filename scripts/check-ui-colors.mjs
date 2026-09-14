@@ -12,8 +12,8 @@ const allowedFiles = new Set([
 ])
 
 const allowedLiterals = new Map([
-  ["app/layout.tsx", new Set(["#080a0f", "#e8ecf3"])],
-  ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#e8ecf3"])],
+  ["app/layout.tsx", new Set(["#080a0f", "#0d0f0e", "#e8ecf3", "#f3f6fc", "#f5f8f6", "#f7f9f3", "#f8f8f7", "#fafaf9"])],
+  ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#0d0f0e", "#e8ecf3", "#f3f6fc", "#f5f8f6", "#f7f9f3", "#f8f8f7", "#fafaf9"])],
   ["components/ui/brand-icons.tsx", new Set(["#4285f4", "#34a853", "#fbbc05", "#ea4335"])],
 ])
 

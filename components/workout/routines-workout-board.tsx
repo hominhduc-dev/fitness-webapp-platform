@@ -9,19 +9,17 @@ import { FilterChip } from "@/components/workout/filter-chip"
 import { ProgramGroupCard } from "@/components/workout/program-group-card"
 import { RoutineCard } from "@/components/workout/routine-card"
 import { RoutineDot } from "@/components/workout/routine-dot"
+import { RoutinesLoadingState } from "@/components/workout/routines-loading-state"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { getTagLabel, inferRoutineTag, type RoutineTag } from "@/lib/fitness/routine-tag"
 import type { TraineeProgram } from "@/lib/fitness/types"
 import type { WorkoutCollection } from "@/lib/fitness/types"
 import { useWorkouts } from "@/lib/queries/workouts"
-import type { Workout, WorkoutLog } from "@/lib/types"
+import type { Workout } from "@/lib/types"
 
 type RoutinesWorkoutBoardProps = {
   initialData?: WorkoutCollection
-  historyLogs: WorkoutLog[]
-  programs: TraineeProgram[]
-  workouts: Workout[]
 }
 
 type ProgramGroup = {
@@ -30,6 +28,8 @@ type ProgramGroup = {
 }
 
 const FILTERS: RoutineTag[] = ["all", "push", "pull", "legs", "upper", "lower", "full"]
+const EMPTY_PROGRAMS: TraineeProgram[] = []
+const EMPTY_WORKOUTS: Workout[] = []
 
 function CreateRoutineButton() {
   const { messages } = useLocale()
@@ -46,11 +46,12 @@ function CreateRoutineButton() {
   )
 }
 
-export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, programs: initialPrograms, workouts: initialWorkouts }: RoutinesWorkoutBoardProps) {
-  const { data } = useWorkouts(initialData)
-  const historyLogs = data?.historyLogs ?? initialLogs
-  const programs = data?.programs ?? initialPrograms
-  const workouts = data?.workouts ?? initialWorkouts
+export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps = {}) {
+  const workoutsQuery = useWorkouts(initialData)
+  const data = workoutsQuery.data
+  const historyLogs = data?.historyLogs ?? []
+  const programs = data?.programs ?? EMPTY_PROGRAMS
+  const workouts = data?.workouts ?? EMPTY_WORKOUTS
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
   const matchesFilter = useMemo(
@@ -113,6 +114,21 @@ export function RoutinesWorkoutBoard({ initialData, historyLogs: initialLogs, pr
   // rendered: one entry per program card, each standalone routine, and each
   // one-off below them.
   const cardCount = programGroups.length + standaloneWorkouts.length + datedWorkouts.length
+
+  if (workoutsQuery.isPending && !data) {
+    return <RoutinesLoadingState />
+  }
+
+  if (workoutsQuery.isError && !data) {
+    return (
+      <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
+        <p className="text-sm text-destructive-text">{messages.workoutPage.loadRoutinesError}</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void workoutsQuery.refetch()}>
+          {messages.common.tryAgain}
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <>

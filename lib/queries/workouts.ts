@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueries, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/components/providers/auth-provider"
 
 import { queryKeys } from "@/lib/queries/keys"
@@ -26,6 +26,15 @@ import {
 export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>, options?: { enabled?: boolean }) {
   return useUserQuery({ queryKey: queryKeys.workouts.collection(),
     queryFn: async () => fetchWorkouts(await requireAccessToken()), initialData, enabled: options?.enabled })
+}
+
+/** Warm the shared collection used by both /schedule and /workout. */
+export function prefetchWorkouts(queryClient: QueryClient, userId: string) {
+  return queryClient.prefetchQuery({
+    queryKey: userQueryKey(queryKeys.workouts.collection(), userId),
+    queryFn: async () => fetchWorkouts(await requireAccessToken()),
+    staleTime: 30_000,
+  })
 }
 
 export function useTraineePrograms(programIds: string[], enabled: boolean) {
