@@ -358,8 +358,8 @@ function MuscleComboboxMultiSelect({
         role="button"
         tabIndex={-1}
         className={cn(
-          "mt-1.5 flex min-h-10 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1.5 text-sm shadow-xs transition-colors hover:border-ring/50",
-          open && "border-primary bg-white ring-2 ring-primary/10",
+          "mt-1.5 flex min-h-10 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-surface px-2.5 py-1.5 text-sm shadow-xs transition-colors hover:border-ring/50",
+          open && "border-primary bg-surface ring-2 ring-primary/10",
         )}
         onClick={() => {
           setOpen(true)
@@ -479,8 +479,8 @@ function ExerciseComboboxSingleSelect({
         role="button"
         tabIndex={-1}
         className={cn(
-          "mt-1.5 flex min-h-10 w-full cursor-text items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1.5 text-sm shadow-xs transition-colors hover:border-ring/50",
-          open && "border-primary bg-white ring-2 ring-primary/10",
+          "mt-1.5 flex min-h-10 w-full cursor-text items-center gap-1.5 rounded-md border border-input bg-surface px-2.5 py-1.5 text-sm shadow-xs transition-colors hover:border-ring/50",
+          open && "border-primary bg-surface ring-2 ring-primary/10",
         )}
         onClick={() => {
           setOpen(true)
