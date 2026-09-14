@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import {
   ArrowDownUp,
   ChevronDown,
@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   Trash2,
   Upload,
   X,
@@ -21,15 +22,13 @@ import {
 import { ExerciseMediaEditor } from "@/components/admin/exercise-media-editor"
 import { MuscleProfileSummary, canApproveMuscleProfile } from "@/components/admin/muscle-profile-summary"
 import { Badge } from "@/components/ui/badge"
-import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
-import { TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
+import { MuscleMap, TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { buildMuscleProfileHighlights, muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
@@ -71,6 +70,19 @@ const MUSCLE_FILTERS: MuscleSlug[] = [
   "triceps",
   "upper-back",
 ]
+
+const GROUP_DESCRIPTIONS: Record<string, string> = {
+  arms: "Biceps, Triceps, Forearms",
+  back: "Lats, Traps, Rhomboids, Lower Back",
+  calves: "Calves, Soleus, Gastrocnemius",
+  cardio: "Running, Cycling, Rowing, HIIT",
+  chest: "Pectorals, Upper Chest, Lower Chest",
+  core: "Abs, Obliques, Lower Back",
+  glutes: "Glutes, Hip Extension",
+  legs: "Quadriceps, Hamstrings, Glutes, Adductors",
+  other: "Full Body, Mobility, Stretching, Sports",
+  shoulders: "Deltoids, Traps, Rotator Cuff",
+}
 
 type FormData = {
   activityType: ExerciseActivityType
@@ -158,6 +170,26 @@ function hasDraftMedia(files: AdminExerciseMediaFiles) {
 
 function hasCompleteDraftMedia(files: AdminExerciseMediaFiles) {
   return Boolean(files.thumbnail && files.animation)
+}
+
+function GroupMuscleIcon({ group }: { group: string }) {
+  const slugs = muscleGroupToSlugs(group)
+  const highlights = slugs.reduce<Partial<Record<MapMuscleSlug, string>>>((result, slug) => {
+    result[slug as MapMuscleSlug] = "var(--primary)"
+    return result
+  }, {})
+
+  return (
+    <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/50">
+      <MuscleMap
+        side="front"
+        highlights={highlights}
+        defaultFill="color-mix(in oklab, var(--body-fill) 86%, white)"
+        outline="var(--body-line)"
+        className="h-10 w-auto"
+      />
+    </div>
+  )
 }
 
 function CreateExerciseMediaDraft({
@@ -259,38 +291,240 @@ function CreateExerciseMediaDraft({
   )
 }
 
-function ExerciseFormSelect({
+function MuscleComboboxMultiSelect({
   label,
-  onValueChange,
+  onChange,
+  options,
+  placeholder,
+  selected,
+}: {
+  label: string
+  onChange: (muscles: MuscleSlug[]) => void
+  options: MuscleSlug[]
+  placeholder: string
+  selected: MuscleSlug[]
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const normalizedQuery = query.trim().toLowerCase()
+  const selectedSet = new Set(selected)
+  const filteredOptions = options.filter((muscle) => {
+    if (selectedSet.has(muscle)) return false
+    if (!normalizedQuery) return true
+    return muscle.includes(normalizedQuery) || formatMuscleSlug(muscle).toLowerCase().includes(normalizedQuery)
+  })
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [])
+
+  function addMuscle(muscle: MuscleSlug) {
+    onChange([...selected, muscle])
+    setQuery("")
+    setOpen(false)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  function removeMuscle(muscle: MuscleSlug) {
+    onChange(selected.filter((entry) => entry !== muscle))
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Backspace" && !query && selected.length) {
+      event.preventDefault()
+      removeMuscle(selected[selected.length - 1])
+      return
+    }
+
+    if (event.key === "Enter" && filteredOptions[0]) {
+      event.preventDefault()
+      addMuscle(filteredOptions[0])
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Label className={EXERCISE_FORM_LABEL_CLASS}>{label}</Label>
+      <div
+        role="button"
+        tabIndex={-1}
+        className={cn(
+          "mt-1.5 flex min-h-10 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1.5 text-sm shadow-xs transition-colors hover:border-ring/50",
+          open && "border-primary bg-white ring-2 ring-primary/10",
+        )}
+        onClick={() => {
+          setOpen(true)
+          inputRef.current?.focus()
+        }}
+      >
+        {selected.map((muscle) => (
+          <span
+            key={muscle}
+            className="inline-flex max-w-full items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-micro font-semibold uppercase text-primary"
+          >
+            <span className="truncate">{formatMuscleSlug(muscle)}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${formatMuscleSlug(muscle)}`}
+              className="rounded-full p-0.5 text-primary/70 hover:bg-primary/15 hover:text-primary"
+              onClick={(event) => {
+                event.stopPropagation()
+                removeMuscle(muscle)
+              }}
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={query}
+          placeholder={selected.length ? "" : placeholder}
+          className="h-6 min-w-[120px] flex-1 appearance-none border-0 bg-transparent p-0 text-sm outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+        />
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </div>
+      {open ? (
+        <div className="absolute z-[130] mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-popover py-1 text-sm shadow-lg">
+          {filteredOptions.length ? (
+            filteredOptions.map((muscle) => (
+              <button
+                key={muscle}
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-2 text-left font-medium hover:bg-muted"
+                onClick={() => addMuscle(muscle)}
+              >
+                <span>{formatMuscleSlug(muscle)}</span>
+                <span className="text-micro uppercase text-muted-foreground">{muscle}</span>
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No muscles found</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ExerciseComboboxSingleSelect({
+  label,
+  onChange,
   options,
   placeholder,
   value,
 }: {
   label: string
-  onValueChange: (value: string) => void
+  onChange: (value: string) => void
   options: Array<{ label: string; value: string }>
   placeholder: string
   value: string
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const selectedOption = options.find((option) => option.value === value)
+  const normalizedQuery = query.trim().toLowerCase()
+  const filteredOptions = options.filter((option) => {
+    if (!normalizedQuery) return true
+    return option.value.toLowerCase().includes(normalizedQuery) || option.label.toLowerCase().includes(normalizedQuery)
+  })
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+        setQuery("")
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [])
+
+  function selectOption(nextValue: string) {
+    onChange(nextValue)
+    setQuery("")
+    setOpen(false)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" && filteredOptions[0]) {
+      event.preventDefault()
+      selectOption(filteredOptions[0].value)
+    }
+  }
+
   return (
-    <div>
+    <div ref={containerRef} className="relative">
       <Label className={EXERCISE_FORM_LABEL_CLASS}>{label}</Label>
-      <Select value={value || undefined} onValueChange={onValueChange}>
-        <SelectTrigger className="mt-1.5 h-10 w-full bg-background">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent className="z-[120] max-h-[220px] border-border bg-popover p-0">
-          {options.map((option) => (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              className="rounded-none px-3 py-2.5 text-sm font-medium"
-            >
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div
+        role="button"
+        tabIndex={-1}
+        className={cn(
+          "mt-1.5 flex min-h-10 w-full cursor-text items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1.5 text-sm shadow-xs transition-colors hover:border-ring/50",
+          open && "border-primary bg-white ring-2 ring-primary/10",
+        )}
+        onClick={() => {
+          setOpen(true)
+          inputRef.current?.focus()
+        }}
+      >
+        {selectedOption && !query ? (
+          <span className="inline-flex min-w-0 items-center rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary">
+            <span className="truncate">{selectedOption.label}</span>
+          </span>
+        ) : null}
+        <input
+          ref={inputRef}
+          value={query}
+          placeholder={selectedOption && !query ? "" : placeholder}
+          className="h-6 min-w-[120px] flex-1 appearance-none border-0 bg-transparent p-0 text-sm outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+        />
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </div>
+      {open ? (
+        <div className="absolute z-[130] mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-popover py-1 text-sm shadow-lg">
+          {filteredOptions.length ? (
+            filteredOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-2 text-left font-medium hover:bg-muted"
+                onClick={() => selectOption(option.value)}
+              >
+                <span>{option.label}</span>
+                {option.value === value ? <Check className="size-4 text-primary" /> : null}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No options found</div>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -347,22 +581,15 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
     )
   }
 
-  function setPrimaryMuscle(value: string) {
-    const next = value as MuscleSlug | ""
-    if (!next) {
-      setPrimaryMuscles([])
-      return
-    }
-    setPrimaryMuscles([next])
-    setSecondaryMuscles((current) => current.filter((entry) => entry !== next))
-    const nextGroup = muscleGroupFromSlug(next)
+  function handlePrimaryMusclesChange(nextMuscles: MuscleSlug[]) {
+    setPrimaryMuscles(nextMuscles)
+    setSecondaryMuscles((current) => current.filter((entry) => !nextMuscles.includes(entry)))
+    const nextGroup = muscleGroupFromSlug(nextMuscles[0])
     if (nextGroup) setMuscle(nextGroup)
   }
 
-  function addSecondaryMuscle(value: string) {
-    const next = value as MuscleSlug | ""
-    if (!next || primaryMuscles.includes(next)) return
-    setSecondaryMuscles((current) => current.includes(next) ? current : [...current, next])
+  function handleSecondaryMusclesChange(nextMuscles: MuscleSlug[]) {
+    setSecondaryMuscles(nextMuscles.filter((entry) => !primaryMuscles.includes(entry)))
   }
 
   function handleSave() {
@@ -425,55 +652,37 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
             />
           </div>
 
-          <ExerciseFormSelect
+          <ExerciseComboboxSingleSelect
             label={locale === "en" ? "Exercise Type" : "Loại bài tập"}
             options={ACTIVITY_TYPES.map((type) => ({ label: type, value: type }))}
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
             value={activityType}
-            onValueChange={(value) => setActivityType(value as ExerciseActivityType)}
+            onChange={(value) => setActivityType(value as ExerciseActivityType)}
           />
 
-          <ExerciseFormSelect
+          <ExerciseComboboxSingleSelect
             label={copy.equipment}
             options={EQUIP.map((eq) => ({ label: eq, value: eq }))}
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
             value={equipment}
-            onValueChange={setEquipment}
+            onChange={setEquipment}
           />
 
-          <ExerciseFormSelect
+          <MuscleComboboxMultiSelect
             label={locale === "en" ? "Primary Muscle Group" : "Cơ chính"}
-            options={MUSCLE_FILTERS.map((muscle) => ({ label: formatMuscleSlug(muscle), value: muscle }))}
             placeholder={locale === "en" ? "Select..." : "Chọn..."}
-            value={primaryMuscles[0] ?? ""}
-            onValueChange={setPrimaryMuscle}
+            options={MUSCLE_FILTERS}
+            selected={primaryMuscles}
+            onChange={handlePrimaryMusclesChange}
           />
 
-          <div>
-            <ExerciseFormSelect
-              label={locale === "en" ? "Other Muscles" : "Cơ phụ"}
-              options={MUSCLE_FILTERS
-                .filter((muscle) => !primaryMuscles.includes(muscle) && !secondaryMuscles.includes(muscle))
-                .map((muscle) => ({ label: formatMuscleSlug(muscle), value: muscle }))}
-              placeholder={locale === "en" ? "Select..." : "Chọn..."}
-              value=""
-              onValueChange={addSecondaryMuscle}
-            />
-            {secondaryMuscles.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {secondaryMuscles.map((muscle) => (
-                  <button
-                    key={muscle}
-                    type="button"
-                    className="rounded-full border border-border px-2 py-1 text-micro uppercase text-muted-foreground hover:bg-muted"
-                    onClick={() => setSecondaryMuscles((current) => current.filter((entry) => entry !== muscle))}
-                  >
-                    {formatMuscleSlug(muscle)} ×
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <MuscleComboboxMultiSelect
+            label={locale === "en" ? "Other Muscles" : "Cơ phụ"}
+            placeholder={locale === "en" ? "Select..." : "Chọn..."}
+            options={MUSCLE_FILTERS.filter((muscle) => !primaryMuscles.includes(muscle))}
+            selected={secondaryMuscles}
+            onChange={handleSecondaryMusclesChange}
+          />
 
           <div className="rounded-lg border border-border p-3">
             <div className="flex items-center justify-between gap-2">
@@ -547,15 +756,15 @@ type GroupBlockProps = {
 
 function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
-  const totalUses = exercises.reduce((a, e) => a + e.usageCount, 0)
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someSelected = selectableIds.some((id) => selected.has(id))
+  const groupDescription = GROUP_DESCRIPTIONS[group.trim().toLowerCase()] ?? ""
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
       {/* Group header */}
-      <div className={cn("flex w-full items-center gap-2.5 px-4 py-3 transition-colors", open && "bg-muted/30")}>
+      <div className={cn("flex w-full items-center gap-3 px-4 py-2.5 transition-colors", open && "bg-muted/30")}>
         {open && selectableIds.length > 0 && (
           <Checkbox
             checked={allSelected ? true : someSelected ? "indeterminate" : false}
@@ -567,19 +776,22 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
         <button
           type="button"
           onClick={onToggle}
-          className="flex flex-1 items-center gap-2.5 text-left hover:opacity-80"
+          className="grid flex-1 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 text-left hover:opacity-80"
         >
-          {open
-            ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            : <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-          }
-          <span className="flex-1 text-base font-semibold text-foreground">{group}</span>
-          <span className="font-mono text-micro text-muted-foreground tnum">
-            {copy.variationCount(exercises.length)}
+          <ChevronRight className={cn("h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
+          <GroupMuscleIcon group={group} />
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="shrink-0 text-base font-semibold text-foreground">{group}</span>
+            <span className="hidden truncate text-sm text-muted-foreground md:block">{groupDescription}</span>
           </span>
-          <Badge variant="outline" className="font-mono text-micro tnum">
-            {copy.usageCount(totalUses)}
-          </Badge>
+          <span className="flex items-center justify-end gap-3 whitespace-nowrap">
+            <span className="font-mono text-xs text-muted-foreground tnum">
+              {copy.variationCount(exercises.length)}
+            </span>
+          </span>
+          <span className="flex items-center gap-4">
+            <ChevronRight className="hidden h-4 w-4 text-muted-foreground lg:block" />
+          </span>
         </button>
       </div>
 
@@ -587,7 +799,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
       {open && (
         <div className="border-t border-border">
           {/* Column header */}
-          <div className="grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_84px]">
+          <div className="grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]">
             <span />
             <span className="label-micro text-muted-foreground">{copy.exercise}</span>
             <span className="label-micro hidden text-muted-foreground sm:block">{copy.variation}</span>
@@ -604,7 +816,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <div
               key={e.id}
               className={cn(
-                "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_80px_64px_84px]",
+                "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]",
                 isSelected ? "bg-primary/5" : "hover:bg-muted/20",
               )}
             >
@@ -620,9 +832,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                 )}
               </div>
 
-              {/* Thumbnail (previews the animation) + name, with variation/equipment inline on mobile */}
-              <div className="flex min-w-0 items-center gap-2.5">
-              <ExerciseThumbnail media={e.media} name={e.name} previewable />
+              {/* Name, with variation/equipment inline on mobile */}
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
@@ -633,7 +843,6 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                   {e.variationName !== "Default" ? e.variationName : ""}
                   {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
                 </span>
-              </div>
               </div>
 
               {/* Variation name (desktop column) */}
@@ -774,6 +983,9 @@ export function ExerciseLibraryPanel({
   const [profileFilter, setProfileFilter] = useState<"all" | "pending" | "approved">("all")
   const [activityFilter, setActivityFilter] = useState<"all" | ExerciseActivityType>("all")
   const [mediaFilter, setMediaFilter] = useState<"all" | "missing" | "present">("all")
+  const [sortBy, setSortBy] = useState<"name" | "variations">("name")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [excelToolsOpen, setExcelToolsOpen] = useState(false)
 
   function handleSearchChange(value: string) {
     setRawQ(value)
@@ -820,8 +1032,14 @@ export function ExerciseLibraryPanel({
       ;(map[g] ??= []).push(e)
     })
     const groups = Object.keys(map).map((group) => ({ group, items: sortByExerciseRelevance(map[group], q, (e) => e.name) }))
-    return sortGroupsByExerciseRelevance(groups, q, (g) => g.group, (g) => g.items)
-  }, [filtered, q])
+    const sortedGroups = sortGroupsByExerciseRelevance(groups, q, (g) => g.group, (g) => g.items)
+    if (q.trim()) return sortedGroups
+    return sortedGroups.sort((left, right) =>
+      sortBy === "variations"
+        ? right.items.length - left.items.length
+        : left.group.localeCompare(right.group, locale, { sensitivity: "base" }),
+    )
+  }, [filtered, locale, q, sortBy])
 
   /* Auto-expand when searching */
   const forceOpen = q.trim().length > 0
@@ -964,12 +1182,106 @@ export function ExerciseLibraryPanel({
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-border bg-card/80 p-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
+        <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <div className="contents">
+          <div className="relative min-w-0 flex-1 basis-full sm:basis-[280px] sm:max-w-[560px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={rawQ}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={locale === "en" ? "Search exercises, equipment, or muscle..." : "Tìm bài tập, dụng cụ hoặc nhóm cơ..."}
+              className="h-11 min-w-0 bg-background pl-9 text-sm"
+            />
+          </div>
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" className="h-11 shrink-0 whitespace-nowrap bg-background px-3 sm:min-w-[112px] sm:px-4">
+              <SlidersHorizontal className="h-4 w-4 mr-1.5" />
+              <span>{locale === "en" ? "Filters" : "Bộ lọc"}</span>
+            </Button>
+          </DialogTrigger>
+          <Button className="h-11 shrink-0 whitespace-nowrap px-3 sm:min-w-[152px] sm:px-4" onClick={() => setModal("new")}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            <span>{copy.newExercise}</span>
+          </Button>
+        </div>
+
+        {filtersOpen ? (
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{locale === "en" ? "Filters" : "Bộ lọc"}</DialogTitle>
+              <DialogDescription>
+                {locale === "en" ? "Refine the exercise library results." : "Thu hẹp kết quả trong thư viện bài tập."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 sm:grid-cols-2">
+            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
+              <option value="all">{copy.profileFilterAll}</option>
+              {MUSCLE_FILTERS.map((muscle) => <option key={muscle} value={muscle}>{formatMuscleSlug(muscle)}</option>)}
+            </select>
+            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
+              <option value="all">{copy.equipmentFilterAll}</option>
+              {equipmentOptions.map((equipment) => <option key={equipment} value={equipment}>{equipment}</option>)}
+            </select>
+            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
+              <option value="all">Activity: all</option>
+              {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
+              <option value="all">{locale === "en" ? "Review: all" : "Duyệt: tất cả"}</option>
+              <option value="pending">{copy.profileFilterPending}</option>
+              <option value="approved">{copy.profileFilterApproved}</option>
+            </select>
+            <select
+              aria-label="Media"
+              className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
+              value={mediaFilter}
+              onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
+            >
+              <option value="all">{locale === "en" ? "Media: all" : "Media: tất cả"}</option>
+              <option value="missing">{locale === "en" ? "Missing media" : "Chưa có media"}</option>
+              <option value="present">{locale === "en" ? "Has media" : "Đã có media"}</option>
+            </select>
+            <label className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+              <span className="shrink-0">{locale === "en" ? "Sort by" : "Sắp xếp"}</span>
+              <select
+                className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+              >
+                <option value="name">{locale === "en" ? "Name A-Z" : "Tên A-Z"}</option>
+                <option value="variations">{locale === "en" ? "Most variations" : "Nhiều variation"}</option>
+              </select>
+            </label>
+              </div>
+          </DialogContent>
+        ) : null}
+
+        </Dialog>
+
+        <Dialog open={excelToolsOpen} onOpenChange={setExcelToolsOpen}>
+          <DialogTrigger asChild>
+            <Button type="button" variant="outline" className="h-11 shrink-0 whitespace-nowrap bg-card px-3 font-medium">
+              <FileSpreadsheet className="mr-1.5 size-4 text-primary" />
+              {locale === "en" ? "Excel tools" : "Công cụ Excel"}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{locale === "en" ? "Excel tools" : "Công cụ Excel"}</DialogTitle>
+              <DialogDescription>
+                {locale === "en" ? "Import, export, or sync exercise data." : "Import, export hoặc đồng bộ dữ liệu bài tập."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onImport}>
+              <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+              {copy.importExcel}
+            </Button>
             <Button
               variant="outline"
-              className="justify-start bg-background sm:w-auto"
+              size="sm"
+              className="h-9 justify-start bg-background"
               onClick={onDownloadTemplate}
               disabled={actionKey === "exercise-template-download"}
             >
@@ -979,70 +1291,21 @@ export function ExerciseLibraryPanel({
               }
               {copy.downloadTemplate}
             </Button>
-            <Button variant="outline" className="justify-start bg-background sm:w-auto" onClick={onImport}>
-              <FileSpreadsheet className="mr-1.5 h-4 w-4" />
-              {copy.importExcel}
-            </Button>
             {capabilities.canExport && onExportAll && (
-              <Button
-                variant="outline"
-                className="justify-start bg-background sm:w-auto"
-                onClick={onExportAll}
-                disabled={actionKey === "exercise-export" || exercises.length === 0}
-              >
-                {actionKey === "exercise-export"
-                  ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  : <Upload className="mr-1.5 h-4 w-4" />
-                }
+              <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onExportAll} disabled={actionKey === "exercise-export" || exercises.length === 0}>
+                {actionKey === "exercise-export" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
                 {copy.exportAll}
               </Button>
             )}
             {capabilities.canSync && onSyncImport && (
-              <Button variant="outline" className="justify-start bg-background sm:w-auto" onClick={onSyncImport}>
+              <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onSyncImport}>
                 <ArrowDownUp className="mr-1.5 h-4 w-4" />
                 {copy.syncImport}
               </Button>
             )}
-          </div>
-          <Button className="justify-start sm:w-fit xl:shrink-0" onClick={() => setModal("new")}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            {copy.newExercise}
-          </Button>
-        </div>
-
-        <div className="mt-3 grid gap-2 border-t border-border/70 pt-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_repeat(5,minmax(120px,150px))]">
-          <div className="relative sm:col-span-2 xl:col-span-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted-foreground" />
-            <Input value={rawQ} onChange={(e) => handleSearchChange(e.target.value)} placeholder={copy.searchExercises} className="bg-background pl-9" />
-          </div>
-          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
-            <option value="all">{copy.profileFilterAll}</option>
-            {MUSCLE_FILTERS.map((muscle) => <option key={muscle} value={muscle}>{formatMuscleSlug(muscle)}</option>)}
-          </select>
-          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
-            <option value="all">{copy.equipmentFilterAll}</option>
-            {equipmentOptions.map((equipment) => <option key={equipment} value={equipment}>{equipment}</option>)}
-          </select>
-          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
-            <option value="all">Activity: all</option>
-            {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
-            <option value="all">{locale === "en" ? "Review: all" : "Duyệt: tất cả"}</option>
-            <option value="pending">{copy.profileFilterPending}</option>
-            <option value="approved">{copy.profileFilterApproved}</option>
-          </select>
-          <select
-            aria-label="Media"
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            value={mediaFilter}
-            onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
-          >
-            <option value="all">{locale === "en" ? "Media: all" : "Media: tất cả"}</option>
-            <option value="missing">{locale === "en" ? "Missing media" : "Chưa có media"}</option>
-            <option value="present">{locale === "en" ? "Has media" : "Đã có media"}</option>
-          </select>
-        </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Bulk action bar */}

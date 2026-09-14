@@ -82,7 +82,7 @@ type ExerciseGroupItem = {
 }
 
 const EXERCISE_IMPORT_HEADERS = {
-  activityType: ["activity type", "activity_type", "type", "loai hoat dong"],
+  activityType: ["activity type", "activity_type", "exercise type", "exercise_type", "type", "loai hoat dong"],
   exerciseName: [
     "exercise name",
     "exercise_name",
@@ -94,8 +94,8 @@ const EXERCISE_IMPORT_HEADERS = {
   equipment: ["equipment", "gear", "device", "dung cu", "thiet bi"],
   isDefault: ["is default", "is_default", "default", "mac dinh"],
   muscleGroup: ["muscle group", "musclegroup", "muscle_group", "body part", "bodypart", "nhom co"],
-  primaryMuscles: ["primary muscles", "primary_muscles", "primary", "co chinh"],
-  secondaryMuscles: ["secondary muscles", "secondary_muscles", "secondary", "co phu"],
+  primaryMuscles: ["primary muscles", "primary_muscles", "primary muscle group", "primary_muscle_group", "primary", "co chinh"],
+  secondaryMuscles: ["secondary muscles", "secondary_muscles", "other muscles", "other_muscles", "secondary", "co phu"],
   sortOrder: ["sort order", "sort_order", "order", "thu tu"],
   variationName: ["variation name", "variation_name", "variation", "bien the"],
 } as const
@@ -131,11 +131,35 @@ const EXERCISE_TEMPLATE_EQUIPMENT = [
 ] as const
 
 const EXERCISE_TEMPLATE_EXAMPLES = [
-  ["Bench Press", "Chest", "Default", "Barbell", "strength", "chest", "triceps,deltoids", "TRUE", 0],
-  ["Bench Press", "Chest", "Incline", "Dumbbell", "strength", "chest", "triceps,deltoids", "FALSE", 1],
-  ["Lat Pulldown", "Back", "Wide Grip", "Cable", "strength", "upper-back", "biceps,forearm", "TRUE", 0],
-  ["Plank", "Core", "Default", "Bodyweight", "strength", "abs", "obliques", "TRUE", 0],
+  ["Bench Press", "Default", "strength", "Barbell", "chest", "triceps,deltoids"],
+  ["Bench Press", "Incline", "strength", "Dumbbell", "chest", "triceps,deltoids"],
+  ["Lat Pulldown", "Wide Grip", "strength", "Cable", "upper-back", "biceps,forearm"],
+  ["Plank", "Default", "strength", "Bodyweight", "abs", "obliques"],
 ] as const
+
+const MUSCLE_SLUG_TO_GROUP: Partial<Record<(typeof MUSCLE_SLUGS)[number], string>> = {
+  abs: "Core",
+  adductors: "Legs",
+  biceps: "Arms",
+  calves: "Calves",
+  chest: "Chest",
+  deltoids: "Shoulders",
+  forearm: "Arms",
+  gluteal: "Glutes",
+  hamstring: "Legs",
+  "lower-back": "Back",
+  obliques: "Core",
+  quadriceps: "Legs",
+  tibialis: "Legs",
+  trapezius: "Back",
+  triceps: "Arms",
+  "upper-back": "Back",
+}
+
+function deriveMuscleGroup(primaryMuscles: string[], fallback?: string) {
+  const primaryGroup = MUSCLE_SLUG_TO_GROUP[primaryMuscles[0] as (typeof MUSCLE_SLUGS)[number]]
+  return fallback?.trim() || primaryGroup || "Other"
+}
 
 function normalizeImportHeader(value: unknown) {
   return String(value ?? "")
@@ -341,12 +365,12 @@ function AdminShellHeader({
           : `${formatNumber(totalUsers, locale)} user · ${formatNumber(stats?.totalCoaches ?? 0, locale)} coach · ${formatNumber(stats?.activeUsersLast7Days ?? 0, locale)} hoạt động tuần này`,
     },
     exercises: {
-      label: locale === "en" ? "Library" : "Thư viện",
-      title:
+      label: locale === "en" ? "Exercises" : "Bài tập",
+      title: locale === "en" ? "Exercise Library" : "Thư viện bài tập",
+      sub:
         locale === "en"
-          ? `${formatNumber(exerciseCount, locale)} exercises.`
-          : `${formatNumber(exerciseCount, locale)} bài tập.`,
-      sub: locale === "en" ? "Grouped exercise variations" : "Các variation bài tập theo nhóm cơ",
+          ? `${formatNumber(exerciseCount, locale)} exercises · Grouped by muscle group`
+          : `${formatNumber(exerciseCount, locale)} bài tập · Nhóm theo nhóm cơ`,
     },
     programs: {
       label: locale === "en" ? "Programs" : "Giáo án",
@@ -587,62 +611,122 @@ export function AdminConsole() {
     setError(null)
 
     try {
-      const XLSX = await import("xlsx")
-      const workbook = XLSX.utils.book_new()
-      const templateHeaders = ["exercise_name", "muscle_group", "variation_name", "equipment", "activity_type", "primary_muscles", "secondary_muscles", "is_default", "sort_order"]
-      const instructionsSheet = XLSX.utils.aoa_to_sheet([
-        [locale === "en" ? "Exercise import template" : "Mẫu import bài tập"],
-        [
-          locale === "en"
-            ? "Use the Exercises sheet to fill in data before uploading back to the system."
-            : "Dùng sheet Exercises để nhập dữ liệu trước khi tải ngược lên hệ thống.",
-        ],
-        [
-          locale === "en"
-            ? "Each row is one variation. Required: exercise_name, muscle_group, activity_type, primary_muscles, secondary_muscles."
-            : "Mỗi dòng là một variation. Bắt buộc: exercise_name, muscle_group, activity_type, primary_muscles, secondary_muscles.",
-        ],
-        [
-          locale === "en"
-            ? "Use the same exercise_name + muscle_group on multiple rows when one base exercise has several variations."
-            : "Dùng cùng exercise_name + muscle_group trên nhiều dòng nếu một bài gốc có nhiều variation.",
-        ],
-        [
-          locale === "en"
-            ? "Set exactly one row per exercise as is_default = TRUE. If there is only one variation, use variation_name = Default."
-            : "Mỗi bài nên có đúng một dòng is_default = TRUE. Nếu chỉ có một variation, dùng variation_name = Default.",
-        ],
-        [
-          locale === "en"
-            ? "equipment is optional. sort_order controls display order and defaults to 0 if left blank."
-            : "equipment là tuỳ chọn. sort_order quyết định thứ tự hiển thị và mặc định là 0 nếu bỏ trống.",
-        ],
-      ])
-      const exercisesSheet = XLSX.utils.aoa_to_sheet([templateHeaders])
-      const examplesSheet = XLSX.utils.aoa_to_sheet([
-        templateHeaders,
-        ...EXERCISE_TEMPLATE_EXAMPLES.map((row) => [...row]),
-      ])
-      const referenceRows = [
-        ["muscle_group", "equipment"],
-        ...Array.from(
-          { length: Math.max(EXERCISE_TEMPLATE_MUSCLE_GROUPS.length, EXERCISE_TEMPLATE_EQUIPMENT.length) },
-          (_, index) => [EXERCISE_TEMPLATE_MUSCLE_GROUPS[index] ?? "", EXERCISE_TEMPLATE_EQUIPMENT[index] ?? ""],
-        ),
+      const ExcelJS = await import("exceljs")
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = "YeahBuddy Fitness"
+
+      const templateHeaders = ["Exercise Name", "Variation", "Exercise Type", "Equipment", "Primary Muscle Group", "Other Muscles"]
+      const exercisesSheet = workbook.addWorksheet("Exercises")
+      exercisesSheet.columns = [
+        { header: templateHeaders[0], key: "exerciseName", width: 30 },
+        { header: templateHeaders[1], key: "variationName", width: 22 },
+        { header: templateHeaders[2], key: "activityType", width: 18 },
+        { header: templateHeaders[3], key: "equipment", width: 22 },
+        { header: templateHeaders[4], key: "primaryMuscles", width: 24 },
+        { header: templateHeaders[5], key: "secondaryMuscles", width: 30 },
       ]
-      const referenceSheet = XLSX.utils.aoa_to_sheet(referenceRows)
 
-      instructionsSheet["!cols"] = [{ wch: 110 }]
-      exercisesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 12 }]
-      examplesSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 16 }, { wch: 28 }, { wch: 28 }, { wch: 12 }, { wch: 12 }]
-      referenceSheet["!cols"] = [{ wch: 22 }, { wch: 22 }]
+      const headerRow = exercisesSheet.getRow(1)
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } }
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } }
+      headerRow.alignment = { vertical: "middle" }
 
-      XLSX.utils.book_append_sheet(workbook, exercisesSheet, "Exercises")
-      XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions")
-      XLSX.utils.book_append_sheet(workbook, examplesSheet, "Examples")
-      XLSX.utils.book_append_sheet(workbook, referenceSheet, "Reference")
+      EXERCISE_TEMPLATE_EXAMPLES.forEach((row) => exercisesSheet.addRow(row))
+      exercisesSheet.views = [{ state: "frozen", ySplit: 1 }]
+      exercisesSheet.autoFilter = { from: "A1", to: "F1" }
 
-      XLSX.writeFile(workbook, locale === "en" ? "exercise-import-template.xlsx" : "mau-import-bai-tap.xlsx")
+      const activityFormula = `"${EXERCISE_ACTIVITY_TYPES.join(",")}"`
+      const equipmentFormula = `"${EXERCISE_TEMPLATE_EQUIPMENT.join(",")}"`
+      const muscleFormula = `"${MUSCLE_SLUGS.join(",")}"`
+
+      for (let row = 2; row <= 1001; row++) {
+        exercisesSheet.getCell(`C${row}`).dataValidation = {
+          type: "list",
+          allowBlank: false,
+          formulae: [activityFormula],
+          showErrorMessage: true,
+          errorTitle: "Invalid exercise type",
+          error: "Select one supported exercise type.",
+        }
+        exercisesSheet.getCell(`D${row}`).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [equipmentFormula],
+          showErrorMessage: false,
+        }
+        exercisesSheet.getCell(`E${row}`).dataValidation = {
+          type: "list",
+          allowBlank: false,
+          formulae: [muscleFormula],
+          showErrorMessage: true,
+          errorTitle: "Invalid primary muscle",
+          error: "Select one supported muscle slug.",
+        }
+        exercisesSheet.getCell(`F${row}`).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [muscleFormula],
+          showErrorMessage: false,
+        }
+      }
+
+      const instructionsSheet = workbook.addWorksheet("Instructions")
+      const instructions = locale === "en"
+        ? [
+            "Exercise import template",
+            "Use the Exercises sheet. Its fields mirror the Add/Edit exercise modal.",
+            "Required: Exercise Name, Exercise Type, Primary Muscle Group.",
+            "Variation is optional and defaults to Default. Equipment and Other Muscles are optional.",
+            "Primary Muscle Group and Other Muscles use muscle slugs, not legacy display groups. Other Muscles can be a comma-separated list.",
+            "The app derives the legacy muscle_group automatically from Primary Muscle Group during import.",
+            "Media is not imported from this template. Add image/animation from the exercise editor after import.",
+          ]
+        : [
+            "Mẫu import bài tập",
+            "Dùng sheet Exercises. Các trường trong file giống modal Add/Edit exercise.",
+            "Bắt buộc: Exercise Name, Exercise Type, Primary Muscle Group.",
+            "Variation là tuỳ chọn và mặc định là Default. Equipment và Other Muscles là tuỳ chọn.",
+            "Primary Muscle Group và Other Muscles dùng muscle slug, không dùng nhóm hiển thị legacy. Other Muscles có thể nhập nhiều slug cách nhau bằng dấu phẩy.",
+            "Khi import, app tự suy ra muscle_group legacy từ Primary Muscle Group.",
+            "Template này không import media. Image/animation được thêm trong modal chỉnh sửa bài tập sau khi import.",
+          ]
+      instructions.forEach((line, index) => {
+        const row = instructionsSheet.addRow([line])
+        if (index === 0) row.font = { bold: true, size: 14 }
+      })
+      instructionsSheet.getColumn(1).width = 120
+
+      const referenceSheet = workbook.addWorksheet("Reference")
+      referenceSheet.columns = [
+        { header: "equipment", key: "equipment", width: 24 },
+        { header: "exercise_type", key: "exerciseType", width: 18 },
+        { header: "muscle_slug", key: "muscleSlug", width: 24 },
+        { header: "derived_muscle_group", key: "derivedMuscleGroup", width: 24 },
+      ]
+      Array.from(
+        { length: Math.max(EXERCISE_TEMPLATE_EQUIPMENT.length, EXERCISE_ACTIVITY_TYPES.length, MUSCLE_SLUGS.length) },
+        (_, index) => {
+          const muscleSlug = MUSCLE_SLUGS[index]
+          referenceSheet.addRow({
+            equipment: EXERCISE_TEMPLATE_EQUIPMENT[index] ?? "",
+            exerciseType: EXERCISE_ACTIVITY_TYPES[index] ?? "",
+            muscleSlug: muscleSlug ?? "",
+            derivedMuscleGroup: muscleSlug ? deriveMuscleGroup([muscleSlug]) : "",
+          })
+        },
+      )
+      referenceSheet.getRow(1).font = { bold: true }
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = locale === "en" ? "exercise-import-template.xlsx" : "mau-import-bai-tap.xlsx"
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
 
       showSuccess(locale === "en" ? "Exercise import template downloaded." : "Đã tải file mẫu import bài tập.")
     } catch (templateError) {
@@ -709,7 +793,10 @@ export function AdminConsole() {
       const worksheet =
         worksheets.find((item) => item.sheetName.trim().toLowerCase() === "exercises") ??
         worksheets.find(
-          (item) => typeof item.columnMap.exerciseName === "number" && typeof item.columnMap.muscleGroup === "number",
+          (item) =>
+            typeof item.columnMap.exerciseName === "number" &&
+            typeof item.columnMap.activityType === "number" &&
+            typeof item.columnMap.primaryMuscles === "number",
         )
 
       if (!worksheet || !worksheet.rows.length) {
@@ -719,10 +806,8 @@ export function AdminConsole() {
       const { columnMap, rows } = worksheet
       const missingColumns = [
         typeof columnMap.exerciseName !== "number" ? (locale === "en" ? "exercise_name" : "exercise_name") : null,
-        typeof columnMap.muscleGroup !== "number" ? (locale === "en" ? "muscle_group" : "muscle_group") : null,
-        typeof columnMap.activityType !== "number" ? "activity_type" : null,
-        typeof columnMap.primaryMuscles !== "number" ? "primary_muscles" : null,
-        typeof columnMap.secondaryMuscles !== "number" ? "secondary_muscles" : null,
+        typeof columnMap.activityType !== "number" ? "exercise_type" : null,
+        typeof columnMap.primaryMuscles !== "number" ? "primary_muscle_group" : null,
       ].filter(Boolean) as string[]
 
       if (missingColumns.length > 0) {
@@ -739,31 +824,32 @@ export function AdminConsole() {
       rows.slice(1).forEach((row, index) => {
         const rowNumber = index + 2
         const exerciseName = String(row[columnMap.exerciseName as number] ?? "").trim()
-        const muscleGroup = String(row[columnMap.muscleGroup as number] ?? "").trim()
+        const rawMuscleGroup = typeof columnMap.muscleGroup === "number" ? String(row[columnMap.muscleGroup] ?? "").trim() : ""
         const variationNameIndex = columnMap.variationName
         const equipmentIndex = columnMap.equipment
         const isDefaultIndex = columnMap.isDefault
         const sortOrderIndex = columnMap.sortOrder
         const activityType = parseActivityType(row[columnMap.activityType as number])
         const primary = parseMuscleSlugs(row[columnMap.primaryMuscles as number])
-        const secondary = parseMuscleSlugs(row[columnMap.secondaryMuscles as number])
+        const secondary = typeof columnMap.secondaryMuscles === "number" ? parseMuscleSlugs(row[columnMap.secondaryMuscles]) : { invalid: [], muscles: [] }
+        const muscleGroup = deriveMuscleGroup(primary.muscles, rawMuscleGroup)
         const rawVariationName = typeof variationNameIndex === "number" ? String(row[variationNameIndex] ?? "").trim() : ""
         const variationName = rawVariationName || "Default"
         const equipment = typeof equipmentIndex === "number" ? String(row[equipmentIndex] ?? "").trim() : ""
         const isDefault = typeof isDefaultIndex === "number" ? parseImportBoolean(row[isDefaultIndex]) : variationName === "Default"
         const sortOrder = typeof sortOrderIndex === "number" ? parseImportNumber(row[sortOrderIndex]) : undefined
-        const isBlankRow = !exerciseName && !muscleGroup && !rawVariationName && !equipment && !activityType && !primary.muscles.length && !secondary.muscles.length
+        const isBlankRow = !exerciseName && !rawMuscleGroup && !rawVariationName && !equipment && !activityType && !primary.muscles.length && !secondary.muscles.length
 
         if (isBlankRow) {
           return
         }
 
-        if (!exerciseName || !muscleGroup) {
+        if (!exerciseName) {
           nextIssues.push({
             message:
               locale === "en"
-                ? "Missing exercise_name or muscle_group."
-                : "Thiếu exercise_name hoặc muscle_group.",
+                ? "Missing Exercise Name."
+                : "Thiếu Exercise Name.",
             rowNumber,
           })
           return
