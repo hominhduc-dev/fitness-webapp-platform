@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useMemo } from "react"
-import { Activity, Dumbbell, Flame, Scale, TrendingUp } from "lucide-react"
+import { Activity, Dumbbell, Flame, Moon, Scale, TrendingUp } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { useAuth } from "@/components/providers/auth-provider"
@@ -10,7 +10,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { calculateLeanMassKg, convertWeightFromKg, formatSignedWeight, formatWeight, type WeightUnit } from "@/lib/fitness/weight"
-import { useProgressAnalytics, useVolumeRecovery, useWeightEntries } from "@/lib/queries/progress"
+import { useProgressAnalytics, useRecoveryHistory, useVolumeRecovery, useWeightEntries } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
 
 const WEIGHT_RANGE_DAYS = 90
@@ -64,6 +64,8 @@ export function ProgressOverview() {
   const analyticsQuery = useProgressAnalytics()
   const volumeQuery = useVolumeRecovery()
   const weightQuery = useWeightEntries(WEIGHT_RANGE_DAYS)
+  // Seven days so the sleep figure covers the same week as the other tiles.
+  const recoveryQuery = useRecoveryHistory(7)
 
   const entries = useMemo(
     () => [...(weightQuery.data ?? [])].sort((left, right) => right.recordedAt.getTime() - left.recordedAt.getTime()),
@@ -97,6 +99,7 @@ export function ProgressOverview() {
   }
 
   const summary = volumeQuery.data?.summary
+  const averageSleepMinutes = recoveryQuery.data?.averages.sleepMinutes ?? null
   const weeklyVolume = analyticsQuery.data?.weeklyVolume ?? []
   const totalWeeklyVolume = weeklyVolume.reduce((sum, point) => sum + point.volume, 0)
 
@@ -104,7 +107,7 @@ export function ProgressOverview() {
     <div className="space-y-5">
       <section className="rounded-lg border border-border bg-card p-5">
         <h2 className="text-base font-semibold text-foreground">{copy.thisWeek}</h2>
-        <div className="mt-4 grid grid-cols-2 divide-border sm:grid-cols-4 sm:divide-x">
+        <div className="mt-4 grid grid-cols-2 divide-border sm:grid-cols-3 lg:grid-cols-5 lg:divide-x">
           {/* The volume week and the workout count have to come from the same
               window, so both read the volume-recovery response rather than the
               monthly totals in the analytics summary. */}
@@ -115,6 +118,11 @@ export function ProgressOverview() {
           />
           <StatTile icon={Flame} label={copy.hardSets} value={String(summary?.hardSets ?? 0)} />
           <StatTile icon={Activity} label={copy.avgRir} value={summary?.averageRir == null ? "—" : String(summary.averageRir)} />
+          <StatTile
+            icon={Moon}
+            label={messages.volumeRecovery.avgSleep}
+            value={averageSleepMinutes == null ? "—" : `${Math.floor(averageSleepMinutes / 60)}h ${averageSleepMinutes % 60}m`}
+          />
           <StatTile
             icon={TrendingUp}
             label={copy.volume}
