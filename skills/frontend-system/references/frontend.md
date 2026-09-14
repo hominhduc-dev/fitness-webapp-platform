@@ -37,7 +37,7 @@
 | Visual material | CSS/SVG liquid glass + optional `@ybouane/liquidglass` WebGL |
 | Test | Vitest 4 + jsdom + Testing Library |
 | Client server-state | TanStack Query 5, hooks trong `lib/queries/` |
-| PWA/observability | manifest + iOS splash, Vercel Analytics/Speed Insights trên Vercel |
+| PWA/observability | manifest, Vercel Analytics/Speed Insights trên Vercel |
 
 Không có `react-hook-form` hoặc `zod` trong dependency hiện tại. Form phức tạp đang dùng controlled state và validation thủ công; đừng giả định RHF/Zod đã được cài.
 
@@ -78,7 +78,7 @@ app/layout.tsx
 
 ### Root layout
 
-- `app/layout.tsx`: metadata, fonts, viewport, iOS splash links, PWA metadata integration.
+- `app/layout.tsx`: metadata, fonts, viewport, PWA metadata integration. Không có iOS splash (apple-touch-startup-image).
 - Script chạy trước paint đọc `yeahbuddy-theme`, đặt `.dark`, `color-scheme` và `theme-color` để tránh flash.
 - Liquid-glass capability probe chỉ bật SVG refraction nâng cao trên Chromium phù hợp.
 - `LiquidGlassFilters` cung cấp filter IDs dùng bởi CSS.
@@ -432,7 +432,6 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 
 - `public/manifest.json`: standalone, portrait, shortcuts Workout/Meals/Progress/Schedule.
 - `app/layout.tsx`: icons, apple web app, theme color, viewport-fit cover.
-- iOS splash assets sinh từ `lib/ios-splash-devices.json` bằng `npm run splash`.
 - App icons sinh bằng `npm run icons`.
 
 ## 11. Muscle map
@@ -510,7 +509,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Dialog/drawer/input/button chung | `components/ui/*` | globals glass/data-slot rules |
 | Login/session/profile | auth component/provider | `lib/auth/*`, Supabase client/server |
 | Copy/ngôn ngữ | domain file trong `lib/i18n/messages` | locale provider/server |
-| Metadata/PWA/font | `app/layout.tsx` | manifest, icon/splash scripts |
+| Metadata/PWA/font | `app/layout.tsx` | manifest, icon script |
 | API URL/proxy | `lib/supabase/config.ts` | `next.config.mjs`, domain API helper |
 
 ## 14. Checklist thay đổi frontend
