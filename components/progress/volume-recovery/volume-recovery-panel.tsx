@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
-import { useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
+import { useSetVolumeRecommendationStatus, useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
+import { LandmarkEditor } from "./landmark-editor"
+import { ReadinessTrend } from "./readiness-trend"
 import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
 
 const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
@@ -112,11 +114,18 @@ function MuscleVolumeRow({
   name,
   zoneLabel,
 }: {
-  copy: { directSets: string; indirectSets: string; lowConfidenceSets: string; sets: string }
+  copy: ReturnType<typeof useLocale>["messages"]["volumeRecovery"]
   muscle: VolumeRecoveryMuscle
   name: string
   zoneLabel: string
 }) {
+  const [editorOpen, setEditorOpen] = useState(false)
+  const landmarkSource = muscle.landmarks.source === "coach"
+    ? copy.landmarksCoach
+    : muscle.landmarks.source === "learned"
+      ? copy.landmarksLearned
+      : copy.landmarksSystem
+
   return (
     <div className="border-b border-border py-4 last:border-0">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -131,9 +140,21 @@ function MuscleVolumeRow({
         </span>
       </div>
       <VolumeLandmarkBar className="pt-4" landmarks={muscle.landmarks} sets={muscle.effectiveSets} />
-      {muscle.lowConfidenceSets > 0 ? (
-        <p className="mt-2 text-micro text-warning-text">{muscle.lowConfidenceSets} {copy.lowConfidenceSets}</p>
-      ) : null}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        {muscle.lowConfidenceSets > 0 ? (
+          <p className="text-micro text-warning-text">{muscle.lowConfidenceSets} {copy.lowConfidenceSets}</p>
+        ) : (
+          <span className="font-mono text-micro text-muted-foreground">{landmarkSource}</span>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditorOpen(true)}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          {copy.editLandmarks}
+        </button>
+      </div>
+      <LandmarkEditor muscle={muscle} muscleName={name} open={editorOpen} onClose={() => setEditorOpen(false)} />
     </div>
   )
 }
@@ -422,6 +443,7 @@ export function VolumeRecoveryPanel() {
   const { messages } = useLocale()
   const copy = messages.volumeRecovery
   const query = useVolumeRecovery()
+  const answerRecommendation = useSetVolumeRecommendationStatus()
   const [checkInOpen, setCheckInOpen] = useState(false)
   const data = query.data
   const insight = useMemo(
@@ -462,6 +484,8 @@ export function VolumeRecoveryPanel() {
           </Button>
         </div>
       </section>
+
+      <ReadinessTrend />
 
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {[
@@ -514,6 +538,34 @@ export function VolumeRecoveryPanel() {
               copy.muscleLabels[insight.muscleSlug as keyof typeof copy.muscleLabels] ?? insight.muscleSlug,
             )}
           </p>
+          {insight.recommendation.status === "pending" ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={answerRecommendation.isPending}
+                onClick={() => answerRecommendation.mutate({ muscleSlug: insight.muscleSlug, status: "accepted", weekStart: data.weekStart })}
+              >
+                {copy.accept}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={answerRecommendation.isPending}
+                onClick={() => answerRecommendation.mutate({ muscleSlug: insight.muscleSlug, status: "dismissed", weekStart: data.weekStart })}
+              >
+                {copy.dismiss}
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-3 font-mono text-micro uppercase tracking-[0.08em] text-primary">
+              {insight.recommendation.status === "dismissed" ? copy.dismissed : copy.accepted}
+            </p>
+          )}
+          {answerRecommendation.error ? (
+            <p className="mt-2 text-sm text-destructive-text">{answerRecommendation.error.message}</p>
+          ) : null}
         </section>
       ) : null}
 

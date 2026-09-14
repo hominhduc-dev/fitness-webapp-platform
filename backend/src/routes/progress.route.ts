@@ -11,10 +11,21 @@ import {
   getYearViewForTrainee,
   listBodyMetricsForCurrentTrainee,
   getVolumeRecoveryForTrainee,
+  listRecoveryHistoryForTrainee,
+  resetVolumeLandmarksForTrainee,
+  setVolumeRecommendationStatusForTrainee,
   upsertRecoveryCheckInForTrainee,
+  upsertVolumeLandmarksForTrainee,
 } from "../services/fitness-data.service"
 import { getAccessToken, sendData, sendError } from "./route.utils"
-import { recoveryCheckInSchema, volumeRecoveryQuerySchema } from "./progress.schemas"
+import {
+  recoveryCheckInSchema,
+  recoveryHistoryQuerySchema,
+  volumeLandmarksResetSchema,
+  volumeLandmarksSchema,
+  volumeRecommendationStatusSchema,
+  volumeRecoveryQuerySchema,
+} from "./progress.schemas"
 
 const progressRouter = Router()
 
@@ -26,6 +37,42 @@ progressRouter.get(
       ? new Date(`${req.query.weekStart}T00:00:00.000Z`)
       : undefined
     sendData(res, await getVolumeRecoveryForTrainee(profile, weekStart))
+  }),
+)
+
+progressRouter.get(
+  "/recovery-history",
+  validated({ query: recoveryHistoryQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await listRecoveryHistoryForTrainee(profile, req.query.days))
+  }),
+)
+
+progressRouter.put(
+  "/volume-recommendation",
+  validated({ body: volumeRecommendationStatusSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await setVolumeRecommendationStatusForTrainee(profile, {
+      muscleSlug: req.body.muscleSlug,
+      status: req.body.status,
+      weekStart: req.body.weekStart ? new Date(`${req.body.weekStart}T00:00:00.000Z`) : undefined,
+    }))
+  }),
+)
+
+progressRouter.put(
+  "/volume-landmarks",
+  validated({ body: volumeLandmarksSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await upsertVolumeLandmarksForTrainee(profile, req.body))
+  }),
+)
+
+progressRouter.delete(
+  "/volume-landmarks",
+  validated({ body: volumeLandmarksResetSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await resetVolumeLandmarksForTrainee(profile, req.body.muscleSlug))
   }),
 )
 

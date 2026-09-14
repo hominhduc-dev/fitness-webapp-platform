@@ -599,14 +599,51 @@ type VolumeRecoveryMuscle = {
     currentSets: number
     reasons: VolumeRecommendationReason[]
     recommendedSets: number
+    status: VolumeRecommendationStatus
   }
   soreness: number | null
   zone: VolumeZone
 }
 
+type TrainingGuidanceAction = "light_session" | "proceed" | "reduce_volume" | "rest"
+
+type TrainingGuidanceReason =
+  | "muscles_need_backoff"
+  | "no_check_in"
+  | "readiness_good"
+  | "readiness_low"
+  | "readiness_very_low"
+  | "soreness_high"
+
+type TrainingGuidance = {
+  action: TrainingGuidanceAction
+  focusMuscles: string[]
+  reasons: TrainingGuidanceReason[]
+  setAdjustmentPct: number
+}
+
+type RecoveryHistoryEntry = {
+  checkInDate: string
+  fatigue: number
+  readinessScore: number | null
+  sleepMinutes: number | null
+  sleepQuality: number | null
+  soreness: number | null
+  stress: number | null
+}
+
+type RecoveryHistory = {
+  averages: { readinessScore: number | null; sleepMinutes: number | null }
+  days: number
+  entries: RecoveryHistoryEntry[]
+}
+
+type VolumeRecommendationStatus = "accepted" | "applied" | "dismissed" | "pending"
+
 type VolumeRecoveryData = {
   algorithmVersion: string
   checkIn: RecoveryCheckIn | null
+  guidance: TrainingGuidance
   confidence: {
     label: "low" | "medium"
     recoveryCheckIns: number
@@ -678,6 +715,12 @@ export type {
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
+  RecoveryHistory,
+  RecoveryHistoryEntry,
+  TrainingGuidance,
+  TrainingGuidanceAction,
+  TrainingGuidanceReason,
+  VolumeRecommendationStatus,
   VolumeRecoveryData,
   VolumeRecoveryMuscle,
   VolumeRecommendationAction,

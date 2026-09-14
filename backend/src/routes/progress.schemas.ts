@@ -33,4 +33,40 @@ const recoveryCheckInSchema = z
     { message: "Mỗi nhóm cơ chỉ được đánh giá một lần.", path: ["muscles"] },
   )
 
-export { recoveryCheckInSchema, volumeRecoveryQuerySchema }
+const muscleSlug = z.string().trim().min(1).max(80)
+
+// A month of history is what the 7- and 30-day trends both read from; anything
+// longer belongs to the year view rather than a recovery chart.
+const recoveryHistoryQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(90).default(30),
+})
+
+const volumeRecommendationStatusSchema = z.object({
+  muscleSlug,
+  status: z.enum(["accepted", "dismissed"]),
+  weekStart: dateKey.optional(),
+})
+
+const volumeLandmarksSchema = z
+  .object({
+    mavMaxSets: z.number().min(0).max(60),
+    mavMinSets: z.number().min(0).max(60),
+    mevSets: z.number().min(0).max(60),
+    mrvSets: z.number().min(0).max(60),
+    muscleSlug,
+  })
+  .refine(
+    (value) => value.mevSets <= value.mavMinSets && value.mavMinSets <= value.mavMaxSets && value.mavMaxSets <= value.mrvSets,
+    { message: "Ngưỡng phải tăng dần: MEV ≤ MAV tối thiểu ≤ MAV tối đa ≤ MRV.", path: ["mevSets"] },
+  )
+
+const volumeLandmarksResetSchema = z.object({ muscleSlug })
+
+export {
+  recoveryCheckInSchema,
+  recoveryHistoryQuerySchema,
+  volumeLandmarksResetSchema,
+  volumeLandmarksSchema,
+  volumeRecommendationStatusSchema,
+  volumeRecoveryQuerySchema,
+}

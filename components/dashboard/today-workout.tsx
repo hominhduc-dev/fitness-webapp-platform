@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { Dumbbell, Play } from "lucide-react"
 
+import { TrainingGuidance } from "./training-guidance"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
@@ -46,6 +47,9 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
             {workout.duration ? ` · ${workout.duration} ${messages.dashboard.min}` : ""}
           </p>
         </div>
+
+        {/* What today's recovery signals say about running this session. */}
+        <TrainingGuidance />
 
         {/* Exercise list */}
         <div className="min-w-0 space-y-2">

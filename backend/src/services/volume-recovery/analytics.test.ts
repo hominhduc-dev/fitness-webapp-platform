@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import {
   aggregateWeeklyMuscleVolume,
   buildMusclePerformanceTrend,
+  buildTrainingGuidance,
   buildVolumeRecommendation,
   calculateReadiness,
   classifyVolumeZone,
@@ -86,6 +87,45 @@ describe("volume recovery analytics", () => {
     const answers = { fatigue: 3, sleepQuality: 3, soreness: 2, stress: 3 }
 
     expect(calculateReadiness({ ...answers, sleepMinutes: null })).toBe(calculateReadiness(answers))
+  })
+
+  it("adjusts today's session by readiness and the muscles needing a back-off", () => {
+    const steady = [{ muscleSlug: "chest", recommendation: { action: "maintain" as const } }]
+    const backingOff = [
+      ...steady,
+      { muscleSlug: "upper-back", recommendation: { action: "deload" as const } },
+    ]
+
+    // No check-in is not evidence of a bad day, so the plan stands.
+    expect(buildTrainingGuidance({ muscles: steady, readinessScore: null, soreness: null }))
+      .toMatchObject({ action: "proceed", reasons: ["no_check_in"], setAdjustmentPct: 0 })
+
+    expect(buildTrainingGuidance({ muscles: steady, readinessScore: 82, soreness: 1 }))
+      .toMatchObject({ action: "proceed", reasons: ["readiness_good"], setAdjustmentPct: 0 })
+
+    // Ready on paper, but a muscle the engine wants backed off still trims the session.
+    expect(buildTrainingGuidance({ muscles: backingOff, readinessScore: 82, soreness: 1 }))
+      .toMatchObject({ action: "reduce_volume", focusMuscles: ["upper-back"], setAdjustmentPct: -15 })
+
+    expect(buildTrainingGuidance({ muscles: steady, readinessScore: 58, soreness: 1 }))
+      .toMatchObject({ action: "reduce_volume", setAdjustmentPct: -15 })
+
+    expect(buildTrainingGuidance({ muscles: steady, readinessScore: 44, soreness: 4 }))
+      .toMatchObject({ action: "light_session", reasons: ["readiness_low", "soreness_high"], setAdjustmentPct: -30 })
+
+    expect(buildTrainingGuidance({ muscles: backingOff, readinessScore: 20, soreness: 5 }))
+      .toMatchObject({ action: "rest", setAdjustmentPct: -100 })
+  })
+
+  it("shares its readiness thresholds with the per-muscle engine", () => {
+    const muscles = [{ muscleSlug: "chest", recommendation: { action: "maintain" as const } }]
+
+    // 70 is "recovered" for buildVolumeRecommendation, so it must not be a
+    // trimmed session here — the two would contradict each other on one score.
+    expect(buildTrainingGuidance({ muscles, readinessScore: 70, soreness: 0 }).action).toBe("proceed")
+    expect(buildTrainingGuidance({ muscles, readinessScore: 69, soreness: 0 }).action).toBe("reduce_volume")
+    expect(buildTrainingGuidance({ muscles, readinessScore: 50, soreness: 0 }).action).toBe("reduce_volume")
+    expect(buildTrainingGuidance({ muscles, readinessScore: 49, soreness: 0 }).action).toBe("light_session")
   })
 
   it("classifies landmark zones at their boundaries", () => {

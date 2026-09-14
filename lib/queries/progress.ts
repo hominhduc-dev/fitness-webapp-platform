@@ -13,7 +13,11 @@ import {
   fetchProgressCalendar,
   fetchProgressYearView,
   fetchVolumeRecovery,
+  fetchRecoveryHistory,
   fetchWeightEntries,
+  resetVolumeLandmarks,
+  saveVolumeLandmarks,
+  setVolumeRecommendationStatus,
   fetchWorkoutLogDetail,
   upsertRecoveryCheckIn,
 } from "@/lib/fitness/api"
@@ -107,6 +111,55 @@ export function useVolumeRecovery(options?: { enabled?: boolean; weekStart?: str
     queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), options?.weekStart),
     enabled: options?.enabled ?? true,
     staleTime: PROGRESS_STALE_TIME_MS,
+  })
+}
+
+export function useRecoveryHistory(days = 30, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.progress.recoveryHistory(days),
+    queryFn: async () => fetchRecoveryHistory(await requireAccessToken(), days),
+    enabled: options?.enabled ?? true,
+    staleTime: PROGRESS_STALE_TIME_MS,
+  })
+}
+
+/**
+ * Answering a recommendation, editing landmarks and resetting them all change
+ * what the volume response returns, so each invalidates the whole progress tree
+ * rather than trying to patch one muscle row in place.
+ */
+export function useSetVolumeRecommendationStatus() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof setVolumeRecommendationStatus>[1]) =>
+      setVolumeRecommendationStatus(await requireAccessToken(), input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.progress.all })
+    },
+  })
+}
+
+export function useSaveVolumeLandmarks() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof saveVolumeLandmarks>[1]) =>
+      saveVolumeLandmarks(await requireAccessToken(), input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.progress.all })
+    },
+  })
+}
+
+export function useResetVolumeLandmarks() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (muscleSlug: string) => resetVolumeLandmarks(await requireAccessToken(), muscleSlug),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.progress.all })
+    },
   })
 }
 
