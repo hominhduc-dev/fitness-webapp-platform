@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   ImageUp,
   Loader2,
+  EllipsisVertical,
   Pencil,
   Plus,
   Search,
@@ -27,6 +28,7 @@ import { MuscleMap, TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } f
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
@@ -140,6 +142,7 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     target: locale === "en" ? "Target" : "Đích",
     transfer: locale === "en" ? "Transfer" : "Chuyển",
     editExercise: locale === "en" ? "Edit exercise" : "Sửa bài tập",
+    edit: locale === "en" ? "Edit" : "Sửa",
     equipment: locale === "en" ? "Equipment" : "Thiết bị",
     equipmentFilterAll: locale === "en" ? "Equipment: all" : "Dụng cụ: tất cả",
     exercise: locale === "en" ? "Exercise" : "Bài tập",
@@ -866,7 +869,6 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-0.5">
-                {onTransferMetadata && canManage ? <button type="button" title={copy.transferMetadata} aria-label={`${copy.transferMetadata}: ${e.name}`} disabled={transferringId === e.id} onClick={() => onTransferMetadata(e)} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30">{transferringId === e.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowDownUp className="h-3.5 w-3.5" />}</button> : null}
                 {onApproveProfile && canManage && e.muscleProfileStatus === "pending" ? (
                   <button
                     type="button"
@@ -879,37 +881,19 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
                     <Check className="h-3.5 w-3.5" />
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  title="Edit"
-                  disabled={!canManage}
-                  onClick={() => onEdit(e)}
-                  className={cn(
-                    "rounded-md p-1.5 transition-colors",
-                    canManage
-                      ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      : "cursor-not-allowed text-muted-foreground/30",
-                  )}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}
-                  disabled={!canManage || e.usageCount > 0 || deletingId === e.id}
-                  onClick={() => onDelete(e)}
-                  className={cn(
-                    "rounded-md p-1.5 transition-colors",
-                    !canManage || e.usageCount > 0 || deletingId === e.id
-                      ? "cursor-not-allowed text-muted-foreground/30"
-                      : "text-muted-foreground hover:bg-destructive-soft hover:text-destructive-text",
-                  )}
-                >
-                  {deletingId === e.id
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Trash2 className="h-3.5 w-3.5" />
-                  }
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`${locale === "en" ? "Actions" : "Thao tác"}: ${e.name}`}>
+                      {transferringId === e.id || deletingId === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EllipsisVertical className="h-4 w-4" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {onTransferMetadata ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onTransferMetadata(e)}><ArrowDownUp />{copy.transferMetadata}</DropdownMenuItem> : null}
+                    <DropdownMenuItem disabled={!canManage} onSelect={() => onEdit(e)}><Pencil />{copy.edit}</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" disabled={!canManage || e.usageCount > 0 || deletingId === e.id} onSelect={() => onDelete(e)} title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}><Trash2 />{copy.delete}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
             )
