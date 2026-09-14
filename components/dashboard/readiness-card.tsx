@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Activity, ChevronRight, Dumbbell, Moon } from "lucide-react"
+import { Activity, Brain, ChevronRight, Dumbbell, Moon } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -86,6 +86,7 @@ export function ReadinessCard() {
                 : "—",
             },
             { icon: Activity, label: copy.fatigue, value: data?.checkIn ? `${data.checkIn.fatigue}/5` : "—" },
+            { icon: Brain, label: copy.stress, value: data?.checkIn?.stress == null ? "—" : `${data.checkIn.stress}/5` },
             { icon: Dumbbell, label: copy.soreness, value: highestSoreness == null ? "—" : `${highestSoreness}/5` },
           ].map((signal) => (
             <div key={signal.label} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
