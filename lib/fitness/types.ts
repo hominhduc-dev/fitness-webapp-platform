@@ -538,6 +538,94 @@ type NotificationList = {
   unreadCount: number
 }
 
+type VolumeZone = "above_mrv" | "below_mev" | "insufficient_data" | "mav" | "mev_to_mav" | "near_mrv"
+
+type VolumeRecommendationAction = "decrease" | "deload" | "increase" | "maintain"
+
+type VolumeRecommendationReason =
+  | "above_mrv"
+  | "below_mev"
+  | "collect_more_performance"
+  | "inside_mav"
+  | "insufficient_evidence"
+  | "performance_down"
+  | "performance_stable_or_up"
+  | "recovery_and_performance_declining"
+  | "recovery_good"
+  | "recovery_signals_elevated"
+
+type RecoveryCheckInInput = {
+  checkInDate: string
+  fatigue: number
+  muscles: Array<{ muscleSlug: string; pain?: number; soreness: number }>
+  note?: string
+  sleepMinutes?: number
+  sleepQuality?: number
+  stress?: number
+}
+
+type RecoveryCheckIn = {
+  algorithmVersion: string | null
+  checkInDate: string
+  fatigue: number
+  id: string
+  muscles: Array<{ muscleSlug: string; pain: number | null; soreness: number }>
+  note: string | null
+  readinessScore: number | null
+  sleepMinutes: number | null
+  sleepQuality: number | null
+  stress: number | null
+}
+
+type VolumeRecoveryMuscle = {
+  averageRir: number | null
+  directSets: number
+  effectiveSets: number
+  indirectSets: number
+  landmarks: {
+    confidence: number
+    mavMaxSets: number
+    mavMinSets: number
+    mevSets: number
+    mrvSets: number
+    source: "coach" | "learned" | "system"
+  }
+  lowConfidenceSets: number
+  muscleSlug: string
+  performanceChangePct: number | null
+  recommendation: {
+    action: VolumeRecommendationAction
+    confidence: number
+    currentSets: number
+    reasons: VolumeRecommendationReason[]
+    recommendedSets: number
+  }
+  soreness: number | null
+  zone: VolumeZone
+}
+
+type VolumeRecoveryData = {
+  algorithmVersion: string
+  checkIn: RecoveryCheckIn | null
+  confidence: {
+    label: "low" | "medium"
+    recoveryCheckIns: number
+    workoutSessions: number
+  }
+  muscles: VolumeRecoveryMuscle[]
+  readiness: {
+    label: "insufficient_data" | "low" | "moderate" | "ready"
+    score: number | null
+  }
+  summary: {
+    averageRir: number | null
+    hardSets: number
+    performanceChangePct: number | null
+  }
+  weekEnd: string
+  weekStart: string
+}
+
 export type {
   AppNotification,
   AppNotificationStatus,
@@ -583,11 +671,18 @@ export type {
   ProgressWeeklyVolumePoint,
   ProgressYearView,
   ProgressYearViewDay,
+  RecoveryCheckIn,
+  RecoveryCheckInInput,
   TraineeDashboardData,
   TraineeProgram,
   WeeklyCaloriesPoint,
   WorkoutCollection,
   WorkoutLogInput,
+  VolumeRecoveryData,
+  VolumeRecoveryMuscle,
+  VolumeRecommendationAction,
+  VolumeRecommendationReason,
+  VolumeZone,
 }
 
 // ---------------------------------------------------------------------------
