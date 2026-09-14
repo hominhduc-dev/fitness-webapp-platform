@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/auth/api"
+import { buildExerciseDisplayName } from "@/lib/exercise-display"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import type { IntensityTag } from "@/lib/workout/intensity-tag"
@@ -922,26 +923,37 @@ function flattenExerciseLibraryToVariationOptions(
   exercises: ExerciseLibraryExercise[],
 ): ExerciseVariationOption[] {
   return exercises.flatMap((exercise) =>
-    exercise.variations.map((variation) => ({
-      canManage: variation.canManage ?? exercise.canManage,
-      createdById: variation.createdById ?? exercise.createdById,
-      displayName: variation.displayName ?? (variation.isDefault ? exercise.name : variation.name),
-      equipment: variation.equipment,
-      exerciseId: exercise.id,
-      exerciseName: exercise.name,
-      id: variation.id,
-      isDefault: variation.isDefault,
-      media: variation.media,
-      metadata: variation.metadata,
-      muscleGroup: exercise.muscleGroup,
-      name: variation.displayName ?? (variation.isDefault ? exercise.name : variation.name),
-      source: variation.source ?? exercise.source,
-      sortOrder: variation.sortOrder,
-      variationName: variation.name,
-      activityType: variation.activityType,
-      primaryMuscles: variation.primaryMuscles,
-      secondaryMuscles: variation.secondaryMuscles,
-    })),
+    exercise.variations.map((variation) => {
+      // Composed the same way the workout log composes it, so the name a trainee
+      // picks in the library is the name they then read on every set row.
+      const displayName = buildExerciseDisplayName({
+        displayName: variation.displayName,
+        exerciseName: exercise.name,
+        isDefault: variation.isDefault,
+        variationName: variation.name,
+      })
+
+      return {
+        canManage: variation.canManage ?? exercise.canManage,
+        createdById: variation.createdById ?? exercise.createdById,
+        displayName,
+        equipment: variation.equipment,
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        id: variation.id,
+        isDefault: variation.isDefault,
+        media: variation.media,
+        metadata: variation.metadata,
+        muscleGroup: exercise.muscleGroup,
+        name: displayName,
+        source: variation.source ?? exercise.source,
+        sortOrder: variation.sortOrder,
+        variationName: variation.name,
+        activityType: variation.activityType,
+        primaryMuscles: variation.primaryMuscles,
+        secondaryMuscles: variation.secondaryMuscles,
+      }
+    }),
   )
 }
 

@@ -1210,6 +1210,9 @@ function WorkoutSession() {
       exercise: { id: variation.exerciseId, muscleGroup: variation.muscleGroup, name: variation.exerciseName },
       variation: {
         activityType: variation.activityType,
+        // Carried over so the row keeps the exact label the picker showed,
+        // curated import names included, instead of a recomposed one.
+        displayName: variation.displayName,
         equipment: variation.equipment,
         id: variation.id,
         isDefault: variation.isDefault,
@@ -1273,6 +1276,7 @@ function WorkoutSession() {
               },
               variation: {
                 activityType: variation.activityType,
+                displayName: variation.displayName,
                 equipment: variation.equipment,
                 id: variation.id,
                 isDefault: variation.isDefault,

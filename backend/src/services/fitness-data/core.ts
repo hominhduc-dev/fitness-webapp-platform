@@ -411,10 +411,21 @@ function buildVariationDisplayName(input: ExerciseDisplayNameInput & { metadata?
   return buildExerciseDisplayName(input)
 }
 
-function serializeVariation(variation: VariationWithMuscleTargets, legacyMuscleGroup?: string | null) {
+/**
+ * `exerciseName` is what turns a bare variation ("Frontal") into the label a
+ * trainee reads ("Frontal One-Arm Lat Pulldown"). Callers that do not join the
+ * exercise relation must pass it explicitly, otherwise the exercise library
+ * would ship a different name than the workout log for the same variation.
+ */
+function serializeVariation(
+  variation: VariationWithMuscleTargets,
+  legacyMuscleGroup?: string | null,
+  exerciseName?: string | null,
+) {
   return {
     displayName: buildVariationDisplayName({
-      exerciseName: "exercise" in variation ? (variation as VariationWithMuscleTargets & { exercise?: Exercise }).exercise?.name : undefined,
+      exerciseName: exerciseName
+        ?? ("exercise" in variation ? (variation as VariationWithMuscleTargets & { exercise?: Exercise }).exercise?.name : undefined),
       isDefault: variation.isDefault,
       metadata: variation.metadata,
       variationName: variation.name,
@@ -2903,7 +2914,7 @@ async function listExerciseLibrary(
     })
     .map((exercise) => ({
       ...exercise,
-      variations: exercise.variations.map((variation) => serializeVariation(variation, exercise.muscleGroup)),
+      variations: exercise.variations.map((variation) => serializeVariation(variation, exercise.muscleGroup, exercise.name)),
     }))
 }
 
