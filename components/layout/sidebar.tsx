@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { Dumbbell, UserPlus } from "lucide-react"
+import { UserPlus } from "lucide-react"
+import { BrandLogo } from "@/components/ui/brand-logo"
 import { Button } from "@/components/ui/button"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
@@ -45,11 +46,8 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
       activeStyle="primary"
       accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       brand={
-        <Link href={getRoleLandingPath(role)} className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Dumbbell className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+        <Link href={getRoleLandingPath(role)} className="flex min-w-0 items-center">
+          <BrandLogo />
         </Link>
       }
       footer={
@@ -95,11 +93,8 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       activeStyle="muted"
       accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       brand={
-        <Link href={getRoleLandingPath("admin")} className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Dumbbell className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+        <Link href={getRoleLandingPath("admin")} className="flex min-w-0 items-center">
+          <BrandLogo />
         </Link>
       }
       backLink={
@@ -136,11 +131,8 @@ function CoachSidebar({ pathname }: { pathname: string }) {
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="muted"
       brand={
-        <Link href={getRoleLandingPath("coach")} className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Dumbbell className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">YeahBuddy</span>
+        <Link href={getRoleLandingPath("coach")} className="flex min-w-0 items-center">
+          <BrandLogo />
         </Link>
       }
       backLink={
