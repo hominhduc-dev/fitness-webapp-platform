@@ -4,7 +4,13 @@ import { logger } from "../lib/logger"
 import { GENERIC_ERROR_MESSAGE } from "../middleware/error-handler"
 import { AppError, UnauthorizedError } from "../services/errors"
 
-function getAccessToken(req: Request) {
+/**
+ * Takes only the headers, not a whole Request: a route using `validated()` with
+ * a coercing query schema hands its handler a request whose `query` no longer
+ * satisfies Express's all-strings `ParsedQs`, and asking for the full type here
+ * would reject it over a property this function never reads.
+ */
+function getAccessToken(req: Pick<Request, "headers">) {
   const header = req.headers.authorization
 
   if (!header?.startsWith("Bearer ")) {
