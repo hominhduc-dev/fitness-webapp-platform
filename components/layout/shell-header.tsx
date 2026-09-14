@@ -1,10 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { Dumbbell, LogOut, MoreHorizontal, Settings, X } from "lucide-react"
+import { ChevronDown, LogOut, Settings, User, X } from "lucide-react"
 import { Fragment, Suspense, useEffect, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
+import { BrandLogo } from "@/components/ui/brand-logo"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LanguageToggle } from "@/components/layout/language-toggle"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -85,7 +87,7 @@ function NavItems({
 export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   const { messages } = useLocale()
   const { resolvedTheme } = useTheme()
-  const { signOut } = useAuth()
+  const { profile, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -126,7 +128,22 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         : getTraineeNavItems(messages)
 
   const badge = ROLE_BADGE[role]
-  const primaryItems = navItems.slice(0, 4)
+  // The trainee nav keeps Weekly Schedule in the center under the shorter
+  // product label "Routine" so the five mobile destinations stay stable.
+  const primaryItems = role === "trainee"
+    ? (() => {
+        const traineeItems = getTraineeNavItems(messages, { compactLabels: true })
+        const scheduleItem = traineeItems[4]
+
+        return [
+          traineeItems[0],
+          traineeItems[1],
+          { ...scheduleItem, label: messages.shell.routine },
+          traineeItems[2],
+          traineeItems[3],
+        ]
+      })()
+    : navItems.slice(0, 4)
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -141,9 +158,39 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
   return (
     <Fragment>
+      <header className="px-4 pt-[calc(1rem+env(safe-area-inset-top))] md:hidden">
+        <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-3 rounded-3xl bg-card/70 px-3 py-2 shadow-sm">
+          <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"}>
+            <BrandLogo markClassName="size-8 rounded-xl" textClassName="text-xl" />
+          </Link>
+          <button
+            type="button"
+            aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
+            aria-controls="mobile-more-navigation"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Avatar className="size-10 border border-border">
+              {profile?.avatar ? <AvatarImage src={profile.avatar} alt="" className="object-cover" /> : null}
+              <AvatarFallback className="bg-primary-soft text-primary">
+                <User className="size-4" strokeWidth={1.7} aria-hidden="true" />
+              </AvatarFallback>
+            </Avatar>
+            <ChevronDown className={cn("size-4 text-foreground transition-transform", open && "rotate-180")} aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+
       <div className="mobile-liquid-glass-root fixed bottom-[var(--mobile-nav-offset)] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
-        <nav ref={mobileNavRef} className="mobile-floating-nav glass-surface relative grid w-full grid-cols-5 rounded-full border border-border bg-background/45 px-2 py-2 shadow-2xl backdrop-blur-xl">
+        <nav
+          ref={mobileNavRef}
+          className={cn(
+            "mobile-floating-nav glass-surface relative grid w-full gap-0.5 rounded-[1.75rem] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl",
+            role === "trainee" ? "grid-cols-5" : "grid-cols-4",
+          )}
+        >
           {primaryItems.map((item) => {
             const active = isNavItemActive(pathname, item)
             const visuallyActive = active && !open
@@ -152,16 +199,12 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               // change: tapping the current page's icon never changes the
               // pathname, so the sheet used to stay open until "More" was
               // tapped again.
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} aria-label={item.label} title={item.label} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
-                <item.icon className="h-5 w-5" strokeWidth={1.7} />
-                <span className="sr-only">{item.label}</span>
+              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} title={item.label} className={cn("flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+                <item.icon className="h-5 w-5" strokeWidth={visuallyActive ? 2 : 1.7} aria-hidden="true" />
+                <span className={cn("max-w-full truncate text-[0.6875rem] leading-4", visuallyActive && "font-semibold")}>{item.label}</span>
               </Link>
             )
           })}
-          <button type="button" aria-controls="mobile-more-navigation" aria-expanded={open} aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation} title={open ? messages.common.closeNavigation : messages.common.openNavigation} onClick={() => setOpen((value) => !value)} className={cn("flex min-w-0 items-center justify-center rounded-full px-1 py-2.5 transition-all", open ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
-            <MoreHorizontal className="h-5 w-5" />
-            <span className="sr-only">More</span>
-          </button>
         </nav>
       </div>
 
@@ -176,7 +219,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           />
           <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(var(--mobile-nav-offset)+5.25rem)] left-3 right-3 z-50 max-h-[calc(100dvh-var(--mobile-nav-offset)-8.25rem)] overflow-y-auto rounded-3xl border border-border bg-background p-2.5 shadow-2xl">
             <div className="mb-2 flex items-center justify-between px-2 py-1.5">
-              <div className="flex items-center gap-2"><Dumbbell className="h-4 w-4" /><span className="font-semibold">YeahBuddy</span>{badge ? <span className="label-micro">{badge}</span> : null}</div>
+              <div className="flex min-w-0 items-center gap-2"><BrandLogo markClassName="size-7" textClassName="text-base" />{badge ? <span className="label-micro">{badge}</span> : null}</div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
             </div>
             {/* Role nav items */}

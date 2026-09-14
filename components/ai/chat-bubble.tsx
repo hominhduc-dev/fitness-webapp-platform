@@ -2,7 +2,7 @@
 
 import { useSendAIChatMessage } from "@/lib/queries/ai"
 
-import { Bot, Dumbbell, Loader2, Send, Sparkles, UtensilsCrossed } from "lucide-react"
+import { Bot, Dumbbell, Loader2, Send, UtensilsCrossed, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
@@ -21,6 +21,7 @@ function getChatCopy(locale: "en" | "vi") {
   if (locale === "vi") {
     return {
       ariaOpen: "Mở AI Coach",
+      ariaClose: "Đóng AI Coach",
       error: "Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại.",
       features: "Tính năng AI",
       loading: "AI đang trả lời...",
@@ -37,6 +38,7 @@ function getChatCopy(locale: "en" | "vi") {
 
   return {
     ariaOpen: "Open AI Coach",
+    ariaClose: "Close AI Coach",
     error: "Sorry, I cannot answer right now. Please try again.",
     features: "AI features",
     loading: "AI is responding...",
@@ -51,12 +53,11 @@ function getChatCopy(locale: "en" | "vi") {
   }
 }
 
-function AIChatBubble() {
+function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { mutateAsync: sendAIChatMessage, isPending: sendAIChatMessagePending } = useSendAIChatMessage()
   const { profile } = useAuth()
   const { locale } = useLocale()
   const copy = getChatCopy(locale)
-  const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const isLoading = sendAIChatMessagePending
@@ -79,13 +80,13 @@ function AIChatBubble() {
 
     const handleOutsidePointer = (event: PointerEvent) => {
       if (event.target instanceof Node && !panelRef.current?.contains(event.target)) {
-        setOpen(false)
+        onOpenChange(false)
       }
     }
 
     document.addEventListener("pointerdown", handleOutsidePointer)
     return () => document.removeEventListener("pointerdown", handleOutsidePointer)
-  }, [open])
+  }, [onOpenChange, open])
 
   const handleSend = async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -107,25 +108,10 @@ function AIChatBubble() {
     }
   }
 
-  if (!profile) return null
+  if (!profile || !open) return null
 
   return (
-    <>
-      {/* Floating Button */}
-      {!open && (
-        <button
-          type="button"
-          aria-label={copy.ariaOpen}
-          onClick={() => setOpen(true)}
-          className="ai-bubble-trigger fixed right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[60] flex size-14 items-center justify-center rounded-full border border-border bg-primary text-primary-foreground shadow-2xl backdrop-blur-xl transition-all hover:scale-105 md:bottom-5 md:right-5 md:top-auto md:z-40"
-        >
-          <Sparkles className="size-6" />
-        </button>
-      )}
-
-      {/* Chat Panel */}
-      {open && (
-        <div ref={panelRef} className="glass-surface fixed left-3 right-3 top-[calc(5.25rem+env(safe-area-inset-top))] z-[59] flex h-[min(600px,calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border bg-background shadow-2xl md:bottom-24 md:left-auto md:right-5 md:top-auto md:z-40 md:h-[min(520px,calc(100vh-120px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
+    <div ref={panelRef} className="glass-surface fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border bg-background shadow-2xl md:bottom-5 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-40px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
           {/* Header */}
           <div className="flex items-center gap-2.5 border-b bg-primary/5 px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
@@ -135,6 +121,14 @@ function AIChatBubble() {
               <p className="text-sm font-semibold">AI Coach</p>
               <p className="text-micro text-muted-foreground">{copy.subtitle}</p>
             </div>
+            <button
+              type="button"
+              aria-label={copy.ariaClose}
+              onClick={() => onOpenChange(false)}
+              className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
           </div>
 
           {/* Messages */}
@@ -148,7 +142,7 @@ function AIChatBubble() {
                     <Link
                       key={action.href}
                       href={action.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => onOpenChange(false)}
                       className="flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted"
                     >
                       <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
@@ -244,9 +238,7 @@ function AIChatBubble() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
-    </>
+    </div>
   )
 }
 

@@ -1,10 +1,15 @@
 "use client"
 
+import { useState } from "react"
+
+import { AIChatBubble } from "@/components/ai/chat-bubble"
+import { CheckInPrompt } from "./check-in-prompt"
 import { NutritionSummary } from "./nutrition-summary"
 import { QuickActions } from "./quick-actions"
 import { ReadinessCard } from "./readiness-card"
 import { RecentActivity } from "./recent-activity"
 import { TodayWorkout } from "./today-workout"
+import { WeekStrip } from "./week-strip"
 import { WeeklyProgressCard } from "./weekly-progress-card"
 import { WeeklyVolumeCard } from "./weekly-volume-card"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -104,6 +109,7 @@ function countScheduledWorkoutsInWeek(
 }
 
 export function DashboardOverviewClient({ initialData, preferredWeightUnit }: { initialData: DashboardData; preferredWeightUnit?: "kg" | "lbs" }) {
+  const [aiChatOpen, setAIChatOpen] = useState(false)
   const { messages } = useLocale()
   const { data: dashboard = initialData } = useUserQuery({
     queryKey: ["workouts", "dashboard"],
@@ -116,29 +122,50 @@ export function DashboardOverviewClient({ initialData, preferredWeightUnit }: { 
   const scheduledThisWeek = countScheduledWorkoutsInWeek(dashboard.workouts, dashboard.schedule, weekStart)
   const nextWorkout = resolveNextWorkoutLabel(dashboard.workouts, dashboard.schedule, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
+
   return (
-    <>
-      <QuickActions />
+    <div className="space-y-4">
+      <WeekStrip hasWorkoutOn={(date) => getWorkoutForDate(dashboard.workouts, dashboard.schedule, date) != null} />
 
-      <section className="grid min-w-0 gap-4 md:grid-cols-[1.15fr_0.85fr]">
-        <TodayWorkout workout={dashboard.todayWorkout} />
-        <ReadinessCard />
-      </section>
+      <CheckInPrompt />
 
-      <section className="grid min-w-0 gap-4 md:grid-cols-[0.85fr_1.15fr]">
-        <NutritionSummary nutrition={dashboard.dailyNutrition} />
-        <WeeklyProgressCard
-          activeDays={activeDaysThisWeek}
-          completedWorkouts={workoutsThisWeek}
-          nextWorkout={nextWorkout}
-          scheduledWorkouts={scheduledThisWeek}
-          volumeUnitLabel={volumeUnitLabel}
-        />
-      </section>
+      <QuickActions onOpenAIChat={() => setAIChatOpen(true)} />
 
-      <WeeklyVolumeCard />
+      {/* Mobile keeps the task-first reading order. Desktop follows the
+          overview matrix from the dashboard mockup. */}
+      <div className="grid min-w-0 gap-4 lg:grid-cols-3">
+        <div className="order-2 min-w-0 lg:order-none lg:col-start-1 lg:row-span-2 lg:row-start-1">
+          <TodayWorkout workout={dashboard.todayWorkout} />
+        </div>
 
-      <RecentActivity logs={dashboard.recentLogs} />
-    </>
+        <div className="order-1 min-w-0 lg:order-none lg:col-start-2 lg:row-start-1">
+          <ReadinessCard />
+        </div>
+
+        <div className="order-4 min-w-0 lg:order-none lg:col-start-3 lg:row-start-1">
+          <NutritionSummary nutrition={dashboard.dailyNutrition} />
+        </div>
+
+        <div className="order-3 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
+          <WeeklyProgressCard
+            activeDays={activeDaysThisWeek}
+            completedWorkouts={workoutsThisWeek}
+            nextWorkout={nextWorkout}
+            scheduledWorkouts={scheduledThisWeek}
+            volumeUnitLabel={volumeUnitLabel}
+          />
+        </div>
+
+        <div className="order-5 min-w-0 lg:order-none lg:col-span-2 lg:col-start-1 lg:row-start-3">
+          <WeeklyVolumeCard />
+        </div>
+
+        <div className="order-6 min-w-0 lg:order-none lg:col-start-3 lg:row-span-2 lg:row-start-2">
+          <RecentActivity logs={dashboard.recentLogs} />
+        </div>
+      </div>
+
+      <AIChatBubble open={aiChatOpen} onOpenChange={setAIChatOpen} />
+    </div>
   )
 }

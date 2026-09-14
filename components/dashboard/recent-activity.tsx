@@ -55,7 +55,7 @@ function ActivityRow({
   const monthShort = startedAt.toLocaleDateString("en-US", { month: "short" })
 
   return (
-    <div className="glass-card rounded-lg border border-border bg-card px-4 py-3">
+    <div className="rounded-xl border border-border bg-card px-3 py-2.5 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0">
       <div className="flex items-center gap-3.5">
         {/* Date column */}
         <div className="w-8 shrink-0 text-center">
@@ -71,7 +71,7 @@ function ActivityRow({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{log.workout.name}</p>
-          <div className="mt-0.5 flex items-center gap-3 font-mono text-micro tnum text-muted-foreground">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 whitespace-nowrap font-mono text-micro tnum text-muted-foreground">
             {durationMins && (
               <span>{durationMins} {messages.dashboard.min}</span>
             )}
@@ -130,8 +130,8 @@ export function RecentActivity({ emptyMessage, logs, title }: RecentActivityProp
   const weightUnitLabel = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
   return (
-    <section>
-      <div className="mb-4 flex items-baseline gap-3">
+    <section className="h-full lg:rounded-2xl lg:border lg:border-border lg:bg-card lg:p-3.5 lg:shadow-sm">
+      <div className="mb-2 flex items-baseline gap-3">
         <span className="label-micro">{title ?? messages.dashboard.recentActivity}</span>
         <span className="font-mono text-micro tnum text-muted-foreground">{logs.length}</span>
       </div>
@@ -143,7 +143,7 @@ export function RecentActivity({ emptyMessage, logs, title }: RecentActivityProp
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:gap-0 lg:divide-y lg:divide-border">
           {logs.map((log) => (
             <ActivityRow
               key={log.id}

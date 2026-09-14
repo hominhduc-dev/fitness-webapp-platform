@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Activity, CalendarDays, ChevronRight, Flame, TrendingUp } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,20 +30,21 @@ export function WeeklyProgressCard({
   const { messages } = useLocale()
   const copy = messages.dashboard
   const query = useProgressAnalytics()
+  // The last seven days, ending today.
   const weeklyVolume = query.data?.weeklyVolume ?? []
   const totalVolume = weeklyVolume.reduce((sum, point) => sum + point.volume, 0)
 
   return (
-    <section className="glass-card min-w-0 rounded-3xl border border-border bg-card p-5 md:p-6">
+    <section className="glass-card h-full min-w-0 rounded-2xl border border-border bg-card p-3.5 lg:p-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-foreground">{copy.weeklyProgress}</h2>
-        <Link href="/progress" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+        <Link href="/progress" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
           {copy.viewDetails}
-          <ChevronRight className="size-3.5" aria-hidden="true" />
+          <ChevronRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
 
-      <div className="mt-4 h-44 w-full">
+      <div className="mt-2 h-24 w-full md:h-28 lg:h-16">
         {query.isPending ? (
           <Skeleton className="size-full rounded-xl" />
         ) : (
@@ -62,23 +63,34 @@ export function WeeklyProgressCard({
                 formatter={(value: number) => [`${value.toLocaleString()} ${volumeUnitLabel}`, copy.volume]}
                 contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }}
               />
-              <Bar dataKey="volume" fill="var(--primary)" radius={[5, 5, 0, 0]} maxBarSize={36} />
+              <Bar dataKey="volume" radius={[6, 6, 0, 0]} maxBarSize={32}>
+                {weeklyVolume.map((point, index) => (
+                  // Today stands out; the days before it recede.
+                  <Cell
+                    key={`${point.day}-${index}`}
+                    fill="var(--primary)"
+                    fillOpacity={index === weeklyVolume.length - 1 ? 1 : 0.35}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         {[
           { icon: Activity, label: copy.completed, value: `${completedWorkouts}/${scheduledWorkouts}` },
           { icon: Flame, label: copy.activeDays, value: String(activeDays) },
           { icon: TrendingUp, label: copy.volume, value: `${formatVolume(totalVolume)} ${volumeUnitLabel}` },
           { icon: CalendarDays, label: copy.nextWorkout, value: nextWorkout.value, helper: nextWorkout.subtitle },
         ].map((metric) => (
-          <div key={metric.label} className="min-w-0 rounded-xl border border-border bg-surface-subtle p-3">
-            <metric.icon className="size-4 text-primary" aria-hidden="true" />
-            <p className="mt-2 truncate font-mono text-base font-semibold tnum text-foreground">{metric.value}</p>
-            <p className="mt-0.5 truncate text-micro text-muted-foreground">{metric.helper ?? metric.label}</p>
+          <div key={metric.label} className="min-w-0 rounded-lg bg-surface-subtle px-2 py-1.5 text-center lg:py-1">
+            <metric.icon className="size-4 shrink-0 text-primary" aria-hidden="true" />
+            <div className="mt-1 min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight tnum text-foreground">{metric.value}</p>
+              <p className="mt-0.5 truncate text-[0.6875rem] leading-tight text-muted-foreground">{metric.helper ?? metric.label}</p>
+            </div>
           </div>
         ))}
       </div>

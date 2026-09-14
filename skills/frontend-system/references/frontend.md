@@ -66,9 +66,10 @@ app/layout.tsx
    │     ├─ LocaleProvider
    │     └─ AuthProvider
    │        ├─ SidebarClient            desktop, md+
-   │        ├─ ShellHeader              mobile bottom nav + More sheet
+   │        ├─ ShellHeader              shared mobile brand/account header + bottom nav + More sheet
+   │        ├─ ShellMain                <main>; mobile top offset for the AI bubble
    │        ├─ route content
-   │        ├─ AIChatBubble             trainee only
+   │        ├─ AIChatBubble             dashboard trainee only; opened from Quick actions
    │        └─ ResumeWorkoutCard        trainee only
    ├─ app/workout/*                     focused workout flow
    ├─ app/reset-password/*              public auth flow
@@ -370,10 +371,17 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 
 ### Mobile shell
 
-- Bottom nav: fixed, centered, `max-w-[390px]`, 5 cột, safe-area bottom.
-- Primary four nav items + nút More; More mở glass sheet chứa toàn bộ navigation/settings.
+- Mobile top header dùng chung cho mọi route trong authenticated shell: logo dẫn về role home, avatar mở More sheet chứa toàn bộ navigation/settings.
+- Bottom nav: fixed, centered, `max-w-[390px]`, safe-area bottom; mỗi item có icon + nhãn ngắn bên dưới. Trainee dùng 5 cột ổn định: Home, Workouts, Routine (`/schedule`), Nutrition, Progress. Coach/admin dùng bốn destination đầu của role.
 - Nội dung shell phải có padding bottom để không bị nav che.
 - `ResumeWorkoutCard` nằm phía trên bottom nav; AI bubble có rule tránh đè workout chip.
+- AI Coach không dùng floating bubble toàn cục. Dashboard trainee mount panel chat cục bộ và mở panel từ nút AI Coach trong Quick actions; `ShellMain` không dành khoảng trống riêng cho AI.
+
+### Dashboard trainee
+
+- Thứ tự phone: greeting → `WeekStrip` → `CheckInPrompt` (ẩn khi đã check-in hôm nay theo giờ Việt Nam) → `ReadinessCard` → `QuickActions` → `TodayWorkout` → `WeeklyProgressCard` → nutrition, muscle volume, recent activity → quote. Brand/account header thuộc shell.
+- Từ `lg`, `dashboard-overview-client.tsx` dùng grid ba cột theo ma trận dashboard: workout chiếm hai hàng bên trái; readiness trên weekly progress ở giữa; nutrition trên recent activity bên phải; weekly muscle volume trải hai cột trái ở hàng cuối. Vị trí `order` riêng dưới `lg` giữ reading order mobile mà không duplicate component/query.
+- Nội dung phụ thuộc giờ/ngày của người xem (lời chào, dải ngày) đọc qua `useSyncExternalStore` với server snapshot `null`, để markup SSR không mang timezone của server.
 
 ### Touch và safe area
 
@@ -389,7 +397,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 
 | Role | Items |
 |---|---|
-| Trainee | Dashboard, Schedule, Workout, Meals, Progress, Add Coach |
+| Trainee | Dashboard, Workout, Meals, Progress, Schedule, Add Coach (bốn mục đầu lên bottom nav) |
 | Coach | Home, Clients, Programs, Exercises, Stats |
 | Admin | Overview, Users, Coach Requests, Connections, Programs, Exercises, Audit, Settings |
 
@@ -485,7 +493,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Bottom nav/mobile menu | `components/layout/shell-header.tsx` | `shell-nav.ts`, `use-liquid-glass.ts`, glass CSS |
 | Desktop sidebar | `components/layout/sidebar.tsx` | `shell-nav.ts`, sidebar tokens |
 | AI bubble | `components/ai/chat-bubble.tsx` | `.ai-bubble-trigger` trong globals |
-| Page shell/overlap/fixed UI | `app/(shell)/layout.tsx` | shell header, resume card, globals safe area |
+| Page shell/overlap/fixed UI | `app/(shell)/layout.tsx` | `components/layout/shell-main.tsx`, shell header, resume card, globals safe area |
 | Dashboard card | `components/dashboard/*` | dashboard page SSR composition |
 | Routine cards/filter/map popup | `components/workout/routines-workout-board.tsx` | routine builder, muscle profile helpers |
 | Workout session logger | `app/workout/[id]/start/page.tsx` | session storage, workout API/types |

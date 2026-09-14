@@ -18,7 +18,7 @@ import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
 
 const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
 
-function vietnamDateKey() {
+export function vietnamDateKey() {
   const parts = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
@@ -176,7 +176,7 @@ function StepProgress({ current, total }: { current: number; total: number }) {
   )
 }
 
-function CheckInSheet({
+export function CheckInSheet({
   muscles,
   onClose,
   open,
