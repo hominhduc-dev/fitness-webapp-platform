@@ -56,10 +56,12 @@ import type {
   ProgressYearView,
   RecoveryCheckIn,
   RecoveryCheckInInput,
+  RecoveryHistory,
   TraineeDashboardData,
   WorkoutCollection,
   WorkoutLogInput,
   VolumeRecoveryData,
+  VolumeRecoveryMuscle,
   AppNotification,
 } from "./types"
 
@@ -1235,6 +1237,47 @@ async function fetchVolumeRecovery(accessToken: string, weekStart?: string): Pro
   return response.data
 }
 
+async function fetchRecoveryHistory(accessToken: string, days = 30): Promise<RecoveryHistory> {
+  const response = await request<ApiEnvelope<RecoveryHistory>>(
+    `/api/progress/recovery-history?days=${days}`,
+    accessToken,
+  )
+  return response.data
+}
+
+async function setVolumeRecommendationStatus(
+  accessToken: string,
+  input: { muscleSlug: string; status: "accepted" | "dismissed"; weekStart?: string },
+) {
+  const response = await request<ApiEnvelope<{ muscleSlug: string | null; status: string; weekStart: string }>>(
+    "/api/progress/volume-recommendation",
+    accessToken,
+    { body: JSON.stringify(input), method: "PUT" },
+  )
+  return response.data
+}
+
+async function saveVolumeLandmarks(
+  accessToken: string,
+  input: { mavMaxSets: number; mavMinSets: number; mevSets: number; mrvSets: number; muscleSlug: string },
+) {
+  const response = await request<ApiEnvelope<VolumeRecoveryMuscle["landmarks"] & { muscleSlug: string }>>(
+    "/api/progress/volume-landmarks",
+    accessToken,
+    { body: JSON.stringify(input), method: "PUT" },
+  )
+  return response.data
+}
+
+async function resetVolumeLandmarks(accessToken: string, muscleSlug: string) {
+  const response = await request<ApiEnvelope<VolumeRecoveryMuscle["landmarks"] & { muscleSlug: string }>>(
+    "/api/progress/volume-landmarks",
+    accessToken,
+    { body: JSON.stringify({ muscleSlug }), method: "DELETE" },
+  )
+  return response.data
+}
+
 async function upsertRecoveryCheckIn(accessToken: string, input: RecoveryCheckInInput) {
   const response = await request<ApiEnvelope<RecoveryCheckIn>>(
     "/api/progress/recovery-check-in",
@@ -2307,8 +2350,12 @@ export {
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,
+  fetchRecoveryHistory,
   fetchVolumeRecovery,
   fetchWeightEntries,
+  resetVolumeLandmarks,
+  saveVolumeLandmarks,
+  setVolumeRecommendationStatus,
   fetchWorkoutLogDetail,
   fetchDiscoverableCoaches,
   fetchCoachDashboard,

@@ -94,6 +94,7 @@ export const queryKeys = {
       ["progress", "weight-entries", normalizeBodyMetricOptions(options)] as const,
     workoutLogDetail: (logId: string) => ["progress", "workout-log", logId] as const,
     volumeRecovery: (weekStart?: string) => ["progress", "volume-recovery", weekStart ?? null] as const,
+    recoveryHistory: (days: number) => ["progress", "recovery-history", days] as const,
   },
 
   coach: {
