@@ -427,7 +427,6 @@ Open http://localhost:3000 and sign up / log in.
 | `npm run create:admin` | Create an admin account (proxies to backend) |
 | `npm run seed:exercises` · `seed:foods` | Seed reference data (proxies to backend) |
 | `npm run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma (proxied to backend) |
-| `npm run splash` | Generate iOS splash assets |
 | `node scripts/extract-muscle-paths.mjs` | Regenerate the body-map SVG assets in `components/body/` (see [Third-party assets](#third-party-assets)) |
 
 ### Backend
