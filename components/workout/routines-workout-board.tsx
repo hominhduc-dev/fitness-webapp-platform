@@ -37,7 +37,7 @@ function CreateRoutineButton() {
   return (
     <RoutineBuilderDialog
       trigger={
-        <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90 sm:w-auto">
+        <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto">
           <Plus className="h-4 w-4" />
           {messages.workoutPage.createRoutine}
         </Button>
