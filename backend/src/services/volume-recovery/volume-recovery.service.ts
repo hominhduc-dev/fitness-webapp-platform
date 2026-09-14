@@ -62,6 +62,7 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
 
   const readinessScore = calculateReadiness({
     fatigue: input.fatigue,
+    sleepMinutes: input.sleepMinutes,
     sleepQuality: input.sleepQuality,
     soreness: average(input.muscles.map((muscle) => muscle.soreness)),
     stress: input.stress,

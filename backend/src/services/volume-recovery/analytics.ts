@@ -12,7 +12,9 @@ import {
   type WorkoutLogSnapshotExercise,
 } from "../fitness-data/shared/workout-snapshot"
 
-const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v1"
+// v2 folds sleep duration into the readiness score; check-ins keep the version
+// they were scored with, so older rows stay explainable.
+const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v2"
 
 type VolumeLogRecord = {
   exerciseSnapshot: Prisma.JsonValue | null
@@ -47,6 +49,7 @@ type VolumeZone =
 
 type ReadinessInput = {
   fatigue?: number | null
+  sleepMinutes?: number | null
   sleepQuality?: number | null
   soreness?: number | null
   stress?: number | null
@@ -215,14 +218,36 @@ function buildMusclePerformanceTrend(currentLogs: readonly VolumeLogRecord[], pr
   )
 }
 
+const SLEEP_DURATION_FLOOR_MINUTES = 240
+const SLEEP_DURATION_TARGET_MINUTES = 420
+
+/**
+ * Sleep duration ramps linearly from "barely slept" at 4h to a full score at 7h.
+ * A ramp rather than buckets so a trainee who sleeps 10 minutes longer never
+ * sees the score jump, and sleeping past the target is not penalised: long
+ * sleep on its own is not evidence of poor recovery, and the fatigue and
+ * soreness answers already carry that signal.
+ */
+function scoreSleepDuration(sleepMinutes: number) {
+  const span = SLEEP_DURATION_TARGET_MINUTES - SLEEP_DURATION_FLOOR_MINUTES
+  return clamp(((sleepMinutes - SLEEP_DURATION_FLOOR_MINUTES) / span) * 100, 0, 100)
+}
+
+/**
+ * Weights are whole numbers adding up to 100 when every answer is present: as
+ * fractions they sum to 1.0000000000000002 and a score landing exactly on .5
+ * then rounds the wrong way. A skipped answer drops out and the rest are
+ * renormalised, so a partial check-in still yields a usable score.
+ */
 function calculateReadiness(input: ReadinessInput) {
   const components: Array<{ score: number; weight: number }> = []
   const toFivePointScore = (value: number) => clamp(((value - 1) / 4) * 100, 0, 100)
 
-  if (input.sleepQuality != null) components.push({ score: toFivePointScore(input.sleepQuality), weight: 0.3 })
-  if (input.fatigue != null) components.push({ score: 100 - toFivePointScore(input.fatigue), weight: 0.4 })
-  if (input.stress != null) components.push({ score: 100 - toFivePointScore(input.stress), weight: 0.1 })
-  if (input.soreness != null) components.push({ score: 100 - clamp((input.soreness / 5) * 100, 0, 100), weight: 0.2 })
+  if (input.fatigue != null) components.push({ score: 100 - toFivePointScore(input.fatigue), weight: 35 })
+  if (input.sleepQuality != null) components.push({ score: toFivePointScore(input.sleepQuality), weight: 20 })
+  if (input.sleepMinutes != null) components.push({ score: scoreSleepDuration(input.sleepMinutes), weight: 15 })
+  if (input.soreness != null) components.push({ score: 100 - clamp((input.soreness / 5) * 100, 0, 100), weight: 20 })
+  if (input.stress != null) components.push({ score: 100 - toFivePointScore(input.stress), weight: 10 })
 
   const totalWeight = components.reduce((sum, component) => sum + component.weight, 0)
   if (totalWeight === 0) return null
