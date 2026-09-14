@@ -13,9 +13,10 @@ import { WeekStrip } from "./week-strip"
 import { WeeklyProgressCard } from "./weekly-progress-card"
 import { WeeklyVolumeCard } from "./weekly-volume-card"
 import { useLocale } from "@/components/providers/locale-provider"
-import type { fetchProgressAnalytics, fetchVolumeRecovery } from "@/lib/fitness/api"
+import type { fetchProgressAnalytics, fetchRecoveryHistory, fetchVolumeRecovery } from "@/lib/fitness/api"
 import { fetchDashboard } from "@/lib/fitness/api"
-import { useProgressAnalytics, useVolumeRecovery } from "@/lib/queries/progress"
+import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
+import { useProgressAnalytics, useRecoveryHistory, useVolumeRecovery } from "@/lib/queries/progress"
 import { useUserQuery } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -116,6 +117,7 @@ function countScheduledWorkoutsInWeek(
 
 type DashboardSeeds = {
   analytics?: Awaited<ReturnType<typeof fetchProgressAnalytics>>
+  recoveryHistory?: Awaited<ReturnType<typeof fetchRecoveryHistory>>
   volumeRecovery?: Awaited<ReturnType<typeof fetchVolumeRecovery>>
 }
 
@@ -139,6 +141,7 @@ export function DashboardOverviewClient({
   // cache instead of fetching them after hydration.
   useVolumeRecovery({ initialData: seeds?.volumeRecovery })
   useProgressAnalytics({ initialData: seeds?.analytics })
+  useRecoveryHistory(READINESS_TREND_DEFAULT_DAYS, { initialData: seeds?.recoveryHistory })
 
   const { activeDaysThisWeek, workoutsThisWeek } = dashboard.weekStats
   const weekStart = startOfCurrentWeek(new Date())

@@ -4,7 +4,8 @@ import { DashboardOverviewSkeleton } from "@/components/dashboard/dashboard-skel
 import { Suspense } from "react"
 
 import { requireAppSession } from "@/lib/auth/server"
-import { fetchDashboard, fetchProgressAnalytics, fetchVolumeRecovery } from "@/lib/fitness/api"
+import { fetchDashboard, fetchProgressAnalytics, fetchRecoveryHistory, fetchVolumeRecovery } from "@/lib/fitness/api"
+import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
 
 type DashboardOverviewProps = {
   accessToken: string
@@ -17,17 +18,20 @@ async function DashboardOverview({ accessToken, preferredWeightUnit }: Dashboard
   // Fetched together so the readiness, check-in and weekly cards render with the
   // page instead of each starting its own request after hydration. A failed seed
   // is dropped and that card's query fetches on the client.
-  const [dashboard, volumeRecovery, analytics] = await Promise.all([
+  const [dashboard, volumeRecovery, analytics, recoveryHistory] = await Promise.all([
     fetchDashboard(accessToken),
     fetchVolumeRecovery(accessToken).catch(() => undefined),
     fetchProgressAnalytics(accessToken).catch(() => undefined),
+    // The check-in streak in the greeting; the same range the readiness trend uses,
+    // so the Recovery tab reuses this cache entry.
+    fetchRecoveryHistory(accessToken, READINESS_TREND_DEFAULT_DAYS).catch(() => undefined),
   ])
 
   return (
     <DashboardOverviewClient
       initialData={dashboard}
       preferredWeightUnit={preferredWeightUnit}
-      seeds={{ analytics, volumeRecovery }}
+      seeds={{ analytics, recoveryHistory, volumeRecovery }}
     />
   )
 }
