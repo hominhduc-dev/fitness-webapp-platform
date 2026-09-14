@@ -3,6 +3,7 @@
 import { ArrowDownNarrowWide, CheckCircle2, ChevronDown, ChevronUp, Edit3, TrendingUp } from "lucide-react"
 import { useState } from "react"
 
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { useLocale } from "@/components/providers/locale-provider"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { CoachUpdate, Workout, WorkoutLog } from "@/lib/types"
@@ -230,20 +231,24 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
           const coachUpdateMeta = coachUpdate ? getCoachUpdateMeta(coachUpdate.type) : null
           const CoachUpdateIcon = coachUpdateMeta?.icon
           const isUpdateOpen = openUpdateIds.has(exercise.id)
+          const exerciseLabel = formatExerciseVariationLabel({
+            displayName: exercise.variation.displayName,
+            exerciseName: exercise.exercise.name,
+            isDefault: exercise.variation.isDefault,
+            variationName: exercise.variation.name,
+          })
 
           return (
             <section key={exercise.id} className="rounded-lg border border-border bg-card">
               <div className="border-b border-border px-3 py-3 sm:px-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                {/* Tapping the thumbnail opens the exercise GIF or video. */}
+                <ExerciseThumbnail media={exercise.variation.media} name={exerciseLabel} previewable size="md" />
+                <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <h3 className="truncate text-sm font-semibold text-foreground">
-                        {formatExerciseVariationLabel({
-                          displayName: exercise.variation.displayName,
-                          exerciseName: exercise.exercise.name,
-                          isDefault: exercise.variation.isDefault,
-                          variationName: exercise.variation.name,
-                        })}
+                        {exerciseLabel}
                       </h3>
                       {coachUpdate && coachUpdateMeta && CoachUpdateIcon ? (
                         <button
@@ -285,6 +290,7 @@ export function WorkoutPlanPreview({ workout }: { workout: Workout }) {
                       Preview
                     </span>
                   </div>
+                </div>
                 </div>
               </div>
 

@@ -197,19 +197,27 @@ export function AddExerciseModal({
               const added = existingSet.has(exercise.id)
               const isCurrent = exercise.id === currentVariationId
               return (
-                <button
+                // The thumbnail is its own button (it opens the GIF/video), so it
+                // sits beside the pick button rather than inside it.
+                <div
                   key={exercise.id}
+                  className={cn(
+                    "flex w-full items-center gap-3 pl-[22px] transition-colors",
+                    index < visible.length - 1 && "border-b border-border",
+                    isCurrent ? "bg-primary/8 ring-1 ring-inset ring-primary/25" : added ? "opacity-50" : "hover:bg-muted",
+                  )}
+                >
+                <ExerciseThumbnail media={exercise.media} name={exercise.displayName ?? exercise.name} previewable />
+                <button
                   ref={isCurrent ? currentRef : undefined}
                   type="button"
                   disabled={added}
                   onClick={() => !added && onPick(exercise)}
                   className={cn(
-                    "flex w-full items-center gap-3 px-[22px] py-3 text-left transition-colors",
-                    index < visible.length - 1 && "border-b border-border",
-                    isCurrent ? "bg-primary/8 ring-1 ring-inset ring-primary/25" : added ? "cursor-default opacity-50" : "hover:bg-muted",
+                    "flex min-w-0 flex-1 items-center gap-3 py-3 pr-[22px] text-left",
+                    added && "cursor-default",
                   )}
                 >
-                  <ExerciseThumbnail media={exercise.media} name={exercise.displayName ?? exercise.name} />
                   <div className="min-w-0 flex-1">
                     <p className={cn("truncate text-sm font-medium", isCurrent ? "text-primary" : "text-foreground")}>{exercise.displayName ?? exercise.name}</p>
                     <p className="mt-0.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
@@ -226,6 +234,7 @@ export function AddExerciseModal({
                     <span className="text-lg leading-none text-muted-foreground">+</span>
                   )}
                 </button>
+                </div>
               )
             })
           )}

@@ -119,7 +119,10 @@ function ExerciseThumbnailPreview({
         </span>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="gap-0 p-0 sm:max-w-sm">
+        {/* Thumbnails also live inside other dialogs (the schedule preview at
+            z-[95], the add-exercise sheet at z-[110]), so the animation dialog
+            has to stack above the highest of them. */}
+        <DialogContent className="z-[130] gap-0 p-0 sm:max-w-sm" overlayClassName="z-[125]">
           <DialogHeader className="px-5 pb-2 pt-5 text-left">
             <DialogTitle className="pr-8 text-base">{name}</DialogTitle>
             <DialogDescription className="sr-only">{messages.workoutPage.exerciseAnimationAlt(name)}</DialogDescription>
