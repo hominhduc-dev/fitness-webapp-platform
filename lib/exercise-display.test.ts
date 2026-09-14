@@ -1,41 +1,29 @@
 import { describe, expect, it } from "vitest"
 
+import sharedCases from "./exercise-display.cases.json"
 import { buildExerciseDisplayName } from "./exercise-display"
 
+type LabelCase = {
+  expected: string
+  exerciseName: string
+  isDefault?: boolean
+  name: string
+  variationName: string
+}
+
+// Mirrored by backend/src/domain/exercise-display.test.ts — see the case file.
+const labelCases = sharedCases.cases as LabelCase[]
+
 describe("buildExerciseDisplayName", () => {
-  it("prefixes equipment-style variations before the exercise name", () => {
-    expect(buildExerciseDisplayName({
-      exerciseName: "Bench Press",
-      variationName: "Barbell",
-    })).toBe("Barbell Bench Press")
-
-    expect(buildExerciseDisplayName({
-      exerciseName: "Bicep Curl",
-      variationName: "Dumbbell",
-    })).toBe("Dumbbell Bicep Curl")
-
-    expect(buildExerciseDisplayName({
-      exerciseName: "Squat",
-      variationName: "Smith Machine",
-    })).toBe("Smith Machine Squat")
+  it.each(labelCases)("$name", ({ exerciseName, expected, isDefault, variationName }) => {
+    expect(buildExerciseDisplayName({ exerciseName, isDefault, variationName })).toBe(expected)
   })
 
-  it("moves parenthesized equipment before modifiers and the base exercise", () => {
+  it("prefers an explicit display name over anything composed", () => {
     expect(buildExerciseDisplayName({
-      exerciseName: "Bench Press",
-      variationName: "Close Grip (Barbell)",
-    })).toBe("Barbell Close Grip Bench Press")
-  })
-
-  it("normalizes dash modifiers from the exercise name", () => {
-    expect(buildExerciseDisplayName({
-      exerciseName: "Bench Press - Close Grip",
-      variationName: "Barbell",
-    })).toBe("Barbell Close Grip Bench Press")
-
-    expect(buildExerciseDisplayName({
-      exerciseName: "Bench Press - Close Grip (Barbell)",
-      variationName: "Default",
-    })).toBe("Barbell Close Grip Bench Press")
+      displayName: "Chest Supported Row",
+      exerciseName: "Chest Supported Upperback Row",
+      variationName: "Upperback Machine",
+    })).toBe("Chest Supported Row")
   })
 })

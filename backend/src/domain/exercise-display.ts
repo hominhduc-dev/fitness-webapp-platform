@@ -1,46 +1,26 @@
-type ExerciseVariationLabelInput = {
-  displayName?: string | null
+/**
+ * Builds the label a trainee reads on a workout log row ("Machine Chest
+ * Supported Upperback Row") out of the stored `Exercise.name` and
+ * `Variation.name`.
+ *
+ * This is the mirror of `lib/exercise-display.ts` on the frontend: the backend
+ * and the Next.js app compile under separate tsconfigs that exclude each other,
+ * so the algorithm cannot live in a single importable module. Both copies are
+ * pinned to the same behaviour by the shared case table in
+ * `lib/exercise-display.cases.json`, which both test suites read — change one
+ * copy and the other suite fails. Keep them in sync.
+ */
+
+type ExerciseDisplayNameInput = {
   exerciseName?: string | null
   isDefault?: boolean | null
   variationName?: string | null
 }
 
-type ExerciseVariationMetaInput = ExerciseVariationLabelInput & {
-  equipment?: string | null
-  muscleGroup?: string | null
-}
-
-function getTrimmedValue(value?: string | null) {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : ""
-}
-
 const DEFAULT_VARIATION_NAME = "Default"
 const PARENTHESIZED_SUFFIX_PATTERN = /^(.*?)\s*\(([^()]+)\)\s*$/
 const DASH_MODIFIER_PATTERN = /^(.*?)\s+-\s+(.+)$/
-
-function getVariationDisplayName(input: ExerciseVariationLabelInput) {
-  const variationName = getTrimmedValue(input.variationName)
-
-  if (!variationName) {
-    return DEFAULT_VARIATION_NAME
-  }
-
-  return variationName
-}
-
-/**
- * A variation only earns a slot in the label when it actually distinguishes the
- * exercise. The placeholder "Default" carries no information and, on a phone,
- * eats the width the exercise name needs mid-set.
- */
-function isDefaultVariation(input: ExerciseVariationLabelInput) {
-  if (input.isDefault) {
-    return true
-  }
-
-  return getVariationDisplayName(input) === DEFAULT_VARIATION_NAME
-}
+const NON_ALPHANUMERIC_PATTERN = /[^\p{L}\p{N}]+/gu
 
 function normalizeDisplayParts(parts: string[]) {
   return parts
@@ -50,8 +30,6 @@ function normalizeDisplayParts(parts: string[]) {
     .replace(/\s+/g, " ")
     .trim()
 }
-
-const NON_ALPHANUMERIC_PATTERN = /[^\p{L}\p{N}]+/gu
 
 function toComparableTokens(value: string) {
   return value
@@ -119,12 +97,9 @@ function buildLabelFromParts(prefixParts: string[], exerciseName: string) {
   return normalizeDisplayParts([...keptParts, exerciseName])
 }
 
-function buildExerciseDisplayName(input: ExerciseVariationLabelInput) {
-  const explicitDisplayName = getTrimmedValue(input.displayName)
-  if (explicitDisplayName) return explicitDisplayName
-
-  const rawExerciseName = getTrimmedValue(input.exerciseName)
-  const rawVariationName = getVariationDisplayName(input)
+function buildExerciseDisplayName(input: ExerciseDisplayNameInput) {
+  const rawExerciseName = input.exerciseName?.trim() ?? ""
+  const rawVariationName = input.variationName?.trim() || DEFAULT_VARIATION_NAME
 
   if (!rawExerciseName) return rawVariationName
   const exerciseParenthesisMatch = rawExerciseName.match(PARENTHESIZED_SUFFIX_PATTERN)
@@ -134,7 +109,7 @@ function buildExerciseDisplayName(input: ExerciseVariationLabelInput) {
   const baseExerciseName = exerciseDashMatch?.[1]?.trim() || exerciseNameWithoutEquipment
   const exerciseModifier = exerciseDashMatch?.[2]?.trim() || ""
 
-  if (isDefaultVariation(input)) {
+  if (input.isDefault || rawVariationName === DEFAULT_VARIATION_NAME) {
     return exerciseEquipment
       ? buildLabelFromParts([exerciseEquipment, exerciseModifier], baseExerciseName)
       : rawExerciseName
@@ -151,24 +126,4 @@ function buildExerciseDisplayName(input: ExerciseVariationLabelInput) {
   return buildLabelFromParts([rawVariationName, exerciseModifier], baseExerciseName)
 }
 
-function formatExerciseVariationLabel(input: ExerciseVariationLabelInput) {
-  return buildExerciseDisplayName(input)
-}
-
-function formatExerciseVariationMeta(input: ExerciseVariationMetaInput) {
-  const parts = [`Variation: ${getVariationDisplayName(input)}`]
-  const equipment = getTrimmedValue(input.equipment)
-  const muscleGroup = getTrimmedValue(input.muscleGroup)
-
-  if (equipment) {
-    parts.push(equipment)
-  }
-
-  if (muscleGroup) {
-    parts.push(muscleGroup)
-  }
-
-  return parts.join(" · ")
-}
-
-export { buildExerciseDisplayName, formatExerciseVariationLabel, formatExerciseVariationMeta }
+export { buildExerciseDisplayName, type ExerciseDisplayNameInput }
