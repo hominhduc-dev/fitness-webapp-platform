@@ -13,5 +13,6 @@ export {
   removeAdminExerciseMedia,
   reviewExerciseImportRequest,
   saveAdminExerciseMedia,
+  transferAdminExerciseMetadata,
   updateAdminExercise,
 } from "./core"

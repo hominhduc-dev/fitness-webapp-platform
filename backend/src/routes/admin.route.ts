@@ -35,12 +35,13 @@ import {
   resetAdminUserPassword,
   reviewExerciseImportRequest,
   saveAdminExerciseMedia,
+  transferAdminExerciseMetadata,
   updateAdminCoachRequest,
   updateAdminExercise,
   updateAdminUser,
 } from "../services/admin.service"
 import { validated } from "../middleware/validate"
-import { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema } from "./admin.schemas"
+import { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema, transferExerciseMetadataSchema } from "./admin.schemas"
 import { getAccessToken, sendError } from "./route.utils"
 
 const adminRouter = Router()
@@ -305,6 +306,15 @@ adminRouter.post("/exercises", async (req, res) => {
     sendError(res, error)
   }
 })
+
+adminRouter.post(
+  "/exercises/metadata-transfer",
+  validated({ body: transferExerciseMetadataSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const exercise = await transferAdminExerciseMetadata(profile, req.body)
+    res.json({ exercise })
+  }),
+)
 
 adminRouter.post("/exercises/muscle-profiles/bulk-approve", async (req, res) => {
   try {

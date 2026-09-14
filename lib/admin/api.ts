@@ -483,6 +483,18 @@ async function removeAdminExerciseMediaRequest(accessToken: string, exerciseId: 
   return mapAdminExerciseItem(response.exercise)
 }
 
+async function transferAdminExerciseMetadataRequest(
+  accessToken: string,
+  input: { sourceVariationId: string; targetVariationId: string },
+) {
+  const response = await request<{ exercise: SerializedAdminExerciseItem }>(
+    "/api/admin/exercises/metadata-transfer",
+    accessToken,
+    { body: JSON.stringify(input), method: "POST" },
+  )
+  return mapAdminExerciseItem(response.exercise)
+}
+
 async function deleteAdminExerciseRequest(accessToken: string, exerciseId: string) {
   return request<{ deleted: boolean; id: string }>(`/api/admin/exercises/${exerciseId}`, accessToken, {
     method: "DELETE",
@@ -617,6 +629,7 @@ export {
   resetAdminUserPasswordRequest,
   reviewAdminExerciseImportRequest,
   saveAdminExerciseMediaRequest,
+  transferAdminExerciseMetadataRequest,
   updateAdminCoachRequestStatus,
   updateAdminExerciseRequest,
   updateAdminUserRequest,

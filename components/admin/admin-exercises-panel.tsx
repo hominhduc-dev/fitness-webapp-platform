@@ -133,6 +133,12 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     downloadTemplate: locale === "en" ? "Download template" : "Tải file mẫu",
     exportAll: locale === "en" ? "Export Excel" : "Export Excel",
     syncImport: locale === "en" ? "Sync from Excel" : "Sync từ Excel",
+    transferMetadata: locale === "en" ? "Transfer metadata" : "Chuyển metadata",
+    transferTitle: locale === "en" ? "Transfer exercise metadata" : "Chuyển metadata bài tập",
+    transferDescription: locale === "en" ? "Choose a source variation. Its metadata will overwrite the target." : "Chọn variation nguồn. Metadata nguồn sẽ ghi đè metadata đích.",
+    source: locale === "en" ? "Source" : "Nguồn",
+    target: locale === "en" ? "Target" : "Đích",
+    transfer: locale === "en" ? "Transfer" : "Chuyển",
     editExercise: locale === "en" ? "Edit exercise" : "Sửa bài tập",
     equipment: locale === "en" ? "Equipment" : "Thiết bị",
     equipmentFilterAll: locale === "en" ? "Equipment: all" : "Dụng cụ: tất cả",
@@ -752,9 +758,11 @@ type GroupBlockProps = {
   approvingProfiles: boolean
   deletingId: string | null
   locale: "en" | "vi"
+  onTransferMetadata?: (e: AdminExerciseItem) => void
+  transferringId?: string | null
 }
 
-function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale }: GroupBlockProps) {
+function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, transferringId }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
@@ -858,6 +866,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-0.5">
+                {onTransferMetadata && canManage ? <button type="button" title={copy.transferMetadata} aria-label={`${copy.transferMetadata}: ${e.name}`} disabled={transferringId === e.id} onClick={() => onTransferMetadata(e)} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30">{transferringId === e.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowDownUp className="h-3.5 w-3.5" />}</button> : null}
                 {onApproveProfile && canManage && e.muscleProfileStatus === "pending" ? (
                   <button
                     type="button"
@@ -944,6 +953,7 @@ type ExerciseLibraryPanelProps = {
   onExportAll?: () => void
   onSyncImport?: () => void
   onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
+  onTransferMetadata?: (sourceVariationId: string, targetVariationId: string) => Promise<void>
   capabilities?: { canExport?: boolean; canSync?: boolean; canBulkApprove?: boolean }
 }
 
@@ -963,6 +973,7 @@ export function ExerciseLibraryPanel({
   onExportAll,
   onSyncImport,
   onReviewImportRequest,
+  onTransferMetadata,
   capabilities = {},
 }: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
@@ -986,6 +997,9 @@ export function ExerciseLibraryPanel({
   const [sortBy, setSortBy] = useState<"name" | "variations">("name")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [excelToolsOpen, setExcelToolsOpen] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<AdminExerciseItem | null>(null)
+  const [transferSourceId, setTransferSourceId] = useState("")
+  const transferBusyId = actionKey?.startsWith("exercise-metadata-transfer-") ? actionKey.slice("exercise-metadata-transfer-".length) : null
 
   function handleSearchChange(value: string) {
     setRawQ(value)
@@ -1357,6 +1371,8 @@ export function ExerciseLibraryPanel({
             onApproveProfile={capabilities.canBulkApprove && onBulkApprove ? (e) => void onBulkApprove([e.id]) : undefined}
             approvingProfiles={actionKey === "exercise-bulk-approve"}
             deletingId={deletingId}
+            onTransferMetadata={onTransferMetadata ? (e) => { setTransferTarget(e); setTransferSourceId("") } : undefined}
+            transferringId={transferBusyId}
             locale={locale}
           />
         ))}
@@ -1403,6 +1419,21 @@ export function ExerciseLibraryPanel({
               {deleteDialog?.type === "bulk" ? copy.deleteSelected(deleteDialog.ids.length) : copy.delete}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={transferTarget !== null} onOpenChange={(open) => { if (!open && !transferBusyId) setTransferTarget(null) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>{copy.transferTitle}</DialogTitle><DialogDescription>{copy.transferDescription}</DialogDescription></DialogHeader>
+          {transferTarget ? <div className="space-y-4">
+            <div className="rounded-md border border-border bg-muted/20 p-3 text-sm"><p className="label-micro text-muted-foreground">{copy.target}</p><p className="mt-1 font-medium">{transferTarget.name} · {transferTarget.variationName}</p><p className="text-xs text-muted-foreground">{transferTarget.media ? "Media ✓" : "Media —"} · {copy.usageCount(transferTarget.usageCount)}</p></div>
+            <Label>{copy.source}</Label>
+            <select value={transferSourceId} onChange={(e) => setTransferSourceId(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">{locale === "en" ? "Select source variation" : "Chọn variation nguồn"}</option>
+              {exercises.filter((e) => e.id !== transferTarget.id && e.media).sort((a,b) => a.name.localeCompare(b.name)).map((e) => <option key={e.id} value={e.id}>{e.name} · {e.variationName}</option>)}
+            </select>
+          </div> : null}
+          <DialogFooter><Button variant="outline" onClick={() => setTransferTarget(null)} disabled={Boolean(transferBusyId)}>{copy.cancel}</Button><Button disabled={!transferSourceId || Boolean(transferBusyId)} onClick={() => transferTarget && onTransferMetadata?.(transferSourceId, transferTarget.id).then(() => setTransferTarget(null))}>{transferBusyId ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ArrowDownUp className="mr-1.5 h-4 w-4" />}{copy.transfer}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

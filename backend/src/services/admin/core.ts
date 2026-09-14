@@ -2437,6 +2437,33 @@ async function saveAdminExerciseMedia(
   return serializeExerciseSummary(exercise)
 }
 
+async function transferAdminExerciseMetadata(
+  profile: SerializedProfile,
+  input: { sourceVariationId: string; targetVariationId: string },
+) {
+  assertAdmin(profile)
+  if (input.sourceVariationId === input.targetVariationId) {
+    throw new ValidationError("Bài nguồn và bài đích phải khác nhau.")
+  }
+  const db = ensurePrisma()
+  const [source, target] = await Promise.all([
+    findAdminExerciseVariation(db, input.sourceVariationId),
+    findAdminExerciseVariation(db, input.targetVariationId),
+  ])
+  if (source.metadata === null) throw new ValidationError("Bài tập nguồn chưa có metadata để chuyển.")
+  await db.$transaction(async (tx) => {
+    const updated = await tx.variation.update({
+      data: { metadata: source.metadata as Prisma.InputJsonValue }, where: { id: target.id },
+    })
+    await logAdminAudit(tx, profile.id, {
+      action: "exercise.metadata_transferred", entityId: updated.id, entityLabel: target.exercise.name, entityType: "exercise",
+      metadata: { sourceExerciseId: source.exerciseId, sourceExerciseName: source.exercise.name, sourceVariationId: source.id, sourceVariationName: source.name, targetHadMedia: Boolean(serializeExerciseMedia(target.metadata)), targetVariationName: target.name },
+    })
+  })
+  invalidateExerciseLibrary()
+  return serializeExerciseSummary(await findAdminExerciseVariation(db, target.id) as ExerciseSummaryRecord)
+}
+
 /** Drops uploaded media; the variation falls back to its synced media, if any. */
 async function removeAdminExerciseMedia(profile: SerializedProfile, variationId: string) {
   assertAdmin(profile)
@@ -3121,5 +3148,6 @@ export {
   createAdminExerciseMediaUpload,
   removeAdminExerciseMedia,
   saveAdminExerciseMedia,
+  transferAdminExerciseMetadata,
   updateAdminUser,
 }

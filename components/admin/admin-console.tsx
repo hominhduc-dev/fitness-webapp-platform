@@ -500,6 +500,7 @@ export function AdminConsole() {
   const { mutateAsync: updateAdminCoachRequestStatus } = queries.useUpdateAdminCoachRequestStatus()
   const { mutateAsync: updateAdminExerciseRequest } = queries.useUpdateAdminExerciseRequest()
   const { mutateAsync: saveAdminExerciseMedia } = queries.useSaveAdminExerciseMedia()
+  const { mutateAsync: transferAdminExerciseMetadataRequest } = queries.useTransferAdminExerciseMetadataRequest()
   const { mutateAsync: removeAdminExerciseMediaRequest } = queries.useRemoveAdminExerciseMediaRequest()
   const { mutateAsync: updateAdminUserRequest } = queries.useUpdateAdminUserRequest()
   const [selectedRole, setSelectedRole] = useState<UserRole>("trainee")
@@ -1036,6 +1037,21 @@ export function AdminConsole() {
   async function handleRemoveExerciseMedia(exerciseId: string) {
     setError(null)
     await removeAdminExerciseMediaRequest([exerciseId])
+  }
+
+  async function handleTransferExerciseMetadata(sourceVariationId: string, targetVariationId: string) {
+    setActionKey(`exercise-metadata-transfer-${targetVariationId}`)
+    setError(null)
+    try {
+      await transferAdminExerciseMetadataRequest([{ sourceVariationId, targetVariationId }])
+      await exercisesQuery.refetch()
+      showSuccess(locale === "en" ? "Metadata transferred." : "Đã chuyển metadata.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể chuyển metadata.")
+      throw err
+    } finally {
+      setActionKey(null)
+    }
   }
 
   async function handleDeleteExerciseDirect(exercise: AdminExerciseItem) {
@@ -2155,6 +2171,7 @@ export function AdminConsole() {
               onExportAll={() => void handleExportAllExercises()}
               onSyncImport={handleSyncImportClick}
               onReviewImportRequest={handleReviewExerciseImportRequest}
+              onTransferMetadata={handleTransferExerciseMetadata}
             />
 
             <ExerciseSyncReviewModal

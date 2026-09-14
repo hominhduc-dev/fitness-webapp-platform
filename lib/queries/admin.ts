@@ -170,6 +170,10 @@ export function useSaveAdminExerciseMedia() {
   return useAdminMutation(uploadAdminExerciseMedia, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
 }
 
+export function useTransferAdminExerciseMetadataRequest() {
+  return useAdminMutation(api.transferAdminExerciseMetadataRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
+}
+
 export function useRemoveAdminExerciseMediaRequest() {
   return useAdminMutation(api.removeAdminExerciseMediaRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
 }
