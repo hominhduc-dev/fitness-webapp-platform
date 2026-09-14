@@ -172,17 +172,32 @@ function CheckInSheet({
   const copy = messages.volumeRecovery
   const mutation = useUpsertRecoveryCheckIn()
   const [sleepQuality, setSleepQuality] = useState<number | null>(3)
-  const [sleepMinutes, setSleepMinutes] = useState("480")
+  const [sleepHours, setSleepHours] = useState("8")
+  const [sleepMinutePart, setSleepMinutePart] = useState("0")
   const [fatigue, setFatigue] = useState<number | null>(3)
   const [stress, setStress] = useState<number | null>(null)
   const [soreness, setSoreness] = useState<Record<string, number>>({})
+  const hasSleepDuration = sleepHours !== "" || sleepMinutePart !== ""
+  const parsedSleepHours = sleepHours === "" ? 0 : Number(sleepHours)
+  const parsedSleepMinutePart = sleepMinutePart === "" ? 0 : Number(sleepMinutePart)
+  const sleepDurationInvalid = hasSleepDuration && !(
+    Number.isInteger(parsedSleepHours) &&
+    Number.isInteger(parsedSleepMinutePart) &&
+    parsedSleepHours >= 0 &&
+    parsedSleepHours <= 24 &&
+    parsedSleepMinutePart >= 0 &&
+    parsedSleepMinutePart <= 59 &&
+    parsedSleepHours * 60 + parsedSleepMinutePart <= 1440
+  )
 
   if (!open) return null
 
   async function submit() {
     if (fatigue == null) return
-    const parsedSleepMinutes = sleepMinutes === "" ? undefined : Number(sleepMinutes)
-    if (parsedSleepMinutes != null && (!Number.isFinite(parsedSleepMinutes) || parsedSleepMinutes < 0 || parsedSleepMinutes > 1440)) return
+    if (sleepDurationInvalid) return
+    const parsedSleepMinutes = hasSleepDuration
+      ? parsedSleepHours * 60 + parsedSleepMinutePart
+      : undefined
 
     try {
       await mutation.mutateAsync({
@@ -224,16 +239,42 @@ function CheckInSheet({
           <RatingScale ariaLabel={copy.sleepQuality} notSetLabel={copy.notSet} value={sleepQuality} onChange={setSleepQuality} />
         </div>
         <div className="space-y-2">
-          <label htmlFor="recovery-sleep-minutes" className="text-sm font-medium text-foreground">{copy.sleepMinutes}</label>
-          <Input
-            id="recovery-sleep-minutes"
-            type="number"
-            min="0"
-            max="1440"
-            value={sleepMinutes}
-            onChange={(event) => setSleepMinutes(event.target.value)}
-            className="h-11 bg-background font-mono tnum"
-          />
+          <span className="text-sm font-medium text-foreground">{copy.sleepDuration}</span>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="space-y-1.5" htmlFor="recovery-sleep-hours">
+              <span className="text-xs text-muted-foreground">{copy.hours}</span>
+              <Input
+                id="recovery-sleep-hours"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                max="24"
+                step="1"
+                aria-invalid={sleepDurationInvalid}
+                value={sleepHours}
+                onChange={(event) => setSleepHours(event.target.value)}
+                className="h-11 bg-background font-mono tnum"
+              />
+            </label>
+            <label className="space-y-1.5" htmlFor="recovery-sleep-minute-part">
+              <span className="text-xs text-muted-foreground">{copy.minutes}</span>
+              <Input
+                id="recovery-sleep-minute-part"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                max="59"
+                step="1"
+                aria-invalid={sleepDurationInvalid}
+                value={sleepMinutePart}
+                onChange={(event) => setSleepMinutePart(event.target.value)}
+                className="h-11 bg-background font-mono tnum"
+              />
+            </label>
+          </div>
+          {sleepDurationInvalid ? (
+            <p className="text-xs text-destructive-text">{copy.invalidSleepDuration}</p>
+          ) : null}
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">{copy.fatigueLevel}</label>
@@ -267,7 +308,7 @@ function CheckInSheet({
       </BottomSheetBody>
       <BottomSheetFooter>
         <Button type="button" variant="outline" onClick={onClose}>{copy.cancel}</Button>
-        <Button type="button" disabled={mutation.isPending || fatigue == null} onClick={() => void submit()}>
+        <Button type="button" disabled={mutation.isPending || fatigue == null || sleepDurationInvalid} onClick={() => void submit()}>
           {mutation.isPending ? copy.saving : copy.save}
         </Button>
       </BottomSheetFooter>
