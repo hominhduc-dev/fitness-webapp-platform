@@ -12,6 +12,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react"
 
 import { ExerciseMediaEditor } from "@/components/admin/exercise-media-editor"
+import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { MuscleProfileSummary, canApproveMuscleProfile } from "@/components/admin/muscle-profile-summary"
 import { Badge } from "@/components/ui/badge"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
@@ -833,16 +835,19 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
               </div>
 
               {/* Name, with variation/equipment inline on mobile */}
-              <div className="flex min-w-0 flex-col">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
+              <div className="flex min-w-0 items-center gap-2">
+                <ExerciseThumbnail media={e.media} name={e.name} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
+                  </div>
+                  <MuscleProfileSummary exercise={e} locale={locale} />
+                  {/* Mobile-only: show variation + equipment under the name */}
+                  <span className="truncate text-micro text-muted-foreground sm:hidden">
+                    {e.variationName !== "Default" ? e.variationName : ""}
+                    {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
+                  </span>
                 </div>
-                <MuscleProfileSummary exercise={e} locale={locale} />
-                {/* Mobile-only: show variation + equipment under the name */}
-                <span className="truncate text-micro text-muted-foreground sm:hidden">
-                  {e.variationName !== "Default" ? e.variationName : ""}
-                  {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
-                </span>
               </div>
 
               {/* Variation name (desktop column) */}
@@ -991,6 +996,17 @@ export function ExerciseLibraryPanel({
     setRawQ(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => setQ(value), 200)
+  }
+
+  function resetFilters() {
+    setRawQ("")
+    setQ("")
+    setMuscleFilter("all")
+    setEquipmentFilter("all")
+    setProfileFilter("all")
+    setActivityFilter("all")
+    setMediaFilter("all")
+    setSortBy("name")
   }
 
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
@@ -1209,10 +1225,18 @@ export function ExerciseLibraryPanel({
         {filtersOpen ? (
           <DialogContent className="max-w-3xl">
             <DialogHeader>
-              <DialogTitle>{locale === "en" ? "Filters" : "Bộ lọc"}</DialogTitle>
-              <DialogDescription>
-                {locale === "en" ? "Refine the exercise library results." : "Thu hẹp kết quả trong thư viện bài tập."}
-              </DialogDescription>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <DialogTitle>{locale === "en" ? "Filters" : "Bộ lọc"}</DialogTitle>
+                  <DialogDescription className="mt-1">
+                    {locale === "en" ? "Refine the exercise library results." : "Thu hẹp kết quả trong thư viện bài tập."}
+                  </DialogDescription>
+                </div>
+                <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={resetFilters}>
+                  <RotateCcw className="mr-1.5 size-4" />
+                  {locale === "en" ? "Reset filters" : "Đặt lại bộ lọc"}
+                </Button>
+              </div>
             </DialogHeader>
             <div className="grid gap-3 sm:grid-cols-2">
             <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
