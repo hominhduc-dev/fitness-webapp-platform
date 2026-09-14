@@ -12,6 +12,74 @@ const muscleLabelsVi: Record<keyof typeof muscleLabelsEn, string> = {
   trapezius: "Cầu vai", triceps: "Tay sau", "upper-back": "Lưng trên",
 }
 
+type CheckInOption = { description: string; label: string; value: number }
+
+/**
+ * Soreness skips the value 1 so that the two strongest answers land on 4 and 5,
+ * the band the volume engine reads as "back off this muscle".
+ */
+const checkInOptionsEn = {
+  fatigue: [
+    { value: 1, label: "Not tired", description: "Full of energy" },
+    { value: 2, label: "Slightly tired", description: "Still good to train" },
+    { value: 3, label: "Moderately tired", description: "Needs a longer warm-up" },
+    { value: 4, label: "Quite tired", description: "Heavy sets will be a struggle" },
+    { value: 5, label: "Exhausted", description: "Running on empty" },
+  ] satisfies CheckInOption[],
+  sleepQuality: [
+    { value: 5, label: "Great", description: "Deep sleep, woke up refreshed" },
+    { value: 4, label: "Good", description: "Solid night, mostly rested" },
+    { value: 3, label: "Okay", description: "Enough sleep but still groggy" },
+    { value: 2, label: "Poor", description: "Restless, kept waking up" },
+    { value: 1, label: "Very poor", description: "Barely slept" },
+  ] satisfies CheckInOption[],
+  soreness: [
+    { value: 0, label: "No soreness", description: "Body feels fresh" },
+    { value: 2, label: "Mild", description: "A little tender" },
+    { value: 3, label: "Moderate", description: "Noticeable when I move" },
+    { value: 4, label: "High", description: "Getting in the way of lifts" },
+    { value: 5, label: "Severe", description: "Hard to train normally" },
+  ] satisfies CheckInOption[],
+  stress: [
+    { value: 1, label: "Very low", description: "Calm and relaxed" },
+    { value: 2, label: "Low", description: "Mostly steady" },
+    { value: 3, label: "Moderate", description: "Some pressure" },
+    { value: 4, label: "High", description: "Noticeably stressed" },
+    { value: 5, label: "Very high", description: "Overwhelmed" },
+  ] satisfies CheckInOption[],
+}
+
+const checkInOptionsVi = {
+  fatigue: [
+    { value: 1, label: "Không mệt", description: "Tràn đầy năng lượng" },
+    { value: 2, label: "Hơi mệt", description: "Vẫn tập tốt" },
+    { value: 3, label: "Mệt vừa", description: "Cần khởi động kỹ hơn" },
+    { value: 4, label: "Khá mệt", description: "Tập nặng sẽ đuối" },
+    { value: 5, label: "Kiệt sức", description: "Cạn năng lượng" },
+  ] satisfies CheckInOption[],
+  sleepQuality: [
+    { value: 5, label: "Rất tốt", description: "Ngủ sâu, dậy thấy khỏe" },
+    { value: 4, label: "Tốt", description: "Ngủ ổn, phần lớn thoải mái" },
+    { value: 3, label: "Tạm", description: "Ngủ đủ nhưng vẫn uể oải" },
+    { value: 2, label: "Kém", description: "Trằn trọc, tỉnh giấc nhiều lần" },
+    { value: 1, label: "Rất kém", description: "Gần như không ngủ được" },
+  ] satisfies CheckInOption[],
+  soreness: [
+    { value: 0, label: "Không đau", description: "Cơ thể nhẹ nhõm" },
+    { value: 2, label: "Đau nhẹ", description: "Hơi ê ẩm" },
+    { value: 3, label: "Đau vừa", description: "Cảm nhận rõ khi vận động" },
+    { value: 4, label: "Đau nhiều", description: "Ảnh hưởng tới động tác" },
+    { value: 5, label: "Đau dữ dội", description: "Khó tập bình thường" },
+  ] satisfies CheckInOption[],
+  stress: [
+    { value: 1, label: "Rất thấp", description: "Thoải mái, bình tĩnh" },
+    { value: 2, label: "Thấp", description: "Phần lớn ổn định" },
+    { value: 3, label: "Vừa", description: "Có chút áp lực" },
+    { value: 4, label: "Cao", description: "Căng thẳng rõ rệt" },
+    { value: 5, label: "Rất cao", description: "Quá tải" },
+  ] satisfies CheckInOption[],
+}
+
 export const volumeRecoveryMessages = {
   en: {
     volumeRecovery: {
@@ -73,6 +141,25 @@ export const volumeRecoveryMessages = {
       highValue: "High",
       saveError: "Unable to save your check-in.",
       muscleLabels: muscleLabelsEn,
+      checkInOptions: checkInOptionsEn,
+      stepOf: (current: number, total: number) => `Step ${current} of ${total}`,
+      skip: "Skip",
+      back: "Back",
+      next: "Next",
+      sleepStepTitle: "How did you sleep last night?",
+      sleepStepHelp: "Good sleep is what lets you perform and recover.",
+      sleepDurationOptional: "Hours slept (optional)",
+      fatigueStepTitle: "How tired do you feel today?",
+      fatigueStepHelp: "This answer weighs the most, so it cannot be skipped.",
+      stressStepTitle: "How stressed do you feel?",
+      stressStepHelp: "Stress affects recovery as much as training does.",
+      sorenessStepTitle: "How sore is your body?",
+      sorenessStepHelp: "One answer for your whole body.",
+      sorenessScope: (count: number) => `Applies to the ${count} muscle${count === 1 ? "" : "s"} you trained this week.`,
+      resultTitle: "Today's readiness",
+      resultScale: "out of 10",
+      resultDone: "Done",
+      resultPending: "Saving your check-in...",
     },
   },
   vi: {
@@ -135,6 +222,25 @@ export const volumeRecoveryMessages = {
       highValue: "Cao",
       saveError: "Không thể lưu check-in.",
       muscleLabels: muscleLabelsVi,
+      checkInOptions: checkInOptionsVi,
+      stepOf: (current: number, total: number) => `Bước ${current}/${total}`,
+      skip: "Bỏ qua",
+      back: "Quay lại",
+      next: "Tiếp tục",
+      sleepStepTitle: "Đêm qua bạn ngủ thế nào?",
+      sleepStepHelp: "Ngủ tốt là nền tảng để tập khỏe và hồi phục nhanh.",
+      sleepDurationOptional: "Số giờ đã ngủ (không bắt buộc)",
+      fatigueStepTitle: "Hôm nay bạn thấy mệt thế nào?",
+      fatigueStepHelp: "Câu này có trọng số cao nhất nên không thể bỏ qua.",
+      stressStepTitle: "Bạn đang căng thẳng tới mức nào?",
+      stressStepHelp: "Căng thẳng ảnh hưởng tới phục hồi không kém gì buổi tập.",
+      sorenessStepTitle: "Cơ thể bạn đau mỏi tới mức nào?",
+      sorenessStepHelp: "Một câu trả lời cho toàn thân.",
+      sorenessScope: (count: number) => `Áp dụng cho ${count} nhóm cơ bạn đã tập trong tuần.`,
+      resultTitle: "Mức sẵn sàng hôm nay",
+      resultScale: "trên 10",
+      resultDone: "Xong",
+      resultPending: "Đang lưu check-in...",
     },
   },
 } as const
