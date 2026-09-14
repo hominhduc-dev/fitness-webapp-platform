@@ -1,20 +1,20 @@
 # ============ Stage 1: Base ============
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 WORKDIR /app
-RUN apk add --no-cache openssl              # Prisma cần openssl
+RUN apk add --no-cache openssl python3 make g++
 
 # ============ Stage 2: Deps ============
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci                                   # cài cả dev deps (cần tsc)
+RUN npm ci
 
 # ============ Stage 3: Builder ============
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate                      # sinh Prisma Client
-RUN npm run build                            # tsc → dist/
+RUN npx prisma generate
+RUN npm run build
 
 # ============ Stage 4: Runner (image cuối) ============
 FROM base AS runner
