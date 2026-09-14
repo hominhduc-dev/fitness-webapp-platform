@@ -38,6 +38,10 @@ function addLocalDays(date: Date, days: number) {
   return value
 }
 
+function localDayKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+}
+
 function isSameCalendarDate(left: Date, right: Date) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -141,10 +145,27 @@ export function DashboardOverviewClient({
   const scheduledThisWeek = countScheduledWorkoutsInWeek(dashboard.workouts, dashboard.schedule, weekStart)
   const nextWorkout = resolveNextWorkoutLabel(dashboard.workouts, dashboard.schedule, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
+  // A session counts on the day it was started. The dashboard only returns the
+  // five most recent logs, so a week with more sessions than that can show an
+  // early day without its check.
+  const trainedDays = new Map(
+    dashboard.recentLogs
+      .filter((log) => log.completedAt)
+      .map((log) => [localDayKey(log.startedAt), log] as const),
+  )
 
   return (
     <div className="space-y-4">
-      <WeekStrip hasWorkoutOn={(date) => getWorkoutForDate(dashboard.workouts, dashboard.schedule, date) != null} />
+      <WeekStrip
+        getDayPlan={(date) => {
+          const log = trainedDays.get(localDayKey(date))
+          return {
+            completed: Boolean(log),
+            workoutName: log?.workout.name ?? getWorkoutForDate(dashboard.workouts, dashboard.schedule, date)?.name ?? null,
+          }
+        }}
+        summary={{ completed: workoutsThisWeek, scheduled: scheduledThisWeek }}
+      />
 
       <CheckInPrompt />
 
