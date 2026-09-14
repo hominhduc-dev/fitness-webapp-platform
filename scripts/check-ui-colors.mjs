@@ -12,8 +12,9 @@ const allowedFiles = new Set([
 ])
 
 const allowedLiterals = new Map([
-  ["app/layout.tsx", new Set(["#080a0f", "#0d0f0e", "#e8ecf3", "#f3f6fc", "#f5f8f6", "#f7f9f3", "#f8f8f7", "#fafaf9"])],
-  ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#0d0f0e", "#e8ecf3", "#f3f6fc", "#f5f8f6", "#f7f9f3", "#f8f8f7", "#fafaf9"])],
+  ["app/layout.tsx", new Set(["#080a0f", "#0d0f0e", "#e8ecf3", "#f3f6fc", "#f3f6f5", "#f5f8f6", "#f8f8f7", "#faf9f7"])],
+  ["components/providers/theme-provider.tsx", new Set(["#080a0f", "#0d0f0e", "#e8ecf3", "#f3f6fc", "#f3f6f5", "#f5f8f6", "#f8f8f7", "#faf9f7"])],
+  ["lib/design-system/color-contrast.test.ts", new Set(["#0d0f0e", "#101311", "#16a05d", "#171717", "#171a18", "#172012", "#1d211e", "#242824", "#2b302c", "#3f6f0d", "#4ade80", "#667085", "#707872", "#8bc926", "#a3e635", "#a5ada7", "#b6f23a", "#c2410c", "#c7ff32", "#e7e5e4", "#ef4444", "#f0f7e7", "#f3f6f5", "#f7f9f7", "#f97316", "#facc15", "#faf9f7", "#ff5a5f", "#ffb020", "#fff0e5", "#fff7ed", "#ffffff"])],
   ["components/ui/brand-icons.tsx", new Set(["#4285f4", "#34a853", "#fbbc05", "#ea4335"])],
 ])
 

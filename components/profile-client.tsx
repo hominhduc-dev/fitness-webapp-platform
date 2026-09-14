@@ -3,11 +3,10 @@
 import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Bell, Camera, ChevronDown, Flame, Loader2, Lock, Monitor, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
+import { AlertTriangle, Bell, Camera, ChevronDown, Flame, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
-import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -470,12 +469,12 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)] lg:items-start lg:gap-5">
         <div className="min-w-0 space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-3 flex items-center gap-2">
           <User className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.profile}</h2>
         </div>
 
-        <div className="mb-5 flex items-center gap-4 rounded-xl border border-border/70 bg-muted/30 p-3.5">
+        <div className="mb-4 flex items-center gap-3">
           <input
             ref={avatarInputRef}
             id="avatar-upload"
@@ -487,14 +486,14 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           />
 
           <div className="relative">
-            <Avatar className="h-16 w-16 border-[3px] border-primary/20 sm:h-20 sm:w-20">
+            <Avatar className="h-14 w-14 border-2 border-primary/20 sm:h-16 sm:w-16">
               <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
               <AvatarFallback className="bg-primary-soft text-2xl text-primary">{initials || "YB"}</AvatarFallback>
             </Avatar>
 
             <Button
               type="button"
-              size="icon-sm"
+              size="icon-xs"
               className="absolute bottom-0 right-0 rounded-full shadow-lg"
               onClick={() => avatarInputRef.current?.click()}
               disabled={isUploadingAvatar}
@@ -512,13 +511,13 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3.5">
-          <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
             <Label htmlFor="name">{messages.profile.fullName}</Label>
             <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="phone">{messages.profile.phone}</Label>
             <div className="relative">
               <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -533,7 +532,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             </div>
           </div>
 
-          <div className="col-span-2 space-y-2">
+          <div className="col-span-2 space-y-1.5">
             <Label htmlFor="email">{messages.profile.email}</Label>
             <Input id="email" type="email" value={profile.email} disabled className="cursor-not-allowed opacity-80" />
           </div>
@@ -541,13 +540,13 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-3 flex items-center gap-2">
           <Scale className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{messages.profile.preferences}</h2>
         </div>
 
-        <div className="grid grid-cols-2 gap-3.5 [&_p]:hidden [&_p]:text-xs [&_p]:leading-relaxed sm:[&_p]:block">
-          <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-3 [&_p]:hidden [&_p]:text-xs [&_p]:leading-relaxed sm:[&_p]:block">
+          <div className="space-y-1.5">
             <Label htmlFor="weight-unit">{messages.profile.weightUnit}</Label>
             <Select value={preferredWeightUnit} onValueChange={(value: "kg" | "lbs") => setPreferredWeightUnit(value)}>
               <SelectTrigger id="weight-unit" className="w-full">
@@ -561,7 +560,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.weightUnitCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="height-cm">{messages.profile.height} (cm)</Label>
             <Input
               id="height-cm"
@@ -577,7 +576,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.heightCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="target-weight">
               {messages.profile.targetWeight} ({preferredWeightUnit})
             </Label>
@@ -601,7 +600,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.targetWeightCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="current-weight">
               {messages.profile.currentWeight} ({preferredWeightUnit})
             </Label>
@@ -625,7 +624,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.currentWeightCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="daily-calorie-goal">{messages.profile.dailyCalorieGoal}</Label>
             <div className="relative">
               <Flame className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -643,7 +642,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.dailyCalorieGoalCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="birth-date">{messages.profile.birthDate}</Label>
             <Input
               id="birth-date"
@@ -655,7 +654,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.birthDateCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="sex">{messages.profile.sex}</Label>
             <Select
               value={sex === "" ? "unspecified" : sex}
@@ -673,7 +672,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <p className="text-sm text-muted-foreground">{messages.profile.sexCopy}</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="activity-level">{messages.profile.activityLevel}</Label>
             <Select
               value={activityLevel === "" ? "unspecified" : activityLevel}
@@ -701,18 +700,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         </div>
 
         <div className="min-w-0 space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Monitor className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.appearance}</h2>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">{messages.profile.appearanceCopy}</p>
-          <ThemeToggle className="w-full" />
-        </div>
-      </div>
-
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <Palette className="h-5 w-5 text-primary" />

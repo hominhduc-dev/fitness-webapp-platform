@@ -538,37 +538,37 @@ input[type="button"] {
 .volt-lime {
   color-scheme: light;
 
-  --brand-primary:       #65a30d;
-  --brand-primary-hover: #4d7c0f;
-  --brand-primary-press: #365314;
-  --brand-primary-soft:  #d9f99d;
+  --brand-primary:       #3f6f0d;
+  --brand-primary-hover: #315909;
+  --brand-primary-press: #244307;
+  --brand-primary-soft:  #f0f7e7;
   --brand-secondary:     #16a05d;
   --brand-accent:        #a3e635;
   /* The supplied lime remains the brand/chart hue; controls use its darker
      accessible state so primary text and buttons meet WCAG AA. */
-  --accent-color:        #3f6212;
-  --accent-hover-color:  #365314;
-  --accent-press-color:  #1a2e05;
+  --accent-color:        #3f6f0d;
+  --accent-hover-color:  #315909;
+  --accent-press-color:  #244307;
 
-  --ink-0:   #f7f9f3;
+  --ink-0:   #f3f6f5;
   --ink-50:  #ffffff;
-  --ink-100: #e2e8e5;
-  --ink-150: #d4ddd8;
-  --ink-200: #c5d1ca;
+  --ink-100: #dfe8dc;
+  --ink-150: #d0ddcc;
+  --ink-200: #bdcdb8;
   --ink-400: #667085;
   --ink-600: #475569;
   --ink-800: #172012;
   --ink-900: #0d140a;
 
   --surface: #ffffff;
-  --surface-subtle: #f0f7e2;
-  --surface-hover: #e7f2d3;
+  --surface-subtle: #f0f7e7;
+  --surface-hover: #e5f1d8;
   --muted-foreground: #667085;
   --primary-foreground: #ffffff;
   --success-foreground: #032118;
   --accent: var(--brand-primary-soft);
-  --accent-foreground: #365314;
-  --glass-solid: #f7f9f3;
+  --accent-foreground: #3f6f0d;
+  --glass-solid: #ffffff;
 }
 
 .iron-orange {
@@ -576,34 +576,35 @@ input[type="button"] {
 
   --brand-primary:       #f97316;
   --brand-primary-hover: #c2410c;
-  --brand-primary-press: #9a3412;
-  --brand-primary-soft:  #ffedd5;
+  --brand-primary-press: #c2410c;
+  --brand-primary-soft:  #fff0e5;
   --brand-secondary:     #16a05d;
   --brand-accent:        #ffb020;
+  --ok:                  var(--brand-secondary);
   /* Bright orange is preserved for charts and highlights. Interactive
      primary uses Primary Dark so it remains legible as both text and fill. */
   --accent-color:        #c2410c;
   --accent-hover-color:  #9a3412;
   --accent-press-color:  #7c2d12;
 
-  --ink-0:   #fafaf9;
-  --ink-50:  #fff7ed;
-  --ink-100: #eee5db;
-  --ink-150: #e2d7ca;
-  --ink-200: #d4c6b7;
+  --ink-0:   #faf9f7;
+  --ink-50:  #ffffff;
+  --ink-100: #e7e5e4;
+  --ink-150: #d6d3d1;
+  --ink-200: #c7c3c0;
   --ink-400: #667085;
   --ink-600: #525252;
   --ink-800: #171717;
   --ink-900: #0a0a0a;
 
   --surface: #fff7ed;
-  --surface-subtle: #ffeddc;
-  --surface-hover: #ffe2c2;
-  --muted-foreground: #596579;
+  --surface-subtle: #f5f4f2;
+  --surface-hover: #eeece9;
+  --muted-foreground: #667085;
   --success-foreground: #032118;
   --accent: var(--brand-primary-soft);
   --accent-foreground: #9a3412;
-  --glass-solid: #fff7ed;
+  --glass-solid: #ffffff;
 }
 
 .crimson-performance {
@@ -795,42 +796,49 @@ input[type="button"] {
   --brand-primary-press: #6fa81d;
   --brand-primary-soft:  rgb(182 242 58 / 16%);
   --brand-secondary:     #8bc926;
-  --brand-accent:        #b6f23a;
+  --brand-accent:        #c7ff32;
 
   --ink-0:   #0d0f0e;
   --ink-50:  #171a18;
-  --ink-100: #202421;
-  --ink-150: #2e3430;
-  --ink-200: #3c443f;
-  --ink-400: #9ca3a0;
-  --ink-600: #cbd5d1;
-  --ink-800: #f8faf9;
+  --ink-100: #1d211e;
+  --ink-150: #2b302c;
+  --ink-200: #3a403b;
+  --ink-400: #707872;
+  --ink-600: #a5ada7;
+  --ink-800: #f7f9f7;
   --ink-900: #ffffff;
+
+  --ok: #4ade80;
+  --warn: #facc15;
+  --danger: #ff5a5f;
 
   --accent-ink-color: #b6f23a;
   --primary-foreground: #0d0f0e;
   --accent: rgb(182 242 58 / 14%);
-  --accent-foreground: #b6f23a;
+  --accent-foreground: #c7ff32;
   --background: #0d0f0e;
   --card: #171a18;
-  --surface: #171a18;
-  --surface-subtle: #202421;
-  --surface-hover: #2a302c;
-  --popover: #202421;
-  --muted: #202421;
-  --muted-foreground: #9ca3a0;
-  --border: #343b37;
-  --input: #3c443f;
+  --surface: #1d211e;
+  --surface-subtle: #242824;
+  --surface-hover: #2b302c;
+  --popover: #1d211e;
+  --muted: #242824;
+  /* #707872 remains the disabled/non-essential metadata rung. Regular
+     descriptions use #A5ADA7 so text stays AA on the charcoal surfaces. */
+  --muted-foreground: #a5ada7;
+  --text-secondary: #a5ada7;
+  --border: #2b302c;
+  --input: #2b302c;
   --info-foreground: #0d0f0e;
 
-  --sidebar: #171a18;
+  --sidebar: #101311;
   --sidebar-primary: #b6f23a;
   --sidebar-primary-foreground: #0d0f0e;
-  --sidebar-accent: #202421;
-  --sidebar-border: #343b37;
+  --sidebar-accent: #242824;
+  --sidebar-border: #2b302c;
 
   --glass-bg: rgb(23 26 24 / var(--glass-opacity));
-  --glass-bg-strong: rgb(32 36 33 / clamp(0.3, calc(var(--glass-opacity) + 0.2), 0.96));
+  --glass-bg-strong: rgb(29 33 30 / clamp(0.3, calc(var(--glass-opacity) + 0.2), 0.96));
   --glass-border: rgb(182 242 58 / 16%);
   --glass-hover-border: rgb(182 242 58 / 28%);
   --glass-highlight: rgb(255 255 255 / 18%);
@@ -838,6 +846,22 @@ input[type="button"] {
   --glass-solid: #171a18;
   --glass-dome-fill: rgb(23 26 24 / 72%);
   --page-backdrop: #0d0f0e;
+}
+
+.black-volt .dashboard-primary-cta {
+  color: #0d0f0e;
+  background-image: linear-gradient(135deg, #c7ff32, #9fe51f);
+  box-shadow: 0 10px 28px rgb(182 242 58 / 20%);
+}
+
+.black-volt .dashboard-primary-cta:hover {
+  background-image: linear-gradient(135deg, #b6f23a, #8bc926);
+}
+
+.black-volt .dashboard-energy-accent.bg-primary-soft.text-primary {
+  color: #0d0f0e;
+  background-image: linear-gradient(135deg, #b6f23a, #8bc926);
+  box-shadow: 0 6px 18px rgb(182 242 58 / 20%);
 }
 
 .dark .bg-primary-soft.text-primary,
@@ -1201,6 +1225,33 @@ aside.glass-surface::after,
     inset 0 -1px 0 var(--glass-tint-2);
   content: "";
   pointer-events: none;
+}
+
+/* Black + Volt uses solid charcoal content surfaces. Keep the glass treatment
+   on app chrome (sidebar, mobile navigation and dialogs), but remove the white
+   specular layers from cards so they do not turn milky on the dark canvas. */
+.black-volt .bg-card {
+  background: var(--card);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.black-volt .glass-card {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 24%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.black-volt .glass-card::before,
+.black-volt .glass-card::after {
+  display: none;
+}
+
+.black-volt .glass-card:hover {
+  border-color: var(--glass-hover-border);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 30%);
 }
 
 /* Refraction proper. Displacement runs before the blur so the backdrop is bent

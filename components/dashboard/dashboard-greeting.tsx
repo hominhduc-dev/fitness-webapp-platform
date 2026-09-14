@@ -47,7 +47,7 @@ export function DashboardGreeting({ firstName }: { firstName: string }) {
           </h1>
           <Link
             href="/progress"
-            className="inline-flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="dashboard-energy-accent inline-flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Flame className="size-4 fill-primary/15" aria-hidden="true" />
             <span>{copy.dayStreak(streakDays)}</span>

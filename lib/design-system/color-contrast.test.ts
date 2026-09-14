@@ -114,6 +114,66 @@ const themeTokens: ReadonlyArray<readonly [string, Map<string, string>]> = [
   ["dark", darkTokens],
 ]
 
+describe("Volt Lime palette contract", () => {
+  const tokens = new Map([...lightTokens, ...tokenBlock(".volt-lime")])
+
+  it.each([
+    ["--background", "#f3f6f5"],
+    ["--card", "#ffffff"],
+    ["--surface-subtle", "#f0f7e7"],
+    ["--brand-accent", "#a3e635"],
+    ["--brand-primary", "#3f6f0d"],
+    ["--foreground", "#172012"],
+  ])("keeps %s at %s", (token, expected) => {
+    expect(resolveToken(tokens, token)).toBe(expected)
+  })
+})
+
+describe("Iron Orange palette contract", () => {
+  const tokens = new Map([...lightTokens, ...tokenBlock(".iron-orange")])
+
+  it.each([
+    ["--brand-primary", "#f97316"],
+    ["--brand-primary-hover", "#c2410c"],
+    ["--brand-accent", "#ffb020"],
+    ["--brand-primary-soft", "#fff0e5"],
+    ["--surface", "#fff7ed"],
+    ["--background", "#faf9f7"],
+    ["--card", "#ffffff"],
+    ["--border", "#e7e5e4"],
+    ["--foreground", "#171717"],
+    ["--muted-foreground", "#667085"],
+    ["--success", "#16a05d"],
+    ["--destructive", "#ef4444"],
+  ])("keeps %s at %s", (token, expected) => {
+    expect(resolveToken(tokens, token)).toBe(expected)
+  })
+})
+
+describe("Black + Volt palette contract", () => {
+  const tokens = new Map([...darkTokens, ...tokenBlock(".black-volt")])
+
+  it.each([
+    ["--brand-primary", "#b6f23a"],
+    ["--brand-accent", "#c7ff32"],
+    ["--brand-primary-hover", "#8bc926"],
+    ["--background", "#0d0f0e"],
+    ["--sidebar", "#101311"],
+    ["--card", "#171a18"],
+    ["--surface", "#1d211e"],
+    ["--surface-subtle", "#242824"],
+    ["--foreground", "#f7f9f7"],
+    ["--text-secondary", "#a5ada7"],
+    ["--ink-400", "#707872"],
+    ["--border", "#2b302c"],
+    ["--success", "#4ade80"],
+    ["--warning", "#facc15"],
+    ["--destructive", "#ff5a5f"],
+  ])("keeps %s at %s", (token, expected) => {
+    expect(resolveToken(tokens, token)).toBe(expected)
+  })
+})
+
 describe.each(themeTokens)("%s theme contrast", (_theme, tokens) => {
   it.each(requiredPairs)("keeps %s legible on %s", (foreground, ...surfaces) => {
     const background = flatten(tokens, surfaces)
