@@ -8,6 +8,7 @@ import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Play, P
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { ScheduleLoadingState } from "@/components/schedule/schedule-loading-state"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -21,20 +22,12 @@ import { resolveEffectiveWeekIndex, resolveProgramAnchor, resolveProgramWeekForW
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
 import type { CoachProgram, TraineeProgram, WorkoutCollection } from "@/lib/fitness/types"
-import type { Workout, WorkoutLog, WorkoutScheduleEntry, WeeklySchedule } from "@/lib/types"
+import type { Workout, WorkoutLog, WorkoutScheduleEntry } from "@/lib/types"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 
 type WeeklyCalendarProps = {
   initialData?: WorkoutCollection
-  historyLogs?: WorkoutLog[]
-  programs?: TraineeProgram[]
-  recentLogs: WorkoutLog[]
-  schedule: WeeklySchedule
-  scheduleEntries?: WorkoutScheduleEntry[]
-  showHero?: boolean
-  weekLogs?: WorkoutLog[]
-  workouts: Workout[]
 }
 
 type SourceFilter = "all" | "coach" | "self"
@@ -68,6 +61,10 @@ type ScheduleEntry = WorkoutScheduleEntry
 
 const DISPLAY_WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
+const EMPTY_LOGS: WorkoutLog[] = []
+const EMPTY_PROGRAMS: TraineeProgram[] = []
+const EMPTY_SCHEDULE_ENTRIES: WorkoutScheduleEntry[] = []
+const EMPTY_WORKOUTS: Workout[] = []
 
 function createDraftId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -898,23 +895,23 @@ function RoutineDialogs({
   )
 }
 
-export function WeeklyCalendar({ initialData, historyLogs: initialHistoryLogs = [], programs: initialPrograms = [], recentLogs, scheduleEntries: initialEntries = [], weekLogs, workouts }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
   const { session, profile } = useAuth()
   const queryClient = useQueryClient()
   const collectionQuery = useWorkouts(initialData)
   const collection = collectionQuery.data as (WorkoutCollection & { optimisticScheduleByDate?: Record<string, Workout | null> }) | undefined
-  const historyLogs = collection?.historyLogs ?? initialHistoryLogs
-  const programs = collection?.programs ?? initialPrograms
-  const scheduleEntries = collection?.scheduleEntries ?? initialEntries
+  const historyLogs = collection?.historyLogs ?? EMPTY_LOGS
+  const programs = collection?.programs ?? EMPTY_PROGRAMS
+  const scheduleEntries = collection?.scheduleEntries ?? EMPTY_SCHEDULE_ENTRIES
   const collectionKey = userQueryKey(queryKeys.workouts.collection(), profile?.id)
   const createMutation = useCreateWorkout()
   const { locale, messages } = useLocale()
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [weekOffset, setWeekOffset] = useState(0)
   const optimisticScheduleByDate = useMemo(() => collection?.optimisticScheduleByDate ?? {}, [collection])
-  const visibleWorkouts = collection?.workouts ?? workouts
-  const visibleRecentLogs = collection?.recentLogs ?? recentLogs
-  const visibleWeekLogs = useMemo(() => collection?.weekLogs ?? weekLogs ?? [], [collection, weekLogs])
+  const visibleWorkouts = collection?.workouts ?? EMPTY_WORKOUTS
+  const visibleRecentLogs = collection?.recentLogs ?? EMPTY_LOGS
+  const visibleWeekLogs = collection?.weekLogs ?? EMPTY_LOGS
   const [extraRoutineLibrary, setExtraRoutineLibrary] = useState<Routine[]>([])
   const [selectedRestDate, setSelectedRestDate] = useState<Date | null>(null)
   const [selectedPreviewWorkout, setSelectedPreviewWorkout] = useState<{ date: Date; workout: Workout } | null>(null)
@@ -1159,6 +1156,23 @@ export function WeeklyCalendar({ initialData, historyLogs: initialHistoryLogs = 
     if (weekOffset === 1) return messages.schedule.nextWeekRange(range)
     return range
   })()
+
+  if (collectionQuery.isPending && !collection) {
+    return <ScheduleLoadingState />
+  }
+
+  if (collectionQuery.isError && !collection) {
+    return (
+      <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+        <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
+          <p className="text-sm text-destructive-text">{messages.schedule.loadScheduleError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void collectionQuery.refetch()}>
+            {messages.common.tryAgain}
+          </Button>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">

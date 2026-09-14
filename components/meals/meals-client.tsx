@@ -21,6 +21,7 @@ import {
 import { useMemo, useState } from "react"
 
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
+import { MealsLoadingState } from "@/components/meals/meals-loading-state"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
@@ -79,6 +80,13 @@ const MEAL_META: Array<{ icon: LucideIcon; type: MealType }> = [
   { icon: Sunset, type: "dinner" },
   { icon: Cookie, type: "snack" },
 ]
+
+const DEFAULT_NUTRITION_TARGETS: NutritionTargets = {
+  calories: 2_000,
+  carbs: 250,
+  fat: 67,
+  protein: 150,
+}
 
 function formatDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
@@ -701,10 +709,11 @@ function AddFoodModal({
   )
 }
 
-export function MealsClient({ initialData }: { initialData: MealsClientInitialData }) {
+export function MealsClient({ initialData }: { initialData?: MealsClientInitialData } = {}) {
   const { session } = useAuth()
   const { locale, messages } = useLocale()
-  const [selectedDate, setSelectedDate] = useState(() => new Date(`${initialData.selectedDateKey}T00:00:00`))
+  const initialDateKey = initialData?.selectedDateKey ?? formatDateKey(new Date())
+  const [selectedDate, setSelectedDate] = useState(() => new Date(`${initialDateKey}T00:00:00`))
   const [addTo, setAddTo] = useState<MealType | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -712,14 +721,17 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
   const selectedDateKey = formatDateKey(selectedDate)
 
   const dayQuery = useNutritionDay(selectedDateKey, {
-    initialData: selectedDateKey === initialData.selectedDateKey ? initialData.nutritionDay : undefined,
+    initialData: selectedDateKey === initialData?.selectedDateKey ? initialData.nutritionDay : undefined,
   })
-  const foodsQuery = useFoods(undefined, { initialData: initialData.foods })
+  const foodsQuery = useFoods(undefined, { initialData: initialData?.foods })
   const addItem = useAddMealItem(selectedDateKey)
   const deleteItem = useDeleteMealItem(selectedDateKey)
   const createFood = useCreateCustomFood()
   const nutritionDay = dayQuery.data ?? {
-    date: selectedDate, meals: [], recentFoods: [], targets: initialData.nutritionDay.targets,
+    date: selectedDate,
+    meals: [],
+    recentFoods: [],
+    targets: initialData?.nutritionDay?.targets ?? DEFAULT_NUTRITION_TARGETS,
     totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
   }
   const foods = foodsQuery.data ?? []
@@ -829,6 +841,23 @@ export function MealsClient({ initialData }: { initialData: MealsClientInitialDa
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (dayQuery.isPending && !dayQuery.data) {
+    return <MealsLoadingState />
+  }
+
+  if (dayQuery.isError && !dayQuery.data) {
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+        <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
+          <p className="text-sm text-destructive-text">{messages.meals.loadNutritionError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void dayQuery.refetch()}>
+            {messages.common.tryAgain}
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (

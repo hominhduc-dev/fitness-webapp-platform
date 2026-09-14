@@ -1,6 +1,6 @@
 "use client"
 
-import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react"
+import { Dumbbell, Flame, Leaf, Monitor, Moon, Sun, Trophy, Zap, type LucideIcon } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useTheme, type ThemeMode } from "@/components/providers/theme-provider"
@@ -19,11 +19,17 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
 
   const options: Array<{ icon: LucideIcon; label: string; value: ThemeMode }> = [
     { icon: Sun, label: messages.common.themeLight, value: "light" },
+    { icon: Leaf, label: messages.common.themePerformanceGreen, value: "performance-green" },
+    { icon: Zap, label: messages.common.themeElectricBlue, value: "electric-blue" },
+    { icon: Zap, label: messages.common.themeVoltLime, value: "volt-lime" },
+    { icon: Flame, label: messages.common.themeIronOrange, value: "iron-orange" },
+    { icon: Dumbbell, label: messages.common.themeBlackVolt, value: "black-volt" },
+    { icon: Trophy, label: messages.common.themeCrimsonPerformance, value: "crimson-performance" },
     { icon: Moon, label: messages.common.themeDark, value: "dark" },
     { icon: Monitor, label: messages.common.themeSystem, value: "system" },
   ]
 
-  if (variant === "select") {
+  if (variant === "select" || compact) {
     return (
       <Select value={theme} onValueChange={(value) => setTheme(value as ThemeMode)}>
         <SelectTrigger aria-label={messages.common.theme} className={cn("w-full bg-muted/50", className)}>
@@ -51,9 +57,7 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
       )}
       role="group"
     >
-      {/* Labelled buttons overflow a narrow container, so the roomy variant
-          wraps instead of forcing a horizontal scroll. */}
-      <div className={cn("gap-0.5", compact ? "grid w-full grid-cols-3" : "flex flex-wrap")}>
+      <div className="grid w-full grid-cols-2 gap-0.5 sm:grid-cols-3">
         {options.map((option) => {
           const Icon = option.icon
           const active = theme === option.value
@@ -74,7 +78,7 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
               onClick={() => setTheme(option.value)}
             >
               <Icon className="h-3.5 w-3.5" />
-              {!compact ? <span>{option.label}</span> : null}
+              <span>{option.label}</span>
             </button>
           )
         })}

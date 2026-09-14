@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { useUserQuery as useQuery, userQueryKey } from "./scoped"
 
 import { useAuth } from "@/components/providers/auth-provider"
@@ -34,6 +34,22 @@ export function useFoods(
     initialData: seed?.initialData,
     staleTime: FOODS_STALE_TIME_MS,
   })
+}
+
+/** Warm today's nutrition and the long-lived food catalogue before /meals opens. */
+export function prefetchMeals(queryClient: QueryClient, userId: string, dateKey: string) {
+  return Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: userQueryKey(queryKeys.meals.nutritionDay(dateKey), userId),
+      queryFn: async () => fetchNutritionDay(await requireAccessToken(), dateKey),
+      staleTime: NUTRITION_STALE_TIME_MS,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: userQueryKey(queryKeys.meals.foods(), userId),
+      queryFn: async () => fetchFoods(await requireAccessToken()),
+      staleTime: FOODS_STALE_TIME_MS,
+    }),
+  ])
 }
 
 /**

@@ -56,7 +56,13 @@ const themeInitScript = `
       storedTheme = "dark";
       window.localStorage.setItem(storageKey, storedTheme);
     }
-    var theme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" ? storedTheme : "light";
+    if (storedTheme === "sport") {
+      storedTheme = "electric-blue";
+      window.localStorage.setItem(storageKey, storedTheme);
+    }
+    var paletteThemes = ["performance-green", "electric-blue", "volt-lime", "iron-orange", "black-volt", "crimson-performance"];
+    var isKnownTheme = storedTheme === "light" || storedTheme === "dark" || storedTheme === "system" || paletteThemes.indexOf(storedTheme) !== -1;
+    var theme = isKnownTheme ? storedTheme : "light";
     // The public marketing route has a fixed light art direction. Keep the
     // stored preference untouched so authenticated routes can restore it.
     if (window.location.pathname === "/") theme = "light";
@@ -65,11 +71,24 @@ const themeInitScript = `
     var root = document.documentElement;
     // Mirrors applyThemeToDocument() in
     // components/providers/theme-provider.tsx — keep the two in sync.
-    root.classList.toggle("dark", resolvedTheme !== "light");
-    root.style.colorScheme = resolvedTheme;
+    var isDarkTheme = resolvedTheme === "dark" || resolvedTheme === "black-volt";
+    root.classList.remove("sport");
+    paletteThemes.forEach(function (paletteTheme) { root.classList.remove(paletteTheme); });
+    root.classList.toggle("dark", isDarkTheme);
+    if (paletteThemes.indexOf(resolvedTheme) !== -1) root.classList.add(resolvedTheme);
+    root.style.colorScheme = isDarkTheme ? "dark" : "light";
     var themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-      var themeColors = { light: "#e8ecf3", dark: "#080a0f" };
+      var themeColors = {
+        light: "#e8ecf3",
+        "performance-green": "#f5f8f6",
+        "electric-blue": "#f3f6fc",
+        "volt-lime": "#f7f9f3",
+        "iron-orange": "#fafaf9",
+        "black-volt": "#0d0f0e",
+        "crimson-performance": "#f8f8f7",
+        dark: "#080a0f"
+      };
       themeColor.setAttribute("content", themeColors[resolvedTheme] || themeColors.light);
     }
     // -- Liquid glass capability probe --------------------------------

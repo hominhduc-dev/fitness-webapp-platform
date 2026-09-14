@@ -46,7 +46,7 @@ Không có `react-hook-form` hoặc `zod` trong dependency hiện tại. Form ph
 - Server Component mặc định; Client Component chỉ ở ranh giới tương tác.
 - SSR chịu trách nhiệm auth/role và initial fetch.
 - Client gọi Express qua `/backend/*`; server gọi API origin trực tiếp.
-- Styling dựa trên semantic tokens, hỗ trợ light/dark cùng một markup.
+- Styling dựa trên semantic tokens, hỗ trợ Light/Dark/System và sáu YeahBuddy palette cùng một markup.
 - Mobile-first; desktop dùng sidebar, mobile dùng floating bottom nav.
 - Ba role: `trainee`, `coach`, `admin`.
 
@@ -98,9 +98,9 @@ app/layout.tsx
 | `/privacy-policy`, `/terms-of-service` | Public SSR, không yêu cầu auth; locale cookie hoặc `?lang=vi/en` | `components/legal/legal-page.tsx`, `lib/i18n/messages/legal.ts` |
 | `/(shell)` | SSR auth shell | `app/(shell)/layout.tsx` |
 | `/dashboard` | SSR + Suspense streaming | `components/dashboard/*` |
-| `/workout` | SSR + Suspense; fetch collection rồi hydrate board | `components/workout/routines-workout-board.tsx` |
-| `/schedule` | SSR + Suspense; fetch workouts rồi hydrate calendar | `components/schedule/weekly-calendar.tsx` |
-| `/meals` | SSR auth/fetch → client feature | `components/meals/meals-client.tsx` |
+| `/workout` | Server role guard → client cache-first; dùng chung workout collection | `components/workout/routines-workout-board.tsx` |
+| `/schedule` | Server role guard → client cache-first; dùng chung workout collection | `components/schedule/weekly-calendar.tsx` |
+| `/meals` | Server role guard → client cache-first theo ngày + food catalogue | `components/meals/meals-client.tsx` |
 | `/progress` | SSR parallel fetch → client feature/charts | `components/progress/progress-client.tsx` |
 | `/trackweight` | route wrapper → lazy client tracker | `components/progress/weight-tracking-*` |
 | `/profile` | SSR session/profile fetch → client form | `components/profile-client.tsx` |
@@ -164,6 +164,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 - Seed SSR dùng `initialData`, lỗi seed `null` đổi thành `undefined`; không dehydrate dữ liệu `Date`.
 - Mặc định: stale 30 giây, GC 5 phút, không retry 4xx, tối đa 2 retry khác; focus không refetch.
 - Exercises/foods stale 30 phút; coach programs/profile 5 phút; dữ liệu biến động 30 giây.
+- Trainee shell idle-prefetch workout collection, nutrition hôm nay và food catalogue. `/schedule` và `/workout` đọc cùng key nên chỉ cần một request; `/meals` mở từ cache nếu prefetch đã hoàn tất.
 - Session đang tập dùng staleTime `"static"`, tắt refetch mount/focus/reconnect; draft và localStorage vẫn thuộc UI.
 - Mutation invalidate theo domain; meals writeback theo ngày lúc bắt đầu mutation. Không dùng cờ sessionStorage dashboard-refresh.
 - Pull-to-refresh invalidate cache; `router.refresh()` chỉ giữ cho thay đổi locale cần render lại server.
@@ -218,13 +219,14 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 
 Heading feature thường dùng 26–36px, weight 600, tracking âm nhẹ. Body dùng semantic `text-foreground`; metadata dùng `text-muted-foreground`.
 
-### Light SaaS editorial + Kinetic Glass dark
+### Light SaaS editorial + YeahBuddy palettes + Kinetic Glass dark
 
-Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ chọn vai trò (`primary`, `surface`, `success-text`), không tự chọn hue. Cobalt là nhận diện xuyên suốt cả hai theme; dark theme không được thay primary bằng trắng.
+Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ chọn vai trò (`primary`, `surface`, `success-text`), không tự chọn hue. Mỗi palette đổi token ở root; component không cần biết tên theme.
 
 - Light theme dùng hướng clean SaaS editorial: nền off-white phẳng, surface/card trắng opaque, line mảnh, shadow rất nhẹ và accent cobalt.
+- Sáu palette thương hiệu: Performance Green, Electric Blue, Volt Lime, Iron Orange, Black + Volt và Crimson Performance; chọn trực tiếp trong `ThemeToggle`.
 - Dark theme giữ Kinetic Glass/liquid-glass: translucent surface, backdrop blur/refraction, rim highlight và shadow sâu.
-- Shared class `.glass-*` vẫn được dùng trong markup, nhưng `:root:not(.dark)` override chúng thành editorial surfaces. Không thêm class song song chỉ để phân biệt light/dark.
+- Shared class `.glass-*` vẫn được dùng trong markup; năm palette sáng đi qua `:root:not(.dark)`, Black + Volt đi cùng `.dark` để dùng dark material.
 
 ### Light palette (`:root`)
 
@@ -251,6 +253,19 @@ Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ
 | `--warn`, `--warn-text`, `--warn-soft` | `#f59e0b`, `#92400e`, `#fef3c7` | Warning solid/text/soft |
 | `--info-token`, `--info-token-text`, `--info-token-soft` | `#3b82f6`, `#1e40af`, `#dbeafe` | Info solid/text/soft |
 | `--danger`, `--danger-text`, `--danger-soft` | `#ef4444`, `#b91c1c`, `#fee2e2` | Destructive solid/text/soft |
+
+### YeahBuddy palette collection
+
+| Theme/class | Primary | Primary Dark | Accent | Surface | Background | Text |
+|---|---:|---:|---:|---:|---:|---:|
+| `.performance-green` | `#08783e` | `#055c30` | `#16a05d` | `#eaf5ef` | `#f5f8f6` | `#101828` |
+| `.electric-blue` | `#2457f5` | `#173cc8` | `#22c55e` | `#eaf0ff` | `#f3f6fc` | `#101828` |
+| `.volt-lime` | `#65a30d` | derived | `#a3e635` | `#ffffff` | `#f7f9f3` | `#172012` |
+| `.iron-orange` | `#f97316` | `#c2410c` | `#ffb020` | `#fff7ed` | `#fafaf9` | `#171717` |
+| `.black-volt` | `#b6f23a` | `#8bc926` | — | `#171a18` | `#0d0f0e` | `#f8faf9` |
+| `.crimson-performance` | `#e63946` | `#b91c2a` | `#ffb703` | `#fde8e8` | `#f8f8f7` | `#111827` |
+
+Các màu brand quá sáng (Volt Lime, Iron Orange, Crimson Performance) giữ nguyên cho chart/highlight; `--primary` tương tác dùng trạng thái tối hơn để đạt WCAG AA. Giá trị lưu cũ `sport` migrate sang `electric-blue`.
 
 Light page backdrop là off-white rất nhẹ, gần phẳng; hierarchy đến từ border, spacing, surface trắng và cobalt accent thay vì blur/glass.
 
@@ -309,7 +324,7 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 
 - Text thường phải đạt WCAG AA `4.5:1`; UI/icon lớn tối thiểu `3:1`.
 - Status text luôn ghép với status soft tương ứng, không dùng solid hue làm chữ trên canvas.
-- `lib/design-system/color-contrast.test.ts` đọc trực tiếp token từ `globals.css` và kiểm tra cặp foreground/background của cả hai theme.
+- `lib/design-system/color-contrast.test.ts` đọc trực tiếp token từ `globals.css` và kiểm tra cặp foreground/background của mọi theme.
 - `/dev/design-system` là nơi visual QA palette, controls, statuses và muscle map trước khi rollout component mới.
 
 ### Radius, surface và spacing
@@ -325,9 +340,9 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 
 ### Theme lifecycle
 
-- Modes: `light`, `dark`, `system`; default `light`.
-- `ThemeProvider` đặt class `.dark` cho mọi theme khác `light`, đặt CSS `color-scheme`, meta `theme-color` và expose `resolvedTheme` (`light | dark`).
-- Giá trị `yeahbuddy-theme` cũ (`glass`, `midnight`) được migrate về `dark` ở cả `migrateStoredTheme()` lẫn pre-paint script.
+- Modes: `light`, sáu palette IDs, `dark`, `system`; default `light`.
+- `ThemeProvider` đặt class palette tương ứng; Black + Volt đặt thêm `.dark`. Provider đồng bộ `color-scheme`, meta `theme-color` và `resolvedTheme`; `system` chỉ resolve về light/dark.
+- Giá trị `yeahbuddy-theme` cũ (`glass`, `midnight`) migrate về `dark`; `sport` migrate sang `electric-blue` ở cả provider lẫn pre-paint script.
 - Root pre-paint script trong `app/layout.tsx` phải luôn ra **cùng kết quả** với `applyThemeToDocument()`: cùng class, cùng `color-scheme`, cùng `theme-color`. Lệch là flash khi reload.
 - Thêm theme color literal mới phải allowlist trong `scripts/check-ui-colors.mjs` và thêm case vào `lib/design-system/color-contrast.test.ts`.
 - Landing `/` luôn dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền sáng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
@@ -524,8 +539,8 @@ Trước khi sửa:
 Trong khi sửa:
 
 - Dùng semantic tokens và `cn()`.
-- Nếu thêm color role mới: định nghĩa cả light/dark trong `globals.css`, expose qua `@theme inline`, bổ sung contrast pair/test khi có text và cập nhật Design System Lab.
-- Giữ light/dark, mobile/desktop, safe area và keyboard behavior.
+- Nếu thêm color role mới: định nghĩa cho các họ light/dark trong `globals.css`, expose qua `@theme inline`, bổ sung contrast pair/test khi có text và cập nhật Design System Lab.
+- Giữ toàn bộ theme, mobile/desktop, safe area và keyboard behavior.
 - Nếu dùng effect/canvas, liệt kê visual dependencies như theme/size.
 - Không fetch duplicate hoặc phá SSR initial data.
 

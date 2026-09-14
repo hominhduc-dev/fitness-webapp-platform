@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/lib/auth/api"
 import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecoveryHistory, useVolumeRecovery } from "./progress"
-import { useWorkoutDetail } from "./workouts"
-import { useAddMealItem } from "./meals"
+import { prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
+import { prefetchMeals, useAddMealItem, useFoods, useNutritionDay } from "./meals"
 import { useCoachLogs } from "./coach-logs"
 import { queryKeys } from "./keys"
 import { userQueryKey } from "./scoped"
@@ -13,7 +13,8 @@ import { getQueryClient } from "./client"
 
 const state = vi.hoisted(() => ({ userId: "user-a", token: "token-1" }))
 const api = vi.hoisted(() => ({
-  weights: vi.fn(), createWeight: vi.fn(), calendar: vi.fn(), workout: vi.fn(), addMeal: vi.fn(), logs: vi.fn(),
+  weights: vi.fn(), createWeight: vi.fn(), calendar: vi.fn(), workout: vi.fn(), workouts: vi.fn(),
+  addMeal: vi.fn(), foods: vi.fn(), nutritionDay: vi.fn(), logs: vi.fn(),
   volume: vi.fn(), recovery: vi.fn(),
 }))
 vi.mock("@/components/providers/auth-provider", () => ({
@@ -24,7 +25,8 @@ vi.mock("@/lib/fitness/api", async (original) => ({
   ...await original<typeof import("@/lib/fitness/api")>(),
   fetchWeightEntries: api.weights, createWeightEntry: api.createWeight,
   fetchProgressCalendar: api.calendar, fetchWorkoutDetail: api.workout,
-  addMealItem: api.addMeal, fetchCoachWorkoutLogs: api.logs,
+  fetchWorkouts: api.workouts, addMealItem: api.addMeal, fetchFoods: api.foods,
+  fetchNutritionDay: api.nutritionDay, fetchCoachWorkoutLogs: api.logs,
   fetchVolumeRecovery: api.volume, fetchRecoveryHistory: api.recovery,
 }))
 
@@ -49,6 +51,36 @@ describe("client cache contracts", () => {
     expect(second.result.current.data).toBe(seed)
     expect(api.weights).not.toHaveBeenCalled()
     second.unmount(); client.clear()
+  })
+
+  it("reuses trainee route prefetch data without duplicate page requests", async () => {
+    const { client, wrapper } = setup()
+    const collection = { historyLogs: [], programs: [], recentLogs: [], schedule: {}, scheduleEntries: [], weekLogs: [], workouts: [] }
+    const day = {
+      date: new Date("2026-09-15T00:00:00"), meals: [], recentFoods: [],
+      targets: { calories: 2_000, carbs: 250, fat: 67, protein: 150 },
+      totals: { calories: 0, carbs: 0, fat: 0, protein: 0 },
+    }
+    api.workouts.mockResolvedValue(collection)
+    api.foods.mockResolvedValue([])
+    api.nutritionDay.mockResolvedValue(day)
+
+    await prefetchWorkouts(client, state.userId)
+    await prefetchMeals(client, state.userId, "2026-09-15")
+
+    const hook = renderHook(() => ({
+      workouts: useWorkouts(),
+      day: useNutritionDay("2026-09-15"),
+      foods: useFoods(),
+    }), { wrapper })
+
+    expect(hook.result.current.workouts.data).toBe(collection)
+    expect(hook.result.current.day.data).toBe(day)
+    expect(hook.result.current.foods.data).toEqual([])
+    expect(api.workouts).toHaveBeenCalledTimes(1)
+    expect(api.nutritionDay).toHaveBeenCalledTimes(1)
+    expect(api.foods).toHaveBeenCalledTimes(1)
+    hook.unmount(); client.clear()
   })
 
   it("does not reuse a previous account's seed on account change", async () => {
