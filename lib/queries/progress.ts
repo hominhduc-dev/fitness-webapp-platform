@@ -12,10 +12,12 @@ import {
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,
+  fetchVolumeRecovery,
   fetchWeightEntries,
   fetchWorkoutLogDetail,
+  upsertRecoveryCheckIn,
 } from "@/lib/fitness/api"
-import type { BodyMetricEntry, ProgressCalendar } from "@/lib/fitness/types"
+import type { BodyMetricEntry, ProgressCalendar, RecoveryCheckInInput } from "@/lib/fitness/types"
 
 /** Reference-ish: only this user changes it, from two screens that invalidate. */
 const WEIGHT_STALE_TIME_MS = 30_000
@@ -96,6 +98,27 @@ export function useWorkoutLogDetail(logId: string | null) {
     queryFn: async () => fetchWorkoutLogDetail(await requireAccessToken(), logId ?? ""),
     enabled: Boolean(logId),
     staleTime: IMMUTABLE_STALE_TIME_MS,
+  })
+}
+
+export function useVolumeRecovery(options?: { enabled?: boolean; weekStart?: string }) {
+  return useQuery({
+    queryKey: queryKeys.progress.volumeRecovery(options?.weekStart),
+    queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), options?.weekStart),
+    enabled: options?.enabled ?? true,
+    staleTime: PROGRESS_STALE_TIME_MS,
+  })
+}
+
+export function useUpsertRecoveryCheckIn() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: RecoveryCheckInInput) =>
+      upsertRecoveryCheckIn(await requireAccessToken(), input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.progress.all })
+    },
   })
 }
 

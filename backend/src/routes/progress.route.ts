@@ -1,5 +1,6 @@
 import { Router } from "express"
 
+import { validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   createBodyMetricForCurrentTrainee,
@@ -9,10 +10,36 @@ import {
   getWorkoutLogDetailForTrainee,
   getYearViewForTrainee,
   listBodyMetricsForCurrentTrainee,
+  getVolumeRecoveryForTrainee,
+  upsertRecoveryCheckInForTrainee,
 } from "../services/fitness-data.service"
-import { getAccessToken, sendError } from "./route.utils"
+import { getAccessToken, sendData, sendError } from "./route.utils"
+import { recoveryCheckInSchema, volumeRecoveryQuerySchema } from "./progress.schemas"
 
 const progressRouter = Router()
+
+progressRouter.get(
+  "/volume-recovery",
+  validated({ query: volumeRecoveryQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const weekStart = req.query.weekStart
+      ? new Date(`${req.query.weekStart}T00:00:00.000Z`)
+      : undefined
+    sendData(res, await getVolumeRecoveryForTrainee(profile, weekStart))
+  }),
+)
+
+progressRouter.put(
+  "/recovery-check-in",
+  validated({ body: recoveryCheckInSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const checkIn = await upsertRecoveryCheckInForTrainee(profile, {
+      ...req.body,
+      checkInDate: new Date(`${req.body.checkInDate}T00:00:00.000Z`),
+    })
+    sendData(res, checkIn)
+  }),
+)
 
 progressRouter.get("/analytics", async (req, res) => {
   try {

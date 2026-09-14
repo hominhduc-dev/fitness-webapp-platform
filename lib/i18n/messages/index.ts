@@ -10,6 +10,7 @@ import { profileMessages } from "@/lib/i18n/messages/profile"
 import { progressMessages } from "@/lib/i18n/messages/progress"
 import { scheduleMessages } from "@/lib/i18n/messages/schedule"
 import { workoutMessages } from "@/lib/i18n/messages/workout"
+import { volumeRecoveryMessages } from "@/lib/i18n/messages/volume-recovery"
 
 type WidenLiteral<T> =
   T extends string ? string
@@ -26,6 +27,7 @@ const enMessages = {
   ...dashboardMessages.en,
   ...scheduleMessages.en,
   ...workoutMessages.en,
+  ...volumeRecoveryMessages.en,
   ...progressMessages.en,
   ...mealsMessages.en,
   ...profileMessages.en,
@@ -42,6 +44,7 @@ const viMessages: AppMessages = {
   ...dashboardMessages.vi,
   ...scheduleMessages.vi,
   ...workoutMessages.vi,
+  ...volumeRecoveryMessages.vi,
   ...progressMessages.vi,
   ...mealsMessages.vi,
   ...profileMessages.vi,

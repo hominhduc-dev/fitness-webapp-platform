@@ -53,9 +53,12 @@ import type {
   ProgressStrengthSeries,
   ProgressWeeklyVolumePoint,
   ProgressYearView,
+  RecoveryCheckIn,
+  RecoveryCheckInInput,
   TraineeDashboardData,
   WorkoutCollection,
   WorkoutLogInput,
+  VolumeRecoveryData,
   AppNotification,
 } from "./types"
 
@@ -1209,6 +1212,26 @@ async function fetchProgressAnalytics(accessToken: string): Promise<ProgressAnal
   return mapProgressAnalytics(response.analytics)
 }
 
+async function fetchVolumeRecovery(accessToken: string, weekStart?: string): Promise<VolumeRecoveryData> {
+  const searchParams = new URLSearchParams()
+  if (weekStart) searchParams.set("weekStart", weekStart)
+  const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
+  const response = await request<ApiEnvelope<VolumeRecoveryData>>(
+    `/api/progress/volume-recovery${suffix}`,
+    accessToken,
+  )
+  return response.data
+}
+
+async function upsertRecoveryCheckIn(accessToken: string, input: RecoveryCheckInInput) {
+  const response = await request<ApiEnvelope<RecoveryCheckIn>>(
+    "/api/progress/recovery-check-in",
+    accessToken,
+    { body: JSON.stringify(input), method: "PUT" },
+  )
+  return response.data
+}
+
 async function fetchDashboardAnalytics(
   accessToken: string,
   startDate: Date,
@@ -2272,6 +2295,7 @@ export {
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,
+  fetchVolumeRecovery,
   fetchWeightEntries,
   fetchWorkoutLogDetail,
   fetchDiscoverableCoaches,
@@ -2314,6 +2338,7 @@ export {
   updateCoachRequestStatus,
   updateCoachWorkoutLogComment,
   updateWorkout,
+  upsertRecoveryCheckIn,
 }
 
 export type { AIDailyWorkout }

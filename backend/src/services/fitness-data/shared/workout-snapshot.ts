@@ -31,9 +31,12 @@ type WorkoutLogSnapshotExercise = {
     name?: string | null
   } | null
   variation?: {
+    activityType?: string | null
     id?: string | null
     isDefault?: boolean | null
     name?: string | null
+    primaryMuscles?: string[] | null
+    secondaryMuscles?: string[] | null
   } | null
   sets?: WorkoutLogSnapshotSet[] | null
 }
@@ -80,6 +83,18 @@ function getSnapshotExerciseName(exercise: WorkoutLogSnapshotExercise) {
 function getSnapshotVariationId(exercise: WorkoutLogSnapshotExercise) {
   const variationId = exercise.variation?.id?.trim()
   return variationId || undefined
+}
+
+function getSnapshotPrimaryMuscles(exercise: WorkoutLogSnapshotExercise) {
+  return (exercise.variation?.primaryMuscles ?? []).filter(
+    (muscle): muscle is string => typeof muscle === "string" && muscle.trim().length > 0,
+  )
+}
+
+function getSnapshotSecondaryMuscles(exercise: WorkoutLogSnapshotExercise) {
+  return (exercise.variation?.secondaryMuscles ?? []).filter(
+    (muscle): muscle is string => typeof muscle === "string" && muscle.trim().length > 0,
+  )
 }
 
 function getSnapshotMuscleGroup(exercise: WorkoutLogSnapshotExercise) {
@@ -140,9 +155,10 @@ export {
   getSnapshotMaxE1RM,
   getSnapshotMaxWeight,
   getSnapshotMuscleGroup,
+  getSnapshotPrimaryMuscles,
+  getSnapshotSecondaryMuscles,
   getSnapshotVariationId,
   parseWorkoutLogSnapshotExercises,
   toFiniteNumber,
 }
 export type { WorkoutLogSnapshotExercise, WorkoutLogSnapshotSet }
-
