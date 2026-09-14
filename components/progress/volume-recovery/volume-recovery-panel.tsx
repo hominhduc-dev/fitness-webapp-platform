@@ -123,8 +123,17 @@ function MuscleVolumeRow({
   name: string
   zoneLabel: string
 }) {
-  const rangeMax = Math.max(muscle.landmarks.mrvSets * 1.1, 1)
-  const position = Math.min(100, (muscle.effectiveSets / rangeMax) * 100)
+  const { landmarks } = muscle
+  // One scale drives the bands, the marker and the tick labels. They used to
+  // disagree: the bands were pinned at 40/35/25% of the width while the marker
+  // was placed by set count, so the dot only lined up with a landmark by
+  // coincidence — and never at all once a coach set their own landmarks.
+  const scaleMax = Math.max(landmarks.mrvSets * 1.15, muscle.effectiveSets * 1.05, 1)
+  const toPercent = (sets: number) => Math.min(100, Math.max(0, (sets / scaleMax) * 100))
+  const mevAt = toPercent(landmarks.mevSets)
+  const mavMaxAt = toPercent(landmarks.mavMaxSets)
+  const mrvAt = toPercent(landmarks.mrvSets)
+  const position = toPercent(muscle.effectiveSets)
 
   return (
     <div className="border-b border-border py-4 last:border-0">
@@ -139,20 +148,36 @@ function MuscleVolumeRow({
           {zoneLabel}
         </span>
       </div>
-      <div className="relative pt-4">
-        <div className="grid h-2 grid-cols-[40%_35%_25%] overflow-hidden rounded-full">
-          <span className="bg-success" />
-          <span className="bg-warning" />
-          <span className="bg-destructive" />
+      <div className="pt-4">
+        <div className="relative h-2" aria-hidden="true">
+          <div className="absolute inset-0 overflow-hidden rounded-full bg-muted">
+            <span className="absolute inset-y-0 bg-success" style={{ left: `${mevAt}%`, width: `${mavMaxAt - mevAt}%` }} />
+            <span className="absolute inset-y-0 bg-warning" style={{ left: `${mavMaxAt}%`, width: `${mrvAt - mavMaxAt}%` }} />
+            <span className="absolute inset-y-0 right-0 bg-destructive" style={{ left: `${mrvAt}%` }} />
+            {/* Surface-coloured separators so neighbouring bands stay countable. */}
+            {[mevAt, mavMaxAt, mrvAt].map((at) => (
+              <span key={at} className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-card" style={{ left: `${at}%` }} />
+            ))}
+          </div>
+          <span
+            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-primary shadow-sm"
+            style={{ left: `${position}%` }}
+          />
         </div>
-        <span
-          className="absolute top-[0.82rem] size-3 -translate-x-1/2 rounded-full border-2 border-card bg-primary shadow-sm"
-          style={{ left: `${position}%` }}
-        />
-        <div className="mt-2 flex justify-between font-mono text-micro tnum text-muted-foreground">
-          <span>MEV {muscle.landmarks.mevSets}</span>
-          <span>MAV {muscle.landmarks.mavMinSets}–{muscle.landmarks.mavMaxSets}</span>
-          <span>MRV {muscle.landmarks.mrvSets}</span>
+        <div className="relative mt-2 h-4 font-mono text-micro tnum text-muted-foreground">
+          {[
+            { at: mevAt, label: `MEV ${landmarks.mevSets}` },
+            { at: toPercent((landmarks.mavMinSets + landmarks.mavMaxSets) / 2), label: `MAV ${landmarks.mavMinSets}–${landmarks.mavMaxSets}` },
+            { at: mrvAt, label: `MRV ${landmarks.mrvSets}` },
+          ].map((tick) => (
+            <span
+              key={tick.label}
+              className="absolute -translate-x-1/2 whitespace-nowrap"
+              style={{ left: `${tick.at}%` }}
+            >
+              {tick.label}
+            </span>
+          ))}
         </div>
       </div>
       {muscle.lowConfidenceSets > 0 ? (
