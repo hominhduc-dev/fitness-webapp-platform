@@ -15,11 +15,15 @@ const NUTRITION_STALE_TIME_MS = 30_000
 /** The food catalogue only grows when this user adds a custom food. */
 const FOODS_STALE_TIME_MS = 30 * 60_000
 
-export function useNutritionDay(dateKey: string, seed?: { initialData?: NutritionDay }) {
+export function useNutritionDay(
+  dateKey: string,
+  seed?: { initialData?: NutritionDay; initialDataUpdatedAt?: number },
+) {
   return useQuery({
     queryKey: queryKeys.meals.nutritionDay(dateKey),
     queryFn: async () => fetchNutritionDay(await requireAccessToken(), dateKey),
     initialData: seed?.initialData,
+    initialDataUpdatedAt: seed?.initialDataUpdatedAt,
     staleTime: NUTRITION_STALE_TIME_MS,
   })
 }

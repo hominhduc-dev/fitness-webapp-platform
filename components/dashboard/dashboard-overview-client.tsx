@@ -16,6 +16,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import type { fetchProgressAnalytics, fetchRecoveryHistory, fetchVolumeRecovery } from "@/lib/fitness/api"
 import { fetchDashboard } from "@/lib/fitness/api"
 import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
+import { useNutritionDay } from "@/lib/queries/meals"
 import { useProgressAnalytics, useRecoveryHistory, useVolumeRecovery } from "@/lib/queries/progress"
 import { useUserQuery } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
@@ -41,6 +42,10 @@ function addLocalDays(date: Date, days: number) {
 
 function localDayKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+}
+
+function formatDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
 
 function isSameCalendarDate(left: Date, right: Date) {
@@ -137,6 +142,18 @@ export function DashboardOverviewClient({
     queryFn: async () => fetchDashboard(await requireAccessToken()),
     initialData,
   })
+  // The dashboard payload uses targetCalories/totalCalories while NutritionDay
+  // uses targets/totals. Read the shared meals query so dashboard reflects a
+  // meal logged from /meals instead of a stale ISR snapshot.
+  const todayNutritionQuery = useNutritionDay(formatDateKey(new Date()))
+  const dailyNutrition = todayNutritionQuery.data
+    ? {
+        date: todayNutritionQuery.data.date,
+        meals: todayNutritionQuery.data.meals,
+        targetCalories: todayNutritionQuery.data.targets.calories,
+        totalCalories: todayNutritionQuery.data.totals.calories,
+      }
+    : dashboard.dailyNutrition
   // Seeded before the cards below render, so they read these keys from the
   // cache instead of fetching them after hydration.
   useVolumeRecovery({ initialData: seeds?.volumeRecovery })
@@ -187,7 +204,7 @@ export function DashboardOverviewClient({
         </div>
 
         <div className="order-2 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-start-1">
-          <NutritionSummary nutrition={dashboard.dailyNutrition} />
+          <NutritionSummary nutrition={dailyNutrition} />
         </div>
 
         <div className="order-4 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-2">
