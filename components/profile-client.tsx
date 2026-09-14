@@ -493,7 +493,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
             <Button
               type="button"
-              size="icon-xs"
+              size="icon-sm"
               className="absolute bottom-0 right-0 rounded-full shadow-lg"
               onClick={() => avatarInputRef.current?.click()}
               disabled={isUploadingAvatar}
