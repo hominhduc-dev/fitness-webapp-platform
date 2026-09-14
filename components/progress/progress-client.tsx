@@ -3,33 +3,44 @@
 import type React from "react"
 import { useCallback, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
-import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
 import { ProgressOverview } from "@/components/progress/progress-overview"
+import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
 import { VolumeRecoveryPanel } from "@/components/progress/volume-recovery/volume-recovery-panel"
 import { BottomSheet, BottomSheetBody, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useWorkouts } from "@/lib/queries/workouts"
-import type { WorkoutCollection } from "@/lib/fitness/types"
-import {
-  useDashboardAnalytics,
-  useProgressCalendar,
-  useProgressYearView,
-  useWorkoutLogDetail,
-} from "@/lib/queries/progress"
-
+import type {
+  fetchDashboardAnalytics,
+  fetchProgressAnalytics,
+  fetchRecoveryHistory,
+  fetchVolumeRecovery,
+  fetchWeightEntries,
+} from "@/lib/fitness/api"
+import { PROGRESS_OVERVIEW_RECOVERY_DAYS, PROGRESS_OVERVIEW_WEIGHT_DAYS } from "@/lib/fitness/progress-ranges"
+import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import type {
   ProgressCalendar,
   ProgressCalendarLogStub,
   ProgressYearView,
   TraineeProgram,
+  WorkoutCollection,
 } from "@/lib/fitness/types"
+import {
+  useDashboardAnalytics,
+  useProgressAnalytics,
+  useProgressCalendar,
+  useProgressYearView,
+  useRecoveryHistory,
+  useVolumeRecovery,
+  useWeightEntries,
+  useWorkoutLogDetail,
+} from "@/lib/queries/progress"
+import { useWorkouts } from "@/lib/queries/workouts"
 import type { WorkoutLog } from "@/lib/types"
-import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
@@ -37,12 +48,19 @@ import { cn } from "@/lib/utils"
 // ---------------------------------------------------------------------------
 
 type WorkoutKind = "all" | "push" | "pull" | "legs"
-type Tab = "overview" | "history" | "volume" | "year" | "prs"
-const PROGRESS_TABS: Tab[] = ["overview", "history", "volume", "year", "prs"]
+type Tab = "overview" | "history" | "volume"
+type HistoryMode = "month" | "year"
+const PROGRESS_TABS: Tab[] = ["overview", "history", "volume"]
 const YEAR_VIEW_MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-function isProgressTab(value: string | null): value is Tab {
-  return value != null && PROGRESS_TABS.includes(value as Tab)
+/**
+ * "year" and "prs" used to be tabs of their own. They now live inside History
+ * and Overview, and old links resolve to the tab that holds them.
+ */
+function resolveTab(value: string | null): { historyMode?: HistoryMode; tab: Tab } {
+  if (value === "year") return { historyMode: "year", tab: "history" }
+  if (value === "history" || value === "volume") return { tab: value }
+  return { tab: "overview" }
 }
 
 function kindColor(k: string) {
@@ -89,17 +107,6 @@ function LabelMicro({ children, className }: { children: React.ReactNode; classN
   return <span className={cn("label-micro", className)}>{children}</span>
 }
 
-function TabLabel({ tab, text }: { tab: Tab; text: string }) {
-  const mobileText = tab === "year" ? "Year" : tab === "prs" ? "Stats" : text
-
-  return (
-    <>
-      <span className="sm:hidden">{mobileText}</span>
-      <span className="hidden sm:inline">{text}</span>
-    </>
-  )
-}
-
 function Chip({
   active,
   children,
@@ -125,8 +132,76 @@ function Chip({
   )
 }
 
+function SegmentedControl<T extends string>({
+  ariaLabel,
+  onChange,
+  options,
+  value,
+}: {
+  ariaLabel: string
+  onChange: (value: T) => void
+  options: Array<{ label: string; value: T }>
+  value: T
+}) {
+  return (
+    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-full border border-border bg-card p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors pointer-coarse:min-h-10",
+            value === option.value ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function PeriodNav({
+  detail,
+  label,
+  nextDisabled,
+  nextLabel,
+  onNext,
+  onPrevious,
+  previousLabel,
+}: {
+  detail: string
+  label: string
+  nextDisabled: boolean
+  nextLabel: string
+  onNext: () => void
+  onPrevious: () => void
+  previousLabel: string
+}) {
+  const buttonClass =
+    "inline-flex size-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors pointer-coarse:size-11 hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={onPrevious} className={buttonClass} aria-label={previousLabel}>
+        <ChevronLeft className="size-4" />
+      </button>
+      <div className="min-w-[8.5rem] text-center">
+        <p className="text-sm font-semibold capitalize text-foreground">{label}</p>
+        <p className="font-mono text-micro tnum text-muted-foreground">{detail}</p>
+      </div>
+      <button type="button" onClick={onNext} disabled={nextDisabled} className={buttonClass} aria-label={nextLabel}>
+        <ChevronRight className="size-4" />
+      </button>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
-// Stats summary row
+// Month summary row
 // ---------------------------------------------------------------------------
 
 function StatsSummary({
@@ -140,72 +215,42 @@ function StatsSummary({
   const cur = calendar?.summary ?? { avgDurationMins: 0, totalVolume: 0, totalWorkouts: 0 }
   const prev = prevCalendar?.summary ?? { avgDurationMins: 0, totalVolume: 0, totalWorkouts: 0 }
 
-  function delta(cur: number, prev: number) {
-    if (prev === 0) return null
-    const pct = Math.round(((cur - prev) / prev) * 100)
-    return pct
+  function delta(current: number, previous: number) {
+    if (previous === 0) return null
+    return Math.round(((current - previous) / previous) * 100)
   }
 
-  const workoutDelta = delta(cur.totalWorkouts, prev.totalWorkouts)
-  const volumeDelta = delta(cur.totalVolume, prev.totalVolume)
+  const tiles = [
+    { delta: delta(cur.totalWorkouts, prev.totalWorkouts), label: messages.progressPage.sessions, value: String(cur.totalWorkouts) },
+    { delta: delta(cur.totalVolume, prev.totalVolume), label: messages.workoutPage.volume, unit: "kg", value: formatVolume(cur.totalVolume) },
+    {
+      detail: prev.avgDurationMins > 0
+        ? `${messages.progressPage.previousShort} ${formatDuration(prev.avgDurationMins, messages.dashboard.min)}`
+        : undefined,
+      label: messages.progressPage.avgDuration,
+      value: formatDuration(cur.avgDurationMins, messages.dashboard.min),
+    },
+  ]
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-4">
-      {/* Workouts */}
-      <div className="min-h-28 min-w-0 rounded-2xl border border-border bg-card p-3 sm:min-h-0 sm:rounded-lg sm:p-4">
-        <LabelMicro className="mb-2 block">{messages.progressPage.sessions}</LabelMicro>
-        <div className="flex items-baseline gap-2">
-          <span className="min-w-0 whitespace-nowrap font-mono text-3xl font-semibold leading-none tnum text-foreground sm:text-3xl">
-            {cur.totalWorkouts}
-          </span>
+    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      {tiles.map((tile) => (
+        <div key={tile.label} className="min-w-0 rounded-2xl border border-border bg-card p-3 sm:p-4">
+          <p className="truncate text-xs text-muted-foreground">{tile.label}</p>
+          <p className="mt-1.5 flex items-baseline gap-1 whitespace-nowrap font-mono text-xl font-semibold leading-none tnum text-foreground sm:text-2xl">
+            {tile.value}
+            {tile.unit ? <span className="text-xs font-normal text-muted-foreground">{tile.unit}</span> : null}
+          </p>
+          {tile.delta != null ? (
+            <p className={cn("mt-1.5 truncate font-mono text-micro tnum", tile.delta >= 0 ? "text-success-text" : "text-warning-text")}>
+              {tile.delta >= 0 ? "+" : ""}
+              {tile.delta}% {messages.progressPage.vsPrevious}
+            </p>
+          ) : tile.detail ? (
+            <p className="mt-1.5 truncate font-mono text-micro tnum text-muted-foreground">{tile.detail}</p>
+          ) : null}
         </div>
-        {workoutDelta !== null && (
-          <div
-            className={cn(
-              "mt-2 font-mono text-micro leading-tight tnum sm:text-micro",
-              workoutDelta >= 0 ? "text-[var(--success)]" : "text-[var(--warning)]",
-            )}
-          >
-            {workoutDelta >= 0 ? "+" : ""}
-            {workoutDelta}% {messages.progressPage.vsPrevious}
-          </div>
-        )}
-      </div>
-
-      {/* Volume */}
-      <div className="min-h-28 min-w-0 rounded-2xl border border-border bg-card p-3 sm:min-h-0 sm:rounded-lg sm:p-4">
-        <LabelMicro className="mb-2 block">{messages.workoutPage.volume}</LabelMicro>
-        <div className="flex min-w-0 items-baseline gap-1">
-          <span className="min-w-0 whitespace-nowrap font-mono text-3xl font-semibold leading-none tnum text-foreground sm:text-3xl">
-            {formatVolume(cur.totalVolume)}
-          </span>
-          <span className="shrink-0 text-micro text-muted-foreground sm:text-xs">kg</span>
-        </div>
-        {volumeDelta !== null && (
-          <div
-            className={cn(
-              "mt-2 font-mono text-micro leading-tight tnum sm:text-micro",
-              volumeDelta >= 0 ? "text-[var(--success)]" : "text-[var(--warning)]",
-            )}
-          >
-            {volumeDelta >= 0 ? "+" : ""}
-            {volumeDelta}% {messages.progressPage.vsPrevious}
-          </div>
-        )}
-      </div>
-
-      {/* Avg duration */}
-      <div className="min-h-28 min-w-0 rounded-2xl border border-border bg-card p-3 sm:min-h-0 sm:rounded-lg sm:p-4">
-        <LabelMicro className="mb-2 block">{messages.progressPage.avgDuration}</LabelMicro>
-        <div className="whitespace-nowrap font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
-          {formatDuration(cur.avgDurationMins, messages.dashboard.min)}
-        </div>
-        {prev.avgDurationMins > 0 && (
-          <div className="mt-2 font-mono text-micro leading-tight tnum text-muted-foreground sm:text-micro">
-            {messages.progressPage.previousShort} {formatDuration(prev.avgDurationMins, messages.dashboard.min)}
-          </div>
-        )}
-      </div>
+      ))}
     </div>
   )
 }
@@ -219,7 +264,6 @@ function WorkoutLogModal({
   onClose,
 }: {
   logId: string
-  accessToken: string
   onClose: () => void
 }) {
   const { locale, messages } = useLocale()
@@ -391,7 +435,7 @@ function CalendarSection({
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   return (
-    <div className="min-h-[21.5rem] rounded-2xl border border-border bg-card p-5 sm:min-h-0 sm:rounded-lg">
+    <div className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5">
       {calendarLoading ? (
         <div className="grid grid-cols-7 gap-1.5">
           {Array.from({ length: 35 }, (_, i) => (
@@ -481,7 +525,7 @@ function CalendarSection({
 }
 
 // ---------------------------------------------------------------------------
-// Recent sessions sidebar
+// Recent sessions
 // ---------------------------------------------------------------------------
 
 function RecentSessions({
@@ -506,14 +550,14 @@ function RecentSessions({
   if (calendarLoading) {
     return (
       <div className="flex flex-col gap-2">
-        {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
       </div>
     )
   }
 
   if (logs.length === 0) {
     return (
-      <div className="flex min-h-[12rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+      <div className="flex min-h-[6rem] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
         {messages.workoutPage.noSessionsThisMonth}
       </div>
     )
@@ -531,9 +575,8 @@ function RecentSessions({
             key={log.id}
             type="button"
             onClick={() => onLogClick(log.id)}
-            className="flex w-full cursor-pointer items-center gap-3.5 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-muted"
+            className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:bg-muted"
           >
-            {/* Date column */}
             <div className="w-9 shrink-0 text-center">
               <div className="label-micro leading-tight">{dateLabel.split(" ")[0]}</div>
               <div className="font-mono text-lg font-semibold leading-tight tnum text-foreground">
@@ -541,10 +584,8 @@ function RecentSessions({
               </div>
             </div>
 
-            {/* Colored bar */}
             <div className="h-8 w-1 shrink-0 rounded-sm" style={{ background: kindColor(kind) }} />
 
-            {/* Content */}
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{log.workoutName}</div>
               <div className="mt-0.5 font-mono text-micro tnum text-muted-foreground">
@@ -578,7 +619,6 @@ function YearView({
   const { messages } = useLocale()
   // Build a 53-column × 7-row grid (Mon-start weeks)
   const grid = useMemo(() => {
-    // Map date → count
     const countMap = new Map<string, number>()
     if (yearView) {
       for (const d of yearView.days) {
@@ -588,9 +628,7 @@ function YearView({
 
     // Find start: Jan 1 of year, rolled back to Monday
     const jan1 = new Date(Date.UTC(year, 0, 1))
-    const jan1DayOfWeek = jan1.getUTCDay() // 0=Sun
-    // Use Mon as start of week
-    const startOffset = (jan1DayOfWeek + 6) % 7 // days back to reach Mon
+    const startOffset = (jan1.getUTCDay() + 6) % 7
     const gridStart = new Date(jan1.getTime() - startOffset * 86_400_000)
 
     const weeks: Array<Array<{ date: string; count: number } | null>> = []
@@ -623,7 +661,6 @@ function YearView({
     return weeks
   }, [year, yearView])
 
-  // Max count for intensity scaling
   const maxCount = useMemo(() => {
     if (!yearView || yearView.days.length === 0) return 1
     return Math.max(...yearView.days.map((d) => d.count), 1)
@@ -638,7 +675,6 @@ function YearView({
     return "var(--primary)"
   }
 
-  // Find first week index for each month
   const monthPositions = useMemo(() => {
     const positions: { month: string; colIndex: number }[] = []
     let lastMonth = -1
@@ -657,22 +693,13 @@ function YearView({
     return positions
   }, [grid])
 
-  const totalWorkouts = yearView?.days.reduce((s, d) => s + d.count, 0) ?? 0
-
   return (
-    <div className="min-h-[21.5rem] rounded-2xl border border-border bg-card p-5 sm:min-h-0 sm:rounded-lg">
-      <div className="mb-4 flex items-baseline justify-between">
-        <LabelMicro>{messages.progressPage.activity(year)}</LabelMicro>
-        <span className="font-mono text-micro tnum text-muted-foreground">
-          {messages.workoutPage.sessionCount(totalWorkouts)}
-        </span>
-      </div>
-
+    <div className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5">
       {yearViewLoading ? (
         <Skeleton className="h-28 w-full rounded-md" />
       ) : (
         <div className="w-full overflow-x-auto">
-          <div className="min-w-[34rem] sm:min-w-[640px]">
+          <div className="relative min-w-[34rem] sm:min-w-[640px]">
             {/* Month labels */}
             <div className="relative mb-1 flex h-4" style={{ paddingLeft: 28 }}>
               {monthPositions.map(({ month, colIndex }) => (
@@ -729,7 +756,7 @@ function YearView({
           <div
             key={i}
             className="h-3 w-3 rounded-sm"
-            style={{ background: intensity(ratio) }}
+            style={{ background: intensity(ratio * maxCount) }}
           />
         ))}
         <LabelMicro>{messages.progressPage.more}</LabelMicro>
@@ -739,45 +766,21 @@ function YearView({
 }
 
 // ---------------------------------------------------------------------------
-// Page Component
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Skeleton
 // ---------------------------------------------------------------------------
 
 function ProgressPageSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-7 space-y-2">
-        <Skeleton className="h-4 w-28 rounded" />
-        <Skeleton className="h-9 w-64 rounded" />
+    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+      <div className="mb-5 space-y-2">
+        <Skeleton className="h-8 w-40 rounded" />
+        <Skeleton className="h-4 w-56 rounded" />
       </div>
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+      <Skeleton className="mb-5 h-12 rounded-2xl md:w-[26rem]" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-56 rounded-2xl" />
+        <Skeleton className="h-56 rounded-2xl" />
       </div>
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <Skeleton className="h-[26rem] rounded-lg" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ProgressPrsSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-36 rounded" />
-        <Skeleton className="h-8 w-48 rounded" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-44 rounded-lg" />
-        ))}
-      </div>
-      <Skeleton className="h-64 rounded-lg" />
     </div>
   )
 }
@@ -786,85 +789,87 @@ function ProgressPrsSkeleton() {
 // Page
 // ---------------------------------------------------------------------------
 
-import { AnalyticsDashboard } from "./dashboard/analytics-dashboard"
-
+/** Server seeds for the tab the page was opened on; every data field is optional. */
 export type ProgressClientInitialData = {
-  workoutCollection?: WorkoutCollection
-  calendar: ProgressCalendar
+  analytics?: Awaited<ReturnType<typeof fetchProgressAnalytics>>
+  analyticsRange: { end: Date; start: Date }
+  calendar?: ProgressCalendar
+  dashboardAnalytics?: Awaited<ReturnType<typeof fetchDashboardAnalytics>>
   historyLogs?: WorkoutLog[]
-  prevCalendar: ProgressCalendar | null
+  prevCalendar?: ProgressCalendar | null
   programs?: TraineeProgram[]
+  recoveryHistory?: { data: Awaited<ReturnType<typeof fetchRecoveryHistory>>; days: number }
   viewMonth: number
   viewYear: number
+  volumeRecovery?: Awaited<ReturnType<typeof fetchVolumeRecovery>>
   weekLogs?: WorkoutLog[]
+  weightEntries?: Awaited<ReturnType<typeof fetchWeightEntries>>
   weightUnitLabel: string
+  workoutCollection?: WorkoutCollection
 }
 
 export function ProgressClient({ initialData }: { initialData: ProgressClientInitialData }) {
-  const workoutsQuery = useWorkouts(initialData.workoutCollection)
   const { isLoading: authLoading, session } = useAuth()
   const { locale, messages } = useLocale()
+  const copy = messages.progressPage
   const pathname = usePathname()
-  const router = useRouter()
   const searchParams = useSearchParams()
-
-  // Month navigation
   const now = new Date()
+
+  const { historyMode: requestedHistoryMode, tab } = resolveTab(searchParams.get("tab"))
+  const [historyMode, setHistoryMode] = useState<HistoryMode>(requestedHistoryMode ?? "month")
   const [viewYear, setViewYear] = useState(initialData.viewYear)
   const [viewMonth, setViewMonth] = useState(initialData.viewMonth) // 1-based
-
-  const [yearViewYear, setYearViewYear] = useState(now.getFullYear())
-
-  // UI state
-  const requestedTab = searchParams.get("tab")
-  const tab: Tab = isProgressTab(requestedTab) ? requestedTab : "overview"
+  const [yearViewYear, setYearViewYear] = useState(initialData.viewYear)
   const [filter, setFilter] = useState<WorkoutKind>("all")
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
 
   const selectTab = useCallback((nextTab: Tab) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", nextTab)
-    router.push(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [pathname, router, searchParams])
+    // Shallow: Next keeps useSearchParams in sync with pushState, and every tab
+    // reads the query cache, so a server round-trip would only refetch seeds.
+    window.history.pushState(null, "", `${pathname}?${params.toString()}`)
+  }, [pathname, searchParams])
 
-  // Modal
-  const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
+  const isHistory = tab === "history"
+  const isYearMode = isHistory && historyMode === "year"
+  const workoutsQuery = useWorkouts(initialData.workoutCollection, { enabled: isHistory })
 
-  // Dashboard date range
-  const [dashboardRange] = useState(() => {
-    const end = new Date()
-    const start = new Date(end)
-    start.setDate(end.getDate() - 90)
-    return { start, end }
+  // Seed-only observers: they put the server data in the cache without fetching,
+  // and the tab components below read or fetch these keys themselves.
+  useProgressAnalytics({ enabled: false, initialData: initialData.analytics })
+  useVolumeRecovery({ enabled: false, initialData: initialData.volumeRecovery })
+  useWeightEntries(PROGRESS_OVERVIEW_WEIGHT_DAYS, { enabled: false, initialData: initialData.weightEntries })
+  useRecoveryHistory(initialData.recoveryHistory?.days ?? PROGRESS_OVERVIEW_RECOVERY_DAYS, {
+    enabled: false,
+    initialData: initialData.recoveryHistory?.data,
+  })
+  useDashboardAnalytics(initialData.analyticsRange.start, initialData.analyticsRange.end, {
+    enabled: false,
+    initialData: initialData.dashboardAnalytics,
   })
 
-  const token = session?.access_token
-
-
   const isSeedMonth = viewYear === initialData.viewYear && viewMonth === initialData.viewMonth
+  // The month calendar also feeds Recent sessions, so it loads in both history modes.
   const calendarQuery = useProgressCalendar(viewYear, viewMonth, {
     initialData: isSeedMonth ? initialData.calendar : undefined,
+    enabled: isHistory,
   })
   const previousQuery = useProgressCalendar(viewMonth === 1 ? viewYear - 1 : viewYear, viewMonth === 1 ? 12 : viewMonth - 1, {
     summaryOnly: true,
     initialData: isSeedMonth ? initialData.prevCalendar : undefined,
-    enabled: calendarQuery.isSuccess,
+    enabled: isHistory && !isYearMode && calendarQuery.isSuccess,
   })
-  
-  // Dashboard hook replacing the old analytics query
-  const dashboardQuery = useDashboardAnalytics(dashboardRange.start, dashboardRange.end, { enabled: tab === "prs" })
-  const yearQuery = useProgressYearView(yearViewYear, { enabled: tab === "history" || tab === "year" })
-  
+  const yearQuery = useProgressYearView(yearViewYear, { enabled: isYearMode })
+
   const calendar = calendarQuery.data ?? null
   const prevCalendar = previousQuery.data ?? null
-  const dashboardData = dashboardQuery.data ?? null
   const yearView = yearQuery.data ?? null
-  
   const calendarLoading = calendarQuery.isPending
-  const dashboardLoading = dashboardQuery.isPending
-  const yearViewLoading = yearQuery.isPending
-  const error = (calendarQuery.error ?? dashboardQuery.error ?? yearQuery.error)?.message
+  const error = (isYearMode ? yearQuery.error : calendarQuery.error)?.message
+  const yearSessions = yearView?.days.reduce((sum, day) => sum + day.count, 0) ?? 0
 
-  // Month nav helpers
   const goToPrevMonth = useCallback(() => {
     setViewMonth((m) => {
       if (m === 1) { setViewYear((y) => y - 1); return 12 }
@@ -879,176 +884,131 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
     })
   }, [])
 
-  const isCurrentMonth =
-    viewYear === now.getFullYear() && viewMonth === now.getMonth() + 1
+  const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth() + 1
 
-  // Handle day click in calendar → open modal for first log of that day
-  const handleDayClick = useCallback((logs: ProgressCalendarLogStub[]) => {
+  function handleDayClick(logs: ProgressCalendarLogStub[]) {
     if (logs.length > 0) setSelectedLogId(logs[0].id)
-  }, [setSelectedLogId])
+  }
 
-  // Handle year-view day click → navigate calendar to that month
+  // Year-view day click → open that month in the calendar
   const handleYearDayClick = useCallback((date: string) => {
     const [y, m] = date.split("-").map(Number)
     setViewYear(y)
     setViewMonth(m)
-    selectTab("history")
-  }, [selectTab, setViewMonth, setViewYear])
+    setHistoryMode("month")
+  }, [])
 
-  if (authLoading || (calendarLoading && calendar == null)) {
+  if (authLoading) {
     return <ProgressPageSkeleton />
+  }
+
+  const tabLabels: Record<Tab, string> = {
+    history: copy.historyTab,
+    overview: copy.overview.tab,
+    volume: copy.recoveryTab,
   }
 
   return (
     <>
       <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+        <header className="mb-4 md:mb-5">
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground">{copy.analytics.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{copy.analytics.description}</p>
+        </header>
 
-        {/* ---- Page header ---- */}
-        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between md:mb-6">
-          {/* Month nav */}
-          {tab === "prs" ? (
-            <div>
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">{messages.progressPage.analytics.title}</h1>
-              <p className="mt-1 text-base text-muted-foreground sm:mt-2 sm:text-sm">{messages.progressPage.analytics.description}</p>
-            </div>
-          ) : tab === "volume" ? (
-            <div>
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">{messages.volumeRecovery.title}</h1>
-              <p className="mt-1 text-base text-muted-foreground sm:mt-2 sm:text-sm">{messages.volumeRecovery.subtitle}</p>
-            </div>
-          ) : tab === "overview" ? (
-            <div>
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">{messages.progressPage.analytics.title}</h1>
-              <p className="mt-1 text-base text-muted-foreground sm:mt-2 sm:text-sm">{messages.progressPage.analytics.description}</p>
-            </div>
-          ) : tab === "year" ? (
-            <div className="flex min-h-[4.5rem] items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setYearViewYear((y) => y - 1)}
-                className="inline-flex items-center justify-center rounded-full border border-border bg-background p-1.5 text-muted-foreground transition-colors pointer-coarse:size-11 hover:bg-muted"
-                aria-label={messages.progressPage.previousYear}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <div>
-                <LabelMicro className="mb-1 block">{messages.progressPage.yearView}</LabelMicro>
-                <h1 className="text-3xl font-semibold leading-none tracking-tight text-foreground">
-                  {yearViewYear}
-                </h1>
-              </div>
-              <button
-                type="button"
-                onClick={() => setYearViewYear((y) => y + 1)}
-                disabled={yearViewYear >= now.getFullYear()}
-                className="inline-flex items-center justify-center rounded-full border border-border bg-background p-1.5 text-muted-foreground transition-colors pointer-coarse:size-11 hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
-                aria-label={messages.progressPage.nextYear}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          ) : <div className="flex min-h-[4.5rem] items-center gap-3">
-            <button
-              type="button"
-              onClick={goToPrevMonth}
-              className="inline-flex items-center justify-center rounded-full border border-border bg-background p-1.5 text-muted-foreground transition-colors pointer-coarse:size-11 hover:bg-muted hover:text-foreground"
-              aria-label={messages.progressPage.previousMonth}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <div>
-              <LabelMicro className="mb-1 block">{monthLabel(viewYear, viewMonth, locale)}</LabelMicro>
-              <h1 className="text-3xl font-semibold leading-none tracking-tight text-foreground">
-                {calendarLoading
-                  ? "—"
-                  : messages.workoutPage.sessionCount(calendar?.summary.totalWorkouts ?? 0)
-                }
-              </h1>
-            </div>
-
-            <button
-              type="button"
-              onClick={goToNextMonth}
-              disabled={isCurrentMonth}
-              className="inline-flex items-center justify-center rounded-full border border-border bg-background p-1.5 text-muted-foreground transition-colors pointer-coarse:size-11 hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-              aria-label={messages.progressPage.nextMonth}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          }
-          {/* Filter chips + export */}
-          <div className="flex min-h-10 flex-wrap items-center gap-2">
-            {tab === "prs" ? (
-              <span className="mr-2 text-xs text-muted-foreground">{messages.progressPage.analytics.period}</span>
-            ) : tab === "volume" || tab === "overview" ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
-              <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
-                {k === "all"
-                  ? messages.workoutPage.all
-                  : k === "push"
-                    ? messages.workoutPage.tagPush
-                    : k === "pull"
-                      ? messages.workoutPage.tagPull
-                      : messages.workoutPage.tagLegs}
-              </Chip>
-            ))}
-            {tab !== "volume" && tab !== "overview" ? (
-              <ExportWorkoutDialog programs={workoutsQuery.data?.programs ?? initialData.programs ?? []} />
-            ) : null}
-          </div>
-        </div>
-
-        {/* ---- Stats summary ---- */}
-        {(tab === "history" || tab === "year") && <div className="mb-6">
-          <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />
-        </div>}
-
-        {/* ---- Tab strip ---- */}
-        <div className="mb-4 grid grid-cols-5 rounded-2xl border border-border bg-card p-1 shadow-sm sm:mx-0 sm:mb-6 sm:flex sm:gap-1 sm:overflow-x-auto sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div
+          role="tablist"
+          aria-label={copy.analytics.title}
+          className="mb-4 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1 md:mb-6 md:w-[26rem]"
+        >
           {PROGRESS_TABS.map((t) => (
             <button
               key={t}
               type="button"
+              role="tab"
+              aria-selected={tab === t}
               onClick={() => selectTab(t)}
               className={cn(
-                "min-w-0 rounded-xl px-1.5 py-2.5 text-center text-[13px] font-medium leading-none transition-colors sm:-mb-px sm:shrink-0 sm:rounded-none sm:border-b-2 sm:px-4 sm:py-2.5 sm:text-xs sm:font-semibold sm:uppercase sm:tracking-[0.08em]",
-                tab === t
-                  ? "bg-primary-soft text-primary sm:border-primary sm:bg-transparent"
-                  : "text-muted-foreground hover:text-foreground sm:border-transparent",
+                "min-w-0 truncate rounded-xl px-2 py-2.5 text-sm font-medium transition-colors",
+                tab === t ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <TabLabel
-                tab={t}
-                text={t === "overview"
-                  ? messages.progressPage.overview.tab
-                  : t === "history"
-                  ? messages.progressPage.historyTab
-                  : t === "volume"
-                    ? messages.volumeRecovery.tab
-                    : t === "year"
-                      ? messages.progressPage.yearView
-                      : messages.progressPage.analytics.tab}
-              />
+              {tabLabels[t]}
             </button>
           ))}
         </div>
 
-        {/* ---- Error banner ---- */}
-        {error ? (
-          <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-            {error}
-          </div>
-        ) : null}
+        {tab === "overview" ? <ProgressOverview analyticsRange={initialData.analyticsRange} /> : null}
 
-        {/* ================================================================
-            HISTORY / YEAR TABS
-            ================================================================ */}
-        {(tab === "history" || tab === "year") && (
-          <div className="min-h-[42rem] [overflow-anchor:none]">
-            {tab === "history" ? (
-              <div className="grid min-h-[32rem] gap-6 lg:grid-cols-[1fr_360px]">
+        {tab === "history" ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SegmentedControl
+                ariaLabel={copy.historyTab}
+                value={historyMode}
+                onChange={setHistoryMode}
+                options={[
+                  { label: copy.monthMode, value: "month" },
+                  { label: copy.yearMode, value: "year" },
+                ]}
+              />
+              {isYearMode ? (
+                <PeriodNav
+                  label={String(yearViewYear)}
+                  detail={yearQuery.isPending ? "—" : messages.workoutPage.sessionCount(yearSessions)}
+                  onPrevious={() => setYearViewYear((y) => y - 1)}
+                  onNext={() => setYearViewYear((y) => y + 1)}
+                  nextDisabled={yearViewYear >= now.getFullYear()}
+                  previousLabel={copy.previousYear}
+                  nextLabel={copy.nextYear}
+                />
+              ) : (
+                <PeriodNav
+                  label={monthLabel(viewYear, viewMonth, locale)}
+                  detail={calendarLoading ? "—" : messages.workoutPage.sessionCount(calendar?.summary.totalWorkouts ?? 0)}
+                  onPrevious={goToPrevMonth}
+                  onNext={goToNextMonth}
+                  nextDisabled={isCurrentMonth}
+                  previousLabel={copy.previousMonth}
+                  nextLabel={copy.nextMonth}
+                />
+              )}
+            </div>
+
+            <div className="flex min-h-10 flex-wrap items-center gap-2">
+              {isYearMode ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
+                <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
+                  {k === "all"
+                    ? messages.workoutPage.all
+                    : k === "push"
+                      ? messages.workoutPage.tagPush
+                      : k === "pull"
+                        ? messages.workoutPage.tagPull
+                        : messages.workoutPage.tagLegs}
+                </Chip>
+              ))}
+              <div className="ml-auto">
+                <ExportWorkoutDialog programs={workoutsQuery.data?.programs ?? initialData.programs ?? []} />
+              </div>
+            </div>
+
+            {error ? (
+              <div className="rounded-2xl border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+                {error}
+              </div>
+            ) : null}
+
+            {isYearMode ? null : <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />}
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6">
+              {isYearMode ? (
+                <YearView
+                  yearView={yearView}
+                  yearViewLoading={yearQuery.isPending}
+                  year={yearViewYear}
+                  onDayClick={handleYearDayClick}
+                />
+              ) : (
                 <CalendarSection
                   year={viewYear}
                   month={viewMonth}
@@ -1057,66 +1017,32 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   calendarLoading={calendarLoading}
                   onDayClick={handleDayClick}
                 />
+              )}
 
-                <div className="space-y-6">
-                  <TrainedAreasCard
-                    weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
-                    historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
+              <div className="min-w-0 space-y-4">
+                <section className="rounded-2xl border border-border bg-card p-4">
+                  <h2 className="mb-3 text-base font-semibold text-foreground">{copy.recent}</h2>
+                  <RecentSessions
+                    calendar={calendar}
+                    calendarLoading={calendarLoading}
+                    onLogClick={setSelectedLogId}
                   />
-
-                  <div>
-                    <LabelMicro className="mb-3 block">{messages.progressPage.recent}</LabelMicro>
-                    <RecentSessions
-                      calendar={calendar}
-                      calendarLoading={calendarLoading}
-                      onLogClick={setSelectedLogId}
-                    />
-                  </div>
-                </div>
+                </section>
+                <TrainedAreasCard
+                  weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
+                  historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
+                />
               </div>
-            ) : (
-              <div className="min-h-[32rem]">
-                <div className="relative">
-                  <YearView
-                    yearView={yearView}
-                    yearViewLoading={yearViewLoading}
-                    year={yearViewYear}
-                    onDayClick={handleYearDayClick}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === "overview" && <ProgressOverview />}
-
-        {tab === "volume" && <VolumeRecoveryPanel />}
-
-        {/* ================================================================
-            PRs TAB
-            ================================================================ */}
-        {tab === "prs" && (
-          dashboardLoading ? (
-            <ProgressPrsSkeleton />
-          ) : dashboardData ? (
-            <AnalyticsDashboard data={dashboardData} />
-          ) : (
-            <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
-              {messages.progressPage.analytics.empty}
             </div>
-          )
-        )}
+          </div>
+        ) : null}
+
+        {tab === "volume" ? <VolumeRecoveryPanel /> : null}
       </div>
 
-      {/* ---- Workout log detail modal ---- */}
-      {selectedLogId && token && (
-        <WorkoutLogModal
-          logId={selectedLogId}
-          accessToken={token}
-          onClose={() => setSelectedLogId(null)}
-        />
-      )}
+      {selectedLogId && session?.access_token ? (
+        <WorkoutLogModal logId={selectedLogId} onClose={() => setSelectedLogId(null)} />
+      ) : null}
     </>
   )
 }

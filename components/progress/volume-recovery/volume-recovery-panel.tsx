@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Activity, Brain, Check, ChevronLeft, Dumbbell, Moon, TrendingUp, X } from "lucide-react"
+import { Activity, Brain, Check, ChevronLeft, Dumbbell, Moon, X } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
@@ -464,73 +464,47 @@ export function VolumeRecoveryPanel() {
         ? copy.low
         : copy.insufficient
 
+  const checkIn = data.checkIn
+  const performance = data.summary.performanceChangePct
+  const signals = [
+    { icon: Moon, label: copy.sleep, value: checkIn?.sleepMinutes ? `${Math.floor(checkIn.sleepMinutes / 60)}h ${checkIn.sleepMinutes % 60}m` : "—" },
+    { icon: Activity, label: copy.fatigue, value: checkIn ? `${checkIn.fatigue}/5` : "—" },
+    { icon: Brain, label: copy.stress, value: checkIn?.stress ? `${checkIn.stress}/5` : "—" },
+    { icon: Dumbbell, label: copy.soreness, value: checkIn?.muscles.length ? `${Math.max(...checkIn.muscles.map((muscle) => muscle.soreness))}/5` : "—" },
+  ]
+  const checkInLabel = checkIn ? copy.updateCheckIn : copy.checkIn
+
   return (
-    <div className="space-y-5">
-      <section className="rounded-lg border border-border bg-card p-5">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-5">
-            <ReadinessRing score={data.readiness.score} />
-            <div>
-              <p className="label-micro">{copy.readiness}</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{readinessLabel}</h2>
-              <p className="mt-1 font-mono text-xs tnum text-muted-foreground">{copy.resultScale}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {copy.confidence}: {data.confidence.label === "medium" ? copy.confidenceMedium : copy.confidenceLow}
-              </p>
-            </div>
+    <div className="space-y-4">
+      {/* Today's score and the check-in answers behind it, in one card. */}
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex items-center gap-4 sm:gap-5">
+          <ReadinessRing score={data.readiness.score} size="size-24 sm:size-28" />
+          <div className="min-w-0 flex-1">
+            <p className="label-micro">{copy.readiness}</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{readinessLabel}</h2>
+            <p className="mt-0.5 font-mono text-xs tnum text-muted-foreground">{copy.resultScale}</p>
           </div>
-          <Button type="button" onClick={() => setCheckInOpen(true)}>
-            {data.checkIn ? copy.updateCheckIn : copy.checkIn}
+          <Button type="button" className="hidden shrink-0 sm:inline-flex" onClick={() => setCheckInOpen(true)}>
+            {checkInLabel}
           </Button>
         </div>
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {signals.map((item) => (
+            <div key={item.label} className="min-w-0 rounded-xl bg-surface-subtle px-2 py-2.5 text-center">
+              <item.icon className="mx-auto size-4 text-primary" aria-hidden="true" />
+              <p className="mt-1.5 truncate font-mono text-sm font-semibold tnum text-foreground">{item.value}</p>
+              <p className="truncate text-micro text-muted-foreground">{item.label}</p>
+            </div>
+          ))}
+        </div>
+        <Button type="button" className="mt-4 w-full sm:hidden" onClick={() => setCheckInOpen(true)}>
+          {checkInLabel}
+        </Button>
       </section>
-
-      <ReadinessTrend />
-
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        {[
-          { icon: Dumbbell, label: copy.hardSets, value: data.summary.hardSets },
-          { icon: Activity, label: copy.avgRir, value: data.summary.averageRir ?? "—" },
-          { icon: TrendingUp, label: copy.performance, value: data.summary.performanceChangePct == null ? "—" : `${data.summary.performanceChangePct > 0 ? "+" : ""}${data.summary.performanceChangePct}%` },
-        ].map((item) => (
-          <div key={item.label} className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4">
-            <item.icon className="mb-3 size-4 text-primary" aria-hidden="true" />
-            <p className="truncate text-micro text-muted-foreground">{item.label}</p>
-            <p className="mt-1 font-mono text-xl font-semibold tnum text-foreground sm:text-2xl">{item.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-lg font-semibold text-foreground">{copy.weeklyVolume}</h2>
-        {data.muscles.length > 0 ? data.muscles.map((muscle) => {
-          const name = copy.muscleLabels[muscle.muscleSlug as keyof typeof copy.muscleLabels] ?? muscle.muscleSlug
-          return <MuscleVolumeRow key={muscle.muscleSlug} copy={copy} muscle={muscle} name={name} zoneLabel={copy.zones[muscle.zone]} />
-        }) : <p className="mt-4 text-sm text-muted-foreground">{copy.noVolume}</p>}
-      </section>
-
-      {data.checkIn ? (
-        <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">{copy.recoverySignals}</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { icon: Moon, label: copy.sleep, value: data.checkIn.sleepMinutes ? `${Math.floor(data.checkIn.sleepMinutes / 60)}h ${data.checkIn.sleepMinutes % 60}m` : "—" },
-              { icon: Activity, label: copy.fatigue, value: `${data.checkIn.fatigue}/5` },
-              { icon: Brain, label: copy.stress, value: data.checkIn.stress ? `${data.checkIn.stress}/5` : "—" },
-              { icon: Dumbbell, label: copy.soreness, value: data.checkIn.muscles.length ? `${Math.max(...data.checkIn.muscles.map((muscle) => muscle.soreness))}/5` : "—" },
-            ].map((item) => (
-              <div key={item.label} className="rounded-md bg-surface-subtle p-3">
-                <item.icon className="size-4 text-primary" aria-hidden="true" />
-                <p className="mt-3 text-xs text-muted-foreground">{item.label}</p>
-                <p className="mt-1 font-mono font-semibold tnum text-foreground">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       {insight ? (
-        <section className="rounded-lg border border-primary/20 bg-primary-soft p-5">
+        <section className="rounded-2xl border border-primary/20 bg-primary-soft p-4 sm:p-5">
           <p className="label-micro text-primary">{copy.coachInsight}</p>
           <p className="mt-2 text-sm leading-6 text-foreground">
             {copy.recommendation(
@@ -568,6 +542,22 @@ export function VolumeRecoveryPanel() {
           ) : null}
         </section>
       ) : null}
+
+      <ReadinessTrend />
+
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="text-base font-semibold text-foreground">{copy.weeklyVolume}</h2>
+          <p className="font-mono text-xs tnum text-muted-foreground">
+            {data.summary.hardSets} {copy.hardSets} · {copy.avgRir} {data.summary.averageRir ?? "—"} · {copy.performance}{" "}
+            {performance == null ? "—" : `${performance > 0 ? "+" : ""}${performance}%`}
+          </p>
+        </div>
+        {data.muscles.length > 0 ? data.muscles.map((muscle) => {
+          const name = copy.muscleLabels[muscle.muscleSlug as keyof typeof copy.muscleLabels] ?? muscle.muscleSlug
+          return <MuscleVolumeRow key={muscle.muscleSlug} copy={copy} muscle={muscle} name={name} zoneLabel={copy.zones[muscle.zone]} />
+        }) : <p className="mt-4 text-sm text-muted-foreground">{copy.noVolume}</p>}
+      </section>
 
       <CheckInSheet muscles={data.muscles} open={checkInOpen} onClose={() => setCheckInOpen(false)} />
     </div>

@@ -4,7 +4,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 
 export function TrainingVolumeChart({ data }: { data: Array<{ label: string; volume: number }> }) {
   return (
-    <div className="h-[250px] w-full">
+    <div className="h-52 w-full sm:h-60">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
           <defs>
@@ -18,7 +18,10 @@ export function TrainingVolumeChart({ data }: { data: Array<{ label: string; vol
             dataKey="label" 
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            minTickGap={12}
+            // "W4 Jul 6-Jul 12" collides on a phone; the tooltip keeps the full range.
+            tickFormatter={(label: string) => label.split(" ")[0]}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             dy={10}
           />
           <YAxis 

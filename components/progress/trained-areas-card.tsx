@@ -59,9 +59,9 @@ export function TrainedAreasCard({ weekLogs, historyLogs }: TrainedAreasCardProp
   ]
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="label-micro">{messages.progressPage.trainedAreas}</p>
+        <h2 className="text-base font-semibold text-foreground">{messages.progressPage.trainedAreas}</h2>
         <div className="flex gap-1.5">
           {periods.map(({ key, label }) => (
             <button

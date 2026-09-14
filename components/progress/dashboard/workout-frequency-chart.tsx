@@ -5,15 +5,18 @@ import type { DashboardWorkoutFrequencyPoint } from "@/lib/fitness/types"
 
 export function WorkoutFrequencyChart({ data }: { data: DashboardWorkoutFrequencyPoint[] }) {
   return (
-    <div className="h-[250px] w-full">
+    <div className="h-52 w-full sm:h-60">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--border)" />
-          <XAxis 
-            dataKey="label" 
+          <XAxis
+            dataKey="label"
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            minTickGap={12}
+            // "W4 Jul 6-Jul 12" collides on a phone; the tooltip keeps the full range.
+            tickFormatter={(label: string) => label.split(" ")[0]}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             dy={10}
           />
           <YAxis 

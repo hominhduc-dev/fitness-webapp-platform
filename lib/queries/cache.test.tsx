@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/lib/auth/api"
-import { useWeightEntries, useCreateWeightEntry, useProgressCalendar } from "./progress"
+import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecoveryHistory, useVolumeRecovery } from "./progress"
 import { useWorkoutDetail } from "./workouts"
 import { useAddMealItem } from "./meals"
 import { useCoachLogs } from "./coach-logs"
@@ -14,6 +14,7 @@ import { getQueryClient } from "./client"
 const state = vi.hoisted(() => ({ userId: "user-a", token: "token-1" }))
 const api = vi.hoisted(() => ({
   weights: vi.fn(), createWeight: vi.fn(), calendar: vi.fn(), workout: vi.fn(), addMeal: vi.fn(), logs: vi.fn(),
+  volume: vi.fn(), recovery: vi.fn(),
 }))
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ profile: { id: state.userId }, session: { access_token: state.token } }),
@@ -24,6 +25,7 @@ vi.mock("@/lib/fitness/api", async (original) => ({
   fetchWeightEntries: api.weights, createWeightEntry: api.createWeight,
   fetchProgressCalendar: api.calendar, fetchWorkoutDetail: api.workout,
   addMealItem: api.addMeal, fetchCoachWorkoutLogs: api.logs,
+  fetchVolumeRecovery: api.volume, fetchRecoveryHistory: api.recovery,
 }))
 
 function setup() {
@@ -84,6 +86,27 @@ describe("client cache contracts", () => {
     await act(async () => { await hook.result.current.mutateAsync({ weightKg: 71, recordedAt: new Date().toISOString() }) })
     keys.forEach((key) => expect(client.getQueryState(key)?.isInvalidated).toBe(true))
     hook.unmount(); client.clear()
+  })
+
+  it("applies a server seed to a query that a passive observer created first", () => {
+    const { client, wrapper } = setup()
+    const seed = { checkIn: null } as unknown as Awaited<ReturnType<typeof import("@/lib/fitness/api").fetchVolumeRecovery>>
+    const passive = renderHook(() => useVolumeRecovery({ enabled: false }), { wrapper })
+    expect(passive.result.current.data).toBeUndefined()
+    const seeded = renderHook(() => useVolumeRecovery({ initialData: seed }), { wrapper })
+    expect(seeded.result.current.data).toBe(seed)
+    expect(api.volume).not.toHaveBeenCalled()
+    passive.unmount(); seeded.unmount(); client.clear()
+  })
+
+  it("seeds without fetching when the seeding observer is disabled", () => {
+    const { client, wrapper } = setup()
+    const seed = { entries: [] } as unknown as Awaited<ReturnType<typeof import("@/lib/fitness/api").fetchRecoveryHistory>>
+    renderHook(() => useRecoveryHistory(7, { enabled: false, initialData: seed }), { wrapper })
+    const reader = renderHook(() => useRecoveryHistory(7), { wrapper })
+    expect(reader.result.current.data).toBe(seed)
+    expect(api.recovery).not.toHaveBeenCalled()
+    reader.unmount(); client.clear()
   })
 
   it("treats a failed server seed as missing data and fetches it", async () => {

@@ -5,6 +5,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
+import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
 import { formatReadinessScore, READINESS_SCALE_MAX, toReadinessScale } from "@/lib/fitness/readiness"
 import { useRecoveryHistory } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
@@ -20,7 +21,7 @@ export function ReadinessTrend() {
   const { locale, messages } = useLocale()
   const copy = messages.volumeRecovery
   const localeCode = locale === "vi" ? "vi-VN" : "en-US"
-  const [days, setDays] = useState<(typeof RANGES)[number]>(30)
+  const [days, setDays] = useState<(typeof RANGES)[number]>(READINESS_TREND_DEFAULT_DAYS)
   const query = useRecoveryHistory(days)
 
   const points = (query.data?.entries ?? [])
