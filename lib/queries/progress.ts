@@ -21,7 +21,10 @@ import {
   fetchWorkoutLogDetail,
   upsertRecoveryCheckIn,
 } from "@/lib/fitness/api"
-import type { BodyMetricEntry, ProgressCalendar, RecoveryCheckInInput } from "@/lib/fitness/types"
+import type { BodyMetricEntry, ProgressCalendar, RecoveryCheckInInput, RecoveryHistory } from "@/lib/fitness/types"
+
+type ProgressAnalytics = Awaited<ReturnType<typeof fetchProgressAnalytics>>
+type VolumeRecoveryData = Awaited<ReturnType<typeof fetchVolumeRecovery>>
 
 /** Reference-ish: only this user changes it, from two screens that invalidate. */
 const WEIGHT_STALE_TIME_MS = 30_000
@@ -36,11 +39,12 @@ const IMMUTABLE_STALE_TIME_MS = 30 * 60_000
  */
 export function useWeightEntries(
   options?: number | BodyMetricQueryOptions,
-  seed?: { initialData?: BodyMetricEntry[] },
+  seed?: { enabled?: boolean; initialData?: BodyMetricEntry[] },
 ) {
   return useQuery({
     queryKey: queryKeys.progress.weightEntries(options),
     queryFn: async () => fetchWeightEntries(await requireAccessToken(), options),
+    enabled: seed?.enabled ?? true,
     initialData: seed?.initialData,
     staleTime: WEIGHT_STALE_TIME_MS,
   })
@@ -65,11 +69,18 @@ export function useProgressCalendar(
   })
 }
 
-export function useProgressAnalytics(options?: { enabled?: boolean }) {
+/**
+ * Server pages seed these hooks through `initialData`. A seeding call site that
+ * should not fetch on its own passes `enabled: false`: the seed still lands in
+ * the cache (TanStack applies `initialData` even to a query another observer
+ * created first), and the components that render the data fetch when needed.
+ */
+export function useProgressAnalytics(options?: { enabled?: boolean; initialData?: ProgressAnalytics }) {
   return useQuery({
     queryKey: queryKeys.progress.analytics(),
     queryFn: async () => fetchProgressAnalytics(await requireAccessToken()),
     enabled: options?.enabled ?? true,
+    initialData: options?.initialData,
     staleTime: PROGRESS_STALE_TIME_MS,
   })
 }
@@ -77,12 +88,13 @@ export function useProgressAnalytics(options?: { enabled?: boolean }) {
 export function useDashboardAnalytics(
   startDate: Date,
   endDate: Date,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; initialData?: Awaited<ReturnType<typeof fetchDashboardAnalytics>> },
 ) {
   return useQuery({
     queryKey: queryKeys.progress.dashboard(startDate, endDate),
     queryFn: async () => fetchDashboardAnalytics(await requireAccessToken(), startDate, endDate),
     enabled: options?.enabled ?? true,
+    initialData: options?.initialData,
     staleTime: PROGRESS_STALE_TIME_MS,
   })
 }
@@ -105,20 +117,22 @@ export function useWorkoutLogDetail(logId: string | null) {
   })
 }
 
-export function useVolumeRecovery(options?: { enabled?: boolean; weekStart?: string }) {
+export function useVolumeRecovery(options?: { enabled?: boolean; initialData?: VolumeRecoveryData; weekStart?: string }) {
   return useQuery({
     queryKey: queryKeys.progress.volumeRecovery(options?.weekStart),
     queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), options?.weekStart),
     enabled: options?.enabled ?? true,
+    initialData: options?.initialData,
     staleTime: PROGRESS_STALE_TIME_MS,
   })
 }
 
-export function useRecoveryHistory(days = 30, options?: { enabled?: boolean }) {
+export function useRecoveryHistory(days = 30, options?: { enabled?: boolean; initialData?: RecoveryHistory }) {
   return useQuery({
     queryKey: queryKeys.progress.recoveryHistory(days),
     queryFn: async () => fetchRecoveryHistory(await requireAccessToken(), days),
     enabled: options?.enabled ?? true,
+    initialData: options?.initialData,
     staleTime: PROGRESS_STALE_TIME_MS,
   })
 }

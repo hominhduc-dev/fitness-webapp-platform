@@ -23,9 +23,9 @@ import {
   fetchTraineeProgram,
 } from "@/lib/fitness/api"
 
-export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>) {
+export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>, options?: { enabled?: boolean }) {
   return useUserQuery({ queryKey: queryKeys.workouts.collection(),
-    queryFn: async () => fetchWorkouts(await requireAccessToken()), initialData })
+    queryFn: async () => fetchWorkouts(await requireAccessToken()), initialData, enabled: options?.enabled })
 }
 
 export function useTraineePrograms(programIds: string[], enabled: boolean) {

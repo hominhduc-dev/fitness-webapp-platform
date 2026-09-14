@@ -167,6 +167,10 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 - Session đang tập dùng staleTime `"static"`, tắt refetch mount/focus/reconnect; draft và localStorage vẫn thuộc UI.
 - Mutation invalidate theo domain; meals writeback theo ngày lúc bắt đầu mutation. Không dùng cờ sessionStorage dashboard-refresh.
 - Pull-to-refresh invalidate cache; `router.refresh()` chỉ giữ cho thay đổi locale cần render lại server.
+- Seed nhiều query cùng lúc: server page lấy dữ liệu song song (`Promise.all`, seed lỗi → `undefined`) rồi truyền qua props. Client component cha gọi hook với `initialData` trước khi render con; nếu cha không cần tự fetch thì dùng `enabled: false` (observer chỉ gieo seed). TanStack vẫn áp `initialData` cho query đã được observer khác tạo mà chưa có data.
+- Component nằm ngoài Suspense (vd. `DashboardGreeting`) chỉ observe key đã seed (`enabled: false`), không tự fetch để khỏi đua với seed.
+- Dashboard seed `/api/dashboard`, `volume-recovery`, `analytics`. Progress chỉ seed dữ liệu của tab đang mở; đổi tab dùng `window.history.pushState` (shallow), không gọi lại server. Phạm vi ngày dùng chung ở `lib/fitness/progress-ranges.ts` để key seed khớp key client.
+- Progress có 3 tab: `overview` (Tuần này, Cơ thể, 90 ngày qua), `history` (chế độ Tháng/Năm, calendar hoặc heatmap, gần đây, nhóm cơ đã tập, export), `volume` (nhãn "Recovery": readiness + tín hiệu check-in, insight, xu hướng, volume nhóm cơ). `?tab=year` mở History ở chế độ Năm, `?tab=prs` mở Overview. Khoảng 90 ngày ghim về nửa đêm UTC (`progressAnalyticsRange`).
 - Xem `docs/tanstack-query-migration.md` cho phạm vi, invalidation và giới hạn kiểm chứng.
 
 ## 5. Cấu trúc component

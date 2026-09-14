@@ -226,24 +226,37 @@ export function ExercisePicker({
                       const isSelected = exercise.id === selectedVariationId
 
                       return (
-                        <button
+                        // The thumbnail is its own button (it opens the GIF/video),
+                        // so it sits beside the select button rather than inside it.
+                        <div
                           key={exercise.id}
-                          type="button"
                           className={cn(
-                            "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                            "flex w-full items-start gap-3 rounded-xl px-3 transition-colors",
                             isSelected ? "bg-primary-soft text-primary" : "hover:bg-accent/60",
                           )}
+                        >
+                        <button
+                          type="button"
+                          aria-hidden="true"
+                          tabIndex={-1}
+                          className="mt-3 flex shrink-0"
                           onClick={() => handleSelectExercise(exercise)}
                         >
                           <span
                             className={cn(
-                              "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                              "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
                               isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
                             )}
                           >
                             {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
                           </span>
-                          <ExerciseThumbnail media={exercise.media} name={exercise.displayName ?? exercise.name} />
+                        </button>
+                        <ExerciseThumbnail className="mt-2.5" media={exercise.media} name={exercise.displayName ?? exercise.name} previewable />
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-start py-2.5 text-left"
+                          onClick={() => handleSelectExercise(exercise)}
+                        >
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-medium">{exercise.displayName ?? exercise.name}</span>
                             <span className="block text-xs text-muted-foreground">
@@ -256,6 +269,7 @@ export function ExercisePicker({
                             </span>
                           </span>
                         </button>
+                        </div>
                       )
                     })}
                   </div>

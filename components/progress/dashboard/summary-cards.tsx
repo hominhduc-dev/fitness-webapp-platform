@@ -15,14 +15,15 @@ export function SummaryCards({ summary }: { summary: DashboardAnalyticsSummary }
     { label: copy.records, value: number.format(summary.newPRsCount), detail: summary.latestPR?.exerciseName ?? copy.noRecords },
   ]
   return (
-    <dl className="grid grid-cols-2 gap-y-6 border-y border-border py-6 lg:grid-cols-4">
-      {metrics.map((metric, index) => (
-        <div key={metric.label} className={`min-w-0 px-4 first:pl-0 sm:px-6 ${index % 2 === 1 ? "border-l border-border" : "lg:border-l lg:border-border"}`}>
-          <dt className="text-xs text-muted-foreground">{metric.label}</dt>
-          <dd className="mt-3 flex flex-wrap items-baseline gap-x-1.5 text-3xl font-medium tabular-nums tracking-tight xl:text-4xl">
-            {metric.value}<span className="text-sm font-normal tracking-normal text-muted-foreground">{metric.unit}</span>
+    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+      {metrics.map((metric) => (
+        <div key={metric.label} className="min-w-0 rounded-2xl border border-border bg-card p-3 sm:p-4">
+          <dt className="truncate text-xs text-muted-foreground">{metric.label}</dt>
+          <dd className="mt-1.5 flex flex-wrap items-baseline gap-x-1 text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+            {metric.value}
+            {metric.unit ? <span className="text-xs font-normal tracking-normal text-muted-foreground">{metric.unit}</span> : null}
           </dd>
-          <dd className="mt-2 truncate text-xs text-muted-foreground" title={metric.detail}>{metric.detail}</dd>
+          <dd className="mt-1 truncate text-xs text-muted-foreground" title={metric.detail}>{metric.detail}</dd>
         </div>
       ))}
     </dl>

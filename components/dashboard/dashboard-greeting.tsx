@@ -25,7 +25,9 @@ export function DashboardGreeting({ firstName }: { firstName: string }) {
   const { messages } = useLocale()
   const copy = messages.dashboard
   const period = useDayPeriod()
-  const recoveryQuery = useVolumeRecovery()
+  // Observe only: the greeting renders outside the Suspense boundary, so fetching
+  // here would race the server seed that DashboardOverviewClient applies.
+  const recoveryQuery = useVolumeRecovery({ enabled: false })
   const streakDays = recoveryQuery.data?.confidence.recoveryCheckIns ?? 0
 
   return (
