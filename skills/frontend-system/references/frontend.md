@@ -260,12 +260,12 @@ Nguyên tắc nền tảng: **Color is a role, not decoration**. Component chỉ
 |---|---:|---:|---:|---:|---:|---:|
 | `.performance-green` | `#08783e` | `#055c30` | `#16a05d` | `#eaf5ef` | `#f5f8f6` | `#101828` |
 | `.electric-blue` | `#2457f5` | `#173cc8` | `#22c55e` | `#eaf0ff` | `#f3f6fc` | `#101828` |
-| `.volt-lime` | `#65a30d` | derived | `#a3e635` | `#ffffff` | `#f7f9f3` | `#172012` |
-| `.iron-orange` | `#f97316` | `#c2410c` | `#ffb020` | `#fff7ed` | `#fafaf9` | `#171717` |
-| `.black-volt` | `#b6f23a` | `#8bc926` | — | `#171a18` | `#0d0f0e` | `#f8faf9` |
+| `.volt-lime` | `#3f6f0d` | derived | `#a3e635` | `#f0f7e7` | `#f3f6f5` | `#172012` |
+| `.iron-orange` | `#f97316` | `#c2410c` | `#ffb020` | `#fff7ed` | `#faf9f7` | `#171717` |
+| `.black-volt` | `#b6f23a` | `#8bc926` | `#c7ff32` | `#171a18` | `#0d0f0e` | `#f7f9f7` |
 | `.crimson-performance` | `#e63946` | `#b91c2a` | `#ffb703` | `#fde8e8` | `#f8f8f7` | `#111827` |
 
-Các màu brand quá sáng (Volt Lime, Iron Orange, Crimson Performance) giữ nguyên cho chart/highlight; `--primary` tương tác dùng trạng thái tối hơn để đạt WCAG AA. Giá trị lưu cũ `sport` migrate sang `electric-blue`.
+Các màu brand quá sáng (Volt Lime, Iron Orange, Crimson Performance) giữ nguyên cho chart/highlight; `--primary` tương tác dùng trạng thái tối hơn để đạt WCAG AA. Volt Lime dùng card trắng `#ffffff` và soft green surface `#f0f7e7`. Iron Orange dùng card trắng `#ffffff`, primary soft `#fff0e5`, border `#e7e5e4`, secondary text `#667085`, success `#16a05d` và danger `#ef4444`; gradient định hướng là primary `#f97316 → #ea580c`, energy `#f97316 → #ffb020`, soft `#fff7ed → #faf9f7`. Black + Volt dùng sidebar `#101311`, card elevated `#1d211e`, soft surface `#242824`, border `#2b302c`, secondary text `#a5ada7`; `#707872` chỉ dành cho disabled/non-essential metadata. Start Workout dùng gradient `#c7ff32 → #9fe51f`, streak dùng `#b6f23a → #8bc926` với glow 20%. Giá trị lưu cũ `sport` migrate sang `electric-blue`.
 
 Light page backdrop là off-white rất nhẹ, gần phẳng; hierarchy đến từ border, spacing, surface trắng và cobalt accent thay vì blur/glass.
 

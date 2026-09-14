@@ -107,7 +107,7 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
         ) : null}
       </ul>
 
-      <Button asChild size="lg" className="mt-4 h-10 w-full gap-2 rounded-xl text-sm lg:mt-auto">
+      <Button asChild size="lg" className="dashboard-primary-cta mt-4 h-10 w-full gap-2 rounded-xl text-sm lg:mt-auto">
         <Link href={`/workout/${workout.id}/start`} scroll>
           <Play className="size-4 fill-current" aria-hidden="true" />
           {copy.startWorkout}

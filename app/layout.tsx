@@ -83,8 +83,8 @@ const themeInitScript = `
         light: "#e8ecf3",
         "performance-green": "#f5f8f6",
         "electric-blue": "#f3f6fc",
-        "volt-lime": "#f7f9f3",
-        "iron-orange": "#fafaf9",
+        "volt-lime": "#f3f6f5",
+        "iron-orange": "#faf9f7",
         "black-volt": "#0d0f0e",
         "crimson-performance": "#f8f8f7",
         dark: "#080a0f"
