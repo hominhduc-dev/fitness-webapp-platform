@@ -2,74 +2,54 @@
 
 import Link from "next/link"
 import { Calendar, Scale, Sparkles, TrendingUp, Utensils } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
-import { cn } from "@/lib/utils"
 
-export function QuickActions() {
+export function QuickActions({ onOpenAIChat }: { onOpenAIChat: () => void }) {
   const { messages } = useLocale()
+  const copy = messages.dashboard
 
-  const actions = [
-    {
-      href: "/trackweight",
-      icon: Scale,
-      label: messages.dashboard.quickLogWeight,
-      tone: "primary",
-    },
-    {
-      href: "/meals",
-      icon: Utensils,
-      label: messages.dashboard.logMeal,
-      tone: "success",
-    },
-    {
-      href: "/schedule",
-      icon: Calendar,
-      label: messages.dashboard.schedule,
-      tone: "primary",
-    },
-    {
-      href: "/progress",
-      icon: TrendingUp,
-      label: messages.dashboard.progress,
-      tone: "neutral",
-    },
-    {
-      href: "/workout/ai-generate",
-      icon: Sparkles,
-      label: "AI Coach",
-      tone: "primary",
-    },
-  ] as const
+  const actions: Array<
+    | { href: string; icon: LucideIcon; label: string; onClick?: never }
+    | { href?: never; icon: LucideIcon; label: string; onClick: () => void }
+  > = [
+    { href: "/trackweight", icon: Scale, label: copy.quickLogWeight },
+    { href: "/meals", icon: Utensils, label: copy.logMeal },
+    { href: "/schedule", icon: Calendar, label: copy.schedule },
+    { href: "/progress", icon: TrendingUp, label: copy.progress },
+    { icon: Sparkles, label: copy.aiCoach, onClick: onOpenAIChat },
+  ]
+
+  const actionClassName = "group flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl border border-transparent bg-surface-subtle px-1 py-2 text-center transition-all hover:border-primary/20 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
   return (
-    <section aria-label="Quick actions" className="grid grid-cols-5 gap-1.5 md:gap-2.5">
-      {actions.map((action) => (
-        <Link
-          key={action.href}
-          href={action.href}
-          className={cn(
-            "glass-card group flex min-w-0 flex-col items-center justify-center rounded-2xl border px-1 py-3 text-center transition-all hover:-translate-y-0.5 md:min-h-[108px] md:rounded-3xl md:px-3 md:py-4",
-            action.tone === "success" && "border-success/20 bg-ok-soft hover:border-success/30",
-            action.tone === "primary" && "border-border bg-card hover:border-primary/25",
-            action.tone === "neutral" && "border-border bg-card hover:border-border/80",
-          )}
-        >
-          <div
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full md:h-11 md:w-11",
-              action.tone === "primary" && "bg-primary-soft text-primary",
-              action.tone === "success" && "bg-ok-soft text-success-text",
-              action.tone === "neutral" && "bg-muted text-muted-foreground",
-            )}
-          >
-            <action.icon className="h-4 w-4 md:h-5 md:w-5" />
-          </div>
-          <p className="mt-2 line-clamp-2 text-micro font-medium leading-[1.15] tracking-tight text-foreground md:mt-3 md:text-sm">
-            {action.label}
-          </p>
-        </Link>
-      ))}
+    <section aria-labelledby="dashboard-quick-actions">
+      <h2 id="dashboard-quick-actions" className="mb-2 text-base font-semibold text-foreground">
+        {copy.quickActions}
+      </h2>
+      <div className="grid grid-cols-5 gap-2 md:gap-3">
+        {actions.map((action) => {
+          const content = <>
+            <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-transform group-hover:-translate-y-0.5 md:size-10">
+              <action.icon className="size-5" strokeWidth={2} aria-hidden="true" />
+            </span>
+            <span className="line-clamp-2 text-[0.6875rem] font-medium leading-tight text-foreground md:text-xs">
+              {action.label}
+            </span>
+          </>
+
+          return action.href ? (
+            <Link key={action.label} href={action.href} className={actionClassName}>
+              {content}
+            </Link>
+          ) : (
+            <button key={action.label} type="button" onClick={action.onClick} className={actionClassName}>
+              {content}
+            </button>
+          )
+        })}
+      </div>
     </section>
   )
 }

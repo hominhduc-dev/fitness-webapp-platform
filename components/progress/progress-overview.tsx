@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useMemo } from "react"
-import { Activity, Dumbbell, Flame, Moon, Scale, TrendingUp } from "lucide-react"
+import { Activity, ChevronRight, Dumbbell, Flame, Moon, Scale, TrendingUp } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { useAuth } from "@/components/providers/auth-provider"
@@ -17,12 +17,65 @@ const WEIGHT_RANGE_DAYS = 90
 
 type WeightPoint = { label: string; value: number }
 
-function StatTile({ icon: Icon, label, value }: { icon: typeof Flame; label: string; value: string }) {
+function StatTile({
+  className,
+  icon: Icon,
+  label,
+  value,
+}: {
+  className?: string
+  icon: typeof Flame
+  label: string
+  value: string
+}) {
   return (
-    <div className="min-w-0 px-2 text-center">
-      <Icon className="mx-auto size-4 text-primary" aria-hidden="true" />
-      <p className="mt-2 truncate font-mono text-lg font-semibold tnum text-foreground">{value}</p>
-      <p className="mt-0.5 truncate text-micro text-muted-foreground">{label}</p>
+    <div className={cn("min-w-0 px-1 text-center sm:px-2", className)}>
+      <Icon className="mx-auto size-5 text-primary sm:size-4" aria-hidden="true" />
+      <p className="mt-2 truncate font-mono text-lg font-semibold tnum text-foreground sm:text-lg">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-micro">{label}</p>
+    </div>
+  )
+}
+
+function CardTitle({
+  action,
+  children,
+}: {
+  action?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-base">{children}</h2>
+      {action ? (
+        <button
+          type="button"
+          className="inline-flex min-h-9 items-center gap-1 text-sm font-medium text-primary"
+        >
+          {action}
+          <ChevronRight className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function MiniBars({ values }: { values: number[] }) {
+  const max = Math.max(...values, 1)
+
+  return (
+    <div className="flex h-20 items-end gap-2" aria-hidden="true">
+      {values.map((value, index) => (
+        <div key={index} className="flex flex-1 flex-col items-center gap-1.5">
+          <span
+            className="w-full rounded-t-md bg-primary opacity-80"
+            style={{ height: `${Math.max(18, (value / max) * 64)}px` }}
+          />
+          <span className="font-mono text-[10px] leading-none text-muted-foreground">
+            {"MTWTFSS"[index]}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -104,10 +157,10 @@ export function ProgressOverview() {
   const totalWeeklyVolume = weeklyVolume.reduce((sum, point) => sum + point.volume, 0)
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-base font-semibold text-foreground">{copy.thisWeek}</h2>
-        <div className="mt-4 grid grid-cols-2 divide-border sm:grid-cols-3 lg:grid-cols-5 lg:divide-x">
+    <div className="space-y-4 sm:space-y-5">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:rounded-lg sm:p-5 sm:shadow-none">
+        <CardTitle>{copy.thisWeek}</CardTitle>
+        <div className="mt-4 grid grid-cols-4 divide-x divide-border lg:grid-cols-5">
           {/* The volume week and the workout count have to come from the same
               window, so both read the volume-recovery response rather than the
               monthly totals in the analytics summary. */}
@@ -127,13 +180,14 @@ export function ProgressOverview() {
             icon={TrendingUp}
             label={copy.volume}
             value={`${Math.round(totalWeeklyVolume).toLocaleString(localeCode)} ${unit}`}
+            className="hidden lg:block"
           />
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-semibold text-foreground">{copy.weight}</h2>
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:rounded-lg sm:p-5 sm:shadow-none">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <CardTitle>{copy.weight}</CardTitle>
           <span className="flex items-baseline gap-2">
             <span className="font-mono text-2xl font-semibold tnum text-foreground">
               {formatWeight(latestWeight?.weightKg, unit)}
@@ -150,9 +204,9 @@ export function ProgressOverview() {
         {series.length < 2 ? (
           <p className="mt-4 text-sm text-muted-foreground">{copy.needMoreWeightEntries}</p>
         ) : (
-          <div className="mt-4 h-56 w-full">
+          <div className="mt-4 h-44 w-full sm:h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={series} margin={{ bottom: 0, left: -16, right: 8, top: 8 }}>
+              <LineChart data={series} margin={{ bottom: 0, left: -20, right: 8, top: 8 }}>
                 <CartesianGrid stroke="var(--border)" strokeDasharray="2 4" vertical={false} />
                 <XAxis
                   dataKey="label"
@@ -186,11 +240,11 @@ export function ProgressOverview() {
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-base font-semibold text-foreground">{copy.bodyComposition}</h2>
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:rounded-lg sm:p-5 sm:shadow-none">
+        <CardTitle>{copy.bodyComposition}</CardTitle>
         {latestComposition ? (
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:divide-x sm:divide-border">
-            <div className="min-w-0">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:divide-x sm:divide-border">
+            <div className="min-w-0 rounded-xl bg-surface-subtle p-3 sm:rounded-none sm:bg-transparent sm:p-0">
               <p className="font-mono text-2xl font-semibold tnum text-foreground">
                 {latestComposition.bodyFatPct?.toFixed(1)}%
               </p>
@@ -203,7 +257,7 @@ export function ProgressOverview() {
                 ) : null}
               </p>
             </div>
-            <div className="min-w-0 sm:pl-4">
+            <div className="min-w-0 rounded-xl bg-surface-subtle p-3 sm:rounded-none sm:bg-transparent sm:p-0 sm:pl-4">
               <p className="font-mono text-2xl font-semibold tnum text-foreground">
                 {formatWeight(leanMassKg, unit)} <span className="text-sm font-normal text-muted-foreground">{unit}</span>
               </p>
@@ -223,6 +277,58 @@ export function ProgressOverview() {
             {copy.needBodyFatEntry}
           </p>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:hidden">
+        <CardTitle action={messages.progressPage.viewAll}>{copy.volume}</CardTitle>
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_8.5rem] items-center gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <TrendingUp className="size-6" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-mono text-2xl font-semibold tnum text-foreground">
+                  {Math.round(totalWeeklyVolume).toLocaleString(localeCode)} {unit}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{copy.volume}</p>
+              </div>
+            </div>
+          </div>
+          <MiniBars values={weeklyVolume.slice(-7).map((point) => point.volume)} />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:hidden">
+        <CardTitle action={messages.progressPage.viewAll}>{messages.progressPage.thisWeek}</CardTitle>
+        <div className="mt-4 grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-4">
+          <div className="relative size-24 text-primary">
+            <svg viewBox="0 0 100 100" className="size-full -rotate-90" aria-hidden="true">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="10" />
+              <circle
+                cx="50"
+                cy="50"
+                r="40"
+                fill="none"
+                stroke="currentColor"
+                strokeDasharray={2 * Math.PI * 40}
+                strokeDashoffset={(2 * Math.PI * 40) * (1 - Math.min((volumeQuery.data?.confidence.workoutSessions ?? 0) / 6, 1))}
+                strokeLinecap="round"
+                strokeWidth="10"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center font-mono text-xl font-semibold tnum text-foreground">
+              {Math.round(Math.min((volumeQuery.data?.confidence.workoutSessions ?? 0) / 6, 1) * 100)}%
+            </span>
+          </div>
+          <div className="min-w-0 border-l border-border pl-4">
+            <p className="font-mono text-2xl font-semibold tnum text-foreground">
+              {volumeQuery.data?.confidence.workoutSessions ?? 0}/6
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{copy.workouts}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{messages.progressPage.analytics.description}</p>
+          </div>
+        </div>
       </section>
     </div>
   )

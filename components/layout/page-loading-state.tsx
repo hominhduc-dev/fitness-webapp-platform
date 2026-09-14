@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { BrandLogo } from "@/components/ui/brand-logo"
 import { cn } from "@/lib/utils"
 
 type PageLoadingStateProps = {
@@ -37,10 +38,7 @@ export function AppLoadingScreen({
     >
       <div className={cn("w-full", isMinimal ? "max-w-[280px]" : "max-w-[440px]")}>
         <div className={cn("flex items-center justify-center gap-2.5", isMinimal ? "mb-6" : "mb-8")}>
-          <img src="/lift-mark.svg" alt="" className="h-7 w-8" />
-          <span className="text-2xl font-semibold leading-none tracking-[-0.04em]">
-            yeahbuddy
-          </span>
+          <BrandLogo markClassName="size-9 rounded-xl" textClassName="text-2xl leading-none" />
         </div>
 
         <div className={cn("h-1 overflow-hidden rounded-full bg-primary-soft", isMinimal ? "mb-4" : "mb-5")}>

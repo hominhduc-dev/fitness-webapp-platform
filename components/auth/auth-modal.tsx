@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { BrandLogo } from "@/components/ui/brand-logo"
 import { GoogleIcon } from "@/components/ui/brand-icons"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -643,12 +644,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
             <DialogHeader className="relative gap-0 p-0 text-left">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5 sm:gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25 sm:h-10 sm:w-10">
-                    <Dumbbell className="h-4 w-4 text-primary-foreground sm:h-5 sm:w-5" />
-                  </div>
-                  <span className="text-lg font-bold tracking-tight sm:text-xl">YeahBuddy</span>
-                </div>
+                <BrandLogo markClassName="size-9 rounded-xl sm:size-10" textClassName="text-lg sm:text-xl" />
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                     <X className="h-4 w-4" />
@@ -670,29 +666,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Dumbbell(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M14.4 14.4 9.6 9.6" />
-      <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.828-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" />
-      <path d="m21.5 21.5-1.4-1.4" />
-      <path d="M3.9 3.9 2.5 2.5" />
-      <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.828 2.829z" />
-    </svg>
   )
 }
 
