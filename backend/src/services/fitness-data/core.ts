@@ -33,6 +33,7 @@ import { logger } from "../../lib/logger"
 import { exportGoogleProgramLogs } from "../google-program-export.service"
 import { retryTransaction } from "../../lib/prisma"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
+import { buildExerciseDisplayName, type ExerciseDisplayNameInput } from "../../domain/exercise-display"
 import {
   buildApprovedMuscleProfileData,
   buildApprovedMuscleProfileUpdate,
@@ -399,57 +400,32 @@ function readVariationDisplayName(metadata: Prisma.JsonValue | null | undefined)
   return typeof displayName === "string" && displayName.trim() ? displayName.trim() : undefined
 }
 
-function normalizeExerciseDisplayParts(parts: string[]) {
-  return parts
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function normalizeExerciseDisplayText(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US")
-}
-
-function buildExerciseDisplayName(input: { exerciseName?: string | null; isDefault?: boolean | null; metadata?: Prisma.JsonValue | null; variationName?: string | null }) {
+/**
+ * A curated name from the import source wins over anything we could compose;
+ * otherwise fall back to the shared label builder.
+ */
+function buildVariationDisplayName(input: ExerciseDisplayNameInput & { metadata?: Prisma.JsonValue | null }) {
   const metadataDisplayName = readVariationDisplayName(input.metadata)
   if (metadataDisplayName) return metadataDisplayName
 
-  const exerciseName = input.exerciseName?.trim() ?? ""
-  const variationName = input.variationName?.trim() || "Default"
-  if (!exerciseName) return variationName
-  const exerciseParenthesisMatch = exerciseName.match(/^(.*?)\s*\(([^()]+)\)\s*$/)
-  const exerciseNameWithoutEquipment = exerciseParenthesisMatch?.[1]?.trim() || exerciseName
-  const exerciseEquipment = exerciseParenthesisMatch?.[2]?.trim() || ""
-  const dashMatch = exerciseNameWithoutEquipment.match(/^(.*?)\s+-\s+(.+)$/)
-  const baseExerciseName = dashMatch?.[1]?.trim() || exerciseNameWithoutEquipment
-  const exerciseModifier = dashMatch?.[2]?.trim() || ""
-
-  if (input.isDefault || variationName === "Default") {
-    return exerciseEquipment
-      ? normalizeExerciseDisplayParts([exerciseEquipment, exerciseModifier, baseExerciseName])
-      : exerciseName
-  }
-
-  const parenthesisMatch = variationName.match(/^(.*?)\s*\(([^()]+)\)\s*$/)
-  const variationModifier = parenthesisMatch?.[1]?.trim() || variationName
-  const equipment = parenthesisMatch?.[2]?.trim() || ""
-
-  if (equipment) {
-    const modifier = normalizeExerciseDisplayText(exerciseModifier) === normalizeExerciseDisplayText(variationModifier)
-      ? exerciseModifier
-      : normalizeExerciseDisplayParts([exerciseModifier, variationModifier])
-    return normalizeExerciseDisplayParts([equipment, modifier, baseExerciseName])
-  }
-
-  return normalizeExerciseDisplayParts([variationName, exerciseModifier, baseExerciseName])
+  return buildExerciseDisplayName(input)
 }
 
-function serializeVariation(variation: VariationWithMuscleTargets, legacyMuscleGroup?: string | null) {
+/**
+ * `exerciseName` is what turns a bare variation ("Frontal") into the label a
+ * trainee reads ("Frontal One-Arm Lat Pulldown"). Callers that do not join the
+ * exercise relation must pass it explicitly, otherwise the exercise library
+ * would ship a different name than the workout log for the same variation.
+ */
+function serializeVariation(
+  variation: VariationWithMuscleTargets,
+  legacyMuscleGroup?: string | null,
+  exerciseName?: string | null,
+) {
   return {
-    displayName: buildExerciseDisplayName({
-      exerciseName: "exercise" in variation ? (variation as VariationWithMuscleTargets & { exercise?: Exercise }).exercise?.name : undefined,
+    displayName: buildVariationDisplayName({
+      exerciseName: exerciseName
+        ?? ("exercise" in variation ? (variation as VariationWithMuscleTargets & { exercise?: Exercise }).exercise?.name : undefined),
       isDefault: variation.isDefault,
       metadata: variation.metadata,
       variationName: variation.name,
@@ -593,7 +569,7 @@ function serializeVariationOption(
   profile?: SerializedProfile,
 ) {
   const visibility = getExerciseSourceForProfile(variation.exercise.createdById, profile)
-  const displayName = buildExerciseDisplayName({
+  const displayName = buildVariationDisplayName({
     exerciseName: variation.exercise.name,
     isDefault: variation.isDefault,
     metadata: variation.metadata,
@@ -2938,7 +2914,7 @@ async function listExerciseLibrary(
     })
     .map((exercise) => ({
       ...exercise,
-      variations: exercise.variations.map((variation) => serializeVariation(variation, exercise.muscleGroup)),
+      variations: exercise.variations.map((variation) => serializeVariation(variation, exercise.muscleGroup, exercise.name)),
     }))
 }
 

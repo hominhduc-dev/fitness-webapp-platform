@@ -1,0 +1,102 @@
+{
+  "readme": "Shared expectations for the exercise label builder. The backend and the Next.js app compile under separate tsconfigs that exclude each other, so lib/exercise-display.ts and backend/src/domain/exercise-display.ts hold mirrored copies of the algorithm. Both test suites read this file, so a change to one copy fails the other suite. Add every new case here rather than in a single suite.",
+  "cases": [
+    {
+      "name": "equipment-style variation in front of the exercise name",
+      "exerciseName": "Bench Press",
+      "variationName": "Barbell",
+      "expected": "Barbell Bench Press"
+    },
+    {
+      "name": "multi-word equipment variation",
+      "exerciseName": "Squat",
+      "variationName": "Smith Machine",
+      "expected": "Smith Machine Squat"
+    },
+    {
+      "name": "parenthesized equipment moves ahead of the modifier",
+      "exerciseName": "Bench Press",
+      "variationName": "Close Grip (Barbell)",
+      "expected": "Barbell Close Grip Bench Press"
+    },
+    {
+      "name": "dash modifier on the exercise name",
+      "exerciseName": "Bench Press - Close Grip",
+      "variationName": "Barbell",
+      "expected": "Barbell Close Grip Bench Press"
+    },
+    {
+      "name": "default variation keeps the exercise name and hoists its equipment",
+      "exerciseName": "Bench Press - Close Grip (Barbell)",
+      "variationName": "Default",
+      "expected": "Barbell Close Grip Bench Press"
+    },
+    {
+      "name": "modifier repeated by exercise name and variation is written once",
+      "exerciseName": "Bench Press - Close Grip",
+      "variationName": "Close Grip (Barbell)",
+      "expected": "Barbell Close Grip Bench Press"
+    },
+    {
+      "name": "variation fully contained in the exercise name is dropped",
+      "exerciseName": "Frontal One-Arm Lat Pulldown",
+      "variationName": "Frontal",
+      "expected": "Frontal One-Arm Lat Pulldown"
+    },
+    {
+      "name": "only the overlapping word of the variation is dropped",
+      "exerciseName": "Chest Supported Upperback Row",
+      "variationName": "Upperback Machine",
+      "expected": "Machine Chest Supported Upperback Row"
+    },
+    {
+      "name": "equipment already in the exercise name is not repeated",
+      "exerciseName": "Cable Row",
+      "variationName": "Cable",
+      "expected": "Cable Row"
+    },
+    {
+      "name": "equipment in the exercise name is not repeated for a default variation",
+      "exerciseName": "Cable Row (Cable)",
+      "variationName": "Default",
+      "expected": "Cable Row"
+    },
+    {
+      "name": "overlap is matched across hyphens",
+      "exerciseName": "One Arm Lat Pulldown",
+      "variationName": "One-Arm",
+      "expected": "One Arm Lat Pulldown"
+    },
+    {
+      "name": "overlap is matched case-insensitively",
+      "exerciseName": "Wide Grip Lat Pulldown",
+      "variationName": "wide grip",
+      "expected": "Wide Grip Lat Pulldown"
+    },
+    {
+      "name": "a variation that shares no word is kept in full",
+      "exerciseName": "Low Row",
+      "variationName": "Machine Plate Loaded",
+      "expected": "Machine Plate Loaded Low Row"
+    },
+    {
+      "name": "isDefault flag wins over the variation name",
+      "exerciseName": "Leg Press",
+      "variationName": "Wide Stance",
+      "isDefault": true,
+      "expected": "Leg Press"
+    },
+    {
+      "name": "variation alone when the exercise has no name",
+      "exerciseName": "",
+      "variationName": "Barbell",
+      "expected": "Barbell"
+    },
+    {
+      "name": "missing variation name falls back to the exercise name",
+      "exerciseName": "Lat Pulldown",
+      "variationName": "",
+      "expected": "Lat Pulldown"
+    }
+  ]
+}
