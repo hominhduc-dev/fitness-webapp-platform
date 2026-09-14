@@ -1,14 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { Activity, ChevronRight, Dumbbell, Moon } from "lucide-react"
+import { Activity, Brain, ChevronRight, Dumbbell, Moon } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
 import { useVolumeRecovery } from "@/lib/queries/progress"
 
 function ReadinessRing({ score }: { score: number | null }) {
-  const normalized = Math.max(0, Math.min(100, score ?? 0))
   const circumference = 2 * Math.PI * 42
 
   return (
@@ -22,13 +22,13 @@ function ReadinessRing({ score }: { score: number | null }) {
           fill="none"
           stroke="currentColor"
           strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - normalized / 100)}
+          strokeDashoffset={circumference * (1 - readinessRingProgress(score))}
           strokeLinecap="round"
           strokeWidth="8"
         />
       </svg>
       <span className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-3xl font-semibold tnum text-foreground">{score ?? "—"}</span>
+        <span className="font-mono text-3xl font-semibold tnum text-foreground">{formatReadinessScore(score)}</span>
       </span>
     </div>
   )
@@ -73,6 +73,7 @@ export function ReadinessCard() {
         <div className="flex flex-col items-center">
           <ReadinessRing score={data?.readiness.score ?? null} />
           <p className="mt-1 text-center text-sm font-semibold text-primary">{readinessLabel}</p>
+          <p className="font-mono text-micro tnum text-muted-foreground">{copy.resultScale}</p>
         </div>
 
         <div className="min-w-0 flex-1 divide-y divide-border">
@@ -85,6 +86,7 @@ export function ReadinessCard() {
                 : "—",
             },
             { icon: Activity, label: copy.fatigue, value: data?.checkIn ? `${data.checkIn.fatigue}/5` : "—" },
+            { icon: Brain, label: copy.stress, value: data?.checkIn?.stress == null ? "—" : `${data.checkIn.stress}/5` },
             { icon: Dumbbell, label: copy.soreness, value: highestSoreness == null ? "—" : `${highestSoreness}/5` },
           ].map((signal) => (
             <div key={signal.label} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">

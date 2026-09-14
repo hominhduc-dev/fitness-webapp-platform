@@ -68,6 +68,26 @@ describe("volume recovery analytics", () => {
     expect(calculateReadiness({})).toBeNull()
   })
 
+  it("scores sleep duration on a ramp between four and seven hours", () => {
+    const answers = { fatigue: 1, sleepQuality: 5, soreness: 0, stress: 1 }
+
+    // Seven hours and anything above it leave the perfect score untouched.
+    expect(calculateReadiness({ ...answers, sleepMinutes: 420 })).toBe(100)
+    expect(calculateReadiness({ ...answers, sleepMinutes: 600 })).toBe(100)
+
+    // Four hours zeroes the duration component, which carries a weight of 0.15.
+    expect(calculateReadiness({ ...answers, sleepMinutes: 240 })).toBe(85)
+
+    // Halfway up the ramp costs half of that weight.
+    expect(calculateReadiness({ ...answers, sleepMinutes: 330 })).toBe(93)
+  })
+
+  it("ignores sleep duration when it was skipped", () => {
+    const answers = { fatigue: 3, sleepQuality: 3, soreness: 2, stress: 3 }
+
+    expect(calculateReadiness({ ...answers, sleepMinutes: null })).toBe(calculateReadiness(answers))
+  })
+
   it("classifies landmark zones at their boundaries", () => {
     expect(classifyVolumeZone(7.5, DEFAULT_VOLUME_LANDMARKS)).toBe("below_mev")
     expect(classifyVolumeZone(8, DEFAULT_VOLUME_LANDMARKS)).toBe("mev_to_mav")

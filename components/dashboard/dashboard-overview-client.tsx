@@ -6,6 +6,7 @@ import { ReadinessCard } from "./readiness-card"
 import { RecentActivity } from "./recent-activity"
 import { TodayWorkout } from "./today-workout"
 import { WeeklyProgressCard } from "./weekly-progress-card"
+import { WeeklyVolumeCard } from "./weekly-volume-card"
 import { useLocale } from "@/components/providers/locale-provider"
 import { fetchDashboard } from "@/lib/fitness/api"
 import { useUserQuery } from "@/lib/queries/scoped"
@@ -134,6 +135,8 @@ export function DashboardOverviewClient({ initialData, preferredWeightUnit }: { 
           volumeUnitLabel={volumeUnitLabel}
         />
       </section>
+
+      <WeeklyVolumeCard />
 
       <RecentActivity logs={dashboard.recentLogs} />
     </>

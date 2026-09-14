@@ -8,6 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { ExportWorkoutDialog } from "@/components/progress/export-workout-dialog"
 import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
+import { ProgressOverview } from "@/components/progress/progress-overview"
 import { VolumeRecoveryPanel } from "@/components/progress/volume-recovery/volume-recovery-panel"
 import { BottomSheet, BottomSheetBody, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -35,7 +36,7 @@ import { cn } from "@/lib/utils"
 // ---------------------------------------------------------------------------
 
 type WorkoutKind = "all" | "push" | "pull" | "legs"
-type Tab = "history" | "volume" | "year" | "prs"
+type Tab = "overview" | "history" | "volume" | "year" | "prs"
 
 function kindColor(k: string) {
   return (TAG_DOT_COLOR as Record<string, string>)[k] ?? "var(--muted-foreground)"
@@ -796,7 +797,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
   const [yearViewYear, setYearViewYear] = useState(now.getFullYear())
 
   // UI state
-  const [tab, setTab] = useState<Tab>("history")
+  const [tab, setTab] = useState<Tab>("overview")
   const [filter, setFilter] = useState<WorkoutKind>("all")
 
   // Modal
@@ -889,6 +890,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">{messages.volumeRecovery.title}</h1>
               <p className="mt-2 text-sm text-muted-foreground">{messages.volumeRecovery.subtitle}</p>
             </div>
+          ) : tab === "overview" ? (
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground">{messages.progressPage.analytics.title}</h1>
+              <p className="mt-2 text-sm text-muted-foreground">{messages.progressPage.analytics.description}</p>
+            </div>
           ) : <div className="flex items-center gap-3">
             <button
               type="button"
@@ -925,7 +931,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
           <div className="flex flex-wrap items-center gap-2">
             {tab === "prs" ? (
               <span className="mr-2 text-xs text-muted-foreground">{messages.progressPage.analytics.period}</span>
-            ) : tab === "volume" ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
+            ) : tab === "volume" || tab === "overview" ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
               <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
                 {k === "all"
                   ? messages.workoutPage.all
@@ -936,7 +942,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                       : messages.workoutPage.tagLegs}
               </Chip>
             ))}
-            {tab !== "volume" ? (
+            {tab !== "volume" && tab !== "overview" ? (
               <ExportWorkoutDialog programs={workoutsQuery.data?.programs ?? initialData.programs ?? []} />
             ) : null}
           </div>
@@ -949,7 +955,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
         {/* ---- Tab strip ---- */}
         <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
-          {(["history", "volume", "year", "prs"] as Tab[]).map((t) => (
+          {(["overview", "history", "volume", "year", "prs"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -961,7 +967,9 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {t === "history"
+              {t === "overview"
+                ? messages.progressPage.overview.tab
+                : t === "history"
                 ? messages.progressPage.historyTab
                 : t === "volume"
                   ? messages.volumeRecovery.tab
@@ -1010,6 +1018,8 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             </div>
           </div>
         )}
+
+        {tab === "overview" && <ProgressOverview />}
 
         {tab === "volume" && <VolumeRecoveryPanel />}
 

@@ -1,16 +1,18 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Activity, Brain, Dumbbell, Moon, TrendingUp, X } from "lucide-react"
+import { Activity, Brain, Check, ChevronLeft, Dumbbell, Moon, TrendingUp, X } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { VolumeRecoveryMuscle, VolumeZone } from "@/lib/fitness/types"
+import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
+import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
 import { useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
+import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
 
 const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
 
@@ -25,69 +27,64 @@ function vietnamDateKey() {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-function zoneClass(zone: VolumeZone) {
-  if (zone === "mav" || zone === "mev_to_mav") return "bg-success-soft text-success-text"
-  if (zone === "near_mrv") return "bg-warning-soft text-warning-text"
-  if (zone === "above_mrv") return "bg-destructive-soft text-destructive-text"
-  return "bg-primary-soft text-primary"
-}
+type CheckInOption = { description: string; label: string; value: number }
 
-function RatingScale({
+/**
+ * One question per screen, answers described in words rather than a bare 1–5
+ * scale — a trainee should not have to guess what "3" means at 6am.
+ */
+function OptionList({
   ariaLabel,
-  minimum = 1,
-  notSetLabel,
   onChange,
-  optional = false,
+  options,
   value,
 }: {
   ariaLabel: string
-  minimum?: 0 | 1
-  notSetLabel: string
-  onChange: (value: number | null) => void
-  optional?: boolean
+  onChange: (value: number) => void
+  options: readonly CheckInOption[]
   value: number | null
 }) {
   return (
-    <div className="flex gap-1.5" role="group" aria-label={ariaLabel}>
-      {optional ? (
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className={cn(
-            "inline-flex size-10 items-center justify-center rounded-md border font-mono text-xs transition-colors",
-            value == null ? "border-primary bg-primary-soft text-primary" : "border-border text-muted-foreground",
-          )}
-          aria-label={`${ariaLabel}: ${notSetLabel}`}
-        >
-          —
-        </button>
-      ) : null}
-      {Array.from({ length: 6 - minimum }, (_, index) => index + minimum).map((rating) => (
-        <button
-          key={rating}
-          type="button"
-          onClick={() => onChange(rating)}
-          className={cn(
-            "inline-flex size-10 items-center justify-center rounded-md border font-mono text-sm transition-colors",
-            value === rating
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-background text-muted-foreground hover:bg-muted",
-          )}
-          aria-pressed={value === rating}
-        >
-          {rating}
-        </button>
-      ))}
+    <div className="flex flex-col gap-2" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((option) => {
+        const selected = value === option.value
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left transition-colors",
+              selected ? "border-primary bg-primary-soft" : "border-border bg-background hover:bg-muted",
+            )}
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-foreground">{option.label}</span>
+              <span className="block text-xs text-muted-foreground">{option.description}</span>
+            </span>
+            <span
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-full border",
+                selected ? "border-primary bg-primary text-primary-foreground" : "border-border",
+              )}
+            >
+              {selected ? <Check className="size-3" /> : null}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }
 
-function ReadinessRing({ score }: { score: number | null }) {
-  const normalized = Math.max(0, Math.min(100, score ?? 0))
+function ReadinessRing({ score, size = "size-28" }: { score: number | null; size?: string }) {
   const circumference = 2 * Math.PI * 42
 
   return (
-    <div className="relative size-28 shrink-0 text-primary">
+    <div className={cn("relative shrink-0 text-primary", size)}>
       <svg viewBox="0 0 100 100" className="size-full -rotate-90" aria-hidden="true">
         <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="8" />
         <circle
@@ -97,13 +94,13 @@ function ReadinessRing({ score }: { score: number | null }) {
           fill="none"
           stroke="currentColor"
           strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - normalized / 100)}
+          strokeDashoffset={circumference * (1 - readinessRingProgress(score))}
           strokeLinecap="round"
           strokeWidth="8"
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center font-mono text-3xl font-semibold tnum text-foreground">
-        {score ?? "—"}
+        {formatReadinessScore(score)}
       </span>
     </div>
   )
@@ -120,9 +117,6 @@ function MuscleVolumeRow({
   name: string
   zoneLabel: string
 }) {
-  const rangeMax = Math.max(muscle.landmarks.mrvSets * 1.1, 1)
-  const position = Math.min(100, (muscle.effectiveSets / rangeMax) * 100)
-
   return (
     <div className="border-b border-border py-4 last:border-0">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -132,29 +126,31 @@ function MuscleVolumeRow({
             {muscle.effectiveSets} {copy.sets} · {muscle.directSets} {copy.directSets} · {muscle.indirectSets} {copy.indirectSets}
           </p>
         </div>
-        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", zoneClass(muscle.zone))}>
+        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", volumeZoneClass(muscle.zone))}>
           {zoneLabel}
         </span>
       </div>
-      <div className="relative pt-4">
-        <div className="grid h-2 grid-cols-[40%_35%_25%] overflow-hidden rounded-full">
-          <span className="bg-success" />
-          <span className="bg-warning" />
-          <span className="bg-destructive" />
-        </div>
-        <span
-          className="absolute top-[0.82rem] size-3 -translate-x-1/2 rounded-full border-2 border-card bg-primary shadow-sm"
-          style={{ left: `${position}%` }}
-        />
-        <div className="mt-2 flex justify-between font-mono text-micro tnum text-muted-foreground">
-          <span>MEV {muscle.landmarks.mevSets}</span>
-          <span>MAV {muscle.landmarks.mavMinSets}–{muscle.landmarks.mavMaxSets}</span>
-          <span>MRV {muscle.landmarks.mrvSets}</span>
-        </div>
-      </div>
+      <VolumeLandmarkBar className="pt-4" landmarks={muscle.landmarks} sets={muscle.effectiveSets} />
       {muscle.lowConfidenceSets > 0 ? (
         <p className="mt-2 text-micro text-warning-text">{muscle.lowConfidenceSets} {copy.lowConfidenceSets}</p>
       ) : null}
+    </div>
+  )
+}
+
+const CHECK_IN_STEPS = ["sleep", "fatigue", "stress", "soreness"] as const
+
+type CheckInStep = (typeof CHECK_IN_STEPS)[number]
+
+function StepProgress({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex flex-1 gap-1.5" aria-hidden="true">
+      {Array.from({ length: total }, (_, index) => (
+        <span
+          key={index}
+          className={cn("h-1 flex-1 rounded-full transition-colors", index <= current ? "bg-primary" : "bg-muted")}
+        />
+      ))}
     </div>
   )
 }
@@ -171,12 +167,14 @@ function CheckInSheet({
   const { messages } = useLocale()
   const copy = messages.volumeRecovery
   const mutation = useUpsertRecoveryCheckIn()
-  const [sleepQuality, setSleepQuality] = useState<number | null>(3)
-  const [sleepHours, setSleepHours] = useState("8")
-  const [sleepMinutePart, setSleepMinutePart] = useState("0")
-  const [fatigue, setFatigue] = useState<number | null>(3)
+  const [stepIndex, setStepIndex] = useState(0)
+  const [sleepQuality, setSleepQuality] = useState<number | null>(null)
+  const [sleepHours, setSleepHours] = useState("")
+  const [sleepMinutePart, setSleepMinutePart] = useState("")
+  const [fatigue, setFatigue] = useState<number | null>(null)
   const [stress, setStress] = useState<number | null>(null)
-  const [soreness, setSoreness] = useState<Record<string, number>>({})
+  const [soreness, setSoreness] = useState<number | null>(null)
+
   const hasSleepDuration = sleepHours !== "" || sleepMinutePart !== ""
   const parsedSleepHours = sleepHours === "" ? 0 : Number(sleepHours)
   const parsedSleepMinutePart = sleepMinutePart === "" ? 0 : Number(sleepMinutePart)
@@ -192,124 +190,218 @@ function CheckInSheet({
 
   if (!open) return null
 
+  const step: CheckInStep = CHECK_IN_STEPS[stepIndex]
+  const isLastStep = stepIndex === CHECK_IN_STEPS.length - 1
+  const saved = mutation.data ?? null
+
+  // Fatigue carries the heaviest weight in the score and is NOT NULL in the
+  // database, so it is the one answer a trainee cannot skip past.
+  const canSkip = step !== "fatigue"
+  const canAdvance = step === "sleep"
+    ? !sleepDurationInvalid
+    : step === "fatigue"
+      ? fatigue != null
+      : true
+
   async function submit() {
-    if (fatigue == null) return
-    if (sleepDurationInvalid) return
-    const parsedSleepMinutes = hasSleepDuration
-      ? parsedSleepHours * 60 + parsedSleepMinutePart
-      : undefined
+    if (fatigue == null || sleepDurationInvalid) return
 
     try {
       await mutation.mutateAsync({
         checkInDate: vietnamDateKey(),
         fatigue,
-        muscles: muscles.map((muscle) => ({
-          muscleSlug: muscle.muscleSlug,
-          soreness: soreness[muscle.muscleSlug] ?? 0,
-        })),
-        sleepMinutes: parsedSleepMinutes,
+        // One whole-body answer, recorded against every muscle trained this
+        // week — that is the granularity the volume engine reads.
+        muscles: soreness == null ? [] : muscles.map((muscle) => ({ muscleSlug: muscle.muscleSlug, soreness })),
+        sleepMinutes: hasSleepDuration ? parsedSleepHours * 60 + parsedSleepMinutePart : undefined,
         sleepQuality: sleepQuality ?? undefined,
         stress: stress ?? undefined,
       })
-      onClose()
     } catch {
-      // The mutation exposes its error below the form.
+      // The mutation exposes its error below the question.
     }
+  }
+
+  function goNext() {
+    if (isLastStep) {
+      void submit()
+      return
+    }
+    setStepIndex((index) => Math.min(index + 1, CHECK_IN_STEPS.length - 1))
+  }
+
+  if (saved) {
+    return (
+      <BottomSheet ariaLabel={copy.resultTitle} onClose={onClose} variant="flush" className="sm:max-h-[88svh]">
+        <BottomSheetBody className="flex flex-col items-center gap-4 py-8 text-center">
+          <ReadinessRing score={saved.readinessScore} size="size-36" />
+          <div>
+            <p className="text-lg font-semibold text-foreground">{copy.resultTitle}</p>
+            <p className="mt-1 font-mono text-xs tnum text-muted-foreground">{copy.resultScale}</p>
+          </div>
+          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { icon: Moon, label: copy.sleep, value: saved.sleepMinutes == null ? "—" : `${Math.floor(saved.sleepMinutes / 60)}h ${saved.sleepMinutes % 60}m` },
+              { icon: Activity, label: copy.fatigue, value: `${saved.fatigue}/5` },
+              { icon: Brain, label: copy.stress, value: saved.stress == null ? "—" : `${saved.stress}/5` },
+              { icon: Dumbbell, label: copy.soreness, value: saved.muscles.length === 0 ? "—" : `${Math.max(...saved.muscles.map((muscle) => muscle.soreness))}/5` },
+            ].map((item) => (
+              <div key={item.label} className="rounded-md bg-surface-subtle p-3 text-left">
+                <item.icon className="size-4 text-primary" aria-hidden="true" />
+                <p className="mt-2 text-xs text-muted-foreground">{item.label}</p>
+                <p className="mt-0.5 font-mono font-semibold tnum text-foreground">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </BottomSheetBody>
+        <BottomSheetFooter>
+          <Button type="button" className="w-full" onClick={onClose}>{copy.resultDone}</Button>
+        </BottomSheetFooter>
+      </BottomSheet>
+    )
   }
 
   return (
     <BottomSheet ariaLabel={copy.formTitle} onClose={onClose} variant="flush" className="sm:max-h-[88svh]">
       <BottomSheetHeader>
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">{copy.formTitle}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{copy.formDescription}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-          aria-label={messages.common.closeNavigation}
-        >
-          <X className="size-4" />
-        </button>
-      </BottomSheetHeader>
-      <BottomSheetBody className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">{copy.sleepQuality}</label>
-          <RatingScale ariaLabel={copy.sleepQuality} notSetLabel={copy.notSet} value={sleepQuality} onChange={setSleepQuality} />
-        </div>
-        <div className="space-y-2">
-          <span className="text-sm font-medium text-foreground">{copy.sleepDuration}</span>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="space-y-1.5" htmlFor="recovery-sleep-hours">
-              <span className="text-xs text-muted-foreground">{copy.hours}</span>
-              <Input
-                id="recovery-sleep-hours"
-                type="number"
-                inputMode="numeric"
-                min="0"
-                max="24"
-                step="1"
-                aria-invalid={sleepDurationInvalid}
-                value={sleepHours}
-                onChange={(event) => setSleepHours(event.target.value)}
-                className="h-11 bg-background font-mono tnum"
-              />
-            </label>
-            <label className="space-y-1.5" htmlFor="recovery-sleep-minute-part">
-              <span className="text-xs text-muted-foreground">{copy.minutes}</span>
-              <Input
-                id="recovery-sleep-minute-part"
-                type="number"
-                inputMode="numeric"
-                min="0"
-                max="59"
-                step="1"
-                aria-invalid={sleepDurationInvalid}
-                value={sleepMinutePart}
-                onChange={(event) => setSleepMinutePart(event.target.value)}
-                className="h-11 bg-background font-mono tnum"
-              />
-            </label>
-          </div>
-          {sleepDurationInvalid ? (
-            <p className="text-xs text-destructive-text">{copy.invalidSleepDuration}</p>
+        <div className="flex w-full items-center gap-3">
+          {stepIndex > 0 ? (
+            <button
+              type="button"
+              onClick={() => setStepIndex((index) => Math.max(0, index - 1))}
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+              aria-label={copy.back}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
           ) : null}
+          <StepProgress current={stepIndex} total={CHECK_IN_STEPS.length} />
+          {canSkip ? (
+            <button
+              type="button"
+              onClick={goNext}
+              className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              {copy.skip}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+            aria-label={messages.common.closeNavigation}
+          >
+            <X className="size-4" />
+          </button>
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">{copy.fatigueLevel}</label>
-          <RatingScale ariaLabel={copy.fatigueLevel} notSetLabel={copy.notSet} value={fatigue} onChange={setFatigue} />
+      </BottomSheetHeader>
+
+      <BottomSheetBody className="space-y-5">
+        <div>
+          <p className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">
+            {copy.stepOf(stepIndex + 1, CHECK_IN_STEPS.length)}
+          </p>
+          <h2 className="mt-2 text-xl font-semibold leading-tight text-foreground">
+            {step === "sleep" ? copy.sleepStepTitle
+              : step === "fatigue" ? copy.fatigueStepTitle
+                : step === "stress" ? copy.stressStepTitle
+                  : copy.sorenessStepTitle}
+          </h2>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {step === "sleep" ? copy.sleepStepHelp
+              : step === "fatigue" ? copy.fatigueStepHelp
+                : step === "stress" ? copy.stressStepHelp
+                  : copy.sorenessStepHelp}
+          </p>
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">{copy.stressLevel}</label>
-          <RatingScale ariaLabel={copy.stressLevel} notSetLabel={copy.notSet} value={stress} onChange={setStress} optional />
-        </div>
-        {muscles.length > 0 ? (
-          <fieldset className="space-y-4">
-            <legend className="text-sm font-medium text-foreground">{copy.muscleSoreness}</legend>
-            {muscles.map((muscle) => {
-              const label = copy.muscleLabels[muscle.muscleSlug as keyof typeof copy.muscleLabels] ?? muscle.muscleSlug
-              return (
-                <div key={muscle.muscleSlug} className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                  <span className="text-sm text-foreground">{label}</span>
-                  <RatingScale
-                    ariaLabel={`${copy.muscleSoreness}: ${label}`}
-                    minimum={0}
-                    notSetLabel={copy.notSet}
-                    value={soreness[muscle.muscleSlug] ?? 0}
-                    onChange={(value) => setSoreness((current) => ({ ...current, [muscle.muscleSlug]: value ?? 0 }))}
+
+        {step === "sleep" ? (
+          <>
+            <OptionList
+              ariaLabel={copy.sleepStepTitle}
+              options={copy.checkInOptions.sleepQuality}
+              value={sleepQuality}
+              onChange={setSleepQuality}
+            />
+            <div className="space-y-2">
+              <span className="text-sm font-medium text-foreground">{copy.sleepDurationOptional}</span>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="space-y-1.5" htmlFor="recovery-sleep-hours">
+                  <span className="text-xs text-muted-foreground">{copy.hours}</span>
+                  <Input
+                    id="recovery-sleep-hours"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    max="24"
+                    step="1"
+                    aria-invalid={sleepDurationInvalid}
+                    value={sleepHours}
+                    onChange={(event) => setSleepHours(event.target.value)}
+                    className="h-11 bg-background font-mono tnum"
                   />
-                </div>
-              )
-            })}
-          </fieldset>
+                </label>
+                <label className="space-y-1.5" htmlFor="recovery-sleep-minute-part">
+                  <span className="text-xs text-muted-foreground">{copy.minutes}</span>
+                  <Input
+                    id="recovery-sleep-minute-part"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    max="59"
+                    step="1"
+                    aria-invalid={sleepDurationInvalid}
+                    value={sleepMinutePart}
+                    onChange={(event) => setSleepMinutePart(event.target.value)}
+                    className="h-11 bg-background font-mono tnum"
+                  />
+                </label>
+              </div>
+              {sleepDurationInvalid ? (
+                <p className="text-xs text-destructive-text">{copy.invalidSleepDuration}</p>
+              ) : null}
+            </div>
+          </>
         ) : null}
+
+        {step === "fatigue" ? (
+          <OptionList
+            ariaLabel={copy.fatigueStepTitle}
+            options={copy.checkInOptions.fatigue}
+            value={fatigue}
+            onChange={setFatigue}
+          />
+        ) : null}
+
+        {step === "stress" ? (
+          <OptionList
+            ariaLabel={copy.stressStepTitle}
+            options={copy.checkInOptions.stress}
+            value={stress}
+            onChange={setStress}
+          />
+        ) : null}
+
+        {step === "soreness" ? (
+          <>
+            <OptionList
+              ariaLabel={copy.sorenessStepTitle}
+              options={copy.checkInOptions.soreness}
+              value={soreness}
+              onChange={setSoreness}
+            />
+            {muscles.length > 0 ? (
+              <p className="text-xs text-muted-foreground">{copy.sorenessScope(muscles.length)}</p>
+            ) : null}
+          </>
+        ) : null}
+
         {mutation.error ? <p className="text-sm text-destructive-text">{mutation.error.message || copy.saveError}</p> : null}
       </BottomSheetBody>
+
       <BottomSheetFooter>
-        <Button type="button" variant="outline" onClick={onClose}>{copy.cancel}</Button>
-        <Button type="button" disabled={mutation.isPending || fatigue == null || sleepDurationInvalid} onClick={() => void submit()}>
-          {mutation.isPending ? copy.saving : copy.save}
+        <Button type="button" className="w-full" disabled={!canAdvance || mutation.isPending} onClick={goNext}>
+          {mutation.isPending ? copy.resultPending : isLastStep ? copy.save : copy.next}
         </Button>
       </BottomSheetFooter>
     </BottomSheet>
@@ -359,6 +451,7 @@ export function VolumeRecoveryPanel() {
             <div>
               <p className="label-micro">{copy.readiness}</p>
               <h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{readinessLabel}</h2>
+              <p className="mt-1 font-mono text-xs tnum text-muted-foreground">{copy.resultScale}</p>
               <p className="mt-2 text-xs text-muted-foreground">
                 {copy.confidence}: {data.confidence.label === "medium" ? copy.confidenceMedium : copy.confidenceLow}
               </p>

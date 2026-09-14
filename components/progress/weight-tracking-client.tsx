@@ -21,13 +21,13 @@ import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
+import { convertWeightFromKg, convertWeightToKg, formatSignedWeight, formatWeight } from "@/lib/fitness/weight"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // Constants & pure utilities (unchanged from original)
 // ---------------------------------------------------------------------------
 
-const KG_TO_LBS = 2.20462
 const RANGE_OPTIONS = [30, 90, 365] as const
 
 type RangeValue = (typeof RANGE_OPTIONS)[number]
@@ -48,26 +48,6 @@ function startOfDay(value: Date) {
 
 function isFiniteNumber(value?: number | null): value is number {
   return typeof value === "number" && Number.isFinite(value)
-}
-
-function convertWeightFromKg(weightKg: number, unit: "kg" | "lbs") {
-  return unit === "lbs" ? weightKg * KG_TO_LBS : weightKg
-}
-
-function convertWeightToKg(weight: number, unit: "kg" | "lbs") {
-  return unit === "lbs" ? weight / KG_TO_LBS : weight
-}
-
-function formatWeight(weightKg: number | null | undefined, unit: "kg" | "lbs", fractionDigits = 1) {
-  if (!isFiniteNumber(weightKg)) return "--"
-  return convertWeightFromKg(weightKg, unit).toFixed(fractionDigits)
-}
-
-function formatSignedWeight(weightKg: number | null | undefined, unit: "kg" | "lbs", fractionDigits = 1) {
-  if (!isFiniteNumber(weightKg)) return null
-  const converted = convertWeightFromKg(weightKg, unit)
-  const prefix = converted > 0 ? "+" : ""
-  return `${prefix}${converted.toFixed(fractionDigits)}`
 }
 
 function calculateBmi(weightKg?: number, heightCm?: number) {
