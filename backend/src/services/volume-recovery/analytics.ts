@@ -317,9 +317,79 @@ function buildVolumeRecommendation(input: {
   }
 }
 
+type TrainingGuidanceAction = "light_session" | "proceed" | "reduce_volume" | "rest"
+
+type TrainingGuidanceReason =
+  | "muscles_need_backoff"
+  | "no_check_in"
+  | "readiness_good"
+  | "readiness_low"
+  | "readiness_very_low"
+  | "soreness_high"
+
+type TrainingGuidance = {
+  action: TrainingGuidanceAction
+  focusMuscles: string[]
+  reasons: TrainingGuidanceReason[]
+  setAdjustmentPct: number
+}
+
+const READINESS_READY = 70
+const READINESS_POOR = 50
+const READINESS_REST = 35
+const HIGH_SORENESS = 4
+
+/**
+ * Turns today's recovery signals into one instruction for the session ahead.
+ *
+ * It adjusts the plan the trainee already has rather than inventing a workout:
+ * the thresholds are the same ones the per-muscle engine uses (ready at 70,
+ * poor below 50), so a single readiness score cannot tell the trainee one thing
+ * here and the opposite on the muscle rows. Without a check-in it says proceed
+ * — an unmeasured day is not evidence of a bad one.
+ */
+function buildTrainingGuidance(input: {
+  muscles: ReadonlyArray<{ muscleSlug: string; recommendation: { action: RecommendationAction } }>
+  readinessScore: number | null
+  soreness: number | null
+}): TrainingGuidance {
+  const backOffMuscles = input.muscles
+    .filter((muscle) => muscle.recommendation.action === "deload" || muscle.recommendation.action === "decrease")
+    .map((muscle) => muscle.muscleSlug)
+  const sorenessHigh = (input.soreness ?? 0) >= HIGH_SORENESS
+
+  if (input.readinessScore == null) {
+    return { action: "proceed", focusMuscles: backOffMuscles, reasons: ["no_check_in"], setAdjustmentPct: 0 }
+  }
+
+  const reasons: TrainingGuidanceReason[] = []
+  if (sorenessHigh) reasons.push("soreness_high")
+  if (backOffMuscles.length > 0) reasons.push("muscles_need_backoff")
+
+  if (input.readinessScore < READINESS_REST) {
+    return { action: "rest", focusMuscles: backOffMuscles, reasons: ["readiness_very_low", ...reasons], setAdjustmentPct: -100 }
+  }
+
+  if (input.readinessScore < READINESS_POOR) {
+    return { action: "light_session", focusMuscles: backOffMuscles, reasons: ["readiness_low", ...reasons], setAdjustmentPct: -30 }
+  }
+
+  if (input.readinessScore < READINESS_READY || backOffMuscles.length > 0 || sorenessHigh) {
+    return {
+      action: "reduce_volume",
+      focusMuscles: backOffMuscles,
+      reasons: reasons.length > 0 ? reasons : ["readiness_low"],
+      setAdjustmentPct: -15,
+    }
+  }
+
+  return { action: "proceed", focusMuscles: [], reasons: ["readiness_good"], setAdjustmentPct: 0 }
+}
+
 export {
   aggregateWeeklyMuscleVolume,
   buildMusclePerformanceTrend,
+  buildTrainingGuidance,
   buildVolumeRecommendation,
   calculateReadiness,
   classifyVolumeZone,
@@ -329,8 +399,11 @@ export {
 export type {
   MuscleVolume,
   ReadinessInput,
-  RecommendationReason,
   RecommendationAction,
+  RecommendationReason,
+  TrainingGuidance,
+  TrainingGuidanceAction,
+  TrainingGuidanceReason,
   VolumeLandmarks,
   VolumeLogRecord,
   VolumeRecommendationResult,
