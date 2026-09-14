@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
-import type { VolumeRecoveryMuscle, VolumeZone } from "@/lib/fitness/types"
+import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
 import { useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
+import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
 
 const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
 
@@ -24,13 +25,6 @@ function vietnamDateKey() {
   }).formatToParts(new Date())
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
   return `${values.year}-${values.month}-${values.day}`
-}
-
-function zoneClass(zone: VolumeZone) {
-  if (zone === "mav" || zone === "mev_to_mav") return "bg-success-soft text-success-text"
-  if (zone === "near_mrv") return "bg-warning-soft text-warning-text"
-  if (zone === "above_mrv") return "bg-destructive-soft text-destructive-text"
-  return "bg-primary-soft text-primary"
 }
 
 type CheckInOption = { description: string; label: string; value: number }
@@ -123,18 +117,6 @@ function MuscleVolumeRow({
   name: string
   zoneLabel: string
 }) {
-  const { landmarks } = muscle
-  // One scale drives the bands, the marker and the tick labels. They used to
-  // disagree: the bands were pinned at 40/35/25% of the width while the marker
-  // was placed by set count, so the dot only lined up with a landmark by
-  // coincidence — and never at all once a coach set their own landmarks.
-  const scaleMax = Math.max(landmarks.mrvSets * 1.15, muscle.effectiveSets * 1.05, 1)
-  const toPercent = (sets: number) => Math.min(100, Math.max(0, (sets / scaleMax) * 100))
-  const mevAt = toPercent(landmarks.mevSets)
-  const mavMaxAt = toPercent(landmarks.mavMaxSets)
-  const mrvAt = toPercent(landmarks.mrvSets)
-  const position = toPercent(muscle.effectiveSets)
-
   return (
     <div className="border-b border-border py-4 last:border-0">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -144,42 +126,11 @@ function MuscleVolumeRow({
             {muscle.effectiveSets} {copy.sets} · {muscle.directSets} {copy.directSets} · {muscle.indirectSets} {copy.indirectSets}
           </p>
         </div>
-        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", zoneClass(muscle.zone))}>
+        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", volumeZoneClass(muscle.zone))}>
           {zoneLabel}
         </span>
       </div>
-      <div className="pt-4">
-        <div className="relative h-2" aria-hidden="true">
-          <div className="absolute inset-0 overflow-hidden rounded-full bg-muted">
-            <span className="absolute inset-y-0 bg-success" style={{ left: `${mevAt}%`, width: `${mavMaxAt - mevAt}%` }} />
-            <span className="absolute inset-y-0 bg-warning" style={{ left: `${mavMaxAt}%`, width: `${mrvAt - mavMaxAt}%` }} />
-            <span className="absolute inset-y-0 right-0 bg-destructive" style={{ left: `${mrvAt}%` }} />
-            {/* Surface-coloured separators so neighbouring bands stay countable. */}
-            {[mevAt, mavMaxAt, mrvAt].map((at) => (
-              <span key={at} className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-card" style={{ left: `${at}%` }} />
-            ))}
-          </div>
-          <span
-            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-primary shadow-sm"
-            style={{ left: `${position}%` }}
-          />
-        </div>
-        <div className="relative mt-2 h-4 font-mono text-micro tnum text-muted-foreground">
-          {[
-            { at: mevAt, label: `MEV ${landmarks.mevSets}` },
-            { at: toPercent((landmarks.mavMinSets + landmarks.mavMaxSets) / 2), label: `MAV ${landmarks.mavMinSets}–${landmarks.mavMaxSets}` },
-            { at: mrvAt, label: `MRV ${landmarks.mrvSets}` },
-          ].map((tick) => (
-            <span
-              key={tick.label}
-              className="absolute -translate-x-1/2 whitespace-nowrap"
-              style={{ left: `${tick.at}%` }}
-            >
-              {tick.label}
-            </span>
-          ))}
-        </div>
-      </div>
+      <VolumeLandmarkBar className="pt-4" landmarks={muscle.landmarks} sets={muscle.effectiveSets} />
       {muscle.lowConfidenceSets > 0 ? (
         <p className="mt-2 text-micro text-warning-text">{muscle.lowConfidenceSets} {copy.lowConfidenceSets}</p>
       ) : null}
