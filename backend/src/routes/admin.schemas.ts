@@ -30,4 +30,13 @@ const saveExerciseMediaSchema = z
     message: "Chọn ít nhất một file media.",
   })
 
-export { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema }
+const transferExerciseMetadataSchema = z
+  .object({
+    sourceVariationId: z.uuid("sourceVariationId không hợp lệ."),
+    targetVariationId: z.uuid("targetVariationId không hợp lệ."),
+  })
+  .refine((value) => value.sourceVariationId !== value.targetVariationId, {
+    message: "Bài nguồn và bài đích phải khác nhau.",
+  })
+
+export { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema, transferExerciseMetadataSchema }

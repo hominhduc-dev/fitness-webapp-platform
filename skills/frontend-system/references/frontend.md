@@ -25,7 +25,7 @@
 
 | Lớp | Công nghệ |
 |---|---|
-| Framework | Next.js `16.3.1`, App Router, React `19.2.0` |
+| Framework | Next.js `16.3.5`, App Router, React `19.2.0` |
 | Ngôn ngữ | TypeScript 5, `strict`, alias `@/*` |
 | Styling | Tailwind CSS `4.1.9`, CSS variables trong `app/globals.css` |
 | UI primitives | shadcn/ui style `new-york`, Radix UI, Vaul drawer |
