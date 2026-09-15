@@ -19,15 +19,39 @@ import { buildRecoveryContext } from "./ai/context/recovery-context"
 import { parseExerciseSnapshot } from "./ai/context/helpers"
 import { selectCatalogForPrompt } from "./ai/exercise-catalog"
 import { claimGeneration, validateAccessibleVariations } from "./ai/acceptance"
-import { parseAI, programOutputSchema, mappedProgramSchema, dailyOutputSchema, mappedDailySchema, mealOutputSchema, mappedMealsSchema, dateSchema } from "../lib/ai/output-schemas"
+import { parseAI, programOutputSchema, mappedProgramSchema, dailyOutputSchema, mappedDailySchema, mealPlanOutputSchema, mealSchema, mappedMealsSchema, storedMealPlanSchema, dateSchema, type StoredMealPlan } from "../lib/ai/output-schemas"
 import { generateProgramSchema, generateDailyWorkoutSchema, generateMealPlanSchema, chatSchema } from "../routes/ai.schemas"
-import { startOfVietnamDay, dayKey, plusDays } from "../lib/ai/calendar"
+import { startOfVietnamDay, dateKeyInstant, plusDays } from "../lib/ai/calendar"
 import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
-import { AppError, AuthServiceError } from "./errors"
+import { AppError, AuthServiceError, TooManyRequestsError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 import { addMealItemForUser, calculateItemNutrition } from "./nutrition.service"
-import { formatFoodQuantity, roundNutrition } from "../lib/nutrition/food-utils"
+import type { Nutrients } from "../lib/nutrition/portion-scaler"
+import { selectFoodsForPrompt } from "./ai/food-catalog"
+import {
+  applyMealPlanOverrides,
+  buildDayPlanPrompt,
+  buildMealSwapPrompt,
+  buildShoppingList,
+  canPlanCalories,
+  dayNutrients,
+  emptyNutrients,
+  fitMealsToTarget,
+  hasCustomMacroGoals,
+  MEAL_TYPES,
+  planDates,
+  remainingTargets,
+  roundNutrients,
+  sumNutrients,
+  validateDayTargets,
+  type DraftItem,
+  type MealPlanOverrides,
+  type PlanDay,
+  type PlanFood,
+  type PlanMealType,
+  type PromptFilters,
+} from "./ai/meal-plan"
 
 // ---------------------------------------------------------------------------
 // Rate Limits
@@ -807,137 +831,154 @@ async function acceptDailyWorkout(profile: SerializedProfile, generationId: stri
 
 type GenerateMealPlanInput = {
   date: string
+  days?: number
   preferences?: string
   budget?: string
   cookingTime?: string
 }
 
-const BUDGET_LABELS: Record<string, string> = {
-  low: "Tiết kiệm",
-  medium: "Trung bình",
-  high: "Không giới hạn",
+type MealPlanDb = NonNullable<typeof prisma>
+type DraftDay = { date: string; targets: Nutrients; meals: Array<{ type: PlanMealType; items: DraftItem[] }> }
+
+const MEAL_PLAN_FOOD_SELECT = {
+  calories: true,
+  carbs: true,
+  category: true,
+  fat: true,
+  id: true,
+  name: true,
+  prepMinutes: true,
+  priceTier: true,
+  protein: true,
+  servingAmount: true,
+  servingLabel: true,
+  servingUnit: true,
+  source: true,
+} satisfies Prisma.FoodSelect
+
+/** Swapping one meal costs far less than a whole plan, but still spends provider tokens. */
+const mealSwapCounter = new DailyCounter(20)
+
+function mealPlanGoals(profile: SerializedProfile): Nutrients {
+  return {
+    calories: profile.dailyCalorieGoal,
+    protein: profile.dailyProteinGoal ?? 140,
+    carbs: profile.dailyCarbsGoal ?? 280,
+    fat: profile.dailyFatGoal ?? 70,
+  }
 }
 
-const COOKING_TIME_LABELS: Record<string, string> = {
-  quick: "Nhanh (15-20 phút)",
-  normal: "Bình thường (30-60 phút)",
+function mealPlanFilters(profile: SerializedProfile, input: { budget?: string; cookingTime?: string; preferences?: string }): PromptFilters {
+  return {
+    allergies: profile.foodAllergies ?? [],
+    dietType: profile.dietType ?? null,
+    budget: input.budget,
+    cookingTime: input.cookingTime,
+    preferences: input.preferences,
+  }
 }
 
-async function generateMealPlan(profile: SerializedProfile, input: GenerateMealPlanInput) {
-  input = parseAI(generateMealPlanSchema, input, 400)
+function loadMealPlanFoods(db: MealPlanDb, profileId: string) {
+  return db.food.findMany({
+    orderBy: { name: "asc" },
+    select: MEAL_PLAN_FOOD_SELECT,
+    where: { OR: [{ source: FoodSource.system }, { createdById: profileId, source: FoodSource.user }] },
+  })
+}
+
+/** What the trainee actually ate in the week before `startDate`, to steer variety. */
+async function loadRecentMealFoods(db: MealPlanDb, profileId: string, startDate: string) {
+  const start = dateKeyInstant(startDate)
+  const meals = await db.meal.findMany({
+    include: { items: { include: { food: { select: { name: true } } } } },
+    orderBy: { loggedDate: "desc" },
+    take: 28,
+    where: { loggedDate: { gte: plusDays(start, -7), lt: start }, status: MealStatus.consumed, userId: profileId },
+  })
+  const items = meals.flatMap((meal) => meal.items)
+  return {
+    ids: new Set(items.map((item) => item.foodId)),
+    names: [...new Set(items.map((item) => item.food?.name ?? item.foodNameSnapshot ?? ""))].filter(Boolean).slice(0, 15),
+  }
+}
+
+/** Meals already eaten on each planned day: their totals and the meal types they fill. */
+async function loadConsumedMeals(db: MealPlanDb, profileId: string, dates: string[]) {
+  const meals = await db.meal.findMany({
+    select: { calories: true, carbs: true, fat: true, items: { select: { id: true } }, loggedDate: true, protein: true, type: true },
+    where: {
+      loggedDate: { gte: dateKeyInstant(dates[0]), lte: dateKeyInstant(dates[dates.length - 1]) },
+      status: MealStatus.consumed,
+      userId: profileId,
+    },
+  })
+  const byDate = new Map<string, { totals: Nutrients; types: Set<string> }>()
+  for (const meal of meals) {
+    // A section whose items were all deleted is an empty row, not an eaten meal.
+    if (meal.items.length === 0 && meal.calories <= 0) continue
+    const key = meal.loggedDate.toISOString().slice(0, 10)
+    const entry = byDate.get(key) ?? { totals: emptyNutrients(), types: new Set<string>() }
+    entry.totals = sumNutrients([entry.totals, { calories: meal.calories, protein: meal.protein ?? 0, carbs: meal.carbs ?? 0, fat: meal.fat ?? 0 }])
+    entry.types.add(meal.type)
+    byDate.set(key, entry)
+  }
+  return byDate
+}
+
+function buildMealPlanResponse(generationId: string, plan: StoredMealPlan, foodsById: ReadonlyMap<string, PlanFood>) {
+  return {
+    generationId,
+    days: plan.days.map((day) => ({ ...day, totals: roundNutrients(dayNutrients(day.meals)) })),
+    shoppingList: buildShoppingList(plan.days, foodsById),
+    notes: plan.notes,
+  }
+}
+
+type MealPlanResponse = ReturnType<typeof buildMealPlanResponse>
+
+async function generateMealPlan(profile: SerializedProfile, rawInput: GenerateMealPlanInput): Promise<MealPlanResponse> {
+  const input = parseAI(generateMealPlanSchema, rawInput, 400)
+  const goals = mealPlanGoals(profile)
+  if (!Number.isFinite(goals.calories) || goals.calories <= 0) {
+    throw new AppError("Hãy cập nhật mục tiêu calories trong hồ sơ trước khi tạo thực đơn.", { status: 422, code: "AI_MISSING_CALORIE_GOAL" })
+  }
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.meal_plan)
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
-    throw new AuthServiceError("Ngày không hợp lệ. Định dạng: YYYY-MM-DD.", 400)
+  const dates = planDates(input.date, input.days ?? 1)
+  const [foods, recent, consumedByDate] = await Promise.all([
+    loadMealPlanFoods(db, profile.id),
+    loadRecentMealFoods(db, profile.id, input.date),
+    loadConsumedMeals(db, profile.id, dates),
+  ])
+
+  // Plan only what is left of each day: meal types not yet eaten, against the remaining goals.
+  const customMacros = hasCustomMacroGoals(goals)
+  const plannedDays = dates.map((date) => {
+    const logged = consumedByDate.get(date)
+    const consumed = roundNutrients(logged?.totals ?? emptyNutrients())
+    return {
+      date,
+      consumed,
+      mealTypes: MEAL_TYPES.filter((type) => !logged?.types.has(type)),
+      targets: remainingTargets(goals, consumed),
+    }
+  })
+  const blocked = plannedDays.find((day) => day.mealTypes.length === 0 || !canPlanCalories(day.targets))
+  if (blocked) {
+    throw new AppError(
+      `Ngày ${blocked.date} đã ghi ${Math.round(blocked.consumed.calories)} kcal${blocked.mealTypes.length === 0 ? " đủ cả 4 bữa" : ""}, không còn đủ mục tiêu để lên thực đơn. Hãy chọn ngày khác.`,
+      { status: 422, code: "AI_NOTHING_TO_PLAN" },
+    )
   }
 
-  const foods = await db.food.findMany({
-    where: {
-      OR: [
-        { source: FoodSource.system },
-        { createdById: profile.id, source: FoodSource.user },
-      ],
-    },
-    orderBy: { name: "asc" },
-  })
-
-  const foodCatalog = foods.map((f) => ({
-    id: f.id,
-    name: f.name,
-    category: f.category,
-    calories: f.calories ?? 0,
-    protein: f.protein ?? 0,
-    carbs: f.carbs ?? 0,
-    fat: f.fat ?? 0,
-    fiber: f.fiber,
-    sodium: f.sodium,
-    sugar: f.sugar,
-    servingLabel: f.servingLabel,
-    servingAmount: f.servingAmount ?? 1,
-    servingUnit: f.servingUnit,
-  }))
-
-  const recentMeals = await db.meal.findMany({
-    where: {
-      userId: profile.id,
-      loggedDate: { gte: plusDays(dayKey(), -6), lt: plusDays(dayKey(), 1) },
-    },
-    include: {
-      items: {
-        include: { food: { select: { name: true } } },
-      },
-    },
-    orderBy: { loggedDate: "desc" },
-    take: 20,
-  })
-
-  const recentFoodNames = Array.from(
-    new Set(recentMeals.flatMap((m) => m.items.map((i) => i.food?.name ?? i.foodNameSnapshot))),
-  ).slice(0, 15)
-
-  const catalogForPrompt = foodCatalog.map((f) => ({
-    id: f.id,
-    name: f.name,
-    category: f.category,
-    calories: f.calories,
-    protein: f.protein,
-    carbs: f.carbs,
-    fat: f.fat,
-    servingLabel: f.servingLabel,
-    servingAmount: f.servingAmount,
-    servingUnit: f.servingUnit,
-  }))
-
-  const systemPrompt = `Bạn là chuyên gia dinh dưỡng AI. Tạo thực đơn 1 ngày phù hợp với mục tiêu dinh dưỡng và ẩm thực Việt Nam.
-
-QUY TẮC BẮT BUỘC:
-1. CHỈ sử dụng foods từ Food Catalog được cung cấp. KHÔNG tự nghĩ ra món mới.
-2. foodId BẮT BUỘC là ID trong Food Catalog. Calories trong catalog tính trên servingAmount + servingUnit; không tự suy đoán đơn vị.
-3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
-4. type phải là: breakfast, lunch, dinner, hoặc snack.
-5. Tổng calories phải gần với mục tiêu (±10%).
-6. Tạo đúng 4 bữa: breakfast, lunch, dinner, snack.
-7. Bữa sáng, trưa, tối có 2-3 items; bữa phụ (snack) có 1-3 items. Dùng amountValue để tăng khẩu phần thay vì thêm quá nhiều món.
-8. amountUnit CHỈ được là "serving", "g" hoặc "ml". TUYỆT ĐỐI không dùng đơn vị khác (ly, tô, dĩa, quả, chén, muỗng...) — dùng "serving" cho khẩu phần và đặt số lượng vào amountValue.
-9. Không giải thích, không tính toán từng bước, không dùng thẻ <thought>/<thinking>.
-10. JSON phải bắt đầu ngay bằng ký tự { và kết thúc bằng }.`
-
-  const userPrompt = `## Mục tiêu dinh dưỡng
-- Calories: ${profile.dailyCalorieGoal} kcal
-- Protein: ${profile.dailyProteinGoal ?? 140}g
-- Carbs: ${profile.dailyCarbsGoal ?? 280}g
-- Fat: ${profile.dailyFatGoal ?? 70}g
-
-${input.preferences ? `## Sở thích / hạn chế: ${input.preferences}` : ""}
-## Ngân sách: ${BUDGET_LABELS[input.budget ?? "medium"] ?? "Trung bình"}
-## Thời gian nấu: ${COOKING_TIME_LABELS[input.cookingTime ?? "normal"] ?? "Bình thường"}
-
-## Bữa ăn gần đây (tránh lặp)
-${recentFoodNames.length > 0 ? recentFoodNames.join(", ") : "Chưa có dữ liệu"}
-
-## Food Catalog (CHỈ dùng foods trong list này)
-${JSON.stringify(catalogForPrompt, null, 0)}
-
-## Output JSON Shape
-${JSON.stringify({
-  meals: ["breakfast", "lunch", "dinner", "snack"].map(type => ({
-    type,
-    suggestion: "mô tả ngắn bữa ăn",
-    items: Array.from({ length: type === "snack" ? 1 : 2 }, () => ({
-      foodId: "thay bằng UUID chính xác từ catalog",
-      amountValue: 1,
-      amountUnit: "serving",
-    })),
-  })),
-  notes: "ghi chú dinh dưỡng ngắn bằng tiếng Việt",
-}, null, 2)}
-
-## Kiểm tra cuối trước khi trả JSON
-- Trả đủ 4 bữa như mẫu. Mỗi bữa chính chỉ 2 hoặc 3 items; snack chỉ 1 đến 3 items. Bữa có 4 items trở lên sẽ bị từ chối toàn bộ.
-- Nếu thiếu năng lượng, tăng amountValue của món đã chọn; KHÔNG thêm món thứ tư (kể cả rau, dầu, gia vị hay nước).
-- Tính calories bằng calories trong catalog nhân khẩu phần quy đổi. Tổng phải trong ${Math.ceil(profile.dailyCalorieGoal * 0.9)}–${Math.floor(profile.dailyCalorieGoal * 1.1)} kcal. Ưu tiên khoảng calories bắt buộc khi các mục tiêu macro không đồng nhất.
-- Backend tự tính tổng dinh dưỡng; không cần trả totalCalories/totalProtein/totalCarbs/totalFat.`
+  const filters = mealPlanFilters(profile, input)
+  const catalog = selectFoodsForPrompt(foods, { ...filters, recentFoodIds: recent.ids })
+  if (catalog.length === 0) {
+    throw new AppError("Không còn món nào sau khi lọc dị ứng, chế độ ăn, ngân sách và thời gian nấu. Hãy nới bớt điều kiện.", { status: 422, code: "AI_CATALOG_TOO_SMALL" })
+  }
+  const foodsById = new Map<string, PlanFood>(catalog.map((food) => [food.id, food]))
+  const prompt = buildDayPlanPrompt({ days: plannedDays, catalog, filters, recentFoodNames: recent.names })
 
   const generation = await db.aIGeneration.create({
     data: {
@@ -950,87 +991,39 @@ ${JSON.stringify({
   })
 
   try {
-    const ai = getAIProvider()
-    const response = await generateValidatedJSON(ai, { systemPrompt, userPrompt, maxTokens: 4096 }, (data) => {
-      const aiOutput = parseAI(mealOutputSchema, data)
-
-      const mappedMeals = aiOutput.meals.map((meal) => {
-        const mappedItems = meal.items
-          .map((item) => {
-            const food = foodCatalog.find(f => f.id === item.foodId)
-            if (!food) throw new AppError(`Món ${item.foodId} không thuộc thư viện của bạn. Không có món nào bị bỏ qua; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_FOOD" })
-            const foodId = food.id
-            const { amountValue, amountUnit } = item
-            if (amountUnit !== "serving" && (food.servingUnit !== amountUnit || food.servingAmount <= 0)) {
-              throw new AppError(`Không thể quy đổi đơn vị ${amountUnit} cho món ${food.name}. Hãy dùng serving hoặc tạo lại.`, { status: 422 })
-            }
-            const nutrition = calculateItemNutrition(food, { amountUnit, amountValue })
-
-            return {
-              foodId,
-              foodName: food.name,
-              amountValue,
-              amountUnit,
-              // Real weight where the library has one, the dish's own label where
-              // it does not — resolved here because the Food row is in hand.
-              quantityLabel: formatFoodQuantity(food, { amountValue, amountUnit }),
-              calories: nutrition.calories,
-              protein: nutrition.protein,
-              carbs: nutrition.carbs,
-              fat: nutrition.fat,
-            }
-          })
-
-        return {
-          type: meal.type,
-          suggestion: meal.suggestion,
-          items: mappedItems,
+    const response = await generateValidatedJSON(getAIProvider(), { ...prompt, maxTokens: Math.min(8192, 2048 + dates.length * 1024) }, (data) => {
+      const output = parseAI(mealPlanOutputSchema, data)
+      if (output.days.length !== plannedDays.length || output.days.some((day, index) => day.date !== plannedDays[index].date)) {
+        throw new AppError(`Phải trả đúng ${plannedDays.length} ngày theo thứ tự: ${dates.join(", ")}.`, { status: 422, code: "AI_VALIDATION_ERROR" })
+      }
+      const days: PlanDay[] = output.days.map((day, index) => {
+        const planned = plannedDays[index]
+        if (day.meals.length !== planned.mealTypes.length || planned.mealTypes.some((type) => !day.meals.some((meal) => meal.type === type))) {
+          throw new AppError(`Ngày ${day.date} phải có đúng các bữa: ${planned.mealTypes.join(", ")}.`, { status: 422, code: "AI_VALIDATION_ERROR" })
         }
+        const ordered = planned.mealTypes.flatMap((type) => day.meals.filter((meal) => meal.type === type))
+        const meals = fitMealsToTarget(ordered, foodsById, planned.targets, customMacros)
+        validateDayTargets(day.date, dayNutrients(meals), planned.targets, customMacros)
+        return { date: day.date, targets: planned.targets, consumed: planned.consumed, meals }
       })
-
-      // Recalculate from every validated catalog item.
-      const totals = mappedMeals.reduce(
-        (acc, meal) => {
-          for (const item of meal.items) {
-            acc.calories += item.calories
-            acc.protein += item.protein
-            acc.carbs += item.carbs
-            acc.fat += item.fat
-          }
-          return acc
-        },
-        { calories: 0, protein: 0, carbs: 0, fat: 0 },
-      )
-
-      validateCalorieTarget(totals.calories, profile.dailyCalorieGoal)
-
-      return { aiOutput, mappedMeals, totals }
+      return { days, notes: output.notes, raw: output }
     })
-    const { aiOutput, mappedMeals, totals } = response.data
 
+    const plan: StoredMealPlan = {
+      days: response.data.days,
+      notes: response.data.notes,
+      context: { ...filters, allergies: [...filters.allergies], customMacros },
+    }
     await db.aIGeneration.update({
       where: { id: generation.id },
       data: {
         status: AIGenerationStatus.completed,
-        output: {
-          raw: aiOutput,
-          mapped: mappedMeals,
-        } as unknown as unknown as Prisma.InputJsonValue,
+        output: { raw: response.data.raw, mapped: plan } as unknown as Prisma.InputJsonValue,
         tokenUsage: response.tokenUsage,
       },
     })
 
-    return {
-      generationId: generation.id,
-      meals: mappedMeals,
-      totals: {
-        calories: roundNutrition(totals.calories),
-        protein: roundNutrition(totals.protein),
-        carbs: roundNutrition(totals.carbs),
-        fat: roundNutrition(totals.fat),
-      },
-      notes: aiOutput.notes,
-    }
+    return buildMealPlanResponse(generation.id, plan, foodsById)
   } catch (error) {
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -1045,10 +1038,34 @@ ${JSON.stringify({
 }
 
 // ---------------------------------------------------------------------------
-// Accept Meal Plan — log items to existing meal system
+// Accept Meal Plan — saved as planned meals, confirmed one by one when eaten
 // ---------------------------------------------------------------------------
 
-async function acceptAIMealPlan(profile: SerializedProfile, generationId: string, date: string) {
+function toDraftDay(day: DraftDay): DraftDay {
+  return {
+    date: day.date,
+    targets: day.targets,
+    meals: day.meals.map((meal) => ({
+      type: meal.type,
+      items: meal.items.map(({ amountUnit, amountValue, foodId }) => ({ amountUnit, amountValue, foodId })),
+    })),
+  }
+}
+
+/** Drafts saved before multi-day plans stored a single day as a bare meal array. */
+function readAcceptableMealPlan(mapped: unknown, date: string, profile: SerializedProfile): { customMacros: boolean; days: DraftDay[] } {
+  if (Array.isArray(mapped)) {
+    const goals = mealPlanGoals(profile)
+    return { customMacros: hasCustomMacroGoals(goals), days: [toDraftDay({ date, targets: goals, meals: parseAI(mappedMealsSchema, mapped) })] }
+  }
+  const plan = parseAI(storedMealPlanSchema, mapped)
+  if (plan.days[0].date !== date) {
+    throw new AppError("Ngày lưu không khớp với bản nháp thực đơn.", { status: 400 })
+  }
+  return { customMacros: plan.context.customMacros, days: plan.days.map(toDraftDay) }
+}
+
+async function acceptAIMealPlan(profile: SerializedProfile, generationId: string, date: string, overrides?: MealPlanOverrides) {
   const db = ensurePrisma()
 
   const generation = await db.aIGeneration.findUnique({
@@ -1065,54 +1082,126 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
 
   if (generation.type !== AIGenerationType.meal_plan) throw new AppError("Kết quả AI không phải thực đơn.", { status: 400 })
   const targetDate = parseAI(dateSchema, date, 400)
-  const output = generation.output as { mapped?: unknown } | null
-  const meals = parseAI(mappedMealsSchema, output?.mapped)
+  const draft = readAcceptableMealPlan((generation.output as { mapped?: unknown } | null)?.mapped, targetDate, profile)
+  const days = overrides ? applyMealPlanOverrides(draft.days, overrides) : draft.days
+  if (days.length === 0) throw new AppError("Không còn món nào để lưu.", { status: 400 })
 
   return retryTransaction(() => db.$transaction(async tx => {
     await claimGeneration(tx, generationId, profile.id, AIGenerationType.meal_plan)
-    // Recalculate against today's catalog and goals inside the same transaction.
-    const ids = [...new Set(meals.flatMap(meal => meal.items.map(item => item.foodId)))]
+    // Recalculate against today's catalog inside the same transaction.
+    const ids = [...new Set(days.flatMap(day => day.meals.flatMap(meal => meal.items.map(item => item.foodId))))]
     const foods = await tx.food.findMany({ where: { id: { in: ids }, OR: [{ source: FoodSource.system }, { source: FoodSource.user, createdById: profile.id }] } })
-    let totals = { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    for (const meal of meals) for (const item of meal.items) {
-      const food = foods.find(f => f.id === item.foodId)
-      if (!food || (item.amountUnit !== "serving" && (item.amountUnit !== food.servingUnit || food.servingAmount <= 0))) {
-        throw new AppError("Thực phẩm đã thay đổi, bị xóa hoặc không thể quy đổi khẩu phần. Chưa lưu món nào; hãy tạo lại.", { status: 422, code: "AI_CATALOG_CHANGED" })
-      }
-      const nutrition = calculateItemNutrition(food, item)
-      totals = { calories: totals.calories + nutrition.calories, protein: totals.protein + (nutrition.protein ?? 0), carbs: totals.carbs + (nutrition.carbs ?? 0), fat: totals.fat + (nutrition.fat ?? 0) }
+    for (const day of days) {
+      const totals = sumNutrients(day.meals.flatMap(meal => meal.items.map(item => {
+        const food = foods.find(f => f.id === item.foodId)
+        if (!food || (item.amountUnit !== "serving" && (item.amountUnit !== food.servingUnit || food.servingAmount <= 0))) {
+          throw new AppError("Thực phẩm đã thay đổi, bị xóa hoặc không thể quy đổi khẩu phần. Chưa lưu món nào; hãy tạo lại.", { status: 422, code: "AI_CATALOG_CHANGED" })
+        }
+        const nutrition = calculateItemNutrition(food, item)
+        return { calories: nutrition.calories, protein: nutrition.protein ?? 0, carbs: nutrition.carbs ?? 0, fat: nutrition.fat ?? 0 }
+      })))
+      // Portions the trainee edited are their call; only an untouched draft must still meet the targets.
+      if (!overrides) validateDayTargets(day.date, totals, day.targets, draft.customMacros)
     }
-    validateNutritionTargets(totals, profile)
+    // A newly accepted plan replaces the planned menu for those days instead of stacking onto it.
+    await tx.meal.deleteMany({ where: { loggedDate: { in: days.map(day => dateKeyInstant(day.date)) }, status: MealStatus.planned, userId: profile.id } })
     let logged = 0
-    for (const meal of meals) for (const item of meal.items) {
-      await addMealItemForUser(profile, { date: targetDate, mealType: meal.type, status: MealStatus.planned, ...item }, tx)
+    for (const day of days) for (const meal of day.meals) for (const item of meal.items) {
+      await addMealItemForUser(profile, { date: day.date, mealType: meal.type, status: MealStatus.planned, ...item }, tx)
       logged += 1
     }
-    return { accepted: true, logged, skipped: 0 }
+    return { accepted: true, dates: days.map(day => day.date), logged, skipped: 0 }
   }, { maxWait: 15000, timeout: 60000, isolationLevel: "Serializable" }))
 }
 
-function validateCalorieTarget(calories: number, goal: number) {
-  if (!Number.isFinite(goal) || goal <= 0) throw new AppError("Hãy cập nhật mục tiêu calories trước khi tạo thực đơn.", { status: 422 })
-  if (!Number.isFinite(calories) || Math.abs(calories - goal) > goal * 0.1 + 0.01) {
-    throw new AppError(`Thực đơn tính từ khẩu phần có ${Math.round(calories)} kcal, nằm ngoài ±10% mục tiêu ${goal} kcal. Hãy tạo lại.`, { status: 422, code: "AI_NUTRITION_TARGET_MISMATCH" })
-  }
-}
+// ---------------------------------------------------------------------------
+// Swap one meal inside a draft plan
+// ---------------------------------------------------------------------------
 
-function validateNutritionTargets(totals: { calories: number; protein: number; carbs: number; fat: number }, profile: SerializedProfile) {
-  validateCalorieTarget(totals.calories, profile.dailyCalorieGoal)
-  // Macro goals have historically been database defaults. Enforce them when
-  // the user has customised at least one target; calories remain mandatory.
-  const hasCustomMacroTargets = profile.dailyProteinGoal !== 140 || profile.dailyCarbsGoal !== 280 || profile.dailyFatGoal !== 70
-  if (!hasCustomMacroTargets) return
-  const checks: Array<[string, number, number, number]> = [
-    ["protein", totals.protein, profile.dailyProteinGoal ?? 0, 20],
-    ["carbs", totals.carbs, profile.dailyCarbsGoal ?? 0, 40],
-    ["fat", totals.fat, profile.dailyFatGoal ?? 0, 15],
-  ]
-  const failed = checks.filter(([, actual, goal, floor]) => goal > 0 && Math.abs(actual - goal) > Math.max(goal * 0.25, floor))
-  if (failed.length > 0) {
-    throw new AppError(`Macro ngoài ngưỡng mục tiêu: ${failed.map(([name, actual, goal]) => `${name} ${Math.round(actual)} so với ${goal}g`).join(", ")}. Hãy tạo lại.`, { status: 422, code: "AI_MACRO_TARGET_MISMATCH" })
+async function regenerateAIMealPlanMeal(
+  profile: SerializedProfile,
+  input: { generationId: string; date: string; mealType: PlanMealType },
+): Promise<MealPlanResponse> {
+  const db = ensurePrisma()
+  const generation = await db.aIGeneration.findUnique({ where: { id: input.generationId } })
+  if (!generation || generation.userId !== profile.id || generation.type !== AIGenerationType.meal_plan) {
+    throw new AuthServiceError("Không tìm thấy thực đơn AI.", 404)
+  }
+  if (generation.status !== AIGenerationStatus.completed) {
+    throw new AppError("Thực đơn đã được lưu hoặc chưa sẵn sàng nên không đổi bữa được nữa.", { status: 409, code: "AI_ALREADY_ACCEPTED" })
+  }
+  const output = generation.output as { mapped?: unknown; raw?: unknown } | null
+  if (Array.isArray(output?.mapped)) {
+    throw new AppError("Bản nháp này tạo từ phiên bản cũ. Hãy tạo thực đơn mới để đổi bữa.", { status: 400 })
+  }
+  const plan = parseAI(storedMealPlanSchema, output?.mapped)
+  const dayIndex = plan.days.findIndex((day) => day.date === input.date)
+  const day = plan.days[dayIndex]
+  const mealIndex = day ? day.meals.findIndex((meal) => meal.type === input.mealType) : -1
+  if (!day || mealIndex < 0) throw new AppError("Không tìm thấy bữa cần đổi trong thực đơn.", { status: 404 })
+
+  const otherMeals = day.meals.filter((_, index) => index !== mealIndex)
+  const target = remainingTargets(day.targets, dayNutrients(otherMeals))
+  if (target.calories < 80) {
+    throw new AppError("Các bữa khác đã gần đủ mục tiêu ngày nên không còn năng lượng cho bữa này. Hãy giảm bớt món ở bữa khác trước.", { status: 422 })
+  }
+
+  if (!mealSwapCounter.tryConsume(profile.id)) {
+    throw new TooManyRequestsError(`Bạn đã đổi bữa ${mealSwapCounter.max} lần hôm nay. Vui lòng thử lại vào ngày mai.`)
+  }
+
+  try {
+    const [foods, recent] = await Promise.all([loadMealPlanFoods(db, profile.id), loadRecentMealFoods(db, profile.id, plan.days[0].date)])
+    const currentMeal = day.meals[mealIndex]
+    const currentFoodIds = new Set(currentMeal.items.map((item) => item.foodId))
+    const catalog = selectFoodsForPrompt(foods, { ...plan.context, recentFoodIds: recent.ids }).filter((food) => !currentFoodIds.has(food.id))
+    if (catalog.length === 0) throw new AppError("Không còn món khác phù hợp để đổi bữa này.", { status: 422 })
+    const catalogById = new Map<string, PlanFood>(catalog.map((food) => [food.id, food]))
+    const prompt = buildMealSwapPrompt({
+      catalog,
+      currentFoodNames: currentMeal.items.map((item) => item.foodName),
+      date: input.date,
+      filters: plan.context,
+      mealType: input.mealType,
+      otherFoodNames: otherMeals.flatMap((meal) => meal.items.map((item) => item.foodName)),
+      recentFoodNames: recent.names,
+      target,
+    })
+
+    const response = await generateValidatedJSON(getAIProvider(), { ...prompt, maxTokens: 1536 }, (data) => {
+      const meal = parseAI(mealSchema, data)
+      if (meal.type !== input.mealType) {
+        throw new AppError(`Phải trả đúng bữa ${input.mealType}.`, { status: 422, code: "AI_VALIDATION_ERROR" })
+      }
+      const [mapped] = fitMealsToTarget([meal], catalogById, target, plan.context.customMacros)
+      validateDayTargets(input.date, dayNutrients([...otherMeals, mapped]), day.targets, plan.context.customMacros)
+      return mapped
+    })
+
+    const nextPlan: StoredMealPlan = {
+      ...plan,
+      days: plan.days.map((current, index) =>
+        index !== dayIndex ? current : { ...current, meals: current.meals.map((meal, position) => (position === mealIndex ? response.data : meal)) },
+      ),
+    }
+    // Conditional on `completed` so a swap can never rewrite a plan that was accepted meanwhile.
+    const saved = await db.aIGeneration.updateMany({
+      data: {
+        output: { ...output, mapped: nextPlan } as unknown as Prisma.InputJsonValue,
+        tokenUsage: (generation.tokenUsage ?? 0) + response.tokenUsage,
+      },
+      where: { id: generation.id, status: AIGenerationStatus.completed, userId: profile.id },
+    })
+    if (saved.count !== 1) {
+      throw new AppError("Thực đơn vừa được lưu ở nơi khác. Vui lòng tải lại.", { status: 409, code: "AI_ALREADY_ACCEPTED" })
+    }
+
+    return buildMealPlanResponse(generation.id, nextPlan, new Map<string, PlanFood>(foods.map((food) => [food.id, food])))
+  } catch (error) {
+    // The attempt produced nothing, so it should not count against the budget.
+    mealSwapCounter.release(profile.id)
+    if (error instanceof AppError) throw error
+    throw new AuthServiceError("Không thể đổi bữa. Vui lòng thử lại sau.", 500)
   }
 }
 
@@ -1124,23 +1213,6 @@ function validateWorkoutWorkload(workouts: Array<{ duration: number; exercises: 
       throw new AppError(`Volume buổi tập quá cao (${totalSets} sets cho ${sessionDuration} phút). Hãy tạo lại.`, { status: 422, code: "AI_WORKLOAD_TOO_HIGH" })
     }
   }
-}
-
-type MappedMealOutput = {
-  type: string
-  suggestion: string
-  items: Array<{
-    foodId: string
-    foodName: string
-    amountValue: number
-    amountUnit: string
-    /** Absent on drafts generated before this field existed. */
-    quantityLabel?: string
-    calories: number
-    protein: number
-    carbs: number
-    fat: number
-  }>
 }
 
 // ---------------------------------------------------------------------------
@@ -1160,10 +1232,10 @@ type ChatAction =
   | {
       type: "meal_plan_draft"
       generationId: string
-      /** Needed to accept: the meal endpoint logs against a specific day. */
+      /** Needed to accept: the first day of the draft. */
       date: string
-      meals: MappedMealOutput[]
-      totals: { calories: number; protein: number; carbs: number; fat: number }
+      days: MealPlanResponse["days"]
+      shoppingList: MealPlanResponse["shoppingList"]
       notes: string
     }
 
@@ -1334,18 +1406,20 @@ async function chatWithAI(
           type: "meal_plan_draft",
           generationId: result.generationId,
           date: input.date,
-          meals: result.meals,
-          totals: result.totals,
+          days: result.days,
+          shoppingList: result.shoppingList,
           notes: result.notes,
         }
         pushToolResult(call, {
           ok: true,
-          date: input.date,
-          totals: result.totals,
-          meals: result.meals.map((meal) => ({
-            type: meal.type,
-            itemCount: meal.items.length,
-            foods: meal.items.map((item) => item.foodName),
+          days: result.days.map((day) => ({
+            date: day.date,
+            totals: day.totals,
+            meals: day.meals.map((meal) => ({
+              type: meal.type,
+              itemCount: meal.items.length,
+              foods: meal.items.map((item) => item.foodName),
+            })),
           })),
           note: DRAFT_NOTE,
         })
@@ -1389,4 +1463,5 @@ export {
   generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
+  regenerateAIMealPlanMeal,
 }

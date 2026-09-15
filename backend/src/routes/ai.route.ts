@@ -10,6 +10,7 @@ import {
   generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
+  regenerateAIMealPlanMeal,
 } from "../services/ai.service"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
@@ -19,6 +20,7 @@ import {
   generateMealPlanSchema,
   generateProgramSchema,
   generationIdSchema,
+  regenerateMealPlanMealSchema,
 } from "./ai.schemas"
 import { getAccessToken, sendData } from "./route.utils"
 
@@ -72,7 +74,15 @@ aiRouter.post(
   "/accept-meal-plan",
   validated({ body: acceptMealPlanSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    sendData(res, await acceptAIMealPlan(profile, req.body.generationId, req.body.date))
+    sendData(res, await acceptAIMealPlan(profile, req.body.generationId, req.body.date, req.body.days))
+  }),
+)
+
+aiRouter.post(
+  "/regenerate-meal-plan-meal",
+  validated({ body: regenerateMealPlanMealSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await regenerateAIMealPlanMeal(profile, req.body))
   }),
 )
 

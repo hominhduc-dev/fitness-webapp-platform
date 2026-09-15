@@ -174,6 +174,8 @@ type SerializedMeal = {
   sodium?: number
   sugar?: number
   time?: string
+  coachNote?: string
+  coachReviewedAt?: string
   type: Meal["type"]
   status?: Meal["status"]
 }
@@ -763,6 +765,8 @@ function mapMeal(meal: SerializedMeal): Meal {
     sodium: meal.sodium,
     sugar: meal.sugar,
     time: toDate(meal.time),
+    coachNote: meal.coachNote,
+    coachReviewedAt: toDate(meal.coachReviewedAt),
     type: meal.type,
     status: meal.status ?? "consumed",
   }
@@ -1172,8 +1176,50 @@ async function addMealItem(
   return mapMeal(response.data.meal)
 }
 
-export async function consumePlannedMeals(accessToken: string, date: string) {
-  const response = await request<ApiEnvelope<{ date: string; meals: SerializedMeal[]; plannedMeals?: SerializedMeal[]; recentFoods?: SerializedNutritionFood[]; targets: NutritionTargets; totals: NutritionTotals }>>("/api/meals/plans/consume", accessToken, { method: "POST", body: JSON.stringify({ date }) })
+export async function consumePlannedMeals(accessToken: string, date: string, mealType?: Meal["type"]) {
+  const response = await request<ApiEnvelope<{ date: string; meals: SerializedMeal[]; plannedMeals?: SerializedMeal[]; recentFoods?: SerializedNutritionFood[]; targets: NutritionTargets; totals: NutritionTotals }>>("/api/meals/plans/consume", accessToken, { method: "POST", body: JSON.stringify({ date, mealType }) })
+  return mapNutritionDay(response.data)
+}
+
+type SerializedNutritionDay = Parameters<typeof mapNutritionDay>[0]
+
+export async function updateMealItemAmount(accessToken: string, itemId: string, amountValue: number) {
+  const response = await request<ApiEnvelope<{ meal: SerializedMeal }>>(`/api/meals/items/${itemId}`, accessToken, {
+    method: "PATCH",
+    body: JSON.stringify({ amountValue }),
+  })
+  return mapMeal(response.data.meal)
+}
+
+export async function fetchCoachTraineeMealPlan(accessToken: string, traineeId: string, date: string) {
+  const response = await request<ApiEnvelope<SerializedNutritionDay>>(
+    `/api/coach/trainees/${traineeId}/meal-plans?date=${encodeURIComponent(date)}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+  return mapNutritionDay(response.data)
+}
+
+export async function updateCoachTraineeMealItem(accessToken: string, traineeId: string, itemId: string, amountValue: number) {
+  const response = await request<ApiEnvelope<{ meal: SerializedMeal }>>(`/api/coach/trainees/${traineeId}/meal-plans/items/${itemId}`, accessToken, {
+    method: "PATCH",
+    body: JSON.stringify({ amountValue }),
+  })
+  return mapMeal(response.data.meal)
+}
+
+export async function deleteCoachTraineeMealItem(accessToken: string, traineeId: string, itemId: string) {
+  const response = await request<ApiEnvelope<{ meal: SerializedMeal }>>(`/api/coach/trainees/${traineeId}/meal-plans/items/${itemId}`, accessToken, {
+    method: "DELETE",
+  })
+  return mapMeal(response.data.meal)
+}
+
+export async function reviewCoachTraineeMealPlan(accessToken: string, traineeId: string, input: { date: string; note?: string }) {
+  const response = await request<ApiEnvelope<SerializedNutritionDay>>(`/api/coach/trainees/${traineeId}/meal-plans/review`, accessToken, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
   return mapNutritionDay(response.data)
 }
 
@@ -2228,6 +2274,40 @@ async function generateAIDailyWorkout(accessToken: string, input: {
 
   return response.data
 }
+export type AIMealPlanNutrients = { calories: number; protein: number; carbs: number; fat: number }
+
+export type AIMealPlanMeal = { type: Meal["type"]; suggestion: string; items: AIMealItem[] }
+
+export type AIMealPlanDay = {
+  date: string
+  /** What is left of the day's goals after meals already eaten. */
+  targets: AIMealPlanNutrients
+  consumed: AIMealPlanNutrients
+  totals: AIMealPlanNutrients
+  meals: AIMealPlanMeal[]
+}
+
+export type AIShoppingItem = {
+  foodId: string
+  foodName: string
+  category: string
+  amountValue: number
+  amountUnit: string
+  quantityLabel: string
+}
+
+export type AIMealPlan = {
+  generationId: string
+  days: AIMealPlanDay[]
+  shoppingList: AIShoppingItem[]
+  notes: string
+}
+
+export type AIMealPlanOverride = {
+  date: string
+  meals: Array<{ type: Meal["type"]; items: Array<{ foodId: string; amountValue: number; amountUnit: string }> }>
+}
+
 
 async function acceptAIDailyWorkout(accessToken: string, generationId: string) {
   const response = await request<ApiEnvelope<{ accepted: boolean; workoutId: string }>>(
@@ -2241,25 +2321,12 @@ async function acceptAIDailyWorkout(accessToken: string, generationId: string) {
 
 async function generateAIMealPlan(accessToken: string, input: {
   date: string
+  days?: number
   preferences?: string
   budget?: string
   cookingTime?: string
 }) {
-  const response = await request<ApiEnvelope<{
-    generationId: string
-    meals: Array<{
-      type: string
-      suggestion: string
-      items: AIMealItem[]
-    }>
-    totals: {
-      calories: number
-      protein: number
-      carbs: number
-      fat: number
-    }
-    notes: string
-  }>>("/api/ai/generate-meal-plan", accessToken, {
+  const response = await request<ApiEnvelope<AIMealPlan>>("/api/ai/generate-meal-plan", accessToken, {
     method: "POST",
     body: JSON.stringify(input),
   })
@@ -2267,10 +2334,20 @@ async function generateAIMealPlan(accessToken: string, input: {
   return response.data
 }
 
-async function acceptAIMealPlan(accessToken: string, generationId: string, date: string) {
-  const response = await request<ApiEnvelope<{ accepted: boolean }>>("/api/ai/accept-meal-plan", accessToken, {
+/** `days` carries trainee edits; omit it to save the draft exactly as generated. */
+async function acceptAIMealPlan(accessToken: string, generationId: string, date: string, days?: AIMealPlanOverride[]) {
+  const response = await request<ApiEnvelope<{ accepted: boolean; dates: string[]; logged: number }>>("/api/ai/accept-meal-plan", accessToken, {
     method: "POST",
-    body: JSON.stringify({ generationId, date }),
+    body: JSON.stringify({ generationId, date, days }),
+  })
+
+  return response.data
+}
+
+async function regenerateAIMealPlanMeal(accessToken: string, input: { generationId: string; date: string; mealType: Meal["type"] }) {
+  const response = await request<ApiEnvelope<AIMealPlan>>("/api/ai/regenerate-meal-plan-meal", accessToken, {
+    method: "POST",
+    body: JSON.stringify(input),
   })
 
   return response.data
@@ -2315,8 +2392,8 @@ export type AIChatAction =
       type: "meal_plan_draft"
       generationId: string
       date: string
-      meals: Array<{ type: string; suggestion: string; items: AIMealItem[] }>
-      totals: { calories: number; protein: number; carbs: number; fat: number }
+      days: AIMealPlanDay[]
+      shoppingList: AIShoppingItem[]
       notes: string
     }
 
@@ -2338,6 +2415,7 @@ export {
   assignCoachProgram,
   createCoachExerciseRequest,
   createCoachBodyMetric,
+  regenerateAIMealPlanMeal,
   createCoachCheckIn,
   createCoachRequest,
   createCoachProgram,

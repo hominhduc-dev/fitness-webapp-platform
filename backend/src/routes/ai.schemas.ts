@@ -43,15 +43,42 @@ const generateDailyWorkoutSchema = z.object({
   sessionDuration: inputInt(20, 120),
 })
 
+const mealType = z.enum(["breakfast", "lunch", "dinner", "snack"])
+
 const generateMealPlanSchema = z.object({
   budget: z.enum(["low", "medium", "high"]).optional(),
   cookingTime: z.enum(["quick", "normal"]).optional(),
   date: isoDate,
+  /** Consecutive days starting at `date`. */
+  days: inputInt(1, 7).optional(),
   preferences: freeText.optional(),
 })
 
+const mealPlanOverrideItem = z.object({
+  amountUnit: z.enum(["serving", "g", "ml"]),
+  amountValue: z.number().positive().max(5000),
+  foodId: z.uuid(),
+})
+
 const acceptMealPlanSchema = generationIdSchema.extend({
+  /** First day of the draft; kept for drafts that predate multi-day plans. */
   date: isoDate,
+  /** Trainee-edited portions. Only foods already in the draft are accepted. */
+  days: z
+    .array(
+      z.object({
+        date: isoDate,
+        meals: z.array(z.object({ items: z.array(mealPlanOverrideItem).max(6), type: mealType })).max(4),
+      }),
+    )
+    .min(1)
+    .max(7)
+    .optional(),
+})
+
+const regenerateMealPlanMealSchema = generationIdSchema.extend({
+  date: isoDate,
+  mealType,
 })
 
 const chatSchema = z.object({
@@ -76,4 +103,5 @@ export {
   generateMealPlanSchema,
   generateProgramSchema,
   generationIdSchema,
+  regenerateMealPlanMealSchema,
 }

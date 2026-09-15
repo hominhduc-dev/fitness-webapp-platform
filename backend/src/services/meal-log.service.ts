@@ -33,6 +33,8 @@ function serializeMealRecord(meal: MealWithFoodRecord) {
   return {
     calories: meal.calories,
     carbs: meal.carbs ?? undefined,
+    coachNote: meal.coachNote ?? undefined,
+    coachReviewedAt: meal.coachReviewedAt ?? undefined,
     fat: meal.fat ?? undefined,
     fiber: meal.fiber ?? undefined,
     id: meal.id,

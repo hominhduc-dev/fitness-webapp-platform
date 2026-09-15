@@ -50,6 +50,10 @@ export function useAcceptAIMealPlan() {
   return useAIMutation(api.acceptAIMealPlan, [queryKeys.meals.all, ["workouts", "dashboard"]])
 }
 
+export function useRegenerateAIMealPlanMeal() {
+  return useAIMutation(api.regenerateAIMealPlanMeal, [])
+}
+
 export function useSendAIChatMessage() {
   return useAIMutation(api.sendAIChatMessage, [])
 }

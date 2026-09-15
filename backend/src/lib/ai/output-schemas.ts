@@ -24,10 +24,21 @@ export const mappedProgramSchema = z.object({
 export const dailyOutputSchema = z.object({ name: text, description, kind, duration: integer(20, 120), warmup: description, exercises: z.array(exercise).min(1).max(20) })
 export const mappedDailySchema = dailyOutputSchema.extend({ date: dateSchema, difficulty, exercises: z.array(mappedExercise).min(1).max(20) })
 export const mealItemSchema = z.object({ foodId: z.uuid(), foodName: text.optional(), amountValue: z.number().positive().max(5000), amountUnit: z.enum(["serving", "g", "ml"]) })
-const meal = z.object({ type: z.enum(["breakfast", "lunch", "dinner", "snack"]), suggestion: description, items: z.array(mealItemSchema).min(1).max(3) })
+const mealType = z.enum(["breakfast", "lunch", "dinner", "snack"])
+export const mealSchema = z.object({ type: mealType, suggestion: description, items: z.array(mealItemSchema).min(1).max(3) })
   .refine(v => v.type === "snack" || v.items.length >= 2, "Bữa chính cần 2–3 món; bữa phụ cần 1–3 món")
-export const mappedMealsSchema = z.array(meal).length(4).refine(v => new Set(v.map(m => m.type)).size === 4, "Thực đơn phải đủ 4 loại bữa khác nhau")
-export const mealOutputSchema = z.object({ meals: mappedMealsSchema, notes: description })
+/** One day's meals. Days with meals already logged only plan the remaining types. */
+export const mappedMealsSchema = z.array(mealSchema).min(1).max(4).refine(v => new Set(v.map(m => m.type)).size === v.length, "Mỗi loại bữa chỉ được xuất hiện một lần")
+export const mealPlanOutputSchema = z.object({ days: z.array(z.object({ date: dateSchema, meals: mappedMealsSchema })).min(1).max(7), notes: description.default("") })
+const nutrients = z.object({ calories: z.number(), protein: z.number(), carbs: z.number(), fat: z.number() })
+const storedMealItem = mealItemSchema.extend({ foodName: text, quantityLabel: z.string().max(200), calories: z.number(), protein: z.number(), carbs: z.number(), fat: z.number() })
+/** What a meal-plan generation persists as `output.mapped`, and what accept and meal swaps read back. */
+export const storedMealPlanSchema = z.object({
+  days: z.array(z.object({ date: dateSchema, targets: nutrients, consumed: nutrients, meals: z.array(z.object({ type: mealType, suggestion: description, items: z.array(storedMealItem).min(1).max(3) })).min(1).max(4) })).min(1).max(7),
+  notes: description.default(""),
+  context: z.object({ customMacros: z.boolean(), allergies: z.array(z.string()), dietType: z.string().nullable(), budget: z.string().optional(), cookingTime: z.string().optional(), preferences: z.string().optional() }),
+})
+export type StoredMealPlan = z.infer<typeof storedMealPlanSchema>
 
 export function parseAI<T>(schema: z.ZodType<T>, value: unknown, status = 422): T {
   const result = schema.safeParse(value)

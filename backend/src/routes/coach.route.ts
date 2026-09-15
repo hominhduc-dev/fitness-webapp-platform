@@ -47,6 +47,20 @@ import { getAccessToken, sendError } from "./route.utils"
 import { googleRouter } from "./google.route"
 import { assertCoach, ensurePrisma } from "../services/fitness-data/shared/guards"
 import { BadRequestError } from "../services/errors"
+import {
+  deleteTraineePlannedItemForCoach,
+  getTraineeMealPlanForCoach,
+  reviewTraineeMealPlanForCoach,
+  updateTraineePlannedItemForCoach,
+} from "../services/meal-plan-review.service"
+import { validated } from "../middleware/validate"
+import {
+  mealItemAmountSchema,
+  mealPlanDateQuerySchema,
+  mealPlanReviewSchema,
+  traineeMealItemParamsSchema,
+  traineeMealPlanParamsSchema,
+} from "./meal.schemas"
 import { sendData, sendApiError } from "./route.utils"
 
 const coachRouter = Router()
@@ -715,5 +729,40 @@ coachRouter.patch("/requests/:requestId", async (req, res) => {
     sendError(res, error)
   }
 })
+
+// Planned meals (AI meal plans) a coach can review before the trainee eats them.
+coachRouter.get(
+  "/trainees/:traineeId/meal-plans",
+  validated({ params: traineeMealPlanParamsSchema, query: mealPlanDateQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getTraineeMealPlanForCoach(profile, req.params.traineeId, req.query.date))
+  }),
+)
+
+coachRouter.patch(
+  "/trainees/:traineeId/meal-plans/items/:itemId",
+  validated({ body: mealItemAmountSchema, params: traineeMealItemParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const meal = await updateTraineePlannedItemForCoach(profile, req.params.traineeId, req.params.itemId, req.body.amountValue)
+    sendData(res, { meal })
+  }),
+)
+
+coachRouter.delete(
+  "/trainees/:traineeId/meal-plans/items/:itemId",
+  validated({ params: traineeMealItemParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const meal = await deleteTraineePlannedItemForCoach(profile, req.params.traineeId, req.params.itemId)
+    sendData(res, { meal })
+  }),
+)
+
+coachRouter.post(
+  "/trainees/:traineeId/meal-plans/review",
+  validated({ body: mealPlanReviewSchema, params: traineeMealPlanParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await reviewTraineeMealPlanForCoach(profile, req.params.traineeId, req.body.date, req.body.note))
+  }),
+)
 
 export { coachRouter }
