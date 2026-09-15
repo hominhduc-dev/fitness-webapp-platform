@@ -654,13 +654,13 @@ model Meal {
   protein    Float?
   carbs      Float?
   fat        Float?
-  /// Set when a coach reviews a planned meal; null for self-logged meals.
-  coachNote       String?
-  coachReviewedAt DateTime?
   fiber      Float?
   sugar      Float?
   sodium     Float?
   recordedAt DateTime
+  /// Set when a coach reviews a planned meal; null for self-logged meals.
+  coachNote       String?
+  coachReviewedAt DateTime?
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   items      MealFoodItem[]
   createdAt  DateTime       @default(now())

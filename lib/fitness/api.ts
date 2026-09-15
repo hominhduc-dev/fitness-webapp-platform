@@ -2243,7 +2243,6 @@ type AIDailyWorkout = {
   duration: number
   warmup: string
   exercises: Array<{
-  days?: number
     variationId: string
     sets: number
     reps: number
@@ -2322,6 +2321,7 @@ async function acceptAIDailyWorkout(accessToken: string, generationId: string) {
 
 async function generateAIMealPlan(accessToken: string, input: {
   date: string
+  days?: number
   preferences?: string
   budget?: string
   cookingTime?: string

@@ -6889,11 +6889,11 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       },
     }),
     db.meal.findMany({
-        status: MealStatus.consumed,
       include: MEAL_WITH_FOOD_INCLUDE,
       orderBy: { loggedDate: "desc" },
       where: {
         loggedDate: { gte: last30Days.start, lte: last30Days.end },
+        status: MealStatus.consumed,
         userId: trainee.id,
       },
     }),
