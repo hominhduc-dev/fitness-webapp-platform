@@ -4,7 +4,14 @@ import * as google from "../lib/google"
 import { decryptToken, encryptToken, isTokenCryptoConfigured } from "../lib/token-crypto"
 import { BadRequestError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
-import { assertCoach, ensurePrisma } from "./fitness-data/shared/guards"
+import { ensurePrisma } from "./fitness-data/shared/guards"
+
+/**
+ * One Google grant per user. Coaches use it to author and import program sheets;
+ * trainees use it to export their own logs into their Drive. Features that are
+ * coach-only check the role themselves.
+ */
+const CONNECTABLE_ROLES = ["coach", "trainee"] as const
 
 export const GOOGLE_STATE_MAX_AGE = 10 * 60 * 1000
 export function isGoogleConfigured() {
@@ -12,6 +19,11 @@ export function isGoogleConfigured() {
 }
 function requireConfigured() {
   if (!isGoogleConfigured()) throw new BadRequestError("Google chưa được cấu hình.", { code: "GOOGLE_NOT_CONFIGURED" })
+}
+function assertConnectableRole(profile: Pick<SerializedProfile, "role">) {
+  if (!(CONNECTABLE_ROLES as readonly string[]).includes(profile.role)) {
+    throw new BadRequestError("Tài khoản này không kết nối được Google.", { code: "GOOGLE_ROLE_UNSUPPORTED" })
+  }
 }
 function sign(value: string) {
   requireConfigured()
@@ -36,16 +48,22 @@ export function verifyGoogleState(state: string, nonce: string) {
   } catch { throw invalid() }
 }
 export async function getGoogleConnection(profile: SerializedProfile) {
-  assertCoach(profile)
+  assertConnectableRole(profile)
   if (!isGoogleConfigured()) return { configured: false, connected: false, email: null }
   const connection = await ensurePrisma().googleConnection.findUnique({ where: { userId: profile.id } })
   return { configured: true, connected: Boolean(connection?.refreshTokenEncrypted), email: connection?.googleEmail ?? null }
 }
+export async function hasGoogleConnection(userId: string) {
+  if (!isGoogleConfigured()) return false
+  const connection = await ensurePrisma().googleConnection.findUnique({ where: { userId }, select: { refreshTokenEncrypted: true } })
+  return Boolean(connection?.refreshTokenEncrypted)
+}
+/** Returns the user's role so the callback can send them back to their own page. */
 export async function connectGoogle(userId: string, code: string) {
   requireConfigured()
   const db = ensurePrisma()
-  const user = await db.user.findFirst({ where: { id: userId, role: "coach" } })
-  if (!user) throw new BadRequestError("Tài khoản coach không còn hợp lệ.")
+  const user = await db.user.findFirst({ where: { id: userId, role: { in: [...CONNECTABLE_ROLES] } }, select: { id: true, role: true } })
+  if (!user) throw new BadRequestError("Tài khoản không còn hợp lệ để kết nối Google.")
   const tokens = await google.exchangeCodeForTokens(code)
   if (!tokens.refreshToken) throw new BadRequestError("Google không cấp refresh token. Hãy kết nối lại và cấp quyền truy cập ngoại tuyến.", { code: "GOOGLE_REFRESH_TOKEN_MISSING" })
   if (!tokens.scope.split(" ").includes(google.SCOPES[0])) throw new BadRequestError("Cần cấp quyền đọc và ghi Google Sheets.", { code: "GOOGLE_SCOPE_MISSING" })
@@ -56,9 +74,10 @@ export async function connectGoogle(userId: string, code: string) {
     googleEmail: (await google.fetchGoogleEmail(tokens.accessToken)) ?? null,
   }
   await db.googleConnection.upsert({ where: { userId }, create: { userId, ...data }, update: data })
+  return { role: user.role }
 }
 export async function disconnectGoogle(profile: SerializedProfile) {
-  assertCoach(profile)
+  assertConnectableRole(profile)
   const db = ensurePrisma()
   const connection = await db.googleConnection.findUnique({ where: { userId: profile.id } })
   await db.googleConnection.deleteMany({ where: { userId: profile.id } })
@@ -68,7 +87,7 @@ export async function disconnectGoogle(profile: SerializedProfile) {
   return { connected: false }
 }
 export async function getGoogleAccessToken(profile: SerializedProfile) {
-  assertCoach(profile)
+  assertConnectableRole(profile)
   requireConfigured()
   const db = ensurePrisma()
   const connection = await db.googleConnection.findUnique({ where: { userId: profile.id } })

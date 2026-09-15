@@ -497,6 +497,9 @@ model ProgramAssignment {
   program    Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedAt DateTime @default(now())
+  /// Spreadsheet in the trainee's own Google Drive that this program's logs are
+  /// exported into. Null until the first export; reused afterwards.
+  traineeGoogleSpreadsheetId String?
 
   @@unique([programId, userId])
   @@index([userId])

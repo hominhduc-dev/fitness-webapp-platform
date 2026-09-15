@@ -88,6 +88,7 @@ const logRangeQuery = z.object({
 const exportLogsSchema = z.object({
   from: isoDate,
   label: z.string().max(120).optional(),
+  programId: z.string().uuid().optional(),
   to: isoDate,
 })
 

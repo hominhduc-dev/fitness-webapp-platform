@@ -32,6 +32,8 @@ import {
 import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-export.service"
 import { logger } from "../../lib/logger"
 import { exportGoogleProgramLogs } from "../google-program-export.service"
+import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
+import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
 import { buildExerciseDisplayName, type ExerciseDisplayNameInput } from "../../domain/exercise-display"
@@ -6389,8 +6391,27 @@ async function listWorkoutLogsForExportTrainee(
 
 async function exportWorkoutLogsToGoogleSheetsForTrainee(
   profile: SerializedProfile,
-  options: { from: string; label?: string; to: string },
+  options: { from: string; label?: string; programId?: string; to: string },
 ) {
+  assertTrainee(profile)
+
+  // A trainee with Google connected gets the program-format sheet in their own
+  // Drive. The n8n webhook only remains for deployments without Google OAuth.
+  if (await hasGoogleConnection(profile.id)) {
+    const from = parseLocalDateInput(options.from)
+    const to = parseLocalDateInput(options.to)
+
+    if (!from || !to || to <= from) {
+      throw new AuthServiceError("from/to không hợp lệ. Dùng định dạng YYYY-MM-DD.", 400)
+    }
+
+    return exportTraineeLogsToGoogleDrive(profile, { from, programId: options.programId, to })
+  }
+
+  if (isGoogleConfigured()) {
+    throw new AuthServiceError("Hãy kết nối tài khoản Google để export sang Google Sheets.", 400)
+  }
+
   const logs = await listWorkoutLogsForExportTrainee(profile, options)
 
   if (logs.length === 0) {
@@ -6403,6 +6424,7 @@ async function exportWorkoutLogsToGoogleSheetsForTrainee(
     filters: {
       from: options.from,
       label: options.label,
+      programId: options.programId,
       to: options.to,
     },
     logs,
@@ -6556,10 +6578,57 @@ async function exportCoachWorkoutLogsToGoogleSheetsForTrainee(
     throw new AuthServiceError("Không có workout log nào trong khoảng thời gian này.", 400)
   }
 
-  const sourceProgramCount = await ensurePrisma().program.count({ where: {
-    id: { in: logs.flatMap((log) => log.programId ? [log.programId] : []) }, googleSpreadsheetId: { not: null },
-  } })
-  if (sourceProgramCount > 0) return exportGoogleProgramLogs(profile, traineeId, logs.map((log) => log.id))
+  // Logs are written into the sheet their program was imported from. A week or
+  // a date range can span programs from different spreadsheets, so each
+  // spreadsheet (and its source tab) is exported on its own.
+  const sourcePrograms = await ensurePrisma().program.findMany({
+    select: { googleSheetName: true, googleSpreadsheetId: true, id: true, name: true },
+    where: {
+      googleSheetName: { not: null },
+      googleSpreadsheetId: { not: null },
+      id: { in: [...new Set(logs.flatMap((log) => log.programId ? [log.programId] : []))] },
+    },
+  })
+
+  if (sourcePrograms.length > 0) {
+    const programsById = new Map(sourcePrograms.map((program) => [program.id, program]))
+    const groups = new Map<string, { logIds: string[]; name: string }>()
+
+    // Unfinished sessions and logs without a program have no row to land on.
+    for (const log of logs) {
+      const program = log.completedAt && log.programId ? programsById.get(log.programId) : undefined
+      if (!program) continue
+      const key = `${program.googleSpreadsheetId} ${program.googleSheetName}`
+      const group = groups.get(key) ?? { logIds: [], name: program.name }
+      group.logIds.push(log.id)
+      groups.set(key, group)
+    }
+
+    if (groups.size === 0) {
+      throw new AuthServiceError("Chưa có buổi tập đã hoàn thành thuộc chương trình import từ Google Sheets.", 400)
+    }
+
+    const files: Array<{ name: string; url: string }> = []
+    let exportedLogCount = 0
+    let rowCount = 0
+
+    for (const group of groups.values()) {
+      const result = await exportGoogleProgramLogs(profile, traineeId, group.logIds)
+      files.push({ name: group.name, url: result.spreadsheetUrl })
+      exportedLogCount += result.logCount
+      rowCount += result.rowCount
+    }
+
+    return {
+      exported: true,
+      files,
+      logCount: exportedLogCount,
+      rowCount,
+      skippedLogCount: logs.length - exportedLogCount,
+      spreadsheetUrl: files[0].url,
+    }
+  }
+
   const trainee = await assertCoachOwnsTrainee(profile.id, traineeId)
   return exportWorkoutLogsToN8n({ event: "coach_trainee_workout_logs_export", exportedBy: profile,
     filters: { ...options }, logs, trainee, coachName: profile.name,

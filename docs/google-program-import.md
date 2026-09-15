@@ -28,6 +28,20 @@
 - Không có cơ chế khóa chỉnh sửa spreadsheet: tránh chèn/xóa/sắp xếp hàng trong lúc export đang chạy.
 - Chương trình không có nguồn Sheets tiếp tục export qua n8n như trước.
 
+## Coach export nhiều spreadsheet
+
+- Export theo tuần hoặc theo chương trình ghi vào đúng spreadsheet mà chương trình của log được import. Log thuộc nhiều spreadsheet (hoặc nhiều sheet tuần mẫu) được tách nhóm, mỗi nhóm một batch riêng; kết quả trả về danh sách file kèm link.
+- Log chưa hoàn thành hoặc không có `programId` bị bỏ qua và báo số lượng (`skippedLogCount`). Các nhóm ghi tuần tự, nên lỗi ở file sau không hoàn tác file trước.
+
+## Trainee export vào Drive riêng
+
+- Trainee kết nối Google ngay trong dialog Export ở /progress. Kết nối dùng chung `GoogleConnection` và endpoint `/api/google/{connection,authorize}`; callback vẫn là redirect URI đã đăng ký (`/api/coach/google/callback`) và đưa trainee về `/progress?google=connected`.
+- Mỗi chương trình được giao có một spreadsheet trong Drive của trainee (thư mục `YeahBuddy workout logs`), lưu ở `ProgramAssignment.traineeGoogleSpreadsheetId` (migration `20260918_add_trainee_google_spreadsheet`). File bị xóa thì lần export sau tạo file mới.
+- Tab `Program` ghi thông tin chương trình; mỗi tuần có log là một tab `Week N` cùng bố cục sheet coach (E là variation id ẩn, cột kết quả `reps × weight kg`, thêm cột set khi cần) nên `parseGoogleProgramRows` vẫn đọc được.
+- Tuần xác định theo `plannedDate` so với tuần bắt đầu chương trình (`startDate` hoặc ngày giao); prescription lấy theo quy tắc hiển thị (tuần chưa author lặp lại tuần author gần nhất).
+- App sở hữu file nên mỗi lần export dựng lại toàn bộ tab tuần từ database (xóa và thêm lại tab trong một batch, ghi `RAW`). Chỉnh sửa tay trong tab tuần sẽ bị ghi đè; buổi tập mới nhất của một ngày thắng.
+- Trainee chưa kết nối Google: nút export Sheets bị khóa. Deployment không cấu hình Google OAuth vẫn dùng n8n như trước.
+
 ## Migration và kiểm chứng
 
 - Đã áp dụng `20260912_google_program_roundtrip`: nguồn Sheets trên Program, originalVariationId trên WorkoutExercise, RLS và thu hồi quyền Data API cho GoogleConnection.
