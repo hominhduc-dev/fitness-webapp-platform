@@ -4,11 +4,11 @@ import Link from "next/link"
 import { ChevronRight, Flame } from "lucide-react"
 import { useSyncExternalStore } from "react"
 
-import { vietnamDateKey } from "@/components/progress/volume-recovery/volume-recovery-panel"
 import { useLocale } from "@/components/providers/locale-provider"
 import { countCheckInStreak } from "@/lib/fitness/checkin-streak"
 import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
 import { useRecoveryHistory } from "@/lib/queries/progress"
+import { formatDateKey } from "@/lib/time-zone"
 
 type DayPeriod = "morning" | "afternoon" | "evening"
 
@@ -31,9 +31,9 @@ export function DashboardGreeting({ firstName }: { firstName: string }) {
   // Observe only: the greeting renders outside the Suspense boundary, so fetching
   // here would race the server seed that DashboardOverviewClient applies.
   const historyQuery = useRecoveryHistory(READINESS_TREND_DEFAULT_DAYS, { enabled: false })
-  // Consecutive check-in days ending today (Vietnam date, the same key check-ins
-  // are saved with). Capped by the 30-day history window.
-  const streakDays = historyQuery.data ? countCheckInStreak(historyQuery.data.entries, vietnamDateKey()) : 0
+  // Consecutive check-in days ending today (the user's own date, the same key
+  // check-ins are saved with). Capped by the 30-day history window.
+  const streakDays = historyQuery.data ? countCheckInStreak(historyQuery.data.entries, formatDateKey(new Date())) : 0
 
   return (
     <section className="min-w-0">

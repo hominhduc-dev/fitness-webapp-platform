@@ -3,6 +3,7 @@ import { FoodCategory, FoodSource, MealStatus, MealType, type Prisma } from "@pr
 import { CACHE_KEYS, FOOD_CATALOG_TTL_MS, libraryCache } from "../lib/library-cache"
 import { buildFoodSlug, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
 import { prisma } from "../lib/prisma"
+import { toZonedDateKey } from "../lib/time-zone"
 import { AuthServiceError, type SerializedProfile } from "./auth.service"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord, type MealWithFoodRecord } from "./meal-log.service"
 
@@ -49,7 +50,8 @@ function emptyTotals(): NutritionTotals {
 
 function parseDateKey(value?: unknown) {
   if (value == null || value === "") {
-    return new Date(new Date().toISOString().slice(0, 10))
+    // "Today" is the client's calendar day, not the server's or UTC's.
+    return new Date(`${toZonedDateKey(new Date())}T00:00:00.000Z`)
   }
 
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {

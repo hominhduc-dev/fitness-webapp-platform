@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/auth/api"
 import { buildExerciseDisplayName } from "@/lib/exercise-display"
 import { getApiBaseUrl } from "@/lib/supabase/config"
+import { getTimeZoneHeaders } from "@/lib/time-zone"
 import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import type { IntensityTag } from "@/lib/workout/intensity-tag"
 import type {
@@ -511,6 +512,8 @@ async function request<T>(path: string, accessToken: string, init?: RequestInit 
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
+      // The backend computes "today" and week boundaries in this zone.
+      ...(await getTimeZoneHeaders()),
       ...(init?.headers ?? {}),
     },
   }

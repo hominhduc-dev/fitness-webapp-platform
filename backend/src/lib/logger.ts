@@ -10,6 +10,8 @@ type RequestContext = {
   method: string
   path: string
   requestId: string
+  /** The client's IANA zone from `X-Timezone`; calendar helpers read it from here. */
+  timeZone?: string
   userId?: string
 }
 

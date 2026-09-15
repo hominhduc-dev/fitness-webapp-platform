@@ -3,10 +3,11 @@
 import { ArrowRight, Sun } from "lucide-react"
 import { useState } from "react"
 
-import { CheckInSheet, vietnamDateKey } from "@/components/progress/volume-recovery/volume-recovery-panel"
+import { CheckInSheet } from "@/components/progress/volume-recovery/volume-recovery-panel"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { useVolumeRecovery } from "@/lib/queries/progress"
+import { formatDateKey } from "@/lib/time-zone"
 
 export function CheckInPrompt() {
   const { messages } = useLocale()
@@ -18,7 +19,7 @@ export function CheckInPrompt() {
   if (!data) return null
 
   // `checkIn` is the latest one this week, not necessarily today's.
-  const checkedInToday = data.checkIn?.checkInDate === vietnamDateKey()
+  const checkedInToday = data.checkIn?.checkInDate === formatDateKey(new Date())
 
   return (
     <>

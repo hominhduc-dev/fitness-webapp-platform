@@ -1,11 +1,11 @@
 import type { Prisma } from "@prisma/client"
 
 import {
+  clientCalendarDay,
   DAY_IN_MS,
   formatMonthDayLabel,
   formatWeekdayLabel,
   startOfUtcWeek,
-  toUtcDayStart,
 } from "./dates"
 import {
   getSnapshotExerciseName,
@@ -57,7 +57,8 @@ function calculateWorkoutVolume(exercises: Array<{ sets?: Array<{ actualReps?: n
 
 
 function calculateWorkoutStreaks(logs: ProgressAnalyticsLogRecord[]) {
-  const workoutDays = Array.from(new Set(logs.map((log) => toUtcDayStart(log.startedAt)))).sort((left, right) => left - right)
+  // Streaks are counted in the client's calendar days.
+  const workoutDays = Array.from(new Set(logs.map((log) => clientCalendarDay(log.startedAt).getTime()))).sort((left, right) => left - right)
 
   if (workoutDays.length === 0) {
     return {
@@ -81,7 +82,7 @@ function calculateWorkoutStreaks(logs: ProgressAnalyticsLogRecord[]) {
 
   let currentStreakDays = 0
   const latestWorkoutDay = workoutDays[workoutDays.length - 1]
-  const today = toUtcDayStart(new Date())
+  const today = clientCalendarDay().getTime()
 
   if (today - latestWorkoutDay <= DAY_IN_MS) {
     currentStreakDays = 1
@@ -102,12 +103,12 @@ function calculateWorkoutStreaks(logs: ProgressAnalyticsLogRecord[]) {
 }
 
 function buildWeeklyVolume(logs: ProgressAnalyticsLogRecord[]) {
-  const today = toUtcDayStart(new Date())
+  const today = clientCalendarDay().getTime()
   const startDay = today - 6 * DAY_IN_MS
   const totalsByDay = new Map<number, number>()
 
   logs.forEach((log) => {
-    const dayStart = toUtcDayStart(log.startedAt)
+    const dayStart = clientCalendarDay(log.startedAt).getTime()
 
     if (dayStart < startDay || dayStart > today) {
       return
@@ -209,7 +210,7 @@ function buildPersonalRecords(logs: ProgressAnalyticsLogRecord[]) {
 }
 
 function buildStrengthProgression(logs: ProgressAnalyticsLogRecord[]) {
-  const currentWeekStart = startOfUtcWeek(new Date())
+  const currentWeekStart = startOfUtcWeek(clientCalendarDay())
   const weekStarts = Array.from({ length: 6 }, (_value, index) => {
     const weekStart = new Date(currentWeekStart)
     weekStart.setUTCDate(currentWeekStart.getUTCDate() - (5 - index) * 7)
@@ -220,7 +221,7 @@ function buildStrengthProgression(logs: ProgressAnalyticsLogRecord[]) {
   const weeklyExerciseMax = new Map<string, Map<string, number>>()
 
   logs.forEach((log) => {
-    const weekStart = startOfUtcWeek(log.startedAt)
+    const weekStart = startOfUtcWeek(clientCalendarDay(log.startedAt))
 
     if (weekStart.getTime() < firstWeekStart) {
       return
@@ -313,10 +314,12 @@ function buildWorkoutFrequency(
   workoutsPerWeek: number,
 ) {
   const weekBuckets = new Map<string, { completed: number; end: Date; start: Date }>()
-  let cursor = startOfUtcWeek(startDate)
+  // startDate and endDate are instants; the weeks are the client's calendar weeks between them.
+  let cursor = startOfUtcWeek(clientCalendarDay(startDate))
   let weekIndex = 0
+  const lastDay = clientCalendarDay(endDate).getTime()
 
-  while (cursor.getTime() < endDate.getTime()) {
+  while (cursor.getTime() <= lastDay) {
     const weekEnd = new Date(cursor)
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
     weekIndex += 1
@@ -327,7 +330,7 @@ function buildWorkoutFrequency(
   }
 
   logs.forEach((log) => {
-    const logDay = toUtcDayStart(log.startedAt)
+    const logDay = clientCalendarDay(log.startedAt).getTime()
 
     weekBuckets.forEach((bucket) => {
       if (logDay >= bucket.start.getTime() && logDay < bucket.end.getTime()) {
@@ -354,10 +357,12 @@ function buildTrainingVolumeByWeek(
   endDate: Date,
 ) {
   const weekBuckets = new Map<string, { end: Date; start: Date; volume: number }>()
-  let cursor = startOfUtcWeek(startDate)
+  // startDate and endDate are instants; the weeks are the client's calendar weeks between them.
+  let cursor = startOfUtcWeek(clientCalendarDay(startDate))
   let weekIndex = 0
+  const lastDay = clientCalendarDay(endDate).getTime()
 
-  while (cursor.getTime() < endDate.getTime()) {
+  while (cursor.getTime() <= lastDay) {
     const weekEnd = new Date(cursor)
     weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
     weekIndex += 1
@@ -368,7 +373,7 @@ function buildTrainingVolumeByWeek(
   }
 
   logs.forEach((log) => {
-    const logDay = toUtcDayStart(log.startedAt)
+    const logDay = clientCalendarDay(log.startedAt).getTime()
 
     weekBuckets.forEach((bucket) => {
       if (logDay >= bucket.start.getTime() && logDay < bucket.end.getTime()) {
@@ -395,9 +400,10 @@ function buildStrengthProgressionE1RM(
 ) {
   // Build daily/weekly e1RM buckets
   const weekBuckets = new Map<string, Date>()
-  let cursor = startOfUtcWeek(startDate)
+  let cursor = startOfUtcWeek(clientCalendarDay(startDate))
+  const lastDay = clientCalendarDay(endDate).getTime()
 
-  while (cursor.getTime() < endDate.getTime()) {
+  while (cursor.getTime() <= lastDay) {
     const weekKey = cursor.toISOString().slice(0, 10)
     weekBuckets.set(weekKey, new Date(cursor))
     const next = new Date(cursor)
@@ -408,7 +414,7 @@ function buildStrengthProgressionE1RM(
   const weeklyExerciseE1RM = new Map<string, Map<string, number>>()
 
   logs.forEach((log) => {
-    const logWeek = startOfUtcWeek(log.startedAt)
+    const logWeek = startOfUtcWeek(clientCalendarDay(log.startedAt))
     const weekKey = logWeek.toISOString().slice(0, 10)
 
     if (!weekBuckets.has(weekKey)) return
@@ -620,7 +626,7 @@ function buildDashboardSummary(
   // Sub-stats
   const sessionsPerWeek = Math.round((completedWorkouts / weekCount) * 10) / 10
 
-  const uniqueDays = new Set(currentLogs.map((log) => toUtcDayStart(log.startedAt)))
+  const uniqueDays = new Set(currentLogs.map((log) => clientCalendarDay(log.startedAt).getTime()))
   const trainingDays = uniqueDays.size
 
   const durations = currentLogs

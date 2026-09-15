@@ -1,13 +1,22 @@
+import { toZonedDateKey, zonedMidnight } from "../../../lib/time-zone"
+
 /**
  * Date helpers shared across the fitness-data services.
  *
- * Two calendars coexist here and mixing them causes off-by-one-day bugs:
+ * Two kinds of value coexist here and mixing them causes off-by-one-day bugs:
  *
- * - **UTC helpers** (`*Utc*`, `parseScheduledDateInput`) operate on the day keys
- *   persisted in the database. A workout scheduled for "2026-08-14" must mean the
- *   same day for every trainee regardless of server timezone.
- * - **Local helpers** (`toDateRange`, `toRecentWindow`, `parseLocalDateInput`)
- *   operate in the server's timezone and back the "today"/"last N days" views.
+ * - **Day keys** are dates without a time: `@db.Date` columns (`plannedDate`,
+ *   `scheduledDate`, `loggedDate`, `weekStart`, ...) held as UTC midnight. The
+ *   `*Utc*` helpers and `parseScheduledDateInput` do calendar math on them, and a
+ *   workout scheduled for "2026-08-14" means that day for everyone.
+ * - **Instants** are moments in time (`startedAt`, `recordedAt`, `assignedAt`).
+ *   Which day an instant belongs to depends on the viewer, so the `client*`
+ *   helpers use the requesting client's time zone (see lib/time-zone.ts), never
+ *   the server's. `toDateRange`, `toRecentWindow`, `parseLocalDateInput` and
+ *   `addLocalDays` return instants bounding the client's days.
+ *
+ * Bridge between them: `clientCalendarDay(instant)` gives the day key an instant
+ * falls on, and `clientDayStart(dayKey)` gives the instant that day begins.
  */
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -26,13 +35,6 @@ function toUtcDayStart(date: Date) {
 
 function startOfUtcDay(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-}
-
-function getUtcMonthBounds(offsetMonths = 0) {
-  const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths, 1))
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths + 1, 1))
-  return { end, start }
 }
 
 /** Monday-anchored, matching DISPLAY_WEEKDAY_ORDER. */
@@ -86,65 +88,77 @@ function parseScheduledDateInput(value: string) {
   return parsedDate
 }
 
-/** As `parseScheduledDateInput`, but anchored to local midnight. */
+/** The day key (UTC midnight) of the client's calendar day that contains `instant`. */
+function clientCalendarDay(instant = new Date()) {
+  return new Date(`${toZonedDateKey(instant)}T00:00:00.000Z`)
+}
+
+/** `YYYY-MM-DD` of the client's calendar day that contains `instant`. */
+function formatClientDateKey(instant: Date) {
+  return toZonedDateKey(instant)
+}
+
+/** The instant the client's calendar day `day` (a day key) begins. */
+function clientDayStart(day: Date) {
+  return zonedMidnight(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate())
+}
+
+/** As `parseScheduledDateInput`, but returns the instant that day begins for the client. */
 function parseLocalDateInput(value: string) {
-  const trimmedValue = value.trim()
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)) {
-    return undefined
-  }
-
-  const [yearText, monthText, dayText] = trimmedValue.split("-")
-  const year = Number(yearText)
-  const month = Number(monthText)
-  const day = Number(dayText)
-  const parsedDate = new Date(year, month - 1, day, 0, 0, 0, 0)
-
-  if (
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.getFullYear() !== year ||
-    parsedDate.getMonth() !== month - 1 ||
-    parsedDate.getDate() !== day
-  ) {
-    return undefined
-  }
-
-  return parsedDate
+  const day = parseScheduledDateInput(value)
+  return day ? clientDayStart(day) : undefined
 }
 
-/** The local-time [start, end] bounds of a single day, for "today" queries. */
+/** Moves a client day-start instant by whole calendar days, staying on local midnight across DST. */
+function addLocalDays(date: Date, days: number) {
+  return clientDayStart(addUtcDays(clientCalendarDay(date), days))
+}
+
+/** The client's current month (shifted by `offsetMonths`) as a half-open interval of instants. */
+function getClientMonthBounds(offsetMonths = 0) {
+  const today = clientCalendarDay()
+  const year = today.getUTCFullYear()
+  const month = today.getUTCMonth() + 1 + offsetMonths
+
+  return {
+    end: zonedMidnight(year, month + 1, 1),
+    start: zonedMidnight(year, month, 1),
+  }
+}
+
+/** The instant bounds of the client's calendar day containing `date`, for "today" queries. */
 function toDateRange(date = new Date()) {
-  const start = new Date(date)
-  start.setHours(0, 0, 0, 0)
+  const day = clientCalendarDay(date)
 
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
-  end.setMilliseconds(-1)
-
-  return { end, start }
+  return {
+    end: new Date(clientDayStart(addUtcDays(day, 1)).getTime() - 1),
+    start: clientDayStart(day),
+  }
 }
 
-/** The local-time bounds of the last `days` days, inclusive of today. */
+/** The instant bounds of the client's last `days` calendar days, inclusive of today. */
 function toRecentWindow(days: number) {
-  const end = new Date()
-  end.setHours(23, 59, 59, 999)
+  const today = clientCalendarDay()
 
-  const start = new Date(end)
-  start.setDate(start.getDate() - (days - 1))
-  start.setHours(0, 0, 0, 0)
-
-  return { end, start }
+  return {
+    end: new Date(clientDayStart(addUtcDays(today, 1)).getTime() - 1),
+    start: clientDayStart(addUtcDays(today, -(days - 1))),
+  }
 }
 
 export {
+  addLocalDays,
   addUtcDays,
+  clientCalendarDay,
+  clientDayStart,
   DAY_IN_MS,
   DAY_LABELS,
   DISPLAY_WEEKDAY_ORDER,
+  formatClientDateKey,
   formatMonthDayLabel,
   formatUtcDateOnly,
   formatWeekdayLabel,
-  getUtcMonthBounds,
+  getClientMonthBounds,
   parseLocalDateInput,
   parseScheduledDateInput,
   startOfUtcDay,

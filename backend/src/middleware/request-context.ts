@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import type { NextFunction, Request, Response } from "express"
 
 import { logger, withRequestContext } from "../lib/logger"
+import { resolveTimeZone, TIME_ZONE_HEADER } from "../lib/time-zone"
 
 const REQUEST_ID_HEADER = "x-request-id"
 
@@ -40,7 +41,10 @@ function requestContext(req: Request, res: Response, next: NextFunction) {
     })
   })
 
-  withRequestContext({ method: req.method, path: req.originalUrl, requestId }, next)
+  // An invalid or missing zone falls back to the default rather than failing the request.
+  const timeZone = resolveTimeZone(req.header(TIME_ZONE_HEADER))
+
+  withRequestContext({ method: req.method, path: req.originalUrl, requestId, timeZone }, next)
 }
 
 export { REQUEST_ID_HEADER, requestContext }
