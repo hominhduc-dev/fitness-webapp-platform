@@ -39,7 +39,9 @@ type ProfileUpdateInput = {
   avatar?: string | null
   birthDate?: string | null
   dailyCalorieGoal?: number | null
+  dietType?: string | null
   fitnessGoals?: string[]
+  foodAllergies?: string[]
   heightCm?: number | null
   name?: string | null
   phone?: string | null
@@ -524,8 +526,10 @@ function serializeProfile(profile: AppUser | null) {
     dailyCalorieGoal: profile.dailyCalorieGoal,
     dailyFatGoal: profile.dailyFatGoal,
     dailyProteinGoal: profile.dailyProteinGoal,
+    dietType: profile.dietType,
     email: profile.email,
     fitnessGoals: profile.fitnessGoals,
+    foodAllergies: profile.foodAllergies,
     goalStartWeightKg: profile.goalStartWeightKg,
     heightCm: profile.heightCm,
     id: profile.id,
@@ -1000,6 +1004,26 @@ async function requireCurrentProfile(accessToken: string): Promise<Authenticated
   }
 }
 
+/** Allergy keywords feed the AI meal-plan food filter; blanks and case-insensitive duplicates are dropped. */
+function normalizeFoodAllergies(values: string[]) {
+  const seen = new Set<string>()
+  return values
+    .map((value) => value.trim())
+    .filter((value) => {
+      const key = value.toLocaleLowerCase("vi")
+      if (!value || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 20)
+}
+
+function normalizeDietType(value: string | null | undefined): AppUser["dietType"] {
+  if (value == null || value === "") return null
+  if (value === "vegetarian" || value === "pescatarian") return value
+  throw new AuthServiceError("Chế độ ăn không hợp lệ.")
+}
+
 async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, updates: ProfileUpdateInput) {
   const db = prisma
 
@@ -1039,6 +1063,10 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
     : profile.targetWeightKg
   const hasBirthDateUpdate = updates.birthDate !== undefined
   const hasSexUpdate = updates.sex !== undefined
+  const nextFoodAllergies = Array.isArray(updates.foodAllergies)
+    ? normalizeFoodAllergies(updates.foodAllergies)
+    : profile.foodAllergies
+  const nextDietType = updates.dietType !== undefined ? normalizeDietType(updates.dietType) : profile.dietType
   const hasActivityLevelUpdate = updates.activityLevel !== undefined
   const nextBirthDate = hasBirthDateUpdate ? normalizeBirthDate(updates.birthDate) : profile.birthDate
   const nextSex = hasSexUpdate ? normalizeSex(updates.sex) : profile.sex
@@ -1087,7 +1115,9 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
       avatar: nextAvatar,
       birthDate: nextBirthDate,
       dailyCalorieGoal: nextDailyCalorieGoal,
+      dietType: nextDietType,
       fitnessGoals: nextGoals,
+      foodAllergies: nextFoodAllergies,
       goalStartWeightKg: nextGoalStartWeightKg,
       heightCm: nextHeightCm,
       name: nextName,

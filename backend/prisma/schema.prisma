@@ -105,6 +105,17 @@ enum FoodCategory {
   other
 }
 
+enum FoodPriceTier {
+  low
+  medium
+  high
+}
+
+enum DietType {
+  vegetarian
+  pescatarian
+}
+
 enum AIGenerationType {
   workout_program
   meal_plan
@@ -189,6 +200,9 @@ model User {
   dailyProteinGoal       Int                       @default(140)
   dailyCarbsGoal         Int                       @default(280)
   dailyFatGoal           Int                       @default(70)
+  /// Keywords removed from AI meal-plan catalogs, e.g. "tôm", "đậu phộng".
+  foodAllergies          String[]                  @default([])
+  dietType               DietType?
   heightCm               Float?
   targetWeightKg         Float?
   goalStartWeightKg      Float?
@@ -408,6 +422,9 @@ model Food {
   fiber         Float?
   sugar         Float?
   sodium        Float?
+  /// Optional; AI meal plans only filter on these when they are set.
+  priceTier     FoodPriceTier?
+  prepMinutes   Int?
   source        FoodSource     @default(system)
   isVerified    Boolean        @default(false)
   createdById   String?        @db.Uuid
@@ -637,6 +654,9 @@ model Meal {
   protein    Float?
   carbs      Float?
   fat        Float?
+  /// Set when a coach reviews a planned meal; null for self-logged meals.
+  coachNote       String?
+  coachReviewedAt DateTime?
   fiber      Float?
   sugar      Float?
   sodium     Float?

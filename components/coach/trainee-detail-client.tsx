@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useState } from "react"
+import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useCoachData } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
@@ -1101,6 +1102,8 @@ export function CoachTraineeDetailClient({
 
       {/* ── Nutrition ─────────────────────────────────────────────────────── */}
       <TabsContent value="nutrition" className="space-y-6">
+        <TraineeMealPlanPanel traineeId={detail.trainee.id} />
+
         <div className="rounded-lg border border-border p-5">
           <h2 className="text-base font-semibold">{messages.coach.nutritionTitle}</h2>
           <p className="mt-1 text-sm text-muted-foreground">

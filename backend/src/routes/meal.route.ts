@@ -1,12 +1,15 @@
 import { Router } from "express"
 
+import { validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   addMealItemForUser,
   consumePlannedMealsForUser,
   deleteMealItemForUser,
   listNutritionDayForUser,
+  updateMealItemAmountForOwner,
 } from "../services/nutrition.service"
+import { mealItemAmountSchema, mealItemParamsSchema } from "./meal.schemas"
 import { getAccessToken, sendApiError, sendData } from "./route.utils"
 
 const mealRouter = Router()
@@ -36,11 +39,19 @@ mealRouter.post("/items", async (req, res) => {
 mealRouter.post("/plans/consume", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
-    sendData(res, await consumePlannedMealsForUser(profile.profile, req.body?.date))
+    sendData(res, await consumePlannedMealsForUser(profile.profile, req.body?.date, req.body?.mealType))
   } catch (error) {
     sendApiError(res, error)
   }
 })
+
+mealRouter.patch(
+  "/items/:itemId",
+  validated({ body: mealItemAmountSchema, params: mealItemParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { meal: await updateMealItemAmountForOwner(profile.id, req.params.itemId, req.body.amountValue) })
+  }),
+)
 
 mealRouter.delete("/items/:itemId", async (req, res) => {
   try {

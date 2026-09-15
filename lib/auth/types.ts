@@ -4,6 +4,8 @@ export type AppSex = "male" | "female"
 
 export type AppActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active"
 
+export type AppDietType = "vegetarian" | "pescatarian"
+
 export interface AppProfile {
   activityLevel?: AppActivityLevel | null
   avatar?: string | null
@@ -11,8 +13,10 @@ export interface AppProfile {
   coachId?: string | null
   createdAt: string
   dailyCalorieGoal: number
+  dietType?: AppDietType | null
   email: string
   fitnessGoals: string[]
+  foodAllergies?: string[]
   goalStartWeightKg?: number | null
   heightCm?: number | null
   id: string
@@ -59,7 +63,9 @@ export interface UpdateProfileInput {
   avatar?: string | null
   birthDate?: string | null
   dailyCalorieGoal?: number | null
+  dietType?: AppDietType | null
   fitnessGoals?: string[]
+  foodAllergies?: string[]
   heightCm?: number | null
   name?: string | null
   phone?: string | null

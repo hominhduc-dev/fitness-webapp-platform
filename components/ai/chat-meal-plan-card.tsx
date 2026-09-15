@@ -7,20 +7,14 @@ import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import type { AIChatAction } from "@/lib/fitness/api"
-
-const MEAL_TYPE_LABELS: Record<string, string> = {
-  breakfast: "Sáng",
-  lunch: "Trưa",
-  dinner: "Tối",
-  snack: "Phụ",
-}
+import { AI_MEAL_TYPE_LABELS } from "@/lib/nutrition/meal-plan"
 
 type MealPlanAction = Extract<AIChatAction, { type: "meal_plan_draft" }>
 
 /**
- * Draft meal plan the assistant built during a chat turn. Nothing reaches the
- * food diary until the trainee confirms — accepting calls the same endpoint the
- * Meals page uses.
+ * Draft meal plan the assistant built during a chat turn. Accepting saves it as
+ * a planned menu (same endpoint the Meals page uses); nothing counts as eaten
+ * until the trainee marks each meal eaten on the Meals page.
  */
 function ChatMealPlanCard({
   action,
@@ -31,6 +25,7 @@ function ChatMealPlanCard({
   const [saved, setSaved] = useState(false)
   const status = acceptAIMealPlanPending ? "saving" : saved ? "saved" : "idle"
   const [error, setError] = useState<string | null>(null)
+  const firstDay = action.days[0]
 
   const handleAccept = async () => {
     setError(null)
@@ -42,7 +37,8 @@ function ChatMealPlanCard({
     }
   }
 
-  const { totals } = action
+  if (!firstDay) return null
+  const { totals } = firstDay
 
   return (
     <div className="mt-2 rounded-xl border bg-background p-3">
@@ -51,7 +47,9 @@ function ChatMealPlanCard({
           <UtensilsCrossed className="size-4 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-snug">Thực đơn ngày {action.date}</p>
+          <p className="text-sm font-semibold leading-snug">
+            {action.days.length > 1 ? `Thực đơn ${action.days.length} ngày từ ${action.date}` : `Thực đơn ngày ${action.date}`}
+          </p>
           <p className="text-micro text-muted-foreground">
             {Math.round(totals.calories)} kcal · P {Math.round(totals.protein)}g · C{" "}
             {Math.round(totals.carbs)}g · F {Math.round(totals.fat)}g
@@ -60,11 +58,9 @@ function ChatMealPlanCard({
       </div>
 
       <div className="mt-2.5 space-y-2">
-        {action.meals.map((meal, i) => (
-          <div key={i}>
-            <p className="text-micro font-medium text-muted-foreground">
-              {MEAL_TYPE_LABELS[meal.type] ?? meal.type}
-            </p>
+        {firstDay.meals.map((meal) => (
+          <div key={meal.type}>
+            <p className="text-micro font-medium text-muted-foreground">{AI_MEAL_TYPE_LABELS[meal.type] ?? meal.type}</p>
             <ul className="mt-0.5 space-y-0.5">
               {meal.items.map((item, j) => (
                 <li key={j} className="flex items-center justify-between gap-2 text-xs">
@@ -74,18 +70,20 @@ function ChatMealPlanCard({
                   </span>
                 </li>
               ))}
-              {meal.items.length === 0 && (
-                <li className="text-xs text-muted-foreground">Không có món</li>
-              )}
             </ul>
           </div>
         ))}
+        {action.days.length > 1 ? (
+          <p className="text-micro text-muted-foreground">
+            + {action.days.length - 1} ngày nữa · {action.shoppingList.length} món cần mua
+          </p>
+        ) : null}
       </div>
 
       {status === "saved" ? (
         <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary">
           <Check className="size-3.5" />
-          Đã ghi vào nhật ký ăn uống
+          Đã lưu thực đơn dự kiến — đánh dấu &quot;Đã ăn&quot; ở trang Meals khi ăn xong
         </div>
       ) : (
         <Button

@@ -4,6 +4,7 @@ import {
   type BodyMetricEntry,
   CoachRequestStatus,
   type CoachCheckIn,
+  MealStatus,
   NotificationStatus,
   NotificationType,
   ProgramDifficulty,
@@ -3283,6 +3284,8 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
           gte: start,
           lte: end,
         },
+        // AI plans stay out of intake until the trainee marks them eaten.
+        status: MealStatus.consumed,
         userId: profile.id,
       },
     }),
@@ -3299,6 +3302,7 @@ async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
           gte: recentWindow.start,
           lte: recentWindow.end,
         },
+        status: MealStatus.consumed,
         userId: profile.id,
       },
     }),
@@ -3336,6 +3340,7 @@ async function listMealHistoryForUser(
     skip: options?.cursor ? 1 : 0,
     take: take + 1,
     where: {
+      status: MealStatus.consumed,
       userId: profile.id,
     },
   })
@@ -3669,6 +3674,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
           gte: todayStart,
           lte: todayEnd,
         },
+        status: MealStatus.consumed,
         userId: profile.id,
       },
     }),
@@ -6883,6 +6889,7 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       },
     }),
     db.meal.findMany({
+        status: MealStatus.consumed,
       include: MEAL_WITH_FOOD_INCLUDE,
       orderBy: { loggedDate: "desc" },
       where: {

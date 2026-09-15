@@ -214,7 +214,10 @@ function serializeMealSection(meal: MealWithFoodRecord) {
   }
 }
 
-function buildTargets(profile: SerializedProfile) {
+/** Nutrition reads only need identity and goals, so a coach can load a trainee's day too. */
+type NutritionOwner = Pick<SerializedProfile, "id" | "dailyCalorieGoal" | "dailyCarbsGoal" | "dailyFatGoal" | "dailyProteinGoal">
+
+function buildTargets(profile: NutritionOwner) {
   return {
     calories: profile.dailyCalorieGoal ?? DEFAULT_CALORIE_TARGET,
     carbs: profile.dailyCarbsGoal ?? 280,
@@ -223,7 +226,7 @@ function buildTargets(profile: SerializedProfile) {
   }
 }
 
-async function listRecentFoodsForUser(profile: SerializedProfile) {
+async function listRecentFoodsForUser(profile: Pick<NutritionOwner, "id">) {
   const db = ensurePrisma()
   const recentItems = await db.mealFoodItem.findMany({
     include: {
@@ -261,7 +264,7 @@ async function listRecentFoodsForUser(profile: SerializedProfile) {
   return foods
 }
 
-async function listNutritionDayForUser(profile: SerializedProfile, rawDate?: unknown) {
+async function listNutritionDayForUser(profile: NutritionOwner, rawDate?: unknown) {
   const db = ensurePrisma()
   const loggedDate = parseDateKey(rawDate)
   const [meals, recentFoods] = await Promise.all([
@@ -576,14 +579,16 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
   return serializeMealSection({ ...mealWithItems, ...roundedTotals } as MealWithFoodRecord)
 }
 
-async function consumePlannedMealsForUser(profile: SerializedProfile, rawDate?: unknown) {
+/** Moves planned meals into the food diary — one meal type when given, otherwise the whole day. */
+async function consumePlannedMealsForUser(profile: SerializedProfile, rawDate?: unknown, rawMealType?: unknown) {
   const db = ensurePrisma()
   const loggedDate = parseDateKey(rawDate)
+  const mealType = rawMealType == null ? undefined : parseMealType(rawMealType)
 
   await db.$transaction(async (tx) => {
     const plannedMeals = await tx.meal.findMany({
       include: { items: true },
-      where: { loggedDate, status: MealStatus.planned, userId: profile.id },
+      where: { loggedDate, status: MealStatus.planned, userId: profile.id, ...(mealType ? { type: mealType } : {}) },
     })
 
     if (plannedMeals.length === 0) {
@@ -635,16 +640,22 @@ async function consumePlannedMealsForUser(profile: SerializedProfile, rawDate?: 
   return listNutritionDayForUser(profile, formatDateKey(loggedDate))
 }
 
-async function deleteMealItemForUser(profile: SerializedProfile, itemId: string) {
+type MealItemAccess = {
+  /** Restricts the item to planned meals, so a coach cannot edit what a trainee actually ate. */
+  plannedOnly?: boolean
+}
+
+async function findOwnedMealItem(ownerId: string, itemId: string, access: MealItemAccess) {
   const db = ensurePrisma()
   const item = await db.mealFoodItem.findFirst({
     include: {
-      meal: true,
+      food: true,
     },
     where: {
       id: itemId,
       meal: {
-        userId: profile.id,
+        userId: ownerId,
+        ...(access.plannedOnly ? { status: MealStatus.planned } : {}),
       },
     },
   })
@@ -653,7 +664,46 @@ async function deleteMealItemForUser(profile: SerializedProfile, itemId: string)
     throw new AuthServiceError("Không tìm thấy món trong bữa ăn.", 404)
   }
 
+  return item
+}
+
+async function deleteMealItemForOwner(ownerId: string, itemId: string, access: MealItemAccess = {}) {
+  const db = ensurePrisma()
+  const item = await findOwnedMealItem(ownerId, itemId, access)
+
   await db.mealFoodItem.delete({
+    where: {
+      id: itemId,
+    },
+  })
+
+  return serializeMealSection((await recalculateMeal(item.mealId)) as MealWithFoodRecord)
+}
+
+function deleteMealItemForUser(profile: SerializedProfile, itemId: string) {
+  return deleteMealItemForOwner(profile.id, itemId)
+}
+
+async function updateMealItemAmountForOwner(ownerId: string, itemId: string, amountValue: number, access: MealItemAccess = {}) {
+  const db = ensurePrisma()
+  const item = await findOwnedMealItem(ownerId, itemId, access)
+  const amount = parsePositiveNumber(amountValue, "amountValue", 5000)
+  const calculated = calculateItemNutrition(item.food, { amountUnit: item.amountUnit, amountValue: amount })
+
+  await db.mealFoodItem.update({
+    data: {
+      amountLabel: calculated.amountLabel ?? null,
+      amountValue: amount,
+      calories: calculated.calories,
+      carbs: calculated.carbs,
+      fat: calculated.fat,
+      fiber: calculated.fiber ?? null,
+      protein: calculated.protein,
+      quantity: calculated.quantity,
+      sodium: calculated.sodium ?? null,
+      sugar: calculated.sugar ?? null,
+      weightGrams: calculated.weightGrams ?? null,
+    },
     where: {
       id: itemId,
     },
@@ -667,9 +717,12 @@ export {
   consumePlannedMealsForUser,
   calculateItemNutrition,
   createFoodForUser,
+  deleteMealItemForOwner,
   deleteMealItemForUser,
   listFoodsForUser,
   listNutritionDayForUser,
   normalizeAmountUnit,
+  updateMealItemAmountForOwner,
   type AmountUnit,
+  type NutritionOwner,
 }

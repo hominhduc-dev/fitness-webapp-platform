@@ -96,12 +96,13 @@ describe.skipIf(!testUrl)("AI acceptance with real PostgreSQL transactions", () 
     fault.failSecond = false
     await expect(acceptAIMealPlan(profile, draft.id, date)).resolves.toMatchObject({ accepted: true, logged: 8, skipped: 0 })
   })
-  it("two distinct drafts targeting the same meals preserve all item totals", async () => {
+  it("a second accepted draft replaces the planned menu for that day instead of stacking onto it", async () => {
     const drafts = await Promise.all([mealDraft(), mealDraft()])
     await Promise.all(drafts.map(draft => acceptAIMealPlan(profile, draft.id, date)))
     const meals = await db.meal.findMany({ where: { userId: profile.id }, include: { items: true } })
-    expect(meals.flatMap(m => m.items)).toHaveLength(16)
-    expect(meals.reduce((sum, m) => sum + m.calories, 0)).toBe(4000)
+    expect(meals.flatMap(m => m.items)).toHaveLength(8)
+    expect(meals.reduce((sum, m) => sum + m.calories, 0)).toBe(2000)
+    expect(meals.every(m => m.status === "planned")).toBe(true)
   })
   it("rejects stale food and wrong generation types without consuming the draft", async () => {
     const draft = await mealDraft()

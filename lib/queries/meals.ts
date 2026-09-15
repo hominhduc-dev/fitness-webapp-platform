@@ -6,7 +6,7 @@ import { useUserQuery as useQuery, userQueryKey } from "./scoped"
 import { useAuth } from "@/components/providers/auth-provider"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
-import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay } from "@/lib/fitness/api"
+import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay, updateMealItemAmount } from "@/lib/fitness/api"
 import type { NutritionFood } from "@/lib/types"
 type NutritionDay = Awaited<ReturnType<typeof fetchNutritionDay>>
 
@@ -104,7 +104,22 @@ export function useDeleteMealItem(dateKey: string) {
     onMutate: () => ({ dateKey, userId }),
     onSuccess: (meal, _input, context) => {
       if (!context) return
-      patchDay(context.dateKey, context.userId, (day) => replaceMealInDay(day, meal))
+      patchDay(context.dateKey, context.userId, (day) => patchMealInDay(day, meal))
+      revalidate(context.dateKey)
+    },
+  })
+}
+
+export function useUpdateMealItemAmount(dateKey: string) {
+  const { patchDay, revalidate, userId } = useMealDayWriteback()
+
+  return useMutation({
+    mutationFn: async (input: { itemId: string; amountValue: number }) =>
+      updateMealItemAmount(await requireAccessToken(), input.itemId, input.amountValue),
+    onMutate: () => ({ dateKey, userId }),
+    onSuccess: (meal, _input, context) => {
+      if (!context) return
+      patchDay(context.dateKey, context.userId, (day) => patchMealInDay(day, meal))
       revalidate(context.dateKey)
     },
   })
@@ -113,7 +128,8 @@ export function useDeleteMealItem(dateKey: string) {
 export function useConsumePlannedMeals(dateKey: string) {
   const { revalidate } = useMealDayWriteback()
   return useMutation({
-    mutationFn: async () => consumePlannedMeals(await requireAccessToken(), dateKey),
+    mutationFn: async (mealType?: Parameters<typeof consumePlannedMeals>[2]) =>
+      consumePlannedMeals(await requireAccessToken(), dateKey, mealType),
     onSuccess: () => revalidate(dateKey),
   })
 }
@@ -128,6 +144,17 @@ export function useCreateCustomFood() {
       void queryClient.invalidateQueries({ queryKey: [...queryKeys.meals.all, "foods"] })
     },
   })
+}
+
+/** Planned meals live beside the diary, so editing one must not overwrite the eaten meal of the same type. */
+function patchMealInDay(day: NutritionDay, meal: NutritionDay["meals"][number]): NutritionDay {
+  if (meal.status !== "planned") return replaceMealInDay(day, meal)
+  return {
+    ...day,
+    plannedMeals: (day.plannedMeals ?? [])
+      .map((current) => (current.id === meal.id ? meal : current))
+      .filter((current) => (current.items?.length ?? 0) > 0),
+  }
 }
 
 function replaceMealInDay(day: NutritionDay, meal: NutritionDay["meals"][number]): NutritionDay {

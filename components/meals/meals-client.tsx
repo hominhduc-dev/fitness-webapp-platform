@@ -22,13 +22,14 @@ import { useMemo, useState } from "react"
 
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { MealsLoadingState } from "@/components/meals/meals-loading-state"
+import { PlannedMealsList } from "@/components/meals/planned-meals-list"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { createCustomFood } from "@/lib/fitness/api"
-import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay } from "@/lib/queries/meals"
+import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay, useUpdateMealItemAmount } from "@/lib/queries/meals"
 import { cn } from "@/lib/utils"
 import type { FoodCategory, Meal, MealType, NutritionFood } from "@/lib/types"
 
@@ -728,6 +729,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const addItem = useAddMealItem(selectedDateKey)
   const deleteItem = useDeleteMealItem(selectedDateKey)
   const consumePlan = useConsumePlannedMeals(selectedDateKey)
+  const updateItemAmount = useUpdateMealItemAmount(selectedDateKey)
   const createFood = useCreateCustomFood()
   const nutritionDay = dayQuery.data ?? {
     date: selectedDate,
@@ -740,6 +742,24 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const isLoading = dayQuery.isPending
   const loadDay = () => dayQuery.refetch()
   const displayError = error ?? dayQuery.error?.message ?? foodsQuery.error?.message
+
+  const handleConsumePlan = async (mealType?: MealType) => {
+    setError(null)
+    try {
+      await consumePlan.mutateAsync(mealType)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không xác nhận được bữa ăn. Vui lòng thử lại.")
+    }
+  }
+
+  const handleChangePlannedAmount = async (itemId: string, amountValue: number) => {
+    setError(null)
+    try {
+      await updateItemAmount.mutateAsync({ itemId, amountValue })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không đổi được khẩu phần. Vui lòng thử lại.")
+    }
+  }
 
   const mealsByType = useMemo(() => new Map(nutritionDay.meals.map((meal) => [meal.type, meal])), [nutritionDay.meals])
   const totals = nutritionDay.totals
@@ -962,16 +982,29 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
       {nutritionDay.plannedMeals?.length ? (
         <section className="mt-5 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4">
           <div className="flex items-center justify-between gap-3">
-            <div><p className="text-sm font-semibold">Thực đơn AI dự kiến</p><p className="text-xs text-muted-foreground">Chưa cộng vào lượng đã ăn.</p></div>
-            <Button size="sm" disabled={consumePlan.isPending} onClick={() => void consumePlan.mutateAsync()}>Đã ăn theo kế hoạch</Button>
+            <div>
+              <p className="text-sm font-semibold">Thực đơn AI dự kiến</p>
+              <p className="text-xs text-muted-foreground">Chưa cộng vào lượng đã ăn. Chỉnh khẩu phần nếu cần, bấm &quot;Đã ăn&quot; sau khi ăn xong từng bữa.</p>
+              {nutritionDay.plannedMeals.some((meal) => meal.coachReviewedAt) ? (
+                <p className="mt-1 flex items-center gap-1 text-xs font-medium text-primary">
+                  <Check className="size-3.5" />
+                  Coach đã duyệt
+                </p>
+              ) : null}
+            </div>
+            <Button size="sm" variant="outline" disabled={consumePlan.isPending} onClick={() => void handleConsumePlan()}>
+              Đã ăn tất cả
+            </Button>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {nutritionDay.plannedMeals.map((meal) => (
-              <div key={meal.id ?? `${meal.type}-${meal.name}`} className="rounded-md border border-primary/20 bg-background/70 px-3 py-2 text-xs">
-                <div className="font-medium">{meal.name}</div>
-                <div className="text-muted-foreground">{Math.round(meal.calories)} kcal · {meal.items?.length ?? 0} món</div>
-              </div>
-            ))}
+          <div className="mt-3">
+            <PlannedMealsList
+              meals={nutritionDay.plannedMeals}
+              getMealLabel={getMealLabel}
+              disabled={consumePlan.isPending || updateItemAmount.isPending || deleteItem.isPending}
+              onChangeAmount={(itemId, amountValue) => void handleChangePlannedAmount(itemId, amountValue)}
+              onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
+              onConsumeMeal={(type) => void handleConsumePlan(type)}
+            />
           </div>
         </section>
       ) : null}

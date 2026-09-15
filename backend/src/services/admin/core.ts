@@ -1,6 +1,7 @@
 import {
   CoachRequestStatus,
   ExerciseImportRequestStatus,
+  MealStatus,
   Prisma,
   PrismaClient,
   UserRole,
@@ -708,6 +709,7 @@ async function getAdminDashboard(profile: SerializedProfile) {
         recordedAt: {
           gte: monthlyRangeStart,
         },
+        status: MealStatus.consumed,
       },
     }),
   ])

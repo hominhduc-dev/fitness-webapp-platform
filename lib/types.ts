@@ -230,6 +230,9 @@ export interface Meal {
   id?: string
   type: MealType
   status?: "planned" | "consumed"
+  /** Coach feedback on a planned meal. */
+  coachNote?: string
+  coachReviewedAt?: Date
   name: string
   calories: number
   items?: MealItem[]
