@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Archive, ArchiveRestore, Copy, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
+import { Archive, ArchiveRestore, Copy, ExternalLink, Eye, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +30,7 @@ interface ProgramCardProps {
   program: CoachProgram
   busy?: boolean
   onEdit: () => void
+  onView: () => void
   onAssign: () => void
   onDuplicate: () => void
   onArchive: () => void
@@ -59,6 +60,7 @@ export function ProgramCard({
   program,
   busy,
   onEdit,
+  onView,
   onAssign,
   onDuplicate,
   onArchive,
@@ -70,6 +72,10 @@ export function ProgramCard({
   const assigned = program.assignedTrainees ?? []
   const isArchived = Boolean(program.archivedAt)
   const canHardDelete = assigned.length === 0
+  const spreadsheetId = program.googleSpreadsheetId
+  const sheetUrl = spreadsheetId && /^[a-zA-Z0-9_-]{20,}$/.test(spreadsheetId)
+    ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
+    : null
 
   return (
     <div
@@ -181,13 +187,22 @@ export function ProgramCard({
               <UserPlus className="h-3.5 w-3.5" />
               {messages.coach.assign}
             </Button>
-            <Button variant="outline" className="gap-1.5" onClick={onEdit}>
-              <Pencil className="h-3.5 w-3.5" />
-              {messages.common.edit}
+            <Button variant="outline" className="gap-1.5" onClick={onView}>
+              <Eye className="h-3.5 w-3.5" />
+              {messages.coach.viewProgram}
             </Button>
           </>
         )}
       </div>
+
+      {sheetUrl ? (
+        <Button variant="outline" className="w-full gap-1.5" asChild>
+          <a href={sheetUrl} target="_blank" rel="noopener noreferrer" aria-label={`${messages.coach.openSourceSheet}: ${program.name}`}>
+            <ExternalLink className="h-3.5 w-3.5" />
+            {messages.coach.openSourceSheet}
+          </a>
+        </Button>
+      ) : null}
 
       <p className="label-micro">{messages.coach.edited(formatEditedAt(program.createdAt, messages))}</p>
     </div>
