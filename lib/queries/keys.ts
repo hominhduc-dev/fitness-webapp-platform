@@ -127,6 +127,11 @@ export const queryKeys = {
     googleConnection: () => ["coach", "google-connection"] as const,
   },
 
+  google: {
+    /** The signed-in user's own Google link (trainee exports to their Drive). */
+    connection: () => ["google", "connection"] as const,
+  },
+
   admin: {
     all: ["admin"] as const,
     dashboard: () => ["admin", "dashboard"] as const,

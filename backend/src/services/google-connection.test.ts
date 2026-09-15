@@ -37,9 +37,16 @@ describe("Google connection persistence", () => {
     await expect(disconnectGoogle(coach)).resolves.toEqual({ connected: false })
     expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { userId: "coach" } })
   })
-  it("does not reveal tokens in connection status and enforces coach role", async () => {
+  it("does not reveal tokens in connection status and limits connections to coaches and trainees", async () => {
     mocks.findUnique.mockResolvedValue({ refreshTokenEncrypted: encryptToken("refresh"), googleEmail: "coach@example.invalid" })
     expect(await getGoogleConnection(coach)).toEqual({ configured: true, connected: true, email: "coach@example.invalid" })
-    await expect(getGoogleConnection({ ...coach, role: "trainee" })).rejects.toThrow()
+    expect(await getGoogleConnection({ ...coach, role: "trainee" })).toMatchObject({ connected: true })
+    await expect(getGoogleConnection({ ...coach, role: "admin" })).rejects.toThrow()
+  })
+  it("reports the connected user's role so the callback returns them to their own page", async () => {
+    mocks.findUser.mockResolvedValue({ id: "trainee", role: "trainee" })
+    mocks.exchange.mockResolvedValue({ accessToken: "access", refreshToken: "refresh", scope: "https://www.googleapis.com/auth/spreadsheets", expiresAt: new Date() })
+    await expect(connectGoogle("trainee", "code")).resolves.toEqual({ role: "trainee" })
+    expect(mocks.upsert).toHaveBeenCalledTimes(1)
   })
 })
