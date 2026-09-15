@@ -1375,6 +1375,8 @@ function serializeProgram(program: ProgramRecord, options?: { viewerId?: string 
     description: program.description ?? undefined,
     difficulty: program.difficulty,
     duration: program.duration,
+    googleSpreadsheetId: program.googleSpreadsheetId ?? undefined,
+    googleSheetName: program.googleSheetName ?? undefined,
     id: program.id,
     name: program.name,
     startDate: program.startDate ? formatUtcDateOnly(program.startDate) : undefined,

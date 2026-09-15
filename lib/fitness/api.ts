@@ -801,6 +801,8 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
     description: program.description,
     difficulty: program.difficulty,
     duration: program.duration,
+    googleSpreadsheetId: program.googleSpreadsheetId,
+    googleSheetName: program.googleSheetName,
     id: program.id,
     name: program.name,
     startDate: program.startDate,

@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
+import { ProgramViewerDialog } from "@/components/coach/program-viewer-dialog"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -76,6 +77,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const { profile, session } = useAuth()
   const client = useQueryClient()
   const [assignTarget, setAssignTarget] = useState<CoachProgram | null>(null)
+  const [viewTarget, setViewTarget] = useState<CoachProgram | null>(null)
   const [editorTarget, setEditorTarget] = useState<"new" | string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -323,6 +325,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
             program={program}
             busy={busyId === program.id}
             onEdit={() => setEditorTarget(program.id)}
+            onView={() => setViewTarget(program)}
             onAssign={() => setAssignTarget(program)}
             onDuplicate={() => void handleDuplicate(program)}
             onArchive={() => void handleArchive(program)}
@@ -331,6 +334,8 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
           />
         ))}
       </div>
+
+      <ProgramViewerDialog program={viewTarget} onClose={() => setViewTarget(null)} />
 
       <AssignClientsDialog
         program={assignTarget}
