@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils"
 /**
  * One card on the settings page. The `id` doubles as the anchor `SettingsNav`
  * scrolls to, so the scroll margin here has to clear the sticky page header.
- * `collapsible` keeps a rarely used block (the reset zone) folded away without
- * giving it a second layer of card chrome.
+ * `collapsible` turns a settings group into the compact disclosure row used by
+ * the mobile-first settings layout. Expanded content stays inside the same card.
  */
 export function SettingsSection({
   children,
@@ -20,19 +20,25 @@ export function SettingsSection({
   defaultOpen = false,
   description,
   icon: Icon,
+  headerVisual,
   id,
   title,
   tone = "primary",
+  toggleLabel,
+  trailing,
 }: {
   children: ReactNode
   className?: string
   collapsible?: boolean
   defaultOpen?: boolean
   description?: ReactNode
-  icon: LucideIcon
+  icon?: LucideIcon
+  headerVisual?: ReactNode
   id: string
   title: ReactNode
   tone?: "danger" | "primary"
+  toggleLabel?: ReactNode
+  trailing?: ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const bodyId = useId()
@@ -44,22 +50,24 @@ export function SettingsSection({
       id={id}
       aria-labelledby={`${id}-heading`}
       className={cn(
-        "scroll-mt-36 rounded-2xl border p-4 sm:p-5 lg:scroll-mt-28",
-        isDanger ? "border-destructive/30 bg-destructive-soft" : "border-border bg-card",
+        "scroll-mt-28 overflow-hidden rounded-2xl border px-4 py-3.5 sm:px-5 sm:py-4",
+        isDanger ? "border-destructive/30 bg-destructive-soft/70" : "border-border bg-card",
         className,
       )}
     >
-      <div className={cn("flex items-start gap-3", isOpen && "mb-4")}>
-        <IconTile size="sm" tone={isDanger ? "surface" : "primary"} className={cn(isDanger && "text-destructive-text")}>
-          <Icon strokeWidth={1.8} />
-        </IconTile>
+      <div className={cn("flex min-h-11 items-center gap-3", isOpen && children != null && "mb-4")}>
+        {headerVisual ?? (Icon ? (
+          <IconTile size="md" tone={isDanger ? "surface" : "primary"} className={cn(isDanger && "text-destructive-text")}>
+            <Icon strokeWidth={1.8} />
+          </IconTile>
+        ) : null)}
 
         <div className="min-w-0 flex-1">
           {/* The description sits outside the heading (and outside the toggle)
               so neither picks up the whole paragraph as its accessible name. */}
           <h2
             id={`${id}-heading`}
-            className={cn("text-base font-semibold leading-8 sm:text-lg", isDanger && "text-destructive-text")}
+            className={cn("text-base font-semibold leading-6 sm:text-lg", isDanger && "text-destructive-text")}
           >
             {collapsible ? (
               <button
@@ -67,9 +75,10 @@ export function SettingsSection({
                 aria-controls={bodyId}
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
-                className="flex w-full items-center gap-2 text-left"
+                className="flex min-h-11 w-full items-center gap-2 text-left"
               >
                 <span className="min-w-0 flex-1">{title}</span>
+                {toggleLabel ? <span className="text-sm font-medium text-muted-foreground">{toggleLabel}</span> : null}
                 <ChevronDown
                   aria-hidden="true"
                   className={cn("size-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
@@ -81,12 +90,17 @@ export function SettingsSection({
           </h2>
 
           {description ? (
-            <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">{description}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground sm:text-sm">{description}</p>
           ) : null}
         </div>
+        {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
 
-      {isOpen ? <div id={collapsible ? bodyId : undefined}>{children}</div> : null}
+      {isOpen && children != null ? (
+        <div id={collapsible ? bodyId : undefined} className={cn(collapsible && "border-t border-border/70 pt-4")}>
+          {children}
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -96,7 +110,7 @@ export function SettingsSection({
  * select values such as "Active (6–7 days/week)" at 390px.
  */
 export function SettingsFieldGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("grid gap-4 sm:grid-cols-2", className)}>{children}</div>
+  return <div className={cn("grid gap-3 sm:grid-cols-2", className)}>{children}</div>
 }
 
 /** Label + control + hint, so every field on the page lines up the same way. */
@@ -116,7 +130,7 @@ export function SettingsField({
   wide?: boolean
 }) {
   return (
-    <div className={cn("space-y-1.5", wide && "sm:col-span-2", className)}>
+    <div className={cn("space-y-1.5 rounded-xl border border-border/70 bg-surface-subtle/35 p-3", wide && "sm:col-span-2", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {hint ? <p className="text-xs leading-5 text-muted-foreground">{hint}</p> : null}
