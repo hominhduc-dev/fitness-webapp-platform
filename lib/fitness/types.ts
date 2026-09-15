@@ -364,10 +364,34 @@ type CoachNutritionSummary = {
   traineeCalorieGoal: number
 }
 
+/** Day keys are `YYYY-MM-DD` in UTC, matching the trainee's own schedule. */
+type CoachTraineeOverview = {
+  body: {
+    bodyFatPct: { recordedAt: string; value: number } | null
+    waistCm: { recordedAt: string; value: number } | null
+    weightKg: { deltaKg: number | null; recordedAt: string; value: number } | null
+  }
+  /** Completed sessions and logged volume over the last 30 days. */
+  last30Days: { sessions: number; volume: number }
+  lastWorkoutAt: string | null
+  recentPRs: Array<{ date: string; deltaKg: number; exerciseName: string; weightKg: number }>
+  streaks: { bestDays: number; currentDays: number }
+  week: {
+    completedSessions: number
+    days: Array<{ date: string; sessions: number; sets: number; volume: number }>
+    /** Coach-assigned workouts on the trainee's schedule this week. */
+    plannedSessions: number
+    totalSets: number
+    totalVolume: number
+    weekStart: string
+  }
+}
+
 type CoachTraineeDetail = {
   bodyMetrics: BodyMetricEntry[]
   checkIns: CoachCheckIn[]
   nutritionSummary?: CoachNutritionSummary
+  overview: CoachTraineeOverview
   programs: CoachProgram[]
   progressSummary: CoachProgressSummary
   recentLogs: WorkoutLog[]
@@ -382,8 +406,6 @@ type CreateCoachProgramInput = {
   name: string
   /** `YYYY-MM-DD`, or null to clear it and fall back to each assignment date. */
   startDate?: string | null
-  /** Notion page this program was imported from; lets a later import update it. */
-  notionSourceId?: string
   googleSpreadsheetId?: string
   googleSheetName?: string
   workouts: Array<{
@@ -685,6 +707,7 @@ export type {
   CoachRequestSummary,
   CoachTrainee,
   CoachTraineeDetail,
+  CoachTraineeOverview,
   CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
@@ -811,63 +834,6 @@ type AIGenerateMealPlanResult = {
     fat: number
   }
   notes: string
-}
-
-/** A program template row in the coach's Notion "Program Templates" database. */
-type NotionProgramTemplate = {
-  description: string
-  difficulty: CoachProgram["difficulty"]
-  /** Length of the program in weeks. */
-  duration: number
-  lastEditedTime?: string
-  name: string
-  notionPageId: string
-  notionUrl?: string
-}
-
-/** One exercise row, already normalised by the backend. */
-type NotionProgramRow = {
-  exerciseName: string
-  /** Raw `Method` cell, parsed against the row's set count on import. */
-  method?: string
-  notes: string
-  order?: number
-  /** Raw text so ranges such as "8-12" survive the trip. */
-  reps: string
-  rest?: number
-  rir?: number
-  scheduledDay?: number
-  sets?: number
-  sourceRow: number
-  variationName: string
-  week?: number
-  weight?: number
-  workoutName: string
-}
-
-/** A program already imported from the same template, if there is one. */
-type NotionExistingProgram = {
-  archivedAt: string | null
-  assignedTraineeCount: number
-  id: string
-  name: string
-  notionSyncedAt: string | null
-}
-
-type NotionProgramImportResponse = {
-  existingProgram: NotionExistingProgram | null
-  program: NotionProgramTemplate
-  rows: NotionProgramRow[]
-  warnings: string[]
-  /** True when no row carried a Week, so the rows describe one repeating week. */
-  weekTemplateMode: boolean
-}
-
-export type {
-  NotionExistingProgram,
-  NotionProgramImportResponse,
-  NotionProgramRow,
-  NotionProgramTemplate,
 }
 
 export type {

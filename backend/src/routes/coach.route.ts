@@ -37,12 +37,6 @@ import {
   updateWorkoutLogCommentForCoach,
   updateCoachRequestStatus,
 } from "../services/fitness-data.service"
-import {
-  importNotionProgram,
-  isNotionConfigured,
-  listNotionProgramTemplates,
-  overwriteNotionProgram,
-} from "../services/notion-program-import.service"
 import { getAccessToken, sendError } from "./route.utils"
 import { googleRouter } from "./google.route"
 import { assertCoach, ensurePrisma } from "../services/fitness-data/shared/guards"
@@ -110,7 +104,6 @@ function parseProgramInput(body: Record<string, unknown>) {
     duration: Number(body.duration ?? 0),
     name: String(body.name ?? ""),
     startDate: typeof body.startDate === "string" ? body.startDate : null,
-    notionSourceId: typeof body.notionSourceId === "string" ? body.notionSourceId : undefined,
     googleSpreadsheetId: typeof body.googleSpreadsheetId === "string" ? body.googleSpreadsheetId : undefined,
     googleSheetName: typeof body.googleSheetName === "string" ? body.googleSheetName : undefined,
     workouts: Array.isArray(body.workouts)
@@ -361,70 +354,6 @@ coachRouter.post("/exercises", async (req, res) => {
 
     res.status(201).json({
       exercise,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-coachRouter.get("/notion/program-templates", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-
-    // Reported instead of thrown so the dialog can hide the Notion tab on a
-    // deployment that never configured the integration.
-    if (!isNotionConfigured()) {
-      res.json({
-        configured: false,
-        templates: [],
-      })
-
-      return
-    }
-
-    const templates = await listNotionProgramTemplates(profile.profile)
-
-    res.json({
-      configured: true,
-      templates,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-coachRouter.post("/notion/program-import", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const result = await importNotionProgram(profile.profile, {
-      template: String(req.body.template ?? ""),
-    })
-
-    res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-coachRouter.put("/notion/program-import/:programId", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const input = parseProgramInput(req.body)
-    const program = await overwriteNotionProgram(profile.profile, {
-      // Omitted on purpose when the client does not send it: the service then
-      // keeps the program's current trainees instead of unassigning them.
-      assignToUserIds: Array.isArray(req.body.assignToUserIds) ? input.assignToUserIds : undefined,
-      description: input.description,
-      difficulty: input.difficulty,
-      duration: input.duration,
-      name: input.name,
-      notionSourceId: String(req.body.notionSourceId ?? ""),
-      programId: String(req.params.programId),
-      workouts: input.workouts,
-    })
-
-    res.json({
-      program,
     })
   } catch (error) {
     sendError(res, error)

@@ -6,8 +6,8 @@ import { parseRepTargetText } from "@/lib/workout-reps"
  * Source-agnostic middle step of the coach program importers.
  *
  * Both importers narrow their input to `ProgramImportRow[]` and hand it here:
- * the Excel parser after reading the sheet, the Notion importer after the backend
- * normalises the pages. Everything downstream — resolving exercise names to
+ * the Excel parser after reading the workbook, the Google Sheets importer after
+ * the backend reads the sheet. Everything downstream — resolving exercise names to
  * variation ids, grouping rows into workouts, expanding a template week — happens
  * once, so a coach gets identical behaviour and identical error wording from
  * either source.

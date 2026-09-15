@@ -83,6 +83,7 @@ import {
   type DashboardLogRecord,
   type ProgressAnalyticsLogRecord,
 } from "./shared/analytics"
+import { buildBodyMetricOverview, buildTraineeWeekOverview } from "./shared/coach-trainee-overview"
 import { readExternalSourceMetadata } from "../../lib/exercise-media"
 import { assertCoach, assertCoachOwnsTrainee, assertTrainee, ensurePrisma } from "./shared/guards"
 import {
@@ -4673,8 +4674,6 @@ async function createCoachProgram(
     duration: number
     startDate?: string | null
     name: string
-    /** Notion page this program came from. Lets a later import find and update it. */
-    notionSourceId?: string | null
     googleSpreadsheetId?: string
     googleSheetName?: string
     workouts: Array<{
@@ -4757,8 +4756,6 @@ async function createCoachProgram(
         id: programId,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
-        notionSourceId: input.notionSourceId?.trim() || undefined,
-        notionSyncedAt: input.notionSourceId?.trim() ? new Date() : undefined,
         googleSpreadsheetId: input.googleSpreadsheetId?.trim() || undefined,
         googleSheetName: input.googleSheetName?.trim() || undefined,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
@@ -6641,6 +6638,40 @@ async function deleteWorkoutLogCommentForCoach(profile: SerializedProfile, comme
   }
 }
 
+/**
+ * Coach-assigned workouts on the trainee's schedule for the week starting at
+ * `weekStart` — what the trainee actually sees, not the sum of every program's
+ * `workoutsPerWeek`. Archived programs, programs that have not started or have
+ * already ended, and the trainee's own routines contribute nothing.
+ */
+function countPlannedSessionsForWeek(
+  assignments: ReadonlyArray<{
+    assignedAt: Date
+    program: {
+      archivedAt: Date | null
+      createdById: string
+      duration: number
+      startDate: Date | null
+      workouts: Array<Pick<WorkoutRecord, "scheduledDate" | "weekIndex">>
+    }
+  }>,
+  traineeId: string,
+  weekStart: Date,
+) {
+  return assignments
+    .filter((assignment) => !assignment.program.archivedAt && assignment.program.createdById !== traineeId)
+    .reduce((sum, assignment) => sum + selectVisibleWorkoutsForAssignmentWeek(
+      assignment.program.workouts,
+      resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
+      assignment.program.duration,
+      weekStart,
+    ).length, 0)
+}
+
+function toWeekCompletionRate(completedSessions: number, plannedSessions: number) {
+  return plannedSessions > 0 ? Math.min(100, Math.round((completedSessions / plannedSessions) * 100)) : 0
+}
+
 async function listCoachTrainees(profile: SerializedProfile, options?: { phone?: string }) {
   assertCoach(profile)
   const db = ensurePrisma()
@@ -6655,9 +6686,14 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
       programAssignments: {
         include: {
           program: {
+            // Only what countPlannedSessionsForWeek reads, so the roster stays light.
             select: {
+              archivedAt: true,
+              createdById: true,
+              duration: true,
               id: true,
-              workoutsPerWeek: true,
+              startDate: true,
+              workouts: { select: { scheduledDate: true, weekIndex: true } },
             },
           },
         },
@@ -6681,7 +6717,9 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
     : trainees
 
   const traineeIds = filteredTrainees.map((trainee) => trainee.id)
-  const recentWindow = toRecentWindow(7)
+  // The same Monday-anchored UTC week, and completed sessions only, as the trainee detail page.
+  const weekStart = startOfUtcWeek(new Date())
+  const weekEnd = addUtcDays(weekStart, 7)
   const [recentLogs, recentMetrics, latestCheckInRows] = traineeIds.length
     ? await Promise.all([
         db.workoutLog.findMany({
@@ -6689,10 +6727,8 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
             userId: true,
           },
           where: {
-            startedAt: {
-              gte: recentWindow.start,
-              lte: recentWindow.end,
-            },
+            completedAt: { not: null },
+            startedAt: { gte: weekStart, lt: weekEnd },
             userId: {
               in: traineeIds,
             },
@@ -6759,33 +6795,28 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
     return accumulator
   }, new Map())
 
-  return filteredTrainees.map((trainee) => ({
-    assignedProgramIds: trainee.programAssignments.map((assignment) => assignment.programId),
-    avatar: trainee.avatar,
-    completionRate:
-      trainee.programAssignments.reduce((sum, assignment) => sum + assignment.program.workoutsPerWeek, 0) > 0
-        ? Math.min(
-            100,
-            Math.round(
-              ((thisWeekByUser.get(trainee.id) ?? 0) /
-                trainee.programAssignments.reduce((sum, assignment) => sum + assignment.program.workoutsPerWeek, 0)) *
-                100,
-            ),
-          )
-        : 0,
-    createdAt: trainee.createdAt,
-    email: trainee.email,
-    fitnessGoals: trainee.fitnessGoals,
-    id: trainee.id,
-    lastCheckInAt: latestCheckInByUser.get(trainee.id),
-    latestWeightKg: latestMetricByUser.get(trainee.id)?.weightKg ?? undefined,
-    name: trainee.name,
-    phone: trainee.phone ?? undefined,
-    plannedSessionsPerWeek: trainee.programAssignments.reduce((sum, assignment) => sum + assignment.program.workoutsPerWeek, 0),
-    programCount: trainee._count.programAssignments,
-    thisWeekWorkouts: thisWeekByUser.get(trainee.id) ?? 0,
-    totalWorkoutLogs: trainee._count.workoutLogs,
-  }))
+  return filteredTrainees.map((trainee) => {
+    const plannedSessionsPerWeek = countPlannedSessionsForWeek(trainee.programAssignments, trainee.id, weekStart)
+    const thisWeekWorkouts = thisWeekByUser.get(trainee.id) ?? 0
+
+    return {
+      assignedProgramIds: trainee.programAssignments.map((assignment) => assignment.programId),
+      avatar: trainee.avatar,
+      completionRate: toWeekCompletionRate(thisWeekWorkouts, plannedSessionsPerWeek),
+      createdAt: trainee.createdAt,
+      email: trainee.email,
+      fitnessGoals: trainee.fitnessGoals,
+      id: trainee.id,
+      lastCheckInAt: latestCheckInByUser.get(trainee.id),
+      latestWeightKg: latestMetricByUser.get(trainee.id)?.weightKg ?? undefined,
+      name: trainee.name,
+      phone: trainee.phone ?? undefined,
+      plannedSessionsPerWeek,
+      programCount: trainee._count.programAssignments,
+      thisWeekWorkouts,
+      totalWorkoutLogs: trainee._count.workoutLogs,
+    }
+  })
 }
 
 async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: string) {
@@ -6826,33 +6857,21 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     throw new AuthServiceError("Không tìm thấy trainee.", 404)
   }
 
-  const recentWindow = toRecentWindow(7)
   const last30Days = toRecentWindow(30)
-  const [thisWeekWorkouts, progressLogs, bodyMetrics, checkIns, recentMeals] = await Promise.all([
-    db.workoutLog.count({
-      where: {
-        startedAt: {
-          gte: recentWindow.start,
-          lte: recentWindow.end,
-        },
-        userId: trainee.id,
-      },
-    }),
+  // The same Monday-anchored UTC week the trainee's own schedule uses.
+  const weekStart = startOfUtcWeek(new Date())
+  const weekEnd = addUtcDays(weekStart, 7)
+  const [weekLogs, allLogs, bodyMetrics, checkIns, recentMeals, latestWeights, latestBodyFat, latestWaist] = await Promise.all([
     db.workoutLog.findMany({
-      orderBy: {
-        startedAt: "desc",
-      },
-      select: {
-        startedAt: true,
-        totalVolume: true,
-      },
-      where: {
-        startedAt: {
-          gte: last30Days.start,
-          lte: last30Days.end,
-        },
-        userId: trainee.id,
-      },
+      include: WORKOUT_LOG_INCLUDE,
+      orderBy: { startedAt: "asc" },
+      where: { startedAt: { gte: weekStart, lt: weekEnd }, userId: trainee.id },
+    }),
+    // Full history: streaks and PR baselines need every earlier session.
+    db.workoutLog.findMany({
+      orderBy: { startedAt: "asc" },
+      select: { completedAt: true, exerciseSnapshot: true, startedAt: true, totalVolume: true },
+      where: { userId: trainee.id },
     }),
     db.bodyMetricEntry.findMany({
       include: {
@@ -6890,15 +6909,38 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
         userId: trainee.id,
       },
     }),
+    // Each body field reads its own latest entry, so a weigh-in never hides waist or body fat.
+    db.bodyMetricEntry.findMany({
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+      select: { recordedAt: true, weightKg: true },
+      take: 2,
+      where: { traineeId: trainee.id, weightKg: { not: null } },
+    }),
+    db.bodyMetricEntry.findFirst({
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+      select: { bodyFatPct: true, recordedAt: true },
+      where: { bodyFatPct: { not: null }, traineeId: trainee.id },
+    }),
+    db.bodyMetricEntry.findFirst({
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+      select: { recordedAt: true, waistCm: true },
+      where: { traineeId: trainee.id, waistCm: { not: null } },
+    }),
   ])
 
-  const plannedSessionsPerWeek = trainee.programAssignments.reduce(
-    (sum, assignment) => sum + assignment.program.workoutsPerWeek,
-    0,
+  const plannedSessionsPerWeek = countPlannedSessionsForWeek(trainee.programAssignments, trainee.id, weekStart)
+  const week = buildTraineeWeekOverview(
+    weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    weekStart,
+    plannedSessionsPerWeek,
   )
+  const thisWeekWorkouts = week.completedSessions
+  const progressLogs = allLogs.filter((log) => log.startedAt >= last30Days.start && log.startedAt <= last30Days.end)
+  const completedLast30Days = progressLogs.filter((log) => log.completedAt != null).length
+  const streaks = calculateWorkoutStreaks(allLogs as ProgressAnalyticsLogRecord[])
+  const recentPRs = detectRecentPRs(allLogs as ProgressAnalyticsLogRecord[], last30Days.start, new Date()).slice(0, 3)
   const totalVolumeLast30Days = progressLogs.reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
-  const completionRate =
-    plannedSessionsPerWeek > 0 ? Math.min(100, Math.round((thisWeekWorkouts / plannedSessionsPerWeek) * 100)) : 0
+  const completionRate = toWeekCompletionRate(thisWeekWorkouts, plannedSessionsPerWeek)
 
   // Group meals by day and compute per-day totals
   const mealsByDay = new Map<
@@ -6969,11 +7011,24 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     },
     progressSummary: {
       completionRate,
-      latestWorkoutAt: trainee.workoutLogs[0]?.startedAt ?? progressLogs[0]?.startedAt ?? undefined,
+      latestWorkoutAt: trainee.workoutLogs[0]?.startedAt ?? undefined,
       plannedSessionsPerWeek,
       totalVolumeLast30Days,
       workoutsLast30Days: progressLogs.length,
       workoutsLast7Days: thisWeekWorkouts,
+    },
+    overview: {
+      body: buildBodyMetricOverview({ bodyFat: latestBodyFat, waist: latestWaist, weights: latestWeights }),
+      last30Days: { sessions: completedLast30Days, volume: Math.round(totalVolumeLast30Days) },
+      lastWorkoutAt: trainee.workoutLogs[0] ? formatUtcDateOnly(trainee.workoutLogs[0].startedAt) : null,
+      recentPRs: recentPRs.map((pr) => ({
+        date: formatUtcDateOnly(pr.date),
+        deltaKg: pr.delta,
+        exerciseName: pr.exerciseName,
+        weightKg: pr.value,
+      })),
+      streaks: { bestDays: streaks.bestStreakDays, currentDays: streaks.currentStreakDays },
+      week,
     },
     recentLogs: trainee.workoutLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     trainee: {
@@ -6999,7 +7054,9 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
 async function getCoachDashboard(profile: SerializedProfile) {
   assertCoach(profile)
   const db = ensurePrisma()
-  const recentWindow = toRecentWindow(7)
+  // Summary cards come from listCoachTrainees, so the chart reads the same week and sessions.
+  const weekStart = startOfUtcWeek(new Date())
+  const weekEnd = addUtcDays(weekStart, 7)
   const [trainees, pendingRequests, recentWorkoutLogs, weeklyLogs, unreadNotificationCount] = await Promise.all([
     listCoachTrainees(profile),
     db.coachRequest.findMany({
@@ -7049,10 +7106,8 @@ async function getCoachDashboard(profile: SerializedProfile) {
         totalVolume: true,
       },
       where: {
-        startedAt: {
-          gte: recentWindow.start,
-          lte: recentWindow.end,
-        },
+        completedAt: { not: null },
+        startedAt: { gte: weekStart, lt: weekEnd },
         user: {
           coachId: profile.id,
         },
@@ -7088,15 +7143,16 @@ async function getCoachDashboard(profile: SerializedProfile) {
     })
     .slice(0, 5)
 
+  // Mon–Sun UTC days. The old local-midnight dates were keyed through
+  // toISOString, which shifted every bar a day early east of UTC.
   const activityByDay = Array.from({ length: 7 }, (_value, index) => {
-    const date = new Date(recentWindow.start)
-    date.setDate(recentWindow.start.getDate() + index)
-    const dayKey = date.toISOString().slice(0, 10)
-    const dayLogs = weeklyLogs.filter((log) => log.startedAt.toISOString().slice(0, 10) === dayKey)
+    const date = addUtcDays(weekStart, index)
+    const dayKey = formatUtcDateOnly(date)
+    const dayLogs = weeklyLogs.filter((log) => formatUtcDateOnly(log.startedAt) === dayKey)
 
     return {
       date,
-      label: `${date.getDate()}/${date.getMonth() + 1}`,
+      label: `${date.getUTCDate()}/${date.getUTCMonth() + 1}`,
       totalVolume: Math.round(dayLogs.reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)),
       workouts: dayLogs.length,
     }

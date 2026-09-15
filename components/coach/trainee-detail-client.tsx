@@ -146,61 +146,48 @@ function averageScore(checkIn: CoachCheckIn) {
 }
 
 /* ─── Weekly bar chart (pure CSS, no Recharts) ───────────────────────────── */
-type WeeklyBarChartProps = {
-  data: number[]
+type WeekDay = CoachTraineeDetail["overview"]["week"]["days"][number]
+
+/** Overview day keys are UTC, like the backend week and the trainee's schedule. */
+function parseDayKey(dateKey: string) {
+  return new Date(`${dateKey}T00:00:00.000Z`)
 }
 
-/** Returns [Mon, Tue, Wed, Thu, Fri, Sat, Sun] Date objects for the current week */
-function getCurrentWeekDates(): Date[] {
-  const today = new Date()
-  const day = today.getDay() // 0 = Sun
-  // Offset so Monday = index 0
-  const mondayOffset = day === 0 ? -6 : 1 - day
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(today.getDate() + mondayOffset + i)
-    return d
-  })
-}
-
-function WeeklyBarChart({ data }: WeeklyBarChartProps) {
-  const max = Math.max(...data, 1)
-  const today = new Date()
-  const todayDateNum = today.getDate()
-  const weekDates = getCurrentWeekDates()
-
-  const chartData = weekDates.map((date, i) => ({
-    dateNum: date.getDate(),
-    sets: data[i] ?? 0,
-    isToday: date.getDate() === todayDateNum && date.getMonth() === today.getMonth(),
-  }))
+function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDay[] }) {
+  const max = Math.max(...days.map((day) => day.sets), 1)
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const weekdayFormatter = new Intl.DateTimeFormat(dateLocale, { timeZone: "UTC", weekday: "short" })
 
   return (
-    <div className="grid grid-cols-7 items-end gap-2" style={{ height: 110 }}>
-      {chartData.map(({ dateNum, sets, isToday }) => {
-        const heightPct = sets === 0 ? 4 : (sets / max) * 90
+    <div className="grid grid-cols-7 items-end gap-2" style={{ height: 132 }}>
+      {days.map((day) => {
+        const isToday = day.date === todayKey
+        const date = parseDayKey(day.date)
+        const heightPct = day.sets === 0 ? 4 : Math.max(8, (day.sets / max) * 100)
+
         return (
-          <div key={dateNum} className="flex h-full flex-col items-center justify-end gap-1.5">
-            <div className="relative flex w-full items-end" style={{ height: "90%" }}>
+          <div key={day.date} className="flex h-full flex-col items-center justify-end gap-1.5">
+            <span className="h-3 font-mono text-micro tabular-nums text-muted-foreground">
+              {day.sets > 0 ? day.sets : ""}
+            </span>
+            <div className="relative flex w-full flex-1 items-end">
               <div
                 className={cn(
                   "w-full rounded-sm transition-all",
-                  sets === 0
-                    ? "bg-border"
-                    : isToday
-                      ? "bg-primary"
-                      : "bg-foreground",
+                  day.sets === 0 ? "bg-border" : isToday ? "bg-primary" : "bg-foreground",
+                  day.date > todayKey && "opacity-40",
                 )}
                 style={{ height: `${heightPct}%` }}
               />
             </div>
             <span
               className={cn(
-                "font-mono text-micro tabular-nums tracking-tight",
+                "flex flex-col items-center font-mono text-micro leading-tight tabular-nums",
                 isToday ? "font-semibold text-primary" : "text-muted-foreground",
               )}
             >
-              {dateNum}
+              <span className="uppercase">{weekdayFormatter.format(date)}</span>
+              <span>{date.getUTCDate()}</span>
             </span>
           </div>
         )
@@ -209,46 +196,16 @@ function WeeklyBarChart({ data }: WeeklyBarChartProps) {
   )
 }
 
-/* ─── Key lift card ─────────────────────────────────────────────────────── */
-type KeyLift = {
-  name: string
-  value: string | number
-  delta?: string | number | null
-}
-
-type KeyLiftCardProps = {
-  lift: KeyLift
-}
-
-function KeyLiftCard({ lift }: KeyLiftCardProps) {
-  const deltaStr = lift.delta != null ? String(lift.delta) : null
-  const isPositive = deltaStr != null && deltaStr.startsWith("+") && deltaStr !== "+0.0" && deltaStr !== "+0"
-  const isNegative = deltaStr != null && (deltaStr.startsWith("−") || deltaStr.startsWith("-"))
-  const isFlat = deltaStr != null && !isPositive && !isNegative
-  const deltaDisplay = isFlat ? "flat" : (deltaStr ?? null)
-
+/* ─── Stat card ─────────────────────────────────────────────────────────── */
+function StatCard({ hint, label, unit, value }: { hint?: string; label: string; unit?: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-border p-4">
-      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-        {lift.name}
-      </span>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
-          {lift.value}
-        </span>
-        {deltaDisplay && (
-          <span
-            className={cn(
-              "font-mono text-xs",
-              isPositive && "text-success-text",
-              isNegative && "text-destructive-text",
-              isFlat && "text-muted-foreground",
-            )}
-          >
-            {deltaDisplay}
-          </span>
-        )}
-      </div>
+      <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
+        {value}
+        {unit ? <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span> : null}
+      </p>
+      {hint ? <p className="mt-1 font-mono text-micro text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }
@@ -361,55 +318,19 @@ export function CoachTraineeDetailClient({
 
   const assignedProgramIds = new Set(detail.programs.map((program) => program.id))
   const assignablePrograms = coachPrograms.filter((program) => !assignedProgramIds.has(program.id))
-  const latestMetric = detail.bodyMetrics[0]
-  const previousMetric = detail.bodyMetrics[1]
-  const latestWeightDelta =
-    latestMetric?.weightKg != null && previousMetric?.weightKg != null
-      ? latestMetric.weightKg - previousMetric.weightKg
-      : null
-  const plannedSessionsPerWeek = detail.programs.reduce(
-    (sum, program) => sum + program.workoutsPerWeek,
-    0,
-  )
-
-  // Build synthetic weekly activity from progressSummary data
-  // We distribute workoutsLast7Days across a 7-day array (best-effort approximation)
-  const weeklyData: number[] = Array.from({ length: 7 }, (_, i) => {
-    // Use recentLogs to build day-by-day sets count for the last 7 days
-    const today = new Date()
-    const dayDate = new Date(today)
-    dayDate.setDate(today.getDate() - (6 - i))
-    const dayKey = dayDate.toISOString().slice(0, 10)
-    const dayLogs = detail.recentLogs.filter((log) => {
-      const logDate = log.startedAt instanceof Date ? log.startedAt : new Date(log.startedAt)
-      return logDate.toISOString().slice(0, 10) === dayKey
-    })
-    return dayLogs.reduce((sum, log) => {
-      return sum + log.exercises.reduce((eSum, ex) => eSum + ex.sets.filter((s) => s.completed).length, 0)
-    }, 0)
-  })
-
-  // Build key lifts from body metrics weight as proxy (no dedicated key-lift API)
-  const keyLifts: KeyLift[] = [
-    {
-      name: "Weight",
-      value: latestMetric?.weightKg != null ? `${latestMetric.weightKg} kg` : "--",
-      delta:
-        latestWeightDelta != null
-          ? `${latestWeightDelta >= 0 ? "+" : ""}${latestWeightDelta.toFixed(1)}`
-          : null,
-    },
-    {
-      name: "Body fat",
-      value: latestMetric?.bodyFatPct != null ? `${latestMetric.bodyFatPct}%` : "--",
-      delta: null,
-    },
-    {
-      name: "Waist",
-      value: latestMetric?.waistCm != null ? `${latestMetric.waistCm} cm` : "--",
-      delta: null,
-    },
-  ]
+  // Every overview number is computed by the backend from the trainee's own logs
+  // and schedule, so the coach sees what the trainee sees.
+  const { overview } = detail
+  const { body, week } = overview
+  const dayKeyFormatter = new Intl.DateTimeFormat(dateLocale, { day: "numeric", month: "short", timeZone: "UTC" })
+  const formatDayKey = (dateKey: string) => dayKeyFormatter.format(parseDayKey(dateKey))
+  const weightDelta = body.weightKg?.deltaKg
+  const weightHint = body.weightKg
+    ? [
+        weightDelta != null ? `${weightDelta > 0 ? "+" : ""}${weightDelta} kg` : null,
+        messages.coach.recordedOn(formatDayKey(body.weightKg.recordedAt)),
+      ].filter(Boolean).join(" · ")
+    : messages.coach.notRecorded
 
   // Build recent sessions from recentLogs
   const recentSessions: RecentSession[] = detail.recentLogs.slice(0, 6).map((log) => {
@@ -588,57 +509,91 @@ export function CoachTraineeDetailClient({
           </div>
         )}
 
-        {/* Weekly activity chart */}
+        {/* This week: completed vs scheduled sessions, sets per day */}
         <div className="rounded-lg border border-border p-5">
-          <div className="mb-4 flex items-baseline justify-between">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                {messages.coach.thisWeekSetsPerDay}
+                {messages.coach.thisWeekRange(formatDayKey(week.days[0].date), formatDayKey(week.days[week.days.length - 1].date))}
               </p>
               <p className="mt-1.5 font-mono text-2xl font-medium tabular-nums text-foreground">
-                {weeklyData.reduce((a, b) => a + b, 0)}{" "}
-                <span className="text-sm font-normal text-muted-foreground">{messages.coach.sets}</span>
+                {messages.coach.complianceSessions(week.completedSessions, week.plannedSessions)}
               </p>
             </div>
-            <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {messages.coach.complianceSessions(detail.trainee.thisWeekWorkouts, plannedSessionsPerWeek || 0)}
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {messages.coach.weekTotals(week.totalSets, integerFormatter.format(week.totalVolume))}
             </span>
           </div>
-          <WeeklyBarChart data={weeklyData} />
+          <WeeklyBarChart dateLocale={dateLocale} days={week.days} />
         </div>
 
-        {/* 30-day stats (merged from the former Progress tab) */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-border p-4">
-            <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {messages.coach.progress30DaySessionsLabel}
-            </p>
-            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
-              {detail.progressSummary.workoutsLast30Days}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border p-4">
-            <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {messages.coach.progress30DayVolumeLabel}
-            </p>
-            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
-              {integerFormatter.format(Math.round(detail.progressSummary.totalVolumeLast30Days))}{" "}
-              <span className="text-sm font-normal text-muted-foreground">kg</span>
-            </p>
-          </div>
+        {/* Training consistency */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label={messages.coach.progress30DaySessionsLabel} value={overview.last30Days.sessions} />
+          <StatCard label={messages.coach.progress30DayVolumeLabel} unit="kg" value={integerFormatter.format(overview.last30Days.volume)} />
+          <StatCard
+            hint={messages.coach.bestStreak(overview.streaks.bestDays)}
+            label={messages.coach.streakLabel}
+            value={messages.coach.streakValue(overview.streaks.currentDays)}
+          />
+          <StatCard
+            label={messages.coach.lastWorkoutLabel}
+            value={overview.lastWorkoutAt ? formatDayKey(overview.lastWorkoutAt) : messages.coach.noWorkoutsYet}
+          />
         </div>
 
-        {/* Key lifts */}
+        {/* Body metrics: each field from its own latest entry */}
         <div>
           <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
             {messages.coach.keyMetrics}
           </p>
-          <div className="grid grid-cols-3 gap-3">
-            {keyLifts.map((lift) => (
-              <KeyLiftCard key={lift.name} lift={lift} />
-            ))}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard
+              hint={weightHint}
+              label={messages.coach.weightStatLabel}
+              unit={body.weightKg ? "kg" : undefined}
+              value={body.weightKg?.value ?? "--"}
+            />
+            <StatCard
+              hint={body.bodyFatPct ? messages.coach.recordedOn(formatDayKey(body.bodyFatPct.recordedAt)) : messages.coach.notRecorded}
+              label={messages.coach.bodyFatStatLabel}
+              unit={body.bodyFatPct ? "%" : undefined}
+              value={body.bodyFatPct?.value ?? "--"}
+            />
+            <StatCard
+              hint={body.waistCm ? messages.coach.recordedOn(formatDayKey(body.waistCm.recordedAt)) : messages.coach.notRecorded}
+              label={messages.coach.waistStatLabel}
+              unit={body.waistCm ? "cm" : undefined}
+              value={body.waistCm?.value ?? "--"}
+            />
           </div>
         </div>
+
+        {/* Personal records */}
+        {overview.recentPRs.length > 0 ? (
+          <div>
+            <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+              {messages.coach.recentPRsTitle}
+            </p>
+            <div className="overflow-hidden rounded-lg border border-border">
+              {overview.recentPRs.map((pr, index) => (
+                <div
+                  key={`${pr.exerciseName}-${pr.date}`}
+                  className={cn("flex items-center justify-between gap-3 px-4 py-3", index > 0 && "border-t border-border")}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{pr.exerciseName}</p>
+                    <p className="font-mono text-micro text-muted-foreground">{formatDayKey(pr.date)}</p>
+                  </div>
+                  <div className="shrink-0 text-right font-mono tabular-nums">
+                    <p className="text-sm text-foreground">{pr.weightKg} kg</p>
+                    <p className="text-micro text-success-text">{messages.coach.prDelta(pr.deltaKg)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* Recent sessions */}
         <div>

@@ -348,12 +348,18 @@ type CreatedSpreadsheet = {
  *
  * The `drive.file` scope covers files the app itself created, so no extra consent
  * is needed for this or for anything written to it afterwards.
+ *
+ * The locale is pinned to `en_US`. Without it the file inherits the coach's Google account locale, and
+ * `USER_ENTERED` formulas are parsed in it: under `vi_VN` the argument separator
+ * is `;`, so every `=IFERROR(INDEX(...,MATCH(...)),"")` lookup fails to parse.
+ * It also keeps `FORMATTED_VALUE` decimals as `62.5`, which `Number()` in the
+ * importer reads, rather than `62,5`.
  */
 async function createSpreadsheet(accessToken: string, title: string, sheets: unknown[]) {
   const response = await googleFetch(
     SHEETS_API_URL,
     {
-      body: JSON.stringify({ properties: { title }, sheets }),
+      body: JSON.stringify({ properties: { locale: "en_US", title }, sheets }),
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       method: "POST",
     },

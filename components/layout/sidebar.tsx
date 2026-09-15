@@ -10,10 +10,7 @@ import { getRoleLandingPath } from "@/lib/auth/roles"
 import { useState } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
-import { fetchCoachNavCounts } from "@/lib/fitness/api"
-import { useUserQuery } from "@/lib/queries/scoped"
-import { queryKeys } from "@/lib/queries/keys"
-import { requireAccessToken } from "@/lib/queries/token"
+import { useCoachNavCounts } from "@/lib/queries/coach-data"
 import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
 import { BaseSidebar } from "@/components/layout/base-sidebar"
 
@@ -114,10 +111,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 
 function CoachSidebar({ pathname }: { pathname: string }) {
   const { messages } = useLocale()
-  const countsQuery = useUserQuery({
-    queryKey: queryKeys.coach.navCounts(),
-    queryFn: async () => fetchCoachNavCounts(await requireAccessToken()),
-  })
+  const countsQuery = useCoachNavCounts()
   const counts: { programs?: number; trainees?: number } = countsQuery.data ?? {}
 
   const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
