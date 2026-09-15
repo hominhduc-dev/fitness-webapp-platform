@@ -737,7 +737,7 @@ async function resolveLoginEmail(identifier: string) {
   return profile.email
 }
 
-async function ensureRegistrationIdentifiersAvailable(input: { email: string; phone: string; username: string }) {
+async function ensureRegistrationIdentifiersAvailable(input: { email: string; phone?: string; username?: string }) {
   if (!prisma) {
     return
   }
@@ -752,24 +752,18 @@ async function ensureRegistrationIdentifiersAvailable(input: { email: string; ph
     throw new AuthServiceError("Email này đã được sử dụng.")
   }
 
-  const existingByUsername = await prisma.user.findUnique({
-    where: {
-      username: input.username,
-    },
-  })
-
-  if (existingByUsername) {
-    throw new AuthServiceError("Username này đã được sử dụng.")
+  if (input.username) {
+    const existingByUsername = await prisma.user.findUnique({ where: { username: input.username } })
+    if (existingByUsername) {
+      throw new AuthServiceError("Username này đã được sử dụng.")
+    }
   }
 
-  const existingByPhone = await prisma.user.findUnique({
-    where: {
-      phone: input.phone,
-    },
-  })
-
-  if (existingByPhone) {
-    throw new AuthServiceError("Số điện thoại này đã được sử dụng.")
+  if (input.phone) {
+    const existingByPhone = await prisma.user.findUnique({ where: { phone: input.phone } })
+    if (existingByPhone) {
+      throw new AuthServiceError("Số điện thoại này đã được sử dụng.")
+    }
   }
 }
 
@@ -865,10 +859,10 @@ async function registerUser(input: {
   email: string
   name: string
   password: string
-  phone: string
+  phone?: string
   redirectTo?: string
   role?: string | null
-  username: string
+  username?: string
 }) {
   const client = ensureAuthClient()
   const email = normalizeEmail(input.email) as string
@@ -877,8 +871,8 @@ async function registerUser(input: {
   const phone = normalizePhoneNumber(input.phone)
   const username = normalizeUsername(input.username)
 
-  if (!email || !password || !name || !phone || !username) {
-    throw new AuthServiceError("Vui lòng điền đầy đủ họ tên, email, username, số điện thoại và mật khẩu.")
+  if (!email || !password || !name) {
+    throw new AuthServiceError("Vui lòng điền đầy đủ họ tên, email và mật khẩu.")
   }
 
   if (password.length < 6) {
@@ -897,9 +891,9 @@ async function registerUser(input: {
     options: {
       data: {
         name,
-        phone,
+        ...(phone ? { phone } : {}),
         role: normalizePublicRole(input.role),
-        username,
+        ...(username ? { username } : {}),
       },
       emailRedirectTo: getRegistrationRedirectUrl(input.redirectTo),
     },

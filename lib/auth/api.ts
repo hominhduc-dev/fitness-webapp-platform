@@ -89,10 +89,10 @@ async function registerRequest(input: {
   email: string
   name: string
   password: string
-  phone: string
+  phone?: string
   redirectTo?: string
   role?: Exclude<AppRole, "admin">
-  username: string
+  username?: string
 }) {
   return request<AuthResponse>("/api/auth/register", {
     body: JSON.stringify(input),

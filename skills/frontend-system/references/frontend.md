@@ -37,7 +37,7 @@
 | Visual material | CSS/SVG liquid glass + optional `@ybouane/liquidglass` WebGL |
 | Test | Vitest 4 + jsdom + Testing Library |
 | Client server-state | TanStack Query 5, hooks trong `lib/queries/` |
-| PWA/observability | manifest, Vercel Analytics/Speed Insights trên Vercel |
+| PWA/observability | manifest, Vercel Analytics/Speed Insights trên Vercel; GA4 khi có `NEXT_PUBLIC_GA_MEASUREMENT_ID` |
 
 Không có `react-hook-form` hoặc `zod` trong dependency hiện tại. Form phức tạp đang dùng controlled state và validation thủ công; đừng giả định RHF/Zod đã được cài.
 
@@ -347,6 +347,7 @@ Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `da
 - Thêm theme color literal mới phải allowlist trong `scripts/check-ui-colors.mjs` và thêm case vào `lib/design-system/color-contrast.test.ts`.
 - Landing `/` luôn dùng light trong pre-paint script và `AppProviders initialTheme`, không ghi đè theme preference đã lưu. Giao diện marketing dùng nền sáng, đường kẻ mảnh và accent cobalt; authenticated shell vẫn dùng glass/theme preference.
 - Landing owner: `components/landing/landing-page.tsx`, CSS cục bộ `landing-page.module.css`, copy song ngữ `lib/i18n/messages/landing.ts`. Preview dùng dữ liệu minh họa được gắn nhãn, CTA dùng auth modal qua query param.
+- Phễu đăng ký miễn phí: `lib/analytics/registration.ts` gửi sự kiện mở/gửi/lỗi biểu mẫu và `sign_up` sau khi API tạo tài khoản thành công. GA4 dùng measurement ID công khai, Vercel Analytics nhận custom events trên Vercel; không gửi thông tin cá nhân. Đăng ký email chỉ cần tên, email, mật khẩu; username và điện thoại có thể bổ sung sau.
 - Khi effect/canvas phụ thuộc theme, dùng `resolvedTheme`, không dùng raw `theme` vì mode `system` có thể đổi.
 
 ### Glass/editorial layers

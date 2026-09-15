@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
+import Script from "next/script"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -27,6 +28,9 @@ const geistMono = Geist_Mono({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://yeahbuddy.fit"
 const isVercelRuntime = process.env.VERCEL === "1"
+const gaMeasurementId = /^G-[A-Z0-9]+$/.test(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "")
+  ? process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+  : null
 const themeInitScript = `
 (function() {
   try {
@@ -220,6 +224,14 @@ export default function RootLayout({
       <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         <LiquidGlassFilters />
         {children}
+        {gaMeasurementId ? (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`} strategy="afterInteractive" />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} window.gtag = gtag; gtag('js', new Date()); gtag('config', ${JSON.stringify(gaMeasurementId)});`}
+            </Script>
+          </>
+        ) : null}
         {isVercelRuntime ? <Analytics /> : null}
         {isVercelRuntime ? <SpeedInsights /> : null}
       </body>
