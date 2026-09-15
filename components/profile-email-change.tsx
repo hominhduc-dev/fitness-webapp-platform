@@ -56,7 +56,7 @@ export function ProfileEmailChange({ currentEmail, onCancel }: { currentEmail: s
   }
 
   return (
-    <form onSubmit={handleSubmit} className="col-span-2 space-y-3 rounded-xl border border-border p-3">
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border border-border p-3">
       <p className="text-xs text-muted-foreground">{messages.profile.changeEmailHelp}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">

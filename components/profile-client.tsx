@@ -4,12 +4,34 @@ import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, Bell, Camera, ChevronDown, Flame, KeyRound, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
+import {
+  AlertTriangle,
+  Bell,
+  Camera,
+  Flame,
+  KeyRound,
+  Loader2,
+  Lock,
+  Phone,
+  Ruler,
+  Save,
+  Scale,
+  SlidersHorizontal,
+  Target,
+  Trash2,
+  Trophy,
+  User,
+} from "lucide-react"
 
 import { ProfileEmailChange } from "@/components/profile-email-change"
 
+import { LanguageToggle } from "@/components/layout/language-toggle"
+import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { useToast } from "@/components/providers/toast-provider"
+import { SettingsField, SettingsFieldGrid, SettingsSection } from "@/components/settings/settings-section"
+import { SettingsNav, type SettingsSectionLink } from "@/components/settings/settings-nav"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +44,7 @@ import { useResetTraineeData } from "@/lib/queries/profile"
 import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { getAppBaseUrl } from "@/lib/supabase/config"
+import { cn } from "@/lib/utils"
 
 const availableGoalValues = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"] as const
 const DEFAULT_DAILY_CALORIE_GOAL = 2500
@@ -34,6 +57,16 @@ const MAX_HEIGHT_CM = 300
 const MIN_TARGET_WEIGHT_KG = 20
 const MAX_TARGET_WEIGHT_KG = 500
 const KG_TO_LBS = 2.20462
+
+const SECTION_IDS = {
+  body: "settings-body",
+  goals: "settings-goals",
+  notifications: "settings-notifications",
+  preferences: "settings-preferences",
+  profile: "settings-profile",
+  resetData: "settings-reset-data",
+  security: "settings-security",
+} as const
 
 function convertWeightFromKg(weightKg: number, unit: "kg" | "lbs") {
   return unit === "lbs" ? weightKg * KG_TO_LBS : weightKg
@@ -76,6 +109,7 @@ export type ProfileClientInitialData = {
 
 export function ProfileClient({ initialData }: { initialData: ProfileClientInitialData }) {
   const { messages } = useLocale()
+  const { toast } = useToast()
   const { isLoading, profile: authProfile, session, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
   const resetData = useResetTraineeData()
@@ -102,14 +136,22 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [isChangingEmail, setIsChangingEmail] = useState(false)
   const [isResettingData, setIsResettingData] = useState(false)
   const [resetConfirmation, setResetConfirmation] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const goalLabels: Record<(typeof availableGoalValues)[number], string> = {
     "Build Muscle": messages.profile.goalBuildMuscle,
     Flexibility: messages.profile.goalFlexibility,
     "Improve Endurance": messages.profile.goalImproveEndurance,
     "Increase Strength": messages.profile.goalIncreaseStrength,
     "Lose Weight": messages.profile.goalLoseWeight,
+  }
+
+  // Saving is driven from the sticky header now, so an inline banner would sit
+  // offscreen for anyone editing a field further down. Toasts follow the reader.
+  const notifyError = (message: string) => {
+    toast({ title: message, tone: "error" })
+  }
+
+  const notifySuccess = (message: string) => {
+    toast({ title: message, tone: "success" })
   }
 
   useEffect(() => {
@@ -202,19 +244,15 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     }
 
     if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
-      setError(messages.profile.avatarInvalidType)
-      setSuccess(null)
+      notifyError(messages.profile.avatarInvalidType)
       return
     }
 
     if (file.size > MAX_AVATAR_FILE_SIZE_BYTES) {
-      setError(messages.profile.avatarTooLarge)
-      setSuccess(null)
+      notifyError(messages.profile.avatarTooLarge)
       return
     }
 
-    setError(null)
-    setSuccess(null)
     setIsUploadingAvatar(true)
 
     try {
@@ -224,9 +262,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         fileName: file.name,
       })
 
-      setSuccess(messages.profile.avatarUpdated)
+      notifySuccess(messages.profile.avatarUpdated)
     } catch (rawError) {
-      setError(
+      notifyError(
         rawError instanceof Error && rawError.message !== "avatar_read_failed"
           ? rawError.message
           : messages.profile.avatarUploadFailed,
@@ -255,8 +293,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       parsedDailyCalorieGoal < MIN_DAILY_CALORIE_GOAL ||
       parsedDailyCalorieGoal > MAX_DAILY_CALORIE_GOAL
     ) {
-      setError(messages.profile.invalidDailyCalorieGoal)
-      setSuccess(null)
+      notifyError(messages.profile.invalidDailyCalorieGoal)
       return
     }
 
@@ -264,8 +301,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       parsedHeightCm != null &&
       (!Number.isFinite(parsedHeightCm) || parsedHeightCm < MIN_HEIGHT_CM || parsedHeightCm > MAX_HEIGHT_CM)
     ) {
-      setError(messages.profile.invalidHeight)
-      setSuccess(null)
+      notifyError(messages.profile.invalidHeight)
       return
     }
 
@@ -275,8 +311,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         parsedCurrentWeightKg < MIN_TARGET_WEIGHT_KG ||
         parsedCurrentWeightKg > MAX_TARGET_WEIGHT_KG)
     ) {
-      setError(messages.profile.invalidCurrentWeight)
-      setSuccess(null)
+      notifyError(messages.profile.invalidCurrentWeight)
       return
     }
 
@@ -286,8 +321,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         parsedTargetWeightKg < MIN_TARGET_WEIGHT_KG ||
         parsedTargetWeightKg > MAX_TARGET_WEIGHT_KG)
     ) {
-      setError(messages.profile.invalidTargetWeight)
-      setSuccess(null)
+      notifyError(messages.profile.invalidTargetWeight)
       return
     }
 
@@ -296,14 +330,11 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       const parsedBirthDate = new Date(`${trimmedBirthDate}T00:00:00.000Z`)
       const now = new Date()
       if (Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate > now) {
-        setError(messages.profile.invalidBirthDate)
-        setSuccess(null)
+        notifyError(messages.profile.invalidBirthDate)
         return
       }
     }
 
-    setError(null)
-    setSuccess(null)
     setIsSaving(true)
 
     try {
@@ -364,9 +395,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         displayWeightKg != null ? formatNumericInput(convertWeightFromKg(displayWeightKg, resolvedWeightUnit)) : "",
       )
 
-      setSuccess(messages.profile.updated)
+      notifySuccess(messages.profile.updated)
     } catch (rawError) {
-      setError(rawError instanceof Error ? rawError.message : messages.profile.updateFailed)
+      notifyError(rawError instanceof Error ? rawError.message : messages.profile.updateFailed)
     } finally {
       setIsSaving(false)
     }
@@ -377,8 +408,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       return
     }
 
-    setError(null)
-    setSuccess(null)
     setIsSendingReset(true)
 
     try {
@@ -390,13 +419,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         redirectTo: redirectUrl.toString(),
       })
 
-      setSuccess(response.message ?? messages.profile.resetEmailSent)
+      notifySuccess(response.message ?? messages.profile.resetEmailSent)
     } catch (rawError) {
-      setError(
-        rawError instanceof Error
-          ? rawError.message
-          : messages.profile.resetEmailFailed,
-      )
+      notifyError(rawError instanceof Error ? rawError.message : messages.profile.resetEmailFailed)
     } finally {
       setIsSendingReset(false)
     }
@@ -404,28 +429,24 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
   const handleResetTraineeData = async () => {
     if (!session?.access_token) {
-      setError(messages.profile.notSignedIn)
-      setSuccess(null)
+      notifyError(messages.profile.notSignedIn)
       return
     }
 
     if (resetConfirmation.trim().toUpperCase() !== messages.profile.resetDataConfirmationWord.toUpperCase()) {
-      setError(messages.profile.resetDataConfirmationMismatch)
-      setSuccess(null)
+      notifyError(messages.profile.resetDataConfirmationMismatch)
       return
     }
 
-    setError(null)
-    setSuccess(null)
     setIsResettingData(true)
 
     try {
       await resetData.mutateAsync()
       setCurrentWeight("")
       setResetConfirmation("")
-      setSuccess(messages.profile.resetDataSuccess)
+      notifySuccess(messages.profile.resetDataSuccess)
     } catch (rawError) {
-      setError(rawError instanceof Error ? rawError.message : messages.profile.resetDataFailed)
+      notifyError(rawError instanceof Error ? rawError.message : messages.profile.resetDataFailed)
     } finally {
       setIsResettingData(false)
     }
@@ -451,394 +472,449 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const isResetConfirmationValid =
     resetConfirmation.trim().toUpperCase() === messages.profile.resetDataConfirmationWord.toUpperCase()
 
+  // Body metrics, goals and the reset zone drive trainee-only screens (meals,
+  // progress, weight tracking), so a coach or admin gets the shorter page
+  // instead of fields nothing in their app reads.
+  const isTrainee = profile.role === "trainee"
+  const sectionLinks: SettingsSectionLink[] = [
+    { icon: User, id: SECTION_IDS.profile, label: messages.profile.profile },
+    { icon: SlidersHorizontal, id: SECTION_IDS.preferences, label: messages.profile.preferences },
+    ...(isTrainee
+      ? [
+          { icon: Scale, id: SECTION_IDS.body, label: messages.profile.bodyAndNutrition },
+          { icon: Target, id: SECTION_IDS.goals, label: messages.profile.fitnessGoals },
+        ]
+      : []),
+    { icon: Bell, id: SECTION_IDS.notifications, label: messages.profile.notifications },
+    { icon: Lock, id: SECTION_IDS.security, label: messages.profile.security },
+    ...(isTrainee
+      ? [{ icon: AlertTriangle, id: SECTION_IDS.resetData, label: messages.profile.resetData, tone: "danger" as const }]
+      : []),
+  ]
+
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-5">
-        <h1 className="text-3xl font-semibold leading-none tracking-[-0.025em] md:text-4xl">{messages.profile.title}</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">{messages.profile.subtitle}</p>
+    <div className="mx-auto w-full max-w-6xl px-4 pb-8 md:px-6">
+      {/* Sticky so Save and the jump list stay reachable from any field. */}
+      <div className="sticky top-0 z-30 -mx-4 border-b border-border/60 bg-background/90 px-4 pb-2 pt-4 backdrop-blur-xl md:-mx-6 md:px-6 md:pt-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-semibold leading-tight tracking-[-0.025em] md:text-3xl">
+              {messages.profile.title}
+            </h1>
+            <p className="mt-1 hidden text-sm text-muted-foreground sm:block">{messages.profile.subtitle}</p>
+          </div>
+
+          <Button
+            className="shrink-0 gap-2"
+            onClick={() => void handleSave()}
+            disabled={isSaving || isResettingData}
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            <span className="hidden sm:inline">{isSaving ? messages.common.saving : messages.common.saveChanges}</span>
+            <span className="sm:hidden">{isSaving ? messages.common.saving : messages.common.save}</span>
+          </Button>
+        </div>
+
+        <SettingsNav
+          className="mt-2 lg:hidden"
+          label={messages.profile.sectionsLabel}
+          sections={sectionLinks}
+          variant="chips"
+        />
       </div>
 
-      {error ? (
-        <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-text">
-          {error}
-        </div>
-      ) : null}
+      <div className="mt-5 grid gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start">
+        <SettingsNav
+          className="hidden lg:sticky lg:top-32 lg:block"
+          label={messages.profile.sectionsLabel}
+          sections={sectionLinks}
+          variant="rail"
+        />
 
-      {success ? (
-        <div className="mb-4 rounded-lg border border-primary/20 bg-primary-soft p-3 text-sm text-primary">
-          {success}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)] lg:items-start lg:gap-5">
         <div className="min-w-0 space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <User className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.profile}</h2>
-        </div>
-
-        <div className="mb-4 flex items-center gap-3">
-          <input
-            ref={avatarInputRef}
-            id="avatar-upload"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            className="hidden"
-            onChange={handleAvatarUpload}
-            disabled={isUploadingAvatar}
-          />
-
-          <div className="relative">
-            <Avatar className="h-14 w-14 border-2 border-primary/20 sm:h-16 sm:w-16">
-              <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
-              <AvatarFallback className="bg-primary-soft text-2xl text-primary">{initials || "YB"}</AvatarFallback>
-            </Avatar>
-
-            <Button
-              type="button"
-              size="icon-sm"
-              className="absolute bottom-0 right-0 rounded-full shadow-lg"
-              onClick={() => avatarInputRef.current?.click()}
+          <SettingsSection
+            description={messages.profile.profileCopy}
+            icon={User}
+            id={SECTION_IDS.profile}
+            title={messages.profile.profile}
+          >
+            <input
+              ref={avatarInputRef}
+              id="avatar-upload"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarUpload}
               disabled={isUploadingAvatar}
-              title={messages.profile.changeAvatar}
-            >
-              {isUploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-            </Button>
-          </div>
+            />
 
-          <div className="min-w-0 text-left">
-            <p className="text-sm font-medium">{messages.profile.changeAvatar}</p>
-            <p className="text-xs text-muted-foreground">
-              {isUploadingAvatar ? messages.profile.avatarUploading : messages.profile.avatarRequirements}
-            </p>
-          </div>
-        </div>
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-border/70 bg-surface-subtle/60 p-3 sm:gap-4 sm:p-3.5">
+              <div className="relative shrink-0">
+                <Avatar className="h-14 w-14 border-2 border-primary/20 sm:h-16 sm:w-16">
+                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
+                  <AvatarFallback className="bg-primary-soft text-2xl text-primary">{initials || "YB"}</AvatarFallback>
+                </Avatar>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="name">{messages.profile.fullName}</Label>
-            <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="phone">{messages.profile.phone}</Label>
-            <div className="relative">
-              <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder={messages.profile.phonePlaceholder}
-                className="pl-9"
-              />
-            </div>
-          </div>
-
-          <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="email">{messages.profile.email}</Label>
-            <div className="flex gap-2">
-              <Input id="email" type="email" value={profile.email} disabled className="min-w-0 flex-1 cursor-not-allowed opacity-80" />
-              {!isChangingEmail ? (
-                <Button type="button" variant="outline" className="shrink-0" onClick={() => setIsChangingEmail(true)}>
-                  {messages.profile.changeEmail}
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  className="absolute bottom-0 right-0 rounded-full shadow-lg"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  title={messages.profile.changeAvatar}
+                >
+                  {isUploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                 </Button>
+              </div>
+
+              <div className="min-w-0 text-left">
+                <p className="text-sm font-medium">{messages.profile.changeAvatar}</p>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {isUploadingAvatar ? messages.profile.avatarUploading : messages.profile.avatarRequirements}
+                </p>
+              </div>
+            </div>
+
+            <SettingsFieldGrid>
+              <SettingsField htmlFor="name" label={messages.profile.fullName}>
+                <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+              </SettingsField>
+
+              <SettingsField htmlFor="phone" label={messages.profile.phone}>
+                <div className="relative">
+                  <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder={messages.profile.phonePlaceholder}
+                    className="pl-9"
+                  />
+                </div>
+              </SettingsField>
+
+              <SettingsField htmlFor="email" label={messages.profile.email} wide>
+                <div className="flex gap-2">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={profile.email}
+                    disabled
+                    className="min-w-0 flex-1 cursor-not-allowed opacity-80"
+                  />
+                  {!isChangingEmail ? (
+                    <Button type="button" variant="outline" className="shrink-0" onClick={() => setIsChangingEmail(true)}>
+                      {messages.profile.changeEmail}
+                    </Button>
+                  ) : null}
+                </div>
+              </SettingsField>
+
+              {isChangingEmail ? (
+                <div className="sm:col-span-2">
+                  <ProfileEmailChange currentEmail={profile.email} onCancel={() => setIsChangingEmail(false)} />
+                </div>
               ) : null}
-            </div>
-          </div>
 
-          {isChangingEmail ? (
-            <ProfileEmailChange currentEmail={profile.email} onCancel={() => setIsChangingEmail(false)} />
+              <SettingsField htmlFor="birth-date" hint={messages.profile.birthDateCopy} label={messages.profile.birthDate}>
+                <Input
+                  id="birth-date"
+                  type="date"
+                  value={birthDate}
+                  onChange={(event) => setBirthDate(event.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+              </SettingsField>
+
+              <SettingsField htmlFor="sex" hint={messages.profile.sexCopy} label={messages.profile.sex}>
+                <Select
+                  value={sex === "" ? "unspecified" : sex}
+                  onValueChange={(value) => setSex(value === "unspecified" ? "" : (value as AppSex))}
+                >
+                  <SelectTrigger id="sex" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="border-border bg-card">
+                    <SelectItem value="unspecified">{messages.profile.sexUnspecified}</SelectItem>
+                    <SelectItem value="male">{messages.profile.sexMale}</SelectItem>
+                    <SelectItem value="female">{messages.profile.sexFemale}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </SettingsField>
+            </SettingsFieldGrid>
+          </SettingsSection>
+
+          <SettingsSection
+            description={messages.profile.preferencesCopy}
+            icon={SlidersHorizontal}
+            id={SECTION_IDS.preferences}
+            title={messages.profile.preferences}
+          >
+            <SettingsFieldGrid>
+              <SettingsField htmlFor="weight-unit" hint={messages.profile.weightUnitCopy} label={messages.profile.weightUnit}>
+                <Select value={preferredWeightUnit} onValueChange={(value: "kg" | "lbs") => setPreferredWeightUnit(value)}>
+                  <SelectTrigger id="weight-unit" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="border-border bg-card">
+                    <SelectItem value="kg">{messages.profile.weightUnitKg}</SelectItem>
+                    <SelectItem value="lbs">{messages.profile.weightUnitLbs}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </SettingsField>
+
+              {/* Theme and language used to live only in the nav menus; settings
+                  is where people look for them, on every role. */}
+              <SettingsField hint={messages.profile.languageCopy} label={messages.common.language}>
+                <LanguageToggle variant="select" className="bg-transparent" />
+              </SettingsField>
+
+              <SettingsField hint={messages.profile.appearanceCopy} label={messages.profile.appearance} wide>
+                <ThemeToggle variant="select" className="bg-transparent" />
+              </SettingsField>
+            </SettingsFieldGrid>
+          </SettingsSection>
+
+          {isTrainee ? (
+            <SettingsSection
+              description={messages.profile.bodyAndNutritionCopy}
+              icon={Scale}
+              id={SECTION_IDS.body}
+              title={messages.profile.bodyAndNutrition}
+            >
+              <SettingsFieldGrid>
+                <SettingsField htmlFor="height-cm" hint={messages.profile.heightCopy} label={`${messages.profile.height} (cm)`}>
+                  <div className="relative">
+                    <Ruler className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="height-cm"
+                      type="number"
+                      min={MIN_HEIGHT_CM}
+                      max={MAX_HEIGHT_CM}
+                      step="0.1"
+                      inputMode="decimal"
+                      value={heightCm}
+                      onChange={(event) => setHeightCm(event.target.value)}
+                      placeholder={messages.profile.heightPlaceholder}
+                      className="pl-9"
+                    />
+                  </div>
+                </SettingsField>
+
+                <SettingsField
+                  htmlFor="current-weight"
+                  hint={messages.profile.currentWeightCopy}
+                  label={`${messages.profile.currentWeight} (${preferredWeightUnit})`}
+                >
+                  <div className="relative">
+                    <Scale className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="current-weight"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={currentWeight}
+                      onChange={(event) => setCurrentWeight(event.target.value)}
+                      placeholder={messages.profile.currentWeightPlaceholder}
+                      className="pl-9 pr-14"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+                      {preferredWeightUnit}
+                    </span>
+                  </div>
+                </SettingsField>
+
+                <SettingsField
+                  htmlFor="target-weight"
+                  hint={messages.profile.targetWeightCopy}
+                  label={`${messages.profile.targetWeight} (${preferredWeightUnit})`}
+                >
+                  <div className="relative">
+                    <Target className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="target-weight"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={targetWeight}
+                      onChange={(event) => setTargetWeight(event.target.value)}
+                      placeholder={messages.profile.targetWeightPlaceholder}
+                      className="pl-9 pr-14"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+                      {preferredWeightUnit}
+                    </span>
+                  </div>
+                </SettingsField>
+
+                <SettingsField
+                  htmlFor="daily-calorie-goal"
+                  hint={messages.profile.dailyCalorieGoalCopy}
+                  label={messages.profile.dailyCalorieGoal}
+                >
+                  <div className="relative">
+                    <Flame className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="daily-calorie-goal"
+                      type="number"
+                      min={MIN_DAILY_CALORIE_GOAL}
+                      max={MAX_DAILY_CALORIE_GOAL}
+                      step={50}
+                      value={dailyCalorieGoal}
+                      onChange={(event) => setDailyCalorieGoal(event.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </SettingsField>
+
+                <SettingsField
+                  htmlFor="activity-level"
+                  hint={messages.profile.activityLevelCopy}
+                  label={messages.profile.activityLevel}
+                  wide
+                >
+                  <Select
+                    value={activityLevel === "" ? "unspecified" : activityLevel}
+                    onValueChange={(value) => setActivityLevel(value === "unspecified" ? "" : (value as AppActivityLevel))}
+                  >
+                    <SelectTrigger id="activity-level" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="border-border bg-card">
+                      <SelectItem value="unspecified">{messages.profile.activityLevelUnspecified}</SelectItem>
+                      <SelectItem value="sedentary">{messages.profile.activitySedentary}</SelectItem>
+                      <SelectItem value="light">{messages.profile.activityLight}</SelectItem>
+                      <SelectItem value="moderate">{messages.profile.activityModerate}</SelectItem>
+                      <SelectItem value="active">{messages.profile.activityActive}</SelectItem>
+                      <SelectItem value="very_active">{messages.profile.activityVeryActive}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </SettingsField>
+              </SettingsFieldGrid>
+            </SettingsSection>
           ) : null}
-        </div>
-      </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <Scale className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.preferences}</h2>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 [&_p]:hidden [&_p]:text-xs [&_p]:leading-relaxed sm:[&_p]:block">
-          <div className="space-y-1.5">
-            <Label htmlFor="weight-unit">{messages.profile.weightUnit}</Label>
-            <Select value={preferredWeightUnit} onValueChange={(value: "kg" | "lbs") => setPreferredWeightUnit(value)}>
-              <SelectTrigger id="weight-unit" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="kg">{messages.profile.weightUnitKg}</SelectItem>
-                <SelectItem value="lbs">{messages.profile.weightUnitLbs}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">{messages.profile.weightUnitCopy}</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="height-cm">{messages.profile.height} (cm)</Label>
-            <Input
-              id="height-cm"
-              type="number"
-              min={MIN_HEIGHT_CM}
-              max={MAX_HEIGHT_CM}
-              step="0.1"
-              inputMode="decimal"
-              value={heightCm}
-              onChange={(event) => setHeightCm(event.target.value)}
-              placeholder={messages.profile.heightPlaceholder}
-            />
-            <p className="text-sm text-muted-foreground">{messages.profile.heightCopy}</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="target-weight">
-              {messages.profile.targetWeight} ({preferredWeightUnit})
-            </Label>
-            <div className="relative">
-              <Scale className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="target-weight"
-                type="number"
-                min="0"
-                step="0.1"
-                inputMode="decimal"
-                value={targetWeight}
-                onChange={(event) => setTargetWeight(event.target.value)}
-                placeholder={messages.profile.targetWeightPlaceholder}
-                className="pl-9 pr-14"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
-                {preferredWeightUnit}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">{messages.profile.targetWeightCopy}</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="current-weight">
-              {messages.profile.currentWeight} ({preferredWeightUnit})
-            </Label>
-            <div className="relative">
-              <Scale className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="current-weight"
-                type="number"
-                min="0"
-                step="0.1"
-                inputMode="decimal"
-                value={currentWeight}
-                onChange={(event) => setCurrentWeight(event.target.value)}
-                placeholder={messages.profile.currentWeightPlaceholder}
-                className="pl-9 pr-14"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
-                {preferredWeightUnit}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">{messages.profile.currentWeightCopy}</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="daily-calorie-goal">{messages.profile.dailyCalorieGoal}</Label>
-            <div className="relative">
-              <Flame className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="daily-calorie-goal"
-                type="number"
-                min={MIN_DAILY_CALORIE_GOAL}
-                max={MAX_DAILY_CALORIE_GOAL}
-                step={50}
-                value={dailyCalorieGoal}
-                onChange={(event) => setDailyCalorieGoal(event.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">{messages.profile.dailyCalorieGoalCopy}</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="birth-date">{messages.profile.birthDate}</Label>
-            <Input
-              id="birth-date"
-              type="date"
-              value={birthDate}
-              onChange={(event) => setBirthDate(event.target.value)}
-              max={new Date().toISOString().slice(0, 10)}
-            />
-            <p className="text-sm text-muted-foreground">{messages.profile.birthDateCopy}</p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="sex">{messages.profile.sex}</Label>
-            <Select
-              value={sex === "" ? "unspecified" : sex}
-              onValueChange={(value) => setSex(value === "unspecified" ? "" : (value as AppSex))}
+          {isTrainee ? (
+            <SettingsSection
+              description={messages.profile.fitnessGoalsCopy}
+              icon={Trophy}
+              id={SECTION_IDS.goals}
+              title={messages.profile.fitnessGoals}
             >
-              <SelectTrigger id="sex" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="unspecified">{messages.profile.sexUnspecified}</SelectItem>
-                <SelectItem value="male">{messages.profile.sexMale}</SelectItem>
-                <SelectItem value="female">{messages.profile.sexFemale}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">{messages.profile.sexCopy}</p>
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {availableGoalValues.map((goal) => {
+                  const isSelected = selectedGoals.includes(goal)
 
-          <div className="space-y-1.5">
-            <Label htmlFor="activity-level">{messages.profile.activityLevel}</Label>
-            <Select
-              value={activityLevel === "" ? "unspecified" : activityLevel}
-              onValueChange={(value) =>
-                setActivityLevel(value === "unspecified" ? "" : (value as AppActivityLevel))
-              }
-            >
-              <SelectTrigger id="activity-level" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="unspecified">{messages.profile.activityLevelUnspecified}</SelectItem>
-                <SelectItem value="sedentary">{messages.profile.activitySedentary}</SelectItem>
-                <SelectItem value="light">{messages.profile.activityLight}</SelectItem>
-                <SelectItem value="moderate">{messages.profile.activityModerate}</SelectItem>
-                <SelectItem value="active">{messages.profile.activityActive}</SelectItem>
-                <SelectItem value="very_active">{messages.profile.activityVeryActive}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">{messages.profile.activityLevelCopy}</p>
-          </div>
-        </div>
-      </div>
+                  return (
+                    <button
+                      key={goal}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleGoal(goal)}
+                      className={cn(
+                        "inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11",
+                        isSelected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      {goalLabels[goal]}
+                    </button>
+                  )
+                })}
+              </div>
+            </SettingsSection>
+          ) : null}
 
-        </div>
+          <SettingsSection
+            description={messages.profile.notificationsCopy}
+            icon={Bell}
+            id={SECTION_IDS.notifications}
+            title={messages.profile.notifications}
+          >
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/70 p-3 sm:p-3.5">
+              <div className="min-w-0">
+                <Label htmlFor="push-notifications" className="text-sm font-medium">
+                  {messages.profile.pushNotifications}
+                </Label>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{messages.profile.pushNotificationsCopy}</p>
+              </div>
+              <Switch id="push-notifications" checked={notifications} onCheckedChange={setNotifications} />
+            </div>
+          </SettingsSection>
 
-        <div className="min-w-0 space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Palette className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.fitnessGoals}</h2>
-        </div>
+          <SettingsSection
+            description={messages.profile.changePasswordCopy}
+            icon={Lock}
+            id={SECTION_IDS.security}
+            title={messages.profile.security}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button asChild className="gap-2 sm:w-auto">
+                <Link href="/reset-password">
+                  <KeyRound className="h-4 w-4" />
+                  {messages.profile.changePassword}
+                </Link>
+              </Button>
 
-        <div className="flex flex-wrap gap-2">
-          {availableGoalValues.map((goal) => {
-            const isSelected = selectedGoals.includes(goal)
-
-            return (
-              <button
-                key={goal}
-                type="button"
-                onClick={() => toggleGoal(goal)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
+              {/* For someone who no longer knows the current password. */}
+              <Button
+                variant="ghost"
+                className="text-muted-foreground sm:w-auto"
+                onClick={() => void handlePasswordReset()}
+                disabled={isSendingReset}
               >
-                {goalLabels[goal]}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Bell className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.notifications}</h2>
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">{messages.profile.pushNotifications}</p>
-              <p className="text-sm text-muted-foreground">{messages.profile.pushNotificationsCopy}</p>
+                {isSendingReset ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {messages.common.sendingEmail}
+                  </>
+                ) : (
+                  messages.profile.forgotPasswordSendEmail
+                )}
+              </Button>
             </div>
-            <Switch checked={notifications} onCheckedChange={setNotifications} />
-          </div>
-        </div>
-      </div>
+          </SettingsSection>
 
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Lock className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">{messages.profile.security}</h2>
-        </div>
-
-        <p className="mb-3 text-sm text-muted-foreground">{messages.profile.changePasswordCopy}</p>
-        <Button asChild className="w-full gap-2">
-          <Link href="/reset-password">
-            <KeyRound className="h-4 w-4" />
-            {messages.profile.changePassword}
-          </Link>
-        </Button>
-
-        {/* For someone who no longer knows the current password. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-2 w-full text-muted-foreground"
-          onClick={() => void handlePasswordReset()}
-          disabled={isSendingReset}
-        >
-          {isSendingReset ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {messages.common.sendingEmail}
-            </>
-          ) : (
-            messages.profile.forgotPasswordSendEmail
-          )}
-        </Button>
-      </div>
-
-      {profile.role === "trainee" ? (
-        <details className="group rounded-2xl border border-destructive/30 bg-destructive-soft">
-          <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-destructive-text marker:hidden sm:p-5 [&::-webkit-details-marker]:hidden">
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            <span className="flex-1 text-base font-semibold">{messages.profile.resetData}</span>
-            <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
-          </summary>
-
-          <div className="border-t border-destructive/20 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
-            <p className="mb-4 text-sm text-muted-foreground">{messages.profile.resetDataCopy}</p>
-
-            <div className="space-y-2">
-              <Label htmlFor="reset-trainee-data">{messages.profile.resetDataConfirmationLabel}</Label>
-              <Input
-                id="reset-trainee-data"
-                value={resetConfirmation}
-                onChange={(event) => setResetConfirmation(event.target.value)}
-                placeholder={messages.profile.resetDataConfirmationWord}
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-                disabled={isResettingData}
-                className="border-destructive/20 bg-background"
-              />
-              <p className="text-xs text-muted-foreground">{messages.profile.resetDataConfirmationHint}</p>
-            </div>
-
-            <Button
-              variant="destructive"
-              className="mt-4 w-full"
-              onClick={() => void handleResetTraineeData()}
-              disabled={isResettingData || !isResetConfirmationValid}
+          {isTrainee ? (
+            <SettingsSection
+              collapsible
+              description={messages.profile.resetDataCopy}
+              icon={AlertTriangle}
+              id={SECTION_IDS.resetData}
+              title={messages.profile.resetData}
+              tone="danger"
             >
-              {isResettingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {isResettingData ? messages.profile.resetDataInProgress : messages.profile.resetDataAction}
-            </Button>
-          </div>
-        </details>
-      ) : null}
+              <div className="space-y-2 border-t border-destructive/20 pt-4">
+                <Label htmlFor="reset-trainee-data">{messages.profile.resetDataConfirmationLabel}</Label>
+                <Input
+                  id="reset-trainee-data"
+                  value={resetConfirmation}
+                  onChange={(event) => setResetConfirmation(event.target.value)}
+                  placeholder={messages.profile.resetDataConfirmationWord}
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={isResettingData}
+                  className="border-destructive/20 bg-background"
+                />
+                <p className="text-xs text-muted-foreground">{messages.profile.resetDataConfirmationHint}</p>
+              </div>
 
-      <Button
-        className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-        onClick={() => void handleSave()}
-        disabled={isSaving || isResettingData}
-      >
-        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-        {isSaving ? messages.common.saving : messages.common.saveChanges}
-      </Button>
+              <Button
+                variant="destructive"
+                className="mt-4 w-full gap-2 sm:w-auto"
+                onClick={() => void handleResetTraineeData()}
+                disabled={isResettingData || !isResetConfirmationValid}
+              >
+                {isResettingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isResettingData ? messages.profile.resetDataInProgress : messages.profile.resetDataAction}
+              </Button>
+            </SettingsSection>
+          ) : null}
         </div>
       </div>
     </div>
