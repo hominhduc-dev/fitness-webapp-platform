@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/auth/api"
 import { getApiBaseUrl } from "@/lib/supabase/config"
+import { getTimeZoneHeaders } from "@/lib/time-zone"
 import type { ExerciseActivityType, MuscleProfileStatus, MuscleSlug } from "@/lib/types"
 
 import type {
@@ -129,6 +130,7 @@ async function request<T>(path: string, accessToken: string, init?: RequestInit 
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
+      ...(await getTimeZoneHeaders()),
       ...(init?.headers ?? {}),
     },
   }

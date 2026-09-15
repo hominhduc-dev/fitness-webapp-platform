@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress"
 import { requireAppSession, requireAppUser } from "@/lib/auth/server"
 import { fetchCoachDashboard } from "@/lib/fitness/api"
 import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
+import { formatDateKey } from "@/lib/time-zone"
+import { getServerTimeZone } from "@/lib/time-zone-server"
 import { cn } from "@/lib/utils"
 
 export const revalidate = 30
@@ -138,12 +140,15 @@ function getAdjustHref(trainee: Awaited<ReturnType<typeof fetchCoachDashboard>>[
 }
 
 async function CoachDashboardContent() {
-  const [{ accessToken }, locale, messages] = await Promise.all([
+  const [{ accessToken }, locale, messages, timeZone] = await Promise.all([
     requireAppSession({ role: "coach" }),
     getServerLocale(),
     getServerMessages(),
+    getServerTimeZone(),
   ])
   const dashboard = await fetchCoachDashboard(accessToken)
+  // The chart's days are the user's calendar days, so "today" must be too.
+  const todayKey = formatDateKey(new Date(), timeZone)
   const maxWorkouts = Math.max(...dashboard.activityByDay.map((point) => point.workouts), 1)
   const coachMessages: CoachDashboardMessages["coach"] = messages.coach
   const plannedSessions = dashboard.summary.totalPlannedSessions
@@ -215,8 +220,8 @@ async function CoachDashboardContent() {
 
               <div className="mt-6 grid grid-cols-7 gap-2" style={{ height: 110, alignItems: "end" }}>
                 {dashboard.activityByDay.map((point) => {
-                  // The chart is this Mon–Sun week, so today is found by its UTC day key.
-                  const isToday = point.date.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)
+                  // Each point's date is a day key (UTC midnight) of the user's calendar day.
+                  const isToday = point.date.toISOString().slice(0, 10) === todayKey
                   const h =
                     point.workouts === 0 ? 4 : Math.max(8, Math.round((point.workouts / maxWorkouts) * 90))
 

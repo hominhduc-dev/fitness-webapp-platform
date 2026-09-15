@@ -58,17 +58,19 @@ import {
   type SetIntensityTag,
 } from "../../domain/set-intensity-tag"
 import {
+  addLocalDays,
   addUtcDays,
+  clientCalendarDay,
+  clientDayStart,
   DAY_IN_MS,
   DAY_LABELS,
   DISPLAY_WEEKDAY_ORDER,
+  formatClientDateKey,
   formatUtcDateOnly,
-  getUtcMonthBounds,
+  getClientMonthBounds,
   parseLocalDateInput,
   parseScheduledDateInput,
-  startOfUtcDay,
   startOfUtcWeek,
-  toDateRange,
   toRecentWindow,
 } from "./shared/dates"
 import {
@@ -1713,8 +1715,12 @@ function normalizeProgramStartDateInput(value: string | null | undefined) {
   return parsed
 }
 
+/**
+ * The day key a program's week 1 is anchored to. `startDate` is already a day key;
+ * `assignedAt` is an instant, so it becomes the client's calendar day it fell on.
+ */
 function resolveProgramAnchorDate(startDate: Date | null | undefined, assignedAt: Date) {
-  return startDate ?? assignedAt
+  return startDate ?? clientCalendarDay(assignedAt)
 }
 
 /**
@@ -1818,7 +1824,7 @@ function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
     !log.workout.scheduledDate && typeof log.workout.scheduledDay === "number" ? log.workout.scheduledDay : null
 
   if (scheduledDay != null) {
-    const startedDay = startOfUtcDay(log.startedAt)
+    const startedDay = clientCalendarDay(log.startedAt)
     const dayOffset = (startedDay.getUTCDay() - scheduledDay + 7) % 7
     return formatUtcDateOnly(addUtcDays(startedDay, -dayOffset))
   }
@@ -1827,7 +1833,7 @@ function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
     return log.workout.scheduledDate
   }
 
-  return formatUtcDateOnly(log.startedAt)
+  return formatClientDateKey(log.startedAt)
 }
 
 // Sequential weekly schedule: completed sessions show on the day they were actually
@@ -1866,7 +1872,7 @@ function buildSerializedScheduleEntriesForWeek({
   // First workout actually started on each day this week.
   const logByDay = new Map<string, ReturnType<typeof serializeWorkoutLog>>()
   for (const log of logs) {
-    const key = formatUtcDateOnly(log.startedAt)
+    const key = formatClientDateKey(log.startedAt)
     if (!logByDay.has(key)) {
       logByDay.set(key, log)
     }
@@ -1879,7 +1885,7 @@ function buildSerializedScheduleEntriesForWeek({
     .forEach((workout) => getWorkoutCompletionMatchKeys(workout).forEach((key) => coachUpdatedWorkoutMatchKeys.add(key)))
 
   for (const log of logs) {
-    const startedKey = formatUtcDateOnly(log.startedAt)
+    const startedKey = formatClientDateKey(log.startedAt)
     const startedInWeek = startedKey >= weekStartKey && startedKey < weekEndKey
     const plannedDateKey = getLogPlannedDateKey(log)
     const plannedInWeek = plannedDateKey >= weekStartKey && plannedDateKey < weekEndKey
@@ -2048,23 +2054,21 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
 }
 
 function buildWeeklyCaloriesChart(meals: Array<Pick<Meal, "calories" | "recordedAt">>, targetCalories = DEFAULT_CALORIE_TARGET) {
-  const { start } = toRecentWindow(7)
+  // The client's last 7 calendar days, oldest first; each meal counts on the day it was recorded.
+  const today = clientCalendarDay()
   const totals = new Map<string, number>()
 
   meals.forEach((meal) => {
-    const key = meal.recordedAt.toISOString().slice(0, 10)
+    const key = formatClientDateKey(meal.recordedAt)
     totals.set(key, (totals.get(key) ?? 0) + meal.calories)
   })
 
   return Array.from({ length: 7 }, (_value, index) => {
-    const date = new Date(start)
-    date.setDate(start.getDate() + index)
-
-    const key = date.toISOString().slice(0, 10)
+    const date = addUtcDays(today, index - 6)
 
     return {
-      calories: totals.get(key) ?? 0,
-      day: DAY_LABELS[date.getDay()],
+      calories: totals.get(formatUtcDateOnly(date)) ?? 0,
+      day: DAY_LABELS[date.getUTCDay()],
       target: targetCalories,
     }
   })
@@ -2261,7 +2265,7 @@ async function backfillLegacyWorkoutLogProgramContextForAssignments(
 
   const plannedByUserAndDateName = new Map<string, true>()
   const assignmentWindows = assignments.map((assignment) => {
-    const baseMonday = startOfUtcWeek(assignment.assignedAt)
+    const baseMonday = startOfUtcWeek(clientCalendarDay(assignment.assignedAt))
     const end = addUtcDays(baseMonday, Math.max(1, Math.round(durationWeeks)) * 7)
 
     workoutRows.forEach((workout) => {
@@ -2367,13 +2371,14 @@ function resolveWorkoutLogPlannedDate(
     return workout.scheduledDate
   }
 
+  // plannedDate is a day key, so a session belongs to the client's calendar day it started on.
   if (typeof workout.scheduledDay === "number") {
-    const startedDay = startOfUtcDay(startedAt)
+    const startedDay = clientCalendarDay(startedAt)
     const dayOffset = (startedDay.getUTCDay() - workout.scheduledDay + 7) % 7
     return addUtcDays(startedDay, -dayOffset)
   }
 
-  return startOfUtcDay(startedAt)
+  return clientCalendarDay(startedAt)
 }
 
 
@@ -2419,11 +2424,6 @@ function resolveBodyMetricRecordedAtFilter(options?: BodyMetricListOptions) {
 }
 
 
-function addLocalDays(date: Date, days: number) {
-  const nextDate = new Date(date)
-  nextDate.setDate(nextDate.getDate() + days)
-  return nextDate
-}
 
 
 
@@ -2486,8 +2486,10 @@ async function buildPreviousSetPerformanceByWorkoutExercise(
   }
 
   const db = ensurePrisma()
-  const previousWeekdayStart = startOfUtcDay(addUtcDays(referenceDate, -7))
-  const previousWeekdayEnd = addUtcDays(previousWeekdayStart, 1)
+  // The client's calendar day exactly one week before the reference, as instants.
+  const previousWeekday = addUtcDays(clientCalendarDay(referenceDate), -7)
+  const previousWeekdayStart = clientDayStart(previousWeekday)
+  const previousWeekdayEnd = clientDayStart(addUtcDays(previousWeekday, 1))
   const fallbackByWorkoutExerciseId = new Map<string, Map<number, PreviousExerciseSetPerformance>>()
   const preferredByWorkoutExerciseId = new Map<string, Map<number, PreviousExerciseSetPerformance>>()
   let skip = 0
@@ -3272,8 +3274,11 @@ async function listCoachExerciseImportRequests(profile: SerializedProfile) {
 
 async function listMealsForUser(profile: SerializedProfile, date = new Date()) {
   const db = ensurePrisma()
-  const { end, start } = toDateRange(date)
-  const recentWindow = toRecentWindow(7)
+  // loggedDate is a day key, so both filters use the client's day keys, not instants.
+  const day = clientCalendarDay(date)
+  const start = day
+  const end = day
+  const recentWindow = { end: day, start: addUtcDays(day, -6) }
   const targetCalories = profile.dailyCalorieGoal ?? DEFAULT_CALORIE_TARGET
 
   const [meals, weeklyMeals] = await Promise.all([
@@ -3493,7 +3498,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   const workoutMap = new Map<string, WorkoutRecord>()
   const personalWorkoutIds = new Set<string>()
-  const weekStart = startOfUtcWeek(new Date())
+  const weekStart = startOfUtcWeek(clientCalendarDay())
 
   assignments.forEach((assignment) => {
     const isPersonalProgram = assignment.program.createdById === profile.id
@@ -3538,7 +3543,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
 
-  const todayStart = startOfUtcDay(new Date())
+  const todayStart = clientCalendarDay()
 
   const [recentLogs, historyLogs, weekLogs] = await Promise.all([
     db.workoutLog.findMany({
@@ -3567,7 +3572,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
         startedAt: "desc",
       },
       where: {
-        startedAt: { gte: weekStart },
+        startedAt: { gte: clientDayStart(weekStart) },
         userId: profile.id,
       },
     }),
@@ -3582,9 +3587,9 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   const todayDateKey = formatUtcDateOnly(todayStart)
   const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
 
-  const activeDaysSet = new Set(weekLogs.map((log) => log.startedAt.getUTCDay()))
+  const activeDaysSet = new Set(weekLogs.map((log) => clientCalendarDay(log.startedAt).getUTCDay()))
   const todayVolume = weekLogs
-    .filter((log) => log.startedAt >= todayStart)
+    .filter((log) => log.startedAt >= clientDayStart(todayStart))
     .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
   const serializedWeekLogs = weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
 
@@ -3605,7 +3610,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       weekStart,
       workouts: serializedWorkouts,
     }),
-    todayWorkout: todayOneOffWorkout ?? schedule[new Date().getDay()] ?? null,
+    todayWorkout: todayOneOffWorkout ?? schedule[todayStart.getUTCDay()] ?? null,
     weekLogs: serializedWeekLogs,
     weekStats: {
       activeDaysThisWeek: activeDaysSet.size,
@@ -3621,8 +3626,8 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   assertTrainee(profile)
 
   const now = new Date()
-  const weekStart = startOfUtcWeek(now)
-  const todayStart = startOfUtcDay(now)
+  const todayStart = clientCalendarDay(now)
+  const weekStart = startOfUtcWeek(todayStart)
   const todayEnd = new Date(todayStart)
   todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
   todayEnd.setMilliseconds(-1)
@@ -3663,7 +3668,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
         totalVolume: true,
       },
       where: {
-        startedAt: { gte: weekStart },
+        startedAt: { gte: clientDayStart(weekStart) },
         userId: profile.id,
       },
     }),
@@ -3732,9 +3737,9 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   const todayDateKey = formatUtcDateOnly(todayStart)
   const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
   const serializedMeals = meals.map(serializeMealRecord)
-  const activeDaysSet = new Set(weekLogs.map((log) => log.startedAt.getUTCDay()))
+  const activeDaysSet = new Set(weekLogs.map((log) => clientCalendarDay(log.startedAt).getUTCDay()))
   const todayVolume = weekLogs
-    .filter((log) => log.startedAt >= todayStart)
+    .filter((log) => log.startedAt >= clientDayStart(todayStart))
     .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
 
   return {
@@ -3746,7 +3751,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
     },
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
-    todayWorkout: todayOneOffWorkout ?? schedule[now.getDay()] ?? null,
+    todayWorkout: todayOneOffWorkout ?? schedule[todayStart.getUTCDay()] ?? null,
     weekStats: {
       activeDaysThisWeek: activeDaysSet.size,
       todayVolume,
@@ -5940,7 +5945,7 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
     },
   })
 
-  const currentMonth = getUtcMonthBounds()
+  const currentMonth = getClientMonthBounds()
   const workoutsThisMonth = workoutLogs.filter(
     (log) => log.startedAt >= currentMonth.start && log.startedAt < currentMonth.end,
   )
@@ -6073,34 +6078,34 @@ async function getDashboardAnalyticsForTrainee(
   const bodyProgress = {
     bodyFat: bodyMetrics
       .filter((m) => m.bodyFatPct != null)
-      .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.bodyFatPct! })),
+      .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.bodyFatPct! })),
     measurements: {
       arm: bodyMetrics
         .filter((m) => m.armCm != null)
-        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.armCm! })),
+        .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.armCm! })),
       chest: bodyMetrics
         .filter((m) => m.chestCm != null)
-        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.chestCm! })),
+        .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.chestCm! })),
       hips: bodyMetrics
         .filter((m) => m.hipsCm != null)
-        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.hipsCm! })),
+        .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.hipsCm! })),
       thigh: bodyMetrics
         .filter((m) => m.thighCm != null)
-        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.thighCm! })),
+        .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.thighCm! })),
       waist: bodyMetrics
         .filter((m) => m.waistCm != null)
-        .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.waistCm! })),
+        .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.waistCm! })),
     },
     weight: bodyMetrics
       .filter((m) => m.weightKg != null)
-      .map((m) => ({ date: formatUtcDateOnly(m.recordedAt), value: m.weightKg! })),
+      .map((m) => ({ date: formatClientDateKey(m.recordedAt), value: m.weightKg! })),
   }
 
   return {
     bodyProgress,
     muscleGroupDistribution: muscleDistribution,
     recentPRs: recentPRs.map((pr) => ({
-      date: formatUtcDateOnly(pr.date),
+      date: formatClientDateKey(pr.date),
       delta: pr.delta,
       exerciseName: pr.exerciseName,
       type: pr.type,
@@ -6123,8 +6128,9 @@ async function getCalendarForTrainee(
   const db = ensurePrisma()
   assertTrainee(profile)
 
-  const start = new Date(Date.UTC(year, month - 1, 1))
-  const end = new Date(Date.UTC(year, month, 1))
+  // The month as the client lives it: from its midnight on the 1st to the next 1st.
+  const start = clientDayStart(new Date(Date.UTC(year, month - 1, 1)))
+  const end = clientDayStart(new Date(Date.UTC(year, month, 1)))
 
   const logs = await db.workoutLog.findMany({
     orderBy: { startedAt: "asc" },
@@ -6177,7 +6183,7 @@ async function getCalendarForTrainee(
   }>
   const dayMap = new Map<string, typeof detailedLogs>()
   for (const log of detailedLogs) {
-    const dateKey = formatUtcDateOnly(log.startedAt)
+    const dateKey = formatClientDateKey(log.startedAt)
     if (!dayMap.has(dateKey)) dayMap.set(dateKey, [])
     dayMap.get(dateKey)!.push(log)
   }
@@ -6207,8 +6213,8 @@ async function getYearViewForTrainee(profile: SerializedProfile, year: number) {
   const db = ensurePrisma()
   assertTrainee(profile)
 
-  const start = new Date(Date.UTC(year, 0, 1))
-  const end = new Date(Date.UTC(year + 1, 0, 1))
+  const start = clientDayStart(new Date(Date.UTC(year, 0, 1)))
+  const end = clientDayStart(new Date(Date.UTC(year + 1, 0, 1)))
 
   const logs = await db.workoutLog.findMany({
     orderBy: { startedAt: "asc" },
@@ -6221,7 +6227,7 @@ async function getYearViewForTrainee(profile: SerializedProfile, year: number) {
 
   const dayMap = new Map<string, { count: number; volume: number }>()
   for (const log of logs) {
-    const dateKey = formatUtcDateOnly(log.startedAt)
+    const dateKey = formatClientDateKey(log.startedAt)
     const existing = dayMap.get(dateKey) ?? { count: 0, volume: 0 }
     dayMap.set(dateKey, {
       count: existing.count + 1,
@@ -6792,8 +6798,8 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
     : trainees
 
   const traineeIds = filteredTrainees.map((trainee) => trainee.id)
-  // The same Monday-anchored UTC week, and completed sessions only, as the trainee detail page.
-  const weekStart = startOfUtcWeek(new Date())
+  // The client's Monday–Sunday week, and completed sessions only, as the trainee detail page.
+  const weekStart = startOfUtcWeek(clientCalendarDay())
   const weekEnd = addUtcDays(weekStart, 7)
   const [recentLogs, recentMetrics, latestCheckInRows] = traineeIds.length
     ? await Promise.all([
@@ -6803,7 +6809,7 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
           },
           where: {
             completedAt: { not: null },
-            startedAt: { gte: weekStart, lt: weekEnd },
+            startedAt: { gte: clientDayStart(weekStart), lt: clientDayStart(weekEnd) },
             userId: {
               in: traineeIds,
             },
@@ -6933,14 +6939,15 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
   }
 
   const last30Days = toRecentWindow(30)
-  // The same Monday-anchored UTC week the trainee's own schedule uses.
-  const weekStart = startOfUtcWeek(new Date())
+  // The client's Monday–Sunday week, the same one the trainee's own schedule uses.
+  const today = clientCalendarDay()
+  const weekStart = startOfUtcWeek(today)
   const weekEnd = addUtcDays(weekStart, 7)
   const [weekLogs, allLogs, bodyMetrics, checkIns, recentMeals, latestWeights, latestBodyFat, latestWaist] = await Promise.all([
     db.workoutLog.findMany({
       include: WORKOUT_LOG_INCLUDE,
       orderBy: { startedAt: "asc" },
-      where: { startedAt: { gte: weekStart, lt: weekEnd }, userId: trainee.id },
+      where: { startedAt: { gte: clientDayStart(weekStart), lt: clientDayStart(weekEnd) }, userId: trainee.id },
     }),
     // Full history: streaks and PR baselines need every earlier session.
     db.workoutLog.findMany({
@@ -6980,7 +6987,8 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       include: MEAL_WITH_FOOD_INCLUDE,
       orderBy: { loggedDate: "desc" },
       where: {
-        loggedDate: { gte: last30Days.start, lte: last30Days.end },
+        // loggedDate is a day key, so it is bounded by day keys rather than instants.
+        loggedDate: { gte: addUtcDays(today, -29), lte: today },
         status: MealStatus.consumed,
         userId: trainee.id,
       },
@@ -7096,9 +7104,9 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     overview: {
       body: buildBodyMetricOverview({ bodyFat: latestBodyFat, waist: latestWaist, weights: latestWeights }),
       last30Days: { sessions: completedLast30Days, volume: Math.round(totalVolumeLast30Days) },
-      lastWorkoutAt: trainee.workoutLogs[0] ? formatUtcDateOnly(trainee.workoutLogs[0].startedAt) : null,
+      lastWorkoutAt: trainee.workoutLogs[0] ? formatClientDateKey(trainee.workoutLogs[0].startedAt) : null,
       recentPRs: recentPRs.map((pr) => ({
-        date: formatUtcDateOnly(pr.date),
+        date: formatClientDateKey(pr.date),
         deltaKg: pr.delta,
         exerciseName: pr.exerciseName,
         weightKg: pr.value,
@@ -7131,7 +7139,7 @@ async function getCoachDashboard(profile: SerializedProfile) {
   assertCoach(profile)
   const db = ensurePrisma()
   // Summary cards come from listCoachTrainees, so the chart reads the same week and sessions.
-  const weekStart = startOfUtcWeek(new Date())
+  const weekStart = startOfUtcWeek(clientCalendarDay())
   const weekEnd = addUtcDays(weekStart, 7)
   const [trainees, pendingRequests, recentWorkoutLogs, weeklyLogs, unreadNotificationCount] = await Promise.all([
     listCoachTrainees(profile),
@@ -7183,7 +7191,7 @@ async function getCoachDashboard(profile: SerializedProfile) {
       },
       where: {
         completedAt: { not: null },
-        startedAt: { gte: weekStart, lt: weekEnd },
+        startedAt: { gte: clientDayStart(weekStart), lt: clientDayStart(weekEnd) },
         user: {
           coachId: profile.id,
         },
@@ -7219,12 +7227,11 @@ async function getCoachDashboard(profile: SerializedProfile) {
     })
     .slice(0, 5)
 
-  // Mon–Sun UTC days. The old local-midnight dates were keyed through
-  // toISOString, which shifted every bar a day early east of UTC.
+  // The client's Mon–Sun days as day keys; each session counts on the day it started for the client.
   const activityByDay = Array.from({ length: 7 }, (_value, index) => {
     const date = addUtcDays(weekStart, index)
     const dayKey = formatUtcDateOnly(date)
-    const dayLogs = weeklyLogs.filter((log) => formatUtcDateOnly(log.startedAt) === dayKey)
+    const dayLogs = weeklyLogs.filter((log) => formatClientDateKey(log.startedAt) === dayKey)
 
     return {
       date,

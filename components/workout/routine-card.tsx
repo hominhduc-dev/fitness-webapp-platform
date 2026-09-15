@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import type { AppMessages } from "@/lib/i18n/messages"
 import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
 import { getTotalSets, inferRoutineTag } from "@/lib/fitness/routine-tag"
+import { formatDateKey } from "@/lib/time-zone"
 import type { Workout, WorkoutLog } from "@/lib/types"
 import { formatRepTarget } from "@/lib/workout-reps"
 
@@ -39,15 +40,9 @@ function getLastUsed(workout: Workout, historyLogs: WorkoutLog[], messages: AppM
   return formatRelativeCompact(latestLog.completedAt ?? latestLog.startedAt, messages)
 }
 
+/** `scheduledDate` is a day key held as UTC midnight, so it is read back in UTC in every time zone. */
 function formatScheduledDate(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-  }).formatToParts(date)
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${values.year}-${values.month}-${values.day}`
+  return formatDateKey(date, "UTC")
 }
 
 /**

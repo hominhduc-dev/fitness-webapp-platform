@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
+import { withRequestContext } from "../../../lib/logger"
 import { buildBodyMetricOverview, buildTraineeWeekOverview, type OverviewWeekLog } from "./coach-trainee-overview"
+
+function inZone<T>(timeZone: string, callback: () => T) {
+  return withRequestContext({ method: "GET", path: "/test", requestId: "test-request", timeZone }, callback)
+}
 
 const MONDAY = new Date("2026-09-14T00:00:00.000Z")
 
@@ -24,11 +29,16 @@ describe("buildTraineeWeekOverview", () => {
     expect(week.plannedSessions).toBe(4)
   })
 
-  it("puts each log on its own UTC day, not shifted by a local timezone", () => {
-    const week = buildTraineeWeekOverview([log("2026-09-15T23:30:00.000Z")], MONDAY, 4)
+  it("puts each log on the client's calendar day it started on", () => {
+    // 23:30 UTC on Tuesday is 06:30 on Wednesday in Vietnam.
+    const lateTuesdayUtc = [log("2026-09-15T23:30:00.000Z")]
 
-    expect(week.days[1]).toMatchObject({ date: "2026-09-15", sessions: 1, sets: 3 })
-    expect(week.days[2].sets).toBe(0)
+    const vietnam = inZone("Asia/Ho_Chi_Minh", () => buildTraineeWeekOverview(lateTuesdayUtc, MONDAY, 4))
+    expect(vietnam.days[1].sets).toBe(0)
+    expect(vietnam.days[2]).toMatchObject({ date: "2026-09-16", sessions: 1, sets: 3 })
+
+    const utc = inZone("UTC", () => buildTraineeWeekOverview(lateTuesdayUtc, MONDAY, 4))
+    expect(utc.days[1]).toMatchObject({ date: "2026-09-15", sessions: 1, sets: 3 })
   })
 
   it("counts only completed sessions and completed sets, and ignores other weeks", () => {

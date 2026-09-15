@@ -1,5 +1,6 @@
 import type { AppRole, AuthResponse, UpdateProfileInput, UploadAvatarInput } from "./types"
 import { getApiBaseUrl } from "@/lib/supabase/config"
+import { getTimeZoneHeaders } from "@/lib/time-zone"
 
 class ApiError extends Error {
   status: number
@@ -54,6 +55,10 @@ async function request<T>(path: string, init?: RequestInit & { next?: { revalida
 
   const fetchOptions: RequestInit & { next?: { revalidate?: number; tags?: string[] } } = {
     ...init,
+    headers: {
+      ...(await getTimeZoneHeaders()),
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   }
 
   // Only force no-store when the caller hasn't specified any caching strategy

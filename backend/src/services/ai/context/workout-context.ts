@@ -1,5 +1,5 @@
 import type { SerializedProfile } from "../../auth.service"
-import { startOfVietnamDay } from "../../../lib/ai/calendar"
+import { startOfClientDay } from "../../../lib/ai/calendar"
 import {
   addDays,
   completedSetCount,
@@ -23,7 +23,7 @@ export async function buildWorkoutContext(
   now: Date,
 ): Promise<ContextSection | null> {
   const today = startOfLocalDay(now)
-  const startOfWeek = addDays(startOfVietnamDay(now), -((today.getUTCDay() + 6) % 7))
+  const startOfWeek = addDays(startOfClientDay(now), -((today.getUTCDay() + 6) % 7))
   const thirtyDaysAgo = addDays(now, -30)
 
   const [assignments, recentLogs, weekLogs] = await Promise.all([

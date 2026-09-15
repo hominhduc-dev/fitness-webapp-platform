@@ -5,6 +5,8 @@ import type { AppProfile, AppRole } from "./types"
 import { getRoleLandingPath } from "./roles"
 import { fetchCurrentProfile } from "./api"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+// Side effect: server-side API calls made after auth carry the user's time zone.
+import "@/lib/time-zone-server"
 
 type ServerAuthState = {
   accessToken: string | null

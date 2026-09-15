@@ -1,4 +1,4 @@
-import { addUtcDays, formatUtcDateOnly } from "./dates"
+import { addUtcDays, formatClientDateKey, formatUtcDateOnly } from "./dates"
 
 /**
  * Pure builders behind the coach's trainee overview.
@@ -15,9 +15,10 @@ type OverviewWeekLog = {
 }
 
 /**
- * Seven Monday-first UTC days, the same week and day keys as the trainee's own
- * schedule. A session counts once it is completed; sets and volume count from
- * whatever was logged, so a session still in progress already shows its work.
+ * Seven Monday-first days, the same week and day keys as the trainee's own
+ * schedule. Each log lands on the client's calendar day it started on. A session
+ * counts once it is completed; sets and volume count from whatever was logged, so
+ * a session still in progress already shows its work.
  */
 function buildTraineeWeekOverview(logs: readonly OverviewWeekLog[], weekStart: Date, plannedSessions: number) {
   const days = Array.from({ length: 7 }, (_value, index) => ({
@@ -29,7 +30,7 @@ function buildTraineeWeekOverview(logs: readonly OverviewWeekLog[], weekStart: D
   const dayByKey = new Map(days.map((day) => [day.date, day]))
 
   for (const log of logs) {
-    const day = dayByKey.get(formatUtcDateOnly(log.startedAt))
+    const day = dayByKey.get(formatClientDateKey(log.startedAt))
 
     if (!day) continue
 

@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
 import { useSetVolumeRecommendationStatus, useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
+import { formatDateKey } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
 import { LandmarkEditor } from "./landmark-editor"
 import { ReadinessTrend } from "./readiness-trend"
@@ -18,16 +19,6 @@ import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
 
 const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
 
-export function vietnamDateKey() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-  }).formatToParts(new Date())
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${values.year}-${values.month}-${values.day}`
-}
 
 type CheckInOption = { description: string; label: string; value: number }
 
@@ -229,7 +220,8 @@ export function CheckInSheet({
 
     try {
       await mutation.mutateAsync({
-        checkInDate: vietnamDateKey(),
+        // Today in the user's own time zone.
+        checkInDate: formatDateKey(new Date()),
         fatigue,
         // One whole-body answer, recorded against every muscle trained this
         // week — that is the granularity the volume engine reads.

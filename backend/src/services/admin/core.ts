@@ -41,6 +41,7 @@ import { ensureExerciseMediaBucket } from "../../lib/exercise-media-upload"
 import { logger } from "../../lib/logger"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import { prisma } from "../../lib/prisma"
+import { addUtcDays, clientCalendarDay, clientDayStart, formatClientDateKey, formatUtcDateOnly } from "../fitness-data/shared/dates"
 import { supabaseAdmin } from "../../lib/supabase"
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
 import { ExternalServiceError, NotFoundError, ValidationError } from "../errors"
@@ -219,13 +220,16 @@ function normalizeExerciseImportRows(rows: ExerciseImportRowInput[]) {
   }))
 }
 
+// Chart buckets are the client's calendar days held as UTC-midnight day keys, so labels format in UTC.
 const DAILY_CHART_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
+  timeZone: "UTC",
 })
 
 const MONTHLY_CHART_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "short",
+  timeZone: "UTC",
 })
 
 function ensurePrisma() {
@@ -259,17 +263,22 @@ function normalizePhoneDigits(value?: string | null) {
   return (value ?? "").replace(/\D/g, "")
 }
 
-function startOfDay(value = new Date()) {
-  const date = new Date(value)
-  date.setHours(0, 0, 0, 0)
-  return date
+/** The client's last 7 calendar days as day keys, oldest first. */
+function lastSevenClientDays() {
+  const today = clientCalendarDay()
+  return Array.from({ length: 7 }, (_value, index) => addUtcDays(today, index - 6))
 }
 
-function startOfMonth(value = new Date()) {
-  const date = new Date(value)
-  date.setDate(1)
-  date.setHours(0, 0, 0, 0)
-  return date
+/** The 1st of each of the client's last 6 calendar months as day keys, oldest first. */
+function lastSixClientMonths() {
+  const today = clientCalendarDay()
+  return Array.from({ length: 6 }, (_value, index) =>
+    new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5 + index, 1)),
+  )
+}
+
+function monthKeyOf(dayKey: string) {
+  return dayKey.slice(0, 7)
 }
 
 function serializeMiniUser(user: Pick<User, "avatar" | "email" | "id" | "isActive" | "name" | "phone" | "role">) {
@@ -408,9 +417,8 @@ function serializeAuditLog(log: AuditLogRecord) {
 }
 
 function buildDailyCountSeries(values: Date[]) {
-  const rangeStart = startOfDay(new Date())
-  rangeStart.setDate(rangeStart.getDate() - 6)
-
+  const days = lastSevenClientDays()
+  const rangeStart = clientDayStart(days[0])
   const totals = new Map<string, number>()
 
   values.forEach((value) => {
@@ -418,26 +426,20 @@ function buildDailyCountSeries(values: Date[]) {
       return
     }
 
-    const bucket = startOfDay(value).toISOString()
+    const bucket = formatClientDateKey(value)
     totals.set(bucket, (totals.get(bucket) ?? 0) + 1)
   })
 
-  return Array.from({ length: 7 }, (_value, index) => {
-    const bucketDate = new Date(rangeStart)
-    bucketDate.setDate(rangeStart.getDate() + index)
-
-    return {
-      label: DAILY_CHART_FORMATTER.format(bucketDate),
-      periodStart: bucketDate,
-      value: totals.get(bucketDate.toISOString()) ?? 0,
-    }
-  })
+  return days.map((day) => ({
+    label: DAILY_CHART_FORMATTER.format(day),
+    periodStart: clientDayStart(day),
+    value: totals.get(formatUtcDateOnly(day)) ?? 0,
+  }))
 }
 
 function buildMonthlyCountSeries(values: Date[]) {
-  const rangeStart = startOfMonth(new Date())
-  rangeStart.setMonth(rangeStart.getMonth() - 5)
-
+  const months = lastSixClientMonths()
+  const rangeStart = clientDayStart(months[0])
   const totals = new Map<string, number>()
 
   values.forEach((value) => {
@@ -445,27 +447,20 @@ function buildMonthlyCountSeries(values: Date[]) {
       return
     }
 
-    const bucketDate = startOfMonth(value)
-    const bucket = bucketDate.toISOString()
+    const bucket = monthKeyOf(formatClientDateKey(value))
     totals.set(bucket, (totals.get(bucket) ?? 0) + 1)
   })
 
-  return Array.from({ length: 6 }, (_value, index) => {
-    const bucketDate = new Date(rangeStart)
-    bucketDate.setMonth(rangeStart.getMonth() + index)
-
-    return {
-      label: MONTHLY_CHART_FORMATTER.format(bucketDate),
-      periodStart: bucketDate,
-      value: totals.get(bucketDate.toISOString()) ?? 0,
-    }
-  })
+  return months.map((month) => ({
+    label: MONTHLY_CHART_FORMATTER.format(month),
+    periodStart: clientDayStart(month),
+    value: totals.get(monthKeyOf(formatUtcDateOnly(month))) ?? 0,
+  }))
 }
 
 function buildDailyUniqueSeries(values: Array<{ occurredAt: Date; userId: string }>) {
-  const rangeStart = startOfDay(new Date())
-  rangeStart.setDate(rangeStart.getDate() - 6)
-
+  const days = lastSevenClientDays()
+  const rangeStart = clientDayStart(days[0])
   const totals = new Map<string, Set<string>>()
 
   values.forEach((value) => {
@@ -473,28 +468,22 @@ function buildDailyUniqueSeries(values: Array<{ occurredAt: Date; userId: string
       return
     }
 
-    const bucket = startOfDay(value.occurredAt).toISOString()
+    const bucket = formatClientDateKey(value.occurredAt)
     const currentSet = totals.get(bucket) ?? new Set<string>()
     currentSet.add(value.userId)
     totals.set(bucket, currentSet)
   })
 
-  return Array.from({ length: 7 }, (_value, index) => {
-    const bucketDate = new Date(rangeStart)
-    bucketDate.setDate(rangeStart.getDate() + index)
-
-    return {
-      label: DAILY_CHART_FORMATTER.format(bucketDate),
-      periodStart: bucketDate,
-      value: totals.get(bucketDate.toISOString())?.size ?? 0,
-    }
-  })
+  return days.map((day) => ({
+    label: DAILY_CHART_FORMATTER.format(day),
+    periodStart: clientDayStart(day),
+    value: totals.get(formatUtcDateOnly(day))?.size ?? 0,
+  }))
 }
 
 function buildMonthlyUniqueSeries(values: Array<{ occurredAt: Date; userId: string }>) {
-  const rangeStart = startOfMonth(new Date())
-  rangeStart.setMonth(rangeStart.getMonth() - 5)
-
+  const months = lastSixClientMonths()
+  const rangeStart = clientDayStart(months[0])
   const totals = new Map<string, Set<string>>()
 
   values.forEach((value) => {
@@ -502,23 +491,17 @@ function buildMonthlyUniqueSeries(values: Array<{ occurredAt: Date; userId: stri
       return
     }
 
-    const bucketDate = startOfMonth(value.occurredAt)
-    const bucket = bucketDate.toISOString()
+    const bucket = monthKeyOf(formatClientDateKey(value.occurredAt))
     const currentSet = totals.get(bucket) ?? new Set<string>()
     currentSet.add(value.userId)
     totals.set(bucket, currentSet)
   })
 
-  return Array.from({ length: 6 }, (_value, index) => {
-    const bucketDate = new Date(rangeStart)
-    bucketDate.setMonth(rangeStart.getMonth() + index)
-
-    return {
-      label: MONTHLY_CHART_FORMATTER.format(bucketDate),
-      periodStart: bucketDate,
-      value: totals.get(bucketDate.toISOString())?.size ?? 0,
-    }
-  })
+  return months.map((month) => ({
+    label: MONTHLY_CHART_FORMATTER.format(month),
+    periodStart: clientDayStart(month),
+    value: totals.get(monthKeyOf(formatUtcDateOnly(month)))?.size ?? 0,
+  }))
 }
 
 function matchesSearch(parts: Array<string | null | undefined>, search: string) {
@@ -574,10 +557,8 @@ async function logAdminAudit(
 async function getAdminDashboard(profile: SerializedProfile) {
   assertAdmin(profile)
   const db = ensurePrisma()
-  const monthlyRangeStart = startOfMonth(new Date())
-  monthlyRangeStart.setMonth(monthlyRangeStart.getMonth() - 5)
-  const recent30Days = startOfDay(new Date())
-  recent30Days.setDate(recent30Days.getDate() - 29)
+  const monthlyRangeStart = clientDayStart(lastSixClientMonths()[0])
+  const recent30Days = clientDayStart(addUtcDays(clientCalendarDay(), -29))
 
   const [
     totalUsers,
@@ -729,8 +710,7 @@ async function getAdminDashboard(profile: SerializedProfile) {
   const activeUsersLast30Days = new Set(
     combinedActivity.filter((entry) => entry.occurredAt >= recent30Days).map((entry) => entry.userId),
   ).size
-  const recent7DaysStart = startOfDay(new Date())
-  recent7DaysStart.setDate(recent7DaysStart.getDate() - 6)
+  const recent7DaysStart = clientDayStart(lastSevenClientDays()[0])
   const activeUsersLast7Days = new Set(
     combinedActivity.filter((entry) => entry.occurredAt >= recent7DaysStart).map((entry) => entry.userId),
   ).size

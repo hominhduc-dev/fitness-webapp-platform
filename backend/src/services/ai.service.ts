@@ -21,7 +21,7 @@ import { selectCatalogForPrompt } from "./ai/exercise-catalog"
 import { claimGeneration, validateAccessibleVariations } from "./ai/acceptance"
 import { parseAI, programOutputSchema, mappedProgramSchema, dailyOutputSchema, mappedDailySchema, mealPlanOutputSchema, mealSchema, mappedMealsSchema, storedMealPlanSchema, dateSchema, type StoredMealPlan } from "../lib/ai/output-schemas"
 import { generateProgramSchema, generateDailyWorkoutSchema, generateMealPlanSchema, chatSchema } from "../routes/ai.schemas"
-import { startOfVietnamDay, dateKeyInstant, plusDays } from "../lib/ai/calendar"
+import { startOfClientDay, dateKeyInstant, plusDays } from "../lib/ai/calendar"
 import { buildAIChatSystemPrompt } from "./ai/context/prompt"
 import type { ChatMessage } from "./ai/context/types"
 import { AppError, AuthServiceError, TooManyRequestsError } from "./errors"
@@ -64,7 +64,7 @@ const DAILY_LIMITS: Record<AIGenerationType, number> = {
 
 async function checkRateLimit(userId: string, type: AIGenerationType) {
   const db = ensurePrisma()
-  const startOfDay = startOfVietnamDay()
+  const startOfDay = startOfClientDay()
 
   const count = await db.aIGeneration.count({
     where: {

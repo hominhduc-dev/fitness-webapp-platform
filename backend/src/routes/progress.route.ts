@@ -17,6 +17,7 @@ import {
   upsertRecoveryCheckInForTrainee,
   upsertVolumeLandmarksForTrainee,
 } from "../services/fitness-data.service"
+import { addLocalDays, parseLocalDateInput } from "../services/fitness-data/shared/dates"
 import { getAccessToken, sendData, sendError } from "./route.utils"
 import {
   recoveryCheckInSchema,
@@ -113,13 +114,16 @@ progressRouter.get("/dashboard", async (req, res) => {
       return
     }
 
-    const startDate = new Date(`${startDateStr}T00:00:00.000Z`)
-    const endDate = new Date(`${endDateStr}T23:59:59.999Z`)
+    // The client's calendar days: from its midnight on startDate to the last moment of endDate.
+    const startDate = parseLocalDateInput(startDateStr)
+    const endDayStart = parseLocalDateInput(endDateStr)
 
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    if (!startDate || !endDayStart) {
       res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD." })
       return
     }
+
+    const endDate = new Date(addLocalDays(endDayStart, 1).getTime() - 1)
 
     if (startDate >= endDate) {
       res.status(400).json({ error: "startDate must be before endDate." })

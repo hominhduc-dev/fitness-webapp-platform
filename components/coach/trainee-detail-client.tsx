@@ -18,7 +18,7 @@ import {
   Sunset,
   Trash2,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useCoachData } from "@/lib/queries/coach-data"
@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { formatDateKey } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
 import {
   useAssignCoachProgram,
@@ -154,9 +155,15 @@ function parseDayKey(dateKey: string) {
   return new Date(`${dateKey}T00:00:00.000Z`)
 }
 
+function subscribeToNothing() {
+  return () => {}
+}
+
 function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDay[] }) {
   const max = Math.max(...days.map((day) => day.sets), 1)
-  const todayKey = new Date().toISOString().slice(0, 10)
+  // The user's today, read in the browser only: a server render has no user zone,
+  // so it highlights nothing rather than a day the client would then disagree with.
+  const todayKey = useSyncExternalStore(subscribeToNothing, () => formatDateKey(new Date()), () => null)
   const weekdayFormatter = new Intl.DateTimeFormat(dateLocale, { timeZone: "UTC", weekday: "short" })
 
   return (
@@ -176,7 +183,7 @@ function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDa
                 className={cn(
                   "w-full rounded-sm transition-all",
                   day.sets === 0 ? "bg-border" : isToday ? "bg-primary" : "bg-foreground",
-                  day.date > todayKey && "opacity-40",
+                  todayKey != null && day.date > todayKey && "opacity-40",
                 )}
                 style={{ height: `${heightPct}%` }}
               />

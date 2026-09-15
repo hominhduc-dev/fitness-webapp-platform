@@ -1,6 +1,6 @@
 import type { SerializedProfile } from "../auth.service"
 import { AppError } from "../errors"
-import { addUtcDays, formatUtcDateOnly, startOfUtcDay, startOfUtcWeek } from "../fitness-data/shared/dates"
+import { addUtcDays, clientCalendarDay, clientDayStart, formatUtcDateOnly, startOfUtcWeek } from "../fitness-data/shared/dates"
 import { assertTrainee, ensurePrisma } from "../fitness-data/shared/guards"
 import {
   aggregateWeeklyMuscleVolume,
@@ -144,7 +144,7 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
   const db = ensurePrisma()
   assertTrainee(profile)
 
-  const weekStart = startOfUtcWeek(requestedWeekStart ?? new Date())
+  const weekStart = startOfUtcWeek(requestedWeekStart ?? clientCalendarDay())
   const weekEnd = addUtcDays(weekStart, 7)
   const previousWeekStart = addUtcDays(weekStart, -7)
 
@@ -154,7 +154,8 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       select: { exerciseSnapshot: true, startedAt: true },
       where: {
         completedAt: { not: null },
-        startedAt: { gte: previousWeekStart, lt: weekEnd },
+        // Week bounds are day keys; the logs are instants, filtered by the client's midnights.
+        startedAt: { gte: clientDayStart(previousWeekStart), lt: clientDayStart(weekEnd) },
         userId: profile.id,
       },
     }),
@@ -171,8 +172,9 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
     }),
   ])
 
-  const currentLogs = logs.filter((log) => log.startedAt >= weekStart) as VolumeLogRecord[]
-  const previousLogs = logs.filter((log) => log.startedAt < weekStart) as VolumeLogRecord[]
+  const weekStartInstant = clientDayStart(weekStart)
+  const currentLogs = logs.filter((log) => log.startedAt >= weekStartInstant) as VolumeLogRecord[]
+  const previousLogs = logs.filter((log) => log.startedAt < weekStartInstant) as VolumeLogRecord[]
   const volume = aggregateWeeklyMuscleVolume(currentLogs)
   const performanceByMuscle = buildMusclePerformanceTrend(currentLogs, previousLogs)
   const latestCheckIn = checkIns[0] ?? null
@@ -263,7 +265,7 @@ async function listRecoveryHistoryForTrainee(profile: SerializedProfile, days: n
   const db = ensurePrisma()
   assertTrainee(profile)
 
-  const since = startOfUtcDay(addUtcDays(new Date(), -(days - 1)))
+  const since = addUtcDays(clientCalendarDay(), -(days - 1))
   const checkIns = await db.recoveryCheckIn.findMany({
     include: { muscles: { select: { soreness: true } } },
     orderBy: { checkInDate: "asc" },
@@ -302,7 +304,7 @@ async function setVolumeRecommendationStatusForTrainee(
   const db = ensurePrisma()
   assertTrainee(profile)
 
-  const weekStart = startOfUtcWeek(input.weekStart ?? new Date())
+  const weekStart = startOfUtcWeek(input.weekStart ?? clientCalendarDay())
   const recovery = await getVolumeRecoveryForTrainee(profile, weekStart)
   const muscle = recovery.muscles.find((entry) => entry.muscleSlug === input.muscleSlug)
 

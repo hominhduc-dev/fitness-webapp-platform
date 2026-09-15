@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { dayKey, localDateKey, startOfVietnamDay, validDateKey } from "./calendar"
+import { dayKey, localDateKey, startOfClientDay, validDateKey } from "./calendar"
 import { generateMealPlanSchema, chatSchema, generateProgramSchema } from "../../routes/ai.schemas"
 import { dailyOutputSchema, parseAI } from "./output-schemas"
 
@@ -15,7 +15,7 @@ describe("AI date and payload boundaries", () => {
     expect(localDateKey(before)).toBe("2026-09-10")
     expect(localDateKey(after)).toBe("2026-09-11")
     expect(dayKey(after).toISOString()).toBe("2026-09-11T00:00:00.000Z")
-    expect(startOfVietnamDay(after).toISOString()).toBe("2026-09-10T17:00:00.000Z")
+    expect(startOfClientDay(after).toISOString()).toBe("2026-09-10T17:00:00.000Z")
   })
   it("rejects oversized history entries and non-array history", () => {
     expect(chatSchema.safeParse({ message: "hi", history: [{ role: "user", content: "x".repeat(4001) }] }).success).toBe(false)
