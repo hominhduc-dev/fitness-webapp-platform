@@ -2,7 +2,7 @@ import { extractSpreadsheetId, fetchSheetValues, fetchSpreadsheetMeta } from "..
 import { BadRequestError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 import { getGoogleAccessToken } from "./google-connection.service"
-import { ensurePrisma } from "./fitness-data/shared/guards"
+import { assertCoach, ensurePrisma } from "./fitness-data/shared/guards"
 
 export function parseGoogleProgramRows(values: string[][]) {
   const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
@@ -40,12 +40,14 @@ export function parseGoogleProgramRows(values: string[][]) {
   })
 }
 export async function getGoogleSpreadsheet(profile: SerializedProfile, input: string) {
+  assertCoach(profile)
   const spreadsheetId = extractSpreadsheetId(input)
   if (!spreadsheetId) throw new BadRequestError("Link hoặc ID Google Sheets không hợp lệ.")
   const accessToken = await getGoogleAccessToken(profile)
   return { spreadsheetId, ...(await fetchSpreadsheetMeta(accessToken, spreadsheetId)) }
 }
 export async function importGoogleProgram(profile: SerializedProfile, input: string, sheetName: string) {
+  assertCoach(profile)
   const spreadsheetId = extractSpreadsheetId(input)
   if (!spreadsheetId || !sheetName.trim()) throw new BadRequestError("Cần spreadsheet và tên sheet.")
   const accessToken = await getGoogleAccessToken(profile)

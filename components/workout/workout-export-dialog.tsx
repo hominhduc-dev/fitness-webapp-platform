@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Download, Eye, Loader2 } from "lucide-react"
+import { useEffect, useState, type ReactNode } from "react"
+import { Download, ExternalLink, Eye, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +16,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { WorkoutLogsPreview } from "@/components/workout/workout-logs-preview"
 import type { PlannedSession } from "@/components/workout-export-excel"
 import { formatDisplayDate } from "@/lib/fitness/date-range"
+import type { SheetsExportFile, SheetsExportResult } from "@/lib/fitness/api"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { cn } from "@/lib/utils"
 import type { WorkoutLog } from "@/lib/types"
@@ -58,7 +59,7 @@ export type WorkoutExportDialogConfig = {
   description?: string
   dialogContentClassName?: string
   dialogOverlayClassName?: string
-  exportToSheets: (context: ExportContext) => Promise<{ logCount: number; rowCount: number }>
+  exportToSheets: (context: ExportContext) => Promise<Pick<SheetsExportResult, "files" | "logCount" | "rowCount" | "skippedLogCount">>
   loadBodyMetrics?: (context: ExportContext) => Promise<BodyMetricEntry[]>
   loadLogs: (context: ExportContext) => Promise<WorkoutLog[]>
   /** Programs offered in the Program-mode picker. Omit when the program is fixed. */
@@ -71,6 +72,10 @@ export type WorkoutExportDialogConfig = {
    */
   resolvePlannedSessions?: (selection: ExportSelection) => Promise<PlannedSession[]> | PlannedSession[]
   showProgramPicker?: boolean
+  /** Rendered above the actions, e.g. the Google account the sheets go to. */
+  sheetsAccessory?: ReactNode
+  /** Disables only the Google Sheets action, e.g. until Google is connected. */
+  sheetsDisabled?: boolean
   subjectPlaceholder?: string
   subjectSelectLabel?: string
   subjects?: ExportSubject[]
@@ -113,6 +118,7 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
   const [previewLogs, setPreviewLogs] = useState<WorkoutLog[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [exportedFiles, setExportedFiles] = useState<SheetsExportFile[]>([])
 
   const selectedSubject = config.subjects?.find((subject) => subject.id === subjectId)
 
@@ -208,9 +214,10 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
   }
 
   const handleExportGoogleSheets = async () => {
-    if (isExportingToSheets || actionsDisabled) return
+    if (isExportingToSheets || actionsDisabled || config.sheetsDisabled) return
     setError(null)
     setNotice(null)
+    setExportedFiles([])
 
     const range = resolveRange()
     if ("error" in range) {
@@ -221,9 +228,11 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
     setIsExportingToSheets(true)
     try {
       const result = await config.exportToSheets({ ...selection, range })
-      setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`)
+      const skipped = result.skippedLogCount ? ` ${messages.workoutPage.exportSheetsSkipped(result.skippedLogCount)}` : ""
+      setNotice(`${messages.workoutPage.exportSheetsDone(result.logCount, result.rowCount)}${skipped}`)
+      setExportedFiles(result.files ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Không thể export workout logs sang Google Sheets.")
+      setError(err instanceof Error ? err.message : messages.workoutPage.exportSheetsFailed)
     } finally {
       setIsExportingToSheets(false)
     }
@@ -240,6 +249,7 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
           setPreviewLogs(null)
           setError(null)
           setNotice(null)
+          setExportedFiles([])
         }
       }}
     >
@@ -364,6 +374,24 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
 
           {error && <p className="text-sm text-destructive-text">{error}</p>}
           {notice && <p className="text-sm text-primary">{notice}</p>}
+          {exportedFiles.length > 0 ? (
+            <ul className="flex flex-col gap-1">
+              {exportedFiles.map((file) => (
+                <li key={file.url}>
+                  <a
+                    className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    href={file.url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {messages.workoutPage.exportSheetsOpen(file.name)}
+                    {file.weeks?.length ? ` · ${file.weeks.map((week) => `W${week}`).join(", ")}` : null}
+                    <ExternalLink aria-hidden="true" className="size-3.5" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
           {previewLogs ? (
             <div className="flex flex-col gap-2">
@@ -371,6 +399,8 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
               <WorkoutLogsPreview logs={previewLogs} />
             </div>
           ) : null}
+
+          {config.sheetsAccessory}
 
           <div className="flex flex-col gap-2">
             <Button
@@ -398,11 +428,11 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
             <Button
               variant="outline"
               onClick={() => void handleExportGoogleSheets()}
-              disabled={isExporting || isExportingToSheets || actionsDisabled}
+              disabled={isExporting || isExportingToSheets || actionsDisabled || config.sheetsDisabled}
               className="w-full gap-2"
             >
               {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {isExportingToSheets ? "Exporting to Google Sheets..." : "Export to Google Sheets"}
+              {isExportingToSheets ? messages.workoutPage.exportSheetsExporting : messages.workoutPage.exportSheets}
             </Button>
           </div>
         </div>
