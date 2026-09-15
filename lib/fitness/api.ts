@@ -2313,40 +2313,6 @@ async function regenerateAIMealPlanMeal(accessToken: string, input: { generation
   return response.data
 }
 
-export type AIMealPlanNutrients = { calories: number; protein: number; carbs: number; fat: number }
-
-export type AIMealPlanMeal = { type: Meal["type"]; suggestion: string; items: AIMealItem[] }
-
-export type AIMealPlanDay = {
-  date: string
-  /** What is left of the day's goals after meals already eaten. */
-  targets: AIMealPlanNutrients
-  consumed: AIMealPlanNutrients
-  totals: AIMealPlanNutrients
-  meals: AIMealPlanMeal[]
-}
-
-export type AIShoppingItem = {
-  foodId: string
-  foodName: string
-  category: string
-  amountValue: number
-  amountUnit: string
-  quantityLabel: string
-}
-
-export type AIMealPlan = {
-  generationId: string
-  days: AIMealPlanDay[]
-  shoppingList: AIShoppingItem[]
-  notes: string
-}
-
-export type AIMealPlanOverride = {
-  date: string
-  meals: Array<{ type: Meal["type"]; items: Array<{ foodId: string; amountValue: number; amountUnit: string }> }>
-}
-
 /** A draft the chat produced in-conversation that still needs user confirmation. */
 export type AIMealItem = {
   foodId: string
