@@ -225,14 +225,27 @@ export type GoogleTemplateResult = {
 export async function createGoogleProgramTemplate(token: string, input?: { folder?: string; title?: string }) {
   return (await request<ApiEnvelope<GoogleTemplateResult>>("/api/coach/google/program-template", token, { method: "POST", body: JSON.stringify(input ?? {}) })).data
 }
+// The Google connection is per user (coach or trainee); only the program sheet
+// features below are coach-only.
 export async function fetchGoogleConnection(token: string) {
-  return (await request<ApiEnvelope<GoogleConnectionStatus>>("/api/coach/google/connection", token, { cache: "no-store" })).data
+  return (await request<ApiEnvelope<GoogleConnectionStatus>>("/api/google/connection", token, { cache: "no-store" })).data
 }
 export async function authorizeGoogle(token: string) {
-  return (await request<ApiEnvelope<{ url: string }>>("/api/coach/google/authorize", token, { method: "POST", credentials: "include" })).data
+  return (await request<ApiEnvelope<{ url: string }>>("/api/google/authorize", token, { method: "POST", credentials: "include" })).data
 }
 export async function disconnectGoogle(token: string) {
-  return request("/api/coach/google/connection", token, { method: "DELETE" })
+  return request("/api/google/connection", token, { method: "DELETE" })
+}
+/** One Google Sheets file a log export wrote into. */
+export type SheetsExportFile = { created?: boolean; name: string; url: string; weeks?: number[] }
+export type SheetsExportResult = {
+  exported: boolean
+  files?: SheetsExportFile[]
+  logCount: number
+  rowCount: number
+  skippedLogCount?: number
+  spreadsheetUrl?: string
+  webhookStatusCode?: number
 }
 export async function fetchGoogleSpreadsheet(token: string, spreadsheet: string) {
   return (await request<ApiEnvelope<{ spreadsheetId: string; title: string; sheets: string[] }>>("/api/coach/google/spreadsheet", token, { method: "POST", body: JSON.stringify({ spreadsheet }) })).data
@@ -1446,11 +1459,9 @@ async function fetchWorkoutLogsForExport(
 
 async function exportWorkoutLogsToGoogleSheets(
   accessToken: string,
-  options: { from: string; label?: string; to: string },
+  options: { from: string; label?: string; programId?: string; to: string },
 ) {
-  const response = await request<{
-    data: { exported: boolean; logCount: number; rowCount: number; webhookStatusCode?: number }
-  }>(
+  const response = await request<{ data: SheetsExportResult }>(
     "/api/workouts/logs/export/google-sheets",
     accessToken,
     {
@@ -1963,9 +1974,7 @@ async function exportCoachWorkoutLogsToGoogleSheets(
   traineeId: string,
   options?: { from?: string; label?: string; programId?: string; to?: string; weekStart?: string },
 ) {
-  const response = await request<{
-    data: { exported: boolean; logCount: number; rowCount: number; webhookStatusCode?: number }
-  }>(
+  const response = await request<{ data: SheetsExportResult }>(
     `/api/coach/trainees/${traineeId}/workout-logs/export/google-sheets`,
     accessToken,
     {

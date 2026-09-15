@@ -3,7 +3,10 @@
 import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Bell, Camera, ChevronDown, Flame, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
+import Link from "next/link"
+import { AlertTriangle, Bell, Camera, ChevronDown, Flame, KeyRound, Loader2, Lock, Palette, Phone, Save, Scale, Trash2, User } from "lucide-react"
+
+import { ProfileEmailChange } from "@/components/profile-email-change"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -96,6 +99,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
+  const [isChangingEmail, setIsChangingEmail] = useState(false)
   const [isResettingData, setIsResettingData] = useState(false)
   const [resetConfirmation, setResetConfirmation] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -534,8 +538,19 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="email">{messages.profile.email}</Label>
-            <Input id="email" type="email" value={profile.email} disabled className="cursor-not-allowed opacity-80" />
+            <div className="flex gap-2">
+              <Input id="email" type="email" value={profile.email} disabled className="min-w-0 flex-1 cursor-not-allowed opacity-80" />
+              {!isChangingEmail ? (
+                <Button type="button" variant="outline" className="shrink-0" onClick={() => setIsChangingEmail(true)}>
+                  {messages.profile.changeEmail}
+                </Button>
+              ) : null}
+            </div>
           </div>
+
+          {isChangingEmail ? (
+            <ProfileEmailChange currentEmail={profile.email} onCancel={() => setIsChangingEmail(false)} />
+          ) : null}
         </div>
       </div>
 
@@ -749,9 +764,19 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           <h2 className="text-lg font-semibold">{messages.profile.security}</h2>
         </div>
 
+        <p className="mb-3 text-sm text-muted-foreground">{messages.profile.changePasswordCopy}</p>
+        <Button asChild className="w-full gap-2">
+          <Link href="/reset-password">
+            <KeyRound className="h-4 w-4" />
+            {messages.profile.changePassword}
+          </Link>
+        </Button>
+
+        {/* For someone who no longer knows the current password. */}
         <Button
-          variant="outline"
-          className="w-full bg-transparent"
+          variant="ghost"
+          size="sm"
+          className="mt-2 w-full text-muted-foreground"
           onClick={() => void handlePasswordReset()}
           disabled={isSendingReset}
         >
@@ -761,7 +786,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               {messages.common.sendingEmail}
             </>
           ) : (
-            messages.common.sendResetEmail
+            messages.profile.forgotPasswordSendEmail
           )}
         </Button>
       </div>

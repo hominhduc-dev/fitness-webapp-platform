@@ -1,6 +1,7 @@
 "use client"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { GoogleDriveConnection, useGoogleDriveConnection } from "@/components/progress/google-drive-connection"
 import { buildPlannedSessions, type PlannedSession } from "@/components/workout-export-excel"
 import {
   WorkoutExportDialog,
@@ -19,6 +20,7 @@ type ExportWorkoutDialogProps = {
 export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps) {
   const queries = useExportQueries()
   const sheetsExport = useWorkoutSheetsExport()
+  const googleConnection = useGoogleDriveConnection()
   const { messages } = useLocale()
 
   // Resolve which program a selection refers to: the picked one, or the only
@@ -60,10 +62,13 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
     return queries.bodyMetrics({ from: context.range.from, to: context.range.to })
   }
 
+  // Program mode writes only that program's file; week mode writes every
+  // program the trainee trained in that week, each into its own file.
   const exportToSheets = async (context: ExportContext) => {
     return sheetsExport.mutateAsync({
       from: context.range.from,
       label: context.range.label,
+      programId: context.mode === "program" ? context.programId : undefined,
       to: context.range.to,
     })
   }
@@ -93,6 +98,8 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       }))}
       resolvePlannedSessions={resolvePlannedSessions}
       resolveProgramRange={resolveProgramRange}
+      sheetsAccessory={googleConnection.data ? <GoogleDriveConnection connection={googleConnection.data} /> : null}
+      sheetsDisabled={Boolean(googleConnection.data?.configured && !googleConnection.data.connected)}
       showProgramPicker
       title={messages.workoutPage.exportTitle}
       triggerLabel={messages.workoutPage.export}

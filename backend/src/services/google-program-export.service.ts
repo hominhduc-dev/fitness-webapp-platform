@@ -6,8 +6,20 @@ import { assertCoach, assertCoachOwnsTrainee, ensurePrisma } from "./fitness-dat
 import { BadRequestError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 
-type ExportExercise = { order?: number; originalVariationId?: string; variation?: { id?: string; name?: string }; exercise?: { name?: string }; sets: Array<{ setNumber: number; completed: boolean; actualReps?: number; weight?: number }> }
+export type ExportExercise = { order?: number; originalVariationId?: string; variation?: { id?: string; name?: string }; exercise?: { name?: string; muscleGroup?: string }; sets: Array<{ setNumber: number; completed: boolean; actualReps?: number; weight?: number }> }
 type ExportSession = { day: number; week: number; exercises: ExportExercise[] }
+
+/** The "Actual rep per weight" cell text, shared by the coach and trainee sheets. */
+export function formatSetResult(set: ExportExercise["sets"][number]) {
+  return set.completed ? `${set.actualReps} × ${set.weight ?? "—"} kg` : ""
+}
+
+/** "Exercise / Variation" when the trainee swapped away from the planned variation. */
+export function formatSubstitute(exercise: ExportExercise) {
+  return exercise.originalVariationId && exercise.originalVariationId !== exercise.variation?.id
+    ? [exercise.exercise?.name, exercise.variation?.name].filter(Boolean).join(" / ")
+    : ""
+}
 export function buildGoogleResultRequests(values: string[][], sessions: ExportSession[], sheetId: number, rowCount: number, clearCopiedResults = false) {
   const rows = parseGoogleProgramRows(values)
   const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
@@ -40,9 +52,8 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
   }
   if (clearCopiedResults) requests.push({ repeatCell: { range: { sheetId, startRowIndex: headerIndex + 1, endRowIndex: rowCount, startColumnIndex: 8, endColumnIndex: 9 + setCount }, cell: {}, fields: "userEnteredValue" } })
   for (const { row, exercise } of updates) {
-    const substitute = exercise.originalVariationId && exercise.originalVariationId !== exercise.variation?.id ? [exercise.exercise?.name, exercise.variation?.name].filter(Boolean).join(" / ") : ""
-    const cells: string[] = [substitute, ...Array<string>(setCount).fill("")]
-    for (const set of exercise.sets) if (set.completed) cells[set.setNumber] = `${set.actualReps} × ${set.weight ?? "—"} kg`
+    const cells: string[] = [formatSubstitute(exercise), ...Array<string>(setCount).fill("")]
+    for (const set of exercise.sets) if (set.completed) cells[set.setNumber] = formatSetResult(set)
     requests.push({ updateCells: { start: { sheetId, rowIndex: row, columnIndex: 8 }, rows: [{ values: cells.map((value) => value ? { userEnteredValue: { stringValue: value } } : {}) }], fields: "userEnteredValue" } })
   }
   return { requests, rowCount: updates.length }

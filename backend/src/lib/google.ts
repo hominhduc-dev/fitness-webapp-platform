@@ -396,11 +396,14 @@ async function updateSpreadsheetValues(
   accessToken: string,
   spreadsheetId: string,
   data: Array<{ range: string; values: Array<Array<string | number>> }>,
+  // RAW for data that must never be reinterpreted, e.g. a rep range "8-12" that
+  // USER_ENTERED would turn into a date.
+  valueInputOption: "RAW" | "USER_ENTERED" = "USER_ENTERED",
 ) {
   const response = await googleFetch(
     `${SHEETS_API_URL}/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`,
     {
-      body: JSON.stringify({ data, valueInputOption: "USER_ENTERED" }),
+      body: JSON.stringify({ data, valueInputOption }),
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       method: "POST",
     },
