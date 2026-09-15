@@ -752,16 +752,6 @@ function TrainerSection() {
             </li>
           ))}
         </ul>
-        <Button
-          asChild
-          variant="outline"
-          className="rounded-full bg-transparent"
-        >
-          <Link href="/?auth=register" scroll={false}>
-            {c.coachCta}
-            <ArrowRight size={16} />
-          </Link>
-        </Button>
       </div>
       <figure className={styles.coachPreview}>
         <div className="flex items-center justify-between border-b border-border px-5 py-4">

@@ -18,10 +18,10 @@ const registerSchema = z.object({
   email,
   name: z.string().trim().max(120),
   password,
-  phone: z.string().trim().max(32),
+  phone: z.string().trim().max(32).optional(),
   redirectTo,
   role: z.string().max(32).nullish(),
-  username: z.string().trim().max(60),
+  username: z.string().trim().max(60).optional(),
 })
 
 const loginSchema = z

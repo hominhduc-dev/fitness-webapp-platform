@@ -3,7 +3,8 @@
 import type React from "react"
 
 import { startTransition, useEffect, useState } from "react"
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle, Phone } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,7 @@ import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
 import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
+import { trackRegistrationEvent } from "@/lib/analytics/registration"
 
 interface AuthModalProps {
   defaultTab?: "login" | "register"
@@ -60,7 +62,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [activeTab, setActiveTab] = useState<"login" | "register">(defaultTab)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [oauthLoadingProvider, setOauthLoadingProvider] = useState<"google" | "apple" | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -70,10 +71,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [rememberMe, setRememberMe] = useState(false)
   const [registerName, setRegisterName] = useState("")
   const [registerEmail, setRegisterEmail] = useState("")
-  const [registerPhone, setRegisterPhone] = useState("")
-  const [registerUsername, setRegisterUsername] = useState("")
   const [registerPassword, setRegisterPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
   const finalRedirectPath = sanitizeRedirectPath(redirectToPath)
 
@@ -82,6 +80,12 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setError(null)
     setSuccess(null)
   }, [defaultTab])
+
+  useEffect(() => {
+    if (open && activeTab === "register") {
+      trackRegistrationEvent("form_view")
+    }
+  }, [activeTab, open])
 
   useEffect(() => {
     const rememberedIdentifier = window.localStorage.getItem(REMEMBERED_IDENTIFIER_KEY)
@@ -189,39 +193,41 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     event.preventDefault()
     setError(null)
     setSuccess(null)
+    trackRegistrationEvent("form_submit", { method: "email" })
 
     if (!isSupabaseConfigured) {
       setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
       return
     }
 
-    if (registerPassword !== confirmPassword) {
-      setError(messages.auth.passwordMismatch)
-      return
-    }
-
     if (registerPassword.length < 6) {
+      trackRegistrationEvent("form_error", { method: "email" })
       setError(messages.auth.passwordTooShort)
       return
     }
 
     setIsLoading(true)
+    let accountCreated = false
 
     try {
       const response = await registerRequest({
         email: registerEmail,
         name: registerName,
         password: registerPassword,
-        phone: registerPhone,
         redirectTo: createCallbackRedirect(finalRedirectPath),
         role: "trainee",
-        username: registerUsername,
+      })
+      accountCreated = true
+
+      trackRegistrationEvent("sign_up", {
+        method: "email",
+        email_confirmation_required: Boolean(response.requiresEmailConfirmation || !response.session),
       })
 
       if (response.requiresEmailConfirmation || !response.session) {
         setSuccess(response.message ?? messages.auth.registerPending)
         setActiveTab("login")
-        setLoginIdentifier(registerUsername.trim())
+        setLoginIdentifier(registerEmail.trim())
         setLoginPassword("")
         return
       }
@@ -229,6 +235,9 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       setSuccess(messages.auth.registerSuccess)
       await finalizeAuthentication(response.profile?.role, response.session)
     } catch (rawError) {
+      if (!accountCreated) {
+        trackRegistrationEvent("form_error", { method: "email" })
+      }
       const message =
         rawError instanceof ApiError || rawError instanceof Error
           ? rawError.message
@@ -287,6 +296,9 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     }
 
     setOauthLoadingProvider(provider)
+    if (activeTab === "register") {
+      trackRegistrationEvent("form_submit", { method: provider })
+    }
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       options: {
@@ -296,6 +308,9 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     })
 
     if (oauthError) {
+      if (activeTab === "register") {
+        trackRegistrationEvent("form_error", { method: provider })
+      }
       setError(oauthError.message)
       setOauthLoadingProvider(null)
     }
@@ -474,42 +489,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             </div>
 
             <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="register-username" className="text-sm">
-                {messages.auth.username}
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="register-username"
-                  type="text"
-                  placeholder={messages.auth.usernamePlaceholder}
-                  value={registerUsername}
-                  onChange={(event) => setRegisterUsername(event.target.value)}
-                  className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="register-phone" className="text-sm">
-                {messages.auth.phone}
-              </Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="register-phone"
-                  type="tel"
-                  placeholder={messages.auth.phonePlaceholder}
-                  value={registerPhone}
-                  onChange={(event) => setRegisterPhone(event.target.value)}
-                  className="pl-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="register-email" className="text-sm">
                 {messages.auth.email}
               </Label>
@@ -552,31 +531,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               </div>
             </div>
 
-            <div className="space-y-1.5 sm:space-y-2">
-              <Label htmlFor="confirm-password" className="text-sm">
-                {messages.auth.confirmPasswordLabel}
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="confirm-password"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  className="pl-10 pr-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((current) => !current)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
             <div className="flex items-start space-x-2">
               <Checkbox
                 id="terms"
@@ -584,16 +538,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                 onCheckedChange={(checked) => setAcceptTerms(Boolean(checked))}
                 className="mt-0.5"
               />
-              <Label htmlFor="terms" className="text-xs sm:text-sm font-normal cursor-pointer leading-relaxed">
-                {messages.auth.termsPrefix}{" "}
-                <button type="button" className="text-primary hover:underline">
+              <p className="min-w-0 flex-1 text-xs leading-relaxed sm:text-sm">
+                <label htmlFor="terms" className="cursor-pointer">{messages.auth.termsPrefix}</label>{" "}
+                <Link href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                   {messages.auth.terms}
-                </button>{" "}
+                </Link>{" "}
                 {messages.auth.and}{" "}
-                <button type="button" className="text-primary hover:underline">
+                <Link href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                   {messages.auth.privacy}
-                </button>
-              </Label>
+                </Link>
+              </p>
             </div>
 
             <Button
