@@ -83,9 +83,6 @@ const raw = {
   SUPABASE_ANON_KEY: clean(process.env.SUPABASE_ANON_KEY),
   SUPABASE_SERVICE_ROLE_KEY: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   SUPABASE_URL: clean(process.env.SUPABASE_URL),
-  USDA_API_BASE_URL: clean(process.env.USDA_API_BASE_URL),
-  USDA_API_KEY: clean(process.env.USDA_API_KEY),
-  USDA_TIMEOUT_MS: clean(process.env.USDA_TIMEOUT_MS),
 }
 
 const postgresUrl = z.string().regex(/^postgres(?:ql)?:\/\//i, "must be a postgres:// or postgresql:// connection string")
@@ -124,9 +121,6 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_URL: z.url().optional(),
-  USDA_API_BASE_URL: z.url().default("https://api.nal.usda.gov/fdc/v1"),
-  USDA_API_KEY: z.string().optional(),
-  USDA_TIMEOUT_MS: numberFromString(8000).pipe(z.number().positive("USDA_TIMEOUT_MS must be > 0")),
 })
 
 type ParsedEnv = z.infer<typeof envSchema>
@@ -218,9 +212,6 @@ function loadEnv() {
     supabaseAnonKey: parsed.SUPABASE_ANON_KEY,
     supabaseServiceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY,
     supabaseUrl: parsed.SUPABASE_URL,
-    usdaApiBaseUrl: parsed.USDA_API_BASE_URL,
-    usdaApiKey: parsed.USDA_API_KEY,
-    usdaTimeoutMs: parsed.USDA_TIMEOUT_MS,
   }
 }
 

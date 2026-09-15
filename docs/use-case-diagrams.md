@@ -226,7 +226,6 @@ flowchart LR
   Trainee["Trainee"]:::actor
   Coach["Coach"]:::actor
   DB["PostgreSQL"]:::external
-  USDA["USDA FoodData Central"]:::external
   AIProvider["OpenAI / Anthropic provider"]:::external
 
   subgraph UC04["UC-04: Trainee ghi nhận dinh dưỡng và theo dõi tiến độ"]
@@ -259,7 +258,6 @@ flowchart LR
 
   ViewNutritionDay -. include .-> CalculateMacros
   AddMealItem -. include .-> SearchFoods
-  SearchFoods -. extend .-> USDA
   GenerateMealPlan -. extend .-> AIProvider
   AcceptMealPlan -. include .-> AddMealItem
 

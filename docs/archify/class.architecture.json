@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "YeahBuddy Class and Module Overview",
+    "output": "docs/archify/class.html",
+    "viewBox": [1160, 800],
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/hominhduc-dev/fitness-webapp-platform",
+      "revision": "e50af4ef689f9561e15fc4d441058b569ff0e5af"
+    },
+    "views": [
+      { "id": "frontend", "label": "Frontend classes", "focus": ["serverAuth", "apiClient", "queryHooks", "clientViews"], "note": "Server auth guards feed typed API clients and client views." },
+      { "id": "backend", "label": "Backend services", "focus": ["routes", "authService", "fitnessService", "nutritionService", "aiService", "adminService"], "note": "Routes stay thin and delegate role-aware business logic to services." },
+      { "id": "data", "label": "Data access", "focus": ["prisma", "supabase", "postgres"], "note": "Prisma owns app data; Supabase owns authentication and storage." }
+    ]
+  },
+  "components": [
+    { "id": "serverAuth", "type": "security", "label": "Frontend Auth Guards", "sublabel": "requireAppSession, requireAppUser", "pos": [70, 110], "size": [180, 70], "sources": [{ "path": "lib/auth/server.ts", "line": 57 }] },
+    { "id": "apiClient", "type": "frontend", "label": "Fitness API Client", "sublabel": "typed request wrappers", "pos": [70, 260], "size": [180, 70], "sources": [{ "path": "lib/fitness/api.ts", "line": 1342 }] },
+    { "id": "queryHooks", "type": "frontend", "label": "TanStack Query Hooks", "sublabel": "cache keys and mutations", "pos": [70, 410], "size": [180, 70], "sources": [{ "path": "lib/queries/workouts.ts", "line": 21 }] },
+    { "id": "clientViews", "type": "frontend", "label": "Feature Views", "sublabel": "dashboard, workout, meals, coach", "pos": [70, 560], "size": [180, 70], "sources": [{ "path": "app/(shell)/dashboard/page.tsx", "line": 40 }] },
+    { "id": "routes", "type": "backend", "label": "Express Routers", "sublabel": "auth, workouts, meals, coach, admin", "pos": [360, 260], "size": [200, 74], "sources": [{ "path": "backend/src/routes/index.ts", "line": 25 }] },
+    { "id": "authService", "type": "security", "label": "Auth Service", "sublabel": "token verify + profile sync", "pos": [650, 100], "size": [190, 70], "sources": [{ "path": "backend/src/services/auth/core.ts", "line": 994 }] },
+    { "id": "fitnessService", "type": "backend", "label": "Fitness Data Service", "sublabel": "programs, workouts, logs, coach", "pos": [650, 250], "size": [190, 76], "sources": [{ "path": "backend/src/services/fitness-data/core.ts", "line": 3462 }] },
+    { "id": "nutritionService", "type": "backend", "label": "Nutrition Service", "sublabel": "foods, meals, macros", "pos": [650, 400], "size": [190, 70], "sources": [{ "path": "backend/src/services/nutrition.service.ts", "line": 1 }] },
+    { "id": "aiService", "type": "backend", "label": "AI Service", "sublabel": "program, meal plan, chat", "pos": [650, 550], "size": [190, 70], "sources": [{ "path": "backend/src/services/ai.service.ts", "line": 819 }] },
+    { "id": "adminService", "type": "backend", "label": "Admin Service", "sublabel": "users, library, audit", "pos": [650, 680], "size": [190, 70], "sources": [{ "path": "backend/src/services/admin/core.ts", "line": 238 }] },
+    { "id": "prisma", "type": "database", "label": "Prisma Client", "sublabel": "typed ORM boundary", "pos": [940, 330], "size": [170, 70], "sources": [{ "path": "backend/src/lib/prisma.ts", "line": 1 }] },
+    { "id": "supabase", "type": "cloud", "label": "Supabase Clients", "sublabel": "Auth API + Storage", "pos": [940, 130], "size": [170, 70], "sources": [{ "path": "backend/src/lib/supabase.ts", "line": 1 }] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL Schema", "sublabel": "User, Program, Workout, Meal", "pos": [940, 520], "size": [170, 70], "sources": [{ "path": "backend/prisma/schema.prisma", "line": 1 }] },
+    { "id": "providers", "type": "external", "label": "Optional Providers", "sublabel": "AI, import, automation", "pos": [940, 680], "size": [170, 70] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Next.js frontend", "wraps": ["serverAuth", "apiClient", "queryHooks", "clientViews"] },
+    { "kind": "region", "label": "Express backend", "wraps": ["routes", "authService", "fitnessService", "nutritionService", "aiService", "adminService"] },
+    { "kind": "region", "label": "Data and integrations", "wraps": ["prisma", "supabase", "postgres", "providers"] }
+  ],
+  "connections": [
+    { "id": "guard-client", "from": "serverAuth", "to": "apiClient", "variant": "security" },
+    { "id": "client-hooks", "from": "apiClient", "to": "queryHooks" },
+    { "id": "hooks-views", "from": "queryHooks", "to": "clientViews" },
+    { "id": "client-routes", "from": "apiClient", "to": "routes", "label": "/backend/api/*", "variant": "emphasis", "labelAt": [305, 250] },
+    { "id": "routes-auth", "from": "routes", "to": "authService", "variant": "security" },
+    { "id": "routes-fitness", "from": "routes", "to": "fitnessService", "variant": "emphasis" },
+    { "id": "routes-nutrition", "from": "routes", "to": "nutritionService" },
+    { "id": "routes-ai", "from": "routes", "to": "aiService", "variant": "dashed" },
+    { "id": "routes-admin", "from": "routes", "to": "adminService" },
+    { "id": "auth-supabase", "from": "authService", "to": "supabase", "variant": "security" },
+    { "id": "services-prisma", "from": "fitnessService", "to": "prisma", "variant": "emphasis" },
+    { "id": "nutrition-prisma", "from": "nutritionService", "to": "prisma" },
+    { "id": "ai-providers", "from": "aiService", "to": "providers", "variant": "dashed" },
+    { "id": "prisma-postgres", "from": "prisma", "to": "postgres", "variant": "emphasis" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Frontend Boundary", "items": ["Server components enforce role redirects", "Typed API clients keep the browser away from service-role secrets"] },
+    { "dot": "emerald", "title": "Service Boundary", "items": ["Express routers validate request shape", "Business rules live in role-aware services"] },
+    { "dot": "violet", "title": "Data Boundary", "items": ["Prisma is the durable data gateway", "Optional providers stay behind backend services"] }
+  ]
+}

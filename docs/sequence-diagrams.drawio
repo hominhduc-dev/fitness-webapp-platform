@@ -380,7 +380,7 @@
         <mxCell id="m19" value="Volume, frequency, 1RM" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;curved=0;rounded=0;strokeColor=#999999;fontColor=#999999;exitX=0;exitY=1.0;entryX=1;entryY=0.8981;" edge="1" parent="1" source="act6" target="act7">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="note20" value="Food local không có → fallback USDA; AI meal plan chỉ persist sau khi trainee accept" style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+        <mxCell id="note20" value="Food search dùng local catalog; AI meal plan chỉ persist sau khi trainee accept" style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
           <mxGeometry x="710" y="1130" width="140" height="40" as="geometry" />
         </mxCell>
       </root>

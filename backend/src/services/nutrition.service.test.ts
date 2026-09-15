@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { calculateItemNutrition, normalizeAmountUnit } from "./nutrition.service"
 
-/** A food defined per 100 g, the shape the USDA importer produces. */
+/** A food defined per 100 g, matching imported/catalog nutrition rows. */
 const per100g = {
   calories: 200,
   carbs: 20,

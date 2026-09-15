@@ -89,7 +89,7 @@ class TooManyRequestsError extends AppError {
   }
 }
 
-/** A dependency we do not control (Supabase, Anthropic/OpenAI, USDA) failed. */
+/** A dependency we do not control (Supabase, Anthropic/OpenAI, etc.) failed. */
 class ExternalServiceError extends AppError {
   constructor(message: string, options: Omit<AppErrorOptions, "status"> = {}) {
     super(message, { ...options, status: 502 })

@@ -1,99 +1,128 @@
 # YeahBuddy Fitness
 
-> A full-stack fitness platform for lifters and their coaches — log workouts, track meals and body weight, follow coach-authored programs, and manage everything from a single dashboard.
+> An open-source full-stack fitness platform for trainees, coaches, and small coaching teams.
 
-YeahBuddy is a monorepo containing two applications:
+YeahBuddy helps trainees log workouts, track nutrition, monitor body metrics, follow coach-assigned programs, and review progress in one place. Coaches can build training programs, assign them to clients, review workout logs, leave feedback, and manage check-ins.
 
-- **Frontend** — a Next.js 16 (App Router) web app in the repository root.
-- **Backend** — a standalone Express + Prisma API in [`backend/`](backend/).
+The app is built as a monorepo:
 
-Authentication is handled by **Supabase Auth**, and all application data lives in **PostgreSQL** (hosted on Supabase) accessed through **Prisma**. The frontend never talks to the database directly — it proxies API calls to the Express backend, which owns all business logic and role enforcement.
+- **Frontend:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS v4, shadcn/ui
+- **Backend:** Express 4, TypeScript, Prisma 6
+- **Database/Auth:** PostgreSQL and Supabase Auth
+- **AI features:** optional Anthropic or OpenAI provider for workout and meal-plan generation
+
+UI copy is localized for Vietnamese and English.
 
 ---
 
-## Table of Contents
+## Contents
 
-- [Overview](#overview)
-- [Roles](#roles)
-- [Features by area](#features-by-area)
-- [Tech stack](#tech-stack)
+- [Features](#features)
+- [Screens and Roles](#screens-and-roles)
+- [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
-- [Repository layout](#repository-layout)
-- [Routes](#routes)
-  - [Frontend routes by role](#frontend-routes-by-role)
-  - [Rendering strategy](#rendering-strategy)
-  - [Backend API endpoints](#backend-api-endpoints)
-- [Data model](#data-model)
-- [Getting started](#getting-started)
-- [Scripts](#scripts)
-- [Quality gates](#quality-gates)
-- [Conventions & ground rules](#conventions--ground-rules)
-- [Auth & access model](#auth--access-model)
-- [Known gotchas](#known-gotchas)
-- [Deployment](#deployment)
-- [Third-party assets](#third-party-assets)
+- [System Diagrams](#system-diagrams)
+- [Repository Structure](#repository-structure)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Database Setup](#database-setup)
+- [Useful Scripts](#useful-scripts)
+- [Testing and Quality](#testing-and-quality)
+- [API Overview](#api-overview)
+- [Project Conventions](#project-conventions)
+- [Deployment Notes](#deployment-notes)
+- [Contributing](#contributing)
+- [Security](#security)
+- [Third-party Assets](#third-party-assets)
+- [License](#license)
 
 ---
 
-## Overview
+## Features
 
-YeahBuddy connects two kinds of users:
+### For Trainees
 
-- **Trainees** log their training and nutrition, follow a program assigned by a coach (or train on their own), and watch their progress over time.
-- **Coaches** author training programs, assign them to trainees, monitor compliance, leave feedback on logged sessions, and run check-ins.
+- Log workouts with sets, reps, weight, RIR, completion state, and notes
+- Follow coach-assigned programs or create personal routines
+- View weekly schedule and today's workout
+- Track workout history, volume, streaks, frequency, and PRs
+- Log meals and food items with calories and macros
+- Track weight and body measurements
+- Generate workout programs and meal plans with an optional AI provider
+- Discover coaches and request coaching
 
-An **admin** role sits on top for platform operations (user management, coach↔trainee connections, the shared exercise library, and audit logs).
+### For Coaches
 
-The product is **Vietnamese-facing** (UI copy and API error messages are localized; an English/Vietnamese locale toggle is built in), while the codebase, comments, and docs are in English.
+- Create, edit, archive, and assign training programs
+- Build workouts with ordered exercises and target sets
+- Monitor trainee compliance and weekly activity
+- Review trainee logs, body metrics, check-ins, and recent PRs
+- Comment on workout logs
+- Import programs from Google Sheets or Notion when configured
+- Manage a coach-owned exercise library
+
+### For Admins
+
+- Manage users, roles, and active state
+- Review coach requests and coach-trainee connections
+- Curate global exercise and food data
+- Inspect platform metrics and audit logs
+
+### Cross-cutting
+
+- Supabase email/password and OAuth auth flow
+- Cookie-based SSR sessions through `@supabase/ssr`
+- Server-side role enforcement
+- Consistent API error envelope
+- Structured backend logging
+- Rate limits for authenticated and AI-heavy routes
+- Excel-style export helpers and optional n8n webhook export
 
 ---
 
-## Roles
+## Screens and Roles
 
-Three roles are defined in the `UserRole` enum and enforced **server-side** via `requireAppSession()` (frontend route guards) and `assertTrainee` / `assertCoach` / `assertAdmin` (backend service guards).
-
-| Role | Landing page | Can do |
+| Role | Default Area | Main Capabilities |
 |---|---|---|
-| **trainee** | `/dashboard` | Log workouts & meals, track body weight, follow assigned programs, view progress analytics, discover and request a coach, generate AI workout programs & meal plans |
-| **coach** | `/coach` | Author & assign programs, manage an exercise library, monitor trainees, comment on logged workouts, run check-ins, approve coach requests |
-| **admin** | `/admin` | Manage users & roles, coach↔trainee connections, the global exercise/food library, and review audit logs |
+| `trainee` | `/dashboard` | Training, meals, progress, schedule, AI generation, coach discovery |
+| `coach` | `/coach` | Programs, assignments, trainee monitoring, check-ins, workout feedback |
+| `admin` | `/admin` | Platform operations, users, library curation, audit logs |
 
-A signed-out visitor only sees the **landing page** (`/`) and the auth modal. After login, users are redirected to their role's landing page.
-
----
-
-## Features by area
-
-- **Workouts** — Build personal workouts or follow coach-assigned program days; an in-session logger with set/rep/weight tracking, a rest timer, and automatic PR detection; full workout history.
-- **Nutrition** — Daily meal logging backed by a food database (Vietnamese foods + USDA FoodData Central), per-meal items, and calorie/macro targets with a live "calories left" view.
-- **Body metrics** — Weekly weigh-ins plus optional measurements (waist, arms, body fat, etc.).
-- **Progress analytics** — Volume, frequency, estimated 1RM, a training calendar, and a year view.
-- **AI generation** — Trainees can generate a workout program or a meal plan from a chat-style prompt (`components/ai/`), preview it, and accept it to turn the AI draft into a real `Program` (flagged `isAIGenerated`) or logged meal. Backed by a pluggable provider (Anthropic or OpenAI) — see [AI generation](#ai-generation-1).
-- **Coaching** — Program authoring & assignment, trainee compliance dashboards, at-risk flagging, workout-log comments, and structured check-ins.
-- **Admin** — Platform health metrics, user/role management, connection management, library curation, and audit logging.
-- **Cross-cutting** — Supabase email/password + OAuth (Google/Apple), password reset, avatar uploads to Supabase Storage, in-app notifications, EN/VI localization, and CSV/Excel export of workout & weight history.
+Public users land on `/` and can open the auth modal. After login, the app redirects users to the correct role area.
 
 ---
 
-## Tech stack
+## Tech Stack
 
 ### Frontend
-- **Framework:** Next.js 16 (App Router) + React 19 + TypeScript 5
-- **Styling:** Tailwind CSS v4 + shadcn/ui (new-york) + Radix UI primitives
-- **Forms:** Controlled React components (no React Hook Form/Zod on the client — see [Known gotchas](#known-gotchas) about `AGENTS.md` disagreeing with this)
-- **Charts:** Recharts
-- **Utilities:** date-fns, clsx, tailwind-merge, lucide-react
-- **Auth client:** `@supabase/ssr` (cookie-based SSR sessions)
+
+- Next.js 16 with App Router
+- React 19
+- TypeScript 5
+- Tailwind CSS v4
+- shadcn/ui and Radix UI primitives
+- Recharts
+- TanStack Query
+- `@supabase/ssr`
+- `lucide-react`
 
 ### Backend
-- **Runtime:** Node.js + Express 4 + TypeScript
-- **ORM:** Prisma 6 · **Database:** PostgreSQL (Supabase, via PgBouncer pooler)
-- **Auth:** Supabase Auth (token verification + user-metadata sync)
-- **AI:** Pluggable provider layer (`backend/src/lib/ai/`) — Anthropic (`claude-haiku-4-5-20251001` by default) or OpenAI, switchable via `AI_PROVIDER`
-- **External data:** USDA FoodData Central API
 
-### Deployment
-- **Runtime:** Docker Compose runs the backend as the `yeahbuddy-backend` container in production (`docker-compose.yml` at repo root)
+- Node.js
+- Express 4
+- TypeScript
+- Prisma 6
+- PostgreSQL
+- Supabase Auth and Storage
+- Zod validation
+- Vitest
+
+### Optional Integrations
+
+- Anthropic or OpenAI for AI workout and meal-plan generation
+- Google OAuth, Google Sheets, and Drive APIs for program imports
+- Notion API for program imports
+- n8n webhook for workout-log export
 
 ---
 
@@ -101,456 +130,380 @@ A signed-out visitor only sees the **landing page** (`/`) and the auth modal. Af
 
 ![YeahBuddy system architecture](docs/architecture.png)
 
-The editable source is available at [`docs/architecture.drawio`](docs/architecture.drawio).
+At a high level:
 
-- The browser calls `/backend/api/...`, which Next.js rewrites to the Express server (`NEXT_PUBLIC_API_URL`).
-- Every authenticated request carries the Supabase access token; the backend verifies it, syncs a local `User` profile, and enforces role before running a handler.
-- API responses follow a consistent `{ data, error, meta }` envelope (auth endpoints return a flatter `{ profile, session, user }` payload).
-- AI endpoints call out to Anthropic or OpenAI (`backend/src/lib/ai/ai-client.ts`), persist the request/response as an `AIGeneration` row, and only materialize a real `Program`/meal once the trainee explicitly accepts the draft.
+1. The browser uses the Next.js frontend.
+2. Frontend requests to `/backend/api/*` are rewritten to the Express backend.
+3. The frontend sends the Supabase access token with authenticated API calls.
+4. The backend verifies the token, syncs the local profile, enforces role access, and runs business logic.
+5. Prisma reads and writes application data in PostgreSQL.
+6. Optional AI and import/export providers are called only by the backend.
 
-### Main use cases
+Editable diagrams are available in:
 
-![YeahBuddy main use cases](docs/use-cases.png)
+- [`docs/architecture.drawio`](docs/architecture.drawio)
+- [`docs/use-cases.drawio`](docs/use-cases.drawio)
+- [`docs/sequence-diagrams.drawio`](docs/sequence-diagrams.drawio)
+- [`docs/erd-system/README.md`](docs/erd-system/README.md)
 
-The overview focuses on the six primary use cases across visitors, trainees, coaches, and administrators. Supporting flows such as AI generation, exports, notifications, and profile management are documented separately.
+## System Diagrams
 
-### Core sequence flows
+Archify diagrams are available as standalone interactive HTML files with pan, zoom, view focus, and export controls:
 
-#### Trainee completes and logs a workout
+| Diagram | HTML | Spec |
+|---|---|---|
+| ERD overview | [`docs/archify/erd.html`](docs/archify/erd.html) | [`docs/archify/erd.architecture.json`](docs/archify/erd.architecture.json) |
+| Class and module overview | [`docs/archify/class.html`](docs/archify/class.html) | [`docs/archify/class.architecture.json`](docs/archify/class.architecture.json) |
+| Use case map | [`docs/archify/use-case.html`](docs/archify/use-case.html) | [`docs/archify/use-case.workflow.json`](docs/archify/use-case.workflow.json) |
+| Core request sequence | [`docs/archify/sequence.html`](docs/archify/sequence.html) | [`docs/archify/sequence.sequence.json`](docs/archify/sequence.sequence.json) |
 
-![Workout logging sequence](docs/sequence-uc03.png)
-
-#### Coach creates and assigns a training program
-
-![Coach program management sequence](docs/sequence-uc05.png)
-
-Further design documentation:
-
-- [Editable architecture diagram](docs/architecture.drawio)
-- [Editable use-case diagram](docs/use-cases.drawio)
-- [All six sequence diagrams — editable Draw.io](docs/sequence-diagrams.drawio)
-- [All six sequence diagrams — PDF](docs/sequence-diagrams.drawio.pdf)
-- [Detailed use-case specifications](docs/use-case-specifications.md)
+The Archify source specs are validated with the `showcase` quality profile before the HTML artifacts are generated.
 
 ---
 
-## Repository layout
+## Repository Structure
 
 ```text
 .
-├── app/                      # Next.js App Router (pages, layouts, route handlers)
-│   ├── (shell)/              # Authenticated app shell (sidebar + role pages)
-│   ├── auth/callback/        # OAuth / email-confirmation callback route handler
-│   ├── reset-password/       # Password reset page
-│   └── page.tsx              # Public landing page
-├── components/               # Feature UI + shared shadcn/ui primitives
-│   ├── auth/  landing/  layout/  coach/  dashboard/  ai/  ...
-├── hooks/                    # Reusable React hooks
-├── lib/                      # Frontend auth, API clients, i18n, types, Excel export helpers
-├── public/                   # Static assets
-├── docs/                     # Class/ERD/sequence diagrams + use-case specs (design reference)
-├── lift-design-system/       # Standalone design-system sub-project (own README)
+├── app/                         # Next.js App Router pages and layouts
+│   ├── (shell)/                 # Authenticated app shell
+│   ├── auth/callback/           # Supabase OAuth/email callback
+│   ├── reset-password/          # Password reset flow
+│   └── page.tsx                 # Public landing page
+├── components/                  # Feature UI and shadcn/ui primitives
+├── lib/                         # Frontend API clients, auth, i18n, types
+├── public/                      # Static assets
+├── docs/                        # Architecture, ERD, sequence, and use-case docs
 ├── backend/
-│   ├── prisma/                # schema.prisma + migrations (canonical — see Known gotchas)
-│   ├── README.md              # Short backend-only setup notes
-│   └── src/
-│       ├── routes/           # Express routers (one per resource, incl. ai.route.ts)
-│       ├── services/         # Business logic (auth, fitness-data, admin, nutrition, ai…)
-│       ├── lib/               # Prisma client, Supabase clients, AI provider layer
-│       ├── config/           # env parsing
-│       └── scripts/          # create-admin, seed-* scripts
-├── prisma/migrations/         # ⚠️ stray duplicate — see Known gotchas
-├── docker-compose.yml        # Docker Compose service definition for production
-├── AGENTS.md                 # Older/alternate project-config doc — see Known gotchas
-├── CLAUDE.md                 # Project config & ground rules for AI/dev tooling (source of truth)
+│   ├── prisma/                  # Canonical Prisma schema and migrations
+│   ├── src/
+│   │   ├── config/              # Environment parsing
+│   │   ├── lib/                 # Prisma, Supabase, AI, provider utilities
+│   │   ├── middleware/          # Error handler, validation, rate limits
+│   │   ├── routes/              # Express routers
+│   │   ├── services/            # Business logic
+│   │   └── scripts/             # Seed/admin/helper scripts
+│   ├── Dockerfile
+│   └── package.json
+├── docker-compose.yml           # Backend production-style service
+├── next.config.mjs              # Frontend config and backend rewrite
+├── package.json                 # Frontend/root scripts
 └── README.md
 ```
 
----
-
-## Routes
-
-### Frontend routes by role
-
-| Route | Access | Purpose |
-|---|---|---|
-| `/` | Public | Landing page + auth modal (`?auth=login` / `?auth=register`) |
-| `/auth/callback` | Public | OAuth / email-confirmation callback (exchanges code → session) |
-| `/reset-password` | Public (token) | Set a new password after a reset email |
-| `/profile` | Any authenticated | Account & profile settings, avatar upload |
-| `/dashboard` | **trainee** | Today's training, nutrition & progress summary |
-| `/schedule` | **trainee** | Rolling weekly training schedule |
-| `/workout` | **trainee** | Saved / personal workouts list |
-| `/workout/[id]/start` | **trainee** | In-session workout logger (sets, reps, rest timer, PRs) |
-| `/meals` | **trainee** | Daily meal log + calorie/macro targets |
-| `/progress` | **trainee** | Progress analytics (volume, 1RM, calendar) |
-| `/trackweight` | **trainee** | Body-weight & measurement tracking |
-| `/coach/find` | **trainee** | Discover and request a coach |
-| `/coach` | **coach** | Coach workspace dashboard (compliance, recent logs, at-risk) |
-| `/coach/trainees` | **coach** | Trainee list |
-| `/coach/trainees/[id]` | **coach** | Single trainee detail (logs, metrics, check-ins) |
-| `/coach/programs` | **coach** | Programs the coach authored |
-| `/coach/programs/new` | **coach** | Program builder (create) |
-| `/coach/programs/[id]` | **coach** | Program editor (edit / assign / adjust per trainee) |
-| `/coach/exercises` | **coach** | Coach exercise library + import |
-| `/admin` | **admin** | Platform overview, user management, library, audit logs |
-
-### Rendering strategy
-
-| Route group | Strategy |
-|---|---|
-| `app/page.tsx`, `(shell)/layout.tsx` | SSR — auth redirect |
-| `(shell)/dashboard`, `coach/`, `workout/`, `schedule/` | SSR + Suspense streaming (`force-dynamic`) |
-| `(shell)/coach/exercises`, `coach/find`, `coach/trainees/[id]` | Hybrid — SSR fetch → CSR client component |
-| `(shell)/profile`, `meals/`, `progress/`, `trackweight/` | CSR (`"use client"`, hooks) |
-| `reset-password/`, `workout/[id]/start/` | CSR |
-
-### Backend API endpoints
-
-All endpoints are mounted under `/api`. Auth is required for everything except `/api/health/*` and the public auth endpoints (`register`, `login`, `refresh`, `forgot-password`).
-
-<details>
-<summary><b>Auth</b> — <code>/api/auth</code></summary>
-
-| Method | Path | Access | Notes |
-|---|---|---|---|
-| POST | `/register` | Public | Email/username/phone + password sign-up |
-| POST | `/login` | Public | Login by email, username, or phone |
-| POST | `/refresh` | Public | Refresh a session |
-| POST | `/forgot-password` | Public | Send a reset email (no account enumeration) |
-| GET | `/me` | Authed | Current profile |
-| PATCH | `/me` | Authed | Update profile |
-| POST | `/me/avatar` | Authed | Upload avatar to Supabase Storage |
-| POST | `/me/reset-trainee-data` | trainee | Wipe own training/nutrition data |
-| POST | `/logout` | Authed | Sign out current device |
-</details>
-
-<details>
-<summary><b>Trainee</b> — workouts, meals, foods, progress, dashboard, exercises, notifications</summary>
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/dashboard` | Trainee dashboard payload |
-| GET | `/api/workouts` · `/api/workouts/logs` | Saved workouts + log history |
-| GET / POST / PATCH / DELETE | `/api/workouts/:workoutId` | Read / create / edit / delete a personal workout |
-| POST | `/api/workouts/:workoutId/logs` | **Finish (log) a workout** |
-| DELETE | `/api/workouts/:workoutId/logs/:logId` | Delete a logged session |
-| GET | `/api/meals?date=` | Daily nutrition (meals + totals + targets) |
-| POST | `/api/meals/items` | **Log a meal item** |
-| DELETE | `/api/meals/items/:itemId` | Remove a logged item |
-| GET / POST | `/api/foods` | Search / create foods |
-| GET | `/api/progress/analytics` | Volume / frequency / 1RM analytics |
-| GET / POST | `/api/progress/weight` | Body-weight entries |
-| GET | `/api/progress/calendar` · `/year-view` | Training calendar & year heatmap |
-| GET | `/api/progress/workout-log/:logId` | Single log detail |
-| GET | `/api/exercises` · `/api/exercises/library` | Exercise & variation library |
-| GET | `/api/notifications` | In-app notifications |
-| PATCH / POST | `/api/notifications/:id/read` · `/read-all` | Mark read |
-</details>
-
-<details>
-<summary><b>AI generation</b> — <code>/api/ai</code> (trainee)</summary>
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/generate-program` | Generate an AI workout program draft from a prompt (creates an `AIGeneration` row) |
-| POST | `/accept-program` | Turn an accepted AI draft into a real `Program` (`isAIGenerated: true`) |
-| POST | `/generate-meal-plan` | Generate an AI meal plan draft |
-| POST | `/accept-meal-plan` | Log the accepted AI meal plan for a given date |
-| POST | `/chat` | Free-form chat turn with the configured AI provider |
-
-Provider is selected by `AI_PROVIDER` (`anthropic` default or `openai`); requires `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` respectively.
-</details>
-
-<details>
-<summary><b>Coach</b> — <code>/api/coach</code></summary>
-
-| Method | Path | Access | Purpose |
-|---|---|---|---|
-| GET | `/dashboard` · `/nav-counts` | coach | Workspace dashboard & sidebar counts |
-| GET / POST | `/programs` | coach | List / create programs |
-| GET / PATCH / DELETE | `/programs/:programId` | coach | Read / edit / delete a program |
-| POST / DELETE | `/programs/:programId/assignments[/:traineeId]` | coach | Assign / unassign a program |
-| POST | `/programs/:programId/adjustments` | coach | Per-trainee program tweaks |
-| GET / POST / PATCH / DELETE | `/exercises…`, `/exercise-import-requests` | coach | Coach exercise library + import |
-| GET | `/trainees` · `/trainees/:id` · `/trainees/:id/workout-logs` | coach | Trainee list / detail / logs |
-| POST | `/trainees/:id/body-metrics` · `/check-ins` | coach | Record metrics / check-ins |
-| POST / PATCH / DELETE | `/workout-logs/:id/comments`, `/workout-log-comments/:id` | coach | Feedback on logged sessions |
-| GET | `/discover` | trainee | Browse available coaches |
-| POST | `/requests` | trainee | Request a coach |
-| PATCH | `/requests/:requestId` | coach | Approve / reject a request |
-</details>
-
-<details>
-<summary><b>Admin</b> — <code>/api/admin</code> (admin only)</summary>
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/dashboard` | Platform metrics |
-| GET / PATCH | `/users`, `/users/:id` | List & update users (role / active state) |
-| POST | `/users/:id/reset-password` | Force a password reset |
-| GET / PATCH / DELETE | `/coach-requests…` | Moderate coach requests |
-| GET / POST / DELETE | `/connections…` | Manage coach↔trainee connections |
-| GET / DELETE | `/programs…` | Review / delete programs |
-| GET / POST / PATCH / DELETE | `/exercises…`, `/exercise-import-requests…`, `/exercise-groups` | Curate the exercise library |
-| GET | `/audit-logs` | Admin action audit trail |
-</details>
-
-<details>
-<summary><b>Health</b> — <code>/api/health</code> (public)</summary>
-
-`GET /api/health`, `/api/health/database`, `/api/health/supabase` — service, DB, and Supabase connectivity checks.
-</details>
+> Note: `backend/prisma/` is the canonical Prisma folder. Do not create new migrations in the root-level `prisma/` folder if one exists in your checkout.
 
 ---
 
-## Data model
-
-The Prisma schema lives in [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma) — this is the **only** schema that matters; see [Known gotchas](#known-gotchas) for the stray root-level `prisma/` folder. Core models:
-
-| Domain | Models |
-|---|---|
-| **Identity** | `User` (role, profile, goals, coach link) |
-| **Exercise library** | `Exercise`, `Variation`, `ExerciseImportRequest` |
-| **Programs** | `Program` (incl. `isAIGenerated`), `ProgramAssignment`, `Workout`, `WorkoutExercise`, `ExerciseSet` |
-| **Training logs** | `WorkoutLog`, `WorkoutLogComment` |
-| **Body & coaching** | `BodyMetricEntry`, `CoachCheckIn`, `CoachRequest` |
-| **Nutrition** | `Food`, `Meal`, `MealFoodItem` |
-| **AI** | `AIGeneration` (`AIGenerationType`: `workout_program` \| `meal_plan`; `AIGenerationStatus`: `pending` → `completed`/`failed` → `accepted`) |
-| **Platform** | `Notification`, `AdminAuditLog` |
-
-Enums: `UserRole`, `ProgramDifficulty`, `MealType`, `WorkoutKind`, `CoachRequestStatus`, `ExerciseImportRequestStatus`, `WeightUnit`, `FoodSource`, `FoodCategory`, `NotificationType`, `NotificationChannel`, `NotificationStatus`, `AIGenerationType`, `AIGenerationStatus`.
-
-Every schema change ships with a migration file under `backend/prisma/migrations/`.
-
----
-
-## Getting started
+## Getting Started
 
 ### Prerequisites
 
-- **Node.js** 20+ and **npm**
-- A **Supabase** project (Auth + PostgreSQL). You need the project URL, anon key, and service-role key, plus the database connection strings.
-- An **Anthropic** or **OpenAI** API key if you want to exercise the AI generation features locally (optional — the rest of the app works without it).
+- Node.js 22 recommended
+- npm
+- A Supabase project with Auth and PostgreSQL enabled
+- Optional: Anthropic or OpenAI key for AI features
 
-### 1. Install dependencies
+### 1. Clone the Repository
 
 ```bash
-npm install                    # frontend deps (repo root)
-npm install --prefix backend   # backend deps
+git clone https://github.com/hominhduc-dev/fitness-webapp-platform.git
+cd fitness-webapp-platform
 ```
 
-### 2. Configure environment
+### 2. Install Dependencies
 
-**Frontend** — create `.env.local` (see `.env.local.example`):
+```bash
+npm install
+npm install --prefix backend
+```
+
+### 3. Create Environment Files
+
+```bash
+cp .env.local.example .env.local
+cp backend/.env.example backend/.env
+```
+
+Fill in the Supabase and database values described below.
+
+### 4. Generate Prisma Client
+
+```bash
+npm run prisma:generate
+```
+
+### 5. Apply Database Migrations
+
+For a new local/dev database:
+
+```bash
+npm run prisma:migrate
+```
+
+For production or CI deploys:
+
+```bash
+npm run prisma:deploy
+```
+
+### 6. Seed Optional Reference Data
+
+```bash
+npm run seed:exercises
+npm run seed:foods
+```
+
+### 7. Start the Apps
+
+Open two terminals:
+
+```bash
+npm run dev
+```
+
+```bash
+npm run dev:backend
+```
+
+Then visit [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Environment Variables
+
+### Frontend: `.env.local`
 
 ```bash
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:4000
-NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon-key>
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-or-publishable-key
 ```
 
-**Backend** — create `backend/.env` (see `backend/.env.example`):
+### Backend: `backend/.env`
+
+Required for the core app:
 
 ```bash
-# Database (Supabase Postgres)
-DATABASE_URL=postgresql://...pooler.supabase.com:6543/postgres   # PgBouncer (pooled)
-DIRECT_URL=postgresql://...supabase.co:5432/postgres            # direct (migrations)
-
-# Supabase
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=<anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
-
-# App
 PORT=4000
 FRONTEND_URL=http://localhost:3000
 
-# Optional: USDA FoodData Central (nutrition search)
-USDA_API_KEY=<your-key>
-# USDA_API_BASE_URL=https://api.nal.usda.gov/fdc/v1
-# USDA_TIMEOUT_MS=8000
+DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
 
-# Optional: AI program/meal-plan generation + chat
-AI_PROVIDER=anthropic              # "anthropic" (default) or "openai"
-AI_MODEL=claude-haiku-4-5-20251001 # defaults shown; any provider-supported model id works
-ANTHROPIC_API_KEY=<your-key>       # required when AI_PROVIDER=anthropic
-OPENAI_API_KEY=<your-key>          # required when AI_PROVIDER=openai
-# AI_BASE_URL=                     # optional override, e.g. an OpenAI-compatible proxy
-# AI_JSON_MODE=true                # OpenAI provider only
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=your-anon-or-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
 
-# Optional: n8n webhook for exporting workout logs to Google Sheets
+Optional integrations:
+
+```bash
+# AI generation
+AI_PROVIDER=anthropic
+AI_MODEL=claude-haiku-4-5-20251001
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+AI_API_KEY=
+AI_BASE_URL=
+AI_JSON_MODE=true
+
+# n8n workout-log export
 N8N_LOGS_WEBHOOK_URL=
+
+# Notion program import
+NOTION_TOKEN=
+NOTION_PROGRAM_DB_ID=
+NOTION_PROGRAM_ROWS_DB_ID=
+NOTION_API_VERSION=2022-06-28
+NOTION_TIMEOUT_MS=15000
+
+# Google Sheets program import
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/backend/api/coach/google/callback
+GOOGLE_TOKEN_ENCRYPTION_KEY=
 ```
 
-> Never commit `.env` files or secrets. The service-role key must stay server-side only.
-
-### 3. Set up the database
-
-```bash
-npm run prisma:generate            # generate Prisma client
-npm run prisma:migrate             # apply migrations (dev) — run from repo root or backend/, NOT the stray root prisma/ folder
-
-# Seed reference data (optional):
-npm run seed:exercises
-npm run seed:foods
-
-# Create the first admin user:
-npm run create:admin
-```
-
-### 4. Run the apps
-
-```bash
-npm run dev          # Next.js frontend → http://localhost:3000
-npm run dev:backend  # Express API     → http://localhost:4000
-```
-
-Open http://localhost:3000 and sign up / log in.
-
-> **Auth email note:** registration and password reset require Supabase email delivery. Configure **custom SMTP** in the Supabase dashboard (Authentication → Emails), or temporarily disable email confirmation for local testing — otherwise sign-up fails at the "send confirmation email" step.
+Never expose or commit `SUPABASE_SERVICE_ROLE_KEY`, database URLs, OAuth secrets, or AI API keys.
 
 ---
 
-## Scripts
+## Database Setup
 
-### Root (frontend)
+This project uses Prisma migrations under `backend/prisma/migrations`.
+
+Common commands:
+
+```bash
+npm run prisma:generate   # Generate Prisma Client
+npm run prisma:migrate    # Create/apply migrations in development
+npm run prisma:deploy     # Apply existing migrations in production/CI
+npm run prisma:studio     # Open Prisma Studio
+```
+
+For Supabase, use:
+
+- `DATABASE_URL`: pooled connection, usually PgBouncer on port `6543`
+- `DIRECT_URL`: direct database connection, usually port `5432`, used for migrations
+
+If the schema changes, always commit:
+
+- `backend/prisma/schema.prisma`
+- the generated migration folder under `backend/prisma/migrations`
+
+You do not commit generated Prisma Client files from `node_modules`.
+
+---
+
+## Useful Scripts
+
+### Root
 
 | Script | Description |
 |---|---|
-| `npm run dev` | Next.js dev server (`:3000`) |
-| `npm run build` / `npm start` | Production build / serve |
-| `npm run lint` · `lint:fix` | ESLint over `app/`, `components/`, `lib/` **and** `backend/src/` |
-| `npm run typecheck` · `typecheck:backend` | `tsc --noEmit` per package |
-| `npm run dev:backend` · `build:backend` · `start:backend` | Proxy to backend scripts |
-| `npm run create:admin` | Create an admin account (proxies to backend) |
-| `npm run seed:exercises` · `seed:foods` | Seed reference data (proxies to backend) |
-| `npm run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma (proxied to backend) |
-| `node scripts/extract-muscle-paths.mjs` | Regenerate the body-map SVG assets in `components/body/` (see [Third-party assets](#third-party-assets)) |
+| `npm run dev` | Start Next.js dev server on port `3000` |
+| `npm run build` | Build the frontend |
+| `npm run start` | Start the built frontend |
+| `npm run lint` | Run ESLint |
+| `npm run typecheck` | Generate Next types and run TypeScript checks |
+| `npm run test` | Run Vitest tests |
+| `npm run dev:backend` | Start the backend through the root script |
+| `npm run build:backend` | Build the backend |
+| `npm run prisma:generate` | Generate Prisma Client for backend |
+| `npm run prisma:migrate` | Run Prisma migration dev |
+| `npm run prisma:deploy` | Deploy Prisma migrations |
+| `npm run seed:exercises` | Seed exercise data |
+| `npm run seed:foods` | Seed food data |
+| `npm run create:admin` | Create an admin account |
 
 ### Backend
 
 | Script | Description |
 |---|---|
-| `npm --prefix backend run dev` | `tsx watch` API server |
-| `npm --prefix backend run build` / `start` | Compile (`tsconfig.build.json`, excludes tests) / run `dist` |
-| `npm --prefix backend run typecheck` | `tsc --noEmit`, including test files |
-| `npm --prefix backend run test` · `test:watch` · `test:coverage` | Vitest |
-| `npm --prefix backend run seed:exercises` / `seed:foods` | Seed reference data |
-| `npm --prefix backend run create:admin` | Create an admin user |
-| `npm --prefix backend run prisma:generate` · `migrate` · `push` · `deploy` · `studio` · `validate` | Prisma commands |
-| `npm --prefix backend run prisma:resolve:baseline` | One-off: mark the initial baseline migration as applied without running it |
+| `npm --prefix backend run dev` | Start Express with `tsx watch` |
+| `npm --prefix backend run build` | Compile TypeScript to `backend/dist` |
+| `npm --prefix backend run start` | Run the compiled backend |
+| `npm --prefix backend run typecheck` | Backend TypeScript check |
+| `npm --prefix backend run test` | Backend Vitest suite |
+| `npm --prefix backend run prisma:validate` | Validate Prisma schema |
 
 ---
 
-## Quality gates
+## Testing and Quality
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
-lint (both packages), typecheck (both packages), the backend test suite, and a
-production build of each app. `deploy-backend.yml` re-runs the backend checks as a
-`needs:` gate, so a failing test cannot reach the VPS, and the deploy now fails if
-the container does not answer `/api/health` afterwards.
+Recommended checks before opening a PR:
 
-### Testing
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run build:backend
+```
 
-**Vitest**, 141 tests, colocated as `src/**/*.test.ts` in the backend.
+The backend test suite covers:
 
-Coverage is deliberately concentrated on logic that is pure or contract-defining,
-rather than on Prisma round-trips:
+- environment parsing and production fail-fast behavior
+- error envelope formatting
+- request validation
+- auth and registration behavior
+- AI output validation
+- nutrition helpers
+- workout and coach-domain business logic
 
-| Area | What is asserted |
-|---|---|
-| `services/errors` | Status→code mapping, and that 5xx messages are never exposed |
-| `middleware/error-handler` | The `{ data, error, meta }` envelope for every error class |
-| `middleware/validate` | Parsed values reach the handler; failures 422 with the offending path |
-| `middleware/rate-limit` | Per-caller bucketing; the raw access token never enters the key |
-| `config/env` | Defaults, placeholder rejection, Supabase URL inference, production fail-fast |
-| `routes/*.schemas` | Boundary limits on the AI and workout payloads |
-| `lib/cache` | TTL expiry and single-flight loading |
-| `lib/nutrition`, `services/nutrition` | Slug/diacritic handling and macro scaling |
-| `fitness-data/shared/dates` | UTC day keys vs. local windows, rollover rejection |
-
-Tests are hermetic: `ENV_SKIP_DOTENV=1` stops the suite from reading a developer's
-real `.env`, so results never depend on the machine and live credentials cannot
-reach test output.
-
-### Error model
-
-`services/errors.ts` defines `AppError` and its subclasses (`BadRequestError`,
-`UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`,
-`ValidationError`, `TooManyRequestsError`, `ExternalServiceError`).
-
-A single terminal middleware formats all of them. The `expose` flag is the load-
-bearing part: 4xx messages are written for end users and are sent as-is, while 5xx
-messages (which can carry connection strings or upstream payloads) are replaced by
-a generic string and only ever appear in the logs.
-
-`AuthServiceError` remains as a subclass so the ~226 existing throw sites keep
-working; new code should throw the specific classes.
-
-### Request hardening
-
-- **helmet** for transport and framing headers.
-- **Rate limits** per caller, keyed by a SHA-256 hash of the bearer token and
-  falling back to an IP bucket. `/api/ai/*` is limited separately and tightly —
-  those endpoints spend money at a metered LLM provider, so an unbounded caller is
-  a billing risk, not just a load problem.
-- **Zod validation** at the boundary for `/api/ai/*`, `/api/auth/*` and
-  `/api/workouts/*`. Business rules that already have localized Vietnamese messages
-  stay in the services; the schemas enforce shape and size.
-- **Request ids** (`x-request-id`, echoed on the response) propagated through
-  `AsyncLocalStorage`, so a service-level log line can be traced to its HTTP call
-  without threading an id through every signature.
-- **Structured logging** — single-line JSON in production, human-readable locally.
-- **Fail-fast config** — a production boot aborts with a list of what is missing
-  rather than starting half-configured and failing on the first request.
-- **Graceful shutdown** on SIGTERM, so a redeploy drains in-flight requests instead
-  of dropping Prisma connections on the PgBouncer pooler.
-
-Known, tracked shortfalls are recorded in [`docs/tech-debt.md`](docs/tech-debt.md).
+Tests are designed to avoid reading your real `.env` during test runs.
 
 ---
 
-## Conventions & ground rules
+## API Overview
 
-1. All backend API responses use the `{ data, error, meta }` envelope.
-2. Every route raises a typed `AppError` / `AuthServiceError` — never a raw `Error`.
-3. Prisma for all database access — no raw SQL except in migration files.
-4. Frontend components use **named** exports, not default exports.
-5. Every database change ships with a migration file **in `backend/prisma/migrations/`**.
-6. Commits follow **Conventional Commits** (`type(scope): description`).
-7. Never commit `.env`, credentials, or secrets.
-8. Server components fetch via server-side API calls; the service-role key is never exposed to the client.
+All backend routes are mounted under `/api`. The frontend reaches them through `/backend/api/*`.
 
-`CLAUDE.md` at the repo root is the authoritative, actively-maintained source for these rules and the current tech stack — treat it as the source of truth over this README or `AGENTS.md` if the three ever disagree.
+Public-ish endpoints:
+
+- `GET /api/health`
+- `GET /api/health/database`
+- `GET /api/health/supabase`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/forgot-password`
+
+Authenticated trainee areas:
+
+- `/api/dashboard`
+- `/api/workouts`
+- `/api/meals`
+- `/api/foods`
+- `/api/progress`
+- `/api/exercises`
+- `/api/notifications`
+- `/api/ai`
+
+Coach areas:
+
+- `/api/coach/dashboard`
+- `/api/coach/programs`
+- `/api/coach/trainees`
+- `/api/coach/exercises`
+- `/api/coach/requests`
+- `/api/coach/workout-logs/:id/comments`
+
+Admin areas:
+
+- `/api/admin/dashboard`
+- `/api/admin/users`
+- `/api/admin/connections`
+- `/api/admin/programs`
+- `/api/admin/exercises`
+- `/api/admin/audit-logs`
+
+Most API responses follow this shape:
+
+```json
+{
+  "data": null,
+  "error": null,
+  "meta": null
+}
+```
+
+Some legacy/auth endpoints return flatter resource payloads. New endpoints should prefer the envelope.
 
 ---
 
-## Auth & access model
+## Project Conventions
 
-- **Sessions** are Supabase Auth tokens stored in cookies via `@supabase/ssr`. The frontend forwards the access token to the backend on every API call.
-- The backend **verifies the token**, syncs a local `User` profile (auto-provisioned from Supabase metadata on first sight), and **enforces the role** before running any handler. A short-lived per-token cache avoids re-verifying on every request in a burst.
-- Role guards: `requireAppSession({ role })` on the frontend redirects unauthorized users; `assertTrainee` / `assertCoach` / `assertAdmin` on the backend reject them with a typed error.
-- **OAuth** (Google/Apple) and **email/password** are both supported, plus password reset and avatar uploads to Supabase Storage.
-
----
-
-## Known gotchas
-
-A few things that will trip up a new dev exploring this repo for the first time:
-
-- **Two `prisma/` folders.** `backend/prisma/` is canonical — it holds `schema.prisma` and the real migration history. There is also a stray top-level `prisma/migrations/20260628_add_ai_generation/` folder left over from a migration that was run from the wrong working directory. The `AIGeneration` model it describes **is** present in `backend/prisma/schema.prisma`, but don't add new migrations to the root folder — always run Prisma commands against `backend/prisma/`.
-- **`AGENTS.md` vs `CLAUDE.md` disagree on forms.** `AGENTS.md` (root) claims the frontend uses React Hook Form + Zod; it doesn't — there are zero `react-hook-form` imports in the codebase and neither package is a dependency. `CLAUDE.md` is correct: forms are plain controlled React components. Treat `CLAUDE.md` as authoritative and consider deleting/updating `AGENTS.md`.
-- **`lift-design-system/`** is a separate sub-project with its own `README.md` — it isn't wired into the main app's build and can generally be ignored unless you're working on shared design tokens/components.
-- **`docs/`** holds UML-style class/ERD/sequence diagrams and use-case specs. These are design references, not guaranteed to be in sync with the current schema — cross-check against `backend/prisma/schema.prisma` for anything load-bearing.
-- **AI generation requires a live API key.** Without `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` + `AI_PROVIDER=openai`), the `/api/ai/*` routes throw on first call — everything else in the app runs fine without them.
+- Use Prisma for database access. Raw SQL belongs in migration files only.
+- Keep database migrations in `backend/prisma/migrations`.
+- Backend errors should use `AppError` or a subclass.
+- 5xx errors should not expose internal details to clients.
+- Frontend components use named exports where practical.
+- Keep service-role keys and provider secrets server-side only.
+- Commit messages follow Conventional Commits, for example `feat(workout): add weekly schedule view`.
 
 ---
 
-## Deployment
+## Deployment Notes
 
-Production runs the backend as a **Docker Compose** service (`yeahbuddy-backend`, deployed to `backend.hominhduc.me`). Nginx reverse-proxies HTTPS traffic to `127.0.0.1:4000` inside the container. From the repo root on the VPS:
+The frontend and backend can be deployed separately.
+
+### Frontend
+
+The frontend is a standard Next.js app. Set:
+
+```bash
+NEXT_PUBLIC_APP_URL=https://your-domain.example
+NEXT_PUBLIC_API_URL=https://your-backend-domain.example
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+```
+
+### Backend
+
+The repository includes a production-style Docker setup:
 
 ```bash
 docker compose build backend
@@ -558,44 +511,56 @@ docker compose run --rm backend npx prisma migrate deploy
 docker compose up -d backend
 ```
 
-CI/CD is wired up in `.github/workflows/deploy-backend.yml` — pushes to `main` that touch `backend/**` or `docker-compose.yml` SSH into the VPS and run the three commands above. `backend/.env` is mounted via `env_file:` in Compose, and `PORT`/`NODE_ENV` are pinned in `environment:` so they can't drift. The frontend is deployed separately (see `.vercelignore` — Vercel-oriented).
+After every schema change, deploy code and Prisma migrations together. A common production failure is running migrations against the database while the backend container still uses an older generated Prisma Client.
 
 ---
 
-## Export workout logs to Google Sheets (n8n)
+## Contributing
 
-`N8N_LOGS_WEBHOOK_URL` is optional. When set, trainees and coaches can export workout logs to Google Sheets via n8n.
+Contributions are welcome.
 
-1. Create an n8n workflow with a `Webhook` trigger using `POST`.
-2. Copy the production webhook URL into `backend/.env` as `N8N_LOGS_WEBHOOK_URL`.
-3. Add a `Split Out` node for `body.rows`.
-4. Add a `Google Sheets` node with `Append Row`.
-5. Map row fields: `startedAt`, `plannedDate`, `traineeName`, `coachName`, `workoutName`, `exerciseName`, `setNumber`, `targetReps`, `actualReps`, `weight`, `rir`, `completed`, `totalVolume`, `notes`.
-6. Activate the workflow and restart the backend.
-7. Open Progress export or Coach trainee workout logs and click **Export to Google Sheets**.
+Good first areas:
 
-> Workouts and body-weight history can also be exported directly to Excel from the UI (`lib/workout-export-excel.ts`, `components/weight-tracking-export-excel.ts`) without any n8n setup.
+- UI polish and accessibility
+- Vietnamese and English copy improvements
+- test coverage around coach and trainee workflows
+- documentation improvements
+- import/export integrations
+- performance improvements for Prisma queries
 
----
+Suggested workflow:
 
-## Third-party assets
+1. Fork the repository.
+2. Create a branch from `main`.
+3. Make a focused change.
+4. Run the checks in [Testing and Quality](#testing-and-quality).
+5. Open a pull request with a clear description and screenshots for UI changes.
 
-### Body map SVG (`components/body/`)
-
-The anatomical figures behind `MuscleMap` are the male front/back artwork from
-[react-native-body-highlighter](https://github.com/HichamELBSI/react-native-body-highlighter)
-v3.2.0, © 2022 ELABBASSI Hicham, **MIT licensed**.
-
-That package renders through `react-native-svg` and lists `react-native` as a peer
-dependency, so it cannot be installed here. Only its SVG path data is reused — the
-rendering component (`components/body/muscle-map.tsx`) is ours. The data is not
-vendored by hand: `node scripts/extract-muscle-paths.mjs` reads the published tarball
-from the npm registry and regenerates `muscle-paths.front.ts`, `muscle-paths.back.ts`
-and `muscle-outline.ts`. Those three files are generated — edit the script, not them.
-To upgrade, bump `UPSTREAM_VERSION` in the script and re-run.
-
-Preview the result at `/dev/muscle-map` (no auth required).
+Please do not include real user data, credentials, screenshots with private data, or production `.env` values in issues or pull requests.
 
 ---
 
-<sub>Built with Next.js, Express, Prisma, and Supabase. UI localized for Vietnamese with an EN/VI toggle.</sub>
+## Security
+
+If you find a security issue, please do not open a public issue with exploit details. Contact the maintainer privately first.
+
+Important reminders for local and production setups:
+
+- Never commit `.env`, database URLs, API keys, or OAuth secrets.
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` to browser code.
+- Review Supabase RLS and table access before exposing a new table through public APIs.
+- Keep auth and authorization checks server-side.
+
+---
+
+## Third-party Assets
+
+The body map SVG data used by `components/body/` is derived from [`react-native-body-highlighter`](https://github.com/HichamELBSI/react-native-body-highlighter), MIT licensed.
+
+Generated files should be regenerated through the project scripts instead of edited by hand.
+
+---
+
+## License
+
+No license file is included yet. If you intend to make this repository truly open source, add a `LICENSE` file before publishing. MIT is a simple default for most app templates; choose something else if you need stronger conditions.

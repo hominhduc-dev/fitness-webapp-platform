@@ -158,7 +158,7 @@ Tài liệu này đặc tả 6 use case chính của hệ thống YeahBuddy Fitn
     <tr>
       <td>
         <strong>Ca sử dụng:</strong> Trainee ghi nhận dinh dưỡng và theo dõi tiến độ<br>
-        <strong>Các tác nhân:</strong> Trainee, Hệ thống, USDA API, AI Provider, PostgreSQL<br>
+        <strong>Các tác nhân:</strong> Trainee, Hệ thống, AI Provider, PostgreSQL<br>
         <strong>Điều kiện trước:</strong> Người dùng đã đăng nhập với vai trò trainee; ngày ghi nhận hợp lệ; food hoặc dữ liệu cân nặng nhập vào hợp lệ.<br>
         <strong>Điều kiện sau:</strong> Meal log, macro và body metrics được cập nhật; hệ thống hiển thị analytics tiến độ dựa trên meal, weight và workout log.<br>
         <strong>Mô tả:</strong> Trainee ghi nhận món ăn trong ngày, theo dõi tổng calories và macro, ghi cân nặng/body metrics và xem phân tích tiến độ tập luyện. AI meal plan là luồng mở rộng hỗ trợ tạo thực đơn và ghi vào meal log.
@@ -194,7 +194,6 @@ Tài liệu này đặc tả 6 use case chính của hệ thống YeahBuddy Fitn
           <li>Trainee xóa món khỏi bữa ăn: hệ thống gọi <code>DELETE /api/meals/items/:itemId</code>.</li>
           <li>Trainee cập nhật nutrition target: hệ thống gọi <code>PATCH /api/auth/me</code>.</li>
           <li>Trainee dùng AI meal plan: hệ thống gọi <code>POST /api/ai/generate-meal-plan</code> và accept bằng <code>POST /api/ai/accept-meal-plan</code>.</li>
-          <li>USDA API lỗi: hệ thống vẫn trả kết quả food local nếu có.</li>
           <li>Chưa có workout log hoặc body metrics: hệ thống hiển thị trạng thái rỗng cho analytics.</li>
           <li>Ngày, tháng hoặc năm không hợp lệ: hệ thống thông báo lỗi nhập liệu.</li>
         </ol>
