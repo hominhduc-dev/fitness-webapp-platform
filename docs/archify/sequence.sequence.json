@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "YeahBuddy Core Request Sequence",
+    "output": "docs/archify/sequence.html",
+    "viewBox": [1052, 860],
+    "column_fit": "spread",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "auth", "label": "Auth", "focus": ["user", "next", "express", "auth"], "note": "Every protected request carries a Supabase access token." },
+      { "id": "workout", "label": "Workout logging", "focus": ["workoutRoute", "fitness", "prisma", "postgres"], "note": "Workout completion persists snapshots and totals through Prisma." },
+      { "id": "feedback", "label": "Feedback loop", "focus": ["coachRoute", "fitness", "prisma", "postgres", "next"], "note": "Coach review reads the trainee history and writes feedback comments." }
+    ]
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "User", "sublabel": "trainee or coach" },
+    { "id": "next", "type": "frontend", "label": "Next.js App", "sublabel": "SSR + client UI" },
+    { "id": "express", "type": "backend", "label": "Express API", "sublabel": "/api/* routers" },
+    { "id": "auth", "type": "security", "label": "Auth Service", "sublabel": "Supabase verify" },
+    { "id": "workoutRoute", "type": "backend", "label": "Workout Route", "sublabel": "/api/workouts" },
+    { "id": "coachRoute", "type": "backend", "label": "Coach Route", "sublabel": "/api/coach" },
+    { "id": "fitness", "type": "backend", "label": "Fitness", "sublabel": "role logic" },
+    { "id": "prisma", "type": "database", "label": "Prisma", "sublabel": "typed queries" },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "Supabase DB" }
+  ],
+  "segments": [
+    { "from": 160, "to": 320, "label": "Authenticate request" },
+    { "from": 340, "to": 584, "label": "Trainee logs workout" },
+    { "from": 612, "to": 804, "label": "Coach reviews trainee" }
+  ],
+  "messages": [
+    { "id": "open", "from": "user", "to": "next", "y": 190, "label": "open dashboard or coach page" },
+    { "id": "api-call", "from": "next", "to": "express", "y": 232, "label": "GET /backend/api/* with bearer token", "variant": "emphasis" },
+    { "id": "require-profile", "from": "express", "to": "auth", "y": 274, "label": "requireCurrentProfile()", "variant": "security" },
+    { "id": "profile-ok", "from": "auth", "to": "express", "y": 314, "label": "profile + role", "variant": "return" },
+    { "id": "start-workout", "from": "user", "to": "next", "y": 365, "label": "complete workout session" },
+    { "id": "post-log", "from": "next", "to": "workoutRoute", "y": 410, "label": "POST /api/workouts/:id/logs", "variant": "emphasis" },
+    { "id": "route-service", "from": "workoutRoute", "to": "fitness", "y": 455, "label": "createWorkoutLogForTrainee()" },
+    { "id": "role-check", "from": "fitness", "to": "auth", "y": 495, "label": "assertTrainee + ownership", "variant": "security" },
+    { "id": "role-ok", "from": "auth", "to": "fitness", "y": 532, "label": "allowed", "variant": "return" },
+    { "id": "persist-log", "from": "fitness", "to": "prisma", "y": 560, "label": "create WorkoutLog + snapshots", "variant": "emphasis" },
+    { "id": "sql-write", "from": "prisma", "to": "postgres", "y": 608, "label": "INSERT / UPDATE", "variant": "emphasis" },
+    { "id": "write-ok", "from": "postgres", "to": "prisma", "y": 646, "label": "stored rows", "variant": "return" },
+    { "id": "log-response", "from": "fitness", "to": "next", "y": 684, "label": "201 log payload", "variant": "return" },
+    { "id": "coach-open", "from": "user", "to": "next", "y": 724, "label": "coach opens trainee detail" },
+    { "id": "coach-api", "from": "next", "to": "coachRoute", "y": 750, "label": "GET /api/coach/trainees/:id", "variant": "emphasis" },
+    { "id": "coach-service", "from": "coachRoute", "to": "fitness", "y": 776, "label": "scope + aggregate logs", "variant": "security" }
+  ],
+  "activations": [
+    { "participant": "next", "from": 190, "to": 755, "type": "frontend" },
+    { "participant": "express", "from": 232, "to": 320, "type": "backend" },
+    { "participant": "auth", "from": 270, "to": 318, "type": "security" },
+    { "participant": "workoutRoute", "from": 410, "to": 462, "type": "backend" },
+    { "participant": "coachRoute", "from": 745, "to": 780, "type": "backend" },
+    { "participant": "fitness", "from": 455, "to": 780, "type": "backend" },
+    { "participant": "prisma", "from": 560, "to": 650, "type": "database" },
+    { "participant": "postgres", "from": 608, "to": 646, "type": "database" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Protected Request Pattern", "items": ["Next.js forwards the access token to Express", "Express resolves the current profile before domain work"] },
+    { "dot": "cyan", "title": "Workout Write Path", "items": ["The service verifies trainee ownership", "Logs persist snapshots so history survives program edits"] },
+    { "dot": "violet", "title": "Coach Feedback Loop", "items": ["Coach reads are scoped to owned trainees", "The same workout history powers review and check-ins"] }
+  ]
+}

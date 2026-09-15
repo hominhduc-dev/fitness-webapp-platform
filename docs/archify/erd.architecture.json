@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "YeahBuddy ERD Overview",
+    "output": "docs/archify/erd.html",
+    "viewBox": [1160, 820],
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "identity", "label": "Identity", "focus": ["auth", "user", "coachRequest"], "note": "User stores app identity, role, goals, and coach relationship state." },
+      { "id": "training", "label": "Training", "focus": ["program", "assignment", "workout", "exerciseTree", "workoutLog"], "note": "Programs become assigned workouts and completed workout logs." },
+      { "id": "nutrition", "label": "Nutrition", "focus": ["food", "meal", "ai"], "note": "Food catalog entries are logged into meals; AI drafts materialize after acceptance." }
+    ]
+  },
+  "components": [
+    { "id": "auth", "type": "security", "label": "Supabase Auth", "sublabel": "external user id", "pos": [60, 100], "size": [170, 70] },
+    { "id": "user", "type": "database", "label": "User", "sublabel": "role, goals, coachId", "pos": [60, 310], "size": [170, 76] },
+    { "id": "coachRequest", "type": "database", "label": "CoachRequest", "sublabel": "trainee, coach, status", "pos": [315, 100], "size": [180, 70] },
+    { "id": "program", "type": "database", "label": "Program", "sublabel": "owner, duration, level", "pos": [315, 310], "size": [180, 76] },
+    { "id": "assignment", "type": "database", "label": "ProgramAssignment", "sublabel": "program and trainee", "pos": [570, 190], "size": [190, 76] },
+    { "id": "workout", "type": "database", "label": "Workout", "sublabel": "week and schedule", "pos": [570, 410], "size": [190, 76] },
+    { "id": "exerciseTree", "type": "database", "label": "Exercise Tree", "sublabel": "exercise, variation, set", "pos": [825, 300], "size": [190, 76] },
+    { "id": "workoutLog", "type": "database", "label": "WorkoutLog", "sublabel": "snapshots and volume", "pos": [825, 500], "size": [190, 76] },
+    { "id": "food", "type": "database", "label": "Food", "sublabel": "system and user foods", "pos": [315, 610], "size": [180, 76] },
+    { "id": "meal", "type": "database", "label": "Meal + Items", "sublabel": "macros and snapshots", "pos": [570, 610], "size": [190, 76] },
+    { "id": "progress", "type": "database", "label": "Progress Records", "sublabel": "metrics, recovery, notes", "pos": [825, 690], "size": [190, 76] },
+    { "id": "ai", "type": "external", "label": "AIGeneration", "sublabel": "draft status output", "pos": [60, 610], "size": [170, 76] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Identity", "wraps": ["auth", "user", "coachRequest"] },
+    { "kind": "region", "label": "Training Domain", "wraps": ["program", "assignment", "workout", "exerciseTree", "workoutLog"] },
+    { "kind": "region", "label": "Nutrition + Insights", "wraps": ["food", "meal", "progress", "ai"] }
+  ],
+  "connections": [
+    { "id": "auth-user", "from": "auth", "to": "user", "variant": "security" },
+    { "id": "user-request", "from": "user", "to": "coachRequest" },
+    { "id": "user-program", "from": "user", "to": "program", "variant": "emphasis" },
+    { "id": "program-assignment", "from": "program", "to": "assignment", "variant": "emphasis" },
+    { "id": "program-workout", "from": "program", "to": "workout", "variant": "emphasis" },
+    { "id": "workout-exercise", "from": "workout", "to": "exerciseTree", "variant": "emphasis" },
+    { "id": "workout-log", "from": "workout", "to": "workoutLog" },
+    { "id": "food-meal", "from": "food", "to": "meal" },
+    { "id": "meal-progress", "from": "meal", "to": "progress" },
+    { "id": "log-progress", "from": "workoutLog", "to": "progress" },
+    { "id": "ai-program", "from": "ai", "to": "program", "variant": "dashed" },
+    { "id": "ai-meal", "from": "ai", "to": "meal", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "route": "orthogonal-h", "via": [[145, 760], [665, 760]] }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Core Spine", "items": ["User anchors identity, roles, goals, and ownership", "Program and Workout model the planned training structure"] },
+    { "dot": "cyan", "title": "History", "items": ["WorkoutLog stores snapshots for durable history", "Meal items keep nutrition snapshots for reporting"] },
+    { "dot": "violet", "title": "Derived Data", "items": ["Progress records and AI drafts sit outside the core tables", "Accepted AI drafts materialize into ordinary program or meal records"] }
+  ]
+}

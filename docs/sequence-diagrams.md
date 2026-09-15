@@ -325,7 +325,6 @@ sequenceDiagram
   participant FitnessService as Fitness Data Service
   participant AIService as AI Service
   participant AIProvider as OpenAI or Anthropic
-  participant USDA as USDA API
   participant Prisma as Prisma
   participant DB as PostgreSQL
 
@@ -348,10 +347,6 @@ sequenceDiagram
   NutritionService->>Prisma: Search local foods
   Prisma->>DB: SELECT foods
   DB-->>Prisma: foods
-  alt Không đủ kết quả local và có USDA key
-    NutritionService->>USDA: Search FoodData Central
-    USDA-->>NutritionService: external foods
-  end
   NutritionService-->>API: foods
   API-->>Next: foods
   Next-->>Browser: Hiển thị food picker

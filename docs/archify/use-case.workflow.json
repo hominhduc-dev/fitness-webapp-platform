@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "YeahBuddy Use Case Map",
+    "output": "docs/archify/use-case.html",
+    "viewBox": [1081, 1680],
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "trainee", "label": "Trainee flow", "focus": ["visitor", "register", "dashboard", "logWorkout", "logMeals", "progress"], "note": "A trainee signs in, trains, logs nutrition, and reviews progress." },
+      { "id": "coach", "label": "Coach flow", "focus": ["coachLogin", "createProgram", "assignProgram", "reviewLogs", "checkIn"], "note": "A coach authors programs, assigns them, and reviews trainee activity." },
+      { "id": "admin", "label": "Admin flow", "focus": ["adminLogin", "manageUsers", "curateLibrary", "audit"], "note": "Admins manage platform data and audit operational changes." }
+    ]
+  },
+  "lanes": [
+    { "id": "public", "label": "Visitor" },
+    { "id": "trainee", "label": "Trainee" },
+    { "id": "coach", "label": "Coach" },
+    { "id": "admin", "label": "Admin" },
+    { "id": "system", "label": "System Services" },
+    { "id": "optional", "label": "Optional Integrations", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "enter", "label": "Enter", "fromCol": 0, "toCol": 1 },
+    { "id": "dailyUse", "label": "Daily use", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "manage", "label": "Manage + extend", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["visitor", "register", "dashboard", "logWorkout", "progress"],
+  "nodes": [
+    { "id": "visitor", "lane": "public", "col": 0, "type": "external", "label": "Open Landing", "sublabel": "/" },
+    { "id": "register", "lane": "public", "col": 1, "type": "security", "label": "Sign In", "sublabel": "Supabase Auth", "width": 120 },
+    { "id": "dashboard", "lane": "trainee", "col": 2, "type": "frontend", "label": "Dashboard", "sublabel": "today plan + stats", "width": 125 },
+    { "id": "logWorkout", "lane": "trainee", "col": 3, "type": "backend", "label": "Log Workout", "sublabel": "sets, reps, weight" },
+    { "id": "logMeals", "lane": "trainee", "col": 3, "type": "backend", "label": "Log Meals", "sublabel": "foods + macros", "yOffset": 68 },
+    { "id": "progress", "lane": "trainee", "col": 4, "type": "database", "label": "Progress", "sublabel": "volume, PRs, metrics", "width": 120 },
+    { "id": "findCoach", "lane": "trainee", "col": 5, "type": "frontend", "label": "Find Coach", "sublabel": "coach requests" },
+    { "id": "coachLogin", "lane": "coach", "col": 1, "type": "security", "label": "Coach Login", "sublabel": "role guard" },
+    { "id": "createProgram", "lane": "coach", "col": 2, "type": "backend", "label": "Create Program", "sublabel": "weeks + workouts" },
+    { "id": "assignProgram", "lane": "coach", "col": 3, "type": "backend", "label": "Assign Program", "sublabel": "trainee plan" },
+    { "id": "reviewLogs", "lane": "coach", "col": 4, "type": "database", "label": "Review Logs", "sublabel": "history" },
+    { "id": "checkIn", "lane": "coach", "col": 5, "type": "backend", "label": "Check-in", "sublabel": "feedback" },
+    { "id": "adminLogin", "lane": "admin", "col": 1, "type": "security", "label": "Admin Login", "sublabel": "admin guard" },
+    { "id": "manageUsers", "lane": "admin", "col": 2, "type": "backend", "label": "Manage Users", "sublabel": "roles + active state" },
+    { "id": "curateLibrary", "lane": "admin", "col": 3, "type": "database", "label": "Curate Library", "sublabel": "exercise + food data" },
+    { "id": "audit", "lane": "admin", "col": 4, "type": "database", "label": "Audit Changes", "sublabel": "AdminAuditLog" },
+    { "id": "notifications", "lane": "system", "col": 5, "type": "messagebus", "label": "Notify Users", "sublabel": "in-app notifications" },
+    { "id": "aiGenerate", "lane": "optional", "col": 4, "type": "external", "label": "AI Generation", "sublabel": "Anthropic/OpenAI" },
+    { "id": "imports", "lane": "optional", "col": 5, "type": "external", "label": "Imports", "sublabel": "Google Sheets / Notion", "width": 120 }
+  ],
+  "edges": [
+    { "id": "visitor-register", "from": "visitor", "to": "register", "label": "auth modal", "role": "main" },
+    { "id": "register-dashboard", "from": "register", "to": "dashboard", "label": "trainee role", "role": "main", "variant": "security" },
+    { "id": "dashboard-workout", "from": "dashboard", "to": "logWorkout", "label": "start planned day", "role": "main", "variant": "emphasis" },
+    { "id": "workout-progress", "from": "logWorkout", "to": "progress", "label": "completed log", "role": "main", "variant": "emphasis" },
+    { "id": "dashboard-meals", "from": "dashboard", "to": "logMeals", "label": "daily intake", "role": "branch" },
+    { "id": "meals-progress", "from": "logMeals", "to": "progress", "label": "nutrition totals", "role": "branch" },
+    { "id": "dashboard-find-coach", "from": "dashboard", "to": "findCoach", "label": "request coach", "role": "branch" },
+    { "id": "coach-program", "from": "coachLogin", "to": "createProgram", "label": "author", "role": "branch" },
+    { "id": "program-assign", "from": "createProgram", "to": "assignProgram", "label": "publish plan", "role": "branch", "variant": "emphasis" },
+    { "id": "assign-review", "from": "assignProgram", "to": "reviewLogs", "label": "monitor trainee", "role": "branch" },
+    { "id": "review-checkin", "from": "reviewLogs", "to": "checkIn", "label": "coach feedback", "role": "branch" },
+    { "id": "admin-users", "from": "adminLogin", "to": "manageUsers", "label": "operate", "role": "branch", "variant": "security" },
+    { "id": "users-library", "from": "manageUsers", "to": "curateLibrary", "label": "approve data", "role": "branch" },
+    { "id": "library-audit", "from": "curateLibrary", "to": "audit", "label": "record admin action", "role": "branch" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Primary Product Loop", "items": ["Trainees enter through auth, train, log meals, and review progress", "Coaches create programs and review the same logs trainees produce"] },
+    { "dot": "rose", "title": "Role Boundaries", "items": ["Trainee, coach, and admin capabilities are separated by role guards", "Admin changes are represented as audit records"] },
+    { "dot": "violet", "title": "Optional Extensions", "items": ["AI drafts and external imports enrich the core workflow", "The core app still works without optional provider keys"] }
+  ]
+}

@@ -19,9 +19,6 @@ const REQUIRED_KEYS = [
   "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_URL",
-  "USDA_API_BASE_URL",
-  "USDA_API_KEY",
-  "USDA_TIMEOUT_MS",
 ] as const
 
 const originalEnv = { ...process.env }
@@ -74,7 +71,6 @@ describe("env defaults", () => {
     expect(env.port).toBe(4000)
     expect(env.aiProvider).toBe("anthropic")
     expect(env.frontendUrl).toBe("http://localhost:3000")
-    expect(env.usdaTimeoutMs).toBe(8000)
     expect(env.prismaSlowQueryMs).toBe(0)
   })
 
