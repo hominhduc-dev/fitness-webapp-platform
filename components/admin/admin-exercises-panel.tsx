@@ -847,7 +847,7 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
 
               {/* Name, with variation/equipment inline on mobile */}
               <div className="flex min-w-0 items-center gap-2">
-                <ExerciseThumbnail media={e.media} name={e.name} />
+                <ExerciseThumbnail media={e.media} name={e.name} previewable />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
