@@ -1,4 +1,4 @@
-import { FoodCategory, FoodSource, MealType, type Prisma } from "@prisma/client"
+import { FoodCategory, FoodSource, MealStatus, MealType, type Prisma } from "@prisma/client"
 
 import { CACHE_KEYS, FOOD_CATALOG_TTL_MS, libraryCache } from "../lib/library-cache"
 import { buildFoodSlug, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
@@ -236,6 +236,9 @@ async function listRecentFoodsForUser(profile: SerializedProfile) {
     where: {
       meal: {
         userId: profile.id,
+        status: {
+          not: MealStatus.planned,
+        },
       },
     },
   })
@@ -274,7 +277,9 @@ async function listNutritionDayForUser(profile: SerializedProfile, rawDate?: unk
     }),
     listRecentFoodsForUser(profile),
   ])
-  const mealsByType = new Map(meals.map((meal) => [meal.type, meal]))
+  const consumedMeals = meals.filter((meal) => meal.status === MealStatus.consumed)
+  const plannedMeals = meals.filter((meal) => meal.status === MealStatus.planned)
+  const mealsByType = new Map(consumedMeals.map((meal) => [meal.type, meal]))
   const sections = MEAL_ORDER.map((type) => {
     const meal = mealsByType.get(type)
     return meal ? serializeMealSection(meal as MealWithFoodRecord) : emptyMealSection(type)
@@ -284,6 +289,7 @@ async function listNutritionDayForUser(profile: SerializedProfile, rawDate?: unk
   return {
     date: formatDateKey(loggedDate),
     meals: sections,
+    plannedMeals: plannedMeals.map((meal) => serializeMealSection(meal as MealWithFoodRecord)),
     recentFoods,
     targets: buildTargets(profile),
     totals: {
@@ -469,6 +475,7 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
   const db = transaction ?? ensurePrisma()
   const loggedDate = parseDateKey(input.date)
   const type = parseMealType(input.mealType)
+  const status = input.status === MealStatus.planned ? MealStatus.planned : MealStatus.consumed
   const foodId = sanitizeText(input.foodId, "foodId")
   const amountValue = parsePositiveNumber(input.amountValue, "amountValue", 5000)
   const amountUnit = normalizeAmountUnit(input.amountUnit)
@@ -526,6 +533,7 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
       sodium: 0,
       sugar: 0,
       type,
+      status,
       userId: profile.id,
     },
     include: MEAL_WITH_FOOD_INCLUDE,
@@ -536,8 +544,9 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
       name: MEAL_LABELS[type],
     },
     where: {
-      userId_loggedDate_type: {
+      userId_loggedDate_type_status: {
         loggedDate,
+        status,
         type,
         userId: profile.id,
       },
@@ -565,6 +574,65 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
   })
 
   return serializeMealSection({ ...mealWithItems, ...roundedTotals } as MealWithFoodRecord)
+}
+
+async function consumePlannedMealsForUser(profile: SerializedProfile, rawDate?: unknown) {
+  const db = ensurePrisma()
+  const loggedDate = parseDateKey(rawDate)
+
+  await db.$transaction(async (tx) => {
+    const plannedMeals = await tx.meal.findMany({
+      include: { items: true },
+      where: { loggedDate, status: MealStatus.planned, userId: profile.id },
+    })
+
+    if (plannedMeals.length === 0) {
+      throw new AuthServiceError("Không có thực đơn dự kiến để xác nhận.", 404)
+    }
+
+    for (const planned of plannedMeals) {
+      const consumed = await tx.meal.upsert({
+        create: {
+          calories: 0,
+          carbs: 0,
+          fat: 0,
+          fiber: 0,
+          loggedDate,
+          name: planned.name,
+          protein: 0,
+          recordedAt: new Date(),
+          sodium: 0,
+          status: MealStatus.consumed,
+          sugar: 0,
+          type: planned.type,
+          userId: profile.id,
+        },
+        update: { name: planned.name, recordedAt: new Date() },
+        where: {
+          userId_loggedDate_type_status: {
+            loggedDate,
+            status: MealStatus.consumed,
+            type: planned.type,
+            userId: profile.id,
+          },
+        },
+      })
+
+      await tx.mealFoodItem.updateMany({ where: { mealId: planned.id }, data: { mealId: consumed.id } })
+      await tx.meal.delete({ where: { id: planned.id } })
+      const items = await tx.mealFoodItem.findMany({ where: { mealId: consumed.id } })
+      const totals = sumItems(items)
+      await tx.meal.update({
+        data: {
+          calories: roundNutrition(totals.calories), carbs: roundNutrition(totals.carbs), fat: roundNutrition(totals.fat),
+          fiber: roundNutrition(totals.fiber), protein: roundNutrition(totals.protein), sodium: roundNutrition(totals.sodium, 0), sugar: roundNutrition(totals.sugar),
+        },
+        where: { id: consumed.id },
+      })
+    }
+  })
+
+  return listNutritionDayForUser(profile, formatDateKey(loggedDate))
 }
 
 async function deleteMealItemForUser(profile: SerializedProfile, itemId: string) {
@@ -596,6 +664,7 @@ async function deleteMealItemForUser(profile: SerializedProfile, itemId: string)
 
 export {
   addMealItemForUser,
+  consumePlannedMealsForUser,
   calculateItemNutrition,
   createFoodForUser,
   deleteMealItemForUser,

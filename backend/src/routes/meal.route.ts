@@ -3,6 +3,7 @@ import { Router } from "express"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   addMealItemForUser,
+  consumePlannedMealsForUser,
   deleteMealItemForUser,
   listNutritionDayForUser,
 } from "../services/nutrition.service"
@@ -27,6 +28,15 @@ mealRouter.post("/items", async (req, res) => {
     const meal = await addMealItemForUser(profile.profile, req.body)
 
     sendData(res, { meal }, { status: 201 })
+  } catch (error) {
+    sendApiError(res, error)
+  }
+})
+
+mealRouter.post("/plans/consume", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await consumePlannedMealsForUser(profile.profile, req.body?.date))
   } catch (error) {
     sendApiError(res, error)
   }

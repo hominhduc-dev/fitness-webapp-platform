@@ -1,4 +1,4 @@
-import { AIGenerationStatus, AIGenerationType, FoodSource, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
+import { AIGenerationStatus, AIGenerationType, FoodSource, MealStatus, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { generateValidatedJSON } from "../lib/ai/validated-generation"
 
@@ -15,6 +15,7 @@ import {
 } from "./ai/chat-tools"
 import { DailyCounter } from "./ai/daily-counter"
 import { buildTraineeChatContext } from "./ai/context/builder"
+import { buildRecoveryContext } from "./ai/context/recovery-context"
 import { parseExerciseSnapshot } from "./ai/context/helpers"
 import { selectCatalogForPrompt } from "./ai/exercise-catalog"
 import { claimGeneration, validateAccessibleVariations } from "./ai/acceptance"
@@ -224,6 +225,7 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
       recentExerciseNames,
     },
   )
+  const recoveryContext = await buildRecoveryContext(db, profile, new Date())
 
   const systemPrompt = `Bạn là một personal trainer AI chuyên nghiệp. Tạo chương trình tập luyện cá nhân hoá dựa trên thông tin người dùng.
 
@@ -235,7 +237,7 @@ QUY TẮC BẮT BUỘC:
 5. kind phải là một trong: push, pull, legs, full_body, cardio, other.
 6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.
 7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.
-8. Mọi bài tập BẮT BUỘC có sets (số nguyên 1-50) và reps (số nguyên dương). repsMin chỉ là cận dưới tùy chọn, không thay thế reps và không được lớn hơn reps. Không dùng reps/repsMin để biểu diễn giây hoặc phút.`
+8. Mọi bài tập BẮT BUỘC có sets (số nguyên 1-12) và reps (số nguyên 1-200). Tổng sets phải phù hợp thời lượng; không nhồi volume quá mức. repsMin chỉ là cận dưới tùy chọn, không thay thế reps.`
 
   const weightInfo = profile.targetWeightKg
     ? `Cân nặng mục tiêu: ${profile.targetWeightKg}kg`
@@ -244,6 +246,7 @@ QUY TẮC BẮT BUỘC:
 
   const userPrompt = `## Thông tin người dùng
 - Mục tiêu: ${GOAL_LABELS[input.goal] ?? input.goal}
+- Recovery / Readiness: ${recoveryContext?.content ?? "Chưa có dữ liệu phục hồi; không tự suy đoán."}
 - Trình độ: ${LEVEL_LABELS[input.experienceLevel] ?? input.experienceLevel}
 - ${heightInfo} ${weightInfo}
 - Số buổi/tuần: ${input.daysPerWeek}
@@ -303,6 +306,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
     const aiOutput = parseAI(programOutputSchema, normalizeAIWorkoutOutput(response.data))
     if (aiOutput.workouts.some(w => w.duration > input.sessionDuration)) throw new AppError("Thời lượng AI tạo vượt quá yêu cầu. Hãy tạo lại.", { status: 422 })
     if (aiOutput.workouts.length !== input.daysPerWeek) throw new AppError("Số buổi AI tạo không khớp yêu cầu. Hãy tạo lại.", { status: 422 })
+    validateWorkoutWorkload(aiOutput.workouts, input.sessionDuration)
 
     const mappedWorkouts = aiOutput.workouts.map((workout) => {
       const mappedExercises = workout.exercises
@@ -624,6 +628,7 @@ async function generateDailyWorkout(profile: SerializedProfile, input: GenerateD
     orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
   })
   const catalogForPrompt = selectCatalogForPrompt(exercises, input)
+  const recoveryContext = await buildRecoveryContext(db, profile, new Date())
   const recentLogs = await db.workoutLog.count({
     where: { userId: profile.id, startedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
   })
@@ -659,6 +664,7 @@ QUY TẮC BẮT BUỘC:
 ${input.focusAreas?.length ? `- Nhóm cơ hôm nay: ${input.focusAreas.join(", ")}` : "- Nhóm cơ hôm nay: AI tự cân đối"}
 ${input.injuries ? `- Chấn thương/hạn chế: ${input.injuries}` : "- Không khai báo chấn thương"}
 - Số buổi đã tập trong 30 ngày: ${recentLogs}
+\n## Recovery / Readiness\n${recoveryContext?.content ?? "Chưa có dữ liệu phục hồi; không tự suy đoán."}
 
 ## Exercise Catalog
 ${JSON.stringify(catalogForPrompt)}
@@ -705,6 +711,7 @@ ${JSON.stringify(catalogForPrompt)}
       warmup: raw.warmup,
       exercises: mappedExercises,
     }
+    validateWorkoutWorkload([raw], input.sessionDuration)
     await db.aIGeneration.update({
       where: { id: generation.id },
       data: {
@@ -1066,18 +1073,19 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
     // Recalculate against today's catalog and goals inside the same transaction.
     const ids = [...new Set(meals.flatMap(meal => meal.items.map(item => item.foodId)))]
     const foods = await tx.food.findMany({ where: { id: { in: ids }, OR: [{ source: FoodSource.system }, { source: FoodSource.user, createdById: profile.id }] } })
-    let calories = 0
+    let totals = { calories: 0, protein: 0, carbs: 0, fat: 0 }
     for (const meal of meals) for (const item of meal.items) {
       const food = foods.find(f => f.id === item.foodId)
       if (!food || (item.amountUnit !== "serving" && (item.amountUnit !== food.servingUnit || food.servingAmount <= 0))) {
         throw new AppError("Thực phẩm đã thay đổi, bị xóa hoặc không thể quy đổi khẩu phần. Chưa lưu món nào; hãy tạo lại.", { status: 422, code: "AI_CATALOG_CHANGED" })
       }
-      calories += calculateItemNutrition(food, item).calories
+      const nutrition = calculateItemNutrition(food, item)
+      totals = { calories: totals.calories + nutrition.calories, protein: totals.protein + (nutrition.protein ?? 0), carbs: totals.carbs + (nutrition.carbs ?? 0), fat: totals.fat + (nutrition.fat ?? 0) }
     }
-    validateCalorieTarget(calories, profile.dailyCalorieGoal)
+    validateNutritionTargets(totals, profile)
     let logged = 0
     for (const meal of meals) for (const item of meal.items) {
-      await addMealItemForUser(profile, { date: targetDate, mealType: meal.type, ...item }, tx)
+      await addMealItemForUser(profile, { date: targetDate, mealType: meal.type, status: MealStatus.planned, ...item }, tx)
       logged += 1
     }
     return { accepted: true, logged, skipped: 0 }
@@ -1088,6 +1096,33 @@ function validateCalorieTarget(calories: number, goal: number) {
   if (!Number.isFinite(goal) || goal <= 0) throw new AppError("Hãy cập nhật mục tiêu calories trước khi tạo thực đơn.", { status: 422 })
   if (!Number.isFinite(calories) || Math.abs(calories - goal) > goal * 0.1 + 0.01) {
     throw new AppError(`Thực đơn tính từ khẩu phần có ${Math.round(calories)} kcal, nằm ngoài ±10% mục tiêu ${goal} kcal. Hãy tạo lại.`, { status: 422, code: "AI_NUTRITION_TARGET_MISMATCH" })
+  }
+}
+
+function validateNutritionTargets(totals: { calories: number; protein: number; carbs: number; fat: number }, profile: SerializedProfile) {
+  validateCalorieTarget(totals.calories, profile.dailyCalorieGoal)
+  // Macro goals have historically been database defaults. Enforce them when
+  // the user has customised at least one target; calories remain mandatory.
+  const hasCustomMacroTargets = profile.dailyProteinGoal !== 140 || profile.dailyCarbsGoal !== 280 || profile.dailyFatGoal !== 70
+  if (!hasCustomMacroTargets) return
+  const checks: Array<[string, number, number, number]> = [
+    ["protein", totals.protein, profile.dailyProteinGoal ?? 0, 20],
+    ["carbs", totals.carbs, profile.dailyCarbsGoal ?? 0, 40],
+    ["fat", totals.fat, profile.dailyFatGoal ?? 0, 15],
+  ]
+  const failed = checks.filter(([, actual, goal, floor]) => goal > 0 && Math.abs(actual - goal) > Math.max(goal * 0.25, floor))
+  if (failed.length > 0) {
+    throw new AppError(`Macro ngoài ngưỡng mục tiêu: ${failed.map(([name, actual, goal]) => `${name} ${Math.round(actual)} so với ${goal}g`).join(", ")}. Hãy tạo lại.`, { status: 422, code: "AI_MACRO_TARGET_MISMATCH" })
+  }
+}
+
+function validateWorkoutWorkload(workouts: Array<{ duration: number; exercises: Array<{ sets: number; reps: number }> }>, sessionDuration: number) {
+  for (const workout of workouts) {
+    const totalSets = workout.exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
+    const maxSets = Math.max(8, Math.floor(sessionDuration / 2))
+    if (totalSets > maxSets) {
+      throw new AppError(`Volume buổi tập quá cao (${totalSets} sets cho ${sessionDuration} phút). Hãy tạo lại.`, { status: 422, code: "AI_WORKLOAD_TOO_HIGH" })
+    }
   }
 }
 
@@ -1325,18 +1360,24 @@ async function chatWithAI(
     }
   }
 
-  const followUp = await ai.generateWithTools({
-    systemPrompt,
-    messages: [
-      ...messages,
-      { role: "assistant", content: turn.text, toolCalls: turn.toolCalls },
-      ...toolResults,
-    ],
-    tools: chatTools,
-    maxTokens: 1024,
-  })
-
-  const reply = followUp.text.trim() || turn.text.trim() || FALLBACK_REPLY
+  let reply = turn.text.trim() || FALLBACK_REPLY
+  try {
+    const followUp = await ai.generateWithTools({
+      systemPrompt,
+      messages: [
+        ...messages,
+        { role: "assistant", content: turn.text, toolCalls: turn.toolCalls },
+        ...toolResults,
+      ],
+      tools: chatTools,
+      maxTokens: 1024,
+    })
+    reply = followUp.text.trim() || reply
+  } catch {
+    // The draft action is already persisted; keep it visible when the
+    // explanatory follow-up provider call fails.
+    reply = action ? "Mình đã tạo bản nháp. Bạn kiểm tra nội dung và bấm xác nhận trong ứng dụng để lưu nhé." : reply
+  }
   return action ? { reply, action } : { reply }
 }
 

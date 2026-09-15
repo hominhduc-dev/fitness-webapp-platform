@@ -59,6 +59,7 @@ function serializeMealRecord(meal: MealWithFoodRecord) {
     sugar: meal.sugar ?? undefined,
     time: meal.recordedAt,
     type: meal.type,
+    status: meal.status,
   }
 }
 

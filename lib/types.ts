@@ -229,6 +229,7 @@ export interface MealItem {
 export interface Meal {
   id?: string
   type: MealType
+  status?: "planned" | "consumed"
   name: string
   calories: number
   items?: MealItem[]
