@@ -175,6 +175,7 @@ type SerializedMeal = {
   sugar?: number
   time?: string
   type: Meal["type"]
+  status?: Meal["status"]
 }
 
 type SerializedMealItem = {
@@ -262,6 +263,7 @@ type NutritionTotals = {
 type NutritionDay = {
   date: Date
   meals: Meal[]
+  plannedMeals?: Meal[]
   recentFoods: NutritionFood[]
   targets: NutritionTargets
   totals: NutritionTotals
@@ -762,6 +764,7 @@ function mapMeal(meal: SerializedMeal): Meal {
     sugar: meal.sugar,
     time: toDate(meal.time),
     type: meal.type,
+    status: meal.status ?? "consumed",
   }
 }
 
@@ -1052,6 +1055,7 @@ function mapDailyNutrition(nutrition: SerializedDailyNutrition): DailyNutrition 
 function mapNutritionDay(day: {
   date: string
   meals: SerializedMeal[]
+  plannedMeals?: SerializedMeal[]
   recentFoods?: SerializedNutritionFood[]
   targets: NutritionTargets
   totals: NutritionTotals
@@ -1059,6 +1063,7 @@ function mapNutritionDay(day: {
   return {
     date: new Date(`${day.date}T00:00:00`),
     meals: day.meals.map(mapMeal),
+    plannedMeals: (day.plannedMeals ?? []).map(mapMeal),
     recentFoods: day.recentFoods ?? [],
     targets: day.targets,
     totals: day.totals,
@@ -1070,6 +1075,7 @@ async function fetchNutritionDay(accessToken: string, date?: string): Promise<Nu
   const response = await request<ApiEnvelope<{
     date: string
     meals: SerializedMeal[]
+    plannedMeals?: SerializedMeal[]
     recentFoods?: SerializedNutritionFood[]
     targets: NutritionTargets
     totals: NutritionTotals
@@ -1164,6 +1170,11 @@ async function addMealItem(
   })
 
   return mapMeal(response.data.meal)
+}
+
+export async function consumePlannedMeals(accessToken: string, date: string) {
+  const response = await request<ApiEnvelope<{ date: string; meals: SerializedMeal[]; plannedMeals?: SerializedMeal[]; recentFoods?: SerializedNutritionFood[]; targets: NutritionTargets; totals: NutritionTotals }>>("/api/meals/plans/consume", accessToken, { method: "POST", body: JSON.stringify({ date }) })
+  return mapNutritionDay(response.data)
 }
 
 async function deleteMealItem(accessToken: string, itemId: string): Promise<Meal> {

@@ -29,6 +29,7 @@ export type ContextSectionKey =
   | "nutrition"
   | "body_metrics"
   | "coach_notes"
+  | "recovery"
 
 export type ContextSection = {
   content: string

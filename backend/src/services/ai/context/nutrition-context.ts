@@ -51,7 +51,9 @@ export async function buildNutritionContext(
     },
   })
 
-  const todayMeals = meals.filter((meal) => isSameDateKey(meal.loggedDate, today))
+  // Older rows and test doubles may not expose status; they are legacy consumed logs.
+  const consumedMeals = meals.filter((meal) => meal.status !== "planned")
+  const todayMeals = consumedMeals.filter((meal) => isSameDateKey(meal.loggedDate, today))
   const todayTotals = todayMeals.reduce((acc, meal) => {
     addTotals(acc, meal)
     return acc
@@ -61,7 +63,7 @@ export async function buildNutritionContext(
   const mealCountByDate = new Map<string, number>()
   const foodCounts = new Map<string, number>()
 
-  for (const meal of meals) {
+  for (const meal of consumedMeals) {
     const dateKey = formatDate(meal.loggedDate)
     const totals = totalsByDate.get(dateKey) ?? emptyTotals()
     addTotals(totals, meal)

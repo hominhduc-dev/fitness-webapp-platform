@@ -27,6 +27,11 @@ enum MealType {
   snack
 }
 
+enum MealStatus {
+  planned
+  consumed
+}
+
 enum WorkoutKind {
   push
   pull
@@ -625,6 +630,7 @@ model Meal {
   id         String         @id @default(uuid()) @db.Uuid
   userId     String         @db.Uuid
   type       MealType
+  status     MealStatus     @default(consumed)
   name       String
   loggedDate DateTime       @db.Date
   calories   Float
@@ -640,7 +646,7 @@ model Meal {
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
-  @@unique([userId, loggedDate, type])
+  @@unique([userId, loggedDate, type, status])
   @@index([userId, loggedDate])
   @@index([userId, recordedAt])
 }

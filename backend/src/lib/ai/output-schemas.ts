@@ -9,7 +9,7 @@ export const dateSchema = z.string().refine(validDateKey, "Ngày không hợp l�
 const kind = z.enum(["push", "pull", "legs", "full_body", "cardio", "other"])
 const difficulty = z.enum(["beginner", "intermediate", "advanced"])
 const prescription = z.object({
-  sets: integer(1, 50), reps: integer(1, 1000), repsMin: integer(1, 1000).optional(),
+  sets: integer(1, 12), reps: integer(1, 200), repsMin: integer(1, 200).optional(),
   rir: integer(0, 4).optional(), restTime: integer(0, 900).optional(), weight: z.number().min(0).max(1000).optional(),
 }).refine(v => v.repsMin == null || v.repsMin <= v.reps, "repsMin không được lớn hơn reps")
 const exercise = prescription.safeExtend({ variationId: z.uuid(), exerciseName: text.optional(), variationName: text.optional() })

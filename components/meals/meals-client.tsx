@@ -28,7 +28,7 @@ import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } fr
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { createCustomFood } from "@/lib/fitness/api"
-import { useAddMealItem, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay } from "@/lib/queries/meals"
+import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay } from "@/lib/queries/meals"
 import { cn } from "@/lib/utils"
 import type { FoodCategory, Meal, MealType, NutritionFood } from "@/lib/types"
 
@@ -52,6 +52,7 @@ type NutritionTotals = {
 type NutritionDay = {
   date: Date
   meals: Meal[]
+  plannedMeals?: Meal[]
   recentFoods: NutritionFood[]
   targets: NutritionTargets
   totals: NutritionTotals
@@ -726,6 +727,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const foodsQuery = useFoods(undefined, { initialData: initialData?.foods })
   const addItem = useAddMealItem(selectedDateKey)
   const deleteItem = useDeleteMealItem(selectedDateKey)
+  const consumePlan = useConsumePlannedMeals(selectedDateKey)
   const createFood = useCreateCustomFood()
   const nutritionDay = dayQuery.data ?? {
     date: selectedDate,
@@ -956,6 +958,23 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
           />
         </div>
       </div>
+
+      {nutritionDay.plannedMeals?.length ? (
+        <section className="mt-5 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-sm font-semibold">Thực đơn AI dự kiến</p><p className="text-xs text-muted-foreground">Chưa cộng vào lượng đã ăn.</p></div>
+            <Button size="sm" disabled={consumePlan.isPending} onClick={() => void consumePlan.mutateAsync()}>Đã ăn theo kế hoạch</Button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {nutritionDay.plannedMeals.map((meal) => (
+              <div key={meal.id ?? `${meal.type}-${meal.name}`} className="rounded-md border border-primary/20 bg-background/70 px-3 py-2 text-xs">
+                <div className="font-medium">{meal.name}</div>
+                <div className="text-muted-foreground">{Math.round(meal.calories)} kcal · {meal.items?.length ?? 0} món</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {addTo ? (
         <AddFoodModal

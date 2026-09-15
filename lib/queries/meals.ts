@@ -6,7 +6,7 @@ import { useUserQuery as useQuery, userQueryKey } from "./scoped"
 import { useAuth } from "@/components/providers/auth-provider"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
-import { addMealItem, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay } from "@/lib/fitness/api"
+import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay } from "@/lib/fitness/api"
 import type { NutritionFood } from "@/lib/types"
 type NutritionDay = Awaited<ReturnType<typeof fetchNutritionDay>>
 
@@ -107,6 +107,14 @@ export function useDeleteMealItem(dateKey: string) {
       patchDay(context.dateKey, context.userId, (day) => replaceMealInDay(day, meal))
       revalidate(context.dateKey)
     },
+  })
+}
+
+export function useConsumePlannedMeals(dateKey: string) {
+  const { revalidate } = useMealDayWriteback()
+  return useMutation({
+    mutationFn: async () => consumePlannedMeals(await requireAccessToken(), dateKey),
+    onSuccess: () => revalidate(dateKey),
   })
 }
 
