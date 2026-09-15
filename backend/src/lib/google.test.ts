@@ -5,7 +5,6 @@ vi.mock("../config/env", () => ({
     googleOauthClientId: "test-client",
     googleOauthClientSecret: "test-secret",
     googleOauthRedirectUri: "http://localhost:3000/backend/api/coach/google/callback",
-    notionTimeoutMs: 15000,
   },
 }))
 

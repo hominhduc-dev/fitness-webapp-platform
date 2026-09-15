@@ -16,6 +16,10 @@ const nextConfig = {
   },
   experimental: {
     proxyTimeout: 120_000,
+    // Reuse a visited page's server payload for 30s on client navigation. Page
+    // data itself lives in TanStack Query, so switching back to a coach tab
+    // renders from both caches instead of waiting on a server round trip.
+    staleTimes: { dynamic: 30 },
     optimizePackageImports: [
       "lucide-react",
       "date-fns",

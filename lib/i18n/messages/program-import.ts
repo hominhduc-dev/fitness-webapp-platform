@@ -16,11 +16,6 @@ const en = {
       label: "Google Sheets",
       title: "Create a program from Google Sheets",
     },
-    notion: {
-      description: "Bring a ready-made Notion program into the app.",
-      label: "From Notion",
-      title: "Create a program from Notion",
-    },
   },
   excel: {
     choose: "Choose Excel file",
@@ -30,24 +25,6 @@ const en = {
     supported: "Supports .xlsx and .xls files",
     traineeColumns: "trainee_name · email (optional, to assign)",
     workbookSheets: "Workbook needs these sheets",
-  },
-  notion: {
-    duplicateSummary: (name: string, assignedCount: number, archived: boolean) =>
-      `The earlier copy, "${name}", ${assignedCount > 0 ? `is used by ${plural(assignedCount, "trainee")}` : "is not assigned to any trainee"}${archived ? " and is archived" : ""}.`,
-    duplicateTitle: "This template was imported before",
-    empty: "No Notion template programs are marked ready yet.",
-    issuesTitle: (count: number) => `${plural(count, "row")} to fix in Notion`,
-    orCreate: "or create below to keep both",
-    overwrite: "Overwrite earlier copy",
-    overwriteArchivedHelp: "Restore the earlier copy before overwriting it. Creating a new one still works.",
-    overwriteAssignedHelp: "Overwriting replaces every session of the earlier copy. Trainees following it keep their start date.",
-    overwriteHelp: "Overwriting replaces every session of the earlier copy.",
-    pasteLink: "Or paste a Notion link",
-    pickTemplate: "Choose a template program",
-    read: "Read from Notion",
-    refresh: "Refresh",
-    templateMeta: (weeks: number, difficulty: string) => `${plural(weeks, "week")} · ${difficulty}`,
-    warningsTitle: "Notes from the Notion data",
   },
   difficulty: { advanced: "Advanced", beginner: "Beginner", intermediate: "Intermediate" },
   days: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -80,9 +57,6 @@ const en = {
   errors: {
     create: "Could not create the program.",
     excelRead: "Could not read the Excel file.",
-    notionRead: "Could not read data from Notion.",
-    notionRows: (count: number) => `${plural(count, "row")} in Notion ${count === 1 ? "is" : "are"} not valid. Fix them in Notion and import again.`,
-    overwrite: "Could not overwrite the earlier program.",
     template: "Could not build the Excel template.",
   },
 }
@@ -104,11 +78,6 @@ const vi: typeof en = {
       label: "Google Sheets",
       title: "Tạo program từ Google Sheets",
     },
-    notion: {
-      description: "Nhập program có sẵn từ Notion để sử dụng trong ứng dụng.",
-      label: "Từ Notion",
-      title: "Tạo program từ Notion",
-    },
   },
   excel: {
     choose: "Chọn file Excel",
@@ -118,24 +87,6 @@ const vi: typeof en = {
     supported: "Hỗ trợ file .xlsx và .xls",
     traineeColumns: "trainee_name · email (tùy chọn, để gán)",
     workbookSheets: "Workbook cần các sheet",
-  },
-  notion: {
-    duplicateSummary: (name: string, assignedCount: number, archived: boolean) =>
-      `Bản cũ tên "${name}" ${assignedCount > 0 ? `đang được ${assignedCount} trainee sử dụng` : "chưa gán cho trainee nào"}${archived ? " và đang ở trạng thái lưu trữ" : ""}.`,
-    duplicateTitle: "Program mẫu này đã được import trước đó",
-    empty: "Chưa có program mẫu nào ở trạng thái ready trong Notion.",
-    issuesTitle: (count: number) => `${count} dòng cần sửa trên Notion`,
-    orCreate: "hoặc bấm tạo ở dưới để giữ cả hai",
-    overwrite: "Ghi đè bản cũ",
-    overwriteArchivedHelp: "Phải restore bản cũ trước khi ghi đè. Tạo mới vẫn dùng được.",
-    overwriteAssignedHelp: "Ghi đè thay toàn bộ buổi tập của bản cũ. Trainee đang theo vẫn giữ nguyên ngày bắt đầu.",
-    overwriteHelp: "Ghi đè thay toàn bộ buổi tập của bản cũ.",
-    pasteLink: "Hoặc dán link Notion",
-    pickTemplate: "Chọn program mẫu",
-    read: "Đọc dữ liệu từ Notion",
-    refresh: "Làm mới",
-    templateMeta: (weeks: number, difficulty: string) => `${weeks} tuần · ${difficulty}`,
-    warningsTitle: "Lưu ý từ dữ liệu Notion",
   },
   difficulty: { advanced: "Advanced", beginner: "Beginner", intermediate: "Intermediate" },
   days: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
@@ -168,9 +119,6 @@ const vi: typeof en = {
   errors: {
     create: "Không thể tạo program.",
     excelRead: "Không đọc được file Excel.",
-    notionRead: "Không đọc được dữ liệu từ Notion.",
-    notionRows: (count: number) => `${count} dòng trong Notion chưa hợp lệ. Sửa trên Notion rồi import lại.`,
-    overwrite: "Không ghi đè được program cũ.",
     template: "Không tạo được template Excel.",
   },
 }

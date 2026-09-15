@@ -125,7 +125,6 @@ export const queryKeys = {
     exerciseImportRequests: () => ["coach", "exercise-import-requests"] as const,
     discover: () => ["coach", "discover"] as const,
     googleConnection: () => ["coach", "google-connection"] as const,
-    notionTemplates: () => ["coach", "notion-templates"] as const,
   },
 
   admin: {

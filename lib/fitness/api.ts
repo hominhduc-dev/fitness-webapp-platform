@@ -37,13 +37,12 @@ import type {
   CoachProgram,
   CoachTrainee,
   CoachTraineeDetail,
+  CoachTraineeOverview,
   CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
   DiscoverableCoach,
   DashboardAnalytics,
-  NotionProgramImportResponse,
-  NotionProgramTemplate,
   NotificationList,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
@@ -1650,48 +1649,6 @@ async function createCoachProgram(accessToken: string, input: CreateCoachProgram
   return mapCoachProgram(response.program)
 }
 
-/**
- * Program templates a coach authored in Notion.
- *
- * `configured` is false when the deployment has no Notion token, which is not an
- * error: the import dialog simply hides its Notion tab.
- */
-async function fetchNotionProgramTemplates(accessToken: string) {
-  return request<{ configured: boolean; templates: NotionProgramTemplate[] }>(
-    "/api/coach/notion/program-templates",
-    accessToken,
-  )
-}
-
-/** Reads one Notion template plus every exercise row that points at it. */
-async function importNotionProgram(accessToken: string, template: string) {
-  return request<NotionProgramImportResponse>("/api/coach/notion/program-import", accessToken, {
-    body: JSON.stringify({ template }),
-    method: "POST",
-  })
-}
-
-/**
- * Replaces an existing program with a fresh read of the Notion template it came
- * from. Omitting `assignToUserIds` keeps the program's current trainees.
- */
-async function overwriteNotionProgram(
-  accessToken: string,
-  programId: string,
-  input: CreateCoachProgramInput & { notionSourceId: string },
-) {
-  const response = await request<{ program: SerializedCoachProgram }>(
-    `/api/coach/notion/program-import/${programId}`,
-    accessToken,
-    {
-      body: JSON.stringify(input),
-      method: "PUT",
-    },
-  )
-
-  return mapCoachProgram(response.program)
-}
-
 async function fetchCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
   const response = await request<{ program: SerializedCoachProgram }>(`/api/coach/programs/${programId}`, accessToken)
   return mapCoachProgram(response.program)
@@ -1752,6 +1709,8 @@ async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): 
     bodyMetrics: SerializedBodyMetricEntry[]
     checkIns: SerializedCoachCheckIn[]
     nutritionSummary?: SerializedCoachNutritionSummary
+    // Only strings and numbers, so it needs no date revival.
+    overview: CoachTraineeOverview
     programs: SerializedCoachProgram[]
     progressSummary: SerializedCoachProgressSummary
     recentLogs: SerializedWorkoutLog[]
@@ -1762,6 +1721,7 @@ async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): 
     bodyMetrics: response.bodyMetrics.map(mapBodyMetricEntry),
     checkIns: response.checkIns.map(mapCoachCheckIn),
     nutritionSummary: response.nutritionSummary ? mapCoachNutritionSummary(response.nutritionSummary) : undefined,
+    overview: response.overview,
     programs: response.programs.map(mapCoachProgram),
     progressSummary: mapCoachProgressSummary(response.progressSummary),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
@@ -2353,6 +2313,40 @@ async function regenerateAIMealPlanMeal(accessToken: string, input: { generation
   return response.data
 }
 
+export type AIMealPlanNutrients = { calories: number; protein: number; carbs: number; fat: number }
+
+export type AIMealPlanMeal = { type: Meal["type"]; suggestion: string; items: AIMealItem[] }
+
+export type AIMealPlanDay = {
+  date: string
+  /** What is left of the day's goals after meals already eaten. */
+  targets: AIMealPlanNutrients
+  consumed: AIMealPlanNutrients
+  totals: AIMealPlanNutrients
+  meals: AIMealPlanMeal[]
+}
+
+export type AIShoppingItem = {
+  foodId: string
+  foodName: string
+  category: string
+  amountValue: number
+  amountUnit: string
+  quantityLabel: string
+}
+
+export type AIMealPlan = {
+  generationId: string
+  days: AIMealPlanDay[]
+  shoppingList: AIShoppingItem[]
+  notes: string
+}
+
+export type AIMealPlanOverride = {
+  date: string
+  meals: Array<{ type: Meal["type"]; items: Array<{ foodId: string; amountValue: number; amountUnit: string }> }>
+}
+
 /** A draft the chat produced in-conversation that still needs user confirmation. */
 export type AIMealItem = {
   foodId: string
@@ -2450,9 +2444,6 @@ export {
   fetchCoachDashboard,
   fetchCoachExerciseImportRequests,
   fetchCoachNavCounts,
-  fetchNotionProgramTemplates,
-  importNotionProgram,
-  overwriteNotionProgram,
   fetchCoachProgram,
   fetchCoachPrograms,
   fetchCoachBodyMetrics,

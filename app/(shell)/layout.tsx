@@ -5,6 +5,7 @@ import { ShellMain } from "@/components/layout/shell-main"
 import { SidebarClient } from "@/components/layout/sidebar-client"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { AppProviders } from "@/components/providers/app-providers"
+import { CoachRoutePrefetch } from "@/components/providers/coach-route-prefetch"
 import { TraineeRoutePrefetch } from "@/components/providers/trainee-route-prefetch"
 import { ResumeWorkoutCard } from "@/components/workout/resume-workout-card"
 import { requireAppUser } from "@/lib/auth/server"
@@ -15,6 +16,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
   return (
     <AppProviders initialLocale={locale} initialProfile={profile}>
       {profile.role === "trainee" ? <TraineeRoutePrefetch userId={profile.id} /> : null}
+      {profile.role === "coach" ? <CoachRoutePrefetch userId={profile.id} /> : null}
       <div className="app-shell flex min-h-[100dvh] bg-background">
         <SidebarClient role={profile.role} />
 

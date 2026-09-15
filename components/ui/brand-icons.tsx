@@ -4,9 +4,7 @@ import type { SVGProps } from "react"
  * Brand marks for third-party sources, shared by auth and import flows.
  *
  * The Google mark keeps its official colours, allowlisted for this file in
- * scripts/check-ui-colors.mjs. The Notion mark is a single-colour glyph on
- * `currentColor`, so it follows whatever surface it sits on (a selected tab,
- * a primary button) without a per-theme variant.
+ * scripts/check-ui-colors.mjs.
  */
 export function GoogleIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -27,24 +25,6 @@ export function GoogleIcon(props: SVGProps<SVGSVGElement>) {
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         fill="#EA4335"
       />
-    </svg>
-  )
-}
-
-export function NotionIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <rect x="3" y="3" width="18" height="18" rx="3.5" />
-      <path d="M8.5 16.5v-9l7 9v-9" />
     </svg>
   )
 }

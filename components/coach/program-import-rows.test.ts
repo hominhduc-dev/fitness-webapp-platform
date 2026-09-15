@@ -9,7 +9,7 @@ import type { ExerciseVariationOption } from "@/lib/fitness/types"
  *
  * "Squat" has two variations so it only resolves when the row names one or when
  * the default is marked; "Bench Press" has a single variation so the exercise
- * name alone is enough. Both paths matter: Notion rows often leave Variation
+ * name alone is enough. Both paths matter: imported rows often leave Variation
  * blank.
  */
 function option(overrides: Partial<ExerciseVariationOption> & { id: string }): ExerciseVariationOption {

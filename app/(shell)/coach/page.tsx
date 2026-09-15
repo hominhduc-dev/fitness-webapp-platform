@@ -214,8 +214,9 @@ async function CoachDashboardContent() {
               </div>
 
               <div className="mt-6 grid grid-cols-7 gap-2" style={{ height: 110, alignItems: "end" }}>
-                {dashboard.activityByDay.map((point, i) => {
-                  const isToday = i === dashboard.activityByDay.length - 1
+                {dashboard.activityByDay.map((point) => {
+                  // The chart is this Mon–Sun week, so today is found by its UTC day key.
+                  const isToday = point.date.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)
                   const h =
                     point.workouts === 0 ? 4 : Math.max(8, Math.round((point.workouts / maxWorkouts) * 90))
 

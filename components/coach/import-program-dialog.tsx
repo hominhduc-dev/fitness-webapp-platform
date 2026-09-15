@@ -1,13 +1,13 @@
 "use client"
 
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, FileText, Link2, Loader2, RefreshCw, Trash2, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Trash2, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { GoogleIcon, NotionIcon } from "@/components/ui/brand-icons"
+import { GoogleIcon } from "@/components/ui/brand-icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,9 +15,7 @@ import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import { IconTile } from "@/components/ui/icon-tile"
 import { Input } from "@/components/ui/input"
-import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
-import { OptionRow } from "@/components/ui/option-row"
 import { Stepper } from "@/components/ui/stepper"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ImportedProgramDraft } from "@/components/coach/program-excel"
@@ -27,18 +25,12 @@ import {
   normalizeSetIntensityAssignments,
   type SetIntensityAssignment,
 } from "@/lib/workout/intensity-tag"
-import {
-  createCoachProgram,
-  fetchNotionProgramTemplates,
-  importNotionProgram,
-  overwriteNotionProgram,
-} from "@/lib/fitness/api"
+import { createCoachProgram } from "@/lib/fitness/api"
 import type {
   CoachProgram,
   CoachTrainee,
   CreateCoachProgramInput,
   ExerciseVariationOption,
-  NotionExistingProgram,
 } from "@/lib/fitness/types"
 import { parseRepTargetText } from "@/lib/workout-reps"
 import { cn } from "@/lib/utils"
@@ -59,7 +51,7 @@ type ImportProgramDialogProps = {
 
 type Step = "upload" | "review" | "done"
 type Difficulty = CreateCoachProgramInput["difficulty"]
-type ImportSource = "excel" | "notion" | "google"
+type ImportSource = "excel" | "google"
 
 const STEP_ORDER: Step[] = ["upload", "review", "done"]
 
@@ -67,7 +59,6 @@ const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced"]
 
 function ImportSourceIcon({ source }: { source: ImportSource }) {
   if (source === "excel") return <FileSpreadsheet className="size-5" />
-  if (source === "notion") return <NotionIcon className="size-5" />
   // The multicolour mark needs a light chip to stay legible on the selected tab.
   return (
     <IconTile size="sm" tone="surface" className="size-7 rounded-full [&_svg]:size-4">
@@ -167,13 +158,8 @@ export function ImportProgramDialog({
   const googleConnection = googleQuery.data ?? { configured: false, connected: false, email: null }
   const setGoogleConnection = googleQuery.setData
   const [googleSource, setGoogleSource] = useState<GoogleImportResult | null>(null)
-  const templatesQuery = useCoachData(queryKeys.coach.notionTemplates(), fetchNotionProgramTemplates, undefined, open)
-  const notionConfigured = templatesQuery.data?.configured ?? false
-  const notionTemplates = templatesQuery.data?.templates ?? []
   const createProgram = useCoachMutation(createCoachProgram)
-  const overwriteNotion = useCoachMutation(overwriteNotionProgram)
   const overwriteGoogle = useCoachMutation(overwriteGoogleProgram)
-  const notionPreview = useCoachMutation(importNotionProgram, [])
   const [step, setStep] = useState<Step>("upload")
   const [fileName, setFileName] = useState("")
   const [draft, setDraft] = useState<ImportedProgramDraft | null>(null)
@@ -187,18 +173,11 @@ export function ImportProgramDialog({
   const [duration, setDuration] = useState(4)
   const [assignEnabled, setAssignEnabled] = useState(true)
   const [source, setSource] = useState<ImportSource>("excel")
-  const [notionSelection, setNotionSelection] = useState("")
-  const [notionLink, setNotionLink] = useState("")
-  const [notionWarnings, setNotionWarnings] = useState<string[]>([])
-  const [notionIssues, setNotionIssues] = useState<string[]>([])
-  const [notionExisting, setNotionExisting] = useState<NotionExistingProgram | null>(null)
-  const [notionSourceId, setNotionSourceId] = useState("")
   const [didOverwrite, setDidOverwrite] = useState(false)
   const sourceText = t.sources[source]
   const steps = STEP_ORDER.map((value) => ({ label: t.steps[value], value }))
   const visibleSources: ImportSource[] = [
     "excel",
-    ...(notionConfigured ? (["notion"] as const) : []),
     ...(googleConnection.configured ? (["google"] as const) : []),
   ]
   const workbookSheets = [
@@ -258,12 +237,6 @@ export function ImportProgramDialog({
     setDuration(4)
     setAssignEnabled(true)
     setSource("excel")
-    setNotionSelection("")
-    setNotionLink("")
-    setNotionWarnings([])
-    setNotionIssues([])
-    setNotionExisting(null)
-    setNotionSourceId("")
     setDidOverwrite(false)
   }
 
@@ -277,7 +250,6 @@ export function ImportProgramDialog({
   const handleFile = async (file?: File | null) => {
     if (!file) return
     setGoogleSource(null)
-    setNotionSourceId("")
     setIsParsing(true)
     setError(null)
     setDraft(null)
@@ -302,56 +274,6 @@ export function ImportProgramDialog({
     }
   }
 
-  /**
-   * Pulls one Notion template and turns its rows into the same draft the Excel
-   * parser produces, so the review step downstream is unaware of the source.
-   */
-  const handleNotionImport = async (templateRef: string) => {
-    if (!authenticated || !templateRef.trim()) return
-    setGoogleSource(null)
-
-    setIsParsing(true)
-    setError(null)
-    setDraft(null)
-    setEditableWorkouts([])
-    setNotionIssues([])
-    setNotionWarnings([])
-    setNotionExisting(null)
-    setNotionSourceId("")
-
-    try {
-      const result = await notionPreview.mutateAsync([templateRef.trim()])
-      const { issues, workouts } = buildWorkoutsFromRows(result.rows, exerciseOptions, {
-        duration: result.program.duration,
-      })
-
-      setNotionWarnings(result.warnings)
-
-      // Every failing row is listed at once: the coach fixes Notion in a single
-      // pass instead of re-importing to discover the next typo.
-      if (issues.length > 0) {
-        setNotionIssues(issues.map((issue) => issue.message))
-        setError(t.errors.notionRows(issues.length))
-        return
-      }
-
-      setNotionExisting(result.existingProgram)
-      setNotionSourceId(result.program.notionPageId)
-      setFileName(result.program.name)
-      setDraft({ workouts, weekTemplate: result.weekTemplateMode })
-      setEditableWorkouts(workouts.map(workoutToEditable))
-      setProgramName(result.program.name)
-      setDifficulty(result.program.difficulty)
-      setDuration(result.program.duration)
-      setAssignEnabled(false)
-      setStep("review")
-    } catch (notionError) {
-      setError(notionError instanceof Error ? notionError.message : t.errors.notionRead)
-    } finally {
-      setIsParsing(false)
-    }
-  }
-
   const handleGoogleImport = (result: GoogleImportResult, name: string, weeks: number) => {
     const built = buildWorkoutsFromRows(result.rows, exerciseOptions, { duration: weeks })
     if (built.issues.length) {
@@ -359,10 +281,6 @@ export function ImportProgramDialog({
       return
     }
     setGoogleSource(result)
-    setNotionSourceId("")
-    setNotionExisting(null)
-    setNotionWarnings([])
-    setNotionIssues([])
     setError(null)
     setDraft({ workouts: built.workouts, weekTemplate: true })
     setEditableWorkouts(built.workouts.map(workoutToEditable))
@@ -388,46 +306,12 @@ export function ImportProgramDialog({
     setIsSaving(true)
     setError(null)
     try {
-      const program = await createProgram.mutateAsync([
-        notionSourceId ? { ...payload, notionSourceId } : payload,
-      ])
+      const program = await createProgram.mutateAsync([payload])
       setSavedName(program.name)
       onImported(program)
       setStep("done")
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : t.errors.create)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  /**
-   * Replaces the program a previous import of this same template produced.
-   *
-   * `assignToUserIds` is deliberately left out: the backend then keeps whoever is
-   * already following the program instead of unassigning every trainee.
-   */
-  const handleOverwrite = async () => {
-    if (!authenticated || !payload || !notionExisting || !notionSourceId) return
-
-    setIsSaving(true)
-    setError(null)
-
-    try {
-      setDidOverwrite(true)
-      const program = await overwriteNotion.mutateAsync([notionExisting.id, {
-        description: payload.description,
-        difficulty: payload.difficulty,
-        duration: payload.duration,
-        name: payload.name,
-        notionSourceId,
-        workouts: payload.workouts,
-      }])
-      setSavedName(program.name)
-      onImported(program)
-      setStep("done")
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : t.errors.overwrite)
     } finally {
       setIsSaving(false)
     }
@@ -500,7 +384,6 @@ export function ImportProgramDialog({
               onValueChange={(value) => {
                 setSource(value as ImportSource)
                 setError(null)
-                setNotionIssues([])
               }}
               className="gap-5"
             >
@@ -554,86 +437,6 @@ export function ImportProgramDialog({
                 </Card>
               </TabsContent>
 
-              <TabsContent value="notion" className="space-y-5">
-                <section className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="label-micro">{t.notion.pickTemplate}</p>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={templatesQuery.isFetching}
-                      onClick={() => void templatesQuery.refetch()}
-                    >
-                      <RefreshCw className={cn(templatesQuery.isFetching && "animate-spin")} />
-                      {t.notion.refresh}
-                    </Button>
-                  </div>
-                  {notionTemplates.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-                      {t.notion.empty}
-                    </p>
-                  ) : (
-                    <div className="max-h-[300px] space-y-2 overflow-y-auto">
-                      {notionTemplates.map((template) => (
-                        <OptionRow
-                          key={template.notionPageId}
-                          disabled={isParsing}
-                          selected={notionSelection === template.notionPageId}
-                          onClick={() => {
-                            setNotionSelection(template.notionPageId)
-                            setNotionLink("")
-                          }}
-                          icon={<IconTile><FileText /></IconTile>}
-                          title={template.name}
-                          description={t.notion.templateMeta(template.duration, difficultyLabel(template.difficulty))}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </section>
-
-                <section className="space-y-2.5">
-                  <Label htmlFor="notion-link" className="label-micro block">{t.notion.pasteLink}</Label>
-                  <InputWithIcon
-                    id="notion-link"
-                    icon={<Link2 />}
-                    value={notionLink}
-                    placeholder="https://www.notion.so/..."
-                    disabled={isParsing}
-                    onChange={(event) => {
-                      setNotionLink(event.target.value)
-                      setNotionSelection("")
-                    }}
-                  />
-                </section>
-
-                <Button
-                  type="button"
-                  size="lg"
-                  className="w-full"
-                  disabled={isParsing || (!notionSelection && !notionLink.trim())}
-                  onClick={() => void handleNotionImport(notionLink.trim() || notionSelection)}
-                >
-                  {isParsing ? <Loader2 className="animate-spin" /> : <NotionIcon />}
-                  {t.notion.read}
-                </Button>
-
-                {notionIssues.length > 0 ? (
-                  <Alert variant="destructive">
-                    <AlertTriangle />
-                    <AlertDescription>
-                      <p className="font-semibold">{t.notion.issuesTitle(notionIssues.length)}</p>
-                      <ul className="mt-1 max-h-[200px] space-y-1 overflow-y-auto">
-                        {notionIssues.map((issue) => (
-                          <li key={issue}>{issue}</li>
-                        ))}
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-              </TabsContent>
-
               <TabsContent value="google">
                 {authenticated ? (
                   <GoogleProgramSource
@@ -657,52 +460,6 @@ export function ImportProgramDialog({
                   void overwriteGoogle.mutateAsync([googleSource.existingProgram.id, payload]).then((program) => { setDidOverwrite(true); setSavedName(program.name); onImported(program); setStep("done") }).catch((error) => setError(error instanceof Error ? error.message : googleText.failed)).finally(() => setIsSaving(false))
                 }}>{googleText.overwrite}</Button>
               </div> : null}
-              {notionExisting ? (
-                <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
-                  <p className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {t.notion.duplicateTitle}
-                  </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    {t.notion.duplicateSummary(notionExisting.name, notionExisting.assignedTraineeCount, Boolean(notionExisting.archivedAt))}
-                  </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    {notionExisting.archivedAt
-                      ? t.notion.overwriteArchivedHelp
-                      : notionExisting.assignedTraineeCount > 0
-                        ? t.notion.overwriteAssignedHelp
-                        : t.notion.overwriteHelp}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="bg-transparent"
-                      disabled={isSaving || Boolean(notionExisting.archivedAt) || !payload}
-                      onClick={() => void handleOverwrite()}
-                    >
-                      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      {t.notion.overwrite}
-                    </Button>
-                    <span className="self-center text-xs text-muted-foreground">
-                      {t.notion.orCreate}
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-
-              {notionWarnings.length > 0 ? (
-                <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
-                  <p className="mb-1.5 text-xs font-semibold text-foreground">{t.notion.warningsTitle}</p>
-                  <ul className="space-y-1 text-xs leading-5 text-muted-foreground">
-                    {notionWarnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
               {/* Program name + difficulty + weeks */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">

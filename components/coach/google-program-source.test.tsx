@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({ connection: vi.fn(), spreadsheet: vi.fn(), impor
 vi.mock("@/components/providers/locale-provider", () => ({
   useLocale: () => ({ locale: "en", messages: { common: { dismissNotification: "Dismiss notification" } } }),
 }))
-vi.mock("@/lib/fitness/api", () => ({ fetchGoogleConnection: api.connection, fetchGoogleSpreadsheet: api.spreadsheet, importGoogleProgram: api.import, disconnectGoogle: api.disconnect, createGoogleProgramTemplate: api.createTemplate, authorizeGoogle: vi.fn(), createCoachProgram: vi.fn(), overwriteGoogleProgram: vi.fn(), overwriteNotionProgram: vi.fn(), importNotionProgram: vi.fn(), fetchNotionProgramTemplates: vi.fn().mockResolvedValue({ configured: false, templates: [] }) }))
+vi.mock("@/lib/fitness/api", () => ({ fetchGoogleConnection: api.connection, fetchGoogleSpreadsheet: api.spreadsheet, importGoogleProgram: api.import, disconnectGoogle: api.disconnect, createGoogleProgramTemplate: api.createTemplate, authorizeGoogle: vi.fn(), createCoachProgram: vi.fn(), overwriteGoogleProgram: vi.fn() }))
 /** Toasts now come from the shared provider, so every render needs it. */
 const render: typeof baseRender = (ui, options) => baseRender(<ToastProvider>{ui}</ToastProvider>, options)
 
@@ -30,16 +30,13 @@ describe("Google program import UI", () => {
     api.spreadsheet.mockResolvedValue({ spreadsheetId: "id", title: "Training", sheets: ["Exercise Table", "Week 1"] })
     api.import.mockResolvedValue(result)
     render(<GoogleProgramSource token="test" connection={{ configured: true, connected: true, email: "coach@example.invalid" }} onConnection={vi.fn()} onImport={onImport} />)
-    // The existing-file path starts collapsed behind its disclosure header.
-    expect(screen.queryByLabelText("Spreadsheet link")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Or use an existing file/ }))
     fireEvent.change(screen.getByLabelText("Spreadsheet link"), { target: { value: "sheet-link" } })
     fireEvent.click(screen.getByRole("button", { name: "Load sheets" }))
     await screen.findByLabelText("Template week sheet")
     // The picker is the app's own Select, so the chosen sheet shows as the
     // trigger's text rather than a form value.
     expect(screen.getByLabelText("Template week sheet")).toHaveTextContent("Week 1")
-    fireEvent.click(screen.getByRole("button", { name: "Preview program" }))
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }))
     await waitFor(() => expect(onImport).toHaveBeenCalledWith(result, "Training", 4))
   })
   it("creates a template in Drive and prefills its link so the coach can import it straight back", async () => {
@@ -52,10 +49,10 @@ describe("Google program import UI", () => {
       title: "Program template",
     })
     render(<GoogleProgramSource token="test" connection={{ configured: true, connected: true, email: "coach@example.invalid" }} onConnection={vi.fn()} onImport={vi.fn()} />)
-    fireEvent.click(screen.getByRole("button", { name: "Create template in Google Sheets" }))
+    fireEvent.click(screen.getByRole("button", { name: "Create template" }))
     await waitFor(() => expect(api.createTemplate).toHaveBeenCalled())
     expect(screen.getByLabelText("Spreadsheet link")).toHaveValue("https://docs.google.com/spreadsheets/d/new-id/edit")
-    expect(screen.getByRole("link", { name: "Open the new template" })).toHaveAttribute("href", "https://docs.google.com/spreadsheets/d/new-id/edit")
+    expect(screen.getByRole("link", { name: "Open template" })).toHaveAttribute("href", "https://docs.google.com/spreadsheets/d/new-id/edit")
 
     // The coach is told it worked, and where it went.
     const success = await screen.findByRole("status")
@@ -66,8 +63,11 @@ describe("Google program import UI", () => {
   it("sends the chosen Drive folder, and reports a failure without losing the reason", async () => {
     api.createTemplate.mockRejectedValue(new Error("Đã tạo template nhưng không chuyển được vào thư mục đã chọn."))
     render(<GoogleProgramSource token="test" connection={{ configured: true, connected: true, email: "coach@example.invalid" }} onConnection={vi.fn()} onImport={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText("Drive folder (optional)"), { target: { value: "https://drive.google.com/drive/folders/abc123xyz789" } })
-    fireEvent.click(screen.getByRole("button", { name: "Create template in Google Sheets" }))
+    // The folder field stays tucked away until the coach asks for it.
+    expect(screen.queryByLabelText("Drive folder")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Choose Drive folder" }))
+    fireEvent.change(screen.getByLabelText("Drive folder"), { target: { value: "https://drive.google.com/drive/folders/abc123xyz789" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create template" }))
 
     await waitFor(() => expect(api.createTemplate).toHaveBeenCalledWith("test", { folder: "https://drive.google.com/drive/folders/abc123xyz789" }))
 

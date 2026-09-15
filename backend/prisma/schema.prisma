@@ -449,9 +449,6 @@ model Program {
   difficulty          ProgramDifficulty
   workoutsPerWeek     Int
   isAIGenerated       Boolean             @default(false)
-  /// Notion page id this program was imported from; null for every other source.
-  notionSourceId      String?
-  notionSyncedAt      DateTime?
   googleSpreadsheetId String?
   googleSheetName     String?
   createdById         String              @db.Uuid
@@ -462,7 +459,6 @@ model Program {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
-  @@unique([createdById, notionSourceId])
   @@index([createdById, googleSpreadsheetId, googleSheetName])
   @@index([createdById])
   @@index([createdById, archivedAt])

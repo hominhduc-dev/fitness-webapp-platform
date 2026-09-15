@@ -7,6 +7,7 @@ import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecover
 import { prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
 import { prefetchMeals, useAddMealItem, useFoods, useNutritionDay } from "./meals"
 import { useCoachLogs } from "./coach-logs"
+import { prefetchCoachRoutes, useCoachData, useCoachNavCounts } from "./coach-data"
 import { queryKeys } from "./keys"
 import { userQueryKey } from "./scoped"
 import { getQueryClient } from "./client"
@@ -16,6 +17,7 @@ const api = vi.hoisted(() => ({
   weights: vi.fn(), createWeight: vi.fn(), calendar: vi.fn(), workout: vi.fn(), workouts: vi.fn(),
   addMeal: vi.fn(), foods: vi.fn(), nutritionDay: vi.fn(), logs: vi.fn(),
   volume: vi.fn(), recovery: vi.fn(),
+  navCounts: vi.fn(), trainees: vi.fn(), programs: vi.fn(), exercises: vi.fn(),
 }))
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ profile: { id: state.userId }, session: { access_token: state.token } }),
@@ -28,6 +30,8 @@ vi.mock("@/lib/fitness/api", async (original) => ({
   fetchWorkouts: api.workouts, addMealItem: api.addMeal, fetchFoods: api.foods,
   fetchNutritionDay: api.nutritionDay, fetchCoachWorkoutLogs: api.logs,
   fetchVolumeRecovery: api.volume, fetchRecoveryHistory: api.recovery,
+  fetchCoachNavCounts: api.navCounts, fetchCoachTrainees: api.trainees,
+  fetchCoachPrograms: api.programs, fetchCoachExercises: api.exercises,
 }))
 
 function setup() {
@@ -80,6 +84,35 @@ describe("client cache contracts", () => {
     expect(api.workouts).toHaveBeenCalledTimes(1)
     expect(api.nutritionDay).toHaveBeenCalledTimes(1)
     expect(api.foods).toHaveBeenCalledTimes(1)
+    hook.unmount(); client.clear()
+  })
+
+  it("reuses coach route prefetch data on the Clients, Programs, Exercises and Stats pages", async () => {
+    const { client, wrapper } = setup()
+    const counts = { programs: 3, trainees: 5 }
+    api.navCounts.mockResolvedValue(counts)
+    api.trainees.mockResolvedValue([])
+    api.programs.mockResolvedValue([])
+    api.exercises.mockResolvedValue([])
+
+    await prefetchCoachRoutes(client, state.userId)
+
+    // The same calls the pages and the sidebar make.
+    const { fetchCoachExercises, fetchCoachPrograms, fetchCoachTrainees } = await import("@/lib/fitness/api")
+    const hook = renderHook(() => ({
+      counts: useCoachNavCounts(),
+      trainees: useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees),
+      programs: useCoachData(queryKeys.coach.programs({ includeArchived: false }), (token) => fetchCoachPrograms(token, { includeArchived: false })),
+      exercises: useCoachData(queryKeys.coach.exercises(), fetchCoachExercises),
+    }), { wrapper })
+
+    expect(hook.result.current.counts.data).toBe(counts)
+    for (const query of [hook.result.current.trainees, hook.result.current.programs, hook.result.current.exercises]) {
+      expect(query.isPending).toBe(false)
+      expect(query.data).toEqual([])
+    }
+    for (const read of [api.navCounts, api.trainees, api.programs, api.exercises]) expect(read).toHaveBeenCalledTimes(1)
+    expect(api.programs).toHaveBeenCalledWith(state.token, { includeArchived: false })
     hook.unmount(); client.clear()
   })
 
