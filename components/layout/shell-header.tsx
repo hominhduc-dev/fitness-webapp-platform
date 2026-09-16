@@ -8,6 +8,7 @@ import type { AppRole } from "@/lib/auth/types"
 import { BrandLogo } from "@/components/ui/brand-logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LanguageToggle } from "@/components/layout/language-toggle"
+import { SyncStatusBadge } from "@/components/offline/sync-status-badge"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -210,6 +211,8 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
               </span>
             ) : null}
           </Link>
+          {/* Offline / sync state for queued workout logs; empty when all is sent. */}
+          <SyncStatusBadge className="ml-auto" />
           <button
             type="button"
             aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}

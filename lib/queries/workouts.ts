@@ -14,7 +14,6 @@ import {
   createWorkout,
   createWorkoutLog,
   deleteWorkout,
-  deleteWorkoutSessionDraft,
   deleteWorkoutLog,
   fetchActiveWorkoutSessions,
   swapWorkoutExercise,
@@ -24,9 +23,7 @@ import {
   fetchWorkoutDetail,
   fetchWorkoutSessionDraft,
   fetchTraineeProgram,
-  upsertWorkoutSessionDraft,
 } from "@/lib/fitness/api"
-import type { StoredWorkoutSession } from "@/lib/workout/session-storage"
 
 export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>, options?: { enabled?: boolean }) {
   return useUserQuery({ queryKey: queryKeys.workouts.collection(),
@@ -99,32 +96,7 @@ export function useWorkoutSessionDraft(workoutId: string, options?: { enabled?: 
   })
 }
 
-export function useUpsertWorkoutSessionDraft() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ workoutId, input }: { workoutId: string; input: StoredWorkoutSession }) =>
-      upsertWorkoutSessionDraft(await requireAccessToken(), workoutId, input),
-    onSuccess: (draft, { workoutId }) => {
-      queryClient.setQueryData(queryKeys.workouts.sessionDraft(workoutId), draft)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
-    },
-  })
-}
-
-export function useDeleteWorkoutSessionDraft() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (workoutId: string) => deleteWorkoutSessionDraft(await requireAccessToken(), workoutId),
-    onSuccess: (_result, workoutId) => {
-      queryClient.setQueryData(queryKeys.workouts.sessionDraft(workoutId), null)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
-    },
-  })
-}
+// Draft writes go through the offline queue (lib/offline/sync.ts), not mutations.
 
 export function useTraineeProgram(programId: string, initialData?: CoachProgram, enabled = true) {
   return useUserQuery({ queryKey: queryKeys.workouts.traineeProgram(programId),

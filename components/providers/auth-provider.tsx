@@ -26,6 +26,14 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
+/**
+ * An access token that expired while offline cannot be refreshed, so Supabase
+ * reports no session. Without network that is not a sign-out.
+ */
+function isOfflineAuthGap(session: Session | null, initialProfile: AppProfile | null) {
+  return !session && Boolean(initialProfile) && typeof navigator !== "undefined" && navigator.onLine === false
+}
+
 export function AuthProvider({
   children,
   initialProfile = null,
@@ -125,6 +133,20 @@ export function AuthProvider({
         return
       }
 
+      if (isOfflineAuthGap(initialSession, initialProfile)) {
+        // Keep the server-rendered profile (from the offline page cache) so a
+        // workout can still be logged. The session arrives as TOKEN_REFRESHED
+        // once Supabase is reachable again.
+        accountRef.current = initialProfile?.supabaseAuthUserId ?? null
+        startTransition(() => {
+          setSession(null)
+          setProfile(initialProfile)
+          setIsLoading(false)
+        })
+
+        return
+      }
+
       if (initialSession?.access_token && initialProfile) {
         if (initialProfile.supabaseAuthUserId && initialProfile.supabaseAuthUserId !== initialSession.user.id) {
           await syncProfile(initialSession)
@@ -154,6 +176,11 @@ export function AuthProvider({
 
       if (event === "TOKEN_REFRESHED" && accountRef.current === nextSession?.user.id) {
         setSession(nextSession)
+        return
+      }
+
+      // Handled by bootstrap above; treating it as a sign-out would wipe the profile.
+      if (event === "INITIAL_SESSION" && isOfflineAuthGap(nextSession, initialProfile)) {
         return
       }
 
