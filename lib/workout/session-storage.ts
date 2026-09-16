@@ -18,6 +18,7 @@ export type StoredWorkoutSessionExercise = {
 }
 
 export type StoredWorkoutSession = {
+  deletedSetIds?: string[]
   currentExerciseIndex: number
   exercises: StoredWorkoutSessionExercise[]
   schemaVersion?: number
@@ -91,7 +92,10 @@ export function readStoredWorkoutSession(workoutId: string): StoredWorkoutSessio
     const startedAt = typeof parsed.startedAt === "string" ? parsed.startedAt : new Date().toISOString()
     const workoutName = typeof parsed.workoutName === "string" ? parsed.workoutName : undefined
     const exercises = sanitizeStoredWorkoutExercises(parsed.exercises)
-    return { currentExerciseIndex, exercises, schemaVersion, startedAt, workoutName }
+    const deletedSetIds = Array.isArray(parsed.deletedSetIds)
+      ? [...new Set<string>(parsed.deletedSetIds.filter((id: unknown): id is string => typeof id === "string"))]
+      : []
+    return { currentExerciseIndex, deletedSetIds, exercises, schemaVersion, startedAt, workoutName }
   } catch {
     window.localStorage.removeItem(key)
     return null
@@ -139,7 +143,7 @@ export function scanActiveSessions(): ActiveWorkoutSession[] {
     if (!workoutId) continue
 
     const session = readStoredWorkoutSession(workoutId)
-    if (!session || !storedSessionHasProgress(session.exercises)) continue
+    if (!session || (!session.deletedSetIds?.length && !storedSessionHasProgress(session.exercises))) continue
 
     const totalSets = session.exercises.reduce((acc, ex) => acc + ex.sets.length, 0)
     const completedSets = session.exercises.reduce(

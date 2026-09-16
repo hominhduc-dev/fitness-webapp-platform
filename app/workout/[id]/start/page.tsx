@@ -48,6 +48,8 @@ import {
   type StoredWorkoutSession,
 } from "@/lib/workout/session-storage"
 import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
+import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
+import { nextExerciseCollapsed } from "@/lib/workout/exercise-collapse"
 
 // ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
 
@@ -66,14 +68,6 @@ type ProgramSetTarget = {
   reps: number
   repsMin?: number
   weight?: number
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value)
-}
-
-function isGeneratedHistorySetId(exerciseId: string, setId: string) {
-  return setId.startsWith(`${exerciseId}-xtra-`)
 }
 
 function buildProgramSetTargetMap(exercises: Workout["exercises"]) {
@@ -129,8 +123,10 @@ function createStoredWorkoutSession(
   currentExerciseIndex: number,
   addedSetTokens: ReadonlyMap<string, string>,
   workoutName: string,
+  deletedSetIds: ReadonlySet<string>,
 ): StoredWorkoutSession {
   return {
+    deletedSetIds: [...deletedSetIds],
     currentExerciseIndex,
     exercises: exercises.map((exercise) => ({
       id: exercise.id,
@@ -151,61 +147,6 @@ function createStoredWorkoutSession(
   }
 }
 
-function restoreWorkoutSessionExercises(
-  baseExercises: Workout["exercises"],
-  storedExercises: StoredWorkoutSession["exercises"],
-  canRestoreAddedSets: boolean,
-) {
-  const storedExercisesById = new Map(storedExercises.map((exercise) => [exercise.id, exercise]))
-  return baseExercises.map((exercise) => {
-    const storedExercise = storedExercisesById.get(exercise.id)
-    if (!storedExercise) return exercise
-    const storedSetsById = new Map(storedExercise.sets.map((set) => [set.id, set]))
-
-    const restoredSets = exercise.sets.map((set) => {
-      const storedSet = storedSetsById.get(set.id)
-      if (!storedSet) return set
-      return {
-        ...set,
-        actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
-        completed: Boolean(storedSet.completed),
-        notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
-        rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
-        weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
-      }
-    })
-
-    // Re-append sets the user added during the session that aren't in the API response
-    const baseSetIds = new Set(exercise.sets.map((s) => s.id))
-    const lastSet = exercise.sets[exercise.sets.length - 1]
-    const sessionAddedSets: Workout["exercises"][number]["sets"] = storedExercise.sets
-      .filter(
-        (storedSet) =>
-          !baseSetIds.has(storedSet.id) &&
-          canRestoreAddedSets &&
-          storedSet.addedDuringSession === true &&
-          typeof storedSet.clientAddedToken === "string" &&
-          storedSet.clientAddedToken.trim().length > 0 &&
-          !isGeneratedHistorySetId(exercise.id, storedSet.id),
-      )
-      .map((storedSet, i) => ({
-        id: storedSet.id,
-        setNumber: exercise.sets.length + i + 1,
-        targetReps: lastSet?.targetReps ?? 10,
-        targetRepsMin: lastSet?.targetRepsMin,
-        actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
-        completed: Boolean(storedSet.completed),
-        notes: typeof storedSet.notes === "string" ? storedSet.notes : undefined,
-        rir: isFiniteNumber(storedSet.rir) ? storedSet.rir : undefined,
-        weight: isFiniteNumber(storedSet.weight) ? storedSet.weight : undefined,
-      }))
-
-    return {
-      ...exercise,
-      sets: [...restoredSets, ...sessionAddedSets],
-    }
-  })
-}
 
 // On a fresh workout load (no in-progress session in localStorage), pre-fill each
 // set's weight/reps/RIR from the trainee's last logged performance (same program,
@@ -249,6 +190,7 @@ function migrateStoredWorkoutSession(oldWorkoutId: string, response: SwapWorkout
   const setIdMap = response.currentSetIdMap
   const migrated: StoredWorkoutSession = {
     ...stored,
+    deletedSetIds: stored.deletedSetIds?.map((id) => setIdMap[id] ?? id),
     exercises: stored.exercises.map((exercise) => ({
       ...exercise,
       id: exerciseIdMap[exercise.id] ?? exercise.id,
@@ -702,6 +644,7 @@ function LiftExerciseBlock({
   const completedCount = exercise.sets.filter((s) => s.completed).length
   const allSetsCompleted = exercise.sets.length > 0 && completedCount === exercise.sets.length
   const [collapsed, setCollapsed] = useState(allSetsCompleted || !isCurrent)
+  const wasCompletedRef = useRef(allSetsCompleted)
   const [coachUpdateOpen, setCoachUpdateOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(exercise.notes ?? "")
@@ -722,11 +665,9 @@ function LiftExerciseBlock({
   }, [onCollapse])
 
   useEffect(() => {
-    if (allSetsCompleted) {
-      setCollapsed(true)
-      return
-    }
-    setCollapsed(!isCurrent)
+    const nextCollapsed = nextExerciseCollapsed(wasCompletedRef.current, allSetsCompleted, isCurrent)
+    wasCompletedRef.current = allSetsCompleted
+    if (nextCollapsed !== undefined) setCollapsed(nextCollapsed)
   }, [allSetsCompleted, isCurrent])
 
   useEffect(() => {
@@ -963,7 +904,7 @@ function selectSessionSeed(workout: Workout): SessionSeed {
     storedSession,
     exercises: storedSession
       ? restoreWorkoutSessionExercises(workout.exercises, storedSession.exercises,
-          storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION)
+          storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION, storedSession.deletedSetIds)
       : seedFromPreviousPerformance(workout.exercises),
   }
 }
@@ -989,6 +930,7 @@ function WorkoutSession() {
   const shouldAutoScrollExerciseRef = useRef(false)
   const scrollResetWorkoutIdRef = useRef<string | null>(null)
   const addedSetTokensRef = useRef<Map<string, string>>(new Map())
+  const deletedSetIdsRef = useRef<Set<string>>(new Set())
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1047,6 +989,7 @@ function WorkoutSession() {
     const nextWorkout = workoutQuery.data as SessionSeed
     const storedSession = nextWorkout.storedSession
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
+    deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
     programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.originalExercises)
     setWorkout(nextWorkout)
     setExercises(nextWorkout.exercises)
@@ -1072,7 +1015,7 @@ function WorkoutSession() {
   useEffect(() => {
     if (!workout || !workoutId) return
     const storageKey = getWorkoutSessionStorageKey(workoutId)
-    if (!hasSessionProgress(exercises)) {
+    if (!hasSessionProgress(exercises) && deletedSetIdsRef.current.size === 0) {
       window.localStorage.removeItem(storageKey)
       return
     }
@@ -1084,6 +1027,7 @@ function WorkoutSession() {
         currentExerciseIndex,
         addedSetTokensRef.current,
         workout.name,
+        deletedSetIdsRef.current,
       )),
     )
   }, [currentExerciseIndex, exercises, startTime, workout, workoutId])
@@ -1280,6 +1224,9 @@ function WorkoutSession() {
           nextTokens.set(setIdMap[setId] ?? setId, token)
         })
         addedSetTokensRef.current = nextTokens
+        deletedSetIdsRef.current = new Set(
+          [...deletedSetIdsRef.current].map((id) => setIdMap[id] ?? id),
+        )
 
         // Migrate the in-progress localStorage session under the new workoutId with
         // remapped exercise/set IDs so completed sets and entered weights survive
@@ -1295,6 +1242,9 @@ function WorkoutSession() {
   }
 
   const handleRemoveSet = (exerciseId: string, setId: string) => {
+    const exercise = exercises.find((ex) => ex.id === exerciseId)
+    if (!exercise || exercise.sets.length <= 1 || !exercise.sets.some((set) => set.id === setId)) return
+    deletedSetIdsRef.current.add(setId)
     setExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId || ex.sets.length <= 1) return ex
