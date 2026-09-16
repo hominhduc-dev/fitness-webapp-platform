@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
-import { scanActiveSessions, type ActiveWorkoutSession } from "@/lib/workout/session-storage"
+import type { ActiveWorkoutSession } from "@/lib/workout/session-storage"
+import { useActiveWorkoutSessionList } from "@/lib/workout/use-active-workout-sessions"
 import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -18,18 +18,8 @@ interface TodayWorkoutProps {
   workouts?: Workout[]
 }
 
-export function TodayWorkout({ activeSessions = [], workout: scheduledWorkout, completed = false, workouts = [] }: TodayWorkoutProps) {
-  const [activeId, setActiveId] = useState<string | null>(null)
-  useEffect(() => {
-    const refresh = () => setActiveId(activeSessions[0]?.workoutId ?? scanActiveSessions()[0]?.workoutId ?? null)
-    refresh()
-    window.addEventListener('storage', refresh)
-    window.addEventListener('focus', refresh)
-    return () => {
-      window.removeEventListener('storage', refresh)
-      window.removeEventListener('focus', refresh)
-    }
-  }, [activeSessions])
+export function TodayWorkout({ activeSessions, workout: scheduledWorkout, completed = false, workouts = [] }: TodayWorkoutProps) {
+  const activeId = useActiveWorkoutSessionList(activeSessions).sessions[0]?.workoutId ?? null
   const activeWorkout = workouts.find((item) => item.id === activeId)
   const workout = activeWorkout ?? scheduledWorkout
   const isCompleted = !activeWorkout && completed

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/lib/auth/api"
 import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecoveryHistory, useVolumeRecovery } from "./progress"
-import { prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
+import { ACTIVE_SESSION_SEED_REUSE_MS, prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
 import { prefetchMeals, useAddMealItem, useFoods, useNutritionDay } from "./meals"
 import { useCoachLogs } from "./coach-logs"
 import { prefetchCoachRoutes, useCoachData, useCoachNavCounts } from "./coach-data"
@@ -180,6 +180,22 @@ describe("client cache contracts", () => {
     const hook = renderHook(() => useProgressCalendar(2026, 9, { initialData: null }), { wrapper })
     await waitFor(() => expect(hook.result.current.isSuccess).toBe(true))
     expect(api.calendar).toHaveBeenCalledTimes(1)
+    hook.unmount(); client.clear()
+  })
+
+  it("refetches an active session seed restored from storage before reusing it", async () => {
+    const { client, wrapper } = setup()
+    const restored = { id: "w1", exercises: [], name: "Restored" } as unknown as import("@/lib/types").Workout
+    const fresh = { id: "w1", exercises: [], name: "Fresh" } as unknown as import("@/lib/types").Workout
+    client.setQueryData(userQueryKey(queryKeys.workouts.detail("w1"), state.userId), restored, {
+      updatedAt: Date.now() - ACTIVE_SESSION_SEED_REUSE_MS - 1,
+    })
+    api.workout.mockResolvedValue(fresh)
+
+    const hook = renderHook(() => useWorkoutDetail("w1", { activeSession: true }), { wrapper })
+
+    await waitFor(() => expect(hook.result.current.data).toEqual(fresh))
+    expect(api.workout).toHaveBeenCalledTimes(1)
     hook.unmount(); client.clear()
   })
 

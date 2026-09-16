@@ -46,6 +46,8 @@ import type {
   DiscoverableCoach,
   DashboardAnalytics,
   NotificationList,
+  NotificationPreferences,
+  NotificationPreferencesInput,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
   ProgressCalendar,
@@ -165,6 +167,11 @@ type SerializedWorkoutScheduleEntry = {
 type SerializedWorkoutSessionDraft = StoredWorkoutSession & {
   updatedAt: string
   workoutId: string
+}
+
+export type WorkoutSessionDraftInput = Omit<StoredWorkoutSession, "syncedAt"> & {
+  /** Server `updatedAt` this client last synced; lets the API refuse to recreate a draft discarded elsewhere. */
+  baseUpdatedAt?: string
 }
 
 type SerializedActiveWorkoutSession = ActiveWorkoutSession & {
@@ -554,7 +561,7 @@ async function request<T>(path: string, accessToken: string, init?: RequestInit 
   try {
     response = await fetch(`${getApiBaseUrl()}${path}`, fetchOptions)
   } catch {
-    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
+    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503, { isNetworkError: true })
   }
 
   return parseJson<T>(response)
@@ -1517,7 +1524,7 @@ async function fetchWorkoutSessionDraft(accessToken: string, workoutId: string):
 async function upsertWorkoutSessionDraft(
   accessToken: string,
   workoutId: string,
-  input: StoredWorkoutSession,
+  input: WorkoutSessionDraftInput,
 ): Promise<SerializedWorkoutSessionDraft> {
   const response = await request<ApiEnvelope<SerializedWorkoutSessionDraft>>(
     `/api/workouts/${workoutId}/session-draft`,
@@ -2169,11 +2176,11 @@ async function fetchNotifications(accessToken: string, limit = 20): Promise<Noti
   let response: { notifications: SerializedNotification[]; unreadCount: number }
 
   try {
-    response = await request<{ notifications: SerializedNotification[]; unreadCount: number }>(
+    response = (await request<ApiEnvelope<{ notifications: SerializedNotification[]; unreadCount: number }>>(
       `/api/notifications?limit=${encodeURIComponent(String(limit))}`,
       accessToken,
-      { next: { revalidate: 5 } },
-    )
+      { cache: "no-store" },
+    )).data
   } catch (error) {
     // Older backend deployments may not expose notifications yet.
     if (error instanceof ApiError && error.status === 404) {
@@ -2193,7 +2200,7 @@ async function fetchNotifications(accessToken: string, limit = 20): Promise<Noti
 }
 
 async function markNotificationRead(accessToken: string, notificationId: string) {
-  const response = await request<{ notification: SerializedNotification }>(
+  const response = await request<ApiEnvelope<{ notification: SerializedNotification }>>(
     `/api/notifications/${notificationId}/read`,
     accessToken,
     {
@@ -2201,13 +2208,14 @@ async function markNotificationRead(accessToken: string, notificationId: string)
     },
   )
 
-  return mapNotification(response.notification)
+  return mapNotification(response.data.notification)
 }
 
 async function markAllNotificationsRead(accessToken: string) {
-  return request<{ updatedCount: number }>("/api/notifications/read-all", accessToken, {
+  const response = await request<ApiEnvelope<{ updatedCount: number }>>("/api/notifications/read-all", accessToken, {
     method: "POST",
   })
+  return response.data
 }
 
 async function fetchPushConfig(): Promise<{ enabled: boolean; publicKey: string | null }> {
@@ -2237,6 +2245,27 @@ async function deletePushSubscription(accessToken: string, endpoint: string) {
     {
       body: JSON.stringify({ endpoint }),
       method: "DELETE",
+    },
+  )
+  return response.data
+}
+
+async function fetchNotificationPreferences(accessToken: string) {
+  const response = await request<ApiEnvelope<NotificationPreferences>>(
+    "/api/notifications/preferences",
+    accessToken,
+    { cache: "no-store" },
+  )
+  return response.data
+}
+
+async function updateNotificationPreferences(accessToken: string, input: NotificationPreferencesInput) {
+  const response = await request<ApiEnvelope<NotificationPreferences>>(
+    "/api/notifications/preferences",
+    accessToken,
+    {
+      body: JSON.stringify(input),
+      method: "PUT",
     },
   )
   return response.data
@@ -2513,6 +2542,7 @@ export {
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,
+  fetchNotificationPreferences,
   fetchPushConfig,
   fetchRecoveryHistory,
   fetchVolumeRecovery,
@@ -2555,6 +2585,7 @@ export {
   deletePushSubscription,
   savePushSubscription,
   sendTestPush,
+  updateNotificationPreferences,
   restoreCoachProgram,
   swapWorkoutExercise,
   unassignCoachProgram,

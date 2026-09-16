@@ -3,11 +3,18 @@ import { getApiBaseUrl } from "@/lib/supabase/config"
 import { getTimeZoneHeaders } from "@/lib/time-zone"
 
 class ApiError extends Error {
+  /**
+   * The request never reached the API (offline, DNS, connection reset). Still
+   * reported as 503 for existing callers, but unlike a real 503 the server did
+   * not see it — the offline sync queue keeps these instead of failing them.
+   */
+  isNetworkError: boolean
   status: number
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, options?: { isNetworkError?: boolean }) {
     super(message)
     this.name = "ApiError"
+    this.isNetworkError = options?.isNetworkError ?? false
     this.status = status
   }
 }
@@ -69,7 +76,7 @@ async function request<T>(path: string, init?: RequestInit & { next?: { revalida
   try {
     response = await fetch(`${getApiBaseUrl()}${path}`, fetchOptions)
   } catch {
-    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
+    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503, { isNetworkError: true })
   }
 
   return parseJson<T>(response)

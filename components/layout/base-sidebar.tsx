@@ -19,6 +19,8 @@ export interface BaseSidebarProps {
   collapsed?: boolean
   onToggleCollapse?: () => void
   brand: React.ReactNode
+  /** Compact control beside the brand, e.g. the notification bell. */
+  headerAction?: React.ReactNode
   footer: React.ReactNode
   cta?: React.ReactNode
   backLink?: React.ReactNode
@@ -33,6 +35,7 @@ export function BaseSidebar({
   collapsed = false,
   onToggleCollapse,
   brand,
+  headerAction,
   footer,
   cta,
   backLink,
@@ -100,6 +103,7 @@ export function BaseSidebar({
         <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
           <div className="mb-4 flex items-center gap-2 px-1">
             {brand}
+            {headerAction ? <div className="ml-auto">{headerAction}</div> : null}
           </div>
           {backLink && (
             <div className="mb-6 px-1 text-micro text-muted-foreground transition-colors hover:text-foreground">
@@ -135,17 +139,22 @@ export function BaseSidebar({
                 {brand}
               </div>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleCollapse}
-              aria-label={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
-              title={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
-              className={cn(collapsed && "mx-auto")}
-            >
-              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            </Button>
+            <div className={cn("flex items-center gap-1", collapsed && "mx-auto")}>
+              {!collapsed ? headerAction : null}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggleCollapse}
+                aria-label={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
+                title={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
+              >
+                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
+          {collapsed && headerAction ? (
+            <div className="flex justify-center border-b border-sidebar-border py-2">{headerAction}</div>
+          ) : null}
 
           <nav className="min-h-0 flex-1 overflow-y-auto p-2">
             {sections.map((section, idx) => (

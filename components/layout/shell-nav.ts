@@ -16,7 +16,14 @@ type CoachCounts = {
   trainees?: number
 }
 
-export function isNavItemActive(pathname: string, item: Pick<ShellNavItem, "exact" | "href">) {
+export function isNavItemActive(pathname: string, item: Pick<ShellNavItem, "exact" | "href">, section?: string | null) {
+  // Admin keeps every section on /admin and switches with ?s=, so the query
+  // string is what tells the items apart.
+  if (item.href.startsWith("/admin")) {
+    const itemSection = new URLSearchParams(item.href.split("?")[1] ?? "").get("s")
+    return pathname === "/admin" && itemSection === (section ?? null)
+  }
+
   if (pathname === item.href) {
     return true
   }
@@ -50,12 +57,12 @@ export function getCoachNavItems(messages: AppMessages, counts?: CoachCounts): S
   ]
 }
 
-export function getAdminNavItems(messages: AppMessages): ShellNavItem[] {
+export function getAdminNavItems(messages: AppMessages, options?: { compactLabels?: boolean }): ShellNavItem[] {
   return [
     { exact: true, href: "/admin", icon: LayoutDashboard, label: messages.shell.overview },
     { href: "/admin?s=users", icon: Users, label: messages.shell.users },
-    { href: "/admin?s=coach-signups", icon: ShieldCheck, label: messages.shell.coachSignups },
-    { href: "/admin?s=requests", icon: UserRoundCheck, label: messages.shell.coachRequests },
+    { href: "/admin?s=coach-signups", icon: ShieldCheck, label: options?.compactLabels ? messages.shell.signups : messages.shell.coachSignups },
+    { href: "/admin?s=requests", icon: UserRoundCheck, label: options?.compactLabels ? messages.shell.requests : messages.shell.coachRequests },
     { href: "/admin?s=connections", icon: Link2, label: messages.shell.connections },
     { href: "/admin?s=programs", icon: ClipboardList, label: messages.shell.programs },
     { href: "/admin?s=exercises", icon: Dumbbell, label: messages.shell.exercises },
