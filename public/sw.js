@@ -10,9 +10,9 @@ const OFFLINE_URL = "/offline.html"
 const PRECACHE_URLS = [
   OFFLINE_URL,
   "/manifest.json",
-  "/favicon.ico",
-  "/android-icon-96x96.png",
-  "/android-icon-192x192.png",
+  "/favicon-yeahbuddy/favicon.ico",
+  "/favicon-yeahbuddy/android-icon-96x96.png",
+  "/favicon-yeahbuddy/android-icon-192x192.png",
   "/yeahbuddy-mark.png",
 ]
 
@@ -176,13 +176,13 @@ self.addEventListener("push", (event) => {
 
   const title = payload.title || "YeahBuddy"
   const options = {
-    badge: payload.badge || "/android-icon-96x96.png",
+    badge: payload.badge || "/favicon-yeahbuddy/android-icon-96x96.png",
     body: payload.body || "",
     data: {
       url: payload.url || "/dashboard",
       ...(payload.data || {}),
     },
-    icon: payload.icon || "/android-icon-192x192.png",
+    icon: payload.icon || "/favicon-yeahbuddy/android-icon-192x192.png",
     tag: payload.tag || "yeahbuddy-notification",
   }
 
