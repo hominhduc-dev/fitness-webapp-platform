@@ -968,10 +968,13 @@ function WorkoutSession() {
   const draftQuery = useWorkoutSessionDraft(workoutId ?? "", {
     enabled: Boolean(profile) && Boolean(workoutId) && !workout,
   })
+  // A snapshot restored from storage refetches before seeding (see
+  // useWorkoutDetail); offline that fetch pauses and the snapshot is used.
+  const isRefreshingSeed = workoutQuery.fetchStatus === "fetching"
   const isLoading =
     authLoading ||
     (Boolean(profile) && !workout && (!workoutQuery.isError && !draftQuery.isError) &&
-      (workoutQuery.isPending || draftQuery.isPending))
+      (workoutQuery.isPending || isRefreshingSeed || draftQuery.isPending))
   const logMutation = useCreateWorkoutLog()
   const swapMutation = useSwapWorkoutExercise()
   const upsertDraftMutation = useUpsertWorkoutSessionDraft()
@@ -997,7 +1000,7 @@ function WorkoutSession() {
 
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (workout || !workoutQuery.data || draftQuery.isPending) return
+    if (workout || !workoutQuery.data || isRefreshingSeed || draftQuery.isPending) return
     const serverSession = draftQuery.data ?? null
     const storedSession = serverSession ?? (workoutQuery.data.id ? readStoredWorkoutSession(workoutQuery.data.id) : null)
     const nextWorkout = buildSessionSeed(workoutQuery.data, storedSession)
@@ -1009,7 +1012,7 @@ function WorkoutSession() {
     setCurrentExerciseIndex(storedSession
       ? Math.min(Math.max(0, storedSession.currentExerciseIndex), Math.max(0, nextWorkout.exercises.length - 1)) : 0)
     setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
-  }, [draftQuery.data, draftQuery.isPending, workout, workoutQuery.data])
+  }, [draftQuery.data, draftQuery.isPending, isRefreshingSeed, workout, workoutQuery.data])
 
   // ── Timer: update elapsed every 30s ────────────────────────────────────────
   useEffect(() => {

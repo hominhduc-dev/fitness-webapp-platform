@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQueries, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { useMutation, useQueries, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/components/providers/auth-provider"
 
 import { queryKeys } from "@/lib/queries/keys"
@@ -57,6 +57,13 @@ export function useTraineePrograms(programIds: string[], enabled: boolean) {
   })) })
 }
 
+/** The default gcTime: an in-memory session seed younger than this is reused as-is. */
+export const ACTIVE_SESSION_SEED_REUSE_MS = 5 * 60_000
+
+function activeSessionStaleTime(query: Query<Workout>) {
+  return Date.now() - query.state.dataUpdatedAt > ACTIVE_SESSION_SEED_REUSE_MS ? 0 : "static" as const
+}
+
 export function useWorkoutDetail(workoutId: string, options: { initialData?: Workout; enabled?: boolean; activeSession?: boolean; select?: (workout: Workout) => Workout } = {}) {
   return useUserQuery<Workout>({
     queryKey: queryKeys.workouts.detail(workoutId),
@@ -64,8 +71,10 @@ export function useWorkoutDetail(workoutId: string, options: { initialData?: Wor
     initialData: options.initialData,
     enabled: Boolean(workoutId) && (options.enabled ?? true),
     select: options.select,
-    // Static also blocks invalidation refetches; Infinity alone does not.
-    ...(options.activeSession ? { staleTime: "static" as const, refetchOnMount: false as const,
+    // Static also blocks invalidation refetches; Infinity alone does not. A seed
+    // older than the reuse window can only have been restored from storage, so
+    // it goes stale and refetches once rather than starting a session from it.
+    ...(options.activeSession ? { staleTime: activeSessionStaleTime, refetchOnMount: true as const,
       refetchOnWindowFocus: false as const, refetchOnReconnect: false as const } : {}),
   })
 }
