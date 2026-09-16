@@ -4,6 +4,7 @@ import type { ChangeEvent } from "react"
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   AlertTriangle,
   Bell,
@@ -12,6 +13,7 @@ import {
   KeyRound,
   Loader2,
   Lock,
+  LogOut,
   Phone,
   Ruler,
   Save,
@@ -20,7 +22,6 @@ import {
   Target,
   Trash2,
   Trophy,
-  User,
 } from "lucide-react"
 
 import { ProfileEmailChange } from "@/components/profile-email-change"
@@ -31,7 +32,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
 import { SettingsField, SettingsFieldGrid, SettingsSection } from "@/components/settings/settings-section"
-import { SettingsNav, type SettingsSectionLink } from "@/components/settings/settings-nav"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -108,9 +108,10 @@ export type ProfileClientInitialData = {
 }
 
 export function ProfileClient({ initialData }: { initialData: ProfileClientInitialData }) {
+  const router = useRouter()
   const { messages } = useLocale()
   const { toast } = useToast()
-  const { isLoading, profile: authProfile, session, updateProfile, uploadAvatar } = useAuth()
+  const { isLoading, profile: authProfile, session, signOut, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
   const resetData = useResetTraineeData()
   const weightQuery = useWeightEntries(365, { initialData: initialData.weightEntries })
@@ -134,6 +135,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
   const [isChangingEmail, setIsChangingEmail] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [isResettingData, setIsResettingData] = useState(false)
   const [resetConfirmation, setResetConfirmation] = useState("")
   const goalLabels: Record<(typeof availableGoalValues)[number], string> = {
@@ -144,8 +146,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     "Lose Weight": messages.profile.goalLoseWeight,
   }
 
-  // Saving is driven from the sticky header now, so an inline banner would sit
-  // offscreen for anyone editing a field further down. Toasts follow the reader.
+  // Toasts keep save feedback visible even when the edited accordion is farther
+  // up the page.
   const notifyError = (message: string) => {
     toast({ title: message, tone: "error" })
   }
@@ -452,6 +454,17 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     }
   }
 
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+
+    try {
+      await signOut()
+      router.push("/")
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
+
   if (isLoading || !profile) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -472,71 +485,56 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const isResetConfirmationValid =
     resetConfirmation.trim().toUpperCase() === messages.profile.resetDataConfirmationWord.toUpperCase()
 
-  // Body metrics, goals and the reset zone drive trainee-only screens (meals,
-  // progress, weight tracking), so a coach or admin gets the shorter page
-  // instead of fields nothing in their app reads.
   const isTrainee = profile.role === "trainee"
-  const sectionLinks: SettingsSectionLink[] = [
-    { icon: User, id: SECTION_IDS.profile, label: messages.profile.profile },
-    { icon: SlidersHorizontal, id: SECTION_IDS.preferences, label: messages.profile.preferences },
-    ...(isTrainee
-      ? [
-          { icon: Scale, id: SECTION_IDS.body, label: messages.profile.bodyAndNutrition },
-          { icon: Target, id: SECTION_IDS.goals, label: messages.profile.fitnessGoals },
-        ]
-      : []),
-    { icon: Bell, id: SECTION_IDS.notifications, label: messages.profile.notifications },
-    { icon: Lock, id: SECTION_IDS.security, label: messages.profile.security },
-    ...(isTrainee
-      ? [{ icon: AlertTriangle, id: SECTION_IDS.resetData, label: messages.profile.resetData, tone: "danger" as const }]
-      : []),
-  ]
+  const primaryGoal = availableGoalValues.find((goal) => selectedGoals.includes(goal))
+  const sexSummary = sex === "male" ? messages.profile.sexMale : sex === "female" ? messages.profile.sexFemale : null
+  const bodySummary = [
+    heightCm ? `${heightCm} cm` : null,
+    currentWeight ? `${currentWeight} ${preferredWeightUnit}` : null,
+    sexSummary,
+  ].filter(Boolean).join(" • ")
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-8 md:px-6">
-      {/* Sticky so Save and the jump list stay reachable from any field. */}
-      <div className="sticky top-0 z-30 -mx-4 border-b border-border/60 bg-background/90 px-4 pb-2 pt-4 backdrop-blur-xl md:-mx-6 md:px-6 md:pt-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold leading-tight tracking-[-0.025em] md:text-3xl">
-              {messages.profile.title}
-            </h1>
-            <p className="mt-1 hidden text-sm text-muted-foreground sm:block">{messages.profile.subtitle}</p>
-          </div>
-
-          <Button
-            className="shrink-0 gap-2"
-            onClick={() => void handleSave()}
-            disabled={isSaving || isResettingData}
-          >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            <span className="hidden sm:inline">{isSaving ? messages.common.saving : messages.common.saveChanges}</span>
-            <span className="sm:hidden">{isSaving ? messages.common.saving : messages.common.save}</span>
-          </Button>
-        </div>
-
-        <SettingsNav
-          className="mt-2 lg:hidden"
-          label={messages.profile.sectionsLabel}
-          sections={sectionLinks}
-          variant="chips"
-        />
+    <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-5 md:px-6 md:pt-7">
+      <div className="mb-5 text-center">
+        <h1 className="text-2xl font-semibold tracking-[-0.025em] md:text-3xl">{messages.profile.title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{messages.profile.subtitle}</p>
       </div>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start">
-        <SettingsNav
-          className="hidden lg:sticky lg:top-32 lg:block"
-          label={messages.profile.sectionsLabel}
-          sections={sectionLinks}
-          variant="rail"
-        />
-
-        <div className="min-w-0 space-y-4">
+      <div className="space-y-3">
           <SettingsSection
-            description={messages.profile.profileCopy}
-            icon={User}
+            collapsible
+            description={
+              <span className="block">
+                <span className="block truncate">{profile.email}</span>
+                {phone ? <span className="block truncate">{phone}</span> : null}
+              </span>
+            }
+            headerVisual={
+              <div className="relative shrink-0">
+                <Avatar className="size-16 border-2 border-primary/20 sm:size-20">
+                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
+                  <AvatarFallback className="bg-primary-soft text-xl text-primary sm:text-2xl">{initials || "YB"}</AvatarFallback>
+                </Avatar>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  className="absolute -bottom-0.5 -right-0.5 rounded-full shadow-lg"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    avatarInputRef.current?.click()
+                  }}
+                  disabled={isUploadingAvatar}
+                  aria-label={messages.profile.changeAvatar}
+                  title={messages.profile.changeAvatar}
+                >
+                  {isUploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                </Button>
+              </div>
+            }
             id={SECTION_IDS.profile}
-            title={messages.profile.profile}
+            title={name || profile.name}
+            toggleLabel={messages.profile.edit}
           >
             <input
               ref={avatarInputRef}
@@ -548,32 +546,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               disabled={isUploadingAvatar}
             />
 
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-border/70 bg-surface-subtle/60 p-3 sm:gap-4 sm:p-3.5">
-              <div className="relative shrink-0">
-                <Avatar className="h-14 w-14 border-2 border-primary/20 sm:h-16 sm:w-16">
-                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
-                  <AvatarFallback className="bg-primary-soft text-2xl text-primary">{initials || "YB"}</AvatarFallback>
-                </Avatar>
-
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  className="absolute bottom-0 right-0 rounded-full shadow-lg"
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={isUploadingAvatar}
-                  title={messages.profile.changeAvatar}
-                >
-                  {isUploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                </Button>
-              </div>
-
-              <div className="min-w-0 text-left">
-                <p className="text-sm font-medium">{messages.profile.changeAvatar}</p>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  {isUploadingAvatar ? messages.profile.avatarUploading : messages.profile.avatarRequirements}
-                </p>
-              </div>
-            </div>
+            <p className="mb-3 text-xs leading-5 text-muted-foreground">
+              {isUploadingAvatar ? messages.profile.avatarUploading : messages.profile.avatarRequirements}
+            </p>
 
             <SettingsFieldGrid>
               <SettingsField htmlFor="name" label={messages.profile.fullName}>
@@ -645,11 +620,51 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             </SettingsFieldGrid>
           </SettingsSection>
 
+          {isTrainee ? (
+            <SettingsSection
+              collapsible
+              description={messages.profile.fitnessGoalsCopy}
+              icon={Trophy}
+              id={SECTION_IDS.goals}
+              title={messages.profile.fitnessGoals}
+              trailing={primaryGoal ? (
+                <span className="hidden rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary sm:inline-flex">
+                  {goalLabels[primaryGoal]}
+                </span>
+              ) : null}
+            >
+              <div className="flex flex-wrap gap-2">
+                {availableGoalValues.map((goal) => {
+                  const isSelected = selectedGoals.includes(goal)
+
+                  return (
+                    <button
+                      key={goal}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleGoal(goal)}
+                      className={cn(
+                        "inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11",
+                        isSelected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      {goalLabels[goal]}
+                    </button>
+                  )
+                })}
+              </div>
+            </SettingsSection>
+          ) : null}
+
           <SettingsSection
-            description={messages.profile.preferencesCopy}
+            collapsible
+            description={messages.profile.unitsSummary}
             icon={SlidersHorizontal}
             id={SECTION_IDS.preferences}
-            title={messages.profile.preferences}
+            title={messages.profile.unitsAndMeasurements}
+            trailing={<span className="hidden text-xs text-muted-foreground sm:inline">{preferredWeightUnit}, cm, kcal</span>}
           >
             <SettingsFieldGrid>
               <SettingsField htmlFor="weight-unit" hint={messages.profile.weightUnitCopy} label={messages.profile.weightUnit}>
@@ -678,7 +693,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
           {isTrainee ? (
             <SettingsSection
-              description={messages.profile.bodyAndNutritionCopy}
+              collapsible
+              defaultOpen
+              description={bodySummary || messages.profile.bodyAndNutritionCopy}
               icon={Scale}
               id={SECTION_IDS.body}
               title={messages.profile.bodyAndNutrition}
@@ -797,56 +814,26 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             </SettingsSection>
           ) : null}
 
-          {isTrainee ? (
-            <SettingsSection
-              description={messages.profile.fitnessGoalsCopy}
-              icon={Trophy}
-              id={SECTION_IDS.goals}
-              title={messages.profile.fitnessGoals}
-            >
-              <div className="flex flex-wrap gap-2">
-                {availableGoalValues.map((goal) => {
-                  const isSelected = selectedGoals.includes(goal)
-
-                  return (
-                    <button
-                      key={goal}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => toggleGoal(goal)}
-                      className={cn(
-                        "inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11",
-                        isSelected
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      {goalLabels[goal]}
-                    </button>
-                  )
-                })}
-              </div>
-            </SettingsSection>
-          ) : null}
-
           <SettingsSection
             description={messages.profile.notificationsCopy}
             icon={Bell}
             id={SECTION_IDS.notifications}
             title={messages.profile.notifications}
+            trailing={
+              <Switch
+                id="push-notifications"
+                checked={notifications}
+                onCheckedChange={setNotifications}
+                aria-label={messages.profile.pushNotifications}
+                className="h-7 w-12 [&_[data-slot=switch-thumb]]:size-6"
+              />
+            }
           >
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/70 p-3 sm:p-3.5">
-              <div className="min-w-0">
-                <Label htmlFor="push-notifications" className="text-sm font-medium">
-                  {messages.profile.pushNotifications}
-                </Label>
-                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{messages.profile.pushNotificationsCopy}</p>
-              </div>
-              <Switch id="push-notifications" checked={notifications} onCheckedChange={setNotifications} />
-            </div>
+            {null}
           </SettingsSection>
 
           <SettingsSection
+            collapsible
             description={messages.profile.changePasswordCopy}
             icon={Lock}
             id={SECTION_IDS.security}
@@ -888,7 +875,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               title={messages.profile.resetData}
               tone="danger"
             >
-              <div className="space-y-2 border-t border-destructive/20 pt-4">
+              <div className="space-y-2">
                 <Label htmlFor="reset-trainee-data">{messages.profile.resetDataConfirmationLabel}</Label>
                 <Input
                   id="reset-trainee-data"
@@ -915,8 +902,27 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               </Button>
             </SettingsSection>
           ) : null}
+
+          <Button
+            className="h-12 w-full gap-2 rounded-2xl"
+            onClick={() => void handleSave()}
+            disabled={isSaving || isResettingData}
+          >
+            {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            {isSaving ? messages.common.saving : messages.common.saveChanges}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 w-full gap-2 rounded-2xl border-destructive/30 bg-destructive-soft/60 text-destructive-text hover:bg-destructive-soft hover:text-destructive-text"
+            onClick={() => void handleSignOut()}
+            disabled={isSigningOut}
+          >
+            {isSigningOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+            {isSigningOut ? messages.common.signingOut : messages.common.signOut}
+          </Button>
         </div>
       </div>
-    </div>
   )
 }
