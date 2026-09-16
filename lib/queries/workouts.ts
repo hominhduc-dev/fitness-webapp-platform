@@ -26,7 +26,8 @@ import {
   fetchTraineeProgram,
   upsertWorkoutSessionDraft,
 } from "@/lib/fitness/api"
-import type { StoredWorkoutSession } from "@/lib/workout/session-storage"
+import type { WorkoutSessionDraftInput } from "@/lib/fitness/api"
+import type { ActiveWorkoutSession } from "@/lib/workout/session-storage"
 
 export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>, options?: { enabled?: boolean }) {
   return useUserQuery({ queryKey: queryKeys.workouts.collection(),
@@ -94,10 +95,11 @@ export function useUpsertWorkoutSessionDraft() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workoutId, input }: { workoutId: string; input: StoredWorkoutSession }) =>
+    mutationFn: async ({ workoutId, input }: { workoutId: string; input: WorkoutSessionDraftInput }) =>
       upsertWorkoutSessionDraft(await requireAccessToken(), workoutId, input),
     onSuccess: (draft, { workoutId }) => {
-      queryClient.setQueryData(queryKeys.workouts.sessionDraft(workoutId), draft)
+      // Draft queries are user-scoped (useUserQuery appends the user id), so match by prefix.
+      queryClient.setQueriesData({ queryKey: queryKeys.workouts.sessionDraft(workoutId) }, draft)
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
     },
@@ -109,9 +111,19 @@ export function useDeleteWorkoutSessionDraft() {
 
   return useMutation({
     mutationFn: async (workoutId: string) => deleteWorkoutSessionDraft(await requireAccessToken(), workoutId),
-    onSuccess: (_result, workoutId) => {
-      queryClient.setQueryData(queryKeys.workouts.sessionDraft(workoutId), null)
+    onMutate: async (workoutId) => {
+      // Hide the session everywhere right away instead of waiting for the refetch.
+      await queryClient.cancelQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
+      queryClient.setQueriesData<ActiveWorkoutSession[]>(
+        { queryKey: queryKeys.workouts.sessionDrafts() },
+        (sessions) => sessions?.filter((session) => session.workoutId !== workoutId),
+      )
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
+    },
+    onSuccess: (_result, workoutId) => {
+      queryClient.setQueriesData({ queryKey: queryKeys.workouts.sessionDraft(workoutId) }, null)
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
     },
   })

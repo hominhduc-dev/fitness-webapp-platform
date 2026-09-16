@@ -23,6 +23,7 @@ import {
 import { randomUUID } from "node:crypto"
 
 import { AuthServiceError, type SerializedProfile } from "../auth.service"
+import { ConflictError } from "../errors"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
 import {
   CACHE_KEYS,
@@ -235,6 +236,8 @@ type WorkoutLogRecord = Prisma.WorkoutLogGetPayload<{
 type WorkoutSessionDraftRecord = WorkoutSessionDraft
 
 type WorkoutSessionDraftInput = {
+  /** `updatedAt` of the draft this client last synced; absent for a session never stored on the server. */
+  baseUpdatedAt?: string
   currentExerciseIndex: number
   deletedSetIds?: string[]
   exercises: unknown[]
@@ -803,31 +806,37 @@ async function upsertWorkoutSessionDraftForTrainee(
   }
 
   const workoutName = input.workoutName?.trim() || workout.name
+  const draftData = {
+    currentExerciseIndex: input.currentExerciseIndex,
+    deletedSetIds: input.deletedSetIds ?? [],
+    exercises: input.exercises as Prisma.InputJsonValue,
+    schemaVersion: input.schemaVersion,
+    startedAt,
+    workoutName,
+  }
+  const draftKey = { userId_workoutId: { userId: profile.id, workoutId } }
+
+  if (input.baseUpdatedAt) {
+    // This client already synced the session once. If the draft is gone (cancelled or
+    // finished on another device) or was replaced by a newer session, recreating it
+    // would resurrect a discarded workout on every device — report a conflict instead.
+    const { count } = await db.workoutSessionDraft.updateMany({
+      data: { ...draftData, updatedAt: new Date() },
+      where: { startedAt, userId: profile.id, workoutId },
+    })
+    const draft = count > 0 ? await db.workoutSessionDraft.findUnique({ where: draftKey }) : null
+    if (!draft) {
+      throw new ConflictError("Buổi tập này đã được kết thúc hoặc huỷ trên thiết bị khác.", {
+        code: "WORKOUT_SESSION_DRAFT_DISCARDED",
+      })
+    }
+    return serializeWorkoutSessionDraft(draft)
+  }
+
   const draft = await db.workoutSessionDraft.upsert({
-    create: {
-      currentExerciseIndex: input.currentExerciseIndex,
-      deletedSetIds: input.deletedSetIds ?? [],
-      exercises: input.exercises as Prisma.InputJsonValue,
-      schemaVersion: input.schemaVersion,
-      startedAt,
-      userId: profile.id,
-      workoutId,
-      workoutName,
-    },
-    update: {
-      currentExerciseIndex: input.currentExerciseIndex,
-      deletedSetIds: input.deletedSetIds ?? [],
-      exercises: input.exercises as Prisma.InputJsonValue,
-      schemaVersion: input.schemaVersion,
-      startedAt,
-      workoutName,
-    },
-    where: {
-      userId_workoutId: {
-        userId: profile.id,
-        workoutId,
-      },
-    },
+    create: { ...draftData, userId: profile.id, workoutId },
+    update: draftData,
+    where: draftKey,
   })
 
   return serializeWorkoutSessionDraft(draft)
