@@ -481,7 +481,6 @@ export function RoutineBuilderDialog({
                 {exercises.map((ex, i) => (
                   <RoutineExerciseCard
                     key={ex.id}
-                    defaultExpanded={false}
                     expanded={expandedExerciseIds.has(ex.id)}
                     onExpandedChange={(expanded) =>
                       setExpandedExerciseIds((prev) => {

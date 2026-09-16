@@ -28,6 +28,8 @@ const title = "Assisted triceps dip (kneeling)"
 
 function renderCard(overrides: Partial<RoutineExerciseCardProps> = {}) {
   const props: RoutineExerciseCardProps = {
+    // The card itself starts collapsed; most cases here exercise the open editor.
+    defaultExpanded: true,
     index: 0,
     messages,
     meta: "Arms · Leverage machine",

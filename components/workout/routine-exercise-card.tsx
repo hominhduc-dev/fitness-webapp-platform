@@ -25,7 +25,11 @@ export type RoutineExerciseCardProps = {
   onMove: (direction: -1 | 1) => void
   onRemove: () => void
   onSwap: () => void
-  /** Whether the card starts open. Read on mount only; the card owns it after. */
+  /**
+   * Whether the card starts open. Read on mount only; the card owns it after.
+   * Defaults to collapsed: a routine is read as a list far more often than any
+   * one exercise is edited.
+   */
   defaultExpanded?: boolean
   /** Controlled expanded state for flows that coordinate multiple cards. */
   expanded?: boolean
@@ -108,7 +112,7 @@ export function formatPrescriptionSummary(values: Record<RoutineExerciseField, s
  * row, per-set methods, the note, and a toolbar for swap, reorder and remove.
  */
 export function RoutineExerciseCard({
-  defaultExpanded = true,
+  defaultExpanded = false,
   disabled,
   expanded: controlledExpanded,
   index,
