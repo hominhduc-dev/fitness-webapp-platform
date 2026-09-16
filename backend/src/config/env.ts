@@ -83,6 +83,9 @@ const raw = {
   SUPABASE_ANON_KEY: clean(process.env.SUPABASE_ANON_KEY),
   SUPABASE_SERVICE_ROLE_KEY: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   SUPABASE_URL: clean(process.env.SUPABASE_URL),
+  VAPID_PRIVATE_KEY: clean(process.env.VAPID_PRIVATE_KEY),
+  VAPID_PUBLIC_KEY: clean(process.env.VAPID_PUBLIC_KEY),
+  VAPID_SUBJECT: clean(process.env.VAPID_SUBJECT),
 }
 
 const postgresUrl = z.string().regex(/^postgres(?:ql)?:\/\//i, "must be a postgres:// or postgresql:// connection string")
@@ -121,6 +124,9 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_URL: z.url().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:notifications@yeahbuddy.fit"),
 })
 
 type ParsedEnv = z.infer<typeof envSchema>
@@ -212,6 +218,9 @@ function loadEnv() {
     supabaseAnonKey: parsed.SUPABASE_ANON_KEY,
     supabaseServiceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY,
     supabaseUrl: parsed.SUPABASE_URL,
+    vapidPrivateKey: parsed.VAPID_PRIVATE_KEY,
+    vapidPublicKey: parsed.VAPID_PUBLIC_KEY,
+    vapidSubject: parsed.VAPID_SUBJECT,
   }
 }
 

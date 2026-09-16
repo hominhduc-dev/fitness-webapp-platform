@@ -18,6 +18,7 @@ import {
   type Variation,
   type VariationMuscleTarget,
   type ExerciseImportRequest,
+  type WorkoutSessionDraft,
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
@@ -230,6 +231,17 @@ type CoachUpdate = {
 type WorkoutLogRecord = Prisma.WorkoutLogGetPayload<{
   include: typeof WORKOUT_LOG_INCLUDE
 }>
+
+type WorkoutSessionDraftRecord = WorkoutSessionDraft
+
+type WorkoutSessionDraftInput = {
+  currentExerciseIndex: number
+  deletedSetIds?: string[]
+  exercises: unknown[]
+  schemaVersion?: number
+  startedAt: string
+  workoutName?: string
+}
 
 type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
   include: {
@@ -683,6 +695,155 @@ function serializeWorkout(
     scheduledDate: workout.scheduledDate ? formatUtcDateOnly(workout.scheduledDate) : undefined,
     weekIndex: workout.weekIndex ?? undefined,
   }
+}
+
+function serializeWorkoutSessionDraft(draft: WorkoutSessionDraftRecord) {
+  return {
+    currentExerciseIndex: draft.currentExerciseIndex,
+    deletedSetIds: draft.deletedSetIds,
+    exercises: draft.exercises,
+    schemaVersion: draft.schemaVersion ?? undefined,
+    startedAt: draft.startedAt.toISOString(),
+    updatedAt: draft.updatedAt.toISOString(),
+    workoutId: draft.workoutId,
+    workoutName: draft.workoutName ?? undefined,
+  }
+}
+
+function countDraftSets(exercises: Prisma.JsonValue) {
+  if (!Array.isArray(exercises)) return { completedSets: 0, totalSets: 0 }
+
+  return exercises.reduce<{ completedSets: number; totalSets: number }>(
+    (accumulator, exercise) => {
+      if (!exercise || typeof exercise !== "object" || Array.isArray(exercise)) return accumulator
+      const sets = (exercise as { sets?: unknown }).sets
+      if (!Array.isArray(sets)) return accumulator
+      accumulator.totalSets += sets.length
+      accumulator.completedSets += sets.filter(
+        (set) => Boolean(set && typeof set === "object" && !Array.isArray(set) && (set as { completed?: unknown }).completed),
+      ).length
+      return accumulator
+    },
+    { completedSets: 0, totalSets: 0 },
+  )
+}
+
+function serializeActiveWorkoutSessionDraft(draft: WorkoutSessionDraftRecord) {
+  const { completedSets, totalSets } = countDraftSets(draft.exercises)
+  return {
+    completedSets,
+    startedAt: draft.startedAt.toISOString(),
+    totalSets,
+    updatedAt: draft.updatedAt.toISOString(),
+    workoutId: draft.workoutId,
+    workoutName: draft.workoutName ?? undefined,
+  }
+}
+
+async function assertTraineeCanAccessWorkout(profile: SerializedProfile, workoutId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const workout = await db.workout.findFirst({
+    select: { id: true, name: true },
+    where: {
+      id: workoutId,
+      program: {
+        assignments: {
+          some: {
+            userId: profile.id,
+          },
+        },
+      },
+    },
+  })
+
+  if (!workout) {
+    throw new AuthServiceError("Không tìm thấy workout.", 404)
+  }
+
+  return workout
+}
+
+async function listWorkoutSessionDraftsForTrainee(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const drafts = await db.workoutSessionDraft.findMany({
+    orderBy: { updatedAt: "desc" },
+    where: { userId: profile.id },
+  })
+
+  return drafts.map(serializeActiveWorkoutSessionDraft)
+}
+
+async function getWorkoutSessionDraftForTrainee(profile: SerializedProfile, workoutId: string) {
+  const db = ensurePrisma()
+  await assertTraineeCanAccessWorkout(profile, workoutId)
+  const draft = await db.workoutSessionDraft.findUnique({
+    where: {
+      userId_workoutId: {
+        userId: profile.id,
+        workoutId,
+      },
+    },
+  })
+
+  return draft ? serializeWorkoutSessionDraft(draft) : null
+}
+
+async function upsertWorkoutSessionDraftForTrainee(
+  profile: SerializedProfile,
+  workoutId: string,
+  input: WorkoutSessionDraftInput,
+) {
+  const db = ensurePrisma()
+  const workout = await assertTraineeCanAccessWorkout(profile, workoutId)
+  const startedAt = new Date(input.startedAt)
+  if (Number.isNaN(startedAt.getTime())) {
+    throw new AuthServiceError("Thời điểm bắt đầu workout không hợp lệ.", 422)
+  }
+
+  const workoutName = input.workoutName?.trim() || workout.name
+  const draft = await db.workoutSessionDraft.upsert({
+    create: {
+      currentExerciseIndex: input.currentExerciseIndex,
+      deletedSetIds: input.deletedSetIds ?? [],
+      exercises: input.exercises as Prisma.InputJsonValue,
+      schemaVersion: input.schemaVersion,
+      startedAt,
+      userId: profile.id,
+      workoutId,
+      workoutName,
+    },
+    update: {
+      currentExerciseIndex: input.currentExerciseIndex,
+      deletedSetIds: input.deletedSetIds ?? [],
+      exercises: input.exercises as Prisma.InputJsonValue,
+      schemaVersion: input.schemaVersion,
+      startedAt,
+      workoutName,
+    },
+    where: {
+      userId_workoutId: {
+        userId: profile.id,
+        workoutId,
+      },
+    },
+  })
+
+  return serializeWorkoutSessionDraft(draft)
+}
+
+async function deleteWorkoutSessionDraftForTrainee(profile: SerializedProfile, workoutId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  await db.workoutSessionDraft.deleteMany({
+    where: {
+      userId: profile.id,
+      workoutId,
+    },
+  })
+
+  return { deleted: true, workoutId }
 }
 
 function formatPlanNumber(value: number) {
@@ -3547,7 +3708,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   const todayStart = clientCalendarDay()
 
-  const [recentLogs, historyLogs, weekLogs] = await Promise.all([
+  const [recentLogs, historyLogs, weekLogs, activeSessions] = await Promise.all([
     db.workoutLog.findMany({
       include: WORKOUT_LOG_INCLUDE,
       orderBy: {
@@ -3578,6 +3739,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
         userId: profile.id,
       },
     }),
+    listWorkoutSessionDraftsForTrainee(profile),
   ])
 
   const schedule = DAY_LABELS.reduce<Record<number, ReturnType<typeof serializeWorkout> | null>>((accumulator, _label, index) => {
@@ -3600,6 +3762,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   const todayWorkout = scheduleEntries.find((entry) => entry.isToday)?.workout ?? null
 
   return {
+    activeSessions,
     historyLogs: historyLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     programs: assignments.map((a) => ({
       assignedAt: a.assignedAt,
@@ -3633,7 +3796,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
   todayEnd.setMilliseconds(-1)
 
-  const [assignments, recentLogs, weekLogs, meals] = await Promise.all([
+  const [assignments, recentLogs, weekLogs, meals, activeSessions] = await Promise.all([
     db.programAssignment.findMany({
       include: {
         program: {
@@ -3684,6 +3847,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
         userId: profile.id,
       },
     }),
+    listWorkoutSessionDraftsForTrainee(profile),
   ])
 
   const workoutMap = new Map<string, WorkoutRecord>()
@@ -3747,6 +3911,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   const todayWorkout = scheduleEntries.find((entry) => entry.isToday)?.workout ?? null
 
   return {
+    activeSessions,
     dailyNutrition: {
       date: todayStart,
       meals: serializedMeals,
@@ -7446,6 +7611,7 @@ export {
   deleteCoachProgram,
   deleteMealForUser,
   deletePersonalWorkoutForTrainee,
+  deleteWorkoutSessionDraftForTrainee,
   deleteWorkoutLogCommentForCoach,
   deleteWorkoutLogForTrainee,
   exportCoachWorkoutLogsToGoogleSheetsForTrainee,
@@ -7457,6 +7623,7 @@ export {
   getCoachProgramDetail,
   getCoachTraineeDetail,
   getTraineeProgramDetail,
+  getWorkoutSessionDraftForTrainee,
   getCalendarForTrainee,
   getProgressAnalyticsForCurrentTrainee,
   getWorkoutDetailForTrainee,
@@ -7477,6 +7644,7 @@ export {
   listMealsForUser,
   listNotificationsForUser,
   listWorkoutLogsForExportTrainee,
+  listWorkoutSessionDraftsForTrainee,
   listWorkoutsForTrainee,
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,
@@ -7492,6 +7660,7 @@ export {
   updateCoachRequestStatus,
   updateMealForUser,
   updatePersonalWorkoutForTrainee,
+  upsertWorkoutSessionDraftForTrainee,
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
 }

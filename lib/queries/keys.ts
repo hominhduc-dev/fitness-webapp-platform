@@ -56,6 +56,8 @@ export const queryKeys = {
     /** The `/api/workouts` collection: schedule, entries, logs, programs, stats. */
     collection: () => ["workouts", "collection"] as const,
     detail: (workoutId: string) => ["workouts", "detail", workoutId] as const,
+    sessionDraft: (workoutId: string) => ["workouts", "session-draft", workoutId] as const,
+    sessionDrafts: () => ["workouts", "session-drafts"] as const,
     traineeProgram: (programId: string) => ["workouts", "trainee-program", programId] as const,
   },
 

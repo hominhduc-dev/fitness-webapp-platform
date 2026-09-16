@@ -106,6 +106,15 @@ const createWorkoutLogSchema = z.object({
   startedAt: isoDateTime.nullish(),
 })
 
+const workoutSessionDraftSchema = z.object({
+  currentExerciseIndex: z.number().int().min(0).max(1000).default(0),
+  deletedSetIds: z.array(z.string().max(120)).max(500).default([]),
+  exercises: z.array(z.unknown()).max(100).default([]),
+  schemaVersion: z.number().int().min(1).max(100).optional(),
+  startedAt: isoDateTime,
+  workoutName: z.string().trim().max(120).optional(),
+})
+
 const swapExerciseSchema = z.object({
   variationId: z.string().min(1, "variationId là bắt buộc.").max(64),
 })
@@ -122,5 +131,6 @@ export {
   swapExerciseSchema,
   swapParams,
   updateTraineeProgramSchema,
+  workoutSessionDraftSchema,
   workoutIdParams,
 }

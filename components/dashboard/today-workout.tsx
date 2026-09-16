@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { scanActiveSessions } from "@/lib/workout/session-storage"
+import { scanActiveSessions, type ActiveWorkoutSession } from "@/lib/workout/session-storage"
 import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -14,13 +14,14 @@ import { formatRepTarget } from "@/lib/workout-reps"
 interface TodayWorkoutProps {
   workout: Workout | null
   completed?: boolean
+  activeSessions?: ActiveWorkoutSession[]
   workouts?: Workout[]
 }
 
-export function TodayWorkout({ workout: scheduledWorkout, completed = false, workouts = [] }: TodayWorkoutProps) {
+export function TodayWorkout({ activeSessions = [], workout: scheduledWorkout, completed = false, workouts = [] }: TodayWorkoutProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   useEffect(() => {
-    const refresh = () => setActiveId(scanActiveSessions()[0]?.workoutId ?? null)
+    const refresh = () => setActiveId(activeSessions[0]?.workoutId ?? scanActiveSessions()[0]?.workoutId ?? null)
     refresh()
     window.addEventListener('storage', refresh)
     window.addEventListener('focus', refresh)
@@ -28,7 +29,7 @@ export function TodayWorkout({ workout: scheduledWorkout, completed = false, wor
       window.removeEventListener('storage', refresh)
       window.removeEventListener('focus', refresh)
     }
-  }, [])
+  }, [activeSessions])
   const activeWorkout = workouts.find((item) => item.id === activeId)
   const workout = activeWorkout ?? scheduledWorkout
   const isCompleted = !activeWorkout && completed

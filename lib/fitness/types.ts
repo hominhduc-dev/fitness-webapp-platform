@@ -14,6 +14,7 @@ import type {
   WorkoutLogComment,
   WorkoutScheduleEntry,
 } from "@/lib/types"
+import type { ActiveWorkoutSession } from "@/lib/workout/session-storage"
 
 type AssignedTrainee = {
   assignedAt: Date
@@ -72,6 +73,7 @@ type WeeklyCaloriesPoint = {
 }
 
 type WorkoutCollection = {
+  activeSessions: ActiveWorkoutSession[]
   historyLogs: WorkoutLog[]
   programs: TraineeProgram[]
   recentLogs: WorkoutLog[]
@@ -94,6 +96,7 @@ type MealCollection = {
 }
 
 type TraineeDashboardData = {
+  activeSessions: ActiveWorkoutSession[]
   dailyNutrition: DailyNutrition
   recentLogs: WorkoutLog[]
   schedule: Record<number, Workout | null>

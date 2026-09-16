@@ -43,6 +43,7 @@ import type { AppActivityLevel, AppProfile, AppSex } from "@/lib/auth/types"
 import { useResetTraineeData } from "@/lib/queries/profile"
 import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
+import { usePushNotifications } from "@/lib/push-notifications"
 import { getAppBaseUrl } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
 
@@ -119,6 +120,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const { isLoading, profile: authProfile, session, signOut, updateProfile, uploadAvatar } = useAuth()
   const profile = authProfile ?? initialData.profile
   const resetData = useResetTraineeData()
+  const pushNotifications = usePushNotifications()
   const weightQuery = useWeightEntries(365, { initialData: initialData.weightEntries })
   const createWeightEntry = useCreateWeightEntry()
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
@@ -136,7 +138,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [birthDate, setBirthDate] = useState("")
   const [sex, setSex] = useState<AppSex | "">("")
   const [activityLevel, setActivityLevel] = useState<AppActivityLevel | "">("")
-  const [notifications, setNotifications] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
@@ -160,6 +161,30 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
 
   const notifySuccess = (message: string) => {
     toast({ title: message, tone: "success" })
+  }
+
+  const handlePushNotificationToggle = async (checked: boolean) => {
+    try {
+      if (checked) {
+        await pushNotifications.subscribe()
+        notifySuccess(messages.profile.pushNotificationsEnabled)
+        return
+      }
+
+      await pushNotifications.unsubscribe()
+      notifySuccess(messages.profile.pushNotificationsDisabled)
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : messages.profile.pushNotificationError)
+    }
+  }
+
+  const handleTestPushNotification = async () => {
+    try {
+      const result = await pushNotifications.sendTest()
+      notifySuccess(result.sent > 0 ? messages.profile.pushNotificationTestSent : messages.profile.pushNotificationNoDevices)
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : messages.profile.pushNotificationError)
+    }
   }
 
   useEffect(() => {
@@ -867,14 +892,33 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             trailing={
               <Switch
                 id="push-notifications"
-                checked={notifications}
-                onCheckedChange={setNotifications}
+                checked={pushNotifications.enabled}
+                disabled={pushNotifications.isBusy || pushNotifications.state === "unsupported" || pushNotifications.state === "denied"}
+                onCheckedChange={(checked) => void handlePushNotificationToggle(checked)}
                 aria-label={messages.profile.pushNotifications}
                 className="h-7 w-12 [&_[data-slot=switch-thumb]]:size-6"
               />
             }
           >
-            {null}
+            <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+              <p>{messages.profile.pushNotificationsCopy}</p>
+              <p>
+                {pushNotifications.state === "unsupported"
+                  ? messages.profile.pushNotificationsUnsupported
+                  : pushNotifications.state === "denied"
+                    ? messages.profile.pushNotificationsDenied
+                    : messages.profile.pushNotificationsIosHint}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-fit"
+                disabled={!pushNotifications.enabled || pushNotifications.isBusy}
+                onClick={() => void handleTestPushNotification()}
+              >
+                {pushNotifications.isBusy ? messages.common.loading : messages.profile.pushNotificationTest}
+              </Button>
+            </div>
           </SettingsSection>
 
           <SettingsSection

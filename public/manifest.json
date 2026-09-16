@@ -1,6 +1,7 @@
 {
   "name": "YeahBuddy Fitness",
   "short_name": "YeahBuddy",
+  "id": "/",
   "description": "Track workouts, log meals, monitor weight progress, and work with coaches in one fitness app.",
   "start_url": "/",
   "scope": "/",

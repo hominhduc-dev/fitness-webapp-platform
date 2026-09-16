@@ -31,7 +31,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
 import { ExerciseAnimation } from "@/components/workout/exercise-animation"
-import { useCreateWorkoutLog, useSwapWorkoutExercise, useWorkoutDetail } from "@/lib/queries/workouts"
+import {
+  useCreateWorkoutLog,
+  useDeleteWorkoutSessionDraft,
+  useSwapWorkoutExercise,
+  useUpsertWorkoutSessionDraft,
+  useWorkoutDetail,
+  useWorkoutSessionDraft,
+} from "@/lib/queries/workouts"
 import { useExercises } from "@/lib/queries/exercises"
 import { cn } from "@/lib/utils"
 import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
@@ -893,15 +900,12 @@ function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
 
 type SessionSeed = Workout & {
   originalExercises: Workout["exercises"]
-  storedSession: ReturnType<typeof readStoredWorkoutSession>
 }
 
-function selectSessionSeed(workout: Workout): SessionSeed {
-  const storedSession = readStoredWorkoutSession(workout.id)
+function buildSessionSeed(workout: Workout, storedSession: StoredWorkoutSession | null): SessionSeed {
   return {
     ...workout,
     originalExercises: workout.exercises,
-    storedSession,
     exercises: storedSession
       ? restoreWorkoutSessionExercises(workout.exercises, storedSession.exercises,
           storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION, storedSession.deletedSetIds)
@@ -959,11 +963,19 @@ function WorkoutSession() {
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const workoutQuery = useWorkoutDetail(workoutId ?? "", {
-    activeSession: true, enabled: !workout, select: selectSessionSeed,
+    activeSession: true, enabled: !workout,
   })
-  const isLoading = authLoading || (Boolean(profile) && !workout && !workoutQuery.isError)
+  const draftQuery = useWorkoutSessionDraft(workoutId ?? "", {
+    enabled: Boolean(profile) && Boolean(workoutId) && !workout,
+  })
+  const isLoading =
+    authLoading ||
+    (Boolean(profile) && !workout && (!workoutQuery.isError && !draftQuery.isError) &&
+      (workoutQuery.isPending || draftQuery.isPending))
   const logMutation = useCreateWorkoutLog()
   const swapMutation = useSwapWorkoutExercise()
+  const upsertDraftMutation = useUpsertWorkoutSessionDraft()
+  const deleteDraftMutation = useDeleteWorkoutSessionDraft()
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
   // Reset after the workout replaces the loading state. Doing this earlier lets
@@ -985,9 +997,10 @@ function WorkoutSession() {
 
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (workout || !workoutQuery.data) return
-    const nextWorkout = workoutQuery.data as SessionSeed
-    const storedSession = nextWorkout.storedSession
+    if (workout || !workoutQuery.data || draftQuery.isPending) return
+    const serverSession = draftQuery.data ?? null
+    const storedSession = serverSession ?? (workoutQuery.data.id ? readStoredWorkoutSession(workoutQuery.data.id) : null)
+    const nextWorkout = buildSessionSeed(workoutQuery.data, storedSession)
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
     deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
     programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.originalExercises)
@@ -996,7 +1009,7 @@ function WorkoutSession() {
     setCurrentExerciseIndex(storedSession
       ? Math.min(Math.max(0, storedSession.currentExerciseIndex), Math.max(0, nextWorkout.exercises.length - 1)) : 0)
     setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
-  }, [workout, workoutQuery.data])
+  }, [draftQuery.data, draftQuery.isPending, workout, workoutQuery.data])
 
   // ── Timer: update elapsed every 30s ────────────────────────────────────────
   useEffect(() => {
@@ -1017,20 +1030,25 @@ function WorkoutSession() {
     const storageKey = getWorkoutSessionStorageKey(workoutId)
     if (!hasSessionProgress(exercises) && deletedSetIdsRef.current.size === 0) {
       window.localStorage.removeItem(storageKey)
+      void deleteDraftMutation.mutateAsync(workoutId).catch(() => undefined)
       return
     }
-    window.localStorage.setItem(
-      storageKey,
-      JSON.stringify(createStoredWorkoutSession(
-        exercises,
-        startTime,
-        currentExerciseIndex,
-        addedSetTokensRef.current,
-        workout.name,
-        deletedSetIdsRef.current,
-      )),
+    const storedSession = createStoredWorkoutSession(
+      exercises,
+      startTime,
+      currentExerciseIndex,
+      addedSetTokensRef.current,
+      workout.name,
+      deletedSetIdsRef.current,
     )
-  }, [currentExerciseIndex, exercises, startTime, workout, workoutId])
+    window.localStorage.setItem(storageKey, JSON.stringify(storedSession))
+
+    const timeoutId = window.setTimeout(() => {
+      void upsertDraftMutation.mutateAsync({ input: storedSession, workoutId }).catch(() => undefined)
+    }, 1200)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [currentExerciseIndex, deleteDraftMutation, exercises, startTime, upsertDraftMutation, workout, workoutId])
 
   // ── Auto-advance: scroll the active exercise into view ─────────────────────
   useEffect(() => {
@@ -1232,6 +1250,7 @@ function WorkoutSession() {
         // remapped exercise/set IDs so completed sets and entered weights survive
         // the redirect (and clear the old key so it doesn't linger).
         migrateStoredWorkoutSession(workoutId, response)
+        void deleteDraftMutation.mutateAsync(workoutId).catch(() => undefined)
         router.replace(`/workout/${response.workoutId}/start`)
       }
     } catch (swapError) {
@@ -1354,6 +1373,7 @@ function WorkoutSession() {
         startedAt: loggedStartedAt.toISOString(),
       } })
       clearStoredWorkoutSession(workout.id)
+      await deleteDraftMutation.mutateAsync(workout.id).catch(() => undefined)
       router.push("/dashboard")
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : messages.meals.logMealError)
@@ -1399,6 +1419,7 @@ function WorkoutSession() {
   const handleCancelWorkout = () => {
     if (workout?.id) {
       clearStoredWorkoutSession(workout.id)
+      void deleteDraftMutation.mutateAsync(workout.id).catch(() => undefined)
     }
 
     router.back()

@@ -9,15 +9,19 @@ import {
   createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
+  deleteWorkoutSessionDraftForTrainee,
   deleteWorkoutLogForTrainee,
   exportWorkoutLogsToGoogleSheetsForTrainee,
   getTraineeProgramDetail,
   getWorkoutDetailForTrainee,
+  getWorkoutSessionDraftForTrainee,
   listWorkoutLogsForExportTrainee,
+  listWorkoutSessionDraftsForTrainee,
   listWorkoutsForTrainee,
   swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
   updateTraineeProgramDetails,
+  upsertWorkoutSessionDraftForTrainee,
 } from "../services/fitness-data.service"
 import { getAccessToken } from "./route.utils"
 import {
@@ -32,12 +36,14 @@ import {
   swapExerciseSchema,
   swapParams,
   updateTraineeProgramSchema,
+  workoutSessionDraftSchema,
   workoutIdParams,
 } from "./workout.schemas"
 
 const workoutRouter = Router()
 
 type WorkoutLogInput = Parameters<typeof createWorkoutLogForTrainee>[2]
+type WorkoutSessionDraftInput = Parameters<typeof upsertWorkoutSessionDraftForTrainee>[2]
 
 workoutRouter.get(
   "/",
@@ -87,6 +93,14 @@ workoutRouter.get(
   }),
 )
 
+workoutRouter.get(
+  "/session-drafts/active",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ data: await listWorkoutSessionDraftsForTrainee(profile), error: null, meta: null })
+  }),
+)
+
 workoutRouter.post(
   "/logs/export/google-sheets",
   heavyLimiter,
@@ -95,6 +109,36 @@ workoutRouter.post(
     const result = await exportWorkoutLogsToGoogleSheetsForTrainee(profile, req.body)
 
     res.json({ data: result, error: null, meta: null })
+  }),
+)
+
+workoutRouter.get(
+  "/:workoutId/session-draft",
+  validated({ params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ data: await getWorkoutSessionDraftForTrainee(profile, req.params.workoutId), error: null, meta: null })
+  }),
+)
+
+workoutRouter.put(
+  "/:workoutId/session-draft",
+  validated({ body: workoutSessionDraftSchema, params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const draft = await upsertWorkoutSessionDraftForTrainee(
+      profile,
+      req.params.workoutId,
+      req.body as WorkoutSessionDraftInput,
+    )
+
+    res.json({ data: draft, error: null, meta: null })
+  }),
+)
+
+workoutRouter.delete(
+  "/:workoutId/session-draft",
+  validated({ params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ data: await deleteWorkoutSessionDraftForTrainee(profile, req.params.workoutId), error: null, meta: null })
   }),
 )
 
