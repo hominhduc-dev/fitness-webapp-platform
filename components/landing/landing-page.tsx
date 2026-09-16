@@ -102,7 +102,7 @@ function TopBar() {
           className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
         >
           <Image
-            src="/android-icon-192x192.png"
+            src="/favicon-yeahbuddy/android-icon-192x192.png"
             width={30}
             height={30}
             alt=""
