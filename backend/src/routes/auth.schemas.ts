@@ -74,6 +74,7 @@ const updateProfileSchema = z.object({
   preferredWeightUnit: nullableString,
   sex: nullableString,
   targetWeightKg: nullableNumber,
+  username: nullableString,
 })
 
 export {

@@ -78,4 +78,5 @@ export interface UpdateProfileInput {
   preferredWeightUnit?: "kg" | "lbs"
   sex?: AppSex | null
   targetWeightKg?: number | null
+  username?: string | null
 }

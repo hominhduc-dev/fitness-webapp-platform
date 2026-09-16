@@ -159,9 +159,9 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   return (
     <Fragment>
       <header className="px-4 pt-[calc(1rem+env(safe-area-inset-top))] md:hidden">
-        <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-3 rounded-3xl bg-card/70 px-3 py-2 shadow-sm">
+        <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-3">
           <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"}>
-            <BrandLogo markClassName="size-8 rounded-xl" textClassName="text-xl" />
+            <BrandLogo markClassName="size-8 rounded-none" textClassName="text-xl" />
           </Link>
           <button
             type="button"
@@ -219,7 +219,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           />
           <nav id="mobile-more-navigation" className="glass-surface fixed bottom-[calc(var(--mobile-nav-offset)+5.25rem)] left-3 right-3 z-50 max-h-[calc(100dvh-var(--mobile-nav-offset)-8.25rem)] overflow-y-auto rounded-3xl border border-border bg-background p-2.5 shadow-2xl">
             <div className="mb-2 flex items-center justify-between px-2 py-1.5">
-              <div className="flex min-w-0 items-center gap-2"><BrandLogo markClassName="size-7" textClassName="text-base" />{badge ? <span className="label-micro">{badge}</span> : null}</div>
+              <div className="flex min-w-0 items-center gap-2"><BrandLogo markClassName="size-7 rounded-none" textClassName="text-base" />{badge ? <span className="label-micro">{badge}</span> : null}</div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
             </div>
             {/* Role nav items */}

@@ -17,7 +17,7 @@ export function BrandLogo({ className, markClassName, textClassName }: BrandLogo
         width={1200}
         height={1200}
         priority
-        className={cn("size-8 shrink-0 rounded-lg object-cover", markClassName)}
+        className={cn("size-8 shrink-0 rounded-none object-cover", markClassName)}
       />
       <span className={cn("truncate text-lg font-bold tracking-tight text-foreground", textClassName)}>YeahBuddy</span>
     </span>

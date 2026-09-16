@@ -99,28 +99,47 @@ function formatMetric(value?: number, digits = 1) {
   return Number.isInteger(safeValue) ? String(safeValue) : safeValue.toFixed(digits)
 }
 
-function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
+const MACRO_RING_COLORS = {
+  carbs: "text-success",
+  fat: "text-warning",
+  protein: "text-primary",
+} as const
+
+function CalorieRing({ consumed, target, totals }: { consumed: number; target: number; totals: Pick<NutritionTotals, "carbs" | "fat" | "protein"> }) {
   const radius = 52
   const circumference = 2 * Math.PI * radius
-  const pct = target > 0 ? Math.min(consumed / target, 1) : 0
-  const overTarget = consumed > target
+  const macroSegments = [
+    { className: MACRO_RING_COLORS.protein, key: "protein", value: totals.protein * 4 },
+    { className: MACRO_RING_COLORS.carbs, key: "carbs", value: totals.carbs * 4 },
+    { className: MACRO_RING_COLORS.fat, key: "fat", value: totals.fat * 9 },
+  ].filter((segment) => segment.value > 0)
+  let offset = 0
 
   return (
     <div className="relative h-32 w-32 shrink-0">
       <svg className="h-32 w-32 -rotate-90">
         <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted" />
-        <circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - pct)}
-          strokeLinecap="round"
-          strokeWidth="10"
-          className={cn("transition-all duration-300", overTarget ? "text-warning-text" : "text-primary")}
-        />
+        {macroSegments.map((segment) => {
+          const segmentLength = target > 0 ? circumference * Math.min(segment.value / target, 1) : 0
+          const dashOffset = -offset
+          offset += segmentLength
+
+          return (
+            <circle
+              key={segment.key}
+              cx="64"
+              cy="64"
+              r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="round"
+              strokeWidth="10"
+              className={cn("transition-all duration-300", segment.className)}
+            />
+          )
+        })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-mono text-3xl font-semibold leading-none text-foreground tnum">
@@ -135,12 +154,12 @@ function CalorieRing({ consumed, target }: { consumed: number; target: number })
 }
 
 function MacroBar({
-  accent,
+  colorClassName = "bg-ink-600",
   consumed,
   label,
   target,
 }: {
-  accent?: boolean
+  colorClassName?: string
   consumed: number
   label: string
   target: number
@@ -149,16 +168,16 @@ function MacroBar({
   const overTarget = consumed > target
 
   return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <span className="font-mono text-xs text-muted-foreground tnum">
-          <span className="font-semibold text-foreground">{formatMetric(consumed)}</span> / {target} g
+    <div className="min-w-0">
+      <div className="mb-1.5 min-w-0">
+        <span className="block truncate text-sm text-muted-foreground">{label}</span>
+        <span className="block truncate font-mono text-[0.6875rem] text-muted-foreground tnum">
+          <span className="font-semibold text-foreground">{formatMetric(consumed)}</span>/{target}g
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full", overTarget ? "bg-warning" : accent ? "bg-primary" : "bg-ink-600")}
+          className={cn("h-full rounded-full", overTarget ? "bg-warning" : colorClassName)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -925,7 +944,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
       <section className="mb-5 rounded-lg border border-border bg-card p-[18px] md:mb-6 md:p-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-9">
           <div className="flex items-center justify-center gap-4 md:justify-start">
-            <CalorieRing consumed={totals.calories} target={targets.calories} />
+            <CalorieRing consumed={totals.calories} target={targets.calories} totals={totals} />
             <div>
               <p className="label-micro">{messages.meals.calories}</p>
               <div className="mt-1.5 flex items-baseline gap-1.5">
@@ -939,10 +958,10 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
               </p>
             </div>
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-3.5">
-            <MacroBar accent label="Protein" consumed={totals.protein} target={targets.protein} />
-            <MacroBar label="Carbs" consumed={totals.carbs} target={targets.carbs} />
-            <MacroBar label="Fat" consumed={totals.fat} target={targets.fat} />
+          <div className="grid min-w-0 flex-1 grid-cols-3 gap-3">
+            <MacroBar colorClassName="bg-primary" label="Protein" consumed={totals.protein} target={targets.protein} />
+            <MacroBar colorClassName="bg-success" label="Carbs" consumed={totals.carbs} target={targets.carbs} />
+            <MacroBar colorClassName="bg-warning" label="Fat" consumed={totals.fat} target={targets.fat} />
           </div>
         </div>
       </section>

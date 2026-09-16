@@ -47,6 +47,7 @@ function buildProfile(role: AppRole): AppProfile {
     phone: null,
     preferredWeightUnit: "kg",
     role,
+    username: "testperson",
   } as AppProfile
 }
 
@@ -76,7 +77,8 @@ describe("Settings page layout", () => {
       expect(screen.getByRole("heading", { name: new RegExp(heading) })).toBeInTheDocument()
     }
 
-    expect(screen.getByRole("button", { name: /Body & Nutrition/ })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: /Body & Nutrition/ })).toHaveAttribute("aria-expanded", "false")
+    expect(screen.getByText("Build Muscle")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Reset Trainee Data/ })).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByLabelText("Confirmation")).not.toBeInTheDocument()
   })
@@ -98,11 +100,15 @@ describe("Settings page layout", () => {
     expect(screen.queryByLabelText("Full Name")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /Test Person/ }))
     expect(screen.getByLabelText("Full Name")).toHaveValue("Test Person")
+    expect(screen.getByLabelText("Username")).toHaveValue("testperson")
   })
 
-  it("keeps the shared save action available below the accordions", () => {
+  it("keeps a save action inside editable sections", async () => {
+    const user = userEvent.setup()
     renderSettings("trainee")
 
+    expect(screen.queryByRole("button", { name: /Save/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /Test Person/ }))
     expect(screen.getByRole("button", { name: /Save/ })).toBeEnabled()
   })
 })
