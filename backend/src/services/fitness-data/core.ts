@@ -18,6 +18,7 @@ import {
   type Variation,
   type VariationMuscleTarget,
   type ExerciseImportRequest,
+  type WorkoutSessionDraft,
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
@@ -231,7 +232,7 @@ type WorkoutLogRecord = Prisma.WorkoutLogGetPayload<{
   include: typeof WORKOUT_LOG_INCLUDE
 }>
 
-type WorkoutSessionDraftRecord = Prisma.WorkoutSessionDraftGetPayload<{}>
+type WorkoutSessionDraftRecord = WorkoutSessionDraft
 
 type WorkoutSessionDraftInput = {
   currentExerciseIndex: number
