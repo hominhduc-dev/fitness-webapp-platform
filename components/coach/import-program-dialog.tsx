@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Trash2, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Plus, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
@@ -11,7 +11,8 @@ import { GoogleIcon } from "@/components/ui/brand-icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
+import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
+import { RoutineExerciseCard } from "@/components/workout/routine-exercise-card"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import { IconTile } from "@/components/ui/icon-tile"
 import { Input } from "@/components/ui/input"
@@ -21,7 +22,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { ImportedProgramDraft } from "@/components/coach/program-excel"
 import { buildWorkoutsFromRows } from "@/components/coach/program-import-rows"
 import {
-  INTENSITY_TAG_BADGES,
   normalizeSetIntensityAssignments,
   type SetIntensityAssignment,
 } from "@/lib/workout/intensity-tag"
@@ -70,10 +70,11 @@ function ImportSourceIcon({ source }: { source: ImportSource }) {
 // ─── Editable workout types ─────────────────────────────────────────────────
 
 type EditableExercise = {
-  notes?: string
-  restTime?: number
+  id: string
+  notes: string
+  restTime: string
   variationId: string
-  /** Read from the sheet's Method column; shown as badges on the review row. */
+  /** Per-set methods imported from the sheet and editable in the shared card. */
   setIntensityTags?: SetIntensityAssignment[]
   sets: string
   reps: string   // "8-12" or "10"
@@ -94,8 +95,9 @@ function workoutToEditable(workout: CreateCoachProgramInput["workouts"][number])
     weekIndex: workout.weekIndex,
     scheduledDay: workout.scheduledDay,
     exercises: workout.exercises.map((ex) => ({
-      notes: ex.notes,
-      restTime: ex.restTime,
+      id: crypto.randomUUID(),
+      notes: ex.notes ?? "",
+      restTime: ex.restTime != null ? String(ex.restTime) : "",
       variationId: ex.variationId,
       setIntensityTags: ex.setIntensityTags,
       sets: String(ex.sets),
@@ -127,7 +129,8 @@ function editableToPayloadWorkout(
         const setIntensityTags = normalizeSetIntensityAssignments(ex.setIntensityTags, sets)
         return {
           notes: ex.notes,
-          restTime: ex.restTime,
+          restTime: ex.restTime.trim() && Number.isFinite(Number(ex.restTime))
+            ? Math.max(0, Math.round(Number(ex.restTime))) : undefined,
           variationId: ex.variationId,
           setIntensityTags: setIntensityTags.length ? setIntensityTags : undefined,
           sets,
@@ -149,7 +152,7 @@ export function ImportProgramDialog({
   open,
   trainees,
 }: ImportProgramDialogProps) {
-  const { locale } = useLocale()
+  const { locale, messages } = useLocale()
   const t = programImportMessages[locale]
   const googleText = googleImportMessages[locale]
   const { profile } = useAuth()
@@ -164,6 +167,7 @@ export function ImportProgramDialog({
   const [fileName, setFileName] = useState("")
   const [draft, setDraft] = useState<ImportedProgramDraft | null>(null)
   const [editableWorkouts, setEditableWorkouts] = useState<EditableWorkout[]>([])
+  const [pickerTarget, setPickerTarget] = useState<{ workoutIdx: number; exerciseId?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isParsing, setIsParsing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -228,6 +232,7 @@ export function ImportProgramDialog({
     setFileName("")
     setDraft(null)
     setEditableWorkouts([])
+    setPickerTarget(null)
     setError(null)
     setIsParsing(false)
     setIsSaving(false)
@@ -324,6 +329,7 @@ export function ImportProgramDialog({
     exerciseIdx: number,
     patch: Partial<EditableExercise>,
   ) => {
+    if (isSaving) return
     setEditableWorkouts((prev) =>
       prev.map((w, wi) =>
         wi !== workoutIdx
@@ -331,7 +337,14 @@ export function ImportProgramDialog({
           : {
               ...w,
               exercises: w.exercises.map((ex, ei) =>
-                ei !== exerciseIdx ? ex : { ...ex, ...patch },
+                ei !== exerciseIdx ? ex : {
+                  ...ex,
+                  ...patch,
+                  setIntensityTags: normalizeSetIntensityAssignments(
+                    patch.setIntensityTags ?? ex.setIntensityTags,
+                    Math.max(1, Number(patch.sets ?? ex.sets) || 1),
+                  ),
+                },
               ),
             },
       ),
@@ -345,9 +358,37 @@ export function ImportProgramDialog({
           wi !== workoutIdx
             ? w
             : { ...w, exercises: w.exercises.filter((_, ei) => ei !== exerciseIdx) },
-        )
-        .filter((w) => w.exercises.length > 0),
+        ),
     )
+  }
+
+  const moveExercise = (workoutIdx: number, exerciseIdx: number, direction: -1 | 1) => {
+    setEditableWorkouts((previous) => previous.map((workout, index) => {
+      if (index !== workoutIdx) return workout
+      const destination = exerciseIdx + direction
+      if (destination < 0 || destination >= workout.exercises.length) return workout
+      const exercises = [...workout.exercises]
+      ;[exercises[exerciseIdx], exercises[destination]] = [exercises[destination], exercises[exerciseIdx]]
+      return { ...workout, exercises }
+    }))
+  }
+
+  const pickExercise = (option: ExerciseVariationOption) => {
+    if (!pickerTarget || isSaving) return
+    setEditableWorkouts((previous) => previous.map((workout, index) => {
+      if (index !== pickerTarget.workoutIdx) return workout
+      return {
+        ...workout,
+        exercises: pickerTarget.exerciseId
+          ? workout.exercises.map((exercise) => exercise.id === pickerTarget.exerciseId
+            ? { ...exercise, variationId: option.id } : exercise)
+          : [...workout.exercises, {
+              id: crypto.randomUUID(), variationId: option.id,
+              sets: "3", reps: "10", weight: "", rir: "", restTime: "90", notes: "",
+            }],
+      }
+    }))
+    setPickerTarget(null)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -454,7 +495,7 @@ export function ImportProgramDialog({
             <div className="space-y-4">
               {googleSource?.existingProgram ? <div className="space-y-2 rounded-md border border-border p-3">
                 <p className="text-sm">{googleText.duplicate} {googleSource.existingProgram.name}</p>
-                <Button variant="outline" disabled={isSaving || !payload || !authenticated || !!googleSource.existingProgram.archivedAt} onClick={() => {
+                <Button variant="outline" disabled={isSaving || !payload || !payload.workouts.length || invalidVariationCount > 0 || !authenticated || !!googleSource.existingProgram.archivedAt} onClick={() => {
                   if (!authenticated || !payload || !googleSource.existingProgram) return
                   setIsSaving(true); setError(null)
                   void overwriteGoogle.mutateAsync([googleSource.existingProgram.id, payload]).then((program) => { setDidOverwrite(true); setSavedName(program.name); onImported(program); setStep("done") }).catch((error) => setError(error instanceof Error ? error.message : googleText.failed)).finally(() => setIsSaving(false))
@@ -587,119 +628,47 @@ export function ImportProgramDialog({
                           </span>
                         </div>
 
-                        {/* Column headers (desktop) */}
-                        <div className="mb-1 hidden grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px] items-center gap-1.5 font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground md:grid">
-                          <span>{t.review.columns.exercise}</span>
-                          <span className="text-center">{t.review.columns.id}</span>
-                          <span className="text-center">{t.review.columns.sets}</span>
-                          <span className="text-center">{t.review.columns.reps}</span>
-                          <span className="text-center">{t.review.columns.kg}</span>
-                          <span className="text-center">{t.review.columns.rir}</span>
-                          <span />
-                        </div>
-
-                        {/* Exercise rows */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-3">
                           {workout.exercises.map((ex, exerciseIdx) => {
                             const option = variationById.get(ex.variationId)
                             return (
-                              <div
-                                key={`${ex.variationId}-${exerciseIdx}`}
-                                className="grid items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-2 py-2 md:grid-cols-[minmax(0,1fr)_60px_44px_56px_52px_40px_28px]"
-                              >
-                                {/* Exercise name */}
-                                <div className="flex min-w-0 items-start gap-2.5">
-                                <ExerciseThumbnail
+                              <div key={ex.id}>
+                                <RoutineExerciseCard
+                                  index={exerciseIdx}
+                                  total={workout.exercises.length}
+                                  title={option?.displayName ?? option?.name ?? t.review.unknownExercise}
+                                  meta={[option?.muscleGroup, option?.equipment].filter(Boolean).join(" · ") || ex.variationId}
                                   media={option?.media}
-                                  name={option?.displayName ?? option?.name ?? t.review.unknownExercise}
-                                  previewable
+                                  values={ex}
+                                  messages={messages}
+                                  disabled={isSaving}
+                                  swapDisabled={exerciseOptions.length === 0}
+                                  setIntensityTags={ex.setIntensityTags}
+                                  onSetIntensityTagsChange={(setIntensityTags) => updateExercise(workoutIdx, exerciseIdx, { setIntensityTags })}
+                                  onFieldChange={(field, value) => updateExercise(workoutIdx, exerciseIdx, { [field]: value })}
+                                  onMove={(direction) => moveExercise(workoutIdx, exerciseIdx, direction)}
+                                  onRemove={() => removeExercise(workoutIdx, exerciseIdx)}
+                                  onSwap={() => setPickerTarget({ workoutIdx, exerciseId: ex.id })}
                                 />
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-foreground">
-                                    {option?.displayName ?? option?.name ?? t.review.unknownExercise}
+                                {!option && (
+                                  <p className="mt-1 flex items-center gap-1 text-xs text-destructive-text">
+                                    <AlertCircle className="size-3.5" />
+                                    {t.review.unknownExercise}: {ex.variationId}
                                   </p>
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {option?.variationName ?? ex.variationId}
-                                  </p>
-                                  {normalizeSetIntensityAssignments(ex.setIntensityTags, Math.max(1, Number(ex.sets) || 1))
-                                    .length > 0 ? (
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                      {normalizeSetIntensityAssignments(
-                                        ex.setIntensityTags,
-                                        Math.max(1, Number(ex.sets) || 1),
-                                      ).map(({ setNumber, tag }) => (
-                                        <span
-                                          key={setNumber}
-                                          className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary-soft px-1.5 py-px font-mono text-micro font-semibold uppercase tracking-[0.08em] text-primary"
-                                        >
-                                          {setNumber}
-                                          <span>{INTENSITY_TAG_BADGES[tag]}</span>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                </div>
-                                </div>
-
-                                {/* ID badge */}
-                                <span className="hidden items-center justify-center gap-1 md:inline-flex" title={ex.variationId}>
-                                  {option ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-success-text" />
-                                  ) : (
-                                    <AlertCircle className="h-3.5 w-3.5 text-destructive-text" />
-                                  )}
-                                  <span className="font-mono text-micro text-muted-foreground">
-                                    {ex.variationId.slice(0, 5)}…
-                                  </span>
-                                </span>
-
-                                {/* Editable number fields */}
-                                <MiniInput
-                                  value={ex.sets}
-                                  placeholder="3"
-                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { sets: v })}
-                                />
-                                <MiniInput
-                                  value={ex.reps}
-                                  placeholder="8-12"
-                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { reps: v })}
-                                />
-                                <MiniInput
-                                  value={ex.weight}
-                                  placeholder="—"
-                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { weight: v })}
-                                />
-                                <MiniInput
-                                  value={ex.rir}
-                                  placeholder="—"
-                                  onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { rir: v })}
-                                />
-
-                                {/* Remove button */}
-                                <button
-                                  type="button"
-                                  title={t.review.removeExercise}
-                                  aria-label={t.review.removeExercise}
-                                  onClick={() => removeExercise(workoutIdx, exerciseIdx)}
-                                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive-soft hover:text-destructive-text"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-
-                                {/* Mobile summary (shown instead of fields) */}
-                                <div className="flex flex-wrap gap-x-3 gap-y-1 md:hidden">
-                                  <MobileField label={t.review.columns.sets} value={ex.sets} placeholder="3"
-                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { sets: v })} />
-                                  <MobileField label={t.review.columns.reps} value={ex.reps} placeholder="8-12"
-                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { reps: v })} />
-                                  <MobileField label={t.review.columns.kg} value={ex.weight} placeholder="—"
-                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { weight: v })} />
-                                  <MobileField label={t.review.columns.rir} value={ex.rir} placeholder="—"
-                                    onChange={(v) => updateExercise(workoutIdx, exerciseIdx, { rir: v })} />
-                                </div>
+                                )}
                               </div>
                             )
                           })}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full border-dashed"
+                            disabled={isSaving || exerciseOptions.length === 0}
+                            onClick={() => setPickerTarget({ workoutIdx })}
+                          >
+                            <Plus className="size-4" />
+                            {messages.workoutPage.addExercise}
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -742,7 +711,7 @@ export function ImportProgramDialog({
                 <Button
                   type="button"
                   onClick={() => void handleCreate()}
-                  disabled={!payload || Boolean(error) || isSaving || !authenticated}
+                  disabled={!payload || !payload.workouts.length || invalidVariationCount > 0 || Boolean(error) || isSaving || !authenticated}
                 >
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   {isSaving ? t.actions.creating : t.actions.create}
@@ -756,66 +725,23 @@ export function ImportProgramDialog({
             ) : null}
           </div>
         </div>
+        {pickerTarget && (
+          <AddExerciseModal
+            exercises={exerciseOptions}
+            currentVariationId={editableWorkouts[pickerTarget.workoutIdx]?.exercises.find((exercise) => exercise.id === pickerTarget.exerciseId)?.variationId}
+            existingVariationIds={(editableWorkouts[pickerTarget.workoutIdx]?.exercises ?? [])
+              .filter((exercise) => exercise.id !== pickerTarget.exerciseId)
+              .map((exercise) => exercise.variationId)}
+            onPick={pickExercise}
+            onClose={() => setPickerTarget(null)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
 // ─── Small helper components ─────────────────────────────────────────────────
-
-function MiniInput({
-  onChange,
-  placeholder,
-  value,
-}: {
-  onChange: (v: string) => void
-  placeholder?: string
-  value: string
-}) {
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      value={value}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "hidden h-8 w-full rounded border border-border bg-background px-1.5 text-center font-mono text-xs text-foreground md:block",
-        "focus:outline-none focus:ring-1 focus:ring-ring",
-        "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-      )}
-    />
-  )
-}
-
-function MobileField({
-  label,
-  onChange,
-  placeholder,
-  value,
-}: {
-  label: string
-  onChange: (v: string) => void
-  placeholder?: string
-  value: string
-}) {
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
-      <input
-        type="text"
-        inputMode="decimal"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "h-7 w-16 rounded border border-border bg-background px-1.5 text-center font-mono text-xs text-foreground",
-          "focus:outline-none focus:ring-1 focus:ring-ring",
-        )}
-      />
-    </label>
-  )
-}
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
