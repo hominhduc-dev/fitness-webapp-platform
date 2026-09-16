@@ -35,7 +35,9 @@ export function CoachSignupForm({
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false)
@@ -93,6 +95,12 @@ export function CoachSignupForm({
     if (password.length < 6) {
       trackRegistrationEvent("form_error", { method: "email", role: "coach" })
       setError(messages.auth.passwordTooShort)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      trackRegistrationEvent("form_error", { method: "email", role: "coach" })
+      setError(messages.auth.passwordMismatch)
       return
     }
 
@@ -223,6 +231,31 @@ export function CoachSignupForm({
               onClick={() => setShowPassword((current) => !current)}
             >
               {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="coach-confirm-password">{messages.auth.confirmPasswordLabel}</Label>
+          <div className="relative">
+            <Lock aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="coach-confirm-password"
+              autoComplete="new-password"
+              className="h-11 pl-10 pr-10 sm:h-10"
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="••••••••"
+              required
+              type={showConfirmPassword ? "text" : "password"}
+              value={confirmPassword}
+            />
+            <button
+              type="button"
+              aria-label={showConfirmPassword ? messages.auth.hidePassword : messages.auth.showPassword}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => setShowConfirmPassword((current) => !current)}
+            >
+              {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
         </div>

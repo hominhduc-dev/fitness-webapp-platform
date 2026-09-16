@@ -28,6 +28,7 @@ function fillForm() {
   fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Coach Minh" } })
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "coach@example.com" } })
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } })
+  fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "password123" } })
   fireEvent.click(screen.getByRole("checkbox"))
 }
 
@@ -100,5 +101,14 @@ describe("coach signup form", () => {
 
     expect(screen.getByText("Application received")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Apply as a coach/ })).not.toBeInTheDocument()
+  })
+  it("refuses to register when the confirmation does not match", async () => {
+    render(<CoachSignupForm />)
+    fillForm()
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "password124" } })
+    fireEvent.click(screen.getByRole("button", { name: /Apply as a coach/ }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The password confirmation does not match.")
+    expect(api.registerRequest).not.toHaveBeenCalled()
   })
 })
