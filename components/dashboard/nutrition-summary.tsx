@@ -16,6 +16,7 @@ interface NutritionSummaryProps {
  */
 export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
   const { messages } = useLocale()
+  const formatCalories = (value: number) => Math.round(value).toLocaleString("en-US")
   const percentage =
     nutrition.targetCalories > 0
       ? Math.min(100, Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100))
@@ -74,14 +75,14 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
               <div className="min-w-0">
                 <p className="label-micro mb-0.5 truncate">{messages.dashboard.consumed}</p>
                 <p className="truncate font-mono text-xs font-semibold leading-none tnum text-foreground sm:text-base">
-                  {nutrition.totalCalories.toLocaleString("en-US")}
+                  {formatCalories(nutrition.totalCalories)}
                   <span className="ml-1 text-[10px] font-normal text-muted-foreground sm:text-xs">kcal</span>
                 </p>
               </div>
               <div className="min-w-0">
                 <p className="label-micro mb-0.5 truncate">{messages.dashboard.remaining}</p>
                 <p className="truncate font-mono text-xs font-semibold leading-none tnum text-primary sm:text-base">
-                  {remaining.toLocaleString("en-US")}
+                  {formatCalories(remaining)}
                   <span className="ml-1 text-[10px] font-normal text-muted-foreground sm:text-xs">kcal</span>
                 </p>
               </div>
@@ -104,7 +105,7 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
                 >
                   <span className="min-w-0 truncate text-[10px] text-muted-foreground sm:text-xs">{mealType.label}</span>
                   <span className={meal ? "font-mono text-[10px] font-medium tnum text-foreground sm:text-xs" : "font-mono text-[10px] text-muted-foreground sm:text-xs"}>
-                    {meal ? meal.calories : "—"}
+                    {meal ? formatCalories(meal.calories) : "—"}
                   </span>
                 </div>
               )
