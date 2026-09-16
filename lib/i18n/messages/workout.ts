@@ -3,6 +3,8 @@ export const workoutMessages = {
     workoutPage: {
       add30Seconds: "Add 30 seconds",
       addExercise: "Add exercise",
+      createSelection: "Create",
+      addSelectedExercises: (count: number) => `Add ${count} exercise${count === 1 ? "" : "s"}`,
       aiCreateWorkout: "AI workout builder",
       added: "added",
       current: "current",
@@ -202,6 +204,8 @@ export const workoutMessages = {
     workoutPage: {
       add30Seconds: "Thêm 30 giây",
       addExercise: "Thêm bài tập",
+      createSelection: "Tạo",
+      addSelectedExercises: (count: number) => `Thêm ${count} bài tập`,
       aiCreateWorkout: "AI tạo lịch tập",
       added: "đã thêm",
       current: "hiện tại",

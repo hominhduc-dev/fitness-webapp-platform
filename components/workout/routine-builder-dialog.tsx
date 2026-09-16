@@ -261,14 +261,11 @@ export function RoutineBuilderDialog({
 
 
   // ── Exercise handlers ─────────────────────────────────────────────────────
-  const pickExercise = (ex: ExerciseVariationOption) => {
-    if (pickerTarget === "add") {
-      const id = draftId()
-      // Add new exercise at the end
-      setExercises((prev) => [
-        ...prev,
-        {
-          id,
+  const addExercises = (options: ExerciseVariationOption[]) => {
+    const additions = options
+      .filter((option) => !exercises.some((item) => item.variationId === option.id))
+      .map((ex) => ({
+          id: draftId(),
           variationId: ex.id,
           displayName: ex.displayName ?? ex.name,
           media: ex.media,
@@ -284,9 +281,15 @@ export function RoutineBuilderDialog({
           restTime: "",
           notes: "",
           setIntensityTags: [],
-        },
-      ])
-      setExpandedExerciseIds(new Set([id]))
+        }))
+    setExercises((previous) => [...previous, ...additions])
+    setExpandedExerciseIds(new Set(additions.map((exercise) => exercise.id)))
+    setPickerTarget(null)
+  }
+
+  const pickExercise = (ex: ExerciseVariationOption) => {
+    if (pickerTarget === "add") {
+      addExercises([ex])
     } else if (pickerTarget) {
       // Swap in-place — keep sets/reps/weight/rir, replace identity
       setExercises((prev) =>
@@ -569,6 +572,7 @@ export function RoutineBuilderDialog({
               ).map((e) => e.variationId)
             }
             onPick={pickExercise}
+            onPickMany={pickerTarget === "add" ? addExercises : undefined}
             onClose={() => setPickerTarget(null)}
           />
         )}
