@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Search, SlidersHorizontal, X } from "lucide-react"
+import { Check, Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
@@ -10,6 +10,7 @@ import type { MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
 import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS } from "@/lib/fitness/muscle-profile"
 import { muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
@@ -26,6 +27,8 @@ type AddExerciseModalProps = {
   /** Variation ids already in the routine — rendered as "added" and non-pickable. */
   existingVariationIds: string[]
   onPick: (option: ExerciseVariationOption) => void
+  /** When supplied, stage multiple selections until the user confirms. */
+  onPickMany?: (options: ExerciseVariationOption[]) => void
   onClose: () => void
   title?: string
   loading?: boolean
@@ -46,13 +49,24 @@ export function AddExerciseModal({
   currentVariationId,
   existingVariationIds,
   onPick,
+  onPickMany,
   onClose,
   title,
   loading = false,
   footer,
 }: AddExerciseModalProps) {
   const { locale, messages } = useLocale()
-  const handleClose = () => { onOpenChange?.(false); onClose?.(); }
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const handleClose = () => { setSelectedIds([]); onOpenChange?.(false); onClose?.(); }
+  const selectedExercises = selectedIds
+    .filter((id) => !existingVariationIds.includes(id))
+    .map((id) => exercises.find((exercise) => exercise.id === id))
+    .filter((exercise): exercise is ExerciseVariationOption => Boolean(exercise))
+  const confirmSelection = () => {
+    if (loading || selectedExercises.length === 0) return
+    onPickMany?.(selectedExercises)
+    handleClose()
+  }
   const [query, setQuery] = useState("")
   const [muscle, setMuscle] = useState<"all" | MuscleSlug>("all")
   const [equipment, setEquipment] = useState("all")
@@ -143,14 +157,21 @@ export function AddExerciseModal({
         <div className="border-b border-border px-[22px] pb-3 pt-5">
           <div className="mb-3.5 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">{title ?? messages.workoutPage.addExercise}</h3>
-            <button
-              type="button"
-              aria-label={messages.workoutPage.cancel}
-              onClick={handleClose}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <X className="h-[18px] w-[18px]" />
-            </button>
+            <div className="flex items-center gap-3">
+              {onPickMany && (
+                <Button type="button" size="sm" onClick={confirmSelection} disabled={loading || selectedExercises.length === 0}>
+                  {messages.workoutPage.createSelection}
+                </Button>
+              )}
+              <button
+                type="button"
+                aria-label={messages.workoutPage.cancel}
+                onClick={handleClose}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-[18px] w-[18px]" />
+              </button>
+            </div>
           </div>
           <div className="mb-2.5 flex items-center gap-2">
             <div className="relative flex-1">
@@ -195,6 +216,7 @@ export function AddExerciseModal({
           ) : (
             visible.map((exercise, index) => {
               const added = existingSet.has(exercise.id)
+              const selected = selectedIds.includes(exercise.id)
               const isCurrent = exercise.id === currentVariationId
               return (
                 // The thumbnail is its own button (it opens the GIF/video), so it
@@ -204,7 +226,7 @@ export function AddExerciseModal({
                   className={cn(
                     "flex w-full items-center gap-3 pl-[22px] transition-colors",
                     index < visible.length - 1 && "border-b border-border",
-                    isCurrent ? "bg-primary/8 ring-1 ring-inset ring-primary/25" : added ? "opacity-50" : "hover:bg-muted",
+                    isCurrent || selected ? "bg-primary/8 ring-1 ring-inset ring-primary/25" : added ? "opacity-50" : "hover:bg-muted",
                   )}
                 >
                 <ExerciseThumbnail media={exercise.media} name={exercise.displayName ?? exercise.name} previewable />
@@ -212,7 +234,15 @@ export function AddExerciseModal({
                   ref={isCurrent ? currentRef : undefined}
                   type="button"
                   disabled={added}
-                  onClick={() => !added && onPick(exercise)}
+                  aria-pressed={onPickMany ? selected : undefined}
+                  onClick={() => {
+                    if (added) return
+                    if (onPickMany) {
+                      setSelectedIds((previous) => previous.includes(exercise.id)
+                        ? previous.filter((id) => id !== exercise.id)
+                        : [...previous, exercise.id])
+                    } else onPick(exercise)
+                  }}
                   className={cn(
                     "flex min-w-0 flex-1 items-center gap-3 py-3 pr-[22px] text-left",
                     added && "cursor-default",
@@ -226,7 +256,9 @@ export function AddExerciseModal({
                       {!exercise.isDefault && exercise.variationName ? ` · ${exercise.variationName}` : ""}
                     </p>
                   </div>
-                  {isCurrent ? (
+                  {selected ? (
+                    <Check aria-hidden className="size-5 shrink-0 text-primary" />
+                  ) : isCurrent ? (
                     <span className="shrink-0 rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-micro font-medium uppercase tracking-wider text-primary">{messages.workoutPage.current}</span>
                   ) : added ? (
                     <span className="text-xs font-medium text-success-text">{messages.workoutPage.added}</span>
@@ -240,6 +272,13 @@ export function AddExerciseModal({
           )}
         </div>
 
+        {onPickMany && (
+          <div className="shrink-0 border-t border-border px-[22px] py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <Button type="button" className="w-full" onClick={confirmSelection} disabled={loading || selectedExercises.length === 0}>
+              {messages.workoutPage.addSelectedExercises(selectedExercises.length)}
+            </Button>
+          </div>
+        )}
         {footer ? <div className="border-t border-border px-[22px] py-3">{footer}</div> : null}
       </DialogContent>
 
