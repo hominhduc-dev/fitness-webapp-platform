@@ -1,28 +1,17 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Check, Search } from "lucide-react"
+import { useState } from "react"
+import { Check } from "lucide-react"
 
 import { useCoachData } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
 import { fetchCoachTrainees } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { TraineeSelectList } from "@/components/coach/trainee-select-list"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { useAssignCoachProgram, useUnassignCoachProgram } from "@/lib/queries/coach"
-import { cn } from "@/lib/utils"
 import type { AssignedTrainee, CoachProgram, CoachTrainee } from "@/lib/fitness/types"
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((value) => value[0])
-    .join("")
-    .slice(0, 2)
-}
 
 interface AssignClientsDialogProps {
   program: CoachProgram | null
@@ -40,7 +29,6 @@ interface AssignClientsDialogProps {
 export function AssignClientsDialog({ program, trainees: initialTrainees, onClose, onAssigned }: AssignClientsDialogProps) {
   const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
   const { messages } = useLocale()
-  const [query, setQuery] = useState("")
   const assignProgram = useAssignCoachProgram()
   const unassignProgram = useUnassignCoachProgram()
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -53,16 +41,10 @@ export function AssignClientsDialog({ program, trainees: initialTrainees, onClos
   if (program && initialised !== program.id) {
     setSelected(new Set((program.assignedTrainees ?? []).map((t) => t.id)))
     setInitialised(program.id)
-    setQuery("")
     setError(null)
   } else if (!program && initialised !== null) {
     setInitialised(null)
   }
-
-  const visible = useMemo(
-    () => trainees.filter((t) => !query || t.name.toLowerCase().includes(query.toLowerCase())),
-    [trainees, query],
-  )
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -110,56 +92,19 @@ export function AssignClientsDialog({ program, trainees: initialTrainees, onClos
               {messages.coach.weeks(program.duration)} · {messages.coach.daysPerWeek(program.workoutsPerWeek)}
             </p>
           ) : null}
-          <div className="relative mt-2">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={messages.coach.searchPlaceholder}
-              className="pl-9"
-            />
-          </div>
         </DialogHeader>
 
         {error ? (
           <div className="mx-5 mt-3 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{error}</div>
         ) : null}
 
-        <div className="max-h-[44vh] overflow-y-auto py-1">
-          {visible.map((trainee) => {
-            const on = selected.has(trainee.id)
-            return (
-              <button
-                key={trainee.id}
-                type="button"
-                onClick={() => toggle(trainee.id)}
-                className={cn(
-                  "flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-muted",
-                  on && "bg-muted",
-                )}
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                  <AvatarFallback className="bg-primary-soft text-xs text-primary">
-                    {getInitials(trainee.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="flex-1 truncate text-sm font-medium">{trainee.name}</span>
-                <span
-                  className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded border transition-colors",
-                    on ? "border-primary bg-primary text-primary-foreground" : "border-input",
-                  )}
-                >
-                  {on ? <Check className="h-3 w-3" /> : null}
-                </span>
-              </button>
-            )
-          })}
-          {visible.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">{messages.coach.noClientsMatch}</div>
-          ) : null}
-        </div>
+        <TraineeSelectList
+          className="px-5 py-3"
+          listClassName="max-h-[44vh]"
+          onToggle={toggle}
+          selectedIds={[...selected]}
+          trainees={trainees}
+        />
 
         <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
           <span className="font-mono text-xs tnum text-muted-foreground">{messages.coach.selectedCount(selected.size)}</span>
