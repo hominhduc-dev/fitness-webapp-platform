@@ -567,7 +567,7 @@ function DayCard({
     <div
       className={cn(
         "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-4 shadow-sm ring-1 ring-border/70 transition-colors duration-150",
-        "dark:ring-white/10",
+        "dark:ring-border/80",
         entry.isToday
           ? "border-primary ring-2 ring-primary/45 shadow-[0_0_0_1px_hsl(var(--primary)/0.16),0_14px_30px_hsl(var(--primary)/0.12)]"
           : workout
