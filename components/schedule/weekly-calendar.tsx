@@ -566,9 +566,14 @@ function DayCard({
   return (
     <div
       className={cn(
-        "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-4 transition-colors duration-150",
-        entry.isToday ? "border-primary" : workout ? "border-border hover:border-input" : "border-border",
-        entry.isCompleted && "bg-muted/60",
+        "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-4 shadow-sm ring-1 ring-border/70 transition-colors duration-150",
+        "dark:ring-white/10",
+        entry.isToday
+          ? "border-primary ring-2 ring-primary/45 shadow-[0_0_0_1px_hsl(var(--primary)/0.16),0_14px_30px_hsl(var(--primary)/0.12)]"
+          : workout
+            ? "border-border ring-foreground/12 hover:border-primary/45 hover:ring-primary/30"
+            : "border-border/80 ring-border/80 hover:border-primary/35 hover:ring-primary/25",
+        entry.isCompleted && "bg-muted/60 ring-primary/35",
       )}
     >
       {hasCoachUpdate ? (
