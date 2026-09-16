@@ -1844,7 +1844,7 @@ function getLogPlannedDateKey(log: ReturnType<typeof serializeWorkoutLog>) {
 // or after both today and its coach-assigned weekday — so an on-track week keeps the
 // coach's layout (including rest days), while a behind week slides the remaining sessions
 // forward onto the following days.
-function buildSerializedScheduleEntriesForWeek({
+export function buildSerializedScheduleEntriesForWeek({
   logs,
   todayStart,
   weekStart,
@@ -3586,14 +3586,18 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     return accumulator
   }, {})
 
-  const todayDateKey = formatUtcDateOnly(todayStart)
-  const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
-
   const activeDaysSet = new Set(weekLogs.map((log) => clientCalendarDay(log.startedAt).getUTCDay()))
   const todayVolume = weekLogs
     .filter((log) => log.startedAt >= clientDayStart(todayStart))
     .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
   const serializedWeekLogs = weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
+  const scheduleEntries = buildSerializedScheduleEntriesForWeek({
+    logs: serializedWeekLogs,
+    todayStart,
+    weekStart,
+    workouts: serializedWorkouts,
+  })
+  const todayWorkout = scheduleEntries.find((entry) => entry.isToday)?.workout ?? null
 
   return {
     historyLogs: historyLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
@@ -3606,13 +3610,8 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     })),
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
-    scheduleEntries: buildSerializedScheduleEntriesForWeek({
-      logs: serializedWeekLogs,
-      todayStart,
-      weekStart,
-      workouts: serializedWorkouts,
-    }),
-    todayWorkout: todayOneOffWorkout ?? schedule[todayStart.getUTCDay()] ?? null,
+    scheduleEntries,
+    todayWorkout,
     weekLogs: serializedWeekLogs,
     weekStats: {
       activeDaysThisWeek: activeDaysSet.size,
@@ -3662,12 +3661,9 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
       },
     }),
     db.workoutLog.findMany({
+      include: WORKOUT_LOG_INCLUDE,
       orderBy: {
         startedAt: "desc",
-      },
-      select: {
-        startedAt: true,
-        totalVolume: true,
       },
       where: {
         startedAt: { gte: clientDayStart(weekStart) },
@@ -3736,13 +3732,19 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
     return accumulator
   }, {})
 
-  const todayDateKey = formatUtcDateOnly(todayStart)
-  const todayOneOffWorkout = serializedWorkouts.find((workout) => workout.scheduledDate === todayDateKey) ?? null
   const serializedMeals = meals.map(serializeMealRecord)
   const activeDaysSet = new Set(weekLogs.map((log) => clientCalendarDay(log.startedAt).getUTCDay()))
   const todayVolume = weekLogs
     .filter((log) => log.startedAt >= clientDayStart(todayStart))
     .reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
+  const serializedWeekLogs = weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord))
+  const scheduleEntries = buildSerializedScheduleEntriesForWeek({
+    logs: serializedWeekLogs,
+    todayStart,
+    weekStart,
+    workouts: serializedWorkouts,
+  })
+  const todayWorkout = scheduleEntries.find((entry) => entry.isToday)?.workout ?? null
 
   return {
     dailyNutrition: {
@@ -3753,7 +3755,8 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
     },
     recentLogs: recentLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     schedule,
-    todayWorkout: todayOneOffWorkout ?? schedule[todayStart.getUTCDay()] ?? null,
+    scheduleEntries,
+    todayWorkout,
     weekStats: {
       activeDaysThisWeek: activeDaysSet.size,
       todayVolume,

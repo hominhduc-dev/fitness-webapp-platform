@@ -97,6 +97,7 @@ type TraineeDashboardData = {
   dailyNutrition: DailyNutrition
   recentLogs: WorkoutLog[]
   schedule: Record<number, Workout | null>
+  scheduleEntries: WorkoutScheduleEntry[]
   todayWorkout: Workout | null
   weekStats: WorkoutCollection["weekStats"]
   workouts: Workout[]

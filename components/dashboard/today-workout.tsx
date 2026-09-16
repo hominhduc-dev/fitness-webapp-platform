@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
+import { scanActiveSessions } from "@/lib/workout/session-storage"
 import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -11,9 +13,27 @@ import { formatRepTarget } from "@/lib/workout-reps"
 
 interface TodayWorkoutProps {
   workout: Workout | null
+  completed?: boolean
+  workouts?: Workout[]
 }
 
-export function TodayWorkout({ workout }: TodayWorkoutProps) {
+export function TodayWorkout({ workout: scheduledWorkout, completed = false, workouts = [] }: TodayWorkoutProps) {
+  const [activeId, setActiveId] = useState<string | null>(null)
+  useEffect(() => {
+    const refresh = () => setActiveId(scanActiveSessions()[0]?.workoutId ?? null)
+    refresh()
+    window.addEventListener('storage', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
+  const activeWorkout = workouts.find((item) => item.id === activeId)
+  const workout = activeWorkout ?? scheduledWorkout
+  const isCompleted = !activeWorkout && completed
+  const today = new Date()
+  const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const { messages } = useLocale()
   const copy = messages.dashboard
 
@@ -108,9 +128,9 @@ export function TodayWorkout({ workout }: TodayWorkoutProps) {
       </ul>
 
       <Button asChild size="lg" className="dashboard-primary-cta mt-4 h-10 w-full gap-2 rounded-xl text-sm lg:mt-auto">
-        <Link href={`/workout/${workout.id}/start`} scroll>
+        <Link href={isCompleted ? '/schedule' : `/workout/${workout.id}/start${activeWorkout ? '' : `?logDate=${dateKey}`}`} scroll>
           <Play className="size-4 fill-current" aria-hidden="true" />
-          {copy.startWorkout}
+          {activeWorkout ? messages.schedule.resume : isCompleted ? messages.schedule.review : copy.startWorkout}
         </Link>
       </Button>
     </section>

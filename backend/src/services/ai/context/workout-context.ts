@@ -1,3 +1,4 @@
+import { listWorkoutsForTrainee } from "../../fitness-data/workout"
 import type { SerializedProfile } from "../../auth.service"
 import { startOfClientDay } from "../../../lib/ai/calendar"
 import {
@@ -6,7 +7,6 @@ import {
   createSection,
   formatDate,
   formatNumber,
-  isSameLocalDate,
   parseExerciseSnapshot,
   snapshotExerciseLabel,
   snapshotWorkoutName,
@@ -26,29 +26,8 @@ export async function buildWorkoutContext(
   const startOfWeek = addDays(startOfClientDay(now), -((today.getUTCDay() + 6) % 7))
   const thirtyDaysAgo = addDays(now, -30)
 
-  const [assignments, recentLogs, weekLogs] = await Promise.all([
-    db.programAssignment.findMany({
-      include: {
-        program: {
-          include: {
-            workouts: {
-              include: {
-                exercises: {
-                  include: {
-                    sets: { orderBy: { setNumber: "asc" } },
-                    variation: { include: { exercise: true } },
-                  },
-                  orderBy: { order: "asc" },
-                },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { assignedAt: "desc" },
-      take: 2,
-      where: { program: { archivedAt: null }, userId: profile.id },
-    }),
+  const [collection, recentLogs, weekLogs] = await Promise.all([
+    listWorkoutsForTrainee(profile),
     db.workoutLog.findMany({
       orderBy: { startedAt: "desc" },
       select: {
@@ -69,12 +48,10 @@ export async function buildWorkoutContext(
     }),
   ])
 
-  const allWorkouts = assignments.flatMap((assignment) => assignment.program.workouts)
-  const todayWorkout =
-    allWorkouts.find((workout) => workout.scheduledDate && isSameLocalDate(workout.scheduledDate, today)) ??
-    allWorkouts.find((workout) => workout.scheduledDay === today.getUTCDay()) ??
-    null
-  const nextWorkout = todayWorkout ? null : findNextWorkout(allWorkouts, today)
+  const todayEntry = collection.scheduleEntries.find((entry) => entry.isToday)
+  const todayWorkout = todayEntry && !todayEntry.isCompleted ? todayEntry.workout : null
+  const nextEntry = collection.scheduleEntries.find((entry) => entry.date > formatDate(today) && entry.workout && !entry.isCompleted)
+  const nextWorkout = nextEntry?.workout ? { label: nextEntry.date, workout: nextEntry.workout } : null
   const completedWeekLogs = weekLogs.filter((log) => log.completedAt != null)
   const lines: string[] = []
 
@@ -113,39 +90,21 @@ export async function buildWorkoutContext(
   return createSection("recent_workouts", "WORKOUT CONTEXT", 85, lines)
 }
 
-function findNextWorkout<T extends { scheduledDate: Date | null; scheduledDay: number | null }>(workouts: T[], today: Date) {
-  for (let offset = 1; offset <= 7; offset += 1) {
-    const targetDate = addDays(today, offset)
-    const workout =
-      workouts.find((item) => item.scheduledDate && isSameLocalDate(item.scheduledDate, targetDate)) ??
-      workouts.find((item) => item.scheduledDay === targetDate.getUTCDay())
-
-    if (workout) {
-      return {
-        label: `${weekdayLabel(targetDate.getUTCDay())} ${formatDate(targetDate)}`,
-        workout,
-      }
-    }
-  }
-
-  return null
-}
-
 function describePlannedWorkout(workout: {
-  duration: number | null
+  duration?: number | null
   exercises: Array<{
-    sets: Array<{ targetReps: number; targetRepsMin: number | null }>
-    variation: { exercise: { name: string } }
+    sets: Array<{ targetReps: number; targetRepsMin?: number | null }>
+    exercise: { name: string }
   }>
   name: string
-  scheduledDay: number | null
+  scheduledDay?: number | null
 }) {
   const exerciseSummary = workout.exercises
     .slice(0, 5)
     .map((exercise) => {
       const firstSet = exercise.sets[0]
       const reps = firstSet ? (firstSet.targetRepsMin ? `${firstSet.targetRepsMin}-${firstSet.targetReps}` : String(firstSet.targetReps)) : "?"
-      return `${exercise.variation.exercise.name} ${exercise.sets.length}x${reps}`
+      return `${exercise.exercise.name} ${exercise.sets.length}x${reps}`
     })
     .join("; ")
 

@@ -24,26 +24,6 @@ import type { AppMessages } from "@/lib/i18n/messages"
 type DashboardMessages = AppMessages
 type DashboardData = Awaited<ReturnType<typeof fetchDashboard>>
 
-function startOfCurrentWeek(date: Date) {
-  const value = new Date(date)
-  const offset = (value.getDay() + 6) % 7
-
-  value.setHours(0, 0, 0, 0)
-  value.setDate(value.getDate() - offset)
-
-  return value
-}
-
-function addLocalDays(date: Date, days: number) {
-  const value = new Date(date)
-  value.setDate(value.getDate() + days)
-  return value
-}
-
-function localDayKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
-}
-
 function formatDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
@@ -56,68 +36,13 @@ function isSameCalendarDate(left: Date, right: Date) {
   )
 }
 
-function getWorkoutForDate(
-  workouts: DashboardData["workouts"],
-  schedule: DashboardData["schedule"],
-  date: Date,
-) {
-  const oneOffWorkout = workouts.find((workout) => workout.scheduledDate && isSameCalendarDate(workout.scheduledDate, date))
-
-  if (oneOffWorkout) {
-    return oneOffWorkout
-  }
-
-  return schedule[date.getDay()] ?? null
-}
-
-function resolveNextWorkoutLabel(
-  workouts: DashboardData["workouts"],
-  schedule: DashboardData["schedule"],
-  messages: DashboardMessages,
-) {
-  const today = new Date()
-
-  for (let offset = 0; offset < 7; offset += 1) {
-    const date = addLocalDays(today, offset)
-    const workout = getWorkoutForDate(workouts, schedule, date)
-
-    if (!workout) {
-      continue
-    }
-
-    if (offset === 0) {
-      return {
-        subtitle: workout.name,
-        value: messages.common.today,
-      }
-    }
-
-    if (offset === 1) {
-      return {
-        subtitle: workout.name,
-        value: messages.dashboard.tomorrow,
-      }
-    }
-
-    return {
-      subtitle: workout.name,
-      value: messages.dashboard.inDays(offset),
-    }
-  }
-
-  return {
-    subtitle: messages.dashboard.noWorkoutScheduled,
-    value: messages.dashboard.rest,
-  }
-}
-
-function countScheduledWorkoutsInWeek(
-  workouts: DashboardData["workouts"],
-  schedule: DashboardData["schedule"],
-  weekStart: Date,
-) {
-  return Array.from({ length: 7 }, (_value, index) => getWorkoutForDate(workouts, schedule, addLocalDays(weekStart, index))).filter(Boolean)
-    .length
+function resolveNextWorkoutLabel(entries: DashboardData["scheduleEntries"], messages: DashboardMessages) {
+  const now = new Date()
+  const today = formatDateKey(now)
+  const next = entries.find((entry) => formatDateKey(entry.date) >= today && entry.workout && !entry.isCompleted)
+  if (!next?.workout) return { subtitle: messages.dashboard.noWorkoutScheduled, value: messages.dashboard.rest }
+  const offset = Math.round((Date.UTC(next.date.getFullYear(), next.date.getMonth(), next.date.getDate()) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000)
+  return { subtitle: next.workout.name, value: offset === 0 ? messages.common.today : offset === 1 ? messages.dashboard.tomorrow : messages.dashboard.inDays(offset) }
 }
 
 type DashboardSeeds = {
@@ -161,27 +86,17 @@ export function DashboardOverviewClient({
   useRecoveryHistory(READINESS_TREND_DEFAULT_DAYS, { initialData: seeds?.recoveryHistory })
 
   const { activeDaysThisWeek, workoutsThisWeek } = dashboard.weekStats
-  const weekStart = startOfCurrentWeek(new Date())
-  const scheduledThisWeek = countScheduledWorkoutsInWeek(dashboard.workouts, dashboard.schedule, weekStart)
-  const nextWorkout = resolveNextWorkoutLabel(dashboard.workouts, dashboard.schedule, messages)
+  const scheduledThisWeek = dashboard.scheduleEntries.filter((entry) => entry.workout).length
+  const nextWorkout = resolveNextWorkoutLabel(dashboard.scheduleEntries, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
-  // A session counts on the day it was started. The dashboard only returns the
-  // five most recent logs, so a week with more sessions than that can show an
-  // early day without its check.
-  const trainedDays = new Map(
-    dashboard.recentLogs
-      .filter((log) => log.completedAt)
-      .map((log) => [localDayKey(log.startedAt), log] as const),
-  )
-
   return (
     <div className="space-y-4">
       <WeekStrip
         getDayPlan={(date) => {
-          const log = trainedDays.get(localDayKey(date))
+          const entry = dashboard.scheduleEntries.find((item) => isSameCalendarDate(item.date, date))
           return {
-            completed: Boolean(log),
-            workoutName: log?.workout.name ?? getWorkoutForDate(dashboard.workouts, dashboard.schedule, date)?.name ?? null,
+            completed: entry?.isCompleted ?? false,
+            workoutName: entry?.workout?.name ?? null,
           }
         }}
       />
@@ -196,7 +111,7 @@ export function DashboardOverviewClient({
           spans both columns. From `sm` the pair goes back to full width. */}
       <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <div className="order-3 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-1">
-          <TodayWorkout workout={dashboard.todayWorkout} />
+          <TodayWorkout workout={dashboard.todayWorkout} workouts={dashboard.workouts} completed={dashboard.scheduleEntries.some((entry) => entry.isToday && entry.isCompleted)} />
         </div>
 
         <div className="order-1 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-1">

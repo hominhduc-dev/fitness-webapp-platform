@@ -236,27 +236,6 @@ function restoreWorkoutSessionStartTime(startedAt: string) {
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
 }
 
-// The "actual workout date" picker defaults to the workout's planned occurrence in the
-// past week (this week's Wed for a Wed workout finished on Fri), so accepting the
-// default lands the log on the same cell the workout was scheduled for. Falls back to
-// today when the workout isn't recurring, isn't tied to a specific date, or its
-// planned date is still in the future.
-function resolveDefaultFinishLogDate(workout: Workout, todayMidnight: Date): Date {
-  if (workout.scheduledDate) {
-    const scheduled = new Date(workout.scheduledDate)
-    scheduled.setHours(0, 0, 0, 0)
-    return scheduled.getTime() <= todayMidnight.getTime() ? scheduled : todayMidnight
-  }
-  if (typeof workout.scheduledDay === "number") {
-    const target = new Date(todayMidnight)
-    const dayOffset = (target.getDay() - workout.scheduledDay + 7) % 7
-    if (dayOffset === 0) return target
-    target.setDate(target.getDate() - dayOffset)
-    return target
-  }
-  return todayMidnight
-}
-
 // After a coach-program fork, every workoutExercise and set gets a fresh UUID.
 // Re-key the stored session under the new workoutId and remap each exercise/set
 // id via the server-provided mapping; unmapped ids (e.g. sets the user added
@@ -1461,13 +1440,9 @@ function WorkoutSession() {
       void performSave(new Date())
       return
     }
-    // Not today: default the picker to the workout's planned date instead of today, so
-    // just accepting the default lands the log on the scheduled day. Leaving it on today
-    // would send startedAt=today and plannedDate=<scheduled day>, which removes the
-    // scheduled day from the "remaining" list AND places the log on today's cell —
-    // leaving the scheduled cell visibly empty.
-    const defaultLogDate = resolveDefaultFinishLogDate(workout, todayMidnight)
-    setSelectedDate(defaultLogDate)
+    // A live catch-up session happened today, not on its original planned date.
+    // Historical entry still uses the explicit logDate parameter above.
+    setSelectedDate(todayMidnight)
     setShowDateDialog(true)
   }
 
