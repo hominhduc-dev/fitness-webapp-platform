@@ -32,11 +32,9 @@ const ROLE_BADGE: Partial<Record<AppRole, string>> = {
 /* ------------------------------------------------------------------ */
 function NavItems({
   items,
-  role,
   onSelect,
 }: {
   items: ShellNavItem[]
-  role: AppRole
   onSelect: () => void
 }) {
   const pathname = usePathname()
@@ -44,14 +42,7 @@ function NavItems({
   const currentSection = searchParams.get("s")
 
   function isActive(item: ShellNavItem): boolean {
-    if (role === "admin" && item.href.includes("?s=")) {
-      const section = new URLSearchParams(item.href.split("?")[1]).get("s")
-      return pathname === "/admin" && currentSection === section
-    }
-    if (role === "admin" && item.href === "/admin") {
-      return pathname === "/admin" && !currentSection
-    }
-    return isNavItemActive(pathname, item)
+    return isNavItemActive(pathname, item, currentSection)
   }
 
   return (
@@ -83,6 +74,48 @@ function NavItems({
 
 /* ------------------------------------------------------------------ */
 /* ShellHeader                                                          */
+/* ------------------------------------------------------------------ */
+/* Bottom nav links — split out because useSearchParams needs its own   */
+/* Suspense boundary; the query decides which admin tab is current.     */
+/* ------------------------------------------------------------------ */
+function MobileNavLinkList({
+  items,
+  onSelect,
+  open,
+  pathname,
+  section,
+}: {
+  items: ShellNavItem[]
+  onSelect: () => void
+  open: boolean
+  pathname: string
+  section: string | null
+}) {
+  return (
+    <>
+      {items.map((item) => {
+        const active = isNavItemActive(pathname, item, section)
+        const visuallyActive = active && !open
+        return (
+          // Close the More sheet on tap rather than waiting for the route
+          // change: tapping the current page's icon never changes the
+          // pathname, so the sheet used to stay open until "More" was
+          // tapped again.
+          <Link key={item.href} href={item.href} onClick={onSelect} aria-current={active ? "page" : undefined} title={item.label} className={cn("flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+            <item.icon className="h-5 w-5" strokeWidth={visuallyActive ? 2 : 1.7} aria-hidden="true" />
+            <span className={cn("max-w-full truncate text-[0.6875rem] leading-4", visuallyActive && "font-semibold")}>{item.label}</span>
+          </Link>
+        )
+      })}
+    </>
+  )
+}
+
+function MobileNavLinks(props: { items: ShellNavItem[]; onSelect: () => void; open: boolean; pathname: string }) {
+  const searchParams = useSearchParams()
+  return <MobileNavLinkList {...props} section={searchParams.get("s")} />
+}
+
 /* ------------------------------------------------------------------ */
 export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   const { messages } = useLocale()
@@ -143,7 +176,16 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           traineeItems[3],
         ]
       })()
-    : navItems.slice(0, 4)
+    : role === "admin"
+      ? (() => {
+          const adminItems = getAdminNavItems(messages, { compactLabels: true })
+          const bottomNavHrefs = ["/admin", "/admin?s=users", "/admin?s=coach-signups", "/admin?s=requests", "/admin?s=exercises"]
+
+          return bottomNavHrefs
+            .map((href) => adminItems.find((item) => item.href === href))
+            .filter((item): item is ShellNavItem => Boolean(item))
+        })()
+      : navItems.slice(0, 4)
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -160,8 +202,13 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
     <Fragment>
       <header className="px-4 pt-[calc(1rem+env(safe-area-inset-top))] md:hidden">
         <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-3">
-          <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"}>
+          <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"} className="flex min-w-0 items-center gap-2">
             <BrandLogo markClassName="size-8 rounded-none" textClassName="text-xl" />
+            {badge ? (
+              <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] text-primary">
+                {badge}
+              </span>
+            ) : null}
           </Link>
           <button
             type="button"
@@ -188,23 +235,14 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           ref={mobileNavRef}
           className={cn(
             "mobile-floating-nav glass-surface relative grid w-full gap-0.5 rounded-[1.75rem] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl",
-            role === "trainee" ? "grid-cols-5" : "grid-cols-4",
+            role === "coach" ? "grid-cols-4" : "grid-cols-5",
           )}
         >
-          {primaryItems.map((item) => {
-            const active = isNavItemActive(pathname, item)
-            const visuallyActive = active && !open
-            return (
-              // Close the More sheet on tap rather than waiting for the route
-              // change: tapping the current page's icon never changes the
-              // pathname, so the sheet used to stay open until "More" was
-              // tapped again.
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} title={item.label} className={cn("flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
-                <item.icon className="h-5 w-5" strokeWidth={visuallyActive ? 2 : 1.7} aria-hidden="true" />
-                <span className={cn("max-w-full truncate text-[0.6875rem] leading-4", visuallyActive && "font-semibold")}>{item.label}</span>
-              </Link>
-            )
-          })}
+          <Suspense
+            fallback={<MobileNavLinkList items={primaryItems} onSelect={() => setOpen(false)} open={open} pathname={pathname} section={null} />}
+          >
+            <MobileNavLinks items={primaryItems} onSelect={() => setOpen(false)} open={open} pathname={pathname} />
+          </Suspense>
         </nav>
       </div>
 
@@ -224,7 +262,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
             </div>
             {/* Role nav items */}
             <Suspense fallback={null}>
-              <NavItems items={navItems} role={role} onSelect={() => setOpen(false)} />
+              <NavItems items={navItems} onSelect={() => setOpen(false)} />
             </Suspense>
 
             {/* ── Footer section: settings + logout ── */}
