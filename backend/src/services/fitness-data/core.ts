@@ -37,6 +37,8 @@ import { exportGoogleProgramLogs } from "../google-program-export.service"
 import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
+import { buildNotificationData, queuePushForNotifications } from "../notifications/notification-dispatch.service"
+import { buildProgramAssignedDraft, buildProgramUpdatedDraft } from "../notifications/program-notifications"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
 import { buildExerciseDisplayName, type ExerciseDisplayNameInput } from "../../domain/exercise-display"
 import {
@@ -1394,7 +1396,8 @@ async function buildCoachUpdatesForAdjustedWorkout(
     where: {
       relatedEntityId: workout.programId,
       relatedEntityType: "program",
-      type: NotificationType.program_assigned,
+      // Updates written before `program_updated` existed were typed `program_assigned`.
+      type: { in: [NotificationType.program_updated, NotificationType.program_assigned] },
       userId: profile.id,
     },
   })
@@ -1452,7 +1455,8 @@ async function buildCoachUpdateWorkoutIdsForAssignments(
         in: programIds,
       },
       relatedEntityType: "program",
-      type: NotificationType.program_assigned,
+      // Updates written before `program_updated` existed were typed `program_assigned`.
+      type: { in: [NotificationType.program_updated, NotificationType.program_assigned] },
       userId: profile.id,
     },
   })
@@ -3940,6 +3944,59 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   }
 }
 
+/**
+ * Today's entry in a trainee's weekly schedule, resolved exactly like the dashboard
+ * (rolling sessions, completions on the day they happened), for the "workout starts
+ * soon" reminder. Reads "today" from the request context, so a scheduler must call
+ * it inside `withRequestContext` carrying the trainee's time zone.
+ */
+async function findTodayScheduleEntryForTrainee(userId: string) {
+  const db = ensurePrisma()
+  const todayStart = clientCalendarDay()
+  const weekStart = startOfUtcWeek(todayStart)
+
+  const [assignments, weekLogs] = await Promise.all([
+    db.programAssignment.findMany({
+      include: {
+        program: {
+          include: {
+            workouts: {
+              include: WORKOUT_INCLUDE,
+              orderBy: [{ scheduledDay: "asc" }, { createdAt: "asc" }],
+            },
+          },
+        },
+      },
+      where: { program: { archivedAt: null }, userId },
+    }),
+    db.workoutLog.findMany({
+      include: WORKOUT_LOG_INCLUDE,
+      orderBy: { startedAt: "desc" },
+      where: { startedAt: { gte: clientDayStart(weekStart) }, userId },
+    }),
+  ])
+
+  const workouts = assignments.flatMap((assignment) =>
+    selectVisibleWorkoutsForAssignmentWeek(
+      assignment.program.workouts as WorkoutRecord[],
+      resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
+      assignment.program.duration,
+      weekStart,
+    ).map((workout) => serializeWorkout(workout, { isPersonal: assignment.program.createdById === userId })),
+  )
+  const entries = buildSerializedScheduleEntriesForWeek({
+    logs: weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
+    todayStart,
+    weekStart,
+    workouts,
+  })
+  const today = entries.find((entry) => entry.isToday)
+
+  return today?.workout
+    ? { isCompleted: today.isCompleted, workoutId: today.workout.id, workoutName: today.workout.name }
+    : null
+}
+
 async function deleteWorkoutLogForTrainee(profile: SerializedProfile, _workoutId: string, logId: string) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -4011,6 +4068,7 @@ async function createWorkoutLogForTrainee(
   profile: SerializedProfile,
   workoutId: string,
   input: {
+    clientLogId?: string
     completedAt?: string | null
     exercises: ReturnType<typeof serializeWorkout>["exercises"]
     notes?: string | null
@@ -4020,6 +4078,21 @@ async function createWorkoutLogForTrainee(
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
+
+  // An offline queue replays a log whose first response may have been lost.
+  // Checked before the workout lookup so a replay still resolves after the
+  // workout itself was deleted.
+  const findReplayedLog = async () => input.clientLogId
+    ? db.workoutLog.findUnique({
+        include: WORKOUT_LOG_INCLUDE,
+        where: { userId_clientLogId: { clientLogId: input.clientLogId, userId: profile.id } },
+      })
+    : null
+  const replayedLog = await findReplayedLog()
+  if (replayedLog) {
+    return serializeWorkoutLog(replayedLog as WorkoutLogRecord)
+  }
+
   const workout = await db.workout.findFirst({
     include: WORKOUT_INCLUDE,
     where: {
@@ -4071,9 +4144,10 @@ async function createWorkoutLogForTrainee(
   // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
   // round-trips over PgBouncer); retryTransaction still guards against transient
   // connection resets.
-  const log = await retryTransaction(() =>
+  const createLog = () => retryTransaction(() =>
     db.workoutLog.create({
       data: {
+        clientLogId: input.clientLogId,
         completedAt,
         exerciseSnapshot: enrichedSnapshot as Prisma.InputJsonValue,
         notes: input.notes?.trim() || undefined,
@@ -4097,6 +4171,20 @@ async function createWorkoutLogForTrainee(
       include: WORKOUT_LOG_INCLUDE,
     }),
   )
+
+  let log: Awaited<ReturnType<typeof createLog>>
+  try {
+    log = await createLog()
+  } catch (error) {
+    // Two replays of the same queued log raced past the lookup above; the
+    // loser returns the winner's row. Its coach notification already went out.
+    const isDuplicateReplay = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+    const winner = isDuplicateReplay ? await findReplayedLog() : null
+    if (winner) {
+      return serializeWorkoutLog(winner as WorkoutLogRecord)
+    }
+    throw error
+  }
 
   // The coach notification is non-critical: send it after the log is saved so the
   // trainee's request returns immediately, and never fail the log if it errors.
@@ -4935,7 +5023,7 @@ async function createCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
-  const program = await retryTransaction(() => db.$transaction(async (tx) => {
+  const { notifications, program } = await retryTransaction(() => db.$transaction(async (tx) => {
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
 
@@ -4992,11 +5080,24 @@ async function createCoachProgram(
       throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
     }
 
-    return createdProgram
+    const assignedNotifications = assignToUserIds.length > 0
+      ? await tx.notification.createManyAndReturn({
+          data: assignToUserIds.map((userId) => buildNotificationData(buildProgramAssignedDraft({
+            coachId: profile.id,
+            programId,
+            programName: createdProgram.name,
+            traineeId: userId,
+          }))),
+        })
+      : []
+
+    return { notifications: assignedNotifications, program: createdProgram }
   }, {
     maxWait: 15000,
     timeout: 60000,
   }))
+
+  queuePushForNotifications(notifications)
 
   return serializeProgram(program as ProgramRecord)
 }
@@ -5071,7 +5172,7 @@ async function updateCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
-  await retryTransaction(() => db.$transaction(async (tx) => {
+  const notifications = await retryTransaction(() => db.$transaction(async (tx) => {
     const reusableWorkoutIds = buildReusableWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts)
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(
       existingProgram.id,
@@ -5208,33 +5309,56 @@ async function updateCoachProgram(
       })
     }
 
-    if (updatedWorkoutIds.length > 0 && notifiedUserIds.length > 0) {
-      await tx.notification.createMany({
-        data: notifiedUserIds.map((userId) => ({
-          channel: "in_app",
-          message: `Coach updated your plan ${existingProgram.name}.`,
+    // Program-level edits (name, notes, start date, length) and removed workouts
+    // change what the trainee follows even when no remaining workout differs.
+    const nextStartDate = normalizeProgramStartDateInput(input.startDate)
+    const programDetailsChanged =
+      existingProgram.name !== input.name.trim() ||
+      (existingProgram.description ?? null) !== (input.description?.trim() || null) ||
+      (existingProgram.startDate?.getTime() ?? null) !== (nextStartDate?.getTime() ?? null) ||
+      existingProgram.duration !== Math.max(1, Math.round(input.duration)) ||
+      obsoleteWorkoutIds.length > 0
+    const updatedWorkoutIdSet = new Set(updatedWorkoutIds)
+    const changedWorkoutNames = workoutRows
+      .filter((row) => updatedWorkoutIdSet.has(String(row.id)))
+      .map((row) => row.name)
+    const createdNotifications: Notification[] = []
+
+    if ((updatedWorkoutIds.length > 0 || programDetailsChanged) && notifiedUserIds.length > 0) {
+      createdNotifications.push(...await tx.notification.createManyAndReturn({
+        data: notifiedUserIds.map((userId) => buildNotificationData(buildProgramUpdatedDraft({
+          changedWorkoutNames,
+          coachId: profile.id,
           metadata: {
             coachUpdatesByWorkoutId,
             previousProgramName: existingProgram.name,
-            traineeId: userId,
-            trainerId: profile.id,
             updatedWorkoutIds,
           },
-          relatedEntityId: existingProgram.id,
-          relatedEntityType: "program",
-          scheduledFor: new Date(),
-          sentAt: new Date(),
-          status: NotificationStatus.sent,
-          title: "Your training plan was updated",
-          type: NotificationType.program_assigned,
-          userId,
-        })),
-      })
+          programId: existingProgram.id,
+          programName: input.name.trim(),
+          traineeId: userId,
+        }))),
+      }))
     }
+
+    if (newlyAssignedUserIds.length > 0) {
+      createdNotifications.push(...await tx.notification.createManyAndReturn({
+        data: newlyAssignedUserIds.map((userId) => buildNotificationData(buildProgramAssignedDraft({
+          coachId: profile.id,
+          programId: existingProgram.id,
+          programName: input.name.trim(),
+          traineeId: userId,
+        }))),
+      }))
+    }
+
+    return createdNotifications
   }, {
     maxWait: 15000,
     timeout: 60000,
   }))
+
+  queuePushForNotifications(notifications)
 
   const program = await db.program.findUniqueOrThrow({
     include: PROGRAM_INCLUDE,
@@ -5402,27 +5526,23 @@ async function adjustCoachProgramForTrainee(
       },
     })
 
-    await transaction.notification.create({
-      data: {
-        channel: "in_app",
-        message: `Coach updated your plan from ${existingProgram.name}.`,
+    const updatedWorkoutIdSet = new Set(updatedWorkoutIds)
+    const notification = await transaction.notification.create({
+      data: buildNotificationData(buildProgramUpdatedDraft({
+        changedWorkoutNames: workoutRows
+          .filter((row) => updatedWorkoutIdSet.has(String(row.id)))
+          .map((row) => row.name),
+        coachId: profile.id,
         metadata: {
           coachUpdatesByWorkoutId,
           previousProgramId: existingProgram.id,
           previousProgramName: existingProgram.name,
-          traineeId: trainee.id,
-          trainerId: profile.id,
           updatedWorkoutIds,
         },
-        relatedEntityId: programId,
-        relatedEntityType: "program",
-        scheduledFor: new Date(),
-        sentAt: new Date(),
-        status: NotificationStatus.sent,
-        title: "Your training plan was updated",
-        type: NotificationType.program_assigned,
-        userId: trainee.id,
-      },
+        programId,
+        programName: input.name.trim(),
+        traineeId: trainee.id,
+      })),
     })
 
     const createdProgram = await transaction.program.findUnique({
@@ -5436,13 +5556,15 @@ async function adjustCoachProgramForTrainee(
       throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
     }
 
-    return createdProgram
+    return { notification, program: createdProgram }
   }, {
     maxWait: 15000,
     timeout: 60000,
   }))
 
-  return serializeProgram(adjustedProgram as ProgramRecord)
+  queuePushForNotifications([adjustedProgram.notification])
+
+  return serializeProgram(adjustedProgram.program as ProgramRecord)
 }
 
 // ─── Swap exercise for a trainee ─────────────────────────────────────────────
@@ -5878,19 +6000,45 @@ async function assignCoachProgramToTrainee(profile: SerializedProfile, programId
     }
   }
 
-  const assignment = await db.programAssignment.upsert({
-    create: {
+  const assignmentKey = {
+    programId_userId: {
       programId,
       userId: traineeId,
     },
-    update: {},
-    where: {
-      programId_userId: {
+  }
+  const existingAssignment = await db.programAssignment.findUnique({ where: assignmentKey })
+
+  // Re-assigning an already assigned trainee is a no-op and must not notify again.
+  if (existingAssignment) {
+    return {
+      assigned: true,
+      programId: existingAssignment.programId,
+      traineeId: existingAssignment.userId,
+    }
+  }
+
+  const { assignment, notification } = await db.$transaction(async (tx) => {
+    const createdAssignment = await tx.programAssignment.upsert({
+      create: {
         programId,
         userId: traineeId,
       },
-    },
+      update: {},
+      where: assignmentKey,
+    })
+    const assignedNotification = await tx.notification.create({
+      data: buildNotificationData(buildProgramAssignedDraft({
+        coachId: profile.id,
+        programId,
+        programName: program.name,
+        traineeId,
+      })),
+    })
+
+    return { assignment: createdAssignment, notification: assignedNotification }
   })
+
+  queuePushForNotifications([notification])
 
   return {
     assigned: true,
@@ -7457,7 +7605,8 @@ async function listNotificationsForUser(profile: SerializedProfile, options?: { 
   const db = ensurePrisma()
   const take = Math.min(Math.max(options?.limit ?? 20, 1), 50)
   const notifications = await db.notification.findMany({
-    orderBy: [{ readAt: "asc" }, { scheduledFor: "desc" }, { createdAt: "desc" }],
+    // Newest first, as the notification bell shows them; unread state is per row.
+    orderBy: [{ createdAt: "desc" }],
     take,
     where: {
       status: {
@@ -7625,6 +7774,7 @@ export {
   deleteWorkoutLogForTrainee,
   exportCoachWorkoutLogsToGoogleSheetsForTrainee,
   exportWorkoutLogsToGoogleSheetsForTrainee,
+  findTodayScheduleEntryForTrainee,
   getCoachDashboard,
   getCoachNavCounts,
   getDashboardAnalyticsForTrainee,

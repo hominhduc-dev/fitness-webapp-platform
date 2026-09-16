@@ -93,6 +93,8 @@ const exportLogsSchema = z.object({
 })
 
 const createWorkoutLogSchema = z.object({
+  /** Idempotency key minted by the client, so an offline replay never logs twice. */
+  clientLogId: uuid.optional(),
   completedAt: isoDateTime.nullish(),
   /**
    * Mirrors `serializeWorkout()["exercises"]`, a large nested shape owned by the

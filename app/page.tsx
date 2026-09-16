@@ -29,6 +29,7 @@ export const metadata: Metadata = {
       "Track workouts, log meals, monitor your weight, and connect with professional coaches. Everything you need to reach your fitness goals.",
     url: "/",
     type: "website",
+    images: ["/og-image.png"],
   },
   alternates: {
     canonical: "/",

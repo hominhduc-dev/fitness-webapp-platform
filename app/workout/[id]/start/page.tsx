@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -31,11 +31,18 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
 import { ExerciseAnimation } from "@/components/workout/exercise-animation"
+import { SyncStatusBadge } from "@/components/offline/sync-status-badge"
+import { ApiError } from "@/lib/auth/api"
+import {
+  createClientLogId,
+  getUnsyncedWorkoutSessionDraft,
+  queueWorkoutLog,
+  queueWorkoutSessionDraft,
+  queueWorkoutSessionDraftDelete,
+} from "@/lib/offline/workout-log-queue"
 import {
   useCreateWorkoutLog,
-  useDeleteWorkoutSessionDraft,
   useSwapWorkoutExercise,
-  useUpsertWorkoutSessionDraft,
   useWorkoutDetail,
   useWorkoutSessionDraft,
 } from "@/lib/queries/workouts"
@@ -51,13 +58,10 @@ import {
   WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
   clearStoredWorkoutSession,
   getWorkoutSessionStorageKey,
-  markStoredWorkoutSessionSynced,
   readStoredWorkoutSession,
   type StoredWorkoutSession,
 } from "@/lib/workout/session-storage"
-import { ApiError } from "@/lib/auth/api"
-import { fetchWorkoutSessionDraft, type SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
-import { requireAccessToken } from "@/lib/queries/token"
+import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { nextExerciseCollapsed } from "@/lib/workout/exercise-collapse"
 
@@ -939,6 +943,8 @@ function WorkoutSession() {
   const exerciseRefs = useRef<(HTMLDivElement | null)[]>([])
   const shouldAutoScrollExerciseRef = useRef(false)
   const scrollResetWorkoutIdRef = useRef<string | null>(null)
+  // Set once the session is finished, cancelled or moved to a forked workout.
+  const sessionRetiredRef = useRef(false)
   const addedSetTokensRef = useRef<Map<string, string>>(new Map())
   const deletedSetIdsRef = useRef<Set<string>>(new Set())
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
@@ -968,73 +974,44 @@ function WorkoutSession() {
   const [swapInFlight, setSwapInFlight] = useState(false)
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
+  const userId = profile?.id ?? null
+  // Session state still waiting in the offline queue; `undefined` while reading.
+  const [unsyncedDraft, setUnsyncedDraft] = useState<StoredWorkoutSession | "deleted" | null | undefined>(undefined)
   const workoutQuery = useWorkoutDetail(workoutId ?? "", {
     activeSession: true, enabled: !workout,
   })
   const draftQuery = useWorkoutSessionDraft(workoutId ?? "", {
-    enabled: Boolean(profile) && Boolean(workoutId) && !workout,
+    // An unsent local change is newer than anything the server holds.
+    enabled: Boolean(profile) && Boolean(workoutId) && !workout && unsyncedDraft === null,
   })
+  // A snapshot restored from storage refetches before seeding (see
+  // useWorkoutDetail); offline that fetch pauses and the snapshot is used.
+  const isRefreshingSeed = workoutQuery.fetchStatus === "fetching"
+  const isWorkoutUnavailableOffline = workoutQuery.isPending && workoutQuery.fetchStatus === "paused"
+  const isDraftResolved =
+    unsyncedDraft !== undefined &&
+    (unsyncedDraft !== null || !draftQuery.isPending || draftQuery.fetchStatus === "paused")
   const isLoading =
     authLoading ||
     (Boolean(profile) && !workout && (!workoutQuery.isError && !draftQuery.isError) &&
-      (workoutQuery.isPending || draftQuery.isPending || draftQuery.isFetching))
+      ((workoutQuery.isPending && !isWorkoutUnavailableOffline) || isRefreshingSeed || !isDraftResolved))
   const logMutation = useCreateWorkoutLog()
   const swapMutation = useSwapWorkoutExercise()
-  const { mutateAsync: upsertDraft } = useUpsertWorkoutSessionDraft()
-  const { mutateAsync: deleteDraft } = useDeleteWorkoutSessionDraft()
-
-  // ── Server draft sync ───────────────────────────────────────────────────────
-  // `syncedAtRef` is the server `updatedAt` this device last synced. Sent back as
-  // `baseUpdatedAt`, it lets the API refuse to recreate a draft that was cancelled or
-  // finished on another device. Requests run one at a time so a slow upsert can never
-  // land after the delete that ends the session.
-  const syncedAtRef = useRef<string | null>(null)
-  const draftMayExistRef = useRef(false)
-  const sessionEndedRef = useRef(false)
-  const latestStoredSessionRef = useRef<StoredWorkoutSession | null>(null)
-  const draftSyncQueueRef = useRef<Promise<void>>(Promise.resolve())
-
-  const enqueueDraftSync = useCallback((task: () => Promise<void>) => {
-    const next = draftSyncQueueRef.current.then(task)
-    draftSyncQueueRef.current = next.catch(() => undefined)
-    return next
-  }, [])
-
-  const handleSessionEndedElsewhere = useCallback(() => {
-    if (sessionEndedRef.current || !workoutId) return
-    sessionEndedRef.current = true
-    syncedAtRef.current = null
-    clearStoredWorkoutSession(workoutId)
-    router.replace("/dashboard")
-  }, [router, workoutId])
-
-  const syncDraft = useCallback((storedSession: StoredWorkoutSession) => {
-    if (!workoutId) return Promise.resolve()
-    draftMayExistRef.current = true
-    return enqueueDraftSync(async () => {
-      if (sessionEndedRef.current) return
-      try {
-        const draft = await upsertDraft({
-          input: { ...storedSession, baseUpdatedAt: syncedAtRef.current ?? undefined },
-          workoutId,
-        })
-        if (sessionEndedRef.current) return
-        syncedAtRef.current = draft.updatedAt
-        markStoredWorkoutSessionSynced(workoutId, storedSession.startedAt, draft.updatedAt)
-      } catch (syncError) {
-        if (syncError instanceof ApiError && syncError.status === 409) handleSessionEndedElsewhere()
-      }
-    })
-  }, [enqueueDraftSync, handleSessionEndedElsewhere, upsertDraft, workoutId])
-
-  const discardDraft = useCallback((targetWorkoutId: string) => {
-    syncedAtRef.current = null
-    draftMayExistRef.current = false
-    return enqueueDraftSync(async () => {
-      await deleteDraft(targetWorkoutId).catch(() => undefined)
-    })
-  }, [deleteDraft, enqueueDraftSync])
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
+
+  useEffect(() => {
+    if (!userId || !workoutId) return
+    let cancelled = false
+    getUnsyncedWorkoutSessionDraft(userId, workoutId)
+      // No IndexedDB (blocked storage): fall back to the server and localStorage.
+      .catch(() => null)
+      .then((draft) => {
+        if (!cancelled) setUnsyncedDraft(draft)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [userId, workoutId])
 
   // Reset after the workout replaces the loading state. Doing this earlier lets
   // Next.js scroll restoration reapply the dashboard's previous scroll offset.
@@ -1055,19 +1032,11 @@ function WorkoutSession() {
 
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Wait for a fresh server answer: a cached draft may have been discarded since.
-    if (workout || !workoutQuery.data || draftQuery.isPending || draftQuery.isFetching) return
-    // `undefined` = server unreachable; `null` = the server confirmed there is no draft.
-    const serverSession = draftQuery.isSuccess ? draftQuery.data : undefined
-    let localSession = readStoredWorkoutSession(workoutQuery.data.id)
-    if (serverSession !== undefined && localSession?.syncedAt && serverSession?.startedAt !== localSession.startedAt) {
-      // Synced before, but since cancelled, finished or restarted on another device.
-      clearStoredWorkoutSession(workoutQuery.data.id)
-      localSession = null
-    }
-    const storedSession = serverSession ?? localSession
-    syncedAtRef.current = serverSession?.updatedAt ?? localSession?.syncedAt ?? null
-    draftMayExistRef.current = Boolean(syncedAtRef.current)
+    if (workout || !workoutQuery.data || isRefreshingSeed || !isDraftResolved) return
+    // Unsent local state > server draft > this tab's localStorage mirror.
+    const storedSession = unsyncedDraft === "deleted"
+      ? null
+      : unsyncedDraft ?? draftQuery.data ?? (workoutQuery.data.id ? readStoredWorkoutSession(workoutQuery.data.id) : null)
     const nextWorkout = buildSessionSeed(workoutQuery.data, storedSession)
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
     deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
@@ -1077,7 +1046,7 @@ function WorkoutSession() {
     setCurrentExerciseIndex(storedSession
       ? Math.min(Math.max(0, storedSession.currentExerciseIndex), Math.max(0, nextWorkout.exercises.length - 1)) : 0)
     setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
-  }, [draftQuery.data, draftQuery.isFetching, draftQuery.isPending, draftQuery.isSuccess, workout, workoutQuery.data])
+  }, [draftQuery.data, isDraftResolved, isRefreshingSeed, unsyncedDraft, workout, workoutQuery.data])
 
   // ── Timer: update elapsed every 30s ────────────────────────────────────────
   useEffect(() => {
@@ -1092,14 +1061,15 @@ function WorkoutSession() {
     if (parsed) setPresetLogDate(parsed)
   }, [])
 
-  // ── Persist session to localStorage ────────────────────────────────────────
+  // ── Persist session: localStorage mirror + offline sync queue ──────────────
+  // Every change lands in IndexedDB immediately; the sync manager debounces the
+  // upload and holds it while offline.
   useEffect(() => {
-    if (!workout || !workoutId || sessionEndedRef.current) return
+    if (!workout || !workoutId || !userId || sessionRetiredRef.current) return
     const storageKey = getWorkoutSessionStorageKey(workoutId)
     if (!hasSessionProgress(exercises) && deletedSetIdsRef.current.size === 0) {
       window.localStorage.removeItem(storageKey)
-      latestStoredSessionRef.current = null
-      if (draftMayExistRef.current) void discardDraft(workoutId)
+      void queueWorkoutSessionDraftDelete(userId, workoutId).catch(() => undefined)
       return
     }
     const storedSession = createStoredWorkoutSession(
@@ -1110,43 +1080,9 @@ function WorkoutSession() {
       workout.name,
       deletedSetIdsRef.current,
     )
-    window.localStorage.setItem(storageKey, JSON.stringify({ ...storedSession, syncedAt: syncedAtRef.current ?? undefined }))
-    latestStoredSessionRef.current = storedSession
-
-    const timeoutId = window.setTimeout(() => {
-      void syncDraft(storedSession)
-    }, 1200)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [currentExerciseIndex, discardDraft, exercises, startTime, syncDraft, workout, workoutId])
-
-  // ── Detect a session cancelled/finished on another device ──────────────────
-  // The page can stay open (a phone in a pocket, a background tab) while the other
-  // device ends the session. Re-check when the page becomes visible and every 30s.
-  // A missing or replaced draft only triggers a sync; the server's 409 decides, so a
-  // read that raced this device's own first upsert can't end the session by mistake.
-  useEffect(() => {
-    if (!workout || !workoutId) return
-    const checkRemoteDraft = async () => {
-      if (sessionEndedRef.current || !syncedAtRef.current || document.visibilityState !== "visible") return
-      try {
-        const remoteDraft = await fetchWorkoutSessionDraft(await requireAccessToken(), workoutId)
-        if (remoteDraft && remoteDraft.startedAt === startTime.toISOString()) return
-        if (latestStoredSessionRef.current) void syncDraft(latestStoredSessionRef.current)
-      } catch {
-        // Offline: the next sync reports the conflict once the server is reachable.
-      }
-    }
-    const onVisibilityChange = () => void checkRemoteDraft()
-    const intervalId = window.setInterval(onVisibilityChange, 30_000)
-    document.addEventListener("visibilitychange", onVisibilityChange)
-    window.addEventListener("focus", onVisibilityChange)
-    return () => {
-      window.clearInterval(intervalId)
-      document.removeEventListener("visibilitychange", onVisibilityChange)
-      window.removeEventListener("focus", onVisibilityChange)
-    }
-  }, [startTime, syncDraft, workout, workoutId])
+    window.localStorage.setItem(storageKey, JSON.stringify(storedSession))
+    void queueWorkoutSessionDraft(userId, workoutId, storedSession).catch(() => undefined)
+  }, [currentExerciseIndex, exercises, startTime, userId, workout, workoutId])
 
   // ── Auto-advance: scroll the active exercise into view ─────────────────────
   useEffect(() => {
@@ -1347,9 +1283,8 @@ function WorkoutSession() {
         // Migrate the in-progress localStorage session under the new workoutId with
         // remapped exercise/set IDs so completed sets and entered weights survive
         // the redirect (and clear the old key so it doesn't linger).
-        sessionEndedRef.current = true
         migrateStoredWorkoutSession(workoutId, response)
-        void discardDraft(workoutId)
+        retireSession(workoutId)
         router.replace(`/workout/${response.workoutId}/start`)
       }
     } catch (swapError) {
@@ -1428,8 +1363,21 @@ function WorkoutSession() {
     )
   }
 
+  /**
+   * Stops this page from writing the session again and queues removal of the
+   * server draft. Without the flag, a state update still rendering (a forked
+   * swap remaps exercises right before redirecting) would re-queue the draft
+   * after its delete and resurrect it.
+   */
+  const retireSession = (retiredWorkoutId: string) => {
+    sessionRetiredRef.current = true
+    if (userId) void queueWorkoutSessionDraftDelete(userId, retiredWorkoutId).catch(() => undefined)
+  }
+
   const performSave = async (logDate: Date = new Date()) => {
-    if (!session?.access_token || !workout) return
+    // No session check: offline with an expired token there is none, and the
+    // log is queued until a refreshed token can send it.
+    if (!userId || !workout) return
     setIsSaving(true)
     setError(null)
     const selectedMidnight = new Date(logDate)
@@ -1464,18 +1412,38 @@ function WorkoutSession() {
     const loggedCompletedAt = isFinishingLiveToday
       ? new Date()
       : new Date(loggedStartedAt.getTime() + cappedElapsedMs)
+    const input = {
+      // Minted once per finish so a retried or replayed send cannot log twice.
+      clientLogId: createClientLogId(),
+      completedAt: loggedCompletedAt.toISOString(),
+      exercises,
+      plannedDate: resolvePlannedDateForWorkout(workout, loggedStartedAt),
+      startedAt: loggedStartedAt.toISOString(),
+    }
     try {
-      await logMutation.mutateAsync({ workoutId: workout.id, input: {
-        completedAt: loggedCompletedAt.toISOString(),
-        exercises,
-        plannedDate: resolvePlannedDateForWorkout(workout, loggedStartedAt),
-        startedAt: loggedStartedAt.toISOString(),
-      } })
-      sessionEndedRef.current = true
+      let savedOnline = false
+      if (navigator.onLine) {
+        try {
+          await logMutation.mutateAsync({ workoutId: workout.id, input })
+          savedOnline = true
+        } catch (saveError) {
+          // Only a request that never reached the server is queued; a rejection
+          // (validation, missing workout) is shown so the trainee can act on it.
+          if (!(saveError instanceof ApiError && saveError.isNetworkError)) throw saveError
+        }
+      }
+      sessionRetiredRef.current = true
+      if (savedOnline) {
+        void queueWorkoutSessionDraftDelete(userId, workout.id).catch(() => undefined)
+      } else {
+        // Also retires the draft. The dashboard's sync badge shows the log as
+        // pending until it uploads.
+        await queueWorkoutLog(userId, workout.id, input, workout.name)
+      }
       clearStoredWorkoutSession(workout.id)
-      await discardDraft(workout.id)
       router.push("/dashboard")
     } catch (saveError) {
+      sessionRetiredRef.current = false
       setError(saveError instanceof Error ? saveError.message : messages.meals.logMealError)
     } finally {
       setIsSaving(false)
@@ -1518,9 +1486,8 @@ function WorkoutSession() {
 
   const handleCancelWorkout = () => {
     if (workout?.id) {
-      sessionEndedRef.current = true
       clearStoredWorkoutSession(workout.id)
-      void discardDraft(workout.id)
+      retireSession(workout.id)
     }
 
     router.back()
@@ -1541,7 +1508,10 @@ function WorkoutSession() {
         <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
           <p className="text-lg font-semibold">{messages.workoutPage.workoutNotFound}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            {error || messages.workoutPage.thisWorkoutUnavailable}
+            {error ||
+              (isWorkoutUnavailableOffline
+                ? messages.offlineSync.workoutUnavailableOffline
+                : messages.workoutPage.thisWorkoutUnavailable)}
           </p>
           <Button className="mt-4" onClick={() => router.push("/workout")}>
             {messages.workoutPage.backToWorkouts}
@@ -1567,9 +1537,12 @@ function WorkoutSession() {
             <X className="h-4 w-4" />
             {messages.workoutPage.cancelWorkout}
           </button>
-          <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground mb-2">
-            {dateLabel}
-          </p>
+          <div className="mb-2 flex min-h-7 items-center justify-between gap-3">
+            <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+              {dateLabel}
+            </p>
+            <SyncStatusBadge />
+          </div>
           <h1 className="text-3xl md:text-5xl font-semibold tracking-[-0.02em] text-foreground m-0 leading-tight">
             {workout.name}
           </h1>

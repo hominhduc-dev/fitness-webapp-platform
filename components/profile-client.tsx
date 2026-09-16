@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 
 import { ProfileEmailChange } from "@/components/profile-email-change"
+import { NotificationPreferencesSettings } from "@/components/settings/notification-preferences"
 
 import { LanguageToggle } from "@/components/layout/language-toggle"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
@@ -918,6 +919,11 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               >
                 {pushNotifications.isBusy ? messages.common.loading : messages.profile.pushNotificationTest}
               </Button>
+              {profile.role === "trainee" || profile.role === "coach" ? (
+                <div className="mt-2 border-t border-border pt-4">
+                  <NotificationPreferencesSettings role={profile.role} />
+                </div>
+              ) : null}
             </div>
           </SettingsSection>
 
