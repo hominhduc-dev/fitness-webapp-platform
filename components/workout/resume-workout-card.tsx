@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { useActiveWorkoutSessions, useDeleteWorkoutSessionDraft } from "@/lib/queries/workouts"
 import { cn } from "@/lib/utils"
 import {
   type ActiveWorkoutSession,
@@ -44,14 +45,17 @@ export function ResumeWorkoutCard() {
   const { messages } = useLocale()
   const router = useRouter()
   const pathname = usePathname()
+  const activeSessionsQuery = useActiveWorkoutSessions()
+  const deleteDraftMutation = useDeleteWorkoutSessionDraft()
   const [session, setSession] = useState<ActiveWorkoutSession | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [visible, setVisible] = useState(false)
 
   const refresh = useCallback(() => {
-    const sessions = scanActiveSessions()
-    setSession(sessions[0] ?? null)
-  }, [])
+    const sessions = [...(activeSessionsQuery.data ?? []), ...scanActiveSessions()]
+    const uniqueSessions = Array.from(new Map(sessions.map((item) => [item.workoutId, item])).values())
+    setSession(uniqueSessions[0] ?? null)
+  }, [activeSessionsQuery.data])
 
   // Rescan on mount and whenever the route changes (e.g. after leaving /start)
   useEffect(() => {
@@ -97,6 +101,7 @@ export function ResumeWorkoutCard() {
 
   const handleDiscard = () => {
     clearStoredWorkoutSession(session.workoutId)
+    void deleteDraftMutation.mutateAsync(session.workoutId).catch(() => undefined)
     setVisible(false)
     setSession(null)
   }

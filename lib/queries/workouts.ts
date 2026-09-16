@@ -14,14 +14,19 @@ import {
   createWorkout,
   createWorkoutLog,
   deleteWorkout,
+  deleteWorkoutSessionDraft,
   deleteWorkoutLog,
+  fetchActiveWorkoutSessions,
   swapWorkoutExercise,
   updateTraineeProgram,
   updateWorkout,
   fetchWorkouts,
   fetchWorkoutDetail,
+  fetchWorkoutSessionDraft,
   fetchTraineeProgram,
+  upsertWorkoutSessionDraft,
 } from "@/lib/fitness/api"
+import type { StoredWorkoutSession } from "@/lib/workout/session-storage"
 
 export function useWorkouts(initialData?: Awaited<ReturnType<typeof fetchWorkouts>>, options?: { enabled?: boolean }) {
   return useUserQuery({ queryKey: queryKeys.workouts.collection(),
@@ -62,6 +67,53 @@ export function useWorkoutDetail(workoutId: string, options: { initialData?: Wor
     // Static also blocks invalidation refetches; Infinity alone does not.
     ...(options.activeSession ? { staleTime: "static" as const, refetchOnMount: false as const,
       refetchOnWindowFocus: false as const, refetchOnReconnect: false as const } : {}),
+  })
+}
+
+export function useActiveWorkoutSessions() {
+  return useUserQuery({
+    queryKey: queryKeys.workouts.sessionDrafts(),
+    queryFn: async () => fetchActiveWorkoutSessions(await requireAccessToken()),
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useWorkoutSessionDraft(workoutId: string, options?: { enabled?: boolean }) {
+  return useUserQuery({
+    queryKey: queryKeys.workouts.sessionDraft(workoutId),
+    queryFn: async () => fetchWorkoutSessionDraft(await requireAccessToken(), workoutId),
+    enabled: Boolean(workoutId) && (options?.enabled ?? true),
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+}
+
+export function useUpsertWorkoutSessionDraft() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workoutId, input }: { workoutId: string; input: StoredWorkoutSession }) =>
+      upsertWorkoutSessionDraft(await requireAccessToken(), workoutId, input),
+    onSuccess: (draft, { workoutId }) => {
+      queryClient.setQueryData(queryKeys.workouts.sessionDraft(workoutId), draft)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
+    },
+  })
+}
+
+export function useDeleteWorkoutSessionDraft() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (workoutId: string) => deleteWorkoutSessionDraft(await requireAccessToken(), workoutId),
+    onSuccess: (_result, workoutId) => {
+      queryClient.setQueryData(queryKeys.workouts.sessionDraft(workoutId), null)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.sessionDrafts() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.collection() })
+    },
   })
 }
 

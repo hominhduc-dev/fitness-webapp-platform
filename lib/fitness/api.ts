@@ -4,6 +4,7 @@ import { getApiBaseUrl } from "@/lib/supabase/config"
 import { getTimeZoneHeaders } from "@/lib/time-zone"
 import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import type { IntensityTag } from "@/lib/workout/intensity-tag"
+import type { ActiveWorkoutSession, StoredWorkoutSession } from "@/lib/workout/session-storage"
 import type {
   DailyNutrition,
   ExerciseBase,
@@ -159,6 +160,15 @@ type SerializedWorkoutScheduleEntry = {
   source: "coach" | "self"
   weekday: number
   workout: SerializedWorkout | null
+}
+
+type SerializedWorkoutSessionDraft = StoredWorkoutSession & {
+  updatedAt: string
+  workoutId: string
+}
+
+type SerializedActiveWorkoutSession = ActiveWorkoutSession & {
+  updatedAt?: string
 }
 
 type SerializedMeal = {
@@ -1110,6 +1120,7 @@ async function fetchNutritionDay(accessToken: string, date?: string): Promise<Nu
 async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData> {
   const response = await request<{
     dashboard: {
+      activeSessions?: SerializedActiveWorkoutSession[]
       dailyNutrition: SerializedDailyNutrition
       recentLogs: SerializedWorkoutLog[]
       schedule: Record<number, SerializedWorkout | null>
@@ -1121,6 +1132,7 @@ async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData
   }>("/api/dashboard", accessToken)
 
   return {
+    activeSessions: response.dashboard.activeSessions ?? [],
     dailyNutrition: mapDailyNutrition(response.dashboard.dailyNutrition),
     recentLogs: response.dashboard.recentLogs.map(mapWorkoutLog),
     schedule: Object.fromEntries(
@@ -1417,6 +1429,7 @@ async function fetchWorkoutLogDetail(accessToken: string, logId: string): Promis
 
 async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
   const response = await request<{
+    activeSessions?: SerializedActiveWorkoutSession[]
     historyLogs: SerializedWorkoutLog[]
     programs: Array<{ assignedAt: string; duration: number; id: string; name: string }>
     recentLogs: SerializedWorkoutLog[]
@@ -1433,6 +1446,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
   }>("/api/workouts", accessToken, { cache: "no-store" })
 
   return {
+    activeSessions: response.activeSessions ?? [],
     historyLogs: (response.historyLogs ?? []).map(mapWorkoutLog),
     programs: (response.programs ?? []).map((p) => ({ ...p, assignedAt: new Date(p.assignedAt) })),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
@@ -1480,6 +1494,48 @@ async function exportWorkoutLogsToGoogleSheets(
 async function fetchWorkoutDetail(accessToken: string, workoutId: string) {
   const response = await request<{ workout: SerializedWorkout }>(`/api/workouts/${workoutId}`, accessToken)
   return mapWorkout(response.workout)
+}
+
+async function fetchActiveWorkoutSessions(accessToken: string): Promise<ActiveWorkoutSession[]> {
+  const response = await request<ApiEnvelope<SerializedActiveWorkoutSession[]>>(
+    "/api/workouts/session-drafts/active",
+    accessToken,
+    { cache: "no-store" },
+  )
+  return response.data
+}
+
+async function fetchWorkoutSessionDraft(accessToken: string, workoutId: string): Promise<SerializedWorkoutSessionDraft | null> {
+  const response = await request<ApiEnvelope<SerializedWorkoutSessionDraft | null>>(
+    `/api/workouts/${workoutId}/session-draft`,
+    accessToken,
+    { cache: "no-store" },
+  )
+  return response.data
+}
+
+async function upsertWorkoutSessionDraft(
+  accessToken: string,
+  workoutId: string,
+  input: StoredWorkoutSession,
+): Promise<SerializedWorkoutSessionDraft> {
+  const response = await request<ApiEnvelope<SerializedWorkoutSessionDraft>>(
+    `/api/workouts/${workoutId}/session-draft`,
+    accessToken,
+    {
+      body: JSON.stringify(input),
+      method: "PUT",
+    },
+  )
+  return response.data
+}
+
+async function deleteWorkoutSessionDraft(accessToken: string, workoutId: string) {
+  await request<ApiEnvelope<{ deleted: boolean; workoutId: string }>>(
+    `/api/workouts/${workoutId}/session-draft`,
+    accessToken,
+    { method: "DELETE" },
+  )
 }
 
 async function createWorkout(accessToken: string, input: CreateWorkoutInput) {
@@ -2404,6 +2460,7 @@ export {
   deleteCoachExerciseRequest,
   deleteCoachWorkoutLogComment,
   deleteWorkout,
+  deleteWorkoutSessionDraft,
   deleteWorkoutLog,
   deleteMealItem,
   deleteCoachProgram,
@@ -2443,6 +2500,8 @@ export {
   fetchNotifications,
   submitCoachExerciseImportRequest,
   fetchWorkoutDetail,
+  fetchWorkoutSessionDraft,
+  fetchActiveWorkoutSessions,
   fetchWorkoutLogsForExport,
   fetchTraineeProgram,
   fetchWorkouts,
@@ -2459,6 +2518,7 @@ export {
   updateCoachRequestStatus,
   updateCoachWorkoutLogComment,
   updateWorkout,
+  upsertWorkoutSessionDraft,
   upsertRecoveryCheckIn,
 }
 

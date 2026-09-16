@@ -235,6 +235,7 @@ model User {
   programAssignments     ProgramAssignment[]
   workoutLogs            WorkoutLog[]
   workoutLogComments     WorkoutLogComment[]       @relation("WorkoutLogCommentAuthor")
+  workoutSessionDrafts   WorkoutSessionDraft[]
   bodyMetricsAsTrainee   BodyMetricEntry[]         @relation("BodyMetricTrainee")
   bodyMetricsAsCoach     BodyMetricEntry[]         @relation("BodyMetricCoach")
   checkInsAsTrainee      CoachCheckIn[]            @relation("CoachCheckInTrainee")
@@ -530,6 +531,7 @@ model Workout {
   program       Program?          @relation(fields: [programId], references: [id], onDelete: Cascade)
   exercises     WorkoutExercise[]
   logs          WorkoutLog[]
+  sessionDrafts WorkoutSessionDraft[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -571,6 +573,26 @@ model ExerciseSet {
   workoutExercise   WorkoutExercise  @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 
   @@unique([workoutExerciseId, setNumber])
+}
+
+model WorkoutSessionDraft {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @db.Uuid
+  workoutId            String   @db.Uuid
+  workoutName          String?
+  startedAt            DateTime
+  currentExerciseIndex Int      @default(0)
+  exercises            Json
+  deletedSetIds        String[] @default([])
+  schemaVersion        Int?
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout              Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([userId, workoutId])
+  @@index([userId, updatedAt])
+  @@index([workoutId])
 }
 
 model WorkoutLog {

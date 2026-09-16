@@ -111,7 +111,12 @@ export function DashboardOverviewClient({
           spans both columns. From `sm` the pair goes back to full width. */}
       <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <div className="order-3 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-1">
-          <TodayWorkout workout={dashboard.todayWorkout} workouts={dashboard.workouts} completed={dashboard.scheduleEntries.some((entry) => entry.isToday && entry.isCompleted)} />
+          <TodayWorkout
+            activeSessions={dashboard.activeSessions}
+            workout={dashboard.todayWorkout}
+            workouts={dashboard.workouts}
+            completed={dashboard.scheduleEntries.some((entry) => entry.isToday && entry.isCompleted)}
+          />
         </div>
 
         <div className="order-1 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-1">
