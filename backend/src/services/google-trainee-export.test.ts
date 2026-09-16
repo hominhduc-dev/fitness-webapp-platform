@@ -2,7 +2,20 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("../config/env", () => ({ env: { googleOauthClientId: "test-client", googleOauthClientSecret: "test-secret", googleOauthRedirectUri: "http://localhost/callback", googleTokenEncryptionKey: Buffer.alloc(32, 7).toString("base64") } }))
 vi.mock("../lib/prisma", () => ({ prisma: null }))
 import { parseGoogleProgramRows } from "./google-program-import.service"
-import { buildTraineeWeekGrid, resolveLogPosition, selectPlanWorkoutsForWeek, type PlanDay } from "./google-trainee-export.service"
+import { buildWeightTrackingRows, buildTraineeWeekGrid, resolveLogPosition, selectPlanWorkoutsForWeek, type PlanDay } from "./google-trainee-export.service"
+
+describe('weight tracking export', () => {
+  it('writes numeric kilograms and notes, excluding metrics without weight', () => {
+    expect(buildWeightTrackingRows([
+      { recordedAt: new Date('2026-09-16T12:00:00Z'), weightKg: 73.3, note: 'Morning measurement' },
+      { recordedAt: new Date('2026-09-17T12:00:00Z'), weightKg: null, note: 'Waist only' },
+      { recordedAt: new Date('2026-09-18T12:00:00Z'), weightKg: 74, note: null },
+    ])).toEqual([['Date', 'Weight (kg)', 'Notes'], ['2026-09-16', 73.3, 'Morning measurement'], ['2026-09-18', 74, '']])
+  })
+  it('keeps headers when there are no weight measurements', () => {
+    expect(buildWeightTrackingRows([])).toEqual([['Date', 'Weight (kg)', 'Notes']])
+  })
+})
 
 const plan: PlanDay[] = [{
   day: 1,
