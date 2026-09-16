@@ -24,6 +24,11 @@ const registerSchema = z.object({
   username: z.string().trim().max(60).optional(),
 })
 
+/** The callback tells us which signup the OAuth round-trip started from. */
+const claimOAuthRoleSchema = z.object({
+  role: z.enum(["trainee", "coach"]),
+})
+
 const loginSchema = z
   .object({
     email: email.optional(),
@@ -76,6 +81,7 @@ export {
   forgotPasswordSchema,
   loginSchema,
   refreshSchema,
+  claimOAuthRoleSchema,
   registerSchema,
   updateProfileSchema,
 }

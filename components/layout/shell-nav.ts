@@ -1,5 +1,5 @@
 import type { ElementType } from "react"
-import { Activity, BarChart3, Calendar, ClipboardList, Dumbbell, Home, LayoutDashboard, Link2, ListChecks, ScrollText, Settings, UserPlus, UserRoundCheck, Users, Utensils } from "lucide-react"
+import { Activity, BarChart3, Calendar, ClipboardList, Dumbbell, Home, LayoutDashboard, Link2, ListChecks, ScrollText, Settings, ShieldCheck, UserPlus, UserRoundCheck, Users, Utensils } from "lucide-react"
 
 import type { AppMessages } from "@/lib/i18n/messages"
 
@@ -54,6 +54,7 @@ export function getAdminNavItems(messages: AppMessages): ShellNavItem[] {
   return [
     { exact: true, href: "/admin", icon: LayoutDashboard, label: messages.shell.overview },
     { href: "/admin?s=users", icon: Users, label: messages.shell.users },
+    { href: "/admin?s=coach-signups", icon: ShieldCheck, label: messages.shell.coachSignups },
     { href: "/admin?s=requests", icon: UserRoundCheck, label: messages.shell.coachRequests },
     { href: "/admin?s=connections", icon: Link2, label: messages.shell.connections },
     { href: "/admin?s=programs", icon: ClipboardList, label: messages.shell.programs },

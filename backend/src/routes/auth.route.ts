@@ -8,6 +8,7 @@ import {
   logoutCurrentSession,
   refreshAuthSession,
   requireCurrentProfile,
+  claimOAuthSignupRole,
   registerUser,
   requestPasswordReset,
   uploadCurrentProfileAvatar,
@@ -19,6 +20,7 @@ import {
   forgotPasswordSchema,
   loginSchema,
   refreshSchema,
+  claimOAuthRoleSchema,
   registerSchema,
   updateProfileSchema,
 } from "./auth.schemas"
@@ -36,6 +38,17 @@ authRouter.post(
   validated({ body: registerSchema }, async (req, res) => {
     const result = await registerUser(req.body)
     res.status(result.requiresEmailConfirmation ? 202 : 201).json(result)
+  }),
+)
+
+// Google never carries our role, so the OAuth callback claims it here, right
+// after the code exchange and before anything else can create the profile.
+authRouter.post(
+  "/oauth/claim-role",
+  authLimiter,
+  validated({ body: claimOAuthRoleSchema }, async (req, res) => {
+    const result = await claimOAuthSignupRole(getAccessToken(req), req.body.role)
+    res.json(result)
   }),
 )
 

@@ -270,6 +270,39 @@ async function fetchAdminUsers(accessToken: string, options?: { role?: string; s
   return response.users.map(mapAdminUserListItem)
 }
 
+async function fetchAdminCoachSignups(
+  accessToken: string,
+  options?: { search?: string; status?: "pending" | "approved" | "rejected" | "all" },
+) {
+  const query = buildQuery({
+    search: options?.search,
+    status: options?.status,
+  })
+  const response = await request<{ signups: SerializedAdminUserListItem[] }>(
+    `/api/admin/coach-signups${query}`,
+    accessToken,
+  )
+
+  return response.signups.map(mapAdminUserListItem)
+}
+
+async function reviewAdminCoachSignupRequest(
+  accessToken: string,
+  userId: string,
+  decision: "approved" | "rejected",
+) {
+  const response = await request<{ user: SerializedAdminUserListItem }>(
+    `/api/admin/coach-signups/${userId}`,
+    accessToken,
+    {
+      body: JSON.stringify({ decision }),
+      method: "PATCH",
+    },
+  )
+
+  return mapAdminUserListItem(response.user)
+}
+
 async function fetchAdminUserDetail(accessToken: string, userId: string) {
   const response = await request<{ user: SerializedAdminUserDetail }>(`/api/admin/users/${userId}`, accessToken)
 
@@ -623,12 +656,14 @@ export {
   fetchAdminExerciseImportRequests,
   fetchAdminPrograms,
   fetchAdminUserDetail,
+  fetchAdminCoachSignups,
   fetchAdminUsers,
   importAdminExercisesRequest,
   previewExerciseSyncRequest,
   removeAdminCoachConnection,
   removeAdminExerciseMediaRequest,
   resetAdminUserPasswordRequest,
+  reviewAdminCoachSignupRequest,
   reviewAdminExerciseImportRequest,
   saveAdminExerciseMediaRequest,
   transferAdminExerciseMetadataRequest,

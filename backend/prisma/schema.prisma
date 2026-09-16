@@ -14,6 +14,13 @@ enum UserRole {
   admin
 }
 
+/// Self-registered coaches wait for an admin decision before they can sign in.
+enum CoachApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
 enum ProgramDifficulty {
   beginner
   intermediate
@@ -193,6 +200,10 @@ model User {
   phone                  String?                   @unique
   role                   UserRole
   isActive               Boolean                   @default(true)
+  /// Coach accounts only. A signup from /coach-signup lands here as `pending`
+  /// with isActive false; an admin decision flips both together.
+  coachApprovalStatus    CoachApprovalStatus?
+  coachApprovalDecidedAt DateTime?
   avatar                 String?
   fitnessGoals           String[]                  @default([])
   preferredWeightUnit    WeightUnit                @default(kg)
@@ -241,6 +252,7 @@ model User {
   @@index([coachId])
   @@index([username])
   @@index([phone])
+  @@index([role, coachApprovalStatus])
 }
 
 model Exercise {

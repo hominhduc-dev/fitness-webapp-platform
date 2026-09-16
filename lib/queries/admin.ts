@@ -47,6 +47,18 @@ export function useAdminCoachRequests(options?: Args<typeof api.fetchAdminCoachR
   })
 }
 
+export function useAdminCoachSignups(
+  options?: Args<typeof api.fetchAdminCoachSignups>[0],
+  initialData?: Result<typeof api.fetchAdminCoachSignups>,
+) {
+  return useUserQuery<Result<typeof api.fetchAdminCoachSignups>>({
+    queryKey: [...queryKeys.admin.coachSignups(), options ?? {}],
+    queryFn: async () => api.fetchAdminCoachSignups(await requireAccessToken(), options),
+    initialData,
+    staleTime: 30_000,
+  })
+}
+
 export function useAdminConnections(options?: Args<typeof api.fetchAdminConnections>[0], initialData?: Result<typeof api.fetchAdminConnections>) {
   return useUserQuery<Result<typeof api.fetchAdminConnections>>({
     queryKey:  [...queryKeys.admin.connections(), options ?? {}],
@@ -176,6 +188,14 @@ export function useTransferAdminExerciseMetadataRequest() {
 
 export function useRemoveAdminExerciseMediaRequest() {
   return useAdminMutation(api.removeAdminExerciseMediaRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
+}
+
+export function useReviewAdminCoachSignupRequest() {
+  return useAdminMutation(api.reviewAdminCoachSignupRequest, [
+    queryKeys.admin.all,
+    queryKeys.coach.all,
+    queryKeys.profile.all,
+  ])
 }
 
 export function useUpdateAdminUserRequest() {

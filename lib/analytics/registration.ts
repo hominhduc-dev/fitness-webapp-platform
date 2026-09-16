@@ -4,7 +4,7 @@ import { track } from "@vercel/analytics"
 
 type RegistrationEvent = "form_view" | "form_submit" | "form_error" | "sign_up"
 
-export function trackRegistrationEvent(event: RegistrationEvent, properties?: { method?: "email" | "google" | "apple"; email_confirmation_required?: boolean }) {
+export function trackRegistrationEvent(event: RegistrationEvent, properties?: { method?: "email" | "google" | "apple"; email_confirmation_required?: boolean; role?: "trainee" | "coach" }) {
   // Never send names, email addresses, phone numbers, or error messages to analytics.
   track(event === "sign_up" ? "sign_up" : `registration_${event}`, properties)
 

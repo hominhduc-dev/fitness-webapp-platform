@@ -62,6 +62,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [activeTab, setActiveTab] = useState<"login" | "register">(defaultTab)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [oauthLoadingProvider, setOauthLoadingProvider] = useState<"google" | "apple" | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,6 +73,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [registerName, setRegisterName] = useState("")
   const [registerEmail, setRegisterEmail] = useState("")
   const [registerPassword, setRegisterPassword] = useState("")
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
   const finalRedirectPath = sanitizeRedirectPath(redirectToPath)
 
@@ -193,7 +195,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     event.preventDefault()
     setError(null)
     setSuccess(null)
-    trackRegistrationEvent("form_submit", { method: "email" })
+    trackRegistrationEvent("form_submit", { method: "email", role: "trainee" })
 
     if (!isSupabaseConfigured) {
       setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
@@ -201,8 +203,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     }
 
     if (registerPassword.length < 6) {
-      trackRegistrationEvent("form_error", { method: "email" })
+      trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
       setError(messages.auth.passwordTooShort)
+      return
+    }
+
+    if (registerPassword !== registerConfirmPassword) {
+      trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
+      setError(messages.auth.passwordMismatch)
       return
     }
 
@@ -222,6 +230,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       trackRegistrationEvent("sign_up", {
         method: "email",
         email_confirmation_required: Boolean(response.requiresEmailConfirmation || !response.session),
+        role: "trainee",
       })
 
       if (response.requiresEmailConfirmation || !response.session) {
@@ -236,7 +245,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       await finalizeAuthentication(response.profile?.role, response.session)
     } catch (rawError) {
       if (!accountCreated) {
-        trackRegistrationEvent("form_error", { method: "email" })
+        trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
       }
       const message =
         rawError instanceof ApiError || rawError instanceof Error
@@ -527,6 +536,32 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
                   {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="register-confirm-password" className="text-sm">
+                {messages.auth.confirmPasswordLabel}
+              </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="register-confirm-password"
+                  type={showRegisterConfirmPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={registerConfirmPassword}
+                  onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+                  className="pl-10 pr-10 bg-card border-border focus:border-primary h-11 sm:h-10 text-base sm:text-sm"
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showRegisterConfirmPassword ? messages.auth.hidePassword : messages.auth.showPassword}
+                  onClick={() => setShowRegisterConfirmPassword((current) => !current)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                >
+                  {showRegisterConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
