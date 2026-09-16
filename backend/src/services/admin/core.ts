@@ -1,4 +1,5 @@
 import {
+  CoachApprovalStatus,
   CoachRequestStatus,
   ExerciseImportRequestStatus,
   MealStatus,
@@ -296,6 +297,8 @@ function serializeMiniUser(user: Pick<User, "avatar" | "email" | "id" | "isActiv
 function serializeUserListItem(user: UserSummaryRecord) {
   return {
     coach: user.coach ? serializeMiniUser(user.coach) : null,
+    coachApprovalDecidedAt: user.coachApprovalDecidedAt,
+    coachApprovalStatus: user.coachApprovalStatus,
     coachId: user.coachId,
     createdAt: user.createdAt,
     dailyCalorieGoal: user.dailyCalorieGoal,
@@ -958,6 +961,15 @@ async function updateAdminUser(
 
   const nextRole = input.role ?? existingUser.role
   const nextIsActive = input.isActive ?? existingUser.isActive
+  // Promoting someone to coach by hand is itself the approval; demoting one
+  // takes them out of the queue. Locking an approved coach leaves the decision
+  // alone, so they read as locked rather than as waiting on an admin.
+  const nextCoachApprovalStatus =
+    nextRole === UserRole.coach
+      ? existingUser.coachApprovalStatus === CoachApprovalStatus.approved || nextIsActive
+        ? CoachApprovalStatus.approved
+        : existingUser.coachApprovalStatus
+      : null
 
   if (existingUser.id === profile.id && (nextRole !== UserRole.admin || !nextIsActive)) {
     throw new AuthServiceError("Bạn không thể tự hạ quyền hoặc tự khoá tài khoản admin đang đăng nhập.", 400)
@@ -1003,6 +1015,9 @@ async function updateAdminUser(
 
     const updated = await transaction.user.update({
       data: {
+        coachApprovalDecidedAt:
+          nextCoachApprovalStatus === existingUser.coachApprovalStatus ? existingUser.coachApprovalDecidedAt : new Date(),
+        coachApprovalStatus: nextCoachApprovalStatus,
         coachId: nextRole === UserRole.trainee ? existingUser.coachId : null,
         isActive: nextIsActive,
         programAssignments: nextRole === UserRole.trainee ? undefined : { deleteMany: {} },
@@ -1031,6 +1046,7 @@ async function updateAdminUser(
       entityLabel: updated.email,
       entityType: "user",
       metadata: {
+        coachApprovalStatus: nextCoachApprovalStatus,
         isActive: nextIsActive,
         previousIsActive: existingUser.isActive,
         previousRole: existingUser.role,
@@ -1056,6 +1072,127 @@ async function updateAdminUser(
 
   // A role/active-state change must take effect immediately, so drop any cached
   // auth context (the affected user may have an in-flight session token cached).
+  invalidateProfileContextCache()
+
+  return serializeUserListItem(updatedUser as UserSummaryRecord)
+}
+
+const COACH_SIGNUP_INCLUDE = {
+  coach: true,
+  _count: {
+    select: {
+      meals: true,
+      programAssignments: true,
+      programsCreated: true,
+      trainees: true,
+      workoutLogs: true,
+    },
+  },
+} as const
+
+/**
+ * The queue behind /coach-signup. Coaches created before self-signup existed
+ * were backfilled as approved by the migration, so they never show up here as
+ * pending.
+ */
+async function listAdminCoachSignups(
+  profile: SerializedProfile,
+  options?: {
+    search?: string
+    status?: CoachApprovalStatus | "all"
+  },
+) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const status = options?.status ?? CoachApprovalStatus.pending
+  const users = await db.user.findMany({
+    include: COACH_SIGNUP_INCLUDE,
+    orderBy: {
+      createdAt: "desc",
+    },
+    where: {
+      role: UserRole.coach,
+      ...(status === "all" ? { coachApprovalStatus: { not: null } } : { coachApprovalStatus: status }),
+    },
+  })
+
+  const search = normalizeSearch(options?.search)
+
+  return users
+    .filter((user) => matchesSearch([user.name, user.email, user.username, user.phone], search))
+    .map((user) => serializeUserListItem(user as UserSummaryRecord))
+}
+
+/** Approving unlocks the account; rejecting leaves it locked and out of the queue. */
+async function reviewAdminCoachSignup(
+  profile: SerializedProfile,
+  userId: string,
+  decision: "approved" | "rejected",
+) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const existingUser = await db.user.findUnique({
+    where: {
+      id: userId,
+    },
+  })
+
+  if (!existingUser) {
+    throw new AuthServiceError("Không tìm thấy người dùng.", 404)
+  }
+
+  if (existingUser.role !== UserRole.coach) {
+    throw new AuthServiceError("Chỉ có thể duyệt hồ sơ của tài khoản coach.", 400)
+  }
+
+  if (existingUser.coachApprovalStatus !== CoachApprovalStatus.pending) {
+    throw new AuthServiceError("Hồ sơ coach này đã được xử lý.", 400)
+  }
+
+  const approved = decision === "approved"
+
+  const updatedUser = await db.$transaction(async (transaction) => {
+    const updated = await transaction.user.update({
+      data: {
+        coachApprovalDecidedAt: new Date(),
+        coachApprovalStatus: approved ? CoachApprovalStatus.approved : CoachApprovalStatus.rejected,
+        isActive: approved,
+      },
+      include: COACH_SIGNUP_INCLUDE,
+      where: {
+        id: existingUser.id,
+      },
+    })
+
+    await logAdminAudit(transaction, profile.id, {
+      action: approved ? "coach_signup.approved" : "coach_signup.rejected",
+      entityId: updated.id,
+      entityLabel: updated.email,
+      entityType: "user",
+      metadata: {
+        decision: approved ? "approved" : "rejected",
+        signedUpAt: updated.createdAt.toISOString(),
+      },
+    })
+
+    return updated
+  })
+
+  if (supabaseAdmin && existingUser.supabaseAuthUserId) {
+    try {
+      await supabaseAdmin.auth.admin.updateUserById(existingUser.supabaseAuthUserId, {
+        user_metadata: {
+          isActive: approved,
+          role: existingUser.role,
+        },
+      })
+    } catch (error) {
+      logger.warn("unable to sync coach approval to Supabase", { error, userId: existingUser.id })
+    }
+  }
+
+  // The decision has to bite on the coach's next request, not once a cached
+  // auth context expires.
   invalidateProfileContextCache()
 
   return serializeUserListItem(updatedUser as UserSummaryRecord)
@@ -3116,6 +3253,7 @@ export {
   getAdminUserDetail,
   listAdminAuditLogs,
   listAdminCoachRequests,
+  listAdminCoachSignups,
   listAdminConnections,
   listAdminExercises,
   listAdminExerciseImportRequests,
@@ -3124,6 +3262,7 @@ export {
   previewExerciseSync,
   removeAdminCoachFromTrainee,
   resetAdminUserPassword,
+  reviewAdminCoachSignup,
   reviewExerciseImportRequest,
   updateAdminCoachRequest,
   updateAdminExercise,

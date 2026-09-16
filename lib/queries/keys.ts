@@ -140,6 +140,8 @@ export const queryKeys = {
     userDetail: (userId: string) => ["admin", "user-detail", userId] as const,
     coachRequests: (options?: { status?: string }) =>
       ["admin", "coach-requests", { status: options?.status ?? null }] as const,
+    coachSignups: (options?: { status?: string }) =>
+      ["admin", "coach-signups", { status: options?.status ?? null }] as const,
     connections: () => ["admin", "connections"] as const,
     programs: () => ["admin", "programs"] as const,
     exercises: () => ["admin", "exercises"] as const,

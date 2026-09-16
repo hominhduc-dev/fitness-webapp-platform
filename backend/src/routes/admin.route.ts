@@ -24,6 +24,7 @@ import {
   importAdminExercises,
   listAdminAuditLogs,
   listAdminCoachRequests,
+  listAdminCoachSignups,
   listAdminConnections,
   listAdminExercises,
   listAdminExerciseImportRequests,
@@ -33,6 +34,7 @@ import {
   removeAdminCoachFromTrainee,
   removeAdminExerciseMedia,
   resetAdminUserPassword,
+  reviewAdminCoachSignup,
   reviewExerciseImportRequest,
   saveAdminExerciseMedia,
   transferAdminExerciseMetadata,
@@ -41,7 +43,15 @@ import {
   updateAdminUser,
 } from "../services/admin.service"
 import { validated } from "../middleware/validate"
-import { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema, transferExerciseMetadataSchema } from "./admin.schemas"
+import {
+  coachSignupParams,
+  coachSignupQuery,
+  exerciseIdParams,
+  exerciseMediaUploadSchema,
+  reviewCoachSignupSchema,
+  saveExerciseMediaSchema,
+  transferExerciseMetadataSchema,
+} from "./admin.schemas"
 import { getAccessToken, sendError } from "./route.utils"
 
 const adminRouter = Router()
@@ -149,6 +159,29 @@ adminRouter.post("/users/:userId/reset-password", async (req, res) => {
     sendError(res, error)
   }
 })
+
+adminRouter.get(
+  "/coach-signups",
+  validated({ query: coachSignupQuery }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const signups = await listAdminCoachSignups(profile, {
+      search: req.query.search,
+      status: req.query.status,
+    })
+
+    res.json({ signups })
+  }),
+)
+
+adminRouter.patch(
+  "/coach-signups/:userId",
+  validated({ body: reviewCoachSignupSchema, params: coachSignupParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const user = await reviewAdminCoachSignup(profile, req.params.userId, req.body.decision)
+
+    res.json({ user })
+  }),
+)
 
 adminRouter.get("/coach-requests", async (req, res) => {
   try {

@@ -1,4 +1,4 @@
-import { Prisma, UserRole, WeightUnit, type User as AppUser } from "@prisma/client"
+import { CoachApprovalStatus, Prisma, UserRole, WeightUnit, type User as AppUser } from "@prisma/client"
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
 
 import { env } from "../../config/env"
@@ -22,6 +22,8 @@ type AuthUserPayload = {
 type AuthResult = {
   message?: string
   profile: ReturnType<typeof serializeProfile> | null
+  /** A coach signup that an admin has not decided on yet: created, but locked out. */
+  requiresApproval?: boolean
   requiresEmailConfirmation?: boolean
   session: SerializableSession | null
   user: AuthUserPayload | null
@@ -520,6 +522,7 @@ function serializeProfile(profile: AppUser | null) {
     activityLevel: profile.activityLevel,
     avatar: profile.avatar,
     birthDate: profile.birthDate,
+    coachApprovalStatus: profile.coachApprovalStatus,
     coachId: profile.coachId,
     createdAt: profile.createdAt,
     dailyCarbsGoal: profile.dailyCarbsGoal,
@@ -563,10 +566,23 @@ function getPasswordResetSuccessResult() {
   } satisfies AuthResult
 }
 
-function assertProfileIsActive(profile: Pick<AppUser, "isActive">) {
-  if (!profile.isActive) {
-    throw new AuthServiceError("Tài khoản này đã bị khoá. Vui lòng liên hệ quản trị viên.", 403)
+function assertProfileIsActive(profile: Pick<AppUser, "coachApprovalStatus" | "isActive">) {
+  if (profile.isActive) {
+    return
   }
+
+  if (profile.coachApprovalStatus === CoachApprovalStatus.pending) {
+    throw new AuthServiceError(
+      "Hồ sơ coach của bạn đang chờ quản trị viên duyệt. Bạn sẽ đăng nhập được ngay khi hồ sơ được duyệt.",
+      403,
+    )
+  }
+
+  if (profile.coachApprovalStatus === CoachApprovalStatus.rejected) {
+    throw new AuthServiceError("Hồ sơ coach của bạn chưa được duyệt. Vui lòng liên hệ quản trị viên.", 403)
+  }
+
+  throw new AuthServiceError("Tài khoản này đã bị khoá. Vui lòng liên hệ quản trị viên.", 403)
 }
 
 async function syncProfile(authUser: SupabaseUser, overrides?: {
@@ -656,12 +672,19 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
     })
   }
 
+  // Admins turn someone into a coach by promoting an existing row, so a coach
+  // profile created here is always a self-signup: it stays locked until an
+  // admin works through the queue.
+  const isCoachSignup = nextRole === UserRole.coach
+
   return prisma.user.create({
     data: {
       avatar,
+      coachApprovalStatus: isCoachSignup ? CoachApprovalStatus.pending : null,
       email,
       fitnessGoals: metadataGoals,
       heightCm: metadataHeightCm,
+      isActive: !isCoachSignup,
       name,
       phone,
       role: nextRole,
@@ -911,14 +934,20 @@ async function registerUser(input: {
     ? await syncProfile(data.user, { name, phone, role: normalizePublicRole(input.role), username })
     : null
   const requiresEmailConfirmation = !data.session
+  const requiresApproval = profile?.coachApprovalStatus === CoachApprovalStatus.pending
 
   return {
-    message: requiresEmailConfirmation
-      ? "Tài khoản đã được tạo. Vui lòng xác nhận email để hoàn tất đăng nhập."
-      : "Đăng ký thành công.",
+    message: requiresApproval
+      ? "Hồ sơ coach đã được tạo và đang chờ quản trị viên duyệt. Chúng tôi sẽ mở khoá đăng nhập ngay khi hồ sơ được duyệt."
+      : requiresEmailConfirmation
+        ? "Tài khoản đã được tạo. Vui lòng xác nhận email để hoàn tất đăng nhập."
+        : "Đăng ký thành công.",
     profile: serializeProfile(profile),
+    requiresApproval,
     requiresEmailConfirmation,
-    session: serializeSession(data.session),
+    // Supabase may hand back a usable session here; withholding it keeps the
+    // browser from signing a coach in before the account has been approved.
+    session: requiresApproval ? null : serializeSession(data.session),
     user: serializeAuthUser(data.user),
   } satisfies AuthResult
 }

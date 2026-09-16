@@ -1,4 +1,5 @@
 import type { ExerciseActivityType, ExerciseMedia, ExerciseMuscleProfile, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
+import type { CoachApprovalStatus } from "@/lib/auth/types"
 
 type AdminMiniUser = {
   avatar?: string
@@ -20,6 +21,8 @@ type AdminUserStats = {
 
 type AdminUserListItem = {
   coach: AdminMiniUser | null
+  /** Coach accounts only: where a self-signup stands with the admin queue. */
+  coachApprovalStatus?: CoachApprovalStatus | null
   coachId?: string | null
   createdAt: Date
   dailyCalorieGoal: number

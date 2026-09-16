@@ -1,5 +1,7 @@
 export type AppRole = "trainee" | "coach" | "admin"
 
+export type CoachApprovalStatus = "pending" | "approved" | "rejected"
+
 export type AppSex = "male" | "female"
 
 export type AppActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active"
@@ -10,6 +12,8 @@ export interface AppProfile {
   activityLevel?: AppActivityLevel | null
   avatar?: string | null
   birthDate?: string | null
+  /** Coach accounts only: where a self-signup stands with the admin queue. */
+  coachApprovalStatus?: CoachApprovalStatus | null
   coachId?: string | null
   createdAt: string
   dailyCalorieGoal: number
@@ -48,6 +52,8 @@ export interface AuthSessionPayload {
 export interface AuthResponse {
   message?: string
   profile: AppProfile | null
+  /** A coach signup that is waiting on an admin: created, but not signed in. */
+  requiresApproval?: boolean
   requiresEmailConfirmation?: boolean
   session: AuthSessionPayload | null
   user: AuthenticatedUserPayload | null

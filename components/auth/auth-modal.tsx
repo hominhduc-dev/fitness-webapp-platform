@@ -193,7 +193,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     event.preventDefault()
     setError(null)
     setSuccess(null)
-    trackRegistrationEvent("form_submit", { method: "email" })
+    trackRegistrationEvent("form_submit", { method: "email", role: "trainee" })
 
     if (!isSupabaseConfigured) {
       setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
@@ -201,7 +201,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     }
 
     if (registerPassword.length < 6) {
-      trackRegistrationEvent("form_error", { method: "email" })
+      trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
       setError(messages.auth.passwordTooShort)
       return
     }
@@ -222,6 +222,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       trackRegistrationEvent("sign_up", {
         method: "email",
         email_confirmation_required: Boolean(response.requiresEmailConfirmation || !response.session),
+        role: "trainee",
       })
 
       if (response.requiresEmailConfirmation || !response.session) {
@@ -236,7 +237,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       await finalizeAuthentication(response.profile?.role, response.session)
     } catch (rawError) {
       if (!accountCreated) {
-        trackRegistrationEvent("form_error", { method: "email" })
+        trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
       }
       const message =
         rawError instanceof ApiError || rawError instanceof Error

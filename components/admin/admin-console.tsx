@@ -16,6 +16,7 @@ import { useEffect, useState, type ChangeEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
@@ -311,7 +312,15 @@ function EmptyState({ copy }: { copy: string }) {
   return <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
 }
 
-type AdminSectionId = "dashboard" | "users" | "requests" | "connections" | "programs" | "exercises" | "audit"
+type AdminSectionId =
+  | "dashboard"
+  | "users"
+  | "coach-signups"
+  | "requests"
+  | "connections"
+  | "programs"
+  | "exercises"
+  | "audit"
 
 function AdminShellHeader({
   activeSection,
@@ -319,6 +328,7 @@ function AdminShellHeader({
   connectionCount,
   exerciseCount,
   locale,
+  pendingCoachSignupCount,
   pendingRequestCount,
   programCount,
   stats,
@@ -329,6 +339,7 @@ function AdminShellHeader({
   connectionCount: number
   exerciseCount: number
   locale: "en" | "vi"
+  pendingCoachSignupCount: number
   pendingRequestCount: number
   programCount: number
   stats?: AdminDashboardData["stats"]
@@ -344,6 +355,17 @@ function AdminShellHeader({
         locale === "en"
           ? `${formatNumber(auditCount, locale)} recent admin actions`
           : `${formatNumber(auditCount, locale)} thao tác admin gần đây`,
+    },
+    "coach-signups": {
+      label: locale === "en" ? "Coach signups" : "Đăng ký coach",
+      title:
+        locale === "en"
+          ? `${formatNumber(pendingCoachSignupCount, locale)} waiting.`
+          : `${formatNumber(pendingCoachSignupCount, locale)} chờ duyệt.`,
+      sub:
+        locale === "en"
+          ? "Review coach accounts created from /coach-signup"
+          : "Duyệt tài khoản coach đăng ký từ /coach-signup",
     },
     connections: {
       label: locale === "en" ? "Connections" : "Kết nối",
@@ -464,6 +486,8 @@ export function AdminConsole() {
   const dashboardQuery = queries.useAdminDashboard()
   const usersQuery = queries.useAdminUsers()
   const coachRequestsQuery = queries.useAdminCoachRequests()
+  // Only for the header count; the queue itself lives in <CoachSignupsPanel>.
+  const coachSignupsQuery = queries.useAdminCoachSignups({ status: "pending" })
   const connectionsQuery = queries.useAdminConnections()
   const programsQuery = queries.useAdminPrograms()
   const exercisesQuery = queries.useAdminExercises()
@@ -475,6 +499,7 @@ export function AdminConsole() {
   const userDetailQuery = queries.useAdminUserDetail(selectedUserId ?? "")
   const userDetail = userDetailQuery.data
   const coachRequests = coachRequestsQuery.data ?? []
+  const pendingCoachSignups = coachSignupsQuery.data ?? []
   const connections = connectionsQuery.data
   const programs = programsQuery.data ?? []
   const exercises = exercisesQuery.data ?? []
@@ -533,7 +558,16 @@ export function AdminConsole() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
-  const VALID_SECTIONS: AdminSectionId[] = ["dashboard", "users", "requests", "connections", "programs", "exercises", "audit"]
+  const VALID_SECTIONS: AdminSectionId[] = [
+    "dashboard",
+    "users",
+    "coach-signups",
+    "requests",
+    "connections",
+    "programs",
+    "exercises",
+    "audit",
+  ]
   const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
     VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard"
   )
@@ -1697,6 +1731,7 @@ export function AdminConsole() {
               locale={locale}
               pendingRequestCount={pendingRequestCount}
               programCount={programs.length}
+              pendingCoachSignupCount={pendingCoachSignups.length}
               stats={dashboard?.stats}
               userCount={users.length}
             />
@@ -1996,6 +2031,10 @@ export function AdminConsole() {
             </div>
           </TabsContent>
 
+
+          <TabsContent value="coach-signups" className="space-y-4">
+            <CoachSignupsPanel locale={locale} />
+          </TabsContent>
 
           <TabsContent value="requests" className="space-y-4">
             {/* Search + status filter chips */}

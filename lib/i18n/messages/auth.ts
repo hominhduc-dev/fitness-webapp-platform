@@ -2,6 +2,21 @@ export const authMessages = {
   en: {
     auth: {
       login: "Sign In",
+      coachSignupTitle: "Coach with YeahBuddy",
+      coachSignupSubtitle:
+        "Create your coach account. An admin reviews every coach before the workspace opens, so trainees always know who they are training with.",
+      coachSignupFormTitle: "Coach account",
+      coachSignupFormSubtitle: "Takes a minute. We email you once the review is done.",
+      coachSignupSubmit: "Apply as a coach",
+      coachSignupSubmitting: "Sending your application...",
+      coachSignupReviewNote: "Every coach account is reviewed by an admin before it can sign in.",
+      coachSignupPendingTitle: "Application received",
+      coachSignupPendingCopy:
+        "Your coach account is created and waiting for an admin to review it. You will be able to sign in as soon as it is approved.",
+      coachSignupBackHome: "Back to home",
+      coachSignupHasAccount: "Already have an account?",
+      coachSignupTraineePrompt: "Here to train, not to coach?",
+      coachSignupTraineeCta: "Create a trainee account",
       register: "Create Account",
       loginWelcome: "Welcome back!",
       registerWelcome: "Create your account",
@@ -10,6 +25,8 @@ export const authMessages = {
       identifierLabel: "Email, phone number, or username",
       identifierPlaceholder: "email@example.com, 0912345678, or username",
       passwordLabel: "Password",
+      showPassword: "Show password",
+      hidePassword: "Hide password",
       confirmPasswordLabel: "Confirm password",
       rememberMe: "Remember my account",
       forgotPassword: "Forgot password?",
@@ -67,6 +84,21 @@ export const authMessages = {
   vi: {
     auth: {
       login: "Đăng nhập",
+      coachSignupTitle: "Làm coach cùng YeahBuddy",
+      coachSignupSubtitle:
+        "Tạo tài khoản coach của bạn. Mỗi hồ sơ coach đều được admin duyệt trước khi mở workspace, để học viên luôn biết mình đang tập cùng ai.",
+      coachSignupFormTitle: "Tài khoản coach",
+      coachSignupFormSubtitle: "Chỉ mất một phút. Chúng tôi sẽ báo bạn qua email khi duyệt xong.",
+      coachSignupSubmit: "Đăng ký làm coach",
+      coachSignupSubmitting: "Đang gửi hồ sơ...",
+      coachSignupReviewNote: "Mọi tài khoản coach đều được admin duyệt trước khi đăng nhập được.",
+      coachSignupPendingTitle: "Đã nhận hồ sơ",
+      coachSignupPendingCopy:
+        "Tài khoản coach của bạn đã được tạo và đang chờ admin duyệt. Bạn sẽ đăng nhập được ngay khi hồ sơ được duyệt.",
+      coachSignupBackHome: "Về trang chủ",
+      coachSignupHasAccount: "Đã có tài khoản?",
+      coachSignupTraineePrompt: "Bạn chỉ muốn tập luyện?",
+      coachSignupTraineeCta: "Tạo tài khoản học viên",
       register: "Đăng ký",
       loginWelcome: "Chào mừng trở lại!",
       registerWelcome: "Tạo tài khoản",
@@ -75,6 +107,8 @@ export const authMessages = {
       identifierLabel: "Email, số điện thoại hoặc username",
       identifierPlaceholder: "email@example.com, 0912345678 hoặc username",
       passwordLabel: "Mật khẩu",
+      showPassword: "Hiện mật khẩu",
+      hidePassword: "Ẩn mật khẩu",
       confirmPasswordLabel: "Xác nhận mật khẩu",
       rememberMe: "Ghi nhớ tài khoản",
       forgotPassword: "Quên mật khẩu?",

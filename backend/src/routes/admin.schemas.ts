@@ -39,4 +39,26 @@ const transferExerciseMetadataSchema = z
     message: "Bài nguồn và bài đích phải khác nhau.",
   })
 
-export { exerciseIdParams, exerciseMediaUploadSchema, saveExerciseMediaSchema, transferExerciseMetadataSchema }
+/** The admin queue behind /coach-signup: listing it, and deciding one signup. */
+const coachSignupQuery = z.object({
+  search: z.string().trim().max(120).optional(),
+  status: z.enum(["pending", "approved", "rejected", "all"]).optional(),
+})
+
+const coachSignupParams = z.object({
+  userId: z.uuid("userId không hợp lệ."),
+})
+
+const reviewCoachSignupSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+})
+
+export {
+  coachSignupParams,
+  coachSignupQuery,
+  exerciseIdParams,
+  exerciseMediaUploadSchema,
+  reviewCoachSignupSchema,
+  saveExerciseMediaSchema,
+  transferExerciseMetadataSchema,
+}
