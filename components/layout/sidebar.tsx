@@ -13,6 +13,7 @@ import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
 import { useCoachNavCounts } from "@/lib/queries/coach-data"
 import { getAdminNavItems, getCoachNavItems, getTraineeNavItems, isNavItemActive } from "@/components/layout/shell-nav"
 import { BaseSidebar } from "@/components/layout/base-sidebar"
+import { NotificationBell } from "@/components/layout/notification-bell"
 
 interface SidebarProps {
   role?: AppRole
@@ -42,6 +43,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="primary"
       accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
+      headerAction={<NotificationBell align="start" />}
       brand={
         <Link href={getRoleLandingPath(role)} className="flex min-w-0 items-center">
           <BrandLogo />
@@ -89,6 +91,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       isActiveItem={isAdminItemActive}
       activeStyle="muted"
       accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
+      headerAction={<NotificationBell align="start" />}
       brand={
         <Link href={getRoleLandingPath("admin")} className="flex min-w-0 items-center">
           <BrandLogo />
@@ -124,6 +127,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
       sections={[{ title: messages.shell.coach, items: coachNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="muted"
+      headerAction={<NotificationBell align="start" />}
       brand={
         <Link href={getRoleLandingPath("coach")} className="flex min-w-0 items-center">
           <BrandLogo />

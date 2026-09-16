@@ -9,6 +9,7 @@ import { BrandLogo } from "@/components/ui/brand-logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LanguageToggle } from "@/components/layout/language-toggle"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
+import { NotificationBell } from "@/components/layout/notification-bell"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import {
@@ -163,22 +164,25 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
           <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"}>
             <BrandLogo markClassName="size-8 rounded-none" textClassName="text-xl" />
           </Link>
-          <button
-            type="button"
-            aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
-            aria-controls="mobile-more-navigation"
-            aria-expanded={open}
-            onClick={() => setOpen((value) => !value)}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Avatar className="size-10 border border-border">
-              {profile?.avatar ? <AvatarImage src={profile.avatar} alt="" className="object-cover" /> : null}
-              <AvatarFallback className="bg-primary-soft text-primary">
-                <User className="size-4" strokeWidth={1.7} aria-hidden="true" />
-              </AvatarFallback>
-            </Avatar>
-            <ChevronDown className={cn("size-4 text-foreground transition-transform", open && "rotate-180")} aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <button
+              type="button"
+              aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
+              aria-controls="mobile-more-navigation"
+              aria-expanded={open}
+              onClick={() => setOpen((value) => !value)}
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Avatar className="size-10 border border-border">
+                {profile?.avatar ? <AvatarImage src={profile.avatar} alt="" className="object-cover" /> : null}
+                <AvatarFallback className="bg-primary-soft text-primary">
+                  <User className="size-4" strokeWidth={1.7} aria-hidden="true" />
+                </AvatarFallback>
+              </Avatar>
+              <ChevronDown className={cn("size-4 text-foreground transition-transform", open && "rotate-180")} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 

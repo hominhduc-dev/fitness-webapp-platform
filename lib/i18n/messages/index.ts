@@ -6,6 +6,7 @@ import { commonMessages } from "@/lib/i18n/messages/common"
 import { dashboardMessages } from "@/lib/i18n/messages/dashboard"
 import { landingMessages } from "@/lib/i18n/messages/landing"
 import { mealsMessages } from "@/lib/i18n/messages/meals"
+import { notificationsMessages } from "@/lib/i18n/messages/notifications"
 import { profileMessages } from "@/lib/i18n/messages/profile"
 import { progressMessages } from "@/lib/i18n/messages/progress"
 import { scheduleMessages } from "@/lib/i18n/messages/schedule"
@@ -33,6 +34,7 @@ const enMessages = {
   ...profileMessages.en,
   ...coachMessages.en,
   ...adminMessages.en,
+  ...notificationsMessages.en,
 }
 
 export type AppMessages = WidenLiteral<typeof enMessages>
@@ -50,6 +52,7 @@ const viMessages: AppMessages = {
   ...profileMessages.vi,
   ...coachMessages.vi,
   ...adminMessages.vi,
+  ...notificationsMessages.vi,
 }
 
 export const messages = {

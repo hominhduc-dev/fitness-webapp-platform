@@ -109,6 +109,7 @@ export {
   DEFAULT_TIME_ZONE,
   getRequestTimeZone,
   getTimeZoneOffsetMs,
+  getZonedParts,
   isValidTimeZone,
   resolveTimeZone,
   TIME_ZONE_HEADER,

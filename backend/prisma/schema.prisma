@@ -142,6 +142,10 @@ enum NotificationType {
   program_assigned
   coach_request
   workout_logged
+  program_updated
+  workout_session_open
+  weight_reminder
+  coach_weekly_review
   general
 }
 
@@ -232,6 +236,7 @@ model User {
   googleConnection       GoogleConnection?
   notifications          Notification[]
   pushSubscriptions      PushSubscription[]
+  notificationPreference NotificationPreference?
   programsCreated        Program[]                 @relation("ProgramCreator")
   programAssignments     ProgramAssignment[]
   workoutLogs            WorkoutLog[]
@@ -594,6 +599,7 @@ model WorkoutSessionDraft {
   @@unique([userId, workoutId])
   @@index([userId, updatedAt])
   @@index([workoutId])
+  @@index([startedAt])
 }
 
 model WorkoutLog {
@@ -760,12 +766,63 @@ model Notification {
   relatedEntityType String?
   relatedEntityId   String?
   metadata          Json?
+  /// Deterministic key for scheduled reminders (e.g. `weight_reminder:<userId>:2026-09-20`).
+  /// Unique, so a reminder is stored and pushed at most once even when several
+  /// scheduler ticks or backend instances race. Null for event notifications.
+  dedupeKey         String?             @unique
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
   @@index([userId, status, scheduledFor])
+  @@index([userId, createdAt])
   @@index([relatedEntityType, relatedEntityId])
+}
+
+/// Per-user notification settings. A user without a row gets the column defaults:
+/// event notifications on, scheduled reminders off until they opt in.
+model NotificationPreference {
+  id                      String   @id @default(uuid()) @db.Uuid
+  userId                  String   @unique @db.Uuid
+  /// IANA zone reminder times are read in, captured from the browser on save.
+  timeZone                String   @default("Asia/Ho_Chi_Minh")
+  /// Push for "coach assigned a program" and "coach updated your program".
+  coachProgramUpdates     Boolean  @default(true)
+  /// Push when a started workout session is left unfinished.
+  workoutSessionReminders Boolean  @default(true)
+  weightReminderEnabled   Boolean  @default(false)
+  /// Local wall-clock time, `HH:mm`.
+  weightReminderTime      String   @default("07:00")
+  /// Days of week in the user's zone, 0 = Sunday … 6 = Saturday.
+  weightReminderDays      Int[]    @default([0, 1, 2, 3, 4, 5, 6])
+  dailyCheckInEnabled     Boolean  @default(false)
+  /// Local wall-clock time, `HH:mm`.
+  dailyCheckInTime        String   @default("07:00")
+  /// Meal reminders fire at the local `HH:mm` only while that meal has no logged calories today.
+  breakfastReminderEnabled Boolean @default(false)
+  breakfastReminderTime   String   @default("07:30")
+  lunchReminderEnabled    Boolean  @default(false)
+  lunchReminderTime       String   @default("12:00")
+  dinnerReminderEnabled   Boolean  @default(false)
+  dinnerReminderTime      String   @default("18:30")
+  snackReminderEnabled    Boolean  @default(false)
+  snackReminderTime       String   @default("15:30")
+  /// Sent `workoutReminderOffsetMinutes` (15/30/60) before the usual training time,
+  /// on days the user's schedule has a workout.
+  workoutReminderEnabled  Boolean  @default(false)
+  workoutReminderTime     String   @default("18:00")
+  workoutReminderOffsetMinutes Int @default(30)
+  /// Coaches only: end-of-week nudge to review trainees. Day is 0 = Sunday … 6 = Saturday.
+  coachWeeklyReviewEnabled Boolean @default(true)
+  coachWeeklyReviewDay    Int      @default(0)
+  coachWeeklyReviewTime   String   @default("18:00")
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([weightReminderEnabled])
+  @@index([dailyCheckInEnabled])
+  @@index([workoutReminderEnabled])
 }
 
 model PushSubscription {

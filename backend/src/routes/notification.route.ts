@@ -14,8 +14,18 @@ import {
   sendTestPushForUser,
   type PushSubscriptionInput,
 } from "../services/push-notification.service"
-import { getAccessToken, sendData, sendError } from "./route.utils"
-import { pushSubscriptionSchema, revokePushSubscriptionSchema } from "./notification.schemas"
+import {
+  getNotificationPreferencesForUser,
+  updateNotificationPreferencesForUser,
+} from "../services/notifications/notification-preferences.service"
+import { getAccessToken, sendData } from "./route.utils"
+import {
+  listNotificationsQuerySchema,
+  notificationIdParamsSchema,
+  notificationPreferencesSchema,
+  pushSubscriptionSchema,
+  revokePushSubscriptionSchema,
+} from "./notification.schemas"
 
 const notificationRouter = Router()
 
@@ -56,42 +66,44 @@ notificationRouter.post(
   }),
 )
 
-notificationRouter.get("/", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined
-    const result = await listNotificationsForUser(profile.profile, {
-      limit: Number.isFinite(limit) ? limit : undefined,
-    })
+notificationRouter.get(
+  "/preferences",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getNotificationPreferencesForUser(profile))
+  }),
+)
 
-    res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+notificationRouter.put(
+  "/preferences",
+  validated({ body: notificationPreferencesSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await updateNotificationPreferencesForUser(profile, req.body))
+  }),
+)
 
-notificationRouter.patch("/:notificationId/read", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const notification = await markNotificationAsReadForUser(profile.profile, String(req.params.notificationId))
+notificationRouter.get(
+  "/",
+  validated({ query: listNotificationsQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await listNotificationsForUser(profile, { limit: req.query.limit }))
+  }),
+)
 
-    res.json({
-      notification,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+notificationRouter.patch(
+  "/:notificationId/read",
+  validated({ params: notificationIdParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { notification: await markNotificationAsReadForUser(profile, req.params.notificationId) })
+  }),
+)
 
-notificationRouter.post("/read-all", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const result = await markAllNotificationsAsReadForUser(profile.profile)
-
-    res.json(result)
-  } catch (error) {
-    sendError(res, error)
-  }
-})
+notificationRouter.post(
+  "/read-all",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await markAllNotificationsAsReadForUser(profile))
+  }),
+)
 
 export { notificationRouter }

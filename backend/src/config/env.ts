@@ -77,6 +77,8 @@ const raw = {
   GOOGLE_OAUTH_REDIRECT_URI: clean(process.env.GOOGLE_OAUTH_REDIRECT_URI),
   GOOGLE_TOKEN_ENCRYPTION_KEY: clean(process.env.GOOGLE_TOKEN_ENCRYPTION_KEY),
   NODE_ENV: clean(process.env.NODE_ENV),
+  NOTIFICATION_SCHEDULER_ENABLED: clean(process.env.NOTIFICATION_SCHEDULER_ENABLED),
+  NOTIFICATION_SCHEDULER_INTERVAL_MS: clean(process.env.NOTIFICATION_SCHEDULER_INTERVAL_MS),
   OPENAI_API_KEY: clean(process.env.OPENAI_API_KEY),
   PORT: clean(process.env.PORT),
   PRISMA_SLOW_QUERY_MS: clean(process.env.PRISMA_SLOW_QUERY_MS),
@@ -118,6 +120,14 @@ const envSchema = z.object({
   GOOGLE_OAUTH_REDIRECT_URI: z.url().optional(),
   GOOGLE_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  /** Scheduled reminders (open workout, weight log, morning check-in). Set to false on extra instances if desired; dedupe keys make running several safe. */
+  NOTIFICATION_SCHEDULER_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value !== "false"),
+  NOTIFICATION_SCHEDULER_INTERVAL_MS: numberFromString(60_000).pipe(
+    z.int().min(10_000, "NOTIFICATION_SCHEDULER_INTERVAL_MS must be at least 10000"),
+  ),
   OPENAI_API_KEY: z.string().optional(),
   PORT: numberFromString(4000).pipe(z.int().positive("PORT must be a positive integer")),
   PRISMA_SLOW_QUERY_MS: numberFromString(0).pipe(z.number().min(0, "PRISMA_SLOW_QUERY_MS must be >= 0")),
@@ -204,6 +214,8 @@ function loadEnv() {
     logLevel: parsed.LOG_LEVEL,
     n8nLogsWebhookUrl: parsed.N8N_LOGS_WEBHOOK_URL,
     nodeEnv: parsed.NODE_ENV,
+    notificationSchedulerEnabled: parsed.NOTIFICATION_SCHEDULER_ENABLED,
+    notificationSchedulerIntervalMs: parsed.NOTIFICATION_SCHEDULER_INTERVAL_MS,
     openaiApiKey: parsed.OPENAI_API_KEY,
     port: parsed.PORT,
     // When > 0, Prisma logs every query whose DB execution time meets/exceeds this
