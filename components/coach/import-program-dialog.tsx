@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Plus, X } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, Check, CheckCircle2, FileDown, FileSpreadsheet, Loader2, Plus, UserPlus, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
+import { TraineeSelectList } from "@/components/coach/trainee-select-list"
+import { DisclosureCard } from "@/components/ui/disclosure-card"
 import { RoutineExerciseCard } from "@/components/workout/routine-exercise-card"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import { IconTile } from "@/components/ui/icon-tile"
@@ -168,6 +170,9 @@ export function ImportProgramDialog({
   const [draft, setDraft] = useState<ImportedProgramDraft | null>(null)
   const [editableWorkouts, setEditableWorkouts] = useState<EditableWorkout[]>([])
   const [pickerTarget, setPickerTarget] = useState<{ workoutIdx: number; exerciseId?: string } | null>(null)
+  // Imported rows are for scanning, so their cards start collapsed — but a card
+  // the coach just added by hand has nothing to scan and everything to fill in.
+  const [addedExerciseIds, setAddedExerciseIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isParsing, setIsParsing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -175,7 +180,9 @@ export function ImportProgramDialog({
   const [programName, setProgramName] = useState("")
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate")
   const [duration, setDuration] = useState(4)
-  const [assignEnabled, setAssignEnabled] = useState(true)
+  const [description, setDescription] = useState("")
+  const [startDate, setStartDate] = useState("")
+  const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
   const [source, setSource] = useState<ImportSource>("excel")
   const [didOverwrite, setDidOverwrite] = useState(false)
   const sourceText = t.sources[source]
@@ -201,17 +208,18 @@ export function ImportProgramDialog({
     if (!draft) return null
     const name = programName.trim() || draft.name?.trim() || fileName.replace(/\.[^.]+$/, "") || "Imported program"
     return {
-      assignToUserIds: assignEnabled ? (draft.assignToUserIds ?? []) : [],
-      description: draft.description?.trim() || undefined,
+      assignToUserIds: selectedTraineeIds,
+      description: description.trim() || undefined,
       difficulty,
       duration,
       name,
+      startDate: startDate.trim() || null,
       ...(googleSource ? { googleSpreadsheetId: googleSource.spreadsheetId, googleSheetName: googleSource.sheetName } : {}),
       workouts: editableWorkouts
         .map(editableToPayloadWorkout)
         .filter((w) => w.exercises.length > 0),
     }
-  }, [assignEnabled, difficulty, draft, duration, editableWorkouts, fileName, programName, googleSource])
+  }, [description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programName, selectedTraineeIds, startDate])
 
   const exerciseCount = useMemo(
     () => editableWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
@@ -233,6 +241,7 @@ export function ImportProgramDialog({
     setDraft(null)
     setEditableWorkouts([])
     setPickerTarget(null)
+    setAddedExerciseIds([])
     setError(null)
     setIsParsing(false)
     setIsSaving(false)
@@ -240,7 +249,9 @@ export function ImportProgramDialog({
     setProgramName("")
     setDifficulty("intermediate")
     setDuration(4)
-    setAssignEnabled(true)
+    setDescription("")
+    setStartDate("")
+    setSelectedTraineeIds([])
     setSource("excel")
     setDidOverwrite(false)
   }
@@ -269,7 +280,10 @@ export function ImportProgramDialog({
       setProgramName(importedDraft.name?.trim() || file.name.replace(/\.[^.]+$/, ""))
       setDifficulty(importedDraft.difficulty ?? "intermediate")
       setDuration(importedDraft.duration ?? 4)
-      setAssignEnabled((importedDraft.assignToUserIds?.length ?? 0) > 0)
+      setDescription(importedDraft.description?.trim() ?? "")
+      // The sheet's assign_to_emails column seeds the roster; the coach can
+      // still add or drop anyone before the program is created.
+      setSelectedTraineeIds(importedDraft.assignToUserIds ?? [])
       setStep("review")
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : t.errors.excelRead)
@@ -292,7 +306,8 @@ export function ImportProgramDialog({
     setFileName(name)
     setProgramName(name)
     setDuration(weeks)
-    setAssignEnabled(false)
+    setDescription("")
+    setSelectedTraineeIds([])
     setStep("review")
   }
 
@@ -375,19 +390,21 @@ export function ImportProgramDialog({
 
   const pickExercise = (option: ExerciseVariationOption) => {
     if (!pickerTarget || isSaving) return
+    const addedId = pickerTarget.exerciseId ? null : crypto.randomUUID()
     setEditableWorkouts((previous) => previous.map((workout, index) => {
       if (index !== pickerTarget.workoutIdx) return workout
       return {
         ...workout,
-        exercises: pickerTarget.exerciseId
+        exercises: addedId === null
           ? workout.exercises.map((exercise) => exercise.id === pickerTarget.exerciseId
             ? { ...exercise, variationId: option.id } : exercise)
           : [...workout.exercises, {
-              id: crypto.randomUUID(), variationId: option.id,
+              id: addedId, variationId: option.id,
               sets: "3", reps: "10", weight: "", rir: "", restTime: "90", notes: "",
             }],
       }
     }))
+    if (addedId) setAddedExerciseIds((current) => [...current, addedId])
     setPickerTarget(null)
   }
 
@@ -551,6 +568,37 @@ export function ImportProgramDialog({
                 </div>
               </div>
 
+              {/* Everything else the program carries, editable before it exists */}
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+                <div className="min-w-0">
+                  <Label className="label-micro mb-1.5 block" htmlFor="import-start-date">
+                    {messages.coach.programStartDate}
+                  </Label>
+                  <Input
+                    id="import-start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    aria-describedby="import-start-date-hint"
+                    className="tnum"
+                  />
+                  <p id="import-start-date-hint" className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                    {messages.coach.programStartDateHint}
+                  </p>
+                </div>
+                <div className="min-w-0">
+                  <Label className="label-micro mb-1.5 block" htmlFor="import-description">
+                    {messages.coach.programFocus}
+                  </Label>
+                  <Input
+                    id="import-description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder={messages.coach.descriptionPlaceholder}
+                  />
+                </div>
+              </div>
+
               {error ? (
                 <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
                   <div className="mb-1 flex items-center gap-2 font-medium">
@@ -563,10 +611,6 @@ export function ImportProgramDialog({
 
               {payload && draft ? (
                 <>
-                  {payload.description ? (
-                    <p className="text-sm leading-relaxed text-muted-foreground">{payload.description}</p>
-                  ) : null}
-
                   {/* Stats summary */}
                   <div className="flex flex-wrap gap-5">
                     <Stat value={duration} label={t.review.statWeeks} />
@@ -574,26 +618,31 @@ export function ImportProgramDialog({
                     <Stat value={exerciseCount} label={t.review.statExercises} />
                   </div>
 
-                  {/* Assign toggle */}
-                  {draft.assignToUserIds && draft.assignToUserIds.length > 0 ? (
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-3 rounded-lg border border-border px-4 py-3 text-left text-sm"
-                      onClick={() => setAssignEnabled((current) => !current)}
-                    >
-                      <span
-                        className={cn(
-                          "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
-                          assignEnabled ? "border-primary bg-primary text-primary-foreground" : "border-border",
-                        )}
-                      >
-                        {assignEnabled ? <Check className="h-3.5 w-3.5" /> : null}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {t.review.assignBefore} <b className="text-foreground">{t.review.assignCount(draft.assignToUserIds.length)}</b> {t.review.assignAfter}
-                      </span>
-                    </button>
-                  ) : null}
+                  {/* Who it goes to, straight from the coach's roster */}
+                  <DisclosureCard
+                    defaultOpen={selectedTraineeIds.length > 0}
+                    description={
+                      selectedTraineeIds.length > 0
+                        ? t.review.assignCount(selectedTraineeIds.length)
+                        : messages.coach.noTrainees
+                    }
+                    icon={<IconTile size="sm" tone="primary"><UserPlus /></IconTile>}
+                    title={messages.coach.assignClients}
+                  >
+                    <TraineeSelectList
+                      disabled={isSaving}
+                      listClassName="max-h-64"
+                      onToggle={(traineeId) =>
+                        setSelectedTraineeIds((current) =>
+                          current.includes(traineeId)
+                            ? current.filter((id) => id !== traineeId)
+                            : [...current, traineeId],
+                        )
+                      }
+                      selectedIds={selectedTraineeIds}
+                      trainees={trainees}
+                    />
+                  </DisclosureCard>
 
                   {/* Validation badge */}
                   {invalidVariationCount > 0 ? (
@@ -634,6 +683,7 @@ export function ImportProgramDialog({
                             return (
                               <div key={ex.id}>
                                 <RoutineExerciseCard
+                                  defaultExpanded={addedExerciseIds.includes(ex.id)}
                                   index={exerciseIdx}
                                   total={workout.exercises.length}
                                   title={option?.displayName ?? option?.name ?? t.review.unknownExercise}

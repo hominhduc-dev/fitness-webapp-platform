@@ -30,8 +30,6 @@ const en = {
   days: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   review: {
     allValid: "Every variation_id is valid — ready to create.",
-    assignAfter: "when created",
-    assignBefore: "Assign to",
     assignCount: (count: number) => plural(count, "trainee"),
     columns: { exercise: "Exercise", id: "ID", kg: "Kg", reps: "Reps", rir: "RIR", sets: "Sets" },
     day: "Day",
@@ -92,8 +90,6 @@ const vi: typeof en = {
   days: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
   review: {
     allValid: "Tất cả variation_id hợp lệ - sẵn sàng tạo.",
-    assignAfter: "khi tạo",
-    assignBefore: "Gán cho",
     assignCount: (count: number) => `${count} trainee`,
     columns: { exercise: "Bài tập", id: "ID", kg: "Kg", reps: "Reps", rir: "RIR", sets: "Sets" },
     day: "Ngày",

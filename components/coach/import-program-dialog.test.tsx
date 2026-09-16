@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ImportProgramDialog } from "./import-program-dialog"
 import { messages } from "@/lib/i18n/messages"
-import type { ExerciseVariationOption } from "@/lib/fitness/types"
+import type { CoachTrainee, ExerciseVariationOption } from "@/lib/fitness/types"
 
 const { save } = vi.hoisted(() => ({ save: vi.fn() }))
 vi.mock("@/components/providers/auth-provider", () => ({
@@ -46,10 +46,21 @@ const options = ["bench", "squat"].map((id) => ({
   variationName: "Default", isDefault: true, muscleGroup: "chest", equipment: "barbell",
 })) as ExerciseVariationOption[]
 
+const trainees = [
+  { id: "trainee-1", name: "Minh Duc", email: "duc@example.com", fitnessGoals: [], createdAt: new Date(), programCount: 0, thisWeekWorkouts: 0, totalWorkoutLogs: 0 },
+  { id: "trainee-2", name: "Lan Anh", email: "lan@example.com", fitnessGoals: [], createdAt: new Date(), programCount: 0, thisWeekWorkouts: 0, totalWorkoutLogs: 0 },
+] as CoachTrainee[]
+
 async function openReview() {
-  render(<ImportProgramDialog open exerciseOptions={options} trainees={[]} onClose={vi.fn()} onImported={vi.fn()} />)
+  render(<ImportProgramDialog open exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Google Sheets" }), { button: 0, ctrlKey: false })
   fireEvent.click(await screen.findByText("Load sheet fixture"))
+  await screen.findByRole("button", { name: "Expand exercise: Bench" })
+}
+
+/** Imported cards land collapsed, so editing one starts by opening it. */
+async function expandImportedCard() {
+  fireEvent.click(await screen.findByRole("button", { name: "Expand exercise: Bench" }))
   await screen.findByLabelText("REST")
 }
 
@@ -62,6 +73,7 @@ afterEach(cleanup)
 describe("import review exercise cards", () => {
   it("round-trips imported prescriptions and saves card edits with the source mapping", async () => {
     await openReview()
+    await expandImportedCard()
     expect(screen.getByLabelText("REST")).toHaveValue("90")
     expect(screen.getByLabelText("Add note")).toHaveValue("Imported note")
     expect(screen.getByLabelText("Reps")).toHaveValue("8-12")
@@ -84,6 +96,7 @@ describe("import review exercise cards", () => {
 
   it("preserves prescription on swap and removes methods on deleted sets", async () => {
     await openReview()
+    await expandImportedCard()
     fireEvent.change(screen.getByLabelText("Set"), { target: { value: "2" } })
     fireEvent.change(screen.getByLabelText("Set"), { target: { value: "3" } })
     fireEvent.click(screen.getByRole("button", { name: "Swap exercise: Bench" }))
@@ -98,6 +111,7 @@ describe("import review exercise cards", () => {
 
   it("saves a changed set method and treats a cleared rest field as unspecified", async () => {
     await openReview()
+    await expandImportedCard()
     fireEvent.keyDown(screen.getByRole("button", { name: "Set 1: Normal set" }), { key: "ArrowDown" })
     fireEvent.click(await screen.findByRole("menuitem", { name: /Warm-up/ }))
     fireEvent.change(screen.getByLabelText("REST"), { target: { value: "" } })
@@ -111,6 +125,7 @@ describe("import review exercise cards", () => {
 
   it("reorders cards without losing edits and allows adding after deleting the last exercise", async () => {
     await openReview()
+    await expandImportedCard()
     fireEvent.click(screen.getByRole("button", { name: "Add exercise" }))
     fireEvent.click(screen.getByText("Pick Squat"))
     fireEvent.click(screen.getAllByRole("button", { name: /Move exercise down/ })[0])
@@ -125,5 +140,47 @@ describe("import review exercise cards", () => {
     expect(save.mock.calls[0][0][0].workouts[0].exercises).toEqual([
       expect.objectContaining({ variationId: "squat", sets: 3, reps: 10, restTime: 90 }),
     ])
+  })
+})
+
+describe("import review program details", () => {
+  it("keeps imported cards collapsed and opens the one the coach adds", async () => {
+    await openReview()
+
+    // Collapsed: the summary stands in for the prescription fields.
+    expect(screen.queryByLabelText("REST")).not.toBeInTheDocument()
+    expect(screen.getByText("3 × 8-12 · 20 kg · RIR 2 · 90s")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add exercise" }))
+    fireEvent.click(screen.getByText("Pick Squat"))
+
+    expect(screen.getByLabelText("REST")).toHaveValue("90")
+    expect(screen.getByRole("button", { name: "Collapse exercise: Squat" })).toBeInTheDocument()
+  })
+
+  it("saves the start date, focus and roster picked in the form", async () => {
+    await openReview()
+
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-10-05" } })
+    fireEvent.change(screen.getByLabelText("Training focus"), { target: { value: "Push volume block" } })
+    // The disclosure header carries its summary line into the accessible name.
+    fireEvent.click(screen.getByRole("button", { name: /Assign clients/ }))
+    fireEvent.click(await screen.findByRole("button", { name: /Minh Duc/ }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect(save.mock.calls[0][0][0]).toMatchObject({
+      assignToUserIds: ["trainee-1"],
+      description: "Push volume block",
+      startDate: "2026-10-05",
+    })
+  })
+
+  it("sends no start date when the coach leaves it blank", async () => {
+    await openReview()
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect(save.mock.calls[0][0][0]).toMatchObject({ assignToUserIds: [], startDate: null })
   })
 })
