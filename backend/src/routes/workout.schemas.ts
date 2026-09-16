@@ -109,6 +109,7 @@ const createWorkoutLogSchema = z.object({
 })
 
 const workoutSessionDraftSchema = z.object({
+  baseUpdatedAt: isoDateTime.optional(),
   currentExerciseIndex: z.number().int().min(0).max(1000).default(0),
   deletedSetIds: z.array(z.string().max(120)).max(500).default([]),
   exercises: z.array(z.unknown()).max(100).default([]),

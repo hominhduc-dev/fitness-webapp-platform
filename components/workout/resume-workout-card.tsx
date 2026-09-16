@@ -2,19 +2,14 @@
 
 import { Play, X } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useAuth } from "@/components/providers/auth-provider"
 import { queueWorkoutSessionDraftDelete } from "@/lib/offline/workout-log-queue"
-import { useActiveWorkoutSessions } from "@/lib/queries/workouts"
 import { cn } from "@/lib/utils"
-import {
-  type ActiveWorkoutSession,
-  WORKOUT_SESSION_STORAGE_PREFIX,
-  clearStoredWorkoutSession,
-  scanActiveSessions,
-} from "@/lib/workout/session-storage"
+import { clearStoredWorkoutSession } from "@/lib/workout/session-storage"
+import { useActiveWorkoutSessionList } from "@/lib/workout/use-active-workout-sessions"
 
 const START_PATH_PATTERN = /^\/workout\/[^/]+\/start(\/|$)/
 
@@ -47,33 +42,16 @@ export function ResumeWorkoutCard() {
   const { messages } = useLocale()
   const router = useRouter()
   const pathname = usePathname()
-  const activeSessionsQuery = useActiveWorkoutSessions()
   const { profile } = useAuth()
-  const [session, setSession] = useState<ActiveWorkoutSession | null>(null)
+  const { refresh, sessions } = useActiveWorkoutSessionList()
+  const session = sessions[0] ?? null
   const [now, setNow] = useState(() => Date.now())
   const [visible, setVisible] = useState(false)
 
-  const refresh = useCallback(() => {
-    const sessions = [...(activeSessionsQuery.data ?? []), ...scanActiveSessions()]
-    const uniqueSessions = Array.from(new Map(sessions.map((item) => [item.workoutId, item])).values())
-    setSession(uniqueSessions[0] ?? null)
-  }, [activeSessionsQuery.data])
-
-  // Rescan on mount and whenever the route changes (e.g. after leaving /start)
+  // Rescan whenever the route changes (e.g. after leaving /start)
   useEffect(() => {
     refresh()
   }, [pathname, refresh])
-
-  // Cross-tab sync: rescan when any workout-session key changes
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === null || event.key.startsWith(`${WORKOUT_SESSION_STORAGE_PREFIX}:`)) {
-        refresh()
-      }
-    }
-    window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
-  }, [refresh])
 
   const onStartPage = pathname ? START_PATH_PATTERN.test(pathname) : false
   const shouldShow = !!session && !onStartPage
@@ -106,7 +84,6 @@ export function ResumeWorkoutCard() {
     // Queued so discarding works offline; the server draft goes on the next sync.
     if (profile?.id) void queueWorkoutSessionDraftDelete(profile.id, session.workoutId).catch(() => undefined)
     setVisible(false)
-    setSession(null)
   }
 
   const name = session.workoutName?.trim() || messages.workoutPage.workoutInProgress

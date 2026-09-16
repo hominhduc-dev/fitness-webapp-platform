@@ -169,6 +169,11 @@ type SerializedWorkoutSessionDraft = StoredWorkoutSession & {
   workoutId: string
 }
 
+export type WorkoutSessionDraftInput = Omit<StoredWorkoutSession, "syncedAt"> & {
+  /** Server `updatedAt` this client last synced; lets the API refuse to recreate a draft discarded elsewhere. */
+  baseUpdatedAt?: string
+}
+
 type SerializedActiveWorkoutSession = ActiveWorkoutSession & {
   updatedAt?: string
 }
@@ -1519,7 +1524,7 @@ async function fetchWorkoutSessionDraft(accessToken: string, workoutId: string):
 async function upsertWorkoutSessionDraft(
   accessToken: string,
   workoutId: string,
-  input: StoredWorkoutSession,
+  input: WorkoutSessionDraftInput,
 ): Promise<SerializedWorkoutSessionDraft> {
   const response = await request<ApiEnvelope<SerializedWorkoutSessionDraft>>(
     `/api/workouts/${workoutId}/session-draft`,

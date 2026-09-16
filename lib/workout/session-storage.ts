@@ -23,6 +23,12 @@ export type StoredWorkoutSession = {
   exercises: StoredWorkoutSessionExercise[]
   schemaVersion?: number
   startedAt: string
+  /**
+   * Server `updatedAt` of the last successful draft sync. A local copy that was synced
+   * but has no server draft anymore was cancelled/finished on another device; a copy
+   * without it has never reached the server (offline) and must be kept.
+   */
+  syncedAt?: string
   workoutName?: string
 }
 
@@ -90,12 +96,13 @@ export function readStoredWorkoutSession(workoutId: string): StoredWorkoutSessio
     const currentExerciseIndex = isFiniteNumber(parsed.currentExerciseIndex) ? parsed.currentExerciseIndex : 0
     const schemaVersion = isFiniteNumber(parsed.schemaVersion) ? parsed.schemaVersion : undefined
     const startedAt = typeof parsed.startedAt === "string" ? parsed.startedAt : new Date().toISOString()
+    const syncedAt = typeof parsed.syncedAt === "string" ? parsed.syncedAt : undefined
     const workoutName = typeof parsed.workoutName === "string" ? parsed.workoutName : undefined
     const exercises = sanitizeStoredWorkoutExercises(parsed.exercises)
     const deletedSetIds = Array.isArray(parsed.deletedSetIds)
       ? [...new Set<string>(parsed.deletedSetIds.filter((id: unknown): id is string => typeof id === "string"))]
       : []
-    return { currentExerciseIndex, deletedSetIds, exercises, schemaVersion, startedAt, workoutName }
+    return { currentExerciseIndex, deletedSetIds, exercises, schemaVersion, startedAt, syncedAt, workoutName }
   } catch {
     window.localStorage.removeItem(key)
     return null
@@ -105,6 +112,13 @@ export function readStoredWorkoutSession(workoutId: string): StoredWorkoutSessio
 export function clearStoredWorkoutSession(workoutId: string) {
   if (typeof window === "undefined") return
   window.localStorage.removeItem(getWorkoutSessionStorageKey(workoutId))
+}
+
+/** Records a successful server sync on the local copy, if it still belongs to the same session. */
+export function markStoredWorkoutSessionSynced(workoutId: string, startedAt: string, syncedAt: string) {
+  const stored = readStoredWorkoutSession(workoutId)
+  if (!stored || stored.startedAt !== startedAt) return
+  window.localStorage.setItem(getWorkoutSessionStorageKey(workoutId), JSON.stringify({ ...stored, syncedAt }))
 }
 
 export function storedSessionHasProgress(exercises: StoredWorkoutSessionExercise[]): boolean {
@@ -160,11 +174,32 @@ export function scanActiveSessions(): ActiveWorkoutSession[] {
     })
   }
 
-  results.sort((a, b) => {
-    const timeA = Date.parse(a.startedAt) || 0
-    const timeB = Date.parse(b.startedAt) || 0
-    return timeB - timeA
+  return sortByStartedAtDesc(results)
+}
+
+function sortByStartedAtDesc(sessions: ActiveWorkoutSession[]) {
+  return sessions.sort((a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0))
+}
+
+/**
+ * Merge the server's active drafts with sessions cached in localStorage.
+ *
+ * Pass `serverSessions` only when it is a fresh, successful server response: local
+ * copies that were synced before but are missing from it were cancelled or finished
+ * on another device, so they are removed from storage instead of being shown again.
+ * With `null` (offline, loading, stale) every local session is kept.
+ */
+export function reconcileActiveSessions(serverSessions: ActiveWorkoutSession[] | null): ActiveWorkoutSession[] {
+  const localSessions = scanActiveSessions()
+  if (!serverSessions) return localSessions
+
+  const serverIds = new Set(serverSessions.map((session) => session.workoutId))
+  const unsyncedLocalSessions = localSessions.filter((session) => {
+    if (serverIds.has(session.workoutId)) return false
+    if (!readStoredWorkoutSession(session.workoutId)?.syncedAt) return true
+    clearStoredWorkoutSession(session.workoutId)
+    return false
   })
 
-  return results
+  return sortByStartedAtDesc([...serverSessions, ...unsyncedLocalSessions])
 }

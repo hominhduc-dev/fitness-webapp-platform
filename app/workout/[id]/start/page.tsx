@@ -204,6 +204,9 @@ function migrateStoredWorkoutSession(oldWorkoutId: string, response: SwapWorkout
   const setIdMap = response.currentSetIdMap
   const migrated: StoredWorkoutSession = {
     ...stored,
+    // Not synced under the new workout id yet; keeping the marker would make the new
+    // page treat the missing server draft as "discarded on another device".
+    syncedAt: undefined,
     deletedSetIds: stored.deletedSetIds?.map((id) => setIdMap[id] ?? id),
     exercises: stored.exercises.map((exercise) => ({
       ...exercise,
