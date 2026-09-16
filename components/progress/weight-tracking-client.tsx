@@ -842,48 +842,48 @@ export function WeightTrackingClient() {
             </p>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeBmrLabel}</span>
-                  <div className="mt-1.5 flex items-end gap-1 sm:mt-2 sm:gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap items-end gap-x-1 gap-y-0.5 sm:mt-2 sm:gap-x-1.5">
                     <span className="font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
                       {Math.round(bmr as number)}
                     </span>
-                    <span className="mb-0.5 text-sm text-muted-foreground">
+                    <span className="mb-0.5 text-[0.68rem] leading-none text-muted-foreground sm:text-sm">
                       {messages.progressPage.tdeeUnit}
                     </span>
                   </div>
-                  <p className="mt-1 font-mono text-xs tnum text-muted-foreground">
+                  <p className="mt-1 text-[0.68rem] leading-snug text-muted-foreground sm:text-xs">
                     {messages.progressPage.tdeeBmrHint}
                   </p>
                 </div>
 
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeTdeeLabel}</span>
-                  <div className="mt-1.5 flex items-end gap-1 sm:mt-2 sm:gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap items-end gap-x-1 gap-y-0.5 sm:mt-2 sm:gap-x-1.5">
                     <span className="font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
                       {Math.round(tdee as number)}
                     </span>
-                    <span className="mb-0.5 text-sm text-muted-foreground">
+                    <span className="mb-0.5 text-[0.68rem] leading-none text-muted-foreground sm:text-sm">
                       {messages.progressPage.tdeeUnit}
                     </span>
                   </div>
-                  <p className="mt-1 font-mono text-xs tnum text-muted-foreground">
+                  <p className="mt-1 text-[0.68rem] leading-snug text-muted-foreground sm:text-xs">
                     {messages.progressPage.tdeeTdeeHint}
                   </p>
                 </div>
 
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeSuggestedLabel}</span>
-                  <div className="mt-1.5 flex items-end gap-1 sm:mt-2 sm:gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap items-end gap-x-1 gap-y-0.5 sm:mt-2 sm:gap-x-1.5">
                     <span className="font-mono text-2xl font-semibold leading-none tnum text-primary sm:text-3xl">
                       {suggestedKcal ?? "--"}
                     </span>
-                    <span className="mb-0.5 text-sm text-muted-foreground">
+                    <span className="mb-0.5 text-[0.68rem] leading-none text-muted-foreground sm:text-sm">
                       {messages.progressPage.tdeeUnit}
                     </span>
                   </div>
-                  <p className="mt-1 font-mono text-xs tnum text-muted-foreground">
+                  <p className="mt-1 text-[0.68rem] leading-snug text-muted-foreground sm:text-xs">
                     {summary.goalDirection === "down" && suggestedKcal != null
                       ? messages.progressPage.tdeeSuggestedLose(Math.round((tdee as number) - suggestedKcal))
                       : summary.goalDirection === "up" && suggestedKcal != null
@@ -893,7 +893,7 @@ export function WeightTrackingClient() {
                 </div>
               </div>
 
-              <p className="mt-3 font-mono text-micro tnum uppercase tracking-[0.08em] text-muted-foreground sm:mt-4">
+              <p className="mt-3 text-[0.62rem] font-semibold uppercase leading-snug tracking-[0.06em] text-muted-foreground sm:mt-4 sm:text-micro">
                 {messages.progressPage.tdeeMifflinNote}
               </p>
             </>
