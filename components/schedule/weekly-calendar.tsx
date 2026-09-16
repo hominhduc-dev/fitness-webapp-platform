@@ -906,6 +906,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
   const collectionKey = userQueryKey(queryKeys.workouts.collection(), profile?.id)
   const createMutation = useCreateWorkout()
   const { locale, messages } = useLocale()
+  const [hasHydratedClient, setHasHydratedClient] = useState(Boolean(initialData))
   const [showSource, setShowSource] = useState<SourceFilter>("all")
   const [weekOffset, setWeekOffset] = useState(0)
   const optimisticScheduleByDate = useMemo(() => collection?.optimisticScheduleByDate ?? {}, [collection])
@@ -921,6 +922,10 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
   const [isRoutineBuilderOpen, setIsRoutineBuilderOpen] = useState(false)
   const [isSavingRoutine, setIsSavingRoutine] = useState(false)
   const [routineError, setRoutineError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setHasHydratedClient(true)
+  }, [])
 
   const weekStart = useMemo(() => startOfUtcWeekAsLocal(new Date()), [])
   const displayWeekStart = useMemo(() => addDays(weekStart, weekOffset * 7), [weekStart, weekOffset])
@@ -1157,7 +1162,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
     return range
   })()
 
-  if (collectionQuery.isPending && !collection) {
+  if ((!initialData && !hasHydratedClient) || (collectionQuery.isPending && !collection)) {
     return <ScheduleLoadingState />
   }
 
