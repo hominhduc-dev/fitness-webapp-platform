@@ -349,17 +349,17 @@ function buildCsv(entries: BodyMetricEntry[], unit: "kg" | "lbs") {
 
 function WeightTrackingSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-7 space-y-2">
+    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+      <div className="mb-4 space-y-2 md:mb-7">
         <Skeleton className="h-4 w-20 rounded" />
-        <Skeleton className="h-16 w-48 rounded" />
+        <Skeleton className="h-10 w-44 rounded md:h-16 md:w-48" />
       </div>
-      <div className="mb-6">
-        <Skeleton className="h-[280px] w-full rounded-lg" />
+      <div className="mb-4 md:mb-6">
+        <Skeleton className="h-[230px] w-full rounded-lg md:h-[280px]" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-28 rounded-lg" />
+          <Skeleton key={i} className="h-24 rounded-lg md:h-28" />
         ))}
       </div>
     </div>
@@ -382,13 +382,13 @@ function MetricCard({
   value: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border border-border bg-card p-3 sm:p-4">
       <span className="label-micro block">{label}</span>
-      <div className="mt-2 flex items-end gap-1.5">
-        <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">{value}</span>
+      <div className="mt-1.5 flex items-end gap-1.5 sm:mt-2">
+        <span className="font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">{value}</span>
         {unit ? <span className="mb-0.5 text-sm text-muted-foreground">{unit}</span> : null}
       </div>
-      {footer ? <div className="mt-2 min-h-5 text-sm">{footer}</div> : null}
+      {footer ? <div className="mt-1.5 min-h-5 text-sm sm:mt-2">{footer}</div> : null}
     </div>
   )
 }
@@ -544,24 +544,24 @@ export function WeightTrackingClient() {
   const hasChartData = chartPoints.some((p) => p.value !== null)
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="flex flex-col gap-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+      <div className="flex flex-col gap-4 md:gap-8">
 
         {/* ---- Header ---- */}
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <section className="flex items-end justify-between gap-3">
           <div>
-            <span className="label-micro mb-2 block">{messages.progressPage.logIntro}</span>
-            <h1 className="text-4xl font-semibold leading-none tracking-[-0.02em] text-foreground">
+            <span className="label-micro mb-1 block">{messages.progressPage.logIntro}</span>
+            <h1 className="text-3xl font-semibold leading-none text-foreground md:text-4xl">
               {messages.progressPage.title}
             </h1>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={handleExportCsv}
-              className="h-9 rounded-full border-border bg-card px-4 text-sm font-medium shadow-none hover:bg-muted"
+              className="h-8 rounded-full border-border bg-card px-3 text-xs font-medium shadow-none hover:bg-muted sm:h-9 sm:px-4 sm:text-sm"
             >
               {messages.progressPage.exportCsv}
             </Button>
@@ -583,13 +583,13 @@ export function WeightTrackingClient() {
         )}
 
         {/* ---- Weight hero + chart card ---- */}
-        <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+        <section className="rounded-lg border border-border bg-card p-3.5 sm:p-6">
           {/* Hero row */}
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div>
               <span className="label-micro mb-1 block">{messages.progressPage.currentWeight}</span>
-              <div className="flex items-baseline gap-3">
-                <span className="font-mono text-6xl font-semibold leading-none tnum text-foreground">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 sm:gap-3">
+                <span className="font-mono text-5xl font-semibold leading-none tnum text-foreground sm:text-6xl">
                   {currentWeightDisplay}
                 </span>
                 <span className="text-base text-muted-foreground">{weightUnit}</span>
@@ -626,7 +626,7 @@ export function WeightTrackingClient() {
                     setShowAllHistory(false)
                   }}
                   className={cn(
-                    "rounded-full border px-3 py-1 font-mono text-xs tnum transition-colors",
+                    "rounded-full border px-2.5 py-1 font-mono text-xs tnum transition-colors sm:px-3",
                     selectedRange === r
                       ? "border-primary bg-primary-soft text-primary"
                       : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -642,11 +642,11 @@ export function WeightTrackingClient() {
 
           {/* Line chart */}
           {!hasChartData ? (
-            <div className="flex min-h-[14rem] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+            <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground sm:min-h-[14rem]">
               {messages.progressPage.emptyTrend}
             </div>
           ) : (
-            <div className="h-[220px]">
+            <div className="h-36 sm:h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartPoints} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
                   <CartesianGrid
@@ -688,9 +688,9 @@ export function WeightTrackingClient() {
         </section>
 
         {/* ---- Log weight input ---- */}
-        <section className="rounded-lg border border-border bg-card p-4 sm:p-5">
-          <span className="label-micro mb-4 block">{messages.progressPage.logTitle}</span>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <section className="rounded-lg border border-border bg-card p-3.5 sm:p-5">
+          <span className="label-micro mb-2 block sm:mb-4">{messages.progressPage.logTitle}</span>
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Input
                 aria-label={messages.progressPage.logTitle}
@@ -701,9 +701,9 @@ export function WeightTrackingClient() {
                 step="0.1"
                 min="0"
                 placeholder={messages.progressPage.entryPlaceholder}
-                className="h-14 rounded-lg border-input bg-background pr-14 text-center font-mono text-2xl font-semibold tnum shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-primary"
+                className="h-11 rounded-lg border-input bg-background pr-12 text-center font-mono text-xl font-semibold tnum shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-primary sm:h-14 sm:pr-14 sm:text-2xl"
               />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground sm:right-4">
                 {weightUnit}
               </span>
             </div>
@@ -711,7 +711,7 @@ export function WeightTrackingClient() {
               type="button"
               onClick={() => void handleSaveEntry()}
               disabled={isSaving}
-              className="h-14 min-w-[9rem] gap-2 rounded-lg font-medium shadow-none"
+              className="h-11 min-w-[7.75rem] shrink-0 gap-1.5 rounded-lg px-3 font-medium shadow-none sm:h-14 sm:min-w-[9rem] sm:gap-2"
             >
               {isSaving ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -724,7 +724,7 @@ export function WeightTrackingClient() {
         </section>
 
         {/* ---- Summary metric cards ---- */}
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
           {/* Current weight */}
           <MetricCard
             label={messages.progressPage.currentWeight}
@@ -833,8 +833,8 @@ export function WeightTrackingClient() {
         </section>
 
         {/* ---- TDEE / Energy card ---- */}
-        <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
-          <span className="label-micro mb-4 block">{messages.progressPage.tdeeTitle}</span>
+        <section className="rounded-lg border border-border bg-card p-3.5 sm:p-6">
+          <span className="label-micro mb-3 block sm:mb-4">{messages.progressPage.tdeeTitle}</span>
 
           {!hasTdee ? (
             <p className="text-sm leading-relaxed text-muted-foreground">
@@ -842,11 +842,11 @@ export function WeightTrackingClient() {
             </p>
           ) : (
             <>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeBmrLabel}</span>
-                  <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">
+                  <div className="mt-1.5 flex items-end gap-1 sm:mt-2 sm:gap-1.5">
+                    <span className="font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
                       {Math.round(bmr as number)}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -860,8 +860,8 @@ export function WeightTrackingClient() {
 
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeTdeeLabel}</span>
-                  <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-3xl font-semibold leading-none tnum text-foreground">
+                  <div className="mt-1.5 flex items-end gap-1 sm:mt-2 sm:gap-1.5">
+                    <span className="font-mono text-2xl font-semibold leading-none tnum text-foreground sm:text-3xl">
                       {Math.round(tdee as number)}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -875,8 +875,8 @@ export function WeightTrackingClient() {
 
                 <div>
                   <span className="label-micro block">{messages.progressPage.tdeeSuggestedLabel}</span>
-                  <div className="mt-2 flex items-end gap-1.5">
-                    <span className="font-mono text-3xl font-semibold leading-none tnum text-primary">
+                  <div className="mt-1.5 flex items-end gap-1 sm:mt-2 sm:gap-1.5">
+                    <span className="font-mono text-2xl font-semibold leading-none tnum text-primary sm:text-3xl">
                       {suggestedKcal ?? "--"}
                     </span>
                     <span className="mb-0.5 text-sm text-muted-foreground">
@@ -893,7 +893,7 @@ export function WeightTrackingClient() {
                 </div>
               </div>
 
-              <p className="mt-4 font-mono text-micro tnum uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="mt-3 font-mono text-micro tnum uppercase tracking-[0.08em] text-muted-foreground sm:mt-4">
                 {messages.progressPage.tdeeMifflinNote}
               </p>
             </>
@@ -901,11 +901,11 @@ export function WeightTrackingClient() {
         </section>
 
         {/* ---- History + weekly goal row ---- */}
-        <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+        <div className="grid gap-4 xl:grid-cols-[1fr_360px] xl:gap-6">
 
           {/* Recent entries list */}
-          <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
-            <div className="mb-5 flex items-center justify-between gap-3">
+          <section className="rounded-lg border border-border bg-card p-3.5 sm:p-6">
+            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-5">
               <span className="label-micro">{messages.progressPage.history}</span>
               {entries.length > 5 ? (
                 <button
@@ -936,7 +936,7 @@ export function WeightTrackingClient() {
                   return (
                     <div
                       key={entry.id}
-                      className="flex items-center justify-between border-b border-border py-3.5 last:border-b-0"
+                      className="flex items-center justify-between border-b border-border py-2.5 last:border-b-0 sm:py-3.5"
                     >
                       <div>
                         <p className="font-mono text-sm font-medium tnum text-foreground">
@@ -973,8 +973,8 @@ export function WeightTrackingClient() {
           </section>
 
           {/* Weekly goal card */}
-          <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
-            <span className="label-micro mb-4 block">{messages.progressPage.weeklyGoal}</span>
+          <section className="rounded-lg border border-border bg-card p-3.5 sm:p-6">
+            <span className="label-micro mb-3 block sm:mb-4">{messages.progressPage.weeklyGoal}</span>
 
             <p className="text-sm leading-relaxed text-muted-foreground">
               {!summary.hasTargetWeight
@@ -1005,7 +1005,7 @@ export function WeightTrackingClient() {
 
             <Progress
               value={summary.hasTargetWeight ? summary.weeklyGoalProgressPct : 0}
-              className="mt-6 h-1.5 bg-muted [&_[data-slot=progress-indicator]]:bg-primary"
+              className="mt-4 h-1.5 bg-muted sm:mt-6 [&_[data-slot=progress-indicator]]:bg-primary"
             />
 
             {summary.hasTargetWeight && (
