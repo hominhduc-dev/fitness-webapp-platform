@@ -12,7 +12,7 @@ import type { SerializedProfile } from "./auth.service"
 import { BadRequestError } from "./errors"
 import { getGoogleAccessToken } from "./google-connection.service"
 import { formatSetResult, formatSubstitute, type ExportExercise } from "./google-program-export.service"
-import { addUtcDays, DAY_IN_MS, formatUtcDateOnly, startOfUtcWeek } from "./fitness-data/shared/dates"
+import { addUtcDays, DAY_IN_MS, formatClientDateKey, formatUtcDateOnly, startOfUtcWeek } from "./fitness-data/shared/dates"
 import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 
 /**
@@ -31,6 +31,14 @@ import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 
 export const TRAINEE_EXPORT_FOLDER_NAME = "YeahBuddy workout logs"
 const OVERVIEW_SHEET_TITLE = "Program"
+const WEIGHT_SHEET_TITLE = "Weight Tracking"
+
+export function buildWeightTrackingRows(entries: Array<{ recordedAt: Date; weightKg: number | null; note: string | null }>): Array<Array<string | number>> {
+  return [
+    ["Date", "Weight (kg)", "Notes"],
+    ...entries.filter((entry) => entry.weightKg != null).map((entry) => [formatClientDateKey(entry.recordedAt), entry.weightKg!, entry.note ?? ""]),
+  ]
+}
 const MIN_SET_COLUMNS = 5
 /** Columns A–I come before the per-set result columns. */
 const LEADING_COLUMNS = 9
@@ -390,7 +398,7 @@ function weekNumberOf(title: string) {
  * first, so two exports racing cannot leave the assignment pointing at a file
  * the other one is still writing.
  */
-async function ensureTraineeSpreadsheet(
+export async function ensureTraineeSpreadsheet(
   accessToken: string,
   profile: SerializedProfile,
   assignment: { id: string; program: { name: string }; traineeGoogleSpreadsheetId: string | null },
@@ -442,6 +450,7 @@ async function writeWeekTabs(
   existingSheets: SheetRef[],
   overview: Array<Array<string | number>>,
   grids: Array<{ grid: ReturnType<typeof buildTraineeWeekGrid>; weekIndex: number }>,
+  weightRows: Array<Array<string | number>>,
 ) {
   const sheets = [...existingSheets]
   const taken = new Set(sheets.map((sheet) => sheet.sheetId))
@@ -454,6 +463,15 @@ async function writeWeekTabs(
   }
 
   const sheetIdsByWeek = new Map<number, number>()
+  const weightSheet = sheets.find((sheet) => sheet.title === WEIGHT_SHEET_TITLE)
+  const weightSheetId = weightSheet?.sheetId ?? nextSheetId(taken)
+  if (!weightSheet) {
+    structure.push({ addSheet: { properties: { sheetId: weightSheetId, title: WEIGHT_SHEET_TITLE, gridProperties: { rowCount: Math.max(weightRows.length, 100), columnCount: 3, frozenRowCount: 1 } } } })
+  } else {
+    structure.push({ updateSheetProperties: { properties: { sheetId: weightSheetId, gridProperties: { rowCount: Math.max(weightRows.length, 100), frozenRowCount: 1 } }, fields: "gridProperties.rowCount,gridProperties.frozenRowCount" } })
+    // Clear stale rows and notes after metrics are edited or deleted; keep the tab ID.
+    structure.push({ updateCells: { range: { sheetId: weightSheetId, startColumnIndex: 0, endColumnIndex: 3 }, fields: "userEnteredValue" } })
+  }
 
   for (const { grid, weekIndex } of grids) {
     const title = weekSheetTitle(weekIndex)
@@ -494,6 +512,7 @@ async function writeWeekTabs(
     spreadsheetId,
     [
       { range: `'${OVERVIEW_SHEET_TITLE}'!A1`, values: overview },
+      { range: `'${WEIGHT_SHEET_TITLE}'!A1`, values: weightRows },
       ...grids.map(({ grid, weekIndex }) => ({ range: `'${weekSheetTitle(weekIndex)}'!A1`, values: grid.values })),
     ],
     "RAW",
@@ -546,6 +565,12 @@ async function exportTraineeLogsToGoogleDrive(
   }
 
   const accessToken = await getGoogleAccessToken(profile)
+  const weightEntries = await db.bodyMetricEntry.findMany({
+    where: { traineeId: profile.id, weightKg: { not: null } },
+    select: { recordedAt: true, weightKg: true, note: true },
+    orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+  })
+  const weightRows = buildWeightTrackingRows(weightEntries)
   const files: Array<{ created: boolean; name: string; programId: string; url: string; weeks: number[] }> = []
   let exportedLogCount = 0
   let rowCount = 0
@@ -608,7 +633,7 @@ async function exportTraineeLogsToGoogleDrive(
       ["last_exported_at", new Date().toISOString()],
     ]
 
-    await writeWeekTabs(accessToken, target.spreadsheetId, target.sheets, overview, grids)
+    await writeWeekTabs(accessToken, target.spreadsheetId, target.sheets, overview, grids, weightRows)
 
     files.push({
       created: target.created,
