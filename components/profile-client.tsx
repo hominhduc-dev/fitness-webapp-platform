@@ -886,6 +886,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           ) : null}
 
           <SettingsSection
+            collapsible
             description={messages.profile.notificationsCopy}
             icon={Bell}
             id={SECTION_IDS.notifications}
@@ -901,9 +902,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               />
             }
           >
-            <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+            <div className="flex flex-col gap-2 text-xs leading-5 text-muted-foreground sm:text-sm">
               <p>{messages.profile.pushNotificationsCopy}</p>
-              <p>
+              <p className="leading-5">
                 {pushNotifications.state === "unsupported"
                   ? messages.profile.pushNotificationsUnsupported
                   : pushNotifications.state === "denied"
@@ -913,14 +914,14 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:w-fit"
+                className="h-9 w-full sm:w-fit"
                 disabled={!pushNotifications.enabled || pushNotifications.isBusy}
                 onClick={() => void handleTestPushNotification()}
               >
                 {pushNotifications.isBusy ? messages.common.loading : messages.profile.pushNotificationTest}
               </Button>
               {profile.role === "trainee" || profile.role === "coach" ? (
-                <div className="mt-2 border-t border-border pt-4">
+                <div className="mt-1 border-t border-border pt-3">
                   <NotificationPreferencesSettings role={profile.role} />
                 </div>
               ) : null}

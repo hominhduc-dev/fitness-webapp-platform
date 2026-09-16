@@ -20,7 +20,7 @@ const WORKOUT_REMINDER_OFFSETS = [15, 30, 60]
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <p className="pb-2 pt-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground first:pt-0">
+    <p className="pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground first:pt-0">
       {children}
     </p>
   )
@@ -42,17 +42,17 @@ function PreferenceRow({
   const id = useId()
 
   return (
-    <div className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-2 py-2.5 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <Label htmlFor={id} className="text-sm font-semibold text-foreground">
+          <Label htmlFor={id} className="text-sm font-semibold leading-5 text-foreground">
             {label}
           </Label>
-          {description ? <p className="mt-0.5 text-sm text-muted-foreground">{description}</p> : null}
+          {description ? <p className="mt-0.5 text-xs leading-4 text-muted-foreground sm:text-sm sm:leading-5">{description}</p> : null}
         </div>
         <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
       </div>
-      {checked && children ? <div className="flex flex-col gap-3">{children}</div> : null}
+      {checked && children ? <div className="flex flex-col gap-2">{children}</div> : null}
     </div>
   )
 }
@@ -74,15 +74,15 @@ function ReminderTimeField({
   const [draft, setDraft] = useState(value)
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <Label htmlFor={id} className="text-sm text-muted-foreground">
+    <div className="flex items-center justify-between gap-3">
+      <Label htmlFor={id} className="text-xs text-muted-foreground sm:text-sm">
         {label}
       </Label>
       <Input
         id={id}
         type="time"
         value={draft}
-        className="w-32"
+        className="h-9 w-28 sm:w-32"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
           if (CLOCK_TIME_PATTERN.test(draft) && draft !== value) {
@@ -108,9 +108,9 @@ function ChipGroup({
   selected: (value: number) => boolean
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs text-muted-foreground sm:text-sm">{label}</p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
         {options.map((option) => (
           <FilterChip
             key={option.value}
@@ -211,7 +211,7 @@ export function NotificationPreferencesSettings({ role }: { role: "coach" | "tra
   return (
     <div className="flex flex-col">
       <SectionHeading>{copy.eventsHeading}</SectionHeading>
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-border/70">
         <PreferenceRow
           checked={preferences.coachProgramUpdates}
           description={copy.coachProgramUpdatesCopy}
@@ -227,7 +227,7 @@ export function NotificationPreferencesSettings({ role }: { role: "coach" | "tra
       </div>
 
       <SectionHeading>{copy.remindersHeading}</SectionHeading>
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-border/70">
         <PreferenceRow
           checked={preferences.workoutReminder.enabled}
           description={copy.workoutReminderCopy}
@@ -282,8 +282,8 @@ export function NotificationPreferencesSettings({ role }: { role: "coach" | "tra
       </div>
 
       <SectionHeading>{copy.mealsHeading}</SectionHeading>
-      <p className="-mt-1 pb-2 text-sm text-muted-foreground">{copy.mealRemindersCopy}</p>
-      <div className="divide-y divide-border">
+      <p className="-mt-1 pb-1.5 text-xs leading-4 text-muted-foreground sm:text-sm sm:leading-5">{copy.mealRemindersCopy}</p>
+      <div className="divide-y divide-border/70">
         {MEAL_ORDER.map((meal) => (
           <PreferenceRow
             key={meal}
