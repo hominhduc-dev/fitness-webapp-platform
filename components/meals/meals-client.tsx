@@ -100,8 +100,8 @@ function formatMetric(value?: number, digits = 1) {
 }
 
 const MACRO_RING_COLORS = {
-  carbs: "text-success",
-  fat: "text-warning",
+  carbs: "text-success-text",
+  fat: "text-warning-text",
   protein: "text-primary",
 } as const
 
