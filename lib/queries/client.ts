@@ -1,6 +1,7 @@
 import { QueryClient, isServer } from "@tanstack/react-query"
 
 import { ApiError } from "@/lib/auth/api"
+import { applyPersistedQueryDefaults } from "@/lib/queries/persist"
 
 /** Matches the `revalidate: 30` that `request()` applies to server-side GETs. */
 const DEFAULT_STALE_TIME_MS = 30_000
@@ -57,7 +58,10 @@ export function getQueryClient() {
     return createQueryClient()
   }
 
-  browserQueryClient ??= createQueryClient()
+  if (!browserQueryClient) {
+    browserQueryClient = createQueryClient()
+    applyPersistedQueryDefaults(browserQueryClient)
+  }
 
   return browserQueryClient
 }
