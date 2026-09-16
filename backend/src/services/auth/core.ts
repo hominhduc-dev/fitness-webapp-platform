@@ -585,6 +585,36 @@ function assertProfileIsActive(profile: Pick<AppUser, "coachApprovalStatus" | "i
   throw new AuthServiceError("Tài khoản này đã bị khoá. Vui lòng liên hệ quản trị viên.", 403)
 }
 
+/** The row that already belongs to this Supabase user, by id or by identifier. */
+async function findProfileForAuthUser(
+  authUser: SupabaseUser,
+  identifiers: { email: string; phone?: string | null; username?: string | null },
+) {
+  if (!prisma) {
+    return null
+  }
+
+  const lookupConditions: Prisma.UserWhereInput[] = [{ supabaseAuthUserId: authUser.id }]
+
+  if (identifiers.email) {
+    lookupConditions.push({ email: identifiers.email })
+  }
+
+  if (identifiers.phone) {
+    lookupConditions.push({ phone: identifiers.phone })
+  }
+
+  if (identifiers.username) {
+    lookupConditions.push({ username: identifiers.username })
+  }
+
+  return prisma.user.findFirst({
+    where: {
+      OR: lookupConditions,
+    },
+  })
+}
+
 async function syncProfile(authUser: SupabaseUser, overrides?: {
   avatar?: string | null
   name?: string | null
@@ -599,25 +629,7 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
   const email = normalizeEmail(authUser.email) as string
   const username = resolveUserUsername(authUser, overrides?.username)
   const phone = resolveUserPhone(authUser, overrides?.phone)
-  const lookupConditions: Prisma.UserWhereInput[] = [{ supabaseAuthUserId: authUser.id }]
-
-  if (email) {
-    lookupConditions.push({ email })
-  }
-
-  if (phone) {
-    lookupConditions.push({ phone })
-  }
-
-  if (username) {
-    lookupConditions.push({ username })
-  }
-
-  const existingProfile = await prisma.user.findFirst({
-    where: {
-      OR: lookupConditions,
-    },
-  })
+  const existingProfile = await findProfileForAuthUser(authUser, { email, phone, username })
 
   const name = resolveUserName(authUser, overrides?.name)
   const avatar = resolveUserAvatar(authUser, overrides?.avatar)
@@ -950,6 +962,43 @@ async function registerUser(input: {
     session: requiresApproval ? null : serializeSession(data.session),
     user: serializeAuthUser(data.user),
   } satisfies AuthResult
+}
+
+/**
+ * Claims a signup role for a Supabase user that just came back from an OAuth
+ * provider. Only a brand-new account can claim one: an existing profile is
+ * returned untouched, so nobody can flip an account they already use (or one
+ * that belongs to someone else) into a locked coach account.
+ */
+async function claimOAuthSignupRole(accessToken: string, role: string | null | undefined) {
+  const authUser = await getVerifiedUser(accessToken)
+  const requestedRole = normalizePublicRole(role)
+
+  if (!authUser.email) {
+    throw new AuthServiceError("Tài khoản đăng nhập không có email.", 400)
+  }
+
+  const existingProfile = await findProfileForAuthUser(authUser, {
+    email: normalizeEmail(authUser.email) as string,
+    phone: resolveUserPhone(authUser),
+    username: resolveUserUsername(authUser),
+  })
+
+  if (existingProfile) {
+    return {
+      claimed: false,
+      profile: serializeProfile(existingProfile),
+      requiresApproval: existingProfile.coachApprovalStatus === CoachApprovalStatus.pending,
+    }
+  }
+
+  const profile = await syncProfile(authUser, { role: requestedRole })
+
+  return {
+    claimed: profile?.role === requestedRole,
+    profile: serializeProfile(profile),
+    requiresApproval: profile?.coachApprovalStatus === CoachApprovalStatus.pending,
+  }
 }
 
 async function loginUser(input: { identifier: string; password: string }) {
@@ -1319,6 +1368,7 @@ async function logoutCurrentSession(accessToken: string) {
 
 export {
   AuthServiceError,
+  claimOAuthSignupRole,
   getCurrentProfile,
   invalidateProfileContextCache,
   loginUser,

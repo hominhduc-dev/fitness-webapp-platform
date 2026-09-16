@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 import { CoachSignupForm } from "./coach-signup-form"
 
-const api = vi.hoisted(() => ({ registerRequest: vi.fn() }))
+const api = vi.hoisted(() => ({ registerRequest: vi.fn(), signInWithOAuth: vi.fn() }))
 
 vi.mock("@/lib/auth/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/auth/api")>("@/lib/auth/api")
@@ -11,6 +11,9 @@ vi.mock("@/lib/auth/api", async () => {
   return { ApiError: actual.ApiError, registerRequest: api.registerRequest }
 })
 vi.mock("@/lib/analytics/registration", () => ({ trackRegistrationEvent: vi.fn() }))
+vi.mock("@/lib/supabase/client", () => ({
+  getOptionalBrowserSupabaseClient: () => ({ auth: { signInWithOAuth: api.signInWithOAuth } }),
+}))
 vi.mock("@/lib/supabase/config", () => ({
   getAppBaseUrl: () => "https://yeahbuddy.test",
   getSupabasePublicConfigError: () => null,
@@ -30,6 +33,7 @@ function fillForm() {
 
 describe("coach signup form", () => {
   beforeEach(() => {
+    api.signInWithOAuth.mockReset().mockResolvedValue({ data: {}, error: null })
     api.registerRequest.mockReset().mockResolvedValue({
       message: "pending",
       profile: null,
@@ -71,5 +75,30 @@ describe("coach signup form", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Email này đã được sử dụng.")
     expect(screen.queryByText("Application received")).not.toBeInTheDocument()
+  })
+  it("sends the Google round-trip out with the coach role on the callback URL", async () => {
+    render(<CoachSignupForm />)
+    fireEvent.click(screen.getByRole("checkbox"))
+    fireEvent.click(screen.getByRole("button", { name: "Google" }))
+
+    await waitFor(() => expect(api.signInWithOAuth).toHaveBeenCalled())
+    const [call] = api.signInWithOAuth.mock.calls
+    expect(call[0].provider).toBe("google")
+    // The callback claims the role from this parameter; without it Google
+    // signups would land as trainees.
+    expect(call[0].options.redirectTo).toContain("role=coach")
+  })
+
+  it("holds the Google button until the terms are accepted", () => {
+    render(<CoachSignupForm />)
+
+    expect(screen.getByRole("button", { name: "Google" })).toBeDisabled()
+  })
+
+  it("opens on the pending screen when the callback says the account is waiting", () => {
+    render(<CoachSignupForm defaultSubmitted />)
+
+    expect(screen.getByText("Application received")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Apply as a coach/ })).not.toBeInTheDocument()
   })
 })

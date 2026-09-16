@@ -31,8 +31,19 @@ export const metadata: Metadata = {
   },
 }
 
-export default async function CoachSignupPage() {
-  const [{ profile }, locale] = await Promise.all([getServerAuthState(), getServerLocale()])
+export default async function CoachSignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; status?: string }>
+}) {
+  const [{ profile }, locale, params] = await Promise.all([
+    getServerAuthState(),
+    getServerLocale(),
+    searchParams,
+  ])
+  // Where the Google round-trip landed, so the form can open on the right state.
+  const notice =
+    params.status === "pending" ? "pending" : params.error === "oauth_claim_failed" ? "oauth-failed" : null
 
   // Someone already signed in has no use for a signup form.
   if (profile) {
@@ -47,7 +58,7 @@ export default async function CoachSignupPage() {
             YeahBuddy<span className="text-primary">.</span>
           </Link>
 
-          <CoachSignupPanel />
+          <CoachSignupPanel notice={notice} />
         </div>
       </main>
     </AppProviders>

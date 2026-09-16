@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   findFirst: vi.fn(),
   findUnique: vi.fn(),
+  getUser: vi.fn(),
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
   update: vi.fn(),
@@ -22,11 +23,11 @@ vi.mock("../../lib/prisma", () => ({
 vi.mock("../../lib/supabase", () => ({
   supabaseAdmin: null,
   supabasePublic: {
-    auth: { signInWithPassword: mocks.signInWithPassword, signUp: mocks.signUp },
+    auth: { getUser: mocks.getUser, signInWithPassword: mocks.signInWithPassword, signUp: mocks.signUp },
   },
 }))
 
-import { loginUser, registerUser } from "./core"
+import { claimOAuthSignupRole, loginUser, registerUser } from "./core"
 
 const authUser = {
   email: "coach@example.com",
@@ -88,6 +89,7 @@ describe("coach self-signup", () => {
     mocks.create.mockReset().mockImplementation(async ({ data }) => buildProfileRow(data))
     mocks.signUp.mockReset().mockResolvedValue({ data: { session, user: authUser }, error: null })
     mocks.signInWithPassword.mockReset().mockResolvedValue({ data: { session, user: authUser }, error: null })
+    mocks.getUser.mockReset().mockResolvedValue({ data: { user: authUser }, error: null })
   })
 
   it("creates a coach locked and pending, and withholds the session", async () => {
@@ -160,5 +162,27 @@ describe("coach self-signup", () => {
     await expect(loginUser({ identifier: authUser.email, password: "password123" })).rejects.toThrow(
       /chưa được duyệt/,
     )
+  })
+  it("claims the coach role for a Google account that has no profile yet", async () => {
+    const result = await claimOAuthSignupRole("access-token", "coach")
+
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ coachApprovalStatus: "pending", isActive: false, role: "coach" }),
+      }),
+    )
+    expect(result.claimed).toBe(true)
+    expect(result.requiresApproval).toBe(true)
+  })
+
+  it("never turns an account that already exists into a pending coach", async () => {
+    storeProfile(buildProfileRow({ isActive: true, role: "trainee" }))
+
+    const result = await claimOAuthSignupRole("access-token", "coach")
+
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(result.claimed).toBe(false)
+    expect(result.profile?.role).toBe("trainee")
   })
 })

@@ -1,4 +1,4 @@
-import type { AppRole, AuthResponse, UpdateProfileInput, UploadAvatarInput } from "./types"
+import type { AppProfile, AppRole, AuthResponse, UpdateProfileInput, UploadAvatarInput } from "./types"
 import { getApiBaseUrl } from "@/lib/supabase/config"
 import { getTimeZoneHeaders } from "@/lib/time-zone"
 
@@ -106,6 +106,17 @@ async function registerRequest(input: {
   })
 }
 
+async function claimOAuthRoleRequest(accessToken: string, role: Exclude<AppRole, "admin">) {
+  return request<{ claimed: boolean; profile: AppProfile | null; requiresApproval: boolean }>(
+    "/api/auth/oauth/claim-role",
+    {
+      body: JSON.stringify({ role }),
+      headers: createHeaders(accessToken),
+      method: "POST",
+    },
+  )
+}
+
 async function refreshSessionRequest(input: { accessToken?: string; refreshToken: string }) {
   return request<AuthResponse>("/api/auth/refresh", {
     body: JSON.stringify(input),
@@ -157,6 +168,7 @@ async function resetCurrentTraineeDataRequest(accessToken: string) {
 
 export {
   ApiError,
+  claimOAuthRoleRequest,
   fetchCurrentProfile,
   forgotPasswordRequest,
   loginRequest,

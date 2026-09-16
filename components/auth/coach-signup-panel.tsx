@@ -7,7 +7,7 @@ import { CoachSignupForm } from "@/components/auth/coach-signup-form"
 import { useLocale } from "@/components/providers/locale-provider"
 
 /** The marketing half of /coach-signup, next to the form itself. */
-export function CoachSignupPanel() {
+export function CoachSignupPanel({ notice }: { notice?: "pending" | "oauth-failed" | null }) {
   const { messages } = useLocale()
   const benefits = [
     { icon: ListChecks, label: messages.landing.coachBenefitPlan },
@@ -55,7 +55,10 @@ export function CoachSignupPanel() {
         </div>
       </div>
 
-      <CoachSignupForm />
+      <CoachSignupForm
+        defaultError={notice === "oauth-failed" ? messages.auth.coachSignupOauthFailed : null}
+        defaultSubmitted={notice === "pending"}
+      />
     </div>
   )
 }

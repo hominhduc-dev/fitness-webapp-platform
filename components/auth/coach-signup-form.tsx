@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent } from "react"
 import Link from "next/link"
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail, Phone, ShieldCheck, User } from "lucide-react"
 
+import { GoogleIcon } from "@/components/ui/brand-icons"
+
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { trackRegistrationEvent } from "@/lib/analytics/registration"
 import { ApiError, registerRequest } from "@/lib/auth/api"
+import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
 
 /**
@@ -18,7 +21,15 @@ import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/conf
  * queue, so unlike the trainee modal this form never signs anyone in: it ends
  * on the pending screen and the backend withholds the session.
  */
-export function CoachSignupForm() {
+export function CoachSignupForm({
+  defaultError = null,
+  defaultSubmitted = false,
+}: {
+  /** Set when the OAuth callback bounced back with a failure. */
+  defaultError?: string | null
+  /** The Google round-trip already created the account: open on the pending screen. */
+  defaultSubmitted?: boolean
+} = {}) {
   const { messages } = useLocale()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -27,13 +38,47 @@ export function CoachSignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false)
+  const [error, setError] = useState<string | null>(defaultError)
+  const [isSubmitted, setIsSubmitted] = useState(defaultSubmitted)
   const supabaseConfigError = getSupabasePublicConfigError()
 
   useEffect(() => {
     trackRegistrationEvent("form_view", { method: "email", role: "coach" })
   }, [])
+
+  /**
+   * Google never sees our role, so the callback URL carries it and the callback
+   * claims it server-side. The account comes back locked either way, which is
+   * why this leaves on the pending screen instead of signing anyone in.
+   */
+  const handleGoogleSignup = async () => {
+    setError(null)
+
+    const supabase = getOptionalBrowserSupabaseClient()
+
+    if (!supabase) {
+      setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
+      return
+    }
+
+    setIsGoogleRedirecting(true)
+    trackRegistrationEvent("form_submit", { method: "google", role: "coach" })
+
+    const redirectUrl = new URL("/auth/callback", getAppBaseUrl())
+    redirectUrl.searchParams.set("role", "coach")
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      options: { redirectTo: redirectUrl.toString() },
+      provider: "google",
+    })
+
+    if (oauthError) {
+      trackRegistrationEvent("form_error", { method: "google", role: "coach" })
+      setError(oauthError.message)
+      setIsGoogleRedirecting(false)
+    }
+  }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -209,7 +254,11 @@ export function CoachSignupForm() {
           </p>
         ) : null}
 
-        <Button className="h-12 w-full text-base sm:h-11 sm:text-sm" disabled={isSubmitting || !acceptTerms} type="submit">
+        <Button
+          className="h-12 w-full text-base sm:h-11 sm:text-sm"
+          disabled={isSubmitting || isGoogleRedirecting || !acceptTerms}
+          type="submit"
+        >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />
@@ -221,6 +270,30 @@ export function CoachSignupForm() {
               <ArrowRight className="ml-2 size-4" />
             </>
           )}
+        </Button>
+
+        <div className="relative py-1">
+          <span aria-hidden="true" className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </span>
+          <span className="relative mx-auto block w-fit bg-card px-2 text-center text-xs uppercase text-muted-foreground">
+            {messages.auth.signUpWith}
+          </span>
+        </div>
+
+        <Button
+          className="h-12 w-full text-base sm:h-11 sm:text-sm"
+          disabled={isSubmitting || isGoogleRedirecting || !acceptTerms}
+          onClick={() => void handleGoogleSignup()}
+          type="button"
+          variant="outline"
+        >
+          {isGoogleRedirecting ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <GoogleIcon className="mr-2 size-4" />
+          )}
+          Google
         </Button>
 
         <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
