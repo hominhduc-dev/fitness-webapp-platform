@@ -2210,6 +2210,47 @@ async function markAllNotificationsRead(accessToken: string) {
   })
 }
 
+async function fetchPushConfig(): Promise<{ enabled: boolean; publicKey: string | null }> {
+  const response = await request<ApiEnvelope<{ enabled: boolean; publicKey: string | null }>>(
+    "/api/notifications/push/config",
+    "",
+  )
+  return response.data
+}
+
+async function savePushSubscription(accessToken: string, subscription: PushSubscriptionJSON) {
+  const response = await request<ApiEnvelope<{ endpoint: string; id: string }>>(
+    "/api/notifications/push/subscriptions",
+    accessToken,
+    {
+      body: JSON.stringify(subscription),
+      method: "POST",
+    },
+  )
+  return response.data
+}
+
+async function deletePushSubscription(accessToken: string, endpoint: string) {
+  const response = await request<ApiEnvelope<{ revoked: boolean }>>(
+    "/api/notifications/push/subscriptions",
+    accessToken,
+    {
+      body: JSON.stringify({ endpoint }),
+      method: "DELETE",
+    },
+  )
+  return response.data
+}
+
+async function sendTestPush(accessToken: string) {
+  const response = await request<ApiEnvelope<{ failed: number; sent: number }>>(
+    "/api/notifications/push/test",
+    accessToken,
+    { method: "POST" },
+  )
+  return response.data
+}
+
 // ---------------------------------------------------------------------------
 // AI Generation
 // ---------------------------------------------------------------------------
@@ -2472,6 +2513,7 @@ export {
   fetchProgressAnalytics,
   fetchProgressCalendar,
   fetchProgressYearView,
+  fetchPushConfig,
   fetchRecoveryHistory,
   fetchVolumeRecovery,
   fetchWeightEntries,
@@ -2510,6 +2552,9 @@ export {
   updateTraineeProgram,
   markAllNotificationsRead,
   markNotificationRead,
+  deletePushSubscription,
+  savePushSubscription,
+  sendTestPush,
   restoreCoachProgram,
   swapWorkoutExercise,
   unassignCoachProgram,
