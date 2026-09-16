@@ -61,7 +61,16 @@ export function WeeklyProgressCard({
               <Tooltip
                 cursor={{ fill: "var(--muted)" }}
                 formatter={(value: number) => [`${value.toLocaleString()} ${volumeUnitLabel}`, copy.volume]}
-                contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }}
+                contentStyle={{
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  boxShadow: "var(--glass-shadow)",
+                  color: "var(--foreground)",
+                  fontSize: 12,
+                }}
+                itemStyle={{ color: "var(--muted-foreground)" }}
+                labelStyle={{ color: "var(--foreground)", fontWeight: 600 }}
               />
               <Bar dataKey="volume" radius={[6, 6, 0, 0]} maxBarSize={32}>
                 {weeklyVolume.map((point, index) => (

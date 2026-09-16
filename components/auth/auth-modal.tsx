@@ -633,7 +633,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
             <DialogHeader className="relative gap-0 p-0 text-left">
               <div className="flex items-center justify-between">
-                <BrandLogo markClassName="size-9 rounded-xl sm:size-10" textClassName="text-lg sm:text-xl" />
+                <BrandLogo markClassName="size-9 rounded-none sm:size-10" textClassName="text-lg sm:text-xl" />
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                     <X className="h-4 w-4" />

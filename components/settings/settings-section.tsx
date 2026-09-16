@@ -50,14 +50,14 @@ export function SettingsSection({
       id={id}
       aria-labelledby={`${id}-heading`}
       className={cn(
-        "scroll-mt-28 overflow-hidden rounded-2xl border px-4 py-3.5 sm:px-5 sm:py-4",
+        "scroll-mt-28 overflow-hidden rounded-xl border px-3.5 py-2.5 sm:px-4 sm:py-3",
         isDanger ? "border-destructive/30 bg-destructive-soft/70" : "border-border bg-card",
         className,
       )}
     >
-      <div className={cn("flex min-h-11 items-center gap-3", isOpen && children != null && "mb-4")}>
+      <div className={cn("flex min-h-10 items-center gap-3", isOpen && children != null && "mb-3")}>
         {headerVisual ?? (Icon ? (
-          <IconTile size="md" tone={isDanger ? "surface" : "primary"} className={cn(isDanger && "text-destructive-text")}>
+          <IconTile size="sm" tone={isDanger ? "surface" : "primary"} className={cn(isDanger && "text-destructive-text")}>
             <Icon strokeWidth={1.8} />
           </IconTile>
         ) : null)}
@@ -75,7 +75,7 @@ export function SettingsSection({
                 aria-controls={bodyId}
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
-                className="flex min-h-11 w-full items-center gap-2 text-left"
+                className="flex min-h-9 w-full items-center gap-2 text-left"
               >
                 <span className="min-w-0 flex-1">{title}</span>
                 {toggleLabel ? <span className="text-sm font-medium text-muted-foreground">{toggleLabel}</span> : null}
@@ -90,14 +90,14 @@ export function SettingsSection({
           </h2>
 
           {description ? (
-            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground sm:text-sm">{description}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-4 text-muted-foreground sm:text-sm sm:leading-5">{description}</p>
           ) : null}
         </div>
         {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
 
       {isOpen && children != null ? (
-        <div id={collapsible ? bodyId : undefined} className={cn(collapsible && "border-t border-border/70 pt-4")}>
+        <div id={collapsible ? bodyId : undefined} className={cn(collapsible && "border-t border-border/70 pt-3")}>
           {children}
         </div>
       ) : null}

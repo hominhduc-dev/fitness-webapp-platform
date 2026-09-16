@@ -47,6 +47,7 @@ import { getAppBaseUrl } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
 
 const availableGoalValues = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"] as const
+type GoalValue = (typeof availableGoalValues)[number]
 const DEFAULT_DAILY_CALORIE_GOAL = 2500
 const MIN_DAILY_CALORIE_GOAL = 500
 const MAX_DAILY_CALORIE_GOAL = 10000
@@ -79,6 +80,10 @@ function convertWeightToKg(weight: number, unit: "kg" | "lbs") {
 function formatNumericInput(value: number, fractionDigits = 1) {
   const rounded = Number(value.toFixed(fractionDigits))
   return Number.isInteger(rounded) ? String(rounded) : String(rounded)
+}
+
+function isGoalValue(value: string): value is GoalValue {
+  return availableGoalValues.includes(value as GoalValue)
 }
 
 function readFileAsDataUrl(file: File) {
@@ -119,6 +124,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const previousWeightUnitRef = useRef<"kg" | "lbs">("kg")
   const [name, setName] = useState("")
+  const [username, setUsername] = useState("")
   const [phone, setPhone] = useState("")
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
   const [preferredWeightUnit, setPreferredWeightUnit] = useState<"kg" | "lbs">("kg")
@@ -164,6 +170,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     const nextWeightUnit = profile.preferredWeightUnit ?? "kg"
     previousWeightUnitRef.current = nextWeightUnit
     setName(profile.name)
+    setUsername(profile.username ?? "")
     setPhone(profile.phone ?? "")
     setSelectedGoals(profile.fitnessGoals ?? [])
     setPreferredWeightUnit(nextWeightUnit)
@@ -355,12 +362,14 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
         preferredWeightUnit,
         sex: sex === "" ? null : sex,
         targetWeightKg: parsedTargetWeightKg,
+        username: username.trim() || null,
       })
 
       if (updatedProfile) {
         const nextWeightUnit = updatedProfile.preferredWeightUnit ?? "kg"
         previousWeightUnitRef.current = nextWeightUnit
         setName(updatedProfile.name)
+        setUsername(updatedProfile.username ?? "")
         setPhone(updatedProfile.phone ?? "")
         setSelectedGoals(updatedProfile.fitnessGoals ?? [])
         setPreferredWeightUnit(nextWeightUnit)
@@ -486,17 +495,28 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     resetConfirmation.trim().toUpperCase() === messages.profile.resetDataConfirmationWord.toUpperCase()
 
   const isTrainee = profile.role === "trainee"
-  const primaryGoal = availableGoalValues.find((goal) => selectedGoals.includes(goal))
   const sexSummary = sex === "male" ? messages.profile.sexMale : sex === "female" ? messages.profile.sexFemale : null
   const bodySummary = [
     heightCm ? `${heightCm} cm` : null,
     currentWeight ? `${currentWeight} ${preferredWeightUnit}` : null,
     sexSummary,
   ].filter(Boolean).join(" • ")
+  const selectedGoalValues = selectedGoals.filter(isGoalValue)
+  const summaryChipClassName = "inline-flex max-w-full items-center rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium leading-4 text-primary"
+  const renderSaveSectionButton = () => (
+    <Button
+      className="mt-3 h-10 w-full gap-2 rounded-xl sm:w-auto"
+      onClick={() => void handleSave()}
+      disabled={isSaving || isResettingData}
+    >
+      {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+      {isSaving ? messages.common.saving : messages.common.saveChanges}
+    </Button>
+  )
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-5 md:px-6 md:pt-7">
-      <div className="mb-5 text-center">
+      <div className="mb-5 text-left">
         <h1 className="text-2xl font-semibold tracking-[-0.025em] md:text-3xl">{messages.profile.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{messages.profile.subtitle}</p>
       </div>
@@ -512,7 +532,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             }
             headerVisual={
               <div className="relative shrink-0">
-                <Avatar className="size-16 border-2 border-primary/20 sm:size-20">
+                <Avatar className="size-14 border-2 border-primary/20 sm:size-16">
                   <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
                   <AvatarFallback className="bg-primary-soft text-xl text-primary sm:text-2xl">{initials || "YB"}</AvatarFallback>
                 </Avatar>
@@ -553,6 +573,15 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             <SettingsFieldGrid>
               <SettingsField htmlFor="name" label={messages.profile.fullName}>
                 <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+              </SettingsField>
+
+              <SettingsField htmlFor="username" label={messages.profile.username}>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder={messages.profile.usernamePlaceholder}
+                />
               </SettingsField>
 
               <SettingsField htmlFor="phone" label={messages.profile.phone}>
@@ -618,20 +647,25 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                 </Select>
               </SettingsField>
             </SettingsFieldGrid>
+            {renderSaveSectionButton()}
           </SettingsSection>
 
           {isTrainee ? (
             <SettingsSection
               collapsible
-              description={messages.profile.fitnessGoalsCopy}
+              description={selectedGoalValues.length > 0 ? null : messages.profile.fitnessGoalsCopy}
               icon={Trophy}
               id={SECTION_IDS.goals}
-              title={messages.profile.fitnessGoals}
-              trailing={primaryGoal ? (
-                <span className="hidden rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary sm:inline-flex">
-                  {goalLabels[primaryGoal]}
+              title={
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>{messages.profile.fitnessGoals}</span>
+                  {selectedGoalValues.map((goal) => (
+                    <span key={goal} className={summaryChipClassName}>
+                      {goalLabels[goal]}
+                    </span>
+                  ))}
                 </span>
-              ) : null}
+              }
             >
               <div className="flex flex-wrap gap-2">
                 {availableGoalValues.map((goal) => {
@@ -655,16 +689,21 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                   )
                 })}
               </div>
+              {renderSaveSectionButton()}
             </SettingsSection>
           ) : null}
 
           <SettingsSection
             collapsible
-            description={messages.profile.unitsSummary}
+            description={null}
             icon={SlidersHorizontal}
             id={SECTION_IDS.preferences}
-            title={messages.profile.unitsAndMeasurements}
-            trailing={<span className="hidden text-xs text-muted-foreground sm:inline">{preferredWeightUnit}, cm, kcal</span>}
+            title={
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <span>{messages.profile.unitsAndMeasurements}</span>
+                <span className={summaryChipClassName}>{preferredWeightUnit}, cm, kcal</span>
+              </span>
+            }
           >
             <SettingsFieldGrid>
               <SettingsField htmlFor="weight-unit" hint={messages.profile.weightUnitCopy} label={messages.profile.weightUnit}>
@@ -689,16 +728,21 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                 <ThemeToggle variant="select" className="bg-transparent" />
               </SettingsField>
             </SettingsFieldGrid>
+            {renderSaveSectionButton()}
           </SettingsSection>
 
           {isTrainee ? (
             <SettingsSection
               collapsible
-              defaultOpen
-              description={bodySummary || messages.profile.bodyAndNutritionCopy}
+              description={bodySummary ? null : messages.profile.bodyAndNutritionCopy}
               icon={Scale}
               id={SECTION_IDS.body}
-              title={messages.profile.bodyAndNutrition}
+              title={
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>{messages.profile.bodyAndNutrition}</span>
+                  {bodySummary ? <span className={summaryChipClassName}>{bodySummary}</span> : null}
+                </span>
+              }
             >
               <SettingsFieldGrid>
                 <SettingsField htmlFor="height-cm" hint={messages.profile.heightCopy} label={`${messages.profile.height} (cm)`}>
@@ -811,6 +855,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                   </Select>
                 </SettingsField>
               </SettingsFieldGrid>
+              {renderSaveSectionButton()}
             </SettingsSection>
           ) : null}
 
@@ -869,12 +914,12 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           {isTrainee ? (
             <SettingsSection
               collapsible
-              description={messages.profile.resetDataCopy}
               icon={AlertTriangle}
               id={SECTION_IDS.resetData}
               title={messages.profile.resetData}
               tone="danger"
             >
+              <p className="mb-3 text-xs leading-5 text-muted-foreground">{messages.profile.resetDataCopy}</p>
               <div className="space-y-2">
                 <Label htmlFor="reset-trainee-data">{messages.profile.resetDataConfirmationLabel}</Label>
                 <Input
@@ -902,15 +947,6 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               </Button>
             </SettingsSection>
           ) : null}
-
-          <Button
-            className="h-12 w-full gap-2 rounded-2xl"
-            onClick={() => void handleSave()}
-            disabled={isSaving || isResettingData}
-          >
-            {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            {isSaving ? messages.common.saving : messages.common.saveChanges}
-          </Button>
 
           <Button
             type="button"

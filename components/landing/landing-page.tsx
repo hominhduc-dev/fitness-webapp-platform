@@ -106,7 +106,7 @@ function TopBar() {
             width={30}
             height={30}
             alt=""
-            className="rounded-lg"
+            className="rounded-none"
           />
           <span className="text-lg">
             YeahBuddy<span className="text-primary">.</span>

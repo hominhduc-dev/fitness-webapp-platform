@@ -50,6 +50,7 @@ type ProfileUpdateInput = {
   preferredWeightUnit?: string | null
   sex?: string | null
   targetWeightKg?: number | null
+  username?: string | null
 }
 
 const USERNAME_PATTERN = /^(?=.{3,30}$)[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$/
@@ -1120,6 +1121,7 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
     ? updates.fitnessGoals.map((goal) => goal.trim()).filter(Boolean)
     : profile.fitnessGoals
   const hasPhoneUpdate = updates.phone !== undefined
+  const hasUsernameUpdate = updates.username !== undefined
   const hasDailyCalorieGoalUpdate = updates.dailyCalorieGoal !== undefined
   const hasHeightUpdate = updates.heightCm !== undefined
   const hasWeightUnitUpdate = updates.preferredWeightUnit !== undefined
@@ -1129,6 +1131,11 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
       ? null
       : normalizePhoneNumber(updates.phone)
     : profile.phone
+  const nextUsername = hasUsernameUpdate
+    ? updates.username === null || updates.username?.trim() === ""
+      ? null
+      : normalizeUsername(updates.username)
+    : profile.username
   const nextDailyCalorieGoal = hasDailyCalorieGoalUpdate
     ? normalizeDailyCalorieGoal(updates.dailyCalorieGoal)
     : profile.dailyCalorieGoal
@@ -1187,6 +1194,24 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
     }
   }
 
+  if (nextUsername) {
+    const existingUsernameOwner = await db.user.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        id: {
+          not: profile.id,
+        },
+        username: nextUsername,
+      },
+    })
+
+    if (existingUsernameOwner) {
+      throw new AuthServiceError("Username này đã được sử dụng.")
+    }
+  }
+
   const updatedProfile = await db.user.update({
     data: {
       activityLevel: nextActivityLevel,
@@ -1203,6 +1228,7 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
       preferredWeightUnit: nextWeightUnit,
       sex: nextSex,
       targetWeightKg: nextTargetWeightKg,
+      username: nextUsername,
     },
     where: {
       id: profile.id,
@@ -1222,6 +1248,7 @@ async function applyProfileUpdates(authUser: SupabaseUser, profile: AppUser, upd
         phone: nextPhone ?? undefined,
         preferredWeightUnit: nextWeightUnit,
         targetWeightKg: nextTargetWeightKg,
+        username: nextUsername,
       },
     })
 

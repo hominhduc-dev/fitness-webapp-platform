@@ -38,7 +38,7 @@ export function AppLoadingScreen({
     >
       <div className={cn("w-full", isMinimal ? "max-w-[280px]" : "max-w-[440px]")}>
         <div className={cn("flex items-center justify-center gap-2.5", isMinimal ? "mb-6" : "mb-8")}>
-          <BrandLogo markClassName="size-9 rounded-xl" textClassName="text-2xl leading-none" />
+          <BrandLogo markClassName="size-9 rounded-none" textClassName="text-2xl leading-none" />
         </div>
 
         <div className={cn("h-1 overflow-hidden rounded-full bg-primary-soft", isMinimal ? "mb-4" : "mb-5")}>
