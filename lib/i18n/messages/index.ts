@@ -6,6 +6,7 @@ import { commonMessages } from "@/lib/i18n/messages/common"
 import { dashboardMessages } from "@/lib/i18n/messages/dashboard"
 import { landingMessages } from "@/lib/i18n/messages/landing"
 import { mealsMessages } from "@/lib/i18n/messages/meals"
+import { notificationsMessages } from "@/lib/i18n/messages/notifications"
 import { offlineMessages } from "@/lib/i18n/messages/offline"
 import { profileMessages } from "@/lib/i18n/messages/profile"
 import { progressMessages } from "@/lib/i18n/messages/progress"
@@ -34,6 +35,7 @@ const enMessages = {
   ...profileMessages.en,
   ...coachMessages.en,
   ...adminMessages.en,
+  ...notificationsMessages.en,
   ...offlineMessages.en,
 }
 
@@ -52,6 +54,7 @@ const viMessages: AppMessages = {
   ...profileMessages.vi,
   ...coachMessages.vi,
   ...adminMessages.vi,
+  ...notificationsMessages.vi,
   ...offlineMessages.vi,
 }
 

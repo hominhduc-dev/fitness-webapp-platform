@@ -539,11 +539,15 @@ type CoachExerciseImportRequest = {
 type AppNotificationType =
   | "check_in_reminder"
   | "coach_request"
+  | "coach_weekly_review"
   | "general"
   | "meal_reminder"
   | "program_assigned"
+  | "program_updated"
+  | "weight_reminder"
   | "workout_logged"
   | "workout_reminder"
+  | "workout_session_open"
 
 type AppNotificationStatus = "cancelled" | "failed" | "pending" | "sent"
 
@@ -564,6 +568,38 @@ type AppNotification = {
 type NotificationList = {
   notifications: AppNotification[]
   unreadCount: number
+}
+
+/** Days use 0 = Sunday … 6 = Saturday; times are local `HH:mm` in `timeZone`. */
+type NotificationMealType = "breakfast" | "dinner" | "lunch" | "snack"
+
+type TimedReminderSetting = {
+  enabled: boolean
+  time: string
+}
+
+type NotificationPreferences = {
+  coachProgramUpdates: boolean
+  /** Coaches: end-of-week nudge to review trainees. `day` is 0 = Sunday … 6 = Saturday. */
+  coachWeeklyReview: TimedReminderSetting & { day: number }
+  dailyCheckIn: TimedReminderSetting
+  mealReminders: Record<NotificationMealType, TimedReminderSetting>
+  timeZone: string
+  weightReminder: TimedReminderSetting & { days: number[] }
+  /** Sent `offsetMinutes` (15/30/60) before `time` on days with a scheduled workout. */
+  workoutReminder: TimedReminderSetting & { offsetMinutes: number }
+  workoutSessionReminders: boolean
+}
+
+type NotificationPreferencesInput = {
+  coachProgramUpdates?: boolean
+  coachWeeklyReview?: Partial<NotificationPreferences["coachWeeklyReview"]>
+  dailyCheckIn?: Partial<TimedReminderSetting>
+  mealReminders?: Partial<Record<NotificationMealType, Partial<TimedReminderSetting>>>
+  timeZone?: string
+  weightReminder?: Partial<NotificationPreferences["weightReminder"]>
+  workoutReminder?: Partial<NotificationPreferences["workoutReminder"]>
+  workoutSessionReminders?: boolean
 }
 
 type VolumeZone = "above_mrv" | "below_mev" | "insufficient_data" | "mav" | "mev_to_mav" | "near_mrv"
@@ -725,6 +761,9 @@ export type {
   MealHistoryPage,
   MealCollection,
   NotificationList,
+  NotificationMealType,
+  NotificationPreferences,
+  NotificationPreferencesInput,
   ProgressAnalytics,
   ProgressAnalyticsSummary,
   ProgressCalendar,
