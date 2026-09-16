@@ -15,43 +15,43 @@
       "short_name": "Workout",
       "description": "Log a workout session",
       "url": "/workout",
-      "icons": [{ "src": "/favicon-yeahbuddy/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
     },
     {
       "name": "Log Meal",
       "short_name": "Meals",
       "description": "Track your nutrition",
       "url": "/meals",
-      "icons": [{ "src": "/favicon-yeahbuddy/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
     },
     {
       "name": "Progress",
       "short_name": "Progress",
       "description": "View your fitness progress",
       "url": "/progress",
-      "icons": [{ "src": "/favicon-yeahbuddy/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
     },
     {
       "name": "Schedule",
       "short_name": "Schedule",
       "description": "View your weekly schedule",
       "url": "/schedule",
-      "icons": [{ "src": "/favicon-yeahbuddy/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+      "icons": [{ "src": "/android-icon-96x96.png", "sizes": "96x96", "type": "image/png" }]
     }
   ],
   "icons": [
     {
-      "src": "/favicon-yeahbuddy/favicon-96x96.png",
+      "src": "/favicon-96x96.png",
       "sizes": "96x96",
       "type": "image/png"
     },
     {
-      "src": "/favicon-yeahbuddy/android-icon-144x144.png",
+      "src": "/android-icon-144x144.png",
       "sizes": "144x144",
       "type": "image/png"
     },
     {
-      "src": "/favicon-yeahbuddy/android-icon-192x192.png",
+      "src": "/android-icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"

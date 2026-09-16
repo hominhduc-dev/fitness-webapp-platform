@@ -163,6 +163,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
       { url: "/favicon-yeahbuddy/favicon.ico" },
       { url: "/favicon-yeahbuddy/favicon-16x16.png", sizes: "16x16", type: "image/png" },
       { url: "/favicon-yeahbuddy/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -170,6 +174,8 @@ export const metadata: Metadata = {
       { url: "/favicon-yeahbuddy/android-icon-192x192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/apple-touch-icon-precomposed.png", sizes: "180x180", type: "image/png" },
       { url: "/favicon-yeahbuddy/apple-icon-57x57.png", sizes: "57x57", type: "image/png" },
       { url: "/favicon-yeahbuddy/apple-icon-60x60.png", sizes: "60x60", type: "image/png" },
       { url: "/favicon-yeahbuddy/apple-icon-72x72.png", sizes: "72x72", type: "image/png" },
@@ -180,14 +186,14 @@ export const metadata: Metadata = {
       { url: "/favicon-yeahbuddy/apple-icon-152x152.png", sizes: "152x152", type: "image/png" },
       { url: "/favicon-yeahbuddy/apple-icon-180x180.png", sizes: "180x180", type: "image/png" },
     ],
-    shortcut: "/favicon-yeahbuddy/favicon.ico",
+    shortcut: ["/favicon.ico", "/favicon-yeahbuddy/favicon.ico"],
   },
   manifest: "/manifest.json",
   category: "health & fitness",
   // Windows tiles (msapplication) — favicon set referenced via browserconfig
   other: {
     "msapplication-TileColor": "#e8ecf3",
-    "msapplication-TileImage": "/favicon-yeahbuddy/ms-icon-144x144.png",
+    "msapplication-TileImage": "/ms-icon-144x144.png",
     "msapplication-config": "/browserconfig.xml",
   },
   // -- iOS "Add to Home Screen" — run fullscreen like a native app -----
