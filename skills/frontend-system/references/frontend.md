@@ -399,6 +399,8 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 
 ### Dashboard trainee
 
+- Dashboard và Routine dùng `scheduleEntries` từ cùng bộ dựng lịch backend: buổi recurring chưa hoàn thành dời về ngày trống từ hôm nay trong tuần hiện tại, buổi có ngày cố định giữ nguyên. Week Strip và Next Workout không suy lại từ `scheduledDay`. Start từ lịch hiệu lực truyền `logDate` là ngày thực tế; `plannedDate` vẫn theo lịch gốc. TodayWorkout ưu tiên session đang tập trong danh sách workout hiện hành; buổi hoàn thành dẫn về lịch để review.
+
 - Thứ tự phone: greeting → `WeekStrip` → `CheckInPrompt` (ẩn khi đã check-in hôm nay theo giờ Việt Nam) → `ReadinessCard` → `QuickActions` → `TodayWorkout` → `WeeklyProgressCard` → nutrition, muscle volume, recent activity → quote. Brand/account header thuộc shell.
 - Từ `lg`, `dashboard-overview-client.tsx` dùng grid ba cột theo ma trận dashboard: workout chiếm hai hàng bên trái; readiness trên weekly progress ở giữa; nutrition trên recent activity bên phải; weekly muscle volume trải hai cột trái ở hàng cuối. Vị trí `order` riêng dưới `lg` giữ reading order mobile mà không duplicate component/query.
 - Nội dung phụ thuộc giờ/ngày của người xem (lời chào, dải ngày) đọc qua `useSyncExternalStore` với server snapshot `null`, để markup SSR không mang timezone của server.

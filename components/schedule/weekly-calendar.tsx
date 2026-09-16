@@ -636,7 +636,7 @@ function DayCard({
             </Button>
           ) : entry.isToday ? (
             <Button asChild size="sm" className="mt-auto">
-              <Link href={`/workout/${workout.id}/start`}>
+              <Link href={`/workout/${workout.id}/start?logDate=${getDateKey(entry.date)}`}>
                 <Play className="h-3.5 w-3.5 fill-current" />
                 {entry.log && !entry.log.completedAt ? messages.schedule.resume : messages.workoutPage.start}
               </Link>

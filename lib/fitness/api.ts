@@ -1113,6 +1113,7 @@ async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData
       dailyNutrition: SerializedDailyNutrition
       recentLogs: SerializedWorkoutLog[]
       schedule: Record<number, SerializedWorkout | null>
+      scheduleEntries?: SerializedWorkoutScheduleEntry[]
       todayWorkout: SerializedWorkout | null
       weekStats: TraineeDashboardData["weekStats"]
       workouts: SerializedWorkout[]
@@ -1125,6 +1126,7 @@ async function fetchDashboard(accessToken: string): Promise<TraineeDashboardData
     schedule: Object.fromEntries(
       Object.entries(response.dashboard.schedule).map(([day, workout]) => [Number(day), workout ? mapWorkout(workout) : null]),
     ) as Record<number, Workout | null>,
+    scheduleEntries: (response.dashboard.scheduleEntries ?? []).map(mapWorkoutScheduleEntry),
     todayWorkout: response.dashboard.todayWorkout ? mapWorkout(response.dashboard.todayWorkout) : null,
     weekStats: response.dashboard.weekStats,
     workouts: response.dashboard.workouts.map(mapWorkout),
