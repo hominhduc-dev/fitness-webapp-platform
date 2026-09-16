@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 
+import { OfflineSyncManager } from "@/components/offline/offline-sync-manager"
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { LocaleProvider } from "@/components/providers/locale-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
@@ -35,7 +36,12 @@ export function AppProviders({
         <LocaleProvider initialLocale={initialLocale}>
           {/* Inside LocaleProvider: the dismiss label is translated. */}
           <ToastProvider>
-            {withAuth ? <AuthProvider initialProfile={initialProfile}>{children}</AuthProvider> : children}
+            {withAuth ? (
+              <AuthProvider initialProfile={initialProfile}>
+                <OfflineSyncManager />
+                {children}
+              </AuthProvider>
+            ) : children}
           </ToastProvider>
         </LocaleProvider>
       </ThemeProvider>

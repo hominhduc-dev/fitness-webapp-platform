@@ -5,7 +5,9 @@ import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
-import { useActiveWorkoutSessions, useDeleteWorkoutSessionDraft } from "@/lib/queries/workouts"
+import { useAuth } from "@/components/providers/auth-provider"
+import { queueWorkoutSessionDraftDelete } from "@/lib/offline/workout-log-queue"
+import { useActiveWorkoutSessions } from "@/lib/queries/workouts"
 import { cn } from "@/lib/utils"
 import {
   type ActiveWorkoutSession,
@@ -46,7 +48,7 @@ export function ResumeWorkoutCard() {
   const router = useRouter()
   const pathname = usePathname()
   const activeSessionsQuery = useActiveWorkoutSessions()
-  const deleteDraftMutation = useDeleteWorkoutSessionDraft()
+  const { profile } = useAuth()
   const [session, setSession] = useState<ActiveWorkoutSession | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [visible, setVisible] = useState(false)
@@ -101,7 +103,8 @@ export function ResumeWorkoutCard() {
 
   const handleDiscard = () => {
     clearStoredWorkoutSession(session.workoutId)
-    void deleteDraftMutation.mutateAsync(session.workoutId).catch(() => undefined)
+    // Queued so discarding works offline; the server draft goes on the next sync.
+    if (profile?.id) void queueWorkoutSessionDraftDelete(profile.id, session.workoutId).catch(() => undefined)
     setVisible(false)
     setSession(null)
   }

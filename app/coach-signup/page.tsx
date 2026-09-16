@@ -25,6 +25,7 @@ export const metadata: Metadata = {
       "Build programs, assign them to clients, and follow every trainee's progress in one workspace. Coach accounts are reviewed before activation.",
     url: "/coach-signup",
     type: "website",
+    images: ["/og-image.png"],
   },
   alternates: {
     canonical: "/coach-signup",

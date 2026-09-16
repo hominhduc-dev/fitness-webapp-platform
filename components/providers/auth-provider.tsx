@@ -12,6 +12,7 @@ import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { useCurrentProfile, useUpdateProfile, useUploadAvatar } from "@/lib/queries/profile"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { queryKeys } from "@/lib/queries/keys"
+import { clearOfflineUserData } from "@/lib/offline/user-data"
 
 type AuthContextValue = {
   isLoading: boolean
@@ -24,6 +25,14 @@ type AuthContextValue = {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+
+/**
+ * An access token that expired while offline cannot be refreshed, so Supabase
+ * reports no session. Without network that is not a sign-out.
+ */
+function isOfflineAuthGap(session: Session | null, initialProfile: AppProfile | null) {
+  return !session && Boolean(initialProfile) && typeof navigator !== "undefined" && navigator.onLine === false
+}
 
 export function AuthProvider({
   children,
@@ -48,6 +57,8 @@ export function AuthProvider({
   const syncProfile = useCallback(async function syncProfile(nextSession: Session | null) {
     const account = nextSession?.user.id ?? null
     if (accountRef.current !== account) {
+      // A first sign-in (no previous account) keeps what was cached offline for it.
+      if (accountRef.current) void clearOfflineUserData()
       accountRef.current = account
       revisionRef.current += 1
       queryClient.clear()
@@ -122,6 +133,20 @@ export function AuthProvider({
         return
       }
 
+      if (isOfflineAuthGap(initialSession, initialProfile)) {
+        // Keep the server-rendered profile (from the offline page cache) so a
+        // workout can still be logged. The session arrives as TOKEN_REFRESHED
+        // once Supabase is reachable again.
+        accountRef.current = initialProfile?.supabaseAuthUserId ?? null
+        startTransition(() => {
+          setSession(null)
+          setProfile(initialProfile)
+          setIsLoading(false)
+        })
+
+        return
+      }
+
       if (initialSession?.access_token && initialProfile) {
         if (initialProfile.supabaseAuthUserId && initialProfile.supabaseAuthUserId !== initialSession.user.id) {
           await syncProfile(initialSession)
@@ -154,6 +179,11 @@ export function AuthProvider({
         return
       }
 
+      // Handled by bootstrap above; treating it as a sign-out would wipe the profile.
+      if (event === "INITIAL_SESSION" && isOfflineAuthGap(nextSession, initialProfile)) {
+        return
+      }
+
       if (event === "INITIAL_SESSION" && nextSession?.access_token && initialProfile) {
         if (initialProfile.supabaseAuthUserId && initialProfile.supabaseAuthUserId !== nextSession.user.id) {
           setTimeout(() => { if (!cancelled) void syncProfile(nextSession) }, 0)
@@ -171,6 +201,7 @@ export function AuthProvider({
 
       // Do not enter Supabase getSession from inside its auth callback lock.
       if (accountRef.current !== (nextSession?.user.id ?? null)) {
+        if (accountRef.current) void clearOfflineUserData()
         revisionRef.current += 1
         accountRef.current = nextSession?.user.id ?? null
         queryClient.clear()
@@ -261,6 +292,7 @@ export function AuthProvider({
     revisionRef.current += 1
     accountRef.current = null
     queryClient.clear()
+    await clearOfflineUserData()
     const supabase = getOptionalBrowserSupabaseClient()
 
     if (supabase) {

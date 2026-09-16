@@ -92,6 +92,12 @@ describe("createWorkoutLogSchema", () => {
   it("bounds the exercise payload", () => {
     expect(createWorkoutLogSchema.safeParse({ exercises: Array(101).fill({}) }).success).toBe(false)
   })
+
+  it("accepts an optional UUID idempotency key and rejects anything else", () => {
+    expect(createWorkoutLogSchema.parse({}).clientLogId).toBeUndefined()
+    expect(createWorkoutLogSchema.safeParse({ clientLogId: "0b7f9a3e-5c1d-4e8a-9f2b-6d4c3a2b1e0f" }).success).toBe(true)
+    expect(createWorkoutLogSchema.safeParse({ clientLogId: "log-1" }).success).toBe(false)
+  })
 })
 
 describe("swapExerciseSchema", () => {

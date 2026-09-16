@@ -4059,6 +4059,7 @@ async function createWorkoutLogForTrainee(
   profile: SerializedProfile,
   workoutId: string,
   input: {
+    clientLogId?: string
     completedAt?: string | null
     exercises: ReturnType<typeof serializeWorkout>["exercises"]
     notes?: string | null
@@ -4068,6 +4069,21 @@ async function createWorkoutLogForTrainee(
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
+
+  // An offline queue replays a log whose first response may have been lost.
+  // Checked before the workout lookup so a replay still resolves after the
+  // workout itself was deleted.
+  const findReplayedLog = async () => input.clientLogId
+    ? db.workoutLog.findUnique({
+        include: WORKOUT_LOG_INCLUDE,
+        where: { userId_clientLogId: { clientLogId: input.clientLogId, userId: profile.id } },
+      })
+    : null
+  const replayedLog = await findReplayedLog()
+  if (replayedLog) {
+    return serializeWorkoutLog(replayedLog as WorkoutLogRecord)
+  }
+
   const workout = await db.workout.findFirst({
     include: WORKOUT_INCLUDE,
     where: {
@@ -4119,9 +4135,10 @@ async function createWorkoutLogForTrainee(
   // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
   // round-trips over PgBouncer); retryTransaction still guards against transient
   // connection resets.
-  const log = await retryTransaction(() =>
+  const createLog = () => retryTransaction(() =>
     db.workoutLog.create({
       data: {
+        clientLogId: input.clientLogId,
         completedAt,
         exerciseSnapshot: enrichedSnapshot as Prisma.InputJsonValue,
         notes: input.notes?.trim() || undefined,
@@ -4145,6 +4162,20 @@ async function createWorkoutLogForTrainee(
       include: WORKOUT_LOG_INCLUDE,
     }),
   )
+
+  let log: Awaited<ReturnType<typeof createLog>>
+  try {
+    log = await createLog()
+  } catch (error) {
+    // Two replays of the same queued log raced past the lookup above; the
+    // loser returns the winner's row. Its coach notification already went out.
+    const isDuplicateReplay = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+    const winner = isDuplicateReplay ? await findReplayedLog() : null
+    if (winner) {
+      return serializeWorkoutLog(winner as WorkoutLogRecord)
+    }
+    throw error
+  }
 
   // The coach notification is non-critical: send it after the log is saved so the
   // trainee's request returns immediately, and never fail the log if it errors.

@@ -455,6 +455,8 @@ type CreateWorkoutInput = {
 }
 
 type WorkoutLogInput = {
+  /** Idempotency key; the offline queue replays a log under the same id. */
+  clientLogId?: string
   completedAt?: string
   exercises: Workout["exercises"]
   notes?: string

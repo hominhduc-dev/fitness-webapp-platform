@@ -556,7 +556,7 @@ async function request<T>(path: string, accessToken: string, init?: RequestInit 
   try {
     response = await fetch(`${getApiBaseUrl()}${path}`, fetchOptions)
   } catch {
-    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503)
+    throw new ApiError("Unable to reach the API server. Make sure the backend is running.", 503, { isNetworkError: true })
   }
 
   return parseJson<T>(response)
