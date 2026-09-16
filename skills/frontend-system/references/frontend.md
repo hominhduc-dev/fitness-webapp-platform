@@ -213,7 +213,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 
 | Vai trò | Font/pattern |
 |---|---|
-| UI và headings | Geist, weights 300–700, `font-sans` |
+| UI và headings | Geist, weights 400–700, `font-sans` |
 | Số liệu, timer, metadata | Geist Mono, weights 400–600, `font-mono` |
 | Micro label | `.label-micro`: Mono 11px, 500, uppercase, tracking `0.08em` |
 
