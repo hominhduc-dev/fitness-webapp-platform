@@ -12,6 +12,7 @@ import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { useCurrentProfile, useUpdateProfile, useUploadAvatar } from "@/lib/queries/profile"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { queryKeys } from "@/lib/queries/keys"
+import { clearOfflineUserData } from "@/lib/offline/user-data"
 
 type AuthContextValue = {
   isLoading: boolean
@@ -48,6 +49,8 @@ export function AuthProvider({
   const syncProfile = useCallback(async function syncProfile(nextSession: Session | null) {
     const account = nextSession?.user.id ?? null
     if (accountRef.current !== account) {
+      // A first sign-in (no previous account) keeps what was cached offline for it.
+      if (accountRef.current) void clearOfflineUserData()
       accountRef.current = account
       revisionRef.current += 1
       queryClient.clear()
@@ -171,6 +174,7 @@ export function AuthProvider({
 
       // Do not enter Supabase getSession from inside its auth callback lock.
       if (accountRef.current !== (nextSession?.user.id ?? null)) {
+        if (accountRef.current) void clearOfflineUserData()
         revisionRef.current += 1
         accountRef.current = nextSession?.user.id ?? null
         queryClient.clear()
@@ -261,6 +265,7 @@ export function AuthProvider({
     revisionRef.current += 1
     accountRef.current = null
     queryClient.clear()
+    await clearOfflineUserData()
     const supabase = getOptionalBrowserSupabaseClient()
 
     if (supabase) {

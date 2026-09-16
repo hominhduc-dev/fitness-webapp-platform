@@ -39,6 +39,16 @@ const nextConfig = {
       "@radix-ui/react-tabs",
     ],
   },
+  async headers() {
+    return [
+      {
+        // Browsers only pick up a new worker when they refetch this file, so it
+        // must never be served from the HTTP cache.
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+    ]
+  },
   async rewrites() {
     return [
       {

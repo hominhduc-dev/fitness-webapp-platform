@@ -4,6 +4,7 @@ import Script from "next/script"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar"
 import { LiquidGlassFilters } from "@/components/ui/liquid-glass-filters"
 import { defaultLocale } from "@/lib/i18n/config"
 import "./globals.css"
@@ -223,6 +224,7 @@ export default function RootLayout({
       </head>
       <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         <LiquidGlassFilters />
+        <ServiceWorkerRegistrar />
         {children}
         {gaMeasurementId ? (
           <>
