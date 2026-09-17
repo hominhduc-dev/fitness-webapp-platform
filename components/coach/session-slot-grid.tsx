@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { GripVertical, Pencil, Plus, X } from "lucide-react"
+import { Bed, GripVertical, Pencil, Plus, X } from "lucide-react"
 import {
   DndContext,
   DragOverlay,
@@ -32,7 +32,7 @@ export type SessionTag = Exclude<RoutineTag, "all">
 export type SessionSlotView =
   | { kind: "rest" }
   | { kind: "empty" }
-  | { kind: "session"; exerciseCount: number; name: string; tag: SessionTag }
+  | { exerciseCount: number; exerciseNames?: string[]; kind: "session"; name: string; tag: SessionTag }
 
 /** Mouse and pen: a few pixels of travel, so a plain click still opens the day. */
 const POINTER_ACTIVATION = { distance: 8 }
@@ -87,6 +87,7 @@ const SessionSlotCard = memo(function SessionSlotCard({
 }) {
   const { messages } = useLocale()
   const isRest = view.kind === "rest"
+  const isSession = view.kind === "session"
 
   return (
     <div
@@ -106,10 +107,11 @@ const SessionSlotCard = memo(function SessionSlotCard({
       className={cn(
         // Transitions are listed rather than `all`: animating every property
         // would fight the transform dnd-kit drives while a card is in hand.
-        "group relative flex min-h-[108px] flex-col overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,opacity,transform] duration-200 ease-[cubic-bezier(.2,.7,.2,1)]",
+        "group relative flex h-full min-h-[180px] flex-col overflow-hidden rounded-2xl border bg-card p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,opacity,transform] duration-200 ease-[cubic-bezier(.2,.7,.2,1)] lg:min-h-[190px]",
         isRest
-          ? "border-dashed border-border/80 bg-background/20 hover:border-foreground/25 hover:bg-background/35"
-          : "border-border/80 bg-background/55 hover:border-foreground/20 hover:bg-background/75 hover:shadow-md",
+          ? "border-dashed border-border/80 bg-background/35 hover:border-foreground/25 hover:bg-background/50"
+          : "border-border/80 bg-background/65 hover:border-foreground/20 hover:bg-background/85 hover:shadow-md",
+        isSession && "border-l-4 border-l-primary",
         !isRest && !isOverlay && !isDragging && "hover:-translate-y-0.5",
         isOver && "border-primary/70 bg-primary-soft/40 ring-2 ring-primary/40",
         isDragging && "opacity-40",
@@ -124,34 +126,43 @@ const SessionSlotCard = memo(function SessionSlotCard({
         />
       ) : null}
 
-      <span className="flex items-center justify-between">
-        <span className="rounded-full bg-muted/70 px-2 py-1 font-mono text-micro font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-          {dayLabel}
-        </span>
-        <span className="flex items-center gap-0.5">
+      <span className="flex items-start justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
           {dragHandle}
+          <span className="rounded-full bg-muted/70 px-2 py-1 font-mono text-micro font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            {dayLabel}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1">
           {view.kind === "session" && onEdit ? (
-            <span
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
+              aria-label={messages.coach.editRoutineExercises}
               title={messages.coach.editRoutineExercises}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-all hover:border-border hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground/80 transition-all hover:border-border hover:bg-background hover:text-foreground"
               onClick={(event) => {
                 event.stopPropagation()
                 onEdit()
               }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onEdit()
-                }
-              }}
             >
               <Pencil className="h-3 w-3" />
-            </span>
+            </button>
           ) : null}
-          {!isRest && onToggleRest ? (
+          {view.kind === "session" && onToggleRest ? (
+            <button
+              type="button"
+              aria-label={messages.coach.markAsRestDay}
+              title={messages.coach.markAsRestDay}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground/80 transition-all hover:border-destructive-border hover:bg-destructive-soft hover:text-destructive-text"
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleRest()
+              }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          ) : null}
+          {view.kind === "empty" && onToggleRest ? (
             <span
               role="button"
               tabIndex={0}
@@ -176,18 +187,40 @@ const SessionSlotCard = memo(function SessionSlotCard({
       </span>
 
       {view.kind === "session" ? (
-        <span className="mt-4 min-w-0">
-          <span className="inline-flex items-center gap-1.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+        <span className="mt-5 flex min-w-0 flex-1 flex-col">
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold uppercase tracking-[0.04em] text-foreground">
             <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: TAG_DOT_COLOR[view.tag] }} />
-            {getTagLabel(view.tag, messages)}
+            {getTagLabel(view.tag, messages)} ({view.name})
           </span>
-          <span className="mt-2 block truncate text-sm font-semibold tracking-[-0.01em] text-foreground">{view.name}</span>
-          <span className="mt-1 block font-mono text-micro text-muted-foreground tnum">
+          <span className="mt-3 block font-mono text-sm text-muted-foreground tnum">
             {messages.coach.exerciseCount(view.exerciseCount)}
+          </span>
+          <span className="mt-3 block space-y-1 text-xs text-muted-foreground">
+            {(view.exerciseNames ?? []).slice(0, 3).map((exerciseName, index) => (
+              <span key={`${exerciseName}-${index}`} className="block truncate">
+                {index + 1}. {exerciseName}
+              </span>
+            ))}
+          </span>
+          <span className="mt-auto pt-3">
+            <span className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background/70 text-sm font-medium text-foreground transition-colors group-hover:bg-background">
+              <Plus className="h-4 w-4" />
+              Add exercise
+            </span>
           </span>
         </span>
       ) : isRest ? (
-        <span className="flex flex-1 items-center justify-center text-xs text-muted-foreground/50">{messages.coach.rest}</span>
+        <span className="flex flex-1 flex-col items-center justify-center text-center text-muted-foreground">
+          <Bed className="mb-3 h-7 w-7 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">{messages.coach.rest} day</span>
+          <span className="mt-1 max-w-[9rem] text-xs leading-relaxed">Recovery and come back stronger.</span>
+          <span className="mt-auto w-full pt-3">
+            <span className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background/70 text-sm font-medium text-foreground transition-colors group-hover:bg-background">
+              <Plus className="h-4 w-4" />
+              Add note
+            </span>
+          </span>
+        </span>
       ) : (
         <span className="flex flex-1 items-center justify-center text-muted-foreground">
           <Plus className="h-4 w-4" />
@@ -242,8 +275,8 @@ function SessionSlotCell({
   ) : null
 
   return (
-    <div ref={setDropRef}>
-      <div ref={setDragRef}>
+    <div ref={setDropRef} className="h-full">
+      <div ref={setDragRef} className="h-full">
         <SessionSlotCard
           dayLabel={dayLabel}
           dragHandle={dragHandle}
@@ -362,7 +395,7 @@ export function SessionSlotGrid({
       onDragStart={handleDragStart}
       sensors={sensors}
     >
-      <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-7", className)}>
+      <div className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-7", className)}>
         {views.map((view, dayIndex) => (
           <SessionSlotCell
             key={dayIndex}
