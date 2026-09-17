@@ -2323,7 +2323,7 @@ async function sendTestPush(accessToken: string) {
 // AI Generation
 // ---------------------------------------------------------------------------
 
-async function generateAIProgram(accessToken: string, input: {
+type AIProgramGenerationInput = {
   goal: string
   experienceLevel: string
   daysPerWeek: number
@@ -2332,37 +2332,54 @@ async function generateAIProgram(accessToken: string, input: {
   focusAreas?: string[]
   injuries?: string
   durationWeeks: number
-}) {
-  const response = await request<ApiEnvelope<{
-    generationId: string
-    program: {
+}
+
+type AIProgramGenerationResult = {
+  generationId: string
+  program: {
+    name: string
+    description: string
+    difficulty: string
+    duration: number
+    workoutsPerWeek: number
+    workouts: Array<{
       name: string
-      description: string
-      difficulty: string
+      kind: string
+      weekIndex: number
+      scheduledDay: number
       duration: number
-      workoutsPerWeek: number
-      workouts: Array<{
-        name: string
-        kind: string
-        weekIndex: number
-        scheduledDay: number
-        duration: number
-        exercises: Array<{
-          variationId: string
-          sets: number
-          reps: number
-          repsMin?: number
-          rir?: number
-          restTime?: number
-          weight?: number
-        }>
+      exercises: Array<{
+        variationId: string
+        sets: number
+        reps: number
+        repsMin?: number
+        rir?: number
+        restTime?: number
+        weight?: number
       }>
-    }
-    mappingRate: number
-  }>>("/api/ai/generate-program", accessToken, {
+    }>
+  }
+  mappingRate: number
+}
+
+async function generateAIProgram(accessToken: string, input: AIProgramGenerationInput) {
+  const response = await request<ApiEnvelope<AIProgramGenerationResult>>("/api/ai/generate-program", accessToken, {
     method: "POST",
     body: JSON.stringify(input),
   })
+
+  return response.data
+}
+
+async function generateCoachTraineeAIProgram(accessToken: string, traineeId: string, input: AIProgramGenerationInput) {
+  const response = await request<ApiEnvelope<AIProgramGenerationResult>>(
+    `/api/coach/trainees/${traineeId}/ai-program`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  )
 
   return response.data
 }
@@ -2372,6 +2389,19 @@ async function acceptAIProgram(accessToken: string, generationId: string) {
     method: "POST",
     body: JSON.stringify({ generationId }),
   })
+
+  return response.data
+}
+
+async function acceptCoachTraineeAIProgram(accessToken: string, traineeId: string, generationId: string) {
+  const response = await request<ApiEnvelope<unknown>>(
+    `/api/coach/trainees/${traineeId}/ai-program/accept`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({ generationId }),
+    },
+  )
 
   return response.data
 }
@@ -2551,6 +2581,7 @@ export {
   acceptAIDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
+  acceptCoachTraineeAIProgram,
   adjustCoachProgram,
   archiveCoachProgram,
   assignCoachProgram,
@@ -2606,6 +2637,7 @@ export {
   generateAIMealPlan,
   generateAIProgram,
   generateAIDailyWorkout,
+  generateCoachTraineeAIProgram,
   inviteTrainee,
   sendAIChatMessage,
   fetchNutritionDay,
@@ -2639,4 +2671,4 @@ export {
   upsertRecoveryCheckIn,
 }
 
-export type { AIDailyWorkout }
+export type { AIDailyWorkout, AIProgramGenerationInput, AIProgramGenerationResult }

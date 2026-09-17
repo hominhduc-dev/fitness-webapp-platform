@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
+import { CoachAIProgramAssistant } from "@/components/coach/coach-ai-program-assistant"
 import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useCoachData } from "@/lib/queries/coach-data"
@@ -202,7 +203,8 @@ export function CoachTraineeDetailClient({
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
   const assignProgram = useAssignCoachProgram()
   const unassignProgram = useUnassignCoachProgram()
-  const { data: detail = initialDetail, setData: setDetail } = useCoachData(queryKeys.coach.traineeDetail(initialDetail.trainee.id), (token) => fetchCoachTraineeDetail(token, initialDetail.trainee.id), initialDetail, true, 30_000)
+  const detailQuery = useCoachData(queryKeys.coach.traineeDetail(initialDetail.trainee.id), (token) => fetchCoachTraineeDetail(token, initialDetail.trainee.id), initialDetail, true, 30_000)
+  const { data: detail = initialDetail, setData: setDetail } = detailQuery
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [assignError, setAssignError] = useState<string | null>(null)
   const [assignNotice, setAssignNotice] = useState<string | null>(null)
@@ -440,6 +442,12 @@ export function CoachTraineeDetailClient({
             <RecentSessionsTable sessions={recentSessions} />
           </div>
         </div>
+
+        <CoachAIProgramAssistant
+          onAccepted={() => void detailQuery.refetch()}
+          traineeId={detail.trainee.id}
+          traineeName={detail.trainee.name}
+        />
 
         {/* Assigned programs */}
         <div className="rounded-lg border border-border p-5">

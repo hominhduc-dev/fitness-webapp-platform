@@ -30,8 +30,16 @@ export function useGenerateAIProgram() {
   return useAIMutation(api.generateAIProgram, [])
 }
 
+export function useGenerateCoachTraineeAIProgram() {
+  return useAIMutation(api.generateCoachTraineeAIProgram, [])
+}
+
 export function useAcceptAIProgram() {
   return useAIMutation(api.acceptAIProgram, [queryKeys.workouts.all, queryKeys.coach.all, queryKeys.progress.all])
+}
+
+export function useAcceptCoachTraineeAIProgram() {
+  return useAIMutation(api.acceptCoachTraineeAIProgram, [queryKeys.workouts.all, queryKeys.coach.all, queryKeys.progress.all])
 }
 
 export function useGenerateAIDailyWorkout() {

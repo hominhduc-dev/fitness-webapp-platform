@@ -1,4 +1,4 @@
-import { AIGenerationStatus, AIGenerationType, FoodSource, MealStatus, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
+import { AIGenerationStatus, AIGenerationType, FoodSource, MealStatus, UserRole, type Prisma, type ProgramDifficulty, type WorkoutKind } from "@prisma/client"
 import { randomUUID } from "crypto"
 import { generateValidatedJSON } from "../lib/ai/validated-generation"
 
@@ -193,9 +193,51 @@ function getEnglishWorkoutName(kind: string) {
 }
 
 async function generateWorkoutProgram(profile: SerializedProfile, input: GenerateProgramInput) {
+  return generateWorkoutProgramForSubject(profile, profile, input)
+}
+
+async function requireCoachTraineeProfile(coach: SerializedProfile, traineeId: string) {
+  if (coach.role !== UserRole.coach) {
+    throw new AuthServiceError("Chỉ coach mới có thể tạo program AI cho trainee.", 403)
+  }
+
+  const db = ensurePrisma()
+  const trainee = await db.user.findFirst({
+    where: {
+      coachId: coach.id,
+      id: traineeId,
+      role: UserRole.trainee,
+    },
+  })
+
+  if (!trainee) {
+    throw new AuthServiceError("Không tìm thấy trainee thuộc coach này.", 404)
+  }
+
+  return trainee as unknown as SerializedProfile
+}
+
+async function generateCoachTraineeWorkoutProgram(
+  coach: SerializedProfile,
+  traineeId: string,
+  input: GenerateProgramInput,
+) {
+  const trainee = await requireCoachTraineeProfile(coach, traineeId)
+  return generateWorkoutProgramForSubject(coach, trainee, input, {
+    coachGenerated: true,
+    traineeId,
+  })
+}
+
+async function generateWorkoutProgramForSubject(
+  owner: SerializedProfile,
+  subject: SerializedProfile,
+  input: GenerateProgramInput,
+  metadata?: Record<string, unknown>,
+) {
   input = parseAI(generateProgramSchema, input, 400)
   const db = ensurePrisma()
-  await checkRateLimit(profile.id, AIGenerationType.workout_program)
+  await checkRateLimit(owner.id, AIGenerationType.workout_program)
 
   if (input.daysPerWeek < 2 || input.daysPerWeek > 7) {
     throw new AuthServiceError("Số buổi tập mỗi tuần phải từ 2 đến 7.", 400)
@@ -213,7 +255,7 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
     where: {
       OR: [
         { createdById: null },
-        { createdById: profile.id },
+        { createdById: owner.id },
       ],
     },
     orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
@@ -222,7 +264,7 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
 
   const recentLogs = await db.workoutLog.findMany({
     where: {
-      userId: profile.id,
+      userId: subject.id,
       startedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
     },
     orderBy: { startedAt: "desc" },
@@ -249,7 +291,7 @@ async function generateWorkoutProgram(profile: SerializedProfile, input: Generat
       recentExerciseNames,
     },
   )
-  const recoveryContext = await buildRecoveryContext(db, profile, new Date())
+  const recoveryContext = await buildRecoveryContext(db, subject, new Date())
 
   const systemPrompt = `Bạn là một personal trainer AI chuyên nghiệp. Tạo chương trình tập luyện cá nhân hoá dựa trên thông tin người dùng.
 
@@ -263,12 +305,13 @@ QUY TẮC BẮT BUỘC:
 7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.
 8. Mọi bài tập BẮT BUỘC có sets (số nguyên 1-12) và reps (số nguyên 1-200). Tổng sets phải phù hợp thời lượng; không nhồi volume quá mức. repsMin chỉ là cận dưới tùy chọn, không thay thế reps.`
 
-  const weightInfo = profile.targetWeightKg
-    ? `Cân nặng mục tiêu: ${profile.targetWeightKg}kg`
+  const weightInfo = subject.targetWeightKg
+    ? `Cân nặng mục tiêu: ${subject.targetWeightKg}kg`
     : ""
-  const heightInfo = profile.heightCm ? `Chiều cao: ${profile.heightCm}cm` : ""
+  const heightInfo = subject.heightCm ? `Chiều cao: ${subject.heightCm}cm` : ""
 
   const userPrompt = `## Thông tin người dùng
+- Người được thiết kế program: ${subject.name}${owner.id !== subject.id ? ` (trainee của coach ${owner.name})` : ""}
 - Mục tiêu: ${GOAL_LABELS[input.goal] ?? input.goal}
 - Recovery / Readiness: ${recoveryContext?.content ?? "Chưa có dữ liệu phục hồi; không tự suy đoán."}
 - Trình độ: ${LEVEL_LABELS[input.experienceLevel] ?? input.experienceLevel}
@@ -312,10 +355,10 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
   const generation = await db.aIGeneration.create({
     data: {
       id: randomUUID(),
-      userId: profile.id,
+      userId: owner.id,
       type: AIGenerationType.workout_program,
       status: AIGenerationStatus.pending,
-      input: input as unknown as Prisma.InputJsonValue,
+      input: { ...input, ...(metadata ?? {}) } as unknown as Prisma.InputJsonValue,
     },
   })
 
@@ -414,6 +457,20 @@ function mapDifficulty(level: string): ProgramDifficulty {
 // ---------------------------------------------------------------------------
 
 async function acceptAIProgram(profile: SerializedProfile, generationId: string) {
+  return acceptAIProgramForAssignee(profile, profile.id, generationId)
+}
+
+async function acceptCoachTraineeAIProgram(coach: SerializedProfile, traineeId: string, generationId: string) {
+  await requireCoachTraineeProfile(coach, traineeId)
+  return acceptAIProgramForAssignee(coach, traineeId, generationId, { expectedTraineeId: traineeId })
+}
+
+async function acceptAIProgramForAssignee(
+  profile: SerializedProfile,
+  assigneeUserId: string,
+  generationId: string,
+  options?: { expectedTraineeId?: string },
+) {
   const db = ensurePrisma()
 
   const generation = await db.aIGeneration.findUnique({
@@ -430,6 +487,11 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
 
   if (generation.type !== AIGenerationType.workout_program) {
     throw new AuthServiceError("Kết quả AI không phải chương trình tập luyện.", 400)
+  }
+
+  const rawInput = generation.input as Record<string, unknown> | null
+  if (options?.expectedTraineeId && rawInput?.traineeId !== options.expectedTraineeId) {
+    throw new AuthServiceError("Draft AI này không thuộc trainee đang chọn.", 409)
   }
 
   const output = generation.output as { mode?: string; mapped: MappedProgramOutput } | null
@@ -463,7 +525,7 @@ async function acceptAIProgram(profile: SerializedProfile, generationId: string)
       await tx.programAssignment.create({
         data: {
           programId,
-          userId: profile.id,
+          userId: assigneeUserId,
         },
       })
 
@@ -1459,7 +1521,9 @@ export {
   acceptDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
+  acceptCoachTraineeAIProgram,
   chatWithAI,
+  generateCoachTraineeWorkoutProgram,
   generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
