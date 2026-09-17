@@ -239,10 +239,13 @@ type AdminDashboardData = {
 }
 
 type ExerciseSyncRow = {
+  activityType?: ExerciseActivityType
   id?: string
   exerciseName: string
   equipment?: string
   muscleGroup: string
+  primaryMuscles?: MuscleSlug[]
+  secondaryMuscles?: MuscleSlug[]
   variationName: string
 }
 
@@ -253,9 +256,12 @@ type ExerciseSyncModifiedItem = {
   exerciseName: string
   variationName: string
   changes: {
+    activityType?: ExerciseSyncFieldChange<ExerciseActivityType | undefined>
     exerciseName?: ExerciseSyncFieldChange
     equipment?: ExerciseSyncFieldChange<string | undefined>
     muscleGroup?: ExerciseSyncFieldChange
+    primaryMuscles?: ExerciseSyncFieldChange<MuscleSlug[]>
+    secondaryMuscles?: ExerciseSyncFieldChange<MuscleSlug[]>
     variationName?: ExerciseSyncFieldChange
   }
   usageCount: number
@@ -263,9 +269,12 @@ type ExerciseSyncModifiedItem = {
 }
 
 type ExerciseSyncAddedItem = {
+  activityType?: ExerciseActivityType
   exerciseName: string
   equipment?: string
   muscleGroup: string
+  primaryMuscles?: MuscleSlug[]
+  secondaryMuscles?: MuscleSlug[]
   variationName: string
 }
 

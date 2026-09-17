@@ -75,6 +75,8 @@ type ExerciseImportIssue = {
   rowNumber?: number
 }
 
+type ExcelImportMode = "append" | "sync"
+
 type ExerciseGroupItem = {
   exercises: AdminExerciseItem[]
   groupKey: string
@@ -590,6 +592,7 @@ export function AdminConsole() {
   const [actionKey, setActionKey] = useState<string | null>(null)
   const [confirmState, setConfirmState] = useState<ConfirmState>(null)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [excelImportMode, setExcelImportMode] = useState<ExcelImportMode>("append")
   const [importFileName, setImportFileName] = useState("")
   const [importRows, setImportRows] = useState<AdminExerciseImportRow[]>([])
   const [importIssues, setImportIssues] = useState<ExerciseImportIssue[]>([])
@@ -597,8 +600,6 @@ export function AdminConsole() {
   const [syncPreview, setSyncPreview] = useState<ExerciseSyncPreview | null>(null)
   const [syncRows, setSyncRows] = useState<ExerciseSyncRow[]>([])
   const [isSyncReviewOpen, setIsSyncReviewOpen] = useState(false)
-  // Only the setter is used — bumping it remounts the sync file input.
-  const [, setSyncInputKey] = useState(0)
 
   function showSuccess(title: string) {
     toast({ title, tone: "success" })
@@ -633,10 +634,17 @@ export function AdminConsole() {
     setImportInputKey((current) => current + 1)
   }
 
+  function handleExcelImportModeChange(mode: ExcelImportMode) {
+    setExcelImportMode(mode)
+    resetImportState()
+    setSyncRows([])
+    setSyncPreview(null)
+  }
+
   function handleImportDialogChange(open: boolean) {
     setIsImportDialogOpen(open)
 
-    if (!open && actionKey !== "exercise-import") {
+    if (!open && actionKey !== "exercise-import" && actionKey !== "exercise-sync-preview") {
       resetImportState()
     }
   }
@@ -1284,8 +1292,11 @@ export function AdminConsole() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const today = new Date().toISOString().slice(0, 10)
-      a.download = `exercises-${today}.xlsx`
+      const now = new Date()
+      const day = String(now.getDate()).padStart(2, "0")
+      const month = String(now.getMonth() + 1).padStart(2, "0")
+      const year = now.getFullYear()
+      a.download = `excercises-database-${day}-${month}-${year}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
 
@@ -1303,16 +1314,17 @@ export function AdminConsole() {
     }
   }
 
-  function handleSyncImportClick() {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = ".xlsx,.xls,.csv"
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) handleSyncImportFile(file)
+  async function handleExcelFileChange(event: ChangeEvent<HTMLInputElement>) {
+    if (excelImportMode === "sync") {
+      const file = event.target.files?.[0]
+      if (!file) return
+      resetImportState()
+      setImportFileName(file.name)
+      await handleSyncImportFile(file)
+      return
     }
-    input.click()
-    setSyncInputKey((k) => k + 1)
+
+    await handleImportFileChange(event)
   }
 
   async function handleSyncImportFile(file: File) {
@@ -1343,10 +1355,14 @@ export function AdminConsole() {
           else if (["muscle_group", "musclegroup", "body_part", "bodypart", "nhom_co"].includes(lower)) headerMap[key] = "muscleGroup"
           else if (["variation_name", "variation", "bien_the"].includes(lower)) headerMap[key] = "variationName"
           else if (["equipment", "gear", "device", "dung_cu", "thiet_bi"].includes(lower)) headerMap[key] = "equipment"
+          else if (["activity_type", "activity", "exercise_type", "type", "loai_hoat_dong"].includes(lower)) headerMap[key] = "activityType"
+          else if (["primary_muscles", "primary_muscle_group", "primary", "co_chinh"].includes(lower)) headerMap[key] = "primaryMuscles"
+          else if (["secondary_muscles", "other_muscles", "secondary", "co_phu"].includes(lower)) headerMap[key] = "secondaryMuscles"
         }
       }
 
       const rows: ExerciseSyncRow[] = []
+      const issues: ExerciseImportIssue[] = []
       for (const row of raw) {
         const mapped: Record<string, string> = {}
         for (const [originalKey, mappedKey] of Object.entries(headerMap)) {
@@ -1356,6 +1372,17 @@ export function AdminConsole() {
           }
         }
         if (!mapped.exerciseName || !mapped.muscleGroup) continue
+        const activityType = mapped.activityType ? parseActivityType(mapped.activityType) : undefined
+        const primary = mapped.primaryMuscles ? parseMuscleSlugs(mapped.primaryMuscles) : { invalid: [], muscles: [] }
+        const secondary = mapped.secondaryMuscles ? parseMuscleSlugs(mapped.secondaryMuscles) : { invalid: [], muscles: [] }
+        const overlap = primary.muscles.filter((slug) => secondary.muscles.includes(slug))
+        const hasProfileInput = Boolean(mapped.activityType || mapped.primaryMuscles || mapped.secondaryMuscles)
+        if (hasProfileInput && (!activityType || primary.invalid.length || secondary.invalid.length || overlap.length || (activityType === "strength" && !primary.muscles.length))) {
+          issues.push({
+            message: `Muscle profile không hợp lệ${primary.invalid.length || secondary.invalid.length ? ` (slug lạ: ${[...primary.invalid, ...secondary.invalid].join(", ")})` : ""}${overlap.length ? ` (trùng primary/secondary: ${overlap.join(", ")})` : ""}. Activity types: ${EXERCISE_ACTIVITY_TYPES.join(", ")}; muscle slugs: ${MUSCLE_SLUGS.join(", ")}.`,
+          })
+          continue
+        }
         const syncRow: ExerciseSyncRow = {
           exerciseName: mapped.exerciseName,
           muscleGroup: mapped.muscleGroup,
@@ -1363,7 +1390,17 @@ export function AdminConsole() {
         }
         if (mapped.id) syncRow.id = mapped.id
         if (mapped.equipment) syncRow.equipment = mapped.equipment
+        if (activityType) syncRow.activityType = activityType
+        if (hasProfileInput) {
+          syncRow.primaryMuscles = primary.muscles
+          syncRow.secondaryMuscles = secondary.muscles
+        }
         rows.push(syncRow)
+      }
+
+      if (issues.length > 0) {
+        setError(issues.slice(0, 3).map((issue) => issue.message).join("\n"))
+        return
       }
 
       if (rows.length === 0) {
@@ -1374,6 +1411,7 @@ export function AdminConsole() {
       const preview = await previewExerciseSyncRequest([rows])
       setSyncRows(rows)
       setSyncPreview(preview)
+      setIsImportDialogOpen(false)
       setIsSyncReviewOpen(true)
     } catch (syncError) {
       setError(
@@ -2208,7 +2246,6 @@ export function AdminConsole() {
               onImport={() => setIsImportDialogOpen(true)}
               onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
               onExportAll={() => void handleExportAllExercises()}
-              onSyncImport={handleSyncImportClick}
               onReviewImportRequest={handleReviewExerciseImportRequest}
               onTransferMetadata={handleTransferExerciseMetadata}
             />
@@ -2286,15 +2323,42 @@ export function AdminConsole() {
       <Dialog open={isImportDialogOpen} onOpenChange={handleImportDialogChange}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{locale === "en" ? "Import exercises from Excel" : "Import bài tập từ Excel"}</DialogTitle>
+            <DialogTitle>{locale === "en" ? "Import Excel" : "Nhập Excel"}</DialogTitle>
             <DialogDescription>
               {locale === "en"
-                ? "Supported files: .xlsx, .xls, .csv. Each row is one variation. Required: exercise_name, muscle_group, variation_name."
-                : "Hỗ trợ file .xlsx, .xls, .csv. Mỗi dòng là một variation. Bắt buộc: exercise_name, muscle_group, variation_name."}
+                ? "Choose how the selected Excel file should update the exercise library."
+                : "Chọn cách file Excel cập nhật thư viện bài tập."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-1 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant={excelImportMode === "append" ? "default" : "ghost"}
+                className="justify-start"
+                onClick={() => handleExcelImportModeChange("append")}
+              >
+                {locale === "en" ? "Add new" : "Thêm mới"}
+              </Button>
+              <Button
+                type="button"
+                variant={excelImportMode === "sync" ? "default" : "ghost"}
+                className="justify-start"
+                onClick={() => handleExcelImportModeChange("sync")}
+              >
+                {locale === "en" ? "Sync library" : "Đồng bộ thư viện"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {excelImportMode === "append"
+                ? locale === "en"
+                  ? "Add new exercises only. Existing exercises are not edited or deleted."
+                  : "Chỉ thêm bài mới. Bài tập hiện có sẽ không bị sửa hoặc xoá."
+                : locale === "en"
+                  ? "Compare the file with the full library. Sync can delete exercises that are no longer in the file."
+                  : "So sánh file với toàn bộ thư viện. Đồng bộ có thể xoá bài không còn trong file."}
+            </p>
             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="exercise-import-file">{locale === "en" ? "Select file" : "Chọn file"}</Label>
               <Input
@@ -2303,12 +2367,16 @@ export function AdminConsole() {
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 className="mt-2"
-                onChange={(event) => void handleImportFileChange(event)}
+                onChange={(event) => void handleExcelFileChange(event)}
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                {locale === "en"
-                  ? "Accepted aliases include: exercise_name/name, muscle_group/bodyPart, variation_name/variation, equipment, is_default, sort_order."
-                  : "Header có thể dùng alias như: exercise_name/name, muscle_group/bodyPart, variation_name/variation, equipment, is_default, sort_order."}
+                {excelImportMode === "append"
+                  ? locale === "en"
+                    ? "Accepted aliases include: exercise_name/name, muscle_group/bodyPart, variation_name/variation, equipment, is_default, sort_order."
+                    : "Header có thể dùng alias như: exercise_name/name, muscle_group/bodyPart, variation_name/variation, equipment, is_default, sort_order."
+                  : locale === "en"
+                    ? "Use an exported library file. Rows with id are updated; new rows are added; missing rows are reviewed for deletion."
+                    : "Dùng file đã export từ thư viện. Row có id sẽ được sửa; row mới sẽ được thêm; row thiếu sẽ được review để xoá."}
               </p>
               <div className="mt-3">
                 <Button
@@ -2324,7 +2392,7 @@ export function AdminConsole() {
               </div>
             </div>
 
-            {importFileName ? (
+            {importFileName && excelImportMode === "append" ? (
               <div className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "File" : "File"}</p>
@@ -2348,6 +2416,13 @@ export function AdminConsole() {
               </div>
             ) : null}
 
+            {actionKey === "exercise-sync-preview" ? (
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{locale === "en" ? "Reading file and comparing changes..." : "Đang đọc file và so sánh thay đổi..."}</span>
+              </div>
+            ) : null}
+
             {importIssues.length ? (
               <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4">
                 <h4 className="text-sm font-semibold">{locale === "en" ? "Validation issues" : "Lỗi cần sửa"}</h4>
@@ -2365,7 +2440,7 @@ export function AdminConsole() {
               </div>
             ) : null}
 
-            {importRows.length ? (
+            {importRows.length && excelImportMode === "append" ? (
               <div className="rounded-lg border border-border bg-card">
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{locale === "en" ? "Preview" : "Xem trước"}</h4>
@@ -2416,10 +2491,12 @@ export function AdminConsole() {
             <Button variant="outline" onClick={() => handleImportDialogChange(false)} disabled={actionKey === "exercise-import"}>
               {locale === "en" ? "Cancel" : "Huỷ"}
             </Button>
-            <Button onClick={() => void handleImportExercises()} disabled={actionKey === "exercise-import" || !importRows.length || importIssues.length > 0}>
-              {actionKey === "exercise-import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {locale === "en" ? "Import exercises" : "Import bài tập"}
-            </Button>
+            {excelImportMode === "append" ? (
+              <Button onClick={() => void handleImportExercises()} disabled={actionKey === "exercise-import" || !importRows.length || importIssues.length > 0}>
+                {actionKey === "exercise-import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {locale === "en" ? "Import exercises" : "Thêm bài tập"}
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
