@@ -1141,12 +1141,8 @@ export function ProgramEditor({
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    aria-describedby="program-start-date-hint"
                     className="h-9 pointer-coarse:h-10 block w-full min-w-0 bg-background/65 tnum"
                   />
-                  <span id="program-start-date-hint" className="line-clamp-2 block text-micro leading-tight text-muted-foreground">
-                    {messages.coach.programStartDateHint}
-                  </span>
                 </label>
                 <label className="col-span-2 min-w-0 space-y-1 md:col-span-5">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFocus}</span>

@@ -579,12 +579,8 @@ export function ImportProgramDialog({
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    aria-describedby="import-start-date-hint"
                     className="tnum"
                   />
-                  <p id="import-start-date-hint" className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                    {messages.coach.programStartDateHint}
-                  </p>
                 </div>
                 <div className="min-w-0">
                   <Label className="label-micro mb-1.5 block" htmlFor="import-description">
