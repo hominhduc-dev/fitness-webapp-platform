@@ -273,6 +273,15 @@ function formatNumber(value: number, locale: "en" | "vi") {
   return new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US").format(value)
 }
 
+function AdminUserSelectLabel({ meta, name }: { meta?: string; name: string }) {
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
+      <span className="truncate text-sm font-medium leading-5 text-foreground">{name}</span>
+      {meta ? <span className="truncate text-xs leading-4 text-muted-foreground">{meta}</span> : null}
+    </span>
+  )
+}
+
 function ChartPanel({
   points,
   subtitle,
@@ -2147,7 +2156,11 @@ export function AdminConsole() {
                   </SelectTrigger>
                   <SelectContent>
                     {connections?.unassignedTrainees.length
-                      ? connections.unassignedTrainees.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)
+                      ? connections.unassignedTrainees.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <AdminUserSelectLabel name={t.name} meta={t.email} />
+                        </SelectItem>
+                      ))
                       : <SelectItem value="__none__" disabled>{locale === "en" ? "— none —" : "— trống —"}</SelectItem>}
                   </SelectContent>
                 </Select>
@@ -2156,7 +2169,11 @@ export function AdminConsole() {
                     <SelectValue placeholder={locale === "en" ? "Choose coach" : "Chọn coach"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {connections?.coaches.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone ?? "coach"})</SelectItem>)}
+                    {connections?.coaches.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <AdminUserSelectLabel name={c.name} meta={c.phone ? `${c.email} · ${c.phone}` : c.email} />
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button onClick={() => void handleAssignConnection()} disabled={actionKey === "connection-assign" || !assignCoachId || !assignTraineeId}>
