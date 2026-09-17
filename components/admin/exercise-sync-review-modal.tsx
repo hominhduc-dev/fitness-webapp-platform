@@ -47,7 +47,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
   const t = locale === "en"
     ? {
         title: "Review sync changes",
-        description: "Review the changes detected from your Excel file before applying.",
+        description: "Review the changes detected from your Excel file before applying. Rows removed from the file are treated as delete requests.",
         added: "Added",
         modified: "Modified",
         deleted: "Deleted",
@@ -61,7 +61,7 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
       }
     : {
         title: "Xem lại thay đổi",
-        description: "Xem lại các thay đổi từ file Excel trước khi áp dụng.",
+        description: "Xem lại các thay đổi từ file Excel trước khi áp dụng. Dòng bị xoá khỏi file sẽ được hiểu là yêu cầu xoá bài tập.",
         added: "Thêm mới",
         modified: "Sửa đổi",
         deleted: "Xoá",
@@ -156,11 +156,11 @@ function ExerciseSyncReviewModal({ locale, onApply, onClose, open, preview, appl
                     <div className="mt-0.5 space-y-0.5">
                       {Object.entries(item.changes).map(([field, change]) => (
                         <div key={field} className="text-xs text-muted-foreground">
-                          <span className="capitalize">{field === "exerciseName" ? "name" : field === "variationName" ? "variation" : field === "muscleGroup" ? "muscle group" : field}</span>
+                          <span className="capitalize">{field === "exerciseName" ? "name" : field === "variationName" ? "variation" : field === "muscleGroup" ? "muscle group" : field === "activityType" ? "activity type" : field === "primaryMuscles" ? "primary muscles" : field === "secondaryMuscles" ? "secondary muscles" : field}</span>
                           {": "}
-                          <span className="line-through text-destructive-text/80">{change.from || "—"}</span>
+                          <span className="line-through text-destructive-text/80">{formatSyncValue(change.from)}</span>
                           {" → "}
-                          <span className="text-success-text">{change.to || "—"}</span>
+                          <span className="text-success-text">{formatSyncValue(change.to)}</span>
                         </div>
                       ))}
                     </div>
@@ -255,6 +255,11 @@ function SyncSection({
       )}
     </div>
   )
+}
+
+function formatSyncValue(value: unknown) {
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "—"
+  return typeof value === "string" && value ? value : "—"
 }
 
 export { ExerciseSyncReviewModal }

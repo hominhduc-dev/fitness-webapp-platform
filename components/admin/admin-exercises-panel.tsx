@@ -136,7 +136,6 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     deselectAll: locale === "en" ? "Deselect all" : "Bỏ chọn tất cả",
     downloadTemplate: locale === "en" ? "Download template" : "Tải file mẫu",
     exportAll: locale === "en" ? "Export Excel" : "Export Excel",
-    syncImport: locale === "en" ? "Sync from Excel" : "Sync từ Excel",
     transferMetadata: locale === "en" ? "Transfer metadata" : "Chuyển metadata",
     transferTitle: locale === "en" ? "Transfer exercise metadata" : "Chuyển metadata bài tập",
     transferDescription: locale === "en" ? "Choose a source variation. Its metadata will overwrite the target." : "Chọn variation nguồn. Metadata nguồn sẽ ghi đè metadata đích.",
@@ -149,7 +148,7 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     equipmentFilterAll: locale === "en" ? "Equipment: all" : "Dụng cụ: tất cả",
     exercise: locale === "en" ? "Exercise" : "Bài tập",
     exerciseName: locale === "en" ? "Exercise name" : "Tên bài tập",
-    importExcel: locale === "en" ? "Import Excel" : "Import Excel",
+    importExcel: locale === "en" ? "Import Excel" : "Nhập Excel",
     newExercise: locale === "en" ? "New exercise" : "Bài tập mới",
     noMatches: locale === "en" ? "No exercises match." : "Không có bài tập nào khớp.",
     pending: locale === "en" ? "pending" : "chờ duyệt",
@@ -173,6 +172,37 @@ function getExercisePanelCopy(locale: "en" | "vi") {
 
 function formatMuscleSlug(slug: MuscleSlug) {
   return slug.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
+}
+
+type PrimaryMuscleSection = {
+  key: string
+  label: string
+  items: AdminExerciseItem[]
+}
+
+function buildPrimaryMuscleSections(group: string, exercises: AdminExerciseItem[], locale: "en" | "vi"): PrimaryMuscleSection[] {
+  const groupMuscles = muscleGroupToSlugs(group).filter((muscle): muscle is MuscleSlug => (MUSCLE_FILTERS as readonly string[]).includes(muscle))
+  const sectionOrder = new Map<MuscleSlug, number>()
+  groupMuscles.forEach((muscle, index) => sectionOrder.set(muscle, index))
+
+  const sections = new Map<string, PrimaryMuscleSection>()
+  const fallbackLabel = locale === "en" ? "Other primary" : "Primary khác"
+
+  for (const exercise of exercises) {
+    const primaryMuscle = exercise.primaryMuscles.find((muscle) => sectionOrder.has(muscle)) ?? exercise.primaryMuscles[0]
+    const key = primaryMuscle ?? "__other-primary"
+    const label = primaryMuscle ? formatMuscleSlug(primaryMuscle) : fallbackLabel
+    const section = sections.get(key) ?? { key, label, items: [] }
+    section.items.push(exercise)
+    sections.set(key, section)
+  }
+
+  return Array.from(sections.values()).sort((left, right) => {
+    const leftOrder = sectionOrder.get(left.key as MuscleSlug) ?? Number.MAX_SAFE_INTEGER
+    const rightOrder = sectionOrder.get(right.key as MuscleSlug) ?? Number.MAX_SAFE_INTEGER
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder
+    return left.label.localeCompare(right.label, locale === "vi" ? "vi" : "en", { sensitivity: "base" })
+  })
 }
 
 function hasDraftMedia(files: AdminExerciseMediaFiles) {
@@ -773,6 +803,82 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someSelected = selectableIds.some((id) => selected.has(id))
   const groupDescription = GROUP_DESCRIPTIONS[group.trim().toLowerCase()] ?? ""
+  const primaryMuscleSections = buildPrimaryMuscleSections(group, exercises, locale)
+
+  const renderExerciseRow = (e: AdminExerciseItem) => {
+    const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
+    const canSelect = canManage
+    const isSelected = selected.has(e.id)
+
+    return (
+      <div
+        key={e.id}
+        className={cn(
+          "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]",
+          isSelected ? "bg-primary/5" : "hover:bg-muted/20",
+        )}
+      >
+        <div className="flex items-center justify-center">
+          {canSelect ? (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect(e.id)}
+            />
+          ) : (
+            <span className="h-4 w-4" />
+          )}
+        </div>
+
+        <div className="flex min-w-0 items-center gap-2">
+          <ExerciseThumbnail media={e.media} name={e.name} previewable />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
+            </div>
+            <MuscleProfileSummary exercise={e} locale={locale} />
+            <span className="truncate text-micro text-muted-foreground sm:hidden">
+              {e.variationName !== "Default" ? e.variationName : ""}
+              {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
+            </span>
+          </div>
+        </div>
+
+        <span className="hidden truncate text-xs text-muted-foreground sm:block">{e.variationName !== "Default" ? e.variationName : ""}</span>
+        <span className="hidden text-xs text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
+        <span className="text-right font-mono text-xs text-muted-foreground tnum">
+          {e.usageCount}
+        </span>
+
+        <div className="flex items-center justify-end gap-0.5">
+          {onApproveProfile && canManage && e.muscleProfileStatus === "pending" ? (
+            <button
+              type="button"
+              aria-label={`${copy.approveProfile}: ${e.name}`}
+              title={canApproveMuscleProfile(e) ? copy.approveProfile : copy.cannotApproveProfile}
+              disabled={approvingProfiles || !canApproveMuscleProfile(e)}
+              onClick={() => onApproveProfile(e)}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`${locale === "en" ? "Actions" : "Thao tác"}: ${e.name}`}>
+                {transferringId === e.id || deletingId === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EllipsisVertical className="h-4 w-4" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {onTransferMetadata ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onTransferMetadata(e)}><ArrowDownUp />{copy.transferMetadata}</DropdownMenuItem> : null}
+              <DropdownMenuItem disabled={!canManage} onSelect={() => onEdit(e)}><Pencil />{copy.edit}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" disabled={!canManage || e.usageCount > 0 || deletingId === e.id} onSelect={() => onDelete(e)} title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}><Trash2 />{copy.delete}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -821,88 +927,23 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <span />
           </div>
 
-          {exercises.map((e) => {
-            const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
-            const canSelect = canManage
-            const isSelected = selected.has(e.id)
-            return (
-            <div
-              key={e.id}
-              className={cn(
-                "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]",
-                isSelected ? "bg-primary/5" : "hover:bg-muted/20",
-              )}
-            >
-              {/* Checkbox */}
-              <div className="flex items-center justify-center">
-                {canSelect ? (
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelect(e.id)}
-                  />
-                ) : (
-                  <span className="h-4 w-4" />
-                )}
-              </div>
-
-              {/* Name, with variation/equipment inline on mobile */}
-              <div className="flex min-w-0 items-center gap-2">
-                <ExerciseThumbnail media={e.media} name={e.name} previewable />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
-                  </div>
-                  <MuscleProfileSummary exercise={e} locale={locale} />
-                  {/* Mobile-only: show variation + equipment under the name */}
-                  <span className="truncate text-micro text-muted-foreground sm:hidden">
-                    {e.variationName !== "Default" ? e.variationName : ""}
-                    {e.equipment ? `${e.variationName !== "Default" ? " · " : ""}${e.equipment}` : ""}
-                  </span>
+          {primaryMuscleSections.map((section) => (
+            <div key={section.key} className="border-b border-border/50 last:border-b-0">
+              <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 bg-surface-subtle px-4 py-2 sm:grid-cols-[24px_minmax(0,1fr)_96px_64px_84px]">
+                <span />
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-xs font-semibold text-foreground">{section.label}</span>
+                  <Badge variant="outline" className="font-mono text-micro">
+                    {copy.variationCount(section.items.length)}
+                  </Badge>
                 </div>
+                <span className="hidden sm:block" />
+                <span className="hidden sm:block" />
+                <span />
               </div>
-
-              {/* Variation name (desktop column) */}
-              <span className="hidden truncate text-xs text-muted-foreground sm:block">{e.variationName !== "Default" ? e.variationName : ""}</span>
-
-              {/* Equipment (desktop column) */}
-              <span className="hidden text-xs text-muted-foreground sm:block">{e.equipment ?? "—"}</span>
-
-              {/* Usage count */}
-              <span className="text-right font-mono text-xs text-muted-foreground tnum">
-                {e.usageCount}
-              </span>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-0.5">
-                {onApproveProfile && canManage && e.muscleProfileStatus === "pending" ? (
-                  <button
-                    type="button"
-                    aria-label={`${copy.approveProfile}: ${e.name}`}
-                    title={canApproveMuscleProfile(e) ? copy.approveProfile : copy.cannotApproveProfile}
-                    disabled={approvingProfiles || !canApproveMuscleProfile(e)}
-                    onClick={() => onApproveProfile(e)}
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`${locale === "en" ? "Actions" : "Thao tác"}: ${e.name}`}>
-                      {transferringId === e.id || deletingId === e.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EllipsisVertical className="h-4 w-4" />}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {onTransferMetadata ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onTransferMetadata(e)}><ArrowDownUp />{copy.transferMetadata}</DropdownMenuItem> : null}
-                    <DropdownMenuItem disabled={!canManage} onSelect={() => onEdit(e)}><Pencil />{copy.edit}</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" disabled={!canManage || e.usageCount > 0 || deletingId === e.id} onSelect={() => onDelete(e)} title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}><Trash2 />{copy.delete}</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              {section.items.map(renderExerciseRow)}
             </div>
-            )
-          })}
+          ))}
         </div>
       )}
     </div>
@@ -940,10 +981,9 @@ type ExerciseLibraryPanelProps = {
   onImport: () => void
   onDownloadTemplate: () => void
   onExportAll?: () => void
-  onSyncImport?: () => void
   onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
   onTransferMetadata?: (sourceVariationId: string, targetVariationId: string) => Promise<void>
-  capabilities?: { canExport?: boolean; canSync?: boolean; canBulkApprove?: boolean }
+  capabilities?: { canExport?: boolean; canBulkApprove?: boolean }
 }
 
 export function ExerciseLibraryPanel({
@@ -960,7 +1000,6 @@ export function ExerciseLibraryPanel({
   onImport,
   onDownloadTemplate,
   onExportAll,
-  onSyncImport,
   onReviewImportRequest,
   onTransferMetadata,
   capabilities = {},
@@ -1285,14 +1324,14 @@ export function ExerciseLibraryPanel({
           <DialogTrigger asChild>
             <Button type="button" variant="outline" className="h-11 shrink-0 whitespace-nowrap bg-card px-3 font-medium">
               <FileSpreadsheet className="mr-1.5 size-4 text-primary" />
-              {locale === "en" ? "Excel tools" : "Công cụ Excel"}
+              {copy.importExcel}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{locale === "en" ? "Excel tools" : "Công cụ Excel"}</DialogTitle>
               <DialogDescription>
-                {locale === "en" ? "Import, export, or sync exercise data." : "Import, export hoặc đồng bộ dữ liệu bài tập."}
+                {locale === "en" ? "Import, export, or sync exercise data." : "Nhập, xuất hoặc đồng bộ dữ liệu bài tập."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1317,12 +1356,6 @@ export function ExerciseLibraryPanel({
               <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onExportAll} disabled={actionKey === "exercise-export" || exercises.length === 0}>
                 {actionKey === "exercise-export" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
                 {copy.exportAll}
-              </Button>
-            )}
-            {capabilities.canSync && onSyncImport && (
-              <Button variant="outline" size="sm" className="h-9 justify-start bg-background" onClick={onSyncImport}>
-                <ArrowDownUp className="mr-1.5 h-4 w-4" />
-                {copy.syncImport}
               </Button>
             )}
             </div>
@@ -1452,7 +1485,7 @@ export function AdminExercisesPanel(props: Omit<ExerciseLibraryPanelProps, "capa
   return (
     <ExerciseLibraryPanel
       {...props}
-      capabilities={{ canExport: true, canSync: true, canBulkApprove: true }}
+      capabilities={{ canExport: true, canBulkApprove: true }}
     />
   )
 }

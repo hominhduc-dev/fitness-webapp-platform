@@ -465,6 +465,9 @@ adminRouter.post("/exercises/sync-preview", async (req, res) => {
           exerciseName: getOptionalString(row.exerciseName) ?? getOptionalString(row.name),
           equipment: getOptionalString(row.equipment),
           muscleGroup: getOptionalString(row.muscleGroup),
+          activityType: getOptionalString(row.activityType),
+          primaryMuscles: parseMuscleListValue(row.primaryMuscles),
+          secondaryMuscles: parseMuscleListValue(row.secondaryMuscles),
           variationName: getOptionalString(row.variationName),
         }))
       : []
@@ -484,6 +487,9 @@ adminRouter.post("/exercises/sync-apply", async (req, res) => {
           exerciseName: getOptionalString(row.exerciseName) ?? getOptionalString(row.name),
           equipment: getOptionalString(row.equipment),
           muscleGroup: getOptionalString(row.muscleGroup),
+          activityType: getOptionalString(row.activityType),
+          primaryMuscles: parseMuscleListValue(row.primaryMuscles),
+          secondaryMuscles: parseMuscleListValue(row.secondaryMuscles),
           variationName: getOptionalString(row.variationName),
         }))
       : []

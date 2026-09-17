@@ -2756,10 +2756,13 @@ async function bulkDeleteAdminExercises(profile: SerializedProfile, ids: string[
 }
 
 type ExerciseSyncRowInput = {
+  activityType?: string
   id?: string
   exerciseName?: string
   equipment?: string
   muscleGroup?: string
+  primaryMuscles?: string[] | string
+  secondaryMuscles?: string[] | string
   variationName?: string
 }
 
@@ -2770,9 +2773,12 @@ type SyncModifiedItem = {
   exerciseName: string
   variationName: string
   changes: {
+    activityType?: SyncFieldChange<ExerciseActivityTypeValue | undefined>
     exerciseName?: SyncFieldChange
     equipment?: SyncFieldChange<string | undefined>
     muscleGroup?: SyncFieldChange
+    primaryMuscles?: SyncFieldChange<MuscleSlugValue[]>
+    secondaryMuscles?: SyncFieldChange<MuscleSlugValue[]>
     variationName?: SyncFieldChange
   }
   usageCount: number
@@ -2780,9 +2786,12 @@ type SyncModifiedItem = {
 }
 
 type SyncAddedItem = {
+  activityType?: ExerciseActivityTypeValue
   exerciseName: string
   equipment?: string
   muscleGroup: string
+  primaryMuscles?: MuscleSlugValue[]
+  secondaryMuscles?: MuscleSlugValue[]
   variationName: string
 }
 
@@ -2820,12 +2829,34 @@ function parseSyncRows(rows: ExerciseSyncRowInput[]) {
       const id = typeof row.id === "string" && row.id.trim().length > 0 ? row.id.trim() : undefined
       const rawVarName = sanitizeText(row.variationName)
       const variationName = rawVarName || (id ? "" : "Default")
+      const hasMuscleProfileInput = Boolean(row.activityType || parseMuscleListValue(row.primaryMuscles).length || parseMuscleListValue(row.secondaryMuscles).length)
+      const muscleProfileResult = hasMuscleProfileInput
+        ? muscleProfileInputSchema.safeParse({
+            activityType: sanitizeText(row.activityType),
+            primaryMuscles: parseMuscleListValue(row.primaryMuscles),
+            secondaryMuscles: parseMuscleListValue(row.secondaryMuscles),
+          })
+        : undefined
 
       if (!exerciseName || !muscleGroup) return null
+      if (muscleProfileResult && !muscleProfileResult.success) {
+        throw new AuthServiceError("Muscle profile trong file sync không hợp lệ.", 400)
+      }
 
-      return { id, exerciseName, muscleGroup, variationName, equipment }
+      return { id, exerciseName, muscleGroup, variationName, equipment, muscleProfile: muscleProfileResult?.data }
     })
     .filter((row): row is NonNullable<typeof row> => row !== null)
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function serializeTargetsByRole(targets: ExerciseSummaryRecord["muscleTargets"], role: "primary" | "secondary") {
+  return targets
+    .filter((target) => target.role === role)
+    .sort((a, b) => a.position - b.position)
+    .map((target) => target.muscleSlug as MuscleSlugValue)
 }
 
 async function computeExerciseSyncDiff(db: PrismaClient, rows: ReturnType<typeof parseSyncRows>): Promise<ExerciseSyncPreview> {
@@ -2864,6 +2895,9 @@ async function computeExerciseSyncDiff(db: PrismaClient, rows: ReturnType<typeof
       const dbMg = dbVar.exercise.muscleGroup
       const dbVarName = dbVar.name
       const dbEquip = dbVar.equipment ?? undefined
+      const dbActivityType = dbVar.activityType ?? undefined
+      const dbPrimaryMuscles = serializeTargetsByRole(dbVar.muscleTargets, "primary")
+      const dbSecondaryMuscles = serializeTargetsByRole(dbVar.muscleTargets, "secondary")
 
       // Empty variationName for existing rows means "keep current"
       const effectiveVarName = row.variationName || dbVarName
@@ -2873,6 +2907,15 @@ async function computeExerciseSyncDiff(db: PrismaClient, rows: ReturnType<typeof
       if (row.muscleGroup !== dbMg) changes.muscleGroup = { from: dbMg, to: row.muscleGroup }
       if (effectiveVarName !== dbVarName) changes.variationName = { from: dbVarName, to: effectiveVarName }
       if ((row.equipment ?? undefined) !== dbEquip) changes.equipment = { from: dbEquip, to: row.equipment }
+      if (row.muscleProfile) {
+        if (row.muscleProfile.activityType !== dbActivityType) changes.activityType = { from: dbActivityType, to: row.muscleProfile.activityType }
+        if (!sameStringArray(row.muscleProfile.primaryMuscles, dbPrimaryMuscles)) {
+          changes.primaryMuscles = { from: dbPrimaryMuscles, to: row.muscleProfile.primaryMuscles }
+        }
+        if (!sameStringArray(row.muscleProfile.secondaryMuscles, dbSecondaryMuscles)) {
+          changes.secondaryMuscles = { from: dbSecondaryMuscles, to: row.muscleProfile.secondaryMuscles }
+        }
+      }
 
       if (Object.keys(changes).length > 0) {
         // Conflict = the variation would land in a target exercise that already has
@@ -2911,9 +2954,12 @@ async function computeExerciseSyncDiff(db: PrismaClient, rows: ReturnType<typeof
       }
     } else {
       added.push({
+        activityType: row.muscleProfile?.activityType,
         exerciseName: row.exerciseName,
         equipment: row.equipment,
         muscleGroup: row.muscleGroup,
+        primaryMuscles: row.muscleProfile?.primaryMuscles,
+        secondaryMuscles: row.muscleProfile?.secondaryMuscles,
         variationName: row.variationName,
       })
     }
@@ -2950,6 +2996,12 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
   const db = ensurePrisma()
   const rows = parseSyncRows(rawRows)
   const diff = await computeExerciseSyncDiff(db, rows)
+  const syncRowById = new Map(rows.filter((row) => row.id).map((row) => [row.id!, row]))
+  const syncRowByAddKey = new Map(
+    rows
+      .filter((row) => !row.id)
+      .map((row) => [`${row.exerciseName.trim().toLowerCase()}::${row.muscleGroup.trim().toLowerCase()}::${row.variationName.trim().toLowerCase()}`, row]),
+  )
 
   const skippedDeleteCount = diff.deleted.filter((d) => !d.canDelete).length
   const actionableChanges = diff.added.length + diff.modified.length + diff.deleted.filter((d) => d.canDelete).length
@@ -2994,7 +3046,14 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
 
   // 2a. Equipment-only modifications → grouped updateMany (one op per distinct value).
   const equipOnlyMods = diff.modified.filter(
-    (m) => m.changes.equipment && !m.changes.variationName && !m.changes.exerciseName && !m.changes.muscleGroup,
+    (m) =>
+      m.changes.equipment &&
+      !m.changes.variationName &&
+      !m.changes.exerciseName &&
+      !m.changes.muscleGroup &&
+      !m.changes.activityType &&
+      !m.changes.primaryMuscles &&
+      !m.changes.secondaryMuscles,
   )
   const equipGroups = new Map<string, string[]>()
   for (const mod of equipOnlyMods) {
@@ -3007,9 +3066,16 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
   // 2b. Modifications that change grouping or variation name → resolve target exercise
   // (find-or-create by name+muscleGroup) and MOVE the variation there.
   const complexMods = diff.modified.filter(
-    (m) => m.changes.variationName || m.changes.exerciseName || m.changes.muscleGroup,
+    (m) =>
+      m.changes.variationName ||
+      m.changes.exerciseName ||
+      m.changes.muscleGroup ||
+      m.changes.equipment ||
+      m.changes.activityType ||
+      m.changes.primaryMuscles ||
+      m.changes.secondaryMuscles,
   )
-  const variationUpdates: Array<{ id: string; data: Record<string, unknown> }> = []
+  const variationUpdates: Array<{ id: string; data: Record<string, unknown>; muscleProfile?: MuscleProfileInput }> = []
   for (const mod of complexMods) {
     const cur = varCurrent.get(mod.id)
     if (!cur) continue
@@ -3052,8 +3118,17 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
     if (mod.changes.equipment !== undefined) {
       data.equipment = mod.changes.equipment.to ?? null
     }
-    if (Object.keys(data).length > 0) {
-      variationUpdates.push({ id: mod.id, data })
+    const muscleProfile = syncRowById.get(mod.id)?.muscleProfile
+    if (muscleProfile) {
+      data.activityType = muscleProfile.activityType
+      data.muscleProfileRationale = null
+      data.muscleProfileReviewedAt = new Date()
+      data.muscleProfileReviewedById = profile.id
+      data.muscleProfileSource = "manual"
+      data.muscleProfileStatus = "approved"
+    }
+    if (Object.keys(data).length > 0 || muscleProfile) {
+      variationUpdates.push({ id: mod.id, data, muscleProfile })
     }
 
     // Move the variation between exercises in the in-memory maps.
@@ -3072,42 +3147,80 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
       newExercises.push({ id: exId, name: add.exerciseName, muscleGroup: add.muscleGroup })
       exerciseKeyToId.set(key, exId)
     }
+    const row = syncRowByAddKey.get(`${key}::${add.variationName.trim().toLowerCase()}`)
     return {
-      equipment: add.equipment ?? null,
-      exerciseId: exId,
-      isDefault: add.variationName === "Default",
-      name: add.variationName,
-      sortOrder: 0,
+      data: {
+        activityType: row?.muscleProfile?.activityType,
+        equipment: add.equipment ?? null,
+        exerciseId: exId,
+        isDefault: add.variationName === "Default",
+        muscleProfileRationale: row?.muscleProfile ? null : undefined,
+        muscleProfileReviewedAt: row?.muscleProfile ? new Date() : undefined,
+        muscleProfileReviewedById: row?.muscleProfile ? profile.id : undefined,
+        muscleProfileSource: row?.muscleProfile ? "manual" as const : undefined,
+        muscleProfileStatus: row?.muscleProfile ? "approved" as const : undefined,
+        name: add.variationName,
+        sortOrder: 0,
+      },
+      muscleProfile: row?.muscleProfile,
     }
   })
 
-  // --- Build a single batched transaction (no per-row round-trips). ---
-  const ops: Prisma.PrismaPromise<unknown>[] = []
-  if (deleteIds.length > 0) {
-    ops.push(db.variation.deleteMany({ where: { id: { in: deleteIds } } }))
-  }
-  if (newExercises.length > 0) {
-    ops.push(db.exercise.createMany({
-      data: newExercises.map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscleGroup, createdById: profile.id })),
-    }))
-  }
-  for (const [val, ids] of equipGroups) {
-    ops.push(db.variation.updateMany({ where: { id: { in: ids } }, data: { equipment: val || null } }))
-  }
-  for (const u of variationUpdates) {
-    ops.push(db.variation.update({ where: { id: u.id }, data: u.data }))
-  }
-  let addIdx = -1
-  if (variationsToCreate.length > 0) {
-    addIdx = ops.length
-    ops.push(db.variation.createMany({ data: variationsToCreate, skipDuplicates: true }))
-  }
-  // Remove exercises left empty after deletes/moves.
-  ops.push(db.exercise.deleteMany({ where: { variations: { none: {} } } }))
+  const addedCount = await db.$transaction(async (transaction) => {
+    if (deleteIds.length > 0) {
+      await transaction.variation.deleteMany({ where: { id: { in: deleteIds } } })
+    }
+    if (newExercises.length > 0) {
+      await transaction.exercise.createMany({
+        data: newExercises.map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscleGroup, createdById: profile.id })),
+      })
+    }
+    for (const [val, ids] of equipGroups) {
+      await transaction.variation.updateMany({ where: { id: { in: ids } }, data: { equipment: val || null } })
+    }
+    for (const update of variationUpdates) {
+      if (update.muscleProfile) {
+        await transaction.variationMuscleTarget.deleteMany({ where: { variationId: update.id } })
+      }
+      await transaction.variation.update({ where: { id: update.id }, data: update.data })
+      if (update.muscleProfile) {
+        const muscleTargets = buildMuscleTargetRows(update.muscleProfile)
+        if (muscleTargets.length > 0) {
+          await transaction.variationMuscleTarget.createMany({
+            data: muscleTargets.map((target) => ({ ...target, variationId: update.id })),
+          })
+        }
+      }
+    }
 
-  const results = await db.$transaction(ops)
+    let createdCount = 0
+    if (variationsToCreate.length > 0) {
+      const createdVariations = await transaction.variation.createManyAndReturn({
+        data: variationsToCreate.map((entry) => entry.data),
+        skipDuplicates: true,
+        select: { exerciseId: true, id: true, name: true },
+      })
+      createdCount = createdVariations.length
+      const profileByKey = new Map(
+        variationsToCreate
+          .filter((entry) => entry.muscleProfile)
+          .map((entry) => [`${entry.data.exerciseId}::${entry.data.name}`.toLowerCase(), entry.muscleProfile!]),
+      )
+      const muscleTargets = createdVariations.flatMap((variation) => {
+        const muscleProfile = profileByKey.get(`${variation.exerciseId}::${variation.name}`.toLowerCase())
+        return muscleProfile
+          ? buildMuscleTargetRows(muscleProfile).map((target) => ({ ...target, variationId: variation.id }))
+          : []
+      })
+      if (muscleTargets.length > 0) {
+        await transaction.variationMuscleTarget.createMany({ data: muscleTargets })
+      }
+    }
 
-  const addedCount = addIdx >= 0 ? (results[addIdx] as { count: number }).count : 0
+    await transaction.exercise.deleteMany({ where: { variations: { none: {} } } })
+    return createdCount
+  })
+
   const modifiedCount = equipOnlyMods.length + variationUpdates.length
   const deletedCount = deleteIds.length
   const result = { addedCount, modifiedCount, deletedCount, skippedModifyCount }
