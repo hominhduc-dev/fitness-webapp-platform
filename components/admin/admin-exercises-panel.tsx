@@ -56,6 +56,8 @@ const EQUIP = [
 ]
 const ACTIVITY_TYPES: ExerciseActivityType[] = ["strength", "cardio", "mobility", "sport", "other"]
 const EXERCISE_FORM_LABEL_CLASS = "text-[10px] font-semibold uppercase tracking-[0.045em] text-muted-foreground"
+const NATIVE_SELECT_CLASS =
+  "h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground [color-scheme:light] dark:[color-scheme:dark] [&_option]:bg-background [&_option]:text-foreground"
 const MUSCLE_FILTERS: MuscleSlug[] = [
   "abs",
   "adductors",
@@ -1276,26 +1278,26 @@ export function ExerciseLibraryPanel({
               </div>
             </DialogHeader>
             <div className="grid gap-3 sm:grid-cols-2">
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
+            <select className={NATIVE_SELECT_CLASS} value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
               <option value="all">{copy.profileFilterAll}</option>
               {MUSCLE_FILTERS.map((muscle) => <option key={muscle} value={muscle}>{formatMuscleSlug(muscle)}</option>)}
             </select>
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
+            <select className={NATIVE_SELECT_CLASS} value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
               <option value="all">{copy.equipmentFilterAll}</option>
               {equipmentOptions.map((equipment) => <option key={equipment} value={equipment}>{equipment}</option>)}
             </select>
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
+            <select className={NATIVE_SELECT_CLASS} value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
               <option value="all">Activity: all</option>
               {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
+            <select className={NATIVE_SELECT_CLASS} value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
               <option value="all">{locale === "en" ? "Review: all" : "Duyệt: tất cả"}</option>
               <option value="pending">{copy.profileFilterPending}</option>
               <option value="approved">{copy.profileFilterApproved}</option>
             </select>
             <select
               aria-label="Media"
-              className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
+              className={NATIVE_SELECT_CLASS}
               value={mediaFilter}
               onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
             >
@@ -1306,7 +1308,7 @@ export function ExerciseLibraryPanel({
             <label className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
               <span className="shrink-0">{locale === "en" ? "Sort by" : "Sắp xếp"}</span>
               <select
-                className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                className={cn(NATIVE_SELECT_CLASS, "flex-1")}
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
               >
@@ -1469,7 +1471,7 @@ export function ExerciseLibraryPanel({
           {transferTarget ? <div className="space-y-4">
             <div className="rounded-md border border-border bg-muted/20 p-3 text-sm"><p className="label-micro text-muted-foreground">{copy.target}</p><p className="mt-1 font-medium">{transferTarget.name} · {transferTarget.variationName}</p><p className="text-xs text-muted-foreground">{transferTarget.media ? "Media ✓" : "Media —"} · {copy.usageCount(transferTarget.usageCount)}</p></div>
             <Label>{copy.source}</Label>
-            <select value={transferSourceId} onChange={(e) => setTransferSourceId(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <select value={transferSourceId} onChange={(e) => setTransferSourceId(e.target.value)} className={NATIVE_SELECT_CLASS}>
               <option value="">{locale === "en" ? "Select source variation" : "Chọn variation nguồn"}</option>
               {exercises.filter((e) => e.id !== transferTarget.id && e.media).sort((a,b) => a.name.localeCompare(b.name)).map((e) => <option key={e.id} value={e.id}>{e.name} · {e.variationName}</option>)}
             </select>

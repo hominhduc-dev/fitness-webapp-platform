@@ -6,6 +6,8 @@ import {
   KeyRound,
   Link2,
   Loader2,
+  Plus,
+  RefreshCw,
   Save,
   Search,
   Trash2,
@@ -35,6 +37,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 import * as queries from "@/lib/queries/admin"
 import type {
   AdminCoachRequest,
@@ -628,6 +631,7 @@ export function AdminConsole() {
   }
 
   function resetImportState() {
+    setError(null)
     setImportFileName("")
     setImportRows([])
     setImportIssues([])
@@ -2332,23 +2336,45 @@ export function AdminConsole() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-1 sm:grid-cols-2">
-              <Button
+            <div className="grid gap-2 rounded-xl border border-border bg-surface-subtle p-1.5 sm:grid-cols-2">
+              <button
                 type="button"
-                variant={excelImportMode === "append" ? "default" : "ghost"}
-                className="justify-start"
+                aria-pressed={excelImportMode === "append"}
+                className={cn(
+                  "flex min-h-[76px] items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  excelImportMode === "append"
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-transparent bg-background/70 text-foreground hover:border-input hover:bg-surface-hover",
+                )}
                 onClick={() => handleExcelImportModeChange("append")}
               >
-                {locale === "en" ? "Add new" : "Thêm mới"}
-              </Button>
-              <Button
+                <Plus className="mt-0.5 size-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{locale === "en" ? "Add new" : "Thêm mới"}</span>
+                  <span className={cn("mt-1 block text-xs leading-5", excelImportMode === "append" ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                    {locale === "en" ? "Import extra exercises only." : "Chỉ import thêm bài mới."}
+                  </span>
+                </span>
+              </button>
+              <button
                 type="button"
-                variant={excelImportMode === "sync" ? "default" : "ghost"}
-                className="justify-start"
+                aria-pressed={excelImportMode === "sync"}
+                className={cn(
+                  "flex min-h-[76px] items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  excelImportMode === "sync"
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-transparent bg-background/70 text-foreground hover:border-input hover:bg-surface-hover",
+                )}
                 onClick={() => handleExcelImportModeChange("sync")}
               >
-                {locale === "en" ? "Sync library" : "Đồng bộ thư viện"}
-              </Button>
+                <RefreshCw className="mt-0.5 size-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{locale === "en" ? "Sync library" : "Đồng bộ thư viện"}</span>
+                  <span className={cn("mt-1 block text-xs leading-5", excelImportMode === "sync" ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                    {locale === "en" ? "Review add, edit, and delete changes." : "Review thêm, sửa và xoá."}
+                  </span>
+                </span>
+              </button>
             </div>
             <p className="text-sm text-muted-foreground">
               {excelImportMode === "append"
@@ -2359,6 +2385,11 @@ export function AdminConsole() {
                   ? "Compare the file with the full library. Sync can delete exercises that are no longer in the file."
                   : "So sánh file với toàn bộ thư viện. Đồng bộ có thể xoá bài không còn trong file."}
             </p>
+            {actionError ? (
+              <div role="alert" className="max-h-40 overflow-auto whitespace-pre-line rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+                {actionError}
+              </div>
+            ) : null}
             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="exercise-import-file">{locale === "en" ? "Select file" : "Chọn file"}</Label>
               <Input
