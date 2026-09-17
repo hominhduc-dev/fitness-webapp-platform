@@ -44,6 +44,11 @@ import { googleRouter } from "./google.route"
 import { assertCoach, ensurePrisma } from "../services/fitness-data/shared/guards"
 import { BadRequestError } from "../services/errors"
 import {
+  acceptCoachTraineeAIProgram,
+  generateCoachTraineeWorkoutProgram,
+} from "../services/ai.service"
+import { generateProgramSchema, generationIdSchema } from "./ai.schemas"
+import {
   deleteTraineePlannedItemForCoach,
   getTraineeMealPlanForCoach,
   reviewTraineeMealPlanForCoach,
@@ -331,6 +336,26 @@ coachRouter.post("/notifications/:notificationId/approve-exercise-swap", async (
     sendError(res, error)
   }
 })
+
+coachRouter.post(
+  "/trainees/:traineeId/ai-program",
+  validated({ body: generateProgramSchema }, async (req, res) => {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await generateCoachTraineeWorkoutProgram(profile.profile, String(req.params.traineeId), req.body)
+
+    sendData(res, result, { status: 201 })
+  }),
+)
+
+coachRouter.post(
+  "/trainees/:traineeId/ai-program/accept",
+  validated({ body: generationIdSchema }, async (req, res) => {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await acceptCoachTraineeAIProgram(profile.profile, String(req.params.traineeId), req.body.generationId)
+
+    sendData(res, { program: result })
+  }),
+)
 
 coachRouter.delete("/programs/:programId", async (req, res) => {
   try {
