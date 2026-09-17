@@ -19,10 +19,14 @@ function workout(id: string, weekIndex: number | null, scheduledDate: Date | nul
   return { id, scheduledDate, weekIndex }
 }
 
-function visibleIds(workouts: TestWorkout[], duration: number, weeksElapsed: number) {
-  return selectVisibleWorkoutsForAssignmentWeek(workouts, ASSIGNED_AT, duration, weekStartAfter(weeksElapsed)).map(
-    (item) => item.id,
-  )
+function visibleIds(workouts: TestWorkout[], duration: number, weeksElapsed: number, isPersonal = false) {
+  return selectVisibleWorkoutsForAssignmentWeek(
+    workouts,
+    ASSIGNED_AT,
+    duration,
+    weekStartAfter(weeksElapsed),
+    isPersonal,
+  ).map((item) => item.id)
 }
 
 describe("selectVisibleWorkoutsForAssignmentWeek", () => {
@@ -65,8 +69,18 @@ describe("selectVisibleWorkoutsForAssignmentWeek", () => {
   it("never expires a personal routine's synthetic one-week program", () => {
     const workouts = [workout("personal", null)]
 
-    expect(visibleIds(workouts, 1, 0)).toEqual(["personal"])
-    expect(visibleIds(workouts, 1, 12)).toEqual(["personal"])
+    expect(visibleIds(workouts, 1, 0, true)).toEqual(["personal"])
+    expect(visibleIds(workouts, 1, 12, true)).toEqual(["personal"])
+  })
+
+  it("ends a one-week coach program after its single week", () => {
+    // Same shape as a personal routine, but the coach owns it: it used to be
+    // waved through as personal and repeat on the trainee's board forever.
+    const workouts = [workout("day-1", 0), workout("day-2", 0)]
+
+    expect(visibleIds(workouts, 1, 0)).toEqual(["day-1", "day-2"])
+    expect(visibleIds(workouts, 1, 1)).toEqual([])
+    expect(visibleIds(workouts, 1, 6)).toEqual([])
   })
 
   it("keeps dated one-off workouts regardless of week", () => {

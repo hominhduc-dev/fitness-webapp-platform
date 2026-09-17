@@ -34,6 +34,8 @@ type TraineeProgram = {
   assignedAt: Date
   duration: number
   id: string
+  /** True for the synthetic program behind the trainee's own routines. */
+  isPersonal?: boolean
   name: string
   /** `YYYY-MM-DD`. Overrides `assignedAt` as the week-1 anchor when set. */
   startDate?: string

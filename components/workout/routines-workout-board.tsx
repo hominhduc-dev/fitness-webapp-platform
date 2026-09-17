@@ -78,10 +78,10 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
   )
 
   // A personal routine is wrapped in a synthetic one-week program by
-  // `createPersonalWorkoutForTrainee`, so `duration > 1` is what separates a real
-  // multi-week program from a standalone routine.
-  const multiWeekById = useMemo(
-    () => new Map(programs.filter((program) => program.duration > 1).map((program) => [program.id, program])),
+  // `createPersonalWorkoutForTrainee`, so what separates a real program from a
+  // standalone routine is who created it — not how many weeks it runs.
+  const programById = useMemo(
+    () => new Map(programs.filter((program) => !program.isPersonal).map((program) => [program.id, program])),
     [programs],
   )
 
@@ -90,7 +90,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
     const standalone: Workout[] = []
 
     visibleWorkouts.forEach((workout) => {
-      const program = workout.programId ? multiWeekById.get(workout.programId) : undefined
+      const program = workout.programId ? programById.get(workout.programId) : undefined
 
       if (!program) {
         standalone.push(workout)
@@ -108,7 +108,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
     })
 
     return { programGroups: Array.from(groups.values()), standaloneWorkouts: standalone }
-  }, [multiWeekById, visibleWorkouts])
+  }, [programById, visibleWorkouts])
 
   // The heading sits directly above the grid, so it counts what is actually
   // rendered: one entry per program card, each standalone routine, and each
