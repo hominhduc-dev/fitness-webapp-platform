@@ -117,9 +117,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
   const countsQuery = useCoachNavCounts()
   const counts: { programs?: number; trainees?: number } = countsQuery.data ?? {}
 
-  const coachNavItems = getCoachNavItems(messages, counts).filter((item) =>
-    ["/coach/trainees", "/coach/programs", "/coach/exercises", "/coach/stats"].includes(item.href),
-  )
+  const coachNavItems = getCoachNavItems(messages, counts)
 
   return (
     <BaseSidebar
@@ -140,7 +138,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
       }
       cta={
         <Button asChild className="w-full justify-start gap-2">
-          <Link href="/coach/trainees">
+          <Link href="/coach/trainees?add=1">
             <UserPlus className="h-4 w-4" />
             {messages.shell.addClient}
           </Link>

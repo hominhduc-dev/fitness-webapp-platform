@@ -1,16 +1,18 @@
 "use client"
 
 import { useCoachData } from "@/lib/queries/coach-data"
+import { useInviteTrainee } from "@/lib/queries/coach"
 import { queryKeys } from "@/lib/queries/keys"
 import { fetchCoachTrainees } from "@/lib/fitness/api"
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronRight, Loader2, Search } from "lucide-react"
+import { ChevronRight, Loader2, Search, Send, UserPlus } from "lucide-react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { FilterChip } from "@/components/ui/filter-chip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import type { CoachTrainee } from "@/lib/fitness/types"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -32,12 +34,8 @@ type Status = "on-track" | "behind" | "rest"
 
 function deriveStatus(t: CoachTrainee): Status {
   const planned = t.plannedSessionsPerWeek ?? 0
-  const done = t.thisWeekWorkouts
-  if (planned === 0 && done === 0) return "rest"
-  const rate = planned > 0 ? done / planned : (t.completionRate ?? 0) / 100
-  if (rate >= 0.8) return "on-track"
-  if (rate === 0) return "rest"
-  return "behind"
+  if (planned <= 0) return "rest"
+  return t.thisWeekWorkouts / planned >= 0.8 ? "on-track" : "behind"
 }
 
 const STATUS_COLOR: Record<Status, string> = {
@@ -46,7 +44,7 @@ const STATUS_COLOR: Record<Status, string> = {
   rest: "color-mix(in srgb, var(--muted-foreground) 40%, transparent)",
 }
 
-const FILTERS = ["all", "on-track", "behind", "rest"] as const
+const KANBAN_STATUSES = ["on-track", "behind", "rest"] as const
 
 function getStatusLabel(status: Status, messages: AppMessages) {
   if (status === "on-track") return messages.coach.statusOnTrack
@@ -54,23 +52,26 @@ function getStatusLabel(status: Status, messages: AppMessages) {
   return messages.coach.statusRestWeek
 }
 
-function getFilterLabel(filter: (typeof FILTERS)[number], messages: AppMessages) {
-  if (filter === "all") return messages.coach.allFilter
-  if (filter === "rest") return messages.coach.rest
-  return getStatusLabel(filter, messages)
-}
-
 /* ------------------------------------------------------------------ */
-/* ClientRow                                                            */
+/* ClientCard                                                           */
 /* ------------------------------------------------------------------ */
 
-function ClientRow({ trainee }: { trainee: CoachTrainee }) {
+function ClientCard({ trainee }: { trainee: CoachTrainee & { _status: Status } }) {
   const { locale, messages } = useLocale()
-  const status = deriveStatus(trainee)
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const program = trainee.programCount > 0
     ? messages.coach.traineeProgramCount(trainee.programCount)
     : messages.coach.noProgram
+  const planned = trainee.plannedSessionsPerWeek ?? 0
+  const done = trainee.thisWeekWorkouts ?? 0
+  const workload =
+    planned > 0
+      ? locale === "en"
+        ? `${done}/${planned} sessions this week`
+        : `${done}/${planned} buổi tuần này`
+      : locale === "en"
+        ? "No planned sessions this week"
+        : "Tuần này không có lịch tập"
   const lastSeen = trainee.lastCheckInAt
     ? trainee.lastCheckInAt.toLocaleDateString(dateLocale, { month: "short", day: "numeric" })
     : trainee.createdAt.toLocaleDateString(dateLocale, { month: "short", day: "numeric" })
@@ -78,30 +79,39 @@ function ClientRow({ trainee }: { trainee: CoachTrainee }) {
   return (
     <Link
       href={`/coach/trainees/${trainee.id}`}
-      className="flex w-full items-center gap-3 border-b border-border border-l-[3px] border-l-transparent px-6 py-[14px] transition-colors hover:bg-muted/30"
+      className="group block rounded-lg border border-border bg-background px-3 py-3 transition-colors hover:border-ring/40 hover:bg-muted/35"
     >
-      <Avatar className="h-9 w-9 flex-shrink-0">
-        <AvatarImage src={trainee.avatar ?? undefined} />
-        <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
-          {getInitials(trainee.name)}
-        </AvatarFallback>
-      </Avatar>
+      <div className="flex items-start gap-3">
+        <Avatar className="h-9 w-9 flex-shrink-0">
+          <AvatarImage src={trainee.avatar ?? undefined} />
+          <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
+            {getInitials(trainee.name)}
+          </AvatarFallback>
+        </Avatar>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{trainee.name}</span>
-          <span
-            className="h-[6px] w-[6px] flex-shrink-0 rounded-full"
-            style={{ background: STATUS_COLOR[status] }}
-            title={getStatusLabel(status, messages)}
-          />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-semibold text-foreground">{trainee.name}</span>
+            <span
+              className="h-[6px] w-[6px] flex-shrink-0 rounded-full"
+              style={{ background: STATUS_COLOR[trainee._status] }}
+              title={getStatusLabel(trainee._status, messages)}
+            />
+          </div>
+          {trainee.email ? (
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">{trainee.email}</div>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-mono text-micro text-muted-foreground">
+            <span>{program}</span>
+            <span aria-hidden="true">·</span>
+            <span>{workload}</span>
+            <span aria-hidden="true">·</span>
+            <span>{lastSeen}</span>
+          </div>
         </div>
-        <div className="mt-0.5 truncate font-mono text-micro text-muted-foreground">
-          {program} · {lastSeen}
-        </div>
+
+        <ChevronRight className="mt-1 h-[14px] w-[14px] flex-shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
       </div>
-
-      <ChevronRight className="h-[14px] w-[14px] flex-shrink-0 text-muted-foreground" />
     </Link>
   )
 }
@@ -116,27 +126,89 @@ type Props = {
 
 export function TraineesClientView({ initialTrainees }: Props) {
   const { locale, messages } = useLocale()
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const traineesQuery = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
+  const inviteTrainee = useInviteTrainee()
   const trainees = traineesQuery.data ?? []
   const [q, setQ] = useState("")
-  const [filter, setFilter] = useState<"all" | "on-track" | "behind" | "rest">("all")
+  const [manualInviteOpen, setManualInviteOpen] = useState(false)
+  const [inviteIdentifier, setInviteIdentifier] = useState("")
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+  const inviteOpen = manualInviteOpen || searchParams.get("add") === "1"
+
+  const closeInvite = () => {
+    setManualInviteOpen(false)
+    setInviteError(null)
+    router.replace(pathname)
+  }
+
+  const handleInvite = async () => {
+    if (!inviteIdentifier.trim() || inviteTrainee.isPending) return
+
+    setInviteError(null)
+    setInviteSuccess(null)
+
+    try {
+      const request = await inviteTrainee.mutateAsync(inviteIdentifier.trim())
+      setInviteIdentifier("")
+      setInviteSuccess(
+        locale === "en"
+          ? `Invite sent to ${request.trainee.name}.`
+          : `Đã gửi lời mời tới ${request.trainee.name}.`,
+      )
+    } catch (inviteErrorValue) {
+      setInviteError(
+        inviteErrorValue instanceof Error
+          ? inviteErrorValue.message
+          : locale === "en"
+            ? "Unable to send invite."
+            : "Không thể gửi lời mời.",
+      )
+    }
+  }
 
   const statusedTrainees = trainees.map((t) => ({ ...t, _status: deriveStatus(t) }))
+  const normalizedQuery = q.trim().toLowerCase()
   const visible = statusedTrainees.filter((t) => {
-    if (filter !== "all" && t._status !== filter) return false
-    if (q && !t.name.toLowerCase().includes(q.toLowerCase())) return false
-    return true
+    if (!normalizedQuery) return true
+    return [t.name, t.email, t.phone ?? ""].some((value) => value.toLowerCase().includes(normalizedQuery))
   })
+  const kanbanColumns = KANBAN_STATUSES.map((status) => ({
+    status,
+    items: visible.filter((t) => t._status === status),
+    title: getStatusLabel(status, messages),
+    description:
+      status === "on-track"
+        ? locale === "en"
+          ? "Completed at least 80% of this week's plan."
+          : "Hoàn thành ít nhất 80% kế hoạch tuần này."
+        : status === "behind"
+          ? locale === "en"
+            ? "Has a weekly plan but progress is below 80%."
+            : "Có lịch trong tuần nhưng tiến độ dưới 80%."
+          : locale === "en"
+            ? "No planned sessions assigned for this week."
+            : "Tuần này chưa có buổi tập được giao.",
+  }))
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
       {/* Header */}
-      <div className="border-b border-border px-6 pb-3 pt-5">
+      <div className="border-b border-border px-6 pb-4 pt-5">
         <div className="mb-3.5 flex items-baseline justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">{messages.coach.clients}</h1>
-          <span className="label-micro text-muted-foreground tnum">
-            {messages.coach.clientTotal(trainees.length)}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="label-micro text-muted-foreground tnum">
+              {messages.coach.clientTotal(trainees.length)}
+            </span>
+            <Button size="sm" className="hidden h-8 gap-1.5 rounded-lg px-3 sm:inline-flex" onClick={() => setManualInviteOpen(true)}>
+              <UserPlus className="h-3.5 w-3.5" />
+              {messages.shell.addClient}
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
@@ -149,23 +221,9 @@ export function TraineesClientView({ initialTrainees }: Props) {
             className="pl-9"
           />
         </div>
-
-        {/* Filter chips */}
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-          {FILTERS.map((key) => (
-            <FilterChip
-              key={key}
-              active={filter === key}
-              onClick={() => setFilter(key)}
-              className="uppercase tracking-[0.06em]"
-            >
-              {getFilterLabel(key, messages)}
-            </FilterChip>
-          ))}
-        </div>
       </div>
 
-      {/* Client rows */}
+      {/* Client kanban */}
       <div>
         {traineesQuery.isPending ? (
           <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
@@ -181,14 +239,90 @@ export function TraineesClientView({ initialTrainees }: Props) {
               {locale === "en" ? "Try again" : "Thử lại"}
             </Button>
           </div>
-        ) : visible.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-            {messages.coach.noClientsMatch}
-          </p>
         ) : (
-          visible.map((t) => <ClientRow key={t.id} trainee={t} />)
+          <div className="grid gap-4 px-6 py-5 lg:grid-cols-3">
+            {kanbanColumns.map((column) => (
+              <section
+                key={column.status}
+                className="min-h-[260px] rounded-xl border border-border bg-muted/20"
+                aria-label={column.title}
+              >
+                <div className="border-b border-border px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2 w-2 flex-shrink-0 rounded-full"
+                        style={{ background: STATUS_COLOR[column.status] }}
+                        aria-hidden="true"
+                      />
+                      <h2 className="truncate text-sm font-semibold text-foreground">{column.title}</h2>
+                    </div>
+                    <span className="rounded-full bg-background px-2 py-0.5 font-mono text-micro text-muted-foreground">
+                      {column.items.length}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{column.description}</p>
+                </div>
+
+                <div className="space-y-2 p-3">
+                  {column.items.length > 0 ? (
+                    column.items.map((trainee) => <ClientCard key={trainee.id} trainee={trainee} />)
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                      {visible.length === 0 ? messages.coach.noClientsMatch : locale === "en" ? "No clients here." : "Chưa có học viên."}
+                    </p>
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
       </div>
+
+      <Dialog open={inviteOpen} onOpenChange={(open) => (open ? setManualInviteOpen(true) : closeInvite())}>
+        <DialogContent className="max-w-[min(92vw,440px)]">
+          <DialogHeader className="text-left">
+            <DialogTitle>{messages.shell.addClient}</DialogTitle>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {locale === "en"
+                ? "Find a trainee by email or phone number and send a connection invite."
+                : "Tìm trainee bằng email hoặc số điện thoại rồi gửi lời mời kết nối."}
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              autoFocus
+              value={inviteIdentifier}
+              onChange={(event) => setInviteIdentifier(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  void handleInvite()
+                }
+              }}
+              placeholder={locale === "en" ? "Email or phone number" : "Email hoặc số điện thoại"}
+            />
+
+            {inviteError ? (
+              <p className="rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{inviteError}</p>
+            ) : null}
+            {inviteSuccess ? (
+              <p className="rounded-md bg-ok-soft px-3 py-2 text-sm text-success-text">{inviteSuccess}</p>
+            ) : null}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={closeInvite} disabled={inviteTrainee.isPending}>
+              {messages.common.cancel}
+            </Button>
+            <Button className="gap-1.5" onClick={() => void handleInvite()} disabled={!inviteIdentifier.trim() || inviteTrainee.isPending}>
+              {inviteTrainee.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {locale === "en" ? "Send invite" : "Gửi lời mời"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

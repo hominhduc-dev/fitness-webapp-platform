@@ -64,6 +64,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
 
   const currentWeekIndex =
     progress?.kind === "active" ? progress.weekIndex : progress?.kind === "completed" ? totalWeeks - 1 : 0
+  const startSessionsAsTodayTrial = !canEdit && progress?.kind === "not-started"
 
   // A missing weekIndex means "week 1" — that is how the AI generator stores a
   // program it expects to repeat, and it is also how older rows were written.
@@ -241,7 +242,12 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
       {weekWorkouts.length > 0 ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
           {weekWorkouts.map((workout) => (
-            <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
+            <RoutineCard
+              key={workout.id}
+              historyLogs={historyLogs}
+              startAsTodayTrial={startSessionsAsTodayTrial}
+              workout={workout}
+            />
           ))}
         </div>
       ) : (

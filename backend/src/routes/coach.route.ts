@@ -6,6 +6,7 @@ import { isSetIntensityTag, type SetIntensityAssignment } from "../domain/set-in
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   adjustCoachProgramForTrainee,
+  approveTraineeExerciseSwapForCoach,
   assignCoachProgramToTrainee,
   createCoachExercise,
   createBodyMetricForTrainee,
@@ -22,6 +23,7 @@ import {
   getCoachNavCounts,
   getCoachProgramDetail,
   getCoachTraineeDetail,
+  inviteTraineeForCoach,
   listBodyMetricsForTrainee,
   listCoachExerciseImportRequests,
   listCoachExercises,
@@ -236,11 +238,23 @@ coachRouter.post("/requests", async (req, res) => {
   }
 })
 
+coachRouter.post("/trainee-invites", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await inviteTraineeForCoach(profile.profile, String(req.body.identifier ?? ""))
+
+    res.status(201).json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
 coachRouter.get("/programs", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
     const includeArchived = req.query.includeArchived === "1" || req.query.includeArchived === "true"
-    const programs = await listCoachPrograms(profile.profile, { includeArchived })
+    const includePersonalized = req.query.includePersonalized === "1" || req.query.includePersonalized === "true"
+    const programs = await listCoachPrograms(profile.profile, { includeArchived, includePersonalized })
 
     res.json({
       programs,
@@ -302,6 +316,17 @@ coachRouter.post("/programs/:programId/adjustments", async (req, res) => {
     res.status(201).json({
       program,
     })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/notifications/:notificationId/approve-exercise-swap", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await approveTraineeExerciseSwapForCoach(profile.profile, String(req.params.notificationId))
+
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }

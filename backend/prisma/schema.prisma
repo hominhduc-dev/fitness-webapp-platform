@@ -476,6 +476,9 @@ model Program {
   difficulty          ProgramDifficulty
   workoutsPerWeek     Int
   isAIGenerated       Boolean             @default(false)
+  /// Non-null when this program is a trainee-personalized copy forked from a
+  /// coach-authored template, for example after the trainee swaps an exercise.
+  forkedFromProgramId String?             @db.Uuid
   googleSpreadsheetId String?
   googleSheetName     String?
   createdById         String              @db.Uuid
@@ -489,6 +492,7 @@ model Program {
   @@index([createdById, googleSpreadsheetId, googleSheetName])
   @@index([createdById])
   @@index([createdById, archivedAt])
+  @@index([forkedFromProgramId])
 }
 
 /// One coach's Google account link, used to read program templates from their Sheets.

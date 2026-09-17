@@ -5,13 +5,29 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
 import {
+  approveTraineeExerciseSwap,
   assignCoachProgram,
   createCoachBodyMetric,
   createCoachCheckIn,
   createCoachRequest,
+  inviteTrainee,
   unassignCoachProgram,
   updateCoachRequestStatus,
 } from "@/lib/fitness/api"
+
+export function useApproveTraineeExerciseSwap() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (notificationId: string) =>
+      approveTraineeExerciseSwap(await requireAccessToken(), notificationId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.all })
+    },
+  })
+}
 
 export function useAssignCoachProgram() {
   const queryClient = useQueryClient()
@@ -81,6 +97,17 @@ export function useCreateCoachRequest() {
     mutationFn: async (coachId: string) => createCoachRequest(await requireAccessToken(), coachId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.coach.discover() })
+    },
+  })
+}
+
+export function useInviteTrainee() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (identifier: string) => inviteTrainee(await requireAccessToken(), identifier),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
     },
   })
 }

@@ -106,8 +106,11 @@ export const queryKeys = {
     trainees: (options?: { phone?: string }) =>
       ["coach", "trainees", { phone: options?.phone ?? null }] as const,
     traineeDetail: (traineeId: string) => ["coach", "trainee-detail", traineeId] as const,
-    programs: (options?: { includeArchived?: boolean }) =>
-      ["coach", "programs", { includeArchived: options?.includeArchived ?? false }] as const,
+    programs: (options?: { includeArchived?: boolean; includePersonalized?: boolean }) =>
+      ["coach", "programs", {
+        includeArchived: options?.includeArchived ?? false,
+        includePersonalized: options?.includePersonalized ?? false,
+      }] as const,
     program: (programId: string) => ["coach", "program", programId] as const,
     /** Cursor-paginated; the cursor itself lives in `pageParam`, not the key. */
     workoutLogs: (traineeId: string, options?: { weekStart?: string; programId?: string; limit?: number }) =>

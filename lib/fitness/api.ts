@@ -818,6 +818,7 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
     description: program.description,
     difficulty: program.difficulty,
     duration: program.duration,
+    forkedFromProgramId: program.forkedFromProgramId,
     googleSpreadsheetId: program.googleSpreadsheetId,
     googleSheetName: program.googleSheetName,
     id: program.id,
@@ -1714,9 +1715,12 @@ async function fetchExerciseLibrary(
 
 async function fetchCoachPrograms(
   accessToken: string,
-  options?: { includeArchived?: boolean },
+  options?: { includeArchived?: boolean; includePersonalized?: boolean },
 ): Promise<CoachProgram[]> {
-  const query = options?.includeArchived ? "?includeArchived=1" : ""
+  const params = new URLSearchParams()
+  if (options?.includeArchived) params.set("includeArchived", "1")
+  if (options?.includePersonalized) params.set("includePersonalized", "1")
+  const query = params.toString() ? `?${params.toString()}` : ""
   const response = await request<{ programs: SerializedCoachProgram[] }>(
     `/api/coach/programs${query}`,
     accessToken,
@@ -1866,6 +1870,22 @@ async function createCoachRequest(accessToken: string, coachId: string) {
   }
 }
 
+async function inviteTrainee(accessToken: string, identifier: string) {
+  const response = await request<{ request: SerializedCoachRequest }>("/api/coach/trainee-invites", accessToken, {
+    body: JSON.stringify({ identifier }),
+    method: "POST",
+  })
+
+  return {
+    coachId: response.request.coachId,
+    createdAt: new Date(response.request.createdAt),
+    id: response.request.id,
+    status: response.request.status,
+    trainee: response.request.trainee,
+    traineeId: response.request.traineeId,
+  }
+}
+
 async function updateCoachRequestStatus(
   accessToken: string,
   requestId: string,
@@ -1920,6 +1940,18 @@ async function adjustCoachProgram(
   )
 
   return mapCoachProgram(response.program)
+}
+
+async function approveTraineeExerciseSwap(accessToken: string, notificationId: string) {
+  return request<{
+    approved: boolean
+    alreadyApproved: boolean
+    notificationId: string
+    originalProgramId?: string
+    updatedExerciseCount: number
+  }>(`/api/coach/notifications/${notificationId}/approve-exercise-swap`, accessToken, {
+    method: "POST",
+  })
 }
 
 async function unassignCoachProgram(accessToken: string, programId: string, traineeId: string) {
@@ -2574,6 +2606,7 @@ export {
   generateAIMealPlan,
   generateAIProgram,
   generateAIDailyWorkout,
+  inviteTrainee,
   sendAIChatMessage,
   fetchNutritionDay,
   fetchNotifications,
@@ -2585,6 +2618,7 @@ export {
   fetchTraineeProgram,
   fetchWorkouts,
   addWorkoutToProgram,
+  approveTraineeExerciseSwap,
   copyProgramWeek,
   updateTraineeProgram,
   markAllNotificationsRead,

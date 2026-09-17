@@ -278,6 +278,9 @@ export function TraineeWorkoutLogsPanel({
   const deletingCommentId = commentMutation.isPending && commentMutation.variables.action === "delete" ? commentMutation.variables.commentId : null
   const daySections = buildWeekDaySections(logs, weekStart)
   const allDayKeys = daySections.map((section) => section.key)
+  const weekCompletedSets = daySections.reduce((sum, section) => sum + section.completedSets, 0)
+  const weekTotalSets = daySections.reduce((sum, section) => sum + section.totalSets, 0)
+  const weekTotalVolume = daySections.reduce((sum, section) => sum + section.totalVolume, 0)
 
   const toggleDaySection = (dayKey: string) => {
     setExpandedDayKeys((current) =>
@@ -661,7 +664,7 @@ export function TraineeWorkoutLogsPanel({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error || logsQuery.error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
           {error ?? logsQuery.error?.message}
@@ -673,130 +676,154 @@ export function TraineeWorkoutLogsPanel({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold">Workout log details</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {logs.length > 0
-              ? `Loaded ${logs.length} sessions for the selected week. Export uses the weekly template report and adds a raw set sheet.`
-              : "Pick a week to see full set detail and export the weekly template report."}
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
+          <div>
+            <p className="text-sm font-semibold">Workout log details</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {logs.length > 0
+                ? `Loaded ${logs.length} sessions for the selected week.`
+                : "Pick a week to see full set detail and export reports."}
+            </p>
+          </div>
+
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Week start</p>
             <Input
               type="date"
               value={weekStart}
               onChange={(event) => { setWeekStart(event.target.value); setExpandedDayKeys([]); setError(null); setNotice(null) }}
-              className="w-full min-w-[190px] bg-background sm:w-[220px]"
+              className="w-full bg-background"
             />
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2 bg-transparent"
-            onClick={() => void handlePreviewExcel()}
-            disabled={isPreviewLoading || isLoading || logs.length === 0}
-          >
-            {isPreviewLoading ? (
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-border bg-card px-3 py-2">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">Sessions</p>
+              <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{logs.length}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card px-3 py-2">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">Sets</p>
+              <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{weekCompletedSets}/{weekTotalSets}</p>
+            </div>
+            <div className="col-span-2 rounded-lg border border-border bg-card px-3 py-2">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">Volume</p>
+              <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
+                {Math.round(weekTotalVolume).toLocaleString(locale === "en" ? "en-US" : "vi-VN")} kg
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-start gap-2 bg-transparent"
+              onClick={() => void handlePreviewExcel()}
+              disabled={isPreviewLoading || isLoading || logs.length === 0}
+            >
+              {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              {copy.previewReport}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-start gap-2 bg-transparent"
+              onClick={() => void handleExportExcel()}
+              disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {copy.exportWeeklyReport}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-start gap-2 bg-transparent"
+              onClick={() => void handleExportGoogleSheets()}
+              disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
+            >
+              {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExportingToSheets ? copy.exportingGoogleSheets : copy.exportGoogleSheets}
+            </Button>
+          </div>
+        </aside>
+
+        <section className="min-w-0">
+          {isLoading ? (
+            <div className="flex min-h-[360px] items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="h-4 w-4" />
-            )}
-            {copy.previewReport}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2 bg-transparent"
-            onClick={() => void handleExportExcel()}
-            disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
-          >
-            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {copy.exportWeeklyReport}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2 bg-transparent"
-            onClick={() => void handleExportGoogleSheets()}
-            disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
-          >
-            {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {isExportingToSheets ? copy.exportingGoogleSheets : copy.exportGoogleSheets}
-          </Button>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {copy.loadingHistory}
-        </div>
-      ) : logs.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          {copy.emptyWeek}
-        </div>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={expandAllDays}>
-              {copy.expandAll}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={collapseAllDays}>
-              {copy.collapseAll}
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            {daySections.map((section) => {
-              const isExpanded = expandedDayKeys.includes(section.key)
-
-              return (
-                <div key={section.key} className="overflow-hidden rounded-2xl border border-border bg-card">
-                  <button
-                    type="button"
-                    onClick={() => toggleDaySection(section.key)}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-muted/20"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">{section.label}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {section.logs.length > 0
-                          ? copy.sessionSummary(section.logs.length, section.completedSets, section.totalSets, section.totalVolume)
-                          : copy.emptyDay}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-                        {copy.sessions(section.logs.length)}
-                      </span>
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-                          isExpanded ? "rotate-180" : ""
-                        }`}
-                      />
-                    </div>
-                  </button>
-
-                  {isExpanded ? (
-                    <div className="border-t border-border bg-muted/10 px-4 py-4">
-                      {section.logs.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                          {copy.emptyDay}
-                        </div>
-                      ) : (
-                        <div className="space-y-4">{section.logs.map(renderLogCard)}</div>
-                      )}
-                    </div>
-                  ) : null}
+              {copy.loadingHistory}
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+              {copy.emptyWeek}
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                  {weekStart} – {getWeekEndDateInput(weekStart)}
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={expandAllDays}>
+                    {copy.expandAll}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={collapseAllDays}>
+                    {copy.collapseAll}
+                  </Button>
                 </div>
-              )
-            })}
-          </div>
-        </>
-      )}
+              </div>
+
+              <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                {daySections.map((section) => {
+                  const isExpanded = expandedDayKeys.includes(section.key)
+
+                  return (
+                    <div key={section.key} className="overflow-hidden rounded-xl border border-border bg-card">
+                      <button
+                        type="button"
+                        onClick={() => toggleDaySection(section.key)}
+                        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-muted/20"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">{section.label}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {section.logs.length > 0
+                              ? copy.sessionSummary(section.logs.length, section.completedSets, section.totalSets, section.totalVolume)
+                              : copy.emptyDay}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                            {copy.sessions(section.logs.length)}
+                          </span>
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                              isExpanded ? "rotate-180" : ""
+                            }`}
+                          />
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="border-t border-border bg-muted/10 px-3 py-3">
+                          {section.logs.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                              {copy.emptyDay}
+                            </div>
+                          ) : (
+                            <div className="space-y-3">{section.logs.map(renderLogCard)}</div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
 
       {nextCursor && logs.length > 0 ? (
         <div className="flex justify-center">

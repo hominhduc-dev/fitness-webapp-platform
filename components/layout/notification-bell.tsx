@@ -2,7 +2,7 @@
 
 import { formatDistanceToNow } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { Bell, CheckCheck, Settings } from "lucide-react"
+import { Bell, Check, CheckCheck, Loader2, Settings } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -19,11 +19,18 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { AppNotification } from "@/lib/fitness/types"
 import { presentNotification } from "@/lib/notifications/present"
 import { setAppBadge } from "@/lib/pwa/app-badge"
+import { useApproveTraineeExerciseSwap } from "@/lib/queries/coach"
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/lib/queries/notifications"
 import { cn } from "@/lib/utils"
 
 function formatBadge(count: number) {
   return count > 9 ? "9+" : String(count)
+}
+
+function isPendingExerciseSwapApproval(notification: AppNotification) {
+  return notification.type === "general" &&
+    notification.metadata?.kind === "trainee_swapped_exercise" &&
+    typeof notification.metadata?.approvedAt !== "string"
 }
 
 /**
@@ -47,6 +54,7 @@ export function NotificationBell({
   const query = useNotifications()
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
+  const approveExerciseSwap = useApproveTraineeExerciseSwap()
 
   const notifications = query.data?.notifications ?? []
   const unreadCount = query.data?.unreadCount ?? 0
@@ -121,6 +129,9 @@ export function NotificationBell({
             notifications.map((notification) => {
               const view = presentNotification(notification, messages, locale, now)
               const unread = !notification.readAt
+              const canApproveSwap = isPendingExerciseSwapApproval(notification)
+              const isApprovingSwap =
+                approveExerciseSwap.isPending && approveExerciseSwap.variables === notification.id
 
               return (
                 <DropdownMenuItem
@@ -141,6 +152,25 @@ export function NotificationBell({
                       {view.title}
                     </span>
                     <span className="line-clamp-3 text-xs text-muted-foreground">{view.message}</span>
+                    {canApproveSwap ? (
+                      <button
+                        type="button"
+                        disabled={isApprovingSwap}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          approveExerciseSwap.mutate(notification.id)
+                        }}
+                        className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-md border border-primary/30 bg-primary-soft px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft/80 disabled:pointer-events-none disabled:opacity-70"
+                      >
+                        {isApprovingSwap ? (
+                          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Check className="size-3" aria-hidden="true" />
+                        )}
+                        {locale === "vi" ? "Duyệt đổi bài" : "Approve swap"}
+                      </button>
+                    ) : null}
                     <time
                       dateTime={notification.createdAt.toISOString()}
                       className="text-micro text-muted-foreground"

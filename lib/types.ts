@@ -285,6 +285,7 @@ export interface WeeklySchedule {
 
 export interface Program {
   id: string
+  forkedFromProgramId?: string
   googleSpreadsheetId?: string
   googleSheetName?: string
   name: string
