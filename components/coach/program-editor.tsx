@@ -63,6 +63,7 @@ import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-
 import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft } from "@/components/workout/routine-builder-dialog"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { SessionSlotGrid, swapDaySlots, type SessionSlotView } from "@/components/coach/session-slot-grid"
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock"
 
 type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
@@ -567,6 +568,9 @@ export function ProgramEditor({
   const [programName, setProgramName] = useState("")
   const [startDate, setStartDate] = useState("")
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
+  // As a modal the editor covers the page: the list behind it must stay put,
+  // and only the editor's own body scroll.
+  useBodyScrollLock(Boolean(onClose))
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
   const [durationDraft, setDurationDraft] = useState("8")

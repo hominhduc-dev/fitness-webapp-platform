@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react"
 
+import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 
 /**
@@ -40,11 +41,6 @@ const VARIANT_PANEL = {
   flush: "rounded-t-2xl [--sheet-safe-bottom:env(safe-area-inset-bottom)] sm:rounded-2xl sm:[--sheet-safe-bottom:0px]",
 } as const
 
-// Sheets can stack, so the lock is refcounted — the first one in locks, the
-// last one out restores whatever the page had.
-let openSheetCount = 0
-let restoreBodyOverflow = ""
-
 function useSheetSideEffects(onClose: () => void) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -57,20 +53,7 @@ function useSheetSideEffects(onClose: () => void) {
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [onClose])
 
-  useEffect(() => {
-    openSheetCount += 1
-    if (openSheetCount === 1) {
-      restoreBodyOverflow = document.body.style.overflow
-      document.body.style.overflow = "hidden"
-    }
-
-    return () => {
-      openSheetCount -= 1
-      if (openSheetCount === 0) {
-        document.body.style.overflow = restoreBodyOverflow
-      }
-    }
-  }, [])
+  useBodyScrollLock()
 }
 
 export function BottomSheet({
