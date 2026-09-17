@@ -8,8 +8,8 @@ import { IconTile } from "@/components/ui/icon-tile"
 import { cn } from "@/lib/utils"
 
 /**
- * One card on the settings page. The `id` doubles as the anchor `SettingsNav`
- * scrolls to, so the scroll margin here has to clear the sticky page header.
+ * One card on the settings page. The `id` doubles as a scroll anchor, so the
+ * scroll margin here has to clear the sticky page header.
  * `collapsible` turns a settings group into the compact disclosure row used by
  * the mobile-first settings layout. Expanded content stays inside the same card.
  */
