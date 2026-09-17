@@ -106,6 +106,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
         <SidebarAccountMenu
           avatarClassName="h-7 w-7"
           buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
+          dropdownAlign="center"
         />
       }
     />
@@ -148,6 +149,7 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         <SidebarAccountMenu
           avatarClassName="h-7 w-7"
           buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
+          dropdownAlign="center"
           subtitle={
             counts.trainees === undefined ? undefined : (
               <span className="font-mono text-micro">
