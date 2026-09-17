@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 
 import { AIChatBubble } from "@/components/ai/chat-bubble"
 import { CheckInPrompt } from "./check-in-prompt"
@@ -51,6 +51,10 @@ type DashboardSeeds = {
   volumeRecovery?: Awaited<ReturnType<typeof fetchVolumeRecovery>>
 }
 
+const subscribeToNothing = () => () => {}
+const clientHydrated = () => true
+const serverHydrated = () => false
+
 export function DashboardOverviewClient({
   initialData,
   preferredWeightUnit,
@@ -61,17 +65,19 @@ export function DashboardOverviewClient({
   seeds?: DashboardSeeds
 }) {
   const [aiChatOpen, setAIChatOpen] = useState(false)
+  const hasHydrated = useSyncExternalStore(subscribeToNothing, clientHydrated, serverHydrated)
   const { messages } = useLocale()
-  const { data: dashboard = initialData } = useUserQuery({
+  const dashboardQuery = useUserQuery({
     queryKey: ["workouts", "dashboard"],
     queryFn: async () => fetchDashboard(await requireAccessToken()),
     initialData,
   })
+  const dashboard = hasHydrated && dashboardQuery.data ? dashboardQuery.data : initialData
   // The dashboard payload uses targetCalories/totalCalories while NutritionDay
   // uses targets/totals. Read the shared meals query so dashboard reflects a
   // meal logged from /meals instead of a stale ISR snapshot.
-  const todayNutritionQuery = useNutritionDay(formatDateKey(new Date()))
-  const dailyNutrition = todayNutritionQuery.data
+  const todayNutritionQuery = useNutritionDay(formatDateKey(dashboard.dailyNutrition.date))
+  const dailyNutrition = hasHydrated && todayNutritionQuery.data
     ? {
         date: todayNutritionQuery.data.date,
         meals: todayNutritionQuery.data.meals,
@@ -113,6 +119,7 @@ export function DashboardOverviewClient({
         <div className="order-3 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           <TodayWorkout
             activeSessions={dashboard.activeSessions}
+            preferActiveSession={hasHydrated}
             workout={dashboard.todayWorkout}
             workouts={dashboard.workouts}
             completed={dashboard.scheduleEntries.some((entry) => entry.isToday && entry.isCompleted)}

@@ -15,11 +15,13 @@ interface TodayWorkoutProps {
   workout: Workout | null
   completed?: boolean
   activeSessions?: ActiveWorkoutSession[]
+  preferActiveSession?: boolean
   workouts?: Workout[]
 }
 
-export function TodayWorkout({ activeSessions, workout: scheduledWorkout, completed = false, workouts = [] }: TodayWorkoutProps) {
-  const activeId = useActiveWorkoutSessionList(activeSessions).sessions[0]?.workoutId ?? null
+export function TodayWorkout({ activeSessions, workout: scheduledWorkout, completed = false, preferActiveSession = true, workouts = [] }: TodayWorkoutProps) {
+  const activeSessionList = useActiveWorkoutSessionList(activeSessions)
+  const activeId = preferActiveSession ? activeSessionList.sessions[0]?.workoutId ?? null : null
   const activeWorkout = workouts.find((item) => item.id === activeId)
   const workout = activeWorkout ?? scheduledWorkout
   const isCompleted = !activeWorkout && completed
