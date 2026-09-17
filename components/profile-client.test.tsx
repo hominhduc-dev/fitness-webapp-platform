@@ -9,7 +9,7 @@ import type { AppProfile, AppRole } from "@/lib/auth/types"
 
 import { ProfileClient } from "./profile-client"
 
-const authState = vi.hoisted(() => ({ profile: null as AppProfile | null }))
+const authState = vi.hoisted(() => ({ profile: null as AppProfile | null, updateProfile: vi.fn() }))
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
@@ -19,7 +19,7 @@ vi.mock("@/components/providers/auth-provider", () => ({
     profile: authState.profile,
     session: { access_token: "test-token" },
     signOut: vi.fn(),
-    updateProfile: vi.fn(),
+    updateProfile: authState.updateProfile,
     uploadAvatar: vi.fn(),
   }),
 }))
@@ -66,6 +66,7 @@ function renderSettings(role: AppRole) {
 describe("Settings page layout", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    authState.updateProfile.mockResolvedValue(null)
   })
 
   afterEach(cleanup)
@@ -110,5 +111,35 @@ describe("Settings page layout", () => {
     expect(screen.queryByRole("button", { name: /Save/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /Test Person/ }))
     expect(screen.getByRole("button", { name: /Save/ })).toBeEnabled()
+  })
+  it("saves only the fields the card owns", async () => {
+    const user = userEvent.setup()
+    renderSettings("coach")
+
+    await user.click(screen.getByRole("button", { name: /Test Person/ }))
+    const username = screen.getByLabelText("Username")
+    await user.clear(username)
+    await user.type(username, "coachduc")
+    await user.click(screen.getByRole("button", { name: /Save/ }))
+
+    // A coach has no height field, so the save must not carry one: the server
+    // would reject the whole request over a value they cannot even see.
+    expect(authState.updateProfile).toHaveBeenCalledWith({
+      birthDate: null,
+      name: "Test Person",
+      phone: null,
+      sex: null,
+      username: "coachduc",
+    })
+  })
+
+  it("keeps the units card to its own field", async () => {
+    const user = userEvent.setup()
+    renderSettings("coach")
+
+    await user.click(screen.getByRole("button", { name: /Units & Measurements/ }))
+    await user.click(screen.getByRole("button", { name: /Save/ }))
+
+    expect(authState.updateProfile).toHaveBeenCalledWith({ preferredWeightUnit: "kg" })
   })
 })

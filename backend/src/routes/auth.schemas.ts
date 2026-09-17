@@ -57,7 +57,11 @@ const avatarSchema = z.object({
   fileName: z.string().max(255).nullish(),
 })
 
-const nullableNumber = z.union([z.coerce.number(), z.null()]).optional()
+// `z.null()` has to come first: a union tries its options in order, and
+// `z.coerce.number()` accepts null by turning it into 0. That made "clear this
+// field" arrive as a zero the service then rejected as out of range — a coach
+// with no height could not save their own name.
+const nullableNumber = z.union([z.null(), z.coerce.number()]).optional()
 const nullableString = z.union([z.string(), z.null()]).optional()
 
 const updateProfileSchema = z.object({

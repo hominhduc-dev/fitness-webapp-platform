@@ -40,7 +40,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { forgotPasswordRequest } from "@/lib/auth/api"
-import type { AppActivityLevel, AppProfile, AppSex } from "@/lib/auth/types"
+import type { AppActivityLevel, AppProfile, AppSex, UpdateProfileInput } from "@/lib/auth/types"
 import { useResetTraineeData } from "@/lib/queries/profile"
 import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
@@ -139,7 +139,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [birthDate, setBirthDate] = useState("")
   const [sex, setSex] = useState<AppSex | "">("")
   const [activityLevel, setActivityLevel] = useState<AppActivityLevel | "">("")
-  const [isSaving, setIsSaving] = useState(false)
+  // Which card is saving, so its own button shows the spinner.
+  const [savingSection, setSavingSection] = useState<string | null>(null)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
   const [isChangingEmail, setIsChangingEmail] = useState(false)
@@ -309,11 +310,64 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     }
   }
 
-  const handleSave = async () => {
-    if (!profile) {
-      return
+  /**
+   * Saves one card's fields and nothing else.
+   *
+   * The payload is partial on purpose: the server leaves out what it is not
+   * given, so a coach saving their name never carries a height they have no
+   * field for — and cannot be rejected over one.
+   */
+  const saveSection = async (
+    sectionId: string,
+    input: UpdateProfileInput,
+    afterSave?: (updatedProfile: AppProfile | null) => Promise<void> | void,
+  ) => {
+    setSavingSection(sectionId)
+
+    try {
+      // The auth provider publishes the saved profile, and the effect that
+      // seeds this form from it re-syncs every field — including the ones this
+      // card did not send.
+      const updatedProfile = await updateProfile(input)
+      await afterSave?.(updatedProfile)
+      notifySuccess(messages.profile.updated)
+    } catch (rawError) {
+      notifyError(rawError instanceof Error ? rawError.message : messages.profile.updateFailed)
+    } finally {
+      setSavingSection(null)
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    const trimmedBirthDate = birthDate.trim()
+
+    if (trimmedBirthDate !== "") {
+      const parsedBirthDate = new Date(`${trimmedBirthDate}T00:00:00.000Z`)
+
+      if (Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate > new Date()) {
+        notifyError(messages.profile.invalidBirthDate)
+        return
+      }
     }
 
+    await saveSection(SECTION_IDS.profile, {
+      birthDate: trimmedBirthDate === "" ? null : trimmedBirthDate,
+      name,
+      phone: phone.trim() || null,
+      sex: sex === "" ? null : sex,
+      username: username.trim() || null,
+    })
+  }
+
+  const handleSaveGoals = async () => {
+    await saveSection(SECTION_IDS.goals, { fitnessGoals: selectedGoals })
+  }
+
+  const handleSavePreferences = async () => {
+    await saveSection(SECTION_IDS.preferences, { preferredWeightUnit })
+  }
+
+  const handleSaveBody = async () => {
     const parsedDailyCalorieGoal = Number.parseInt(dailyCalorieGoal.trim(), 10)
     const parsedHeightCm = heightCm.trim() === "" ? null : Number.parseFloat(heightCm.trim())
     const parsedCurrentWeight = currentWeight.trim() === "" ? null : Number.parseFloat(currentWeight.trim())
@@ -360,84 +414,43 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       return
     }
 
-    const trimmedBirthDate = birthDate.trim()
-    if (trimmedBirthDate !== "") {
-      const parsedBirthDate = new Date(`${trimmedBirthDate}T00:00:00.000Z`)
-      const now = new Date()
-      if (Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate > now) {
-        notifyError(messages.profile.invalidBirthDate)
-        return
-      }
+    if (parsedCurrentWeightKg != null && !session?.access_token) {
+      notifyError(messages.profile.notSignedIn)
+      return
     }
 
-    setIsSaving(true)
-
-    try {
-      if (parsedCurrentWeightKg != null && !session?.access_token) {
-        throw new Error(messages.profile.notSignedIn)
-      }
-
-      const updatedProfile = await updateProfile({
+    await saveSection(
+      SECTION_IDS.body,
+      {
         activityLevel: activityLevel === "" ? null : activityLevel,
-        birthDate: trimmedBirthDate === "" ? null : trimmedBirthDate,
         dailyCalorieGoal: parsedDailyCalorieGoal,
-        fitnessGoals: selectedGoals,
         heightCm: parsedHeightCm,
-        name,
-        phone: phone.trim() || null,
-        preferredWeightUnit,
-        sex: sex === "" ? null : sex,
         targetWeightKg: parsedTargetWeightKg,
-        username: username.trim() || null,
-      })
+      },
+      async (updatedProfile) => {
+        const shouldCreateWeightEntry =
+          parsedCurrentWeightKg != null &&
+          (latestWeightKg == null || Math.abs(parsedCurrentWeightKg - latestWeightKg) > 0.05)
 
-      if (updatedProfile) {
-        const nextWeightUnit = updatedProfile.preferredWeightUnit ?? "kg"
-        previousWeightUnitRef.current = nextWeightUnit
-        setName(updatedProfile.name)
-        setUsername(updatedProfile.username ?? "")
-        setPhone(updatedProfile.phone ?? "")
-        setSelectedGoals(updatedProfile.fitnessGoals ?? [])
-        setPreferredWeightUnit(nextWeightUnit)
-        setHeightCm(updatedProfile.heightCm != null ? formatNumericInput(updatedProfile.heightCm) : "")
-        setTargetWeight(
-          updatedProfile.targetWeightKg != null
-            ? formatNumericInput(convertWeightFromKg(updatedProfile.targetWeightKg, nextWeightUnit))
-            : "",
+        let resolvedCurrentWeightKg = latestWeightKg
+
+        if (shouldCreateWeightEntry && session?.access_token) {
+          const bodyMetric = await createWeightEntry.mutateAsync({
+            recordedAt: new Date().toISOString(),
+            weightKg: parsedCurrentWeightKg,
+          })
+
+          resolvedCurrentWeightKg = bodyMetric.weightKg ?? parsedCurrentWeightKg
+        }
+
+        const resolvedWeightUnit = updatedProfile?.preferredWeightUnit ?? preferredWeightUnit
+        const displayWeightKg = resolvedCurrentWeightKg ?? parsedCurrentWeightKg
+
+        setCurrentWeight(
+          displayWeightKg != null ? formatNumericInput(convertWeightFromKg(displayWeightKg, resolvedWeightUnit)) : "",
         )
-        setDailyCalorieGoal(String(updatedProfile.dailyCalorieGoal ?? DEFAULT_DAILY_CALORIE_GOAL))
-        setBirthDate(updatedProfile.birthDate ? updatedProfile.birthDate.slice(0, 10) : "")
-        setSex(updatedProfile.sex ?? "")
-        setActivityLevel(updatedProfile.activityLevel ?? "")
-      }
-
-      const shouldCreateWeightEntry =
-        parsedCurrentWeightKg != null && (latestWeightKg == null || Math.abs(parsedCurrentWeightKg - latestWeightKg) > 0.05)
-
-      let resolvedCurrentWeightKg = latestWeightKg
-
-      if (shouldCreateWeightEntry && session?.access_token) {
-        const bodyMetric = await createWeightEntry.mutateAsync({
-          recordedAt: new Date().toISOString(),
-          weightKg: parsedCurrentWeightKg,
-        })
-
-        resolvedCurrentWeightKg = bodyMetric.weightKg ?? parsedCurrentWeightKg
-      }
-
-      const resolvedWeightUnit = updatedProfile?.preferredWeightUnit ?? preferredWeightUnit
-      const displayWeightKg = resolvedCurrentWeightKg ?? parsedCurrentWeightKg
-
-      setCurrentWeight(
-        displayWeightKg != null ? formatNumericInput(convertWeightFromKg(displayWeightKg, resolvedWeightUnit)) : "",
-      )
-
-      notifySuccess(messages.profile.updated)
-    } catch (rawError) {
-      notifyError(rawError instanceof Error ? rawError.message : messages.profile.updateFailed)
-    } finally {
-      setIsSaving(false)
-    }
+      },
+    )
   }
 
   const handlePasswordReset = async () => {
@@ -529,16 +542,20 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   ].filter(Boolean).join(" • ")
   const selectedGoalValues = selectedGoals.filter(isGoalValue)
   const summaryChipClassName = "inline-flex max-w-full items-center rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium leading-4 text-primary"
-  const renderSaveSectionButton = () => (
-    <Button
-      className="mt-3 h-10 w-full gap-2 rounded-xl sm:w-auto"
-      onClick={() => void handleSave()}
-      disabled={isSaving || isResettingData}
-    >
-      {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-      {isSaving ? messages.common.saving : messages.common.saveChanges}
-    </Button>
-  )
+  const renderSaveSectionButton = (sectionId: string, onSave: () => Promise<void>) => {
+    const isSavingSection = savingSection === sectionId
+
+    return (
+      <Button
+        className="mt-3 h-10 w-full gap-2 rounded-xl sm:w-auto"
+        onClick={() => void onSave()}
+        disabled={savingSection !== null || isResettingData}
+      >
+        {isSavingSection ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+        {isSavingSection ? messages.common.saving : messages.common.saveChanges}
+      </Button>
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-5 md:px-6 md:pt-7">
@@ -673,7 +690,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                 </Select>
               </SettingsField>
             </SettingsFieldGrid>
-            {renderSaveSectionButton()}
+            {renderSaveSectionButton(SECTION_IDS.profile, handleSaveProfile)}
           </SettingsSection>
 
           {isTrainee ? (
@@ -715,7 +732,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                   )
                 })}
               </div>
-              {renderSaveSectionButton()}
+              {renderSaveSectionButton(SECTION_IDS.goals, handleSaveGoals)}
             </SettingsSection>
           ) : null}
 
@@ -754,7 +771,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                 <ThemeToggle variant="select" className="bg-transparent" />
               </SettingsField>
             </SettingsFieldGrid>
-            {renderSaveSectionButton()}
+            {renderSaveSectionButton(SECTION_IDS.preferences, handleSavePreferences)}
           </SettingsSection>
 
           {isTrainee ? (
@@ -881,7 +898,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                   </Select>
                 </SettingsField>
               </SettingsFieldGrid>
-              {renderSaveSectionButton()}
+              {renderSaveSectionButton(SECTION_IDS.body, handleSaveBody)}
             </SettingsSection>
           ) : null}
 
