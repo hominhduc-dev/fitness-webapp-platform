@@ -162,6 +162,7 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     selected: (count: number) =>
       locale === "en" ? `${count} selected` : `${count} đã chọn`,
     selectAll: locale === "en" ? "Select all" : "Chọn tất cả",
+    selectGroup: locale === "en" ? "Select group" : "Chọn nhóm",
     submittedBy: locale === "en" ? "Submitted by" : "Gửi bởi",
     untitledImport: locale === "en" ? "Untitled import" : "File import chưa đặt tên",
     usageCount: (count: number) =>
@@ -783,6 +784,7 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
 type GroupBlockProps = {
   group: string
   exercises: AdminExerciseItem[]
+  forceSectionOpen?: boolean
   open: boolean
   selected: Set<string>
   onToggle: () => void
@@ -799,13 +801,23 @@ type GroupBlockProps = {
   transferringId?: string | null
 }
 
-function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, transferringId }: GroupBlockProps) {
+function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, transferringId }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
+  const [openSectionKeys, setOpenSectionKeys] = useState<Set<string>>(() => new Set())
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someSelected = selectableIds.some((id) => selected.has(id))
   const groupDescription = GROUP_DESCRIPTIONS[group.trim().toLowerCase()] ?? ""
   const primaryMuscleSections = buildPrimaryMuscleSections(group, exercises, locale)
+
+  function toggleSection(sectionKey: string) {
+    setOpenSectionKeys((current) => {
+      const next = new Set(current)
+      if (next.has(sectionKey)) next.delete(sectionKey)
+      else next.add(sectionKey)
+      return next
+    })
+  }
 
   const renderExerciseRow = (e: AdminExerciseItem) => {
     const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
@@ -886,14 +898,6 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
     <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
       {/* Group header */}
       <div className={cn("flex w-full items-center gap-3 px-4 py-2.5 transition-colors", open && "bg-muted/30")}>
-        {open && selectableIds.length > 0 && (
-          <Checkbox
-            checked={allSelected ? true : someSelected ? "indeterminate" : false}
-            onCheckedChange={() => onToggleGroupSelect(selectableIds)}
-            className="shrink-0"
-            onClick={(e) => e.stopPropagation()}
-          />
-        )}
         <button
           type="button"
           onClick={onToggle}
@@ -914,6 +918,30 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <ChevronRight className="hidden h-4 w-4 text-muted-foreground lg:block" />
           </span>
         </button>
+        {open && selectableIds.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-2"
+            aria-label={`${allSelected ? copy.deselectAll : copy.selectGroup}: ${group}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleGroupSelect(selectableIds)
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex size-4 items-center justify-center rounded border border-input",
+                (allSelected || someSelected) && "border-primary bg-primary text-primary-foreground",
+              )}
+            >
+              {allSelected ? <Check className="size-3" /> : someSelected ? <span className="h-0.5 w-2 rounded bg-current" /> : null}
+            </span>
+            <span className="hidden md:inline">{allSelected ? copy.deselectAll : copy.selectGroup}</span>
+          </Button>
+        ) : null}
       </div>
 
       {/* Exercise rows */}
@@ -929,23 +957,32 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <span />
           </div>
 
-          {primaryMuscleSections.map((section) => (
-            <div key={section.key} className="border-b border-border/50 last:border-b-0">
-              <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 bg-surface-subtle px-4 py-2 sm:grid-cols-[24px_minmax(0,1fr)_96px_64px_84px]">
-                <span />
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-xs font-semibold text-foreground">{section.label}</span>
-                  <Badge variant="outline" className="font-mono text-micro">
-                    {copy.variationCount(section.items.length)}
-                  </Badge>
-                </div>
-                <span className="hidden sm:block" />
-                <span className="hidden sm:block" />
-                <span />
+          {primaryMuscleSections.map((section) => {
+            const sectionOpen = forceSectionOpen || openSectionKeys.has(section.key)
+
+            return (
+              <div key={section.key} className="border-b border-border/50 last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.key)}
+                  className="grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 bg-surface-subtle px-4 py-2 text-left transition-colors hover:bg-surface-hover sm:grid-cols-[24px_minmax(0,1fr)_96px_64px_84px]"
+                  aria-expanded={sectionOpen}
+                >
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", sectionOpen && "rotate-90")} />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{section.label}</span>
+                    <Badge variant="outline" className="font-mono text-micro">
+                      {copy.variationCount(section.items.length)}
+                    </Badge>
+                  </div>
+                  <span className="hidden sm:block" />
+                  <span className="hidden sm:block" />
+                  <span />
+                </button>
+                {sectionOpen ? section.items.map(renderExerciseRow) : null}
               </div>
-              {section.items.map(renderExerciseRow)}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -1404,6 +1441,7 @@ export function ExerciseLibraryPanel({
             key={group}
             group={group}
             exercises={items}
+            forceSectionOpen={forceOpen}
             open={forceOpen || openGroups.includes(group)}
             selected={selected}
             onToggle={() => toggle(group)}
