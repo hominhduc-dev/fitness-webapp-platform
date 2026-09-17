@@ -3166,6 +3166,12 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
     }
   })
 
+  const createManyChunks = async <T>(items: T[], create: (batch: T[]) => Promise<unknown>, size = 1000) => {
+    for (let index = 0; index < items.length; index += size) {
+      await create(items.slice(index, index + size))
+    }
+  }
+
   const addedCount = await db.$transaction(async (transaction) => {
     if (deleteIds.length > 0) {
       await transaction.variation.deleteMany({ where: { id: { in: deleteIds } } })
@@ -3178,19 +3184,41 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
     for (const [val, ids] of equipGroups) {
       await transaction.variation.updateMany({ where: { id: { in: ids } }, data: { equipment: val || null } })
     }
+
+    const muscleProfileUpdates = variationUpdates.filter((update) => update.muscleProfile)
+    const muscleProfileVariationIds = muscleProfileUpdates.map((update) => update.id)
+    if (muscleProfileVariationIds.length > 0) {
+      await transaction.variationMuscleTarget.deleteMany({ where: { variationId: { in: muscleProfileVariationIds } } })
+    }
+
+    const groupedUpdates = new Map<string, { data: Record<string, unknown>; ids: string[] }>()
+    const rowUpdates: typeof variationUpdates = []
     for (const update of variationUpdates) {
-      if (update.muscleProfile) {
-        await transaction.variationMuscleTarget.deleteMany({ where: { variationId: update.id } })
+      const needsRowUpdate = "exerciseId" in update.data || "name" in update.data || "isDefault" in update.data
+      if (needsRowUpdate) {
+        rowUpdates.push(update)
+        continue
       }
+      const key = JSON.stringify(update.data)
+      const group = groupedUpdates.get(key) ?? { data: update.data, ids: [] }
+      group.ids.push(update.id)
+      groupedUpdates.set(key, group)
+    }
+
+    for (const group of groupedUpdates.values()) {
+      await transaction.variation.updateMany({ where: { id: { in: group.ids } }, data: group.data })
+    }
+    for (const update of rowUpdates) {
       await transaction.variation.update({ where: { id: update.id }, data: update.data })
-      if (update.muscleProfile) {
-        const muscleTargets = buildMuscleTargetRows(update.muscleProfile)
-        if (muscleTargets.length > 0) {
-          await transaction.variationMuscleTarget.createMany({
-            data: muscleTargets.map((target) => ({ ...target, variationId: update.id })),
-          })
-        }
-      }
+    }
+
+    const updateMuscleTargets = muscleProfileUpdates.flatMap((update) =>
+      buildMuscleTargetRows(update.muscleProfile!).map((target) => ({ ...target, variationId: update.id })),
+    )
+    if (updateMuscleTargets.length > 0) {
+      await createManyChunks(updateMuscleTargets, (batch) =>
+        transaction.variationMuscleTarget.createMany({ data: batch }),
+      )
     }
 
     let createdCount = 0
@@ -3219,6 +3247,8 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
 
     await transaction.exercise.deleteMany({ where: { variations: { none: {} } } })
     return createdCount
+  }, {
+    timeout: 120_000,
   })
 
   const modifiedCount = equipOnlyMods.length + variationUpdates.length

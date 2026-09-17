@@ -56,6 +56,8 @@ const EQUIP = [
 ]
 const ACTIVITY_TYPES: ExerciseActivityType[] = ["strength", "cardio", "mobility", "sport", "other"]
 const EXERCISE_FORM_LABEL_CLASS = "text-[10px] font-semibold uppercase tracking-[0.045em] text-muted-foreground"
+const NATIVE_SELECT_CLASS =
+  "h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground [color-scheme:light] dark:[color-scheme:dark] [&_option]:bg-background [&_option]:text-foreground"
 const MUSCLE_FILTERS: MuscleSlug[] = [
   "abs",
   "adductors",
@@ -160,6 +162,7 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     selected: (count: number) =>
       locale === "en" ? `${count} selected` : `${count} đã chọn`,
     selectAll: locale === "en" ? "Select all" : "Chọn tất cả",
+    selectGroup: locale === "en" ? "Select group" : "Chọn nhóm",
     submittedBy: locale === "en" ? "Submitted by" : "Gửi bởi",
     untitledImport: locale === "en" ? "Untitled import" : "File import chưa đặt tên",
     usageCount: (count: number) =>
@@ -781,6 +784,7 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
 type GroupBlockProps = {
   group: string
   exercises: AdminExerciseItem[]
+  forceSectionOpen?: boolean
   open: boolean
   selected: Set<string>
   onToggle: () => void
@@ -797,13 +801,23 @@ type GroupBlockProps = {
   transferringId?: string | null
 }
 
-function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, transferringId }: GroupBlockProps) {
+function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, transferringId }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
+  const [openSectionKeys, setOpenSectionKeys] = useState<Set<string>>(() => new Set())
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someSelected = selectableIds.some((id) => selected.has(id))
   const groupDescription = GROUP_DESCRIPTIONS[group.trim().toLowerCase()] ?? ""
   const primaryMuscleSections = buildPrimaryMuscleSections(group, exercises, locale)
+
+  function toggleSection(sectionKey: string) {
+    setOpenSectionKeys((current) => {
+      const next = new Set(current)
+      if (next.has(sectionKey)) next.delete(sectionKey)
+      else next.add(sectionKey)
+      return next
+    })
+  }
 
   const renderExerciseRow = (e: AdminExerciseItem) => {
     const canManage = (e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true
@@ -884,14 +898,6 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
     <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
       {/* Group header */}
       <div className={cn("flex w-full items-center gap-3 px-4 py-2.5 transition-colors", open && "bg-muted/30")}>
-        {open && selectableIds.length > 0 && (
-          <Checkbox
-            checked={allSelected ? true : someSelected ? "indeterminate" : false}
-            onCheckedChange={() => onToggleGroupSelect(selectableIds)}
-            className="shrink-0"
-            onClick={(e) => e.stopPropagation()}
-          />
-        )}
         <button
           type="button"
           onClick={onToggle}
@@ -912,6 +918,30 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <ChevronRight className="hidden h-4 w-4 text-muted-foreground lg:block" />
           </span>
         </button>
+        {open && selectableIds.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-2"
+            aria-label={`${allSelected ? copy.deselectAll : copy.selectGroup}: ${group}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleGroupSelect(selectableIds)
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex size-4 items-center justify-center rounded border border-input",
+                (allSelected || someSelected) && "border-primary bg-primary text-primary-foreground",
+              )}
+            >
+              {allSelected ? <Check className="size-3" /> : someSelected ? <span className="h-0.5 w-2 rounded bg-current" /> : null}
+            </span>
+            <span className="hidden md:inline">{allSelected ? copy.deselectAll : copy.selectGroup}</span>
+          </Button>
+        ) : null}
       </div>
 
       {/* Exercise rows */}
@@ -927,23 +957,32 @@ function GroupBlock({ group, exercises, open, selected, onToggle, onToggleSelect
             <span />
           </div>
 
-          {primaryMuscleSections.map((section) => (
-            <div key={section.key} className="border-b border-border/50 last:border-b-0">
-              <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 bg-surface-subtle px-4 py-2 sm:grid-cols-[24px_minmax(0,1fr)_96px_64px_84px]">
-                <span />
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-xs font-semibold text-foreground">{section.label}</span>
-                  <Badge variant="outline" className="font-mono text-micro">
-                    {copy.variationCount(section.items.length)}
-                  </Badge>
-                </div>
-                <span className="hidden sm:block" />
-                <span className="hidden sm:block" />
-                <span />
+          {primaryMuscleSections.map((section) => {
+            const sectionOpen = forceSectionOpen || openSectionKeys.has(section.key)
+
+            return (
+              <div key={section.key} className="border-b border-border/50 last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.key)}
+                  className="grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/40 bg-surface-subtle px-4 py-2 text-left transition-colors hover:bg-surface-hover sm:grid-cols-[24px_minmax(0,1fr)_96px_64px_84px]"
+                  aria-expanded={sectionOpen}
+                >
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", sectionOpen && "rotate-90")} />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">{section.label}</span>
+                    <Badge variant="outline" className="font-mono text-micro">
+                      {copy.variationCount(section.items.length)}
+                    </Badge>
+                  </div>
+                  <span className="hidden sm:block" />
+                  <span className="hidden sm:block" />
+                  <span />
+                </button>
+                {sectionOpen ? section.items.map(renderExerciseRow) : null}
               </div>
-              {section.items.map(renderExerciseRow)}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -1276,26 +1315,26 @@ export function ExerciseLibraryPanel({
               </div>
             </DialogHeader>
             <div className="grid gap-3 sm:grid-cols-2">
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
+            <select className={NATIVE_SELECT_CLASS} value={muscleFilter} onChange={(event) => setMuscleFilter(event.target.value as typeof muscleFilter)}>
               <option value="all">{copy.profileFilterAll}</option>
               {MUSCLE_FILTERS.map((muscle) => <option key={muscle} value={muscle}>{formatMuscleSlug(muscle)}</option>)}
             </select>
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
+            <select className={NATIVE_SELECT_CLASS} value={equipmentFilter} onChange={(event) => setEquipmentFilter(event.target.value)}>
               <option value="all">{copy.equipmentFilterAll}</option>
               {equipmentOptions.map((equipment) => <option key={equipment} value={equipment}>{equipment}</option>)}
             </select>
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
+            <select className={NATIVE_SELECT_CLASS} value={activityFilter} onChange={(event) => setActivityFilter(event.target.value as typeof activityFilter)}>
               <option value="all">Activity: all</option>
               {ACTIVITY_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
-            <select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
+            <select className={NATIVE_SELECT_CLASS} value={profileFilter} onChange={(event) => setProfileFilter(event.target.value as typeof profileFilter)}>
               <option value="all">{locale === "en" ? "Review: all" : "Duyệt: tất cả"}</option>
               <option value="pending">{copy.profileFilterPending}</option>
               <option value="approved">{copy.profileFilterApproved}</option>
             </select>
             <select
               aria-label="Media"
-              className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm"
+              className={NATIVE_SELECT_CLASS}
               value={mediaFilter}
               onChange={(event) => setMediaFilter(event.target.value as typeof mediaFilter)}
             >
@@ -1306,7 +1345,7 @@ export function ExerciseLibraryPanel({
             <label className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
               <span className="shrink-0">{locale === "en" ? "Sort by" : "Sắp xếp"}</span>
               <select
-                className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                className={cn(NATIVE_SELECT_CLASS, "flex-1")}
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
               >
@@ -1402,6 +1441,7 @@ export function ExerciseLibraryPanel({
             key={group}
             group={group}
             exercises={items}
+            forceSectionOpen={forceOpen}
             open={forceOpen || openGroups.includes(group)}
             selected={selected}
             onToggle={() => toggle(group)}
@@ -1469,7 +1509,7 @@ export function ExerciseLibraryPanel({
           {transferTarget ? <div className="space-y-4">
             <div className="rounded-md border border-border bg-muted/20 p-3 text-sm"><p className="label-micro text-muted-foreground">{copy.target}</p><p className="mt-1 font-medium">{transferTarget.name} · {transferTarget.variationName}</p><p className="text-xs text-muted-foreground">{transferTarget.media ? "Media ✓" : "Media —"} · {copy.usageCount(transferTarget.usageCount)}</p></div>
             <Label>{copy.source}</Label>
-            <select value={transferSourceId} onChange={(e) => setTransferSourceId(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+            <select value={transferSourceId} onChange={(e) => setTransferSourceId(e.target.value)} className={NATIVE_SELECT_CLASS}>
               <option value="">{locale === "en" ? "Select source variation" : "Chọn variation nguồn"}</option>
               {exercises.filter((e) => e.id !== transferTarget.id && e.media).sort((a,b) => a.name.localeCompare(b.name)).map((e) => <option key={e.id} value={e.id}>{e.name} · {e.variationName}</option>)}
             </select>

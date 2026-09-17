@@ -24,7 +24,11 @@ const MUSCLE_SLUGS = [
 ] as const
 
 const exerciseActivityTypeSchema = z.enum(EXERCISE_ACTIVITY_TYPES)
-const muscleSlugSchema = z.enum(MUSCLE_SLUGS)
+function normalizeMuscleSlug(value: unknown) {
+  return String(value ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-")
+}
+
+const muscleSlugSchema = z.preprocess(normalizeMuscleSlug, z.enum(MUSCLE_SLUGS))
 
 const muscleProfileInputSchema = z
   .object({
@@ -126,11 +130,11 @@ function parseMuscleProfileInput(value: unknown): MuscleProfileInput {
 
 function parseMuscleListValue(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean)
+    return value.map(normalizeMuscleSlug).filter(Boolean)
   }
 
   if (typeof value === "string") {
-    return value.split(",").map((entry) => entry.trim().toLowerCase()).filter(Boolean)
+    return value.split(",").map(normalizeMuscleSlug).filter(Boolean)
   }
 
   return []

@@ -37,8 +37,20 @@ describe("muscle profile validation", () => {
   })
 
   it("parses comma-separated import cells and includes gluteal in legacy Legs", () => {
-    expect(parseMuscleListValue("chest, triceps")).toEqual(["chest", "triceps"])
+    expect(parseMuscleListValue("chest, triceps, Upper Back, lower_back")).toEqual(["chest", "triceps", "upper-back", "lower-back"])
     expect(legacyMuscleGroupToSlugs("Legs")).toContain("gluteal")
+  })
+
+  it("normalizes muscle labels before schema validation", () => {
+    expect(parseMuscleProfileInput({
+      activityType: "strength",
+      primaryMuscles: ["Upper Back"],
+      secondaryMuscles: ["lower_back"],
+    })).toEqual({
+      activityType: "strength",
+      primaryMuscles: ["upper-back"],
+      secondaryMuscles: ["lower-back"],
+    })
   })
 
   it("builds ordered nested writes for create and update", () => {
