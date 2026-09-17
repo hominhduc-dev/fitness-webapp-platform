@@ -8,7 +8,7 @@ vi.mock("@/components/providers/locale-provider", () => ({
   useLocale: () => ({ locale: "en", messages: messages.en, setLocale: vi.fn() }),
 }))
 
-const session: SessionSlotView = { exerciseCount: 2, kind: "session", name: "Day 1", tag: "push" }
+const session: SessionSlotView = { exerciseCount: 2, exerciseNames: ["Bench press", "Overhead press"], kind: "session", name: "Day 1", tag: "push" }
 const rest: SessionSlotView = { kind: "rest" }
 const empty: SessionSlotView = { kind: "empty" }
 
@@ -20,7 +20,7 @@ describe("swapDaySlots", () => {
   })
 
   it("swaps two sessions rather than overwriting one", () => {
-    const other: SessionSlotView = { exerciseCount: 3, kind: "session", name: "Day 2", tag: "pull" }
+    const other: SessionSlotView = { exerciseCount: 3, exerciseNames: ["Deadlift"], kind: "session", name: "Day 2", tag: "pull" }
 
     expect(swapDaySlots([session, other], 1, 0)).toEqual([other, session])
   })
@@ -68,7 +68,7 @@ describe("SessionSlotGrid", () => {
   it("opens the day when the card body is pressed", () => {
     const props = renderGrid([session, rest, empty])
 
-    fireEvent.click(screen.getByText("Day 1"))
+    fireEvent.click(screen.getByText("Push (Day 1)"))
 
     expect(props.onOpen).toHaveBeenCalledWith(0)
   })
