@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils"
 const THRESHOLD = 72 // px pulled (after resistance) needed to trigger a refresh
 const MAX_PULL = 120 // px — visual cap so the spinner never flies off
 const RESISTANCE = 0.5 // finger travel → visual travel (rubber-band feel)
+/** `touch-action` values that still let the browser pan vertically. */
+const ALLOWS_VERTICAL_PAN = /^(auto|manipulation)$|pan-y|pan-down/
 
 interface PullToRefreshProps {
   children: ReactNode
@@ -61,6 +63,26 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
       return false
     }
 
+    /**
+     * True when the touch starts on something that has declared it handles its
+     * own vertical gestures — a drag handle, a slider, a canvas. Those own the
+     * whole gesture: arming the pull as well drags the refresh spinner out from
+     * under the user in the middle of their drag.
+     */
+    const ownsVerticalGesture = (node: EventTarget | null): boolean => {
+      let cur = node as HTMLElement | null
+      while (cur && cur.nodeType === 1 && cur !== document.body) {
+        const touchAction = getComputedStyle(cur).touchAction || cur.style.touchAction
+
+        if (touchAction && !ALLOWS_VERTICAL_PAN.test(touchAction)) {
+          return true
+        }
+
+        cur = cur.parentElement
+      }
+      return false
+    }
+
     // Scroll offset of the nearest scrollable ancestor (handles both
     // document-scroll and an inner `overflow-auto` container).
     const scrollTopOf = (node: EventTarget | null): number => {
@@ -90,7 +112,7 @@ export function PullToRefresh({ children, onRefresh, className }: PullToRefreshP
 
     const onStart = (e: TouchEvent) => {
       if (refreshingRef.current || e.touches.length !== 1) return
-      if (isInsideFixedOverlay(e.target)) return
+      if (isInsideFixedOverlay(e.target) || ownsVerticalGesture(e.target)) return
       startY.current = scrollTopOf(e.target) <= 0 ? e.touches[0].clientY : null
     }
 
