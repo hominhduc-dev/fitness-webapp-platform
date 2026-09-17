@@ -86,7 +86,15 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
   )
 
   const { programGroups, standaloneWorkouts } = useMemo(() => {
-    const groups = new Map<string, ProgramGroup>()
+    // Seeded with every assigned program, so one that serves no session this
+    // week — it starts later, or it has finished — still has a card saying so
+    // instead of vanishing from the board. A tag filter is a search, though, so
+    // it may only narrow what is already here.
+    const groups = new Map<string, ProgramGroup>(
+      filter === "all"
+        ? Array.from(programById.values()).map((program) => [program.id, { program, workouts: [] }] as const)
+        : [],
+    )
     const standalone: Workout[] = []
 
     visibleWorkouts.forEach((workout) => {
@@ -108,7 +116,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
     })
 
     return { programGroups: Array.from(groups.values()), standaloneWorkouts: standalone }
-  }, [programById, visibleWorkouts])
+  }, [filter, programById, visibleWorkouts])
 
   // The heading sits directly above the grid, so it counts what is actually
   // rendered: one entry per program card, each standalone routine, and each
