@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 
 import { OfflineSyncManager } from "@/components/offline/offline-sync-manager"
+import { PushSubscriptionAccountSync } from "@/components/pwa/push-subscription-account-sync"
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { LocaleProvider } from "@/components/providers/locale-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
@@ -39,6 +40,7 @@ export function AppProviders({
             {withAuth ? (
               <AuthProvider initialProfile={initialProfile}>
                 <OfflineSyncManager />
+                <PushSubscriptionAccountSync />
                 {children}
               </AuthProvider>
             ) : children}

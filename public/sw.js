@@ -186,14 +186,64 @@ self.addEventListener("push", (event) => {
     tag: payload.tag || "yeahbuddy-notification",
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    updateAppBadge(payload.badgeCount),
+  ]))
+})
+
+async function updateAppBadge(count) {
+  if (!Number.isFinite(count) || count < 0) return
+
+  try {
+    if (count > 0 && typeof self.navigator.setAppBadge === "function") {
+      await self.navigator.setAppBadge(count)
+    } else if (count === 0 && typeof self.navigator.clearAppBadge === "function") {
+      await self.navigator.clearAppBadge()
+    } else if (count > 0 && typeof self.registration.setAppBadge === "function") {
+      await self.registration.setAppBadge(count)
+    } else if (count === 0 && typeof self.registration.clearAppBadge === "function") {
+      await self.registration.clearAppBadge()
+    }
+  } catch (_error) {
+    // Badging is optional; notification delivery must still succeed.
+  }
+}
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    let subscription = event.newSubscription || null
+
+    if (!subscription) {
+      try {
+        const options = event.oldSubscription && event.oldSubscription.options
+        if (options) subscription = await self.registration.pushManager.subscribe(options)
+      } catch (_error) {
+        // The app will attempt a fresh synchronization on its next foreground.
+      }
+    }
+
+    const windows = await clients.matchAll({ includeUncontrolled: true, type: "window" })
+    windows.forEach((client) => client.postMessage({
+      endpoint: subscription ? subscription.endpoint : null,
+      type: "PUSH_SUBSCRIPTION_CHANGED",
+    }))
+  })())
 })
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
-  const targetUrl = event.notification.data && event.notification.data.url
-    ? new URL(event.notification.data.url, self.location.origin).href
-    : new URL("/dashboard", self.location.origin).href
+  const requestedUrl = event.notification.data && event.notification.data.url
+    ? new URL(event.notification.data.url, self.location.origin)
+    : new URL("/dashboard", self.location.origin)
+  const safeUrl = requestedUrl.origin === self.location.origin
+    ? requestedUrl
+    : new URL("/dashboard", self.location.origin)
+  const notificationId = event.notification.data && event.notification.data.notificationId
+  if (typeof notificationId === "string" && notificationId) {
+    safeUrl.searchParams.set("pushNotification", notificationId)
+  }
+  const targetUrl = safeUrl.href
 
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ includeUncontrolled: true, type: "window" })

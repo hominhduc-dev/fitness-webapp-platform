@@ -451,6 +451,13 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 - `public/manifest.json`: standalone, portrait, shortcuts Workout/Meals/Progress/Schedule.
 - `app/layout.tsx`: icons, apple web app, theme color, viewport-fit cover.
 - App icons sinh bằng `npm run icons`.
+- `ServiceWorkerRegistrar` đăng ký `public/sw.js`; push permission chỉ được hỏi từ thao tác bật switch của người dùng.
+- `PushSubscriptionAccountSync` rebind endpoint hiện có theo account + locale sau đăng nhập và khi Service Worker báo subscription đổi. Logout revoke ownership trên backend trước khi xóa Supabase session, nhưng giữ browser endpoint để account kế tiếp có thể rebind an toàn.
+- iOS/iPadOS chỉ hỗ trợ push khi chạy từ Home Screen. `lib/pwa/push-support.ts` phân biệt `ios_install_required` với browser thật sự không hỗ trợ để Settings hiển thị hướng dẫn đúng ngữ cảnh.
+- Push copy dùng locale lưu theo từng subscription; Service Worker cập nhật app badge từ unread count. Notification bell đồng bộ lại badge khi mark read/all-read.
+- Chạm OS notification thêm `pushNotification` vào internal URL; lifecycle client đánh dấu row đã đọc sau khi session sẵn sàng, invalidate notification cache rồi làm sạch URL. Nếu offline, id được giữ để retry khi reconnect/reload.
+- Mỗi lần gửi được lưu bền vững theo notification × subscription ở backend; scheduler retry delivery tạm lỗi và endpoint 404/410 được revoke.
+- Scheduler xóa theo batch các notification đã đọc quá 48 giờ; delivery rows liên quan bị cascade delete.
 
 ## 11. Muscle map
 

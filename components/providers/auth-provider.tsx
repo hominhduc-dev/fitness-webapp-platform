@@ -13,6 +13,8 @@ import { useCurrentProfile, useUpdateProfile, useUploadAvatar } from "@/lib/quer
 import { userQueryKey } from "@/lib/queries/scoped"
 import { queryKeys } from "@/lib/queries/keys"
 import { clearOfflineUserData } from "@/lib/offline/user-data"
+import { setAppBadge } from "@/lib/pwa/app-badge"
+import { revokeCurrentPushSubscription } from "@/lib/push-notifications"
 
 type AuthContextValue = {
   isLoading: boolean
@@ -289,11 +291,23 @@ export function AuthProvider({
   }
 
   async function signOut() {
+    const supabase = getOptionalBrowserSupabaseClient()
+    const currentSession = session ?? (supabase ? (await supabase.auth.getSession()).data.session : null)
+    const accessToken = currentSession?.access_token
+    if (accessToken) {
+      try {
+        await revokeCurrentPushSubscription(accessToken)
+      } catch (error) {
+        // Logging out must still succeed if the push service or network is down.
+        console.warn("Unable to revoke push subscription during sign-out", error)
+      }
+    }
+
     revisionRef.current += 1
+    void setAppBadge(0)
     accountRef.current = null
     queryClient.clear()
     await clearOfflineUserData()
-    const supabase = getOptionalBrowserSupabaseClient()
 
     if (supabase) {
       await supabase.auth.signOut({ scope: "local" })

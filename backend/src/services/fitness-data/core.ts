@@ -5097,7 +5097,7 @@ async function createCoachProgram(
     timeout: 60000,
   }))
 
-  queuePushForNotifications(notifications)
+  await queuePushForNotifications(notifications)
 
   return serializeProgram(program as ProgramRecord)
 }
@@ -5358,7 +5358,7 @@ async function updateCoachProgram(
     timeout: 60000,
   }))
 
-  queuePushForNotifications(notifications)
+  await queuePushForNotifications(notifications)
 
   const program = await db.program.findUniqueOrThrow({
     include: PROGRAM_INCLUDE,
@@ -5562,7 +5562,7 @@ async function adjustCoachProgramForTrainee(
     timeout: 60000,
   }))
 
-  queuePushForNotifications([adjustedProgram.notification])
+  await queuePushForNotifications([adjustedProgram.notification])
 
   return serializeProgram(adjustedProgram.program as ProgramRecord)
 }
@@ -6038,7 +6038,7 @@ async function assignCoachProgramToTrainee(profile: SerializedProfile, programId
     return { assignment: createdAssignment, notification: assignedNotification }
   })
 
-  queuePushForNotifications([notification])
+  await queuePushForNotifications([notification])
 
   return {
     assigned: true,

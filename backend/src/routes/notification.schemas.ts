@@ -6,6 +6,8 @@ import { CLOCK_TIME_PATTERN, WORKOUT_REMINDER_OFFSETS } from "../services/notifi
 const pushSubscriptionSchema = z.object({
   endpoint: z.url(),
   expirationTime: z.number().nullable().optional(),
+  // Default keeps subscriptions from an older frontend valid during rolling deploys.
+  locale: z.enum(["en", "vi"]).default("en"),
   keys: z.object({
     auth: z.string().min(1),
     p256dh: z.string().min(1),

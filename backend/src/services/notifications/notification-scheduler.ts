@@ -7,6 +7,7 @@ import { findTodayScheduleEntryForTrainee } from "../fitness-data/core"
 import { ensurePrisma } from "../fitness-data/shared/guards"
 import { buildCoachWeeklyReviewDraft } from "./coach-weekly-review"
 import { createAndPushNotification, findUsedDedupeKeys, type NotificationDraft } from "./notification-dispatch.service"
+import { processPushDeliveries } from "./push-delivery.service"
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   loadNotificationPreferences,
@@ -38,6 +39,25 @@ import {
  */
 
 type JobResult = { candidates: number; sent: number }
+
+const READ_NOTIFICATION_RETENTION_MS = 48 * 60 * 60 * 1000
+const NOTIFICATION_CLEANUP_BATCH_SIZE = 500
+
+/** Deletes read notifications in bounded batches; PushDelivery rows cascade. */
+async function runNotificationCleanupJob(now: Date) {
+  const db = ensurePrisma()
+  const expired = await db.notification.findMany({
+    orderBy: { readAt: "asc" },
+    select: { id: true },
+    take: NOTIFICATION_CLEANUP_BATCH_SIZE,
+    where: { readAt: { lt: new Date(now.getTime() - READ_NOTIFICATION_RETENTION_MS) } },
+  })
+  if (expired.length === 0) return { candidates: 0, sent: 0 }
+
+  const deleted = await db.notification.deleteMany({ where: { id: { in: expired.map((row) => row.id) } } })
+  logger.info("expired read notifications deleted", { count: deleted.count })
+  return { candidates: expired.length, sent: 0 }
+}
 
 /** Sends drafts whose dedupe key is unused. Sequential: volume is small and it keeps the pool free. */
 async function sendNewDrafts(drafts: NotificationDraft[]): Promise<JobResult> {
@@ -376,7 +396,12 @@ const JOBS = {
   coachWeeklyReview: runCoachWeeklyReviewJob,
   dailyCheckIn: runDailyCheckInJob,
   mealReminder: runMealReminderJob,
+  notificationCleanup: runNotificationCleanupJob,
   openWorkoutSession: runOpenWorkoutSessionJob,
+  pushDelivery: async (now: Date) => {
+    const result = await processPushDeliveries(now)
+    return { candidates: result.candidates, sent: result.sent }
+  },
   weightReminder: runWeightReminderJob,
   workoutReminder: runWorkoutReminderJob,
 } as const
@@ -430,6 +455,7 @@ export {
   runCoachWeeklyReviewJob,
   runDailyCheckInJob,
   runMealReminderJob,
+  runNotificationCleanupJob,
   runNotificationSchedulerTick,
   runOpenWorkoutSessionJob,
   runWeightReminderJob,
