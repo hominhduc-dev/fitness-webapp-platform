@@ -8,6 +8,7 @@ export {
   getCoachDashboard,
   getCoachNavCounts,
   getCoachTraineeDetail,
+  inviteTraineeForCoach,
   listBodyMetricsForTrainee,
   listAvailableCoachesForTrainee,
   listCoachTrainees,

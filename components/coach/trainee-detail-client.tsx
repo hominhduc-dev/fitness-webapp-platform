@@ -1,17 +1,14 @@
 "use client"
 
-import type React from "react"
 import Link from "next/link"
 import type { LucideIcon } from "lucide-react"
 import {
   ChevronDown,
   ChevronRight,
-  ClipboardCheck,
   Cookie,
   ExternalLink,
   Loader2,
   MoreHorizontal,
-  Scale,
   StickyNote,
   Sun,
   Sunrise,
@@ -34,20 +31,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { formatDateKey } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
 import {
   useAssignCoachProgram,
-  useCreateCoachBodyMetric,
-  useCreateCoachCheckIn,
   useUnassignCoachProgram,
 } from "@/lib/queries/coach"
-import type { BodyMetricEntry, CoachCheckIn, CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
+import type { CoachProgram, CoachTraineeDetail } from "@/lib/fitness/types"
 import type { MealType } from "@/lib/types"
 
 /** Same meal order and icons as the trainee meals screen. */
@@ -63,88 +55,8 @@ type CoachTraineeDetailClientProps = {
   initialDetail: CoachTraineeDetail
 }
 
-type BodyMetricFormState = {
-  bodyFatPct: string
-  chestCm: string
-  hipsCm: string
-  note: string
-  recordedAt: string
-  thighCm: string
-  waistCm: string
-  weightKg: string
-}
-
-type CheckInFormState = {
-  adherenceScore: string
-  checkInDate: string
-  energyScore: string
-  feedback: string
-  moodScore: string
-  nextFocus: string
-  recoveryScore: string
-  summary: string
-}
-
-function toDateInputValue(value = new Date()) {
-  const date = value instanceof Date ? value : new Date(value)
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 10)
-}
-
 function formatNumber(value?: number, suffix = "") {
   return value != null ? `${value}${suffix}` : "--"
-}
-
-function parseOptionalNumber(value: string) {
-  const normalized = value.trim()
-
-  if (!normalized) {
-    return undefined
-  }
-
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
-function createDefaultMetricForm(): BodyMetricFormState {
-  return {
-    bodyFatPct: "",
-    chestCm: "",
-    hipsCm: "",
-    note: "",
-    recordedAt: toDateInputValue(),
-    thighCm: "",
-    waistCm: "",
-    weightKg: "",
-  }
-}
-
-function createDefaultCheckInForm(): CheckInFormState {
-  return {
-    adherenceScore: "",
-    checkInDate: toDateInputValue(),
-    energyScore: "",
-    feedback: "",
-    moodScore: "",
-    nextFocus: "",
-    recoveryScore: "",
-    summary: "",
-  }
-}
-
-function averageScore(checkIn: CoachCheckIn) {
-  const values = [
-    checkIn.adherenceScore,
-    checkIn.energyScore,
-    checkIn.recoveryScore,
-    checkIn.moodScore,
-  ].filter((value): value is number => value != null)
-
-  if (values.length === 0) {
-    return null
-  }
-
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
 }
 
 /* ─── Weekly bar chart (pure CSS, no Recharts) ───────────────────────────── */
@@ -167,7 +79,7 @@ function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDa
   const weekdayFormatter = new Intl.DateTimeFormat(dateLocale, { timeZone: "UTC", weekday: "short" })
 
   return (
-    <div className="grid grid-cols-7 items-end gap-2" style={{ height: 132 }}>
+    <div className="grid grid-cols-7 items-end gap-2" style={{ height: 70 }}>
       {days.map((day) => {
         const isToday = day.date === todayKey
         const date = parseDayKey(day.date)
@@ -207,13 +119,13 @@ function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDa
 /* ─── Stat card ─────────────────────────────────────────────────────────── */
 function StatCard({ hint, label, unit, value }: { hint?: string; label: string; unit?: string; value: string | number }) {
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5">
       <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
-      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
+      <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-foreground">
         {value}
-        {unit ? <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span> : null}
+        {unit ? <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span> : null}
       </p>
-      {hint ? <p className="mt-1 font-mono text-micro text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 truncate font-mono text-micro text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }
@@ -228,24 +140,6 @@ type RecentSession = {
 
 type RecentSessionsTableProps = {
   sessions: RecentSession[]
-}
-
-/** 5-dot scale used in check-in row headers to visualise 1–5 scores. */
-function DotScale({ value, max = 5 }: { value: number | null | undefined; max?: number }) {
-  const v = value ?? 0
-  return (
-    <span className="inline-flex items-center gap-[3px]">
-      {Array.from({ length: max }, (_, i) => (
-        <span
-          key={i}
-          className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            i < v ? "bg-primary" : "bg-border",
-          )}
-        />
-      ))}
-    </span>
-  )
 }
 
 function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
@@ -308,20 +202,12 @@ export function CoachTraineeDetailClient({
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
   const assignProgram = useAssignCoachProgram()
   const unassignProgram = useUnassignCoachProgram()
-  const createBodyMetric = useCreateCoachBodyMetric()
-  const createCheckIn = useCreateCoachCheckIn()
   const { data: detail = initialDetail, setData: setDetail } = useCoachData(queryKeys.coach.traineeDetail(initialDetail.trainee.id), (token) => fetchCoachTraineeDetail(token, initialDetail.trainee.id), initialDetail, true, 30_000)
   const [selectedProgramId, setSelectedProgramId] = useState("")
-  const [metricForm, setMetricForm] = useState<BodyMetricFormState>(createDefaultMetricForm)
-  const [checkInForm, setCheckInForm] = useState<CheckInFormState>(createDefaultCheckInForm)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [assignNotice, setAssignNotice] = useState<string | null>(null)
-  const [metricError, setMetricError] = useState<string | null>(null)
-  const [checkInError, setCheckInError] = useState<string | null>(null)
   const [isAssigning, setIsAssigning] = useState(false)
   const [removingProgramId, setRemovingProgramId] = useState<string | null>(null)
-  const [isSavingMetric, setIsSavingMetric] = useState(false)
-  const [isSavingCheckIn, setIsSavingCheckIn] = useState(false)
   const [expandedNutritionDate, setExpandedNutritionDate] = useState<string | null>(null)
 
   const assignedProgramIds = new Set(detail.programs.map((program) => program.id))
@@ -408,69 +294,14 @@ export function CoachTraineeDetailClient({
     }
   }
 
-  async function handleCreateBodyMetric(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-
-    setIsSavingMetric(true)
-    setMetricError(null)
-
-    try {
-      const bodyMetric = await createBodyMetric.mutateAsync({ traineeId: detail.trainee.id, input: {
-        bodyFatPct: parseOptionalNumber(metricForm.bodyFatPct),
-        chestCm: parseOptionalNumber(metricForm.chestCm),
-        hipsCm: parseOptionalNumber(metricForm.hipsCm),
-        note: metricForm.note.trim() || undefined,
-        recordedAt: metricForm.recordedAt,
-        thighCm: parseOptionalNumber(metricForm.thighCm),
-        waistCm: parseOptionalNumber(metricForm.waistCm),
-        weightKg: parseOptionalNumber(metricForm.weightKg),
-      } })
-
-      setDetail((current) => ({
-        ...current,
-        bodyMetrics: [bodyMetric, ...current.bodyMetrics],
-      }))
-      setMetricForm(createDefaultMetricForm())
-    } catch (error) {
-      setMetricError(error instanceof Error ? error.message : "Could not save body metrics.")
-    } finally {
-      setIsSavingMetric(false)
-    }
-  }
-
-  async function handleCreateCheckIn(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-
-    setIsSavingCheckIn(true)
-    setCheckInError(null)
-
-    try {
-      const checkIn = await createCheckIn.mutateAsync({ traineeId: detail.trainee.id, input: {
-        adherenceScore: parseOptionalNumber(checkInForm.adherenceScore),
-        checkInDate: checkInForm.checkInDate,
-        energyScore: parseOptionalNumber(checkInForm.energyScore),
-        feedback: checkInForm.feedback.trim(),
-        moodScore: parseOptionalNumber(checkInForm.moodScore),
-        nextFocus: checkInForm.nextFocus.trim() || undefined,
-        recoveryScore: parseOptionalNumber(checkInForm.recoveryScore),
-        summary: checkInForm.summary.trim() || undefined,
-      } })
-
-      setDetail((current) => ({
-        ...current,
-        checkIns: [checkIn, ...current.checkIns],
-      }))
-      setCheckInForm(createDefaultCheckInForm())
-    } catch (error) {
-      setCheckInError(error instanceof Error ? error.message : "Could not save check-in.")
-    } finally {
-      setIsSavingCheckIn(false)
-    }
-  }
-
   const nutritionSummary = detail.nutritionSummary
+  const bodyMetricsByDate = new Map<string, CoachTraineeDetail["bodyMetrics"][number]>()
+  for (const entry of detail.bodyMetrics) {
+    const dateKey = formatDateKey(entry.recordedAt)
+    if (!bodyMetricsByDate.has(dateKey)) {
+      bodyMetricsByDate.set(dateKey, entry)
+    }
+  }
   const mealTypeLabels: Record<MealType, string> = {
     breakfast: messages.meals.breakfast,
     dinner: messages.meals.dinner,
@@ -488,7 +319,6 @@ export function CoachTraineeDetailClient({
       >
         {[
           ["overview", messages.coach.tabOverview],
-          ["checkins", messages.coach.tabCheckIns],
           ["nutrition", messages.coach.tabNutrition],
           ["logs", messages.coach.tabWorkoutLogs],
         ].map(([value, label]) => (
@@ -508,54 +338,51 @@ export function CoachTraineeDetailClient({
       </TabsList>
 
       {/* ── Overview ──────────────────────────────────────────────────────── */}
-      <TabsContent value="overview" className="space-y-6">
+      <TabsContent value="overview" className="space-y-4">
         {/* Coach note */}
         {latestNote && (
-          <div className="flex items-start gap-3 rounded-lg border border-border bg-muted p-4">
+          <div className="flex items-start gap-3 rounded-lg border border-border bg-muted px-3 py-2.5">
             <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="text-sm text-foreground">{latestNote}</p>
           </div>
         )}
 
-        {/* This week: completed vs scheduled sessions, sets per day */}
-        <div className="rounded-lg border border-border p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                {messages.coach.thisWeekRange(formatDayKey(week.days[0].date), formatDayKey(week.days[week.days.length - 1].date))}
-              </p>
-              <p className="mt-1.5 font-mono text-2xl font-medium tabular-nums text-foreground">
-                {messages.coach.complianceSessions(week.completedSessions, week.plannedSessions)}
-              </p>
+        {/* Compact snapshot: week, consistency, and body metrics */}
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+          <div className="flex min-h-[240px] flex-col rounded-lg border border-border p-3">
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                  {messages.coach.thisWeekRange(formatDayKey(week.days[0].date), formatDayKey(week.days[week.days.length - 1].date))}
+                </p>
+                <p className="mt-0.5 font-mono text-lg font-semibold tabular-nums text-foreground">
+                  {messages.coach.complianceSessions(week.completedSessions, week.plannedSessions)}
+                </p>
+              </div>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {messages.coach.weekTotals(week.totalSets, integerFormatter.format(week.totalVolume))}
+              </span>
             </div>
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {messages.coach.weekTotals(week.totalSets, integerFormatter.format(week.totalVolume))}
-            </span>
+            <div className="mt-auto">
+              <WeeklyBarChart dateLocale={dateLocale} days={week.days} />
+            </div>
           </div>
-          <WeeklyBarChart dateLocale={dateLocale} days={week.days} />
-        </div>
 
-        {/* Training consistency */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label={messages.coach.progress30DaySessionsLabel} value={overview.last30Days.sessions} />
-          <StatCard label={messages.coach.progress30DayVolumeLabel} unit="kg" value={integerFormatter.format(overview.last30Days.volume)} />
-          <StatCard
-            hint={messages.coach.bestStreak(overview.streaks.bestDays)}
-            label={messages.coach.streakLabel}
-            value={messages.coach.streakValue(overview.streaks.currentDays)}
-          />
-          <StatCard
-            label={messages.coach.lastWorkoutLabel}
-            value={overview.lastWorkoutAt ? formatDayKey(overview.lastWorkoutAt) : messages.coach.noWorkoutsYet}
-          />
-        </div>
-
-        {/* Body metrics: each field from its own latest entry */}
-        <div>
-          <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-            {messages.coach.keyMetrics}
-          </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid grid-cols-2 gap-2">
+              <StatCard label={messages.coach.progress30DaySessionsLabel} value={overview.last30Days.sessions} />
+              <StatCard label={messages.coach.progress30DayVolumeLabel} unit="kg" value={integerFormatter.format(overview.last30Days.volume)} />
+              <StatCard
+                hint={messages.coach.bestStreak(overview.streaks.bestDays)}
+                label={messages.coach.streakLabel}
+                value={messages.coach.streakValue(overview.streaks.currentDays)}
+              />
+              <StatCard
+                label={messages.coach.lastWorkoutLabel}
+                value={overview.lastWorkoutAt ? formatDayKey(overview.lastWorkoutAt) : messages.coach.noWorkoutsYet}
+              />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
             <StatCard
               hint={weightHint}
               label={messages.coach.weightStatLabel}
@@ -574,41 +401,44 @@ export function CoachTraineeDetailClient({
               unit={body.waistCm ? "cm" : undefined}
               value={body.waistCm?.value ?? "--"}
             />
+            </div>
           </div>
         </div>
 
-        {/* Personal records */}
-        {overview.recentPRs.length > 0 ? (
-          <div>
-            <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {messages.coach.recentPRsTitle}
-            </p>
-            <div className="overflow-hidden rounded-lg border border-border">
-              {overview.recentPRs.map((pr, index) => (
-                <div
-                  key={`${pr.exerciseName}-${pr.date}`}
-                  className={cn("flex items-center justify-between gap-3 px-4 py-3", index > 0 && "border-t border-border")}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{pr.exerciseName}</p>
-                    <p className="font-mono text-micro text-muted-foreground">{formatDayKey(pr.date)}</p>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          {/* Personal records */}
+          {overview.recentPRs.length > 0 ? (
+            <div>
+              <p className="mb-2 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                {messages.coach.recentPRsTitle}
+              </p>
+              <div className="overflow-hidden rounded-lg border border-border">
+                {overview.recentPRs.map((pr, index) => (
+                  <div
+                    key={`${pr.exerciseName}-${pr.date}`}
+                    className={cn("flex items-center justify-between gap-3 px-3 py-2.5", index > 0 && "border-t border-border")}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{pr.exerciseName}</p>
+                      <p className="font-mono text-micro text-muted-foreground">{formatDayKey(pr.date)}</p>
+                    </div>
+                    <div className="shrink-0 text-right font-mono tabular-nums">
+                      <p className="text-sm text-foreground">{pr.weightKg} kg</p>
+                      <p className="text-micro text-success-text">{messages.coach.prDelta(pr.deltaKg)}</p>
+                    </div>
                   </div>
-                  <div className="shrink-0 text-right font-mono tabular-nums">
-                    <p className="text-sm text-foreground">{pr.weightKg} kg</p>
-                    <p className="text-micro text-success-text">{messages.coach.prDelta(pr.deltaKg)}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {/* Recent sessions */}
-        <div>
-          <p className="mb-3 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-            {messages.coach.recentSessions}
-          </p>
-          <RecentSessionsTable sessions={recentSessions} />
+          {/* Recent sessions */}
+          <div className={overview.recentPRs.length === 0 ? "xl:col-span-2" : undefined}>
+            <p className="mb-2 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+              {messages.coach.recentSessions}
+            </p>
+            <RecentSessionsTable sessions={recentSessions} />
+          </div>
         </div>
 
         {/* Assigned programs */}
@@ -666,7 +496,14 @@ export function CoachTraineeDetailClient({
                   className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{program.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{program.name}</p>
+                      {program.forkedFromProgramId ? (
+                        <Badge variant="micro" className="border-primary/20 bg-primary-soft text-primary">
+                          {locale === "en" ? "Personalized copy" : "Bản cá nhân hoá"}
+                        </Badge>
+                      ) : null}
+                    </div>
                     <p className="mt-1 font-mono text-xs text-muted-foreground">
                       {program.workoutsPerWeek} workouts/week · {program.duration} weeks · {program.difficulty}
                     </p>
@@ -717,369 +554,64 @@ export function CoachTraineeDetailClient({
         </div>
       </TabsContent>
 
-      {/* ── Check-ins & body metrics ──────────────────────────────────────── */}
-      <TabsContent value="checkins" className="space-y-6">
-        {/* Body metrics section */}
-        <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
-          <form onSubmit={handleCreateBodyMetric} className="rounded-lg border border-border p-5">
-            <div className="flex items-center gap-2">
-              <Scale className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">{messages.coach.addBodyMetricTitle}</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.addBodyMetricDesc}</p>
-
-            {metricError ? (
-              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-                {metricError}
-              </div>
-            ) : null}
-
-            <div className="mt-4 space-y-4">
-              <div>
-                <Label htmlFor="metric-date">{messages.coach.recordedDateLabel}</Label>
-                <Input
-                  id="metric-date"
-                  type="date"
-                  value={metricForm.recordedAt}
-                  onChange={(event) => setMetricForm((current) => ({ ...current, recordedAt: event.target.value }))}
-                  className="mt-1.5"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="metric-weight">{messages.coach.weightKgLabel}</Label>
-                  <Input
-                    id="metric-weight"
-                    value={metricForm.weightKg}
-                    onChange={(event) => setMetricForm((current) => ({ ...current, weightKg: event.target.value }))}
-                    placeholder="72.5"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="metric-bodyfat">{messages.coach.bodyFatPctLabel}</Label>
-                  <Input
-                    id="metric-bodyfat"
-                    value={metricForm.bodyFatPct}
-                    onChange={(event) => setMetricForm((current) => ({ ...current, bodyFatPct: event.target.value }))}
-                    placeholder="18"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="metric-waist">{messages.coach.waistCmLabel}</Label>
-                  <Input
-                    id="metric-waist"
-                    value={metricForm.waistCm}
-                    onChange={(event) => setMetricForm((current) => ({ ...current, waistCm: event.target.value }))}
-                    placeholder="82"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="metric-chest">{messages.coach.chestCmLabel}</Label>
-                  <Input
-                    id="metric-chest"
-                    value={metricForm.chestCm}
-                    onChange={(event) => setMetricForm((current) => ({ ...current, chestCm: event.target.value }))}
-                    placeholder="98"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="metric-hips">{messages.coach.hipsCmLabel}</Label>
-                  <Input
-                    id="metric-hips"
-                    value={metricForm.hipsCm}
-                    onChange={(event) => setMetricForm((current) => ({ ...current, hipsCm: event.target.value }))}
-                    placeholder="96"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="metric-thigh">{messages.coach.thighCmLabel}</Label>
-                  <Input
-                    id="metric-thigh"
-                    value={metricForm.thighCm}
-                    onChange={(event) => setMetricForm((current) => ({ ...current, thighCm: event.target.value }))}
-                    placeholder="54"
-                    className="mt-1.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="metric-note">{messages.coach.metricNoteLabel}</Label>
-                <Textarea
-                  id="metric-note"
-                  value={metricForm.note}
-                  onChange={(event) => setMetricForm((current) => ({ ...current, note: event.target.value }))}
-                  placeholder={messages.coach.metricNotePlaceholder}
-                  className="mt-1.5 min-h-[96px]"
-                />
-              </div>
-
-              <Button type="submit" disabled={isSavingMetric} className="w-full">
-                {isSavingMetric ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {messages.coach.saveBodyMetric}
-              </Button>
-            </div>
-          </form>
-
-          <div className="rounded-lg border border-border p-5">
-            <h2 className="text-base font-semibold">{messages.coach.measurementHistory}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.measurementHistoryDesc}</p>
-
-            {detail.bodyMetrics.length === 0 ? (
-              <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                {messages.coach.noBodyMetrics}
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {detail.bodyMetrics.map((entry: BodyMetricEntry) => (
-                  <div key={entry.id} className="rounded-lg border border-border bg-muted/20 px-4 py-4">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-medium">{entry.recordedAt.toLocaleDateString(dateLocale)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {entry.coachName ? messages.coach.loggedBy(entry.coachName) : messages.coach.coachEntry}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">{messages.coach.weightStatLabel}</p>
-                          <p className="font-mono font-medium tabular-nums">{formatNumber(entry.weightKg, " kg")}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">{messages.coach.bodyFatStatLabel}</p>
-                          <p className="font-mono font-medium tabular-nums">{formatNumber(entry.bodyFatPct, "%")}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">{messages.coach.waistStatLabel}</p>
-                          <p className="font-mono font-medium tabular-nums">{formatNumber(entry.waistCm, " cm")}</p>
-                        </div>
-                      </div>
-                    </div>
-                    {entry.note ? <p className="mt-3 text-sm text-muted-foreground">{entry.note}</p> : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Check-in section */}
-        <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
-          <form onSubmit={handleCreateCheckIn} className="rounded-lg border border-border p-5">
-            <div className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">{messages.coach.newCheckInTitle}</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.newCheckInDesc}</p>
-
-            {checkInError ? (
-              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-                {checkInError}
-              </div>
-            ) : null}
-
-            <div className="mt-4 space-y-4">
-              <div>
-                <Label htmlFor="checkin-date">{messages.coach.checkInDateLabel}</Label>
-                <Input
-                  id="checkin-date"
-                  type="date"
-                  value={checkInForm.checkInDate}
-                  onChange={(event) => setCheckInForm((current) => ({ ...current, checkInDate: event.target.value }))}
-                  className="mt-1.5"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="score-adherence">{messages.coach.adherenceScoreLabel}</Label>
-                  <Input
-                    id="score-adherence"
-                    value={checkInForm.adherenceScore}
-                    onChange={(event) => setCheckInForm((current) => ({ ...current, adherenceScore: event.target.value }))}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="score-energy">{messages.coach.energyScoreLabel}</Label>
-                  <Input
-                    id="score-energy"
-                    value={checkInForm.energyScore}
-                    onChange={(event) => setCheckInForm((current) => ({ ...current, energyScore: event.target.value }))}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="score-recovery">{messages.coach.recoveryScoreLabel}</Label>
-                  <Input
-                    id="score-recovery"
-                    value={checkInForm.recoveryScore}
-                    onChange={(event) => setCheckInForm((current) => ({ ...current, recoveryScore: event.target.value }))}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="score-mood">{messages.coach.moodScoreLabel}</Label>
-                  <Input
-                    id="score-mood"
-                    value={checkInForm.moodScore}
-                    onChange={(event) => setCheckInForm((current) => ({ ...current, moodScore: event.target.value }))}
-                    className="mt-1.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="checkin-summary">{messages.coach.checkInSummaryLabel}</Label>
-                <Textarea
-                  id="checkin-summary"
-                  value={checkInForm.summary}
-                  onChange={(event) => setCheckInForm((current) => ({ ...current, summary: event.target.value }))}
-                  placeholder={messages.coach.checkInSummaryPlaceholder}
-                  className="mt-1.5 min-h-[96px]"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="checkin-feedback">{messages.coach.coachFeedbackLabel}</Label>
-                <Textarea
-                  id="checkin-feedback"
-                  value={checkInForm.feedback}
-                  onChange={(event) => setCheckInForm((current) => ({ ...current, feedback: event.target.value }))}
-                  placeholder={messages.coach.coachFeedbackPlaceholder}
-                  className="mt-1.5 min-h-[120px]"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="checkin-focus">{messages.coach.nextFocusInputLabel}</Label>
-                <Input
-                  id="checkin-focus"
-                  value={checkInForm.nextFocus}
-                  onChange={(event) => setCheckInForm((current) => ({ ...current, nextFocus: event.target.value }))}
-                  placeholder={messages.coach.nextFocusPlaceholder}
-                  className="mt-1.5"
-                />
-              </div>
-
-              <Button type="submit" disabled={isSavingCheckIn} className="w-full">
-                {isSavingCheckIn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {messages.coach.saveCheckIn}
-              </Button>
-            </div>
-          </form>
-
-          <div className="rounded-lg border border-border p-5">
-            <h2 className="text-base font-semibold">{messages.coach.checkInHistoryTitle}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{messages.coach.checkInHistoryDesc}</p>
-
-            {detail.checkIns.length === 0 ? (
-              <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                {messages.coach.noCheckIns}
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-col gap-3">
-                {detail.checkIns.map((checkIn) => {
-                  const avg = averageScore(checkIn)
-                  const dateShort = checkIn.checkInDate.toLocaleDateString(dateLocale, {
-                    day: "numeric",
-                    month: "short",
-                  })
-                  return (
-                    <div key={checkIn.id} className="rounded-lg border border-border bg-card p-4">
-                      {/* Compact header: date · avg · adherence/energy/recovery/mood dot scales */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                          {dateShort}
-                        </span>
-                        {avg != null && (
-                          <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                            {avg}
-                            <span className="text-muted-foreground">/5</span>
-                          </span>
-                        )}
-                        <span className="flex-1" />
-                        {(
-                          [
-                            [messages.coach.adherenceStatLabel, checkIn.adherenceScore],
-                            [messages.coach.energyStatLabel, checkIn.energyScore],
-                            [messages.coach.recoveryStatLabel, checkIn.recoveryScore],
-                            [messages.coach.moodStatLabel, checkIn.moodScore],
-                          ] as [string, number | undefined][]
-                        ).map(([label, val]) => (
-                          <span
-                            key={label}
-                            className="flex items-center gap-1.5 text-micro text-muted-foreground"
-                          >
-                            <span className="uppercase tracking-[0.06em]">{label}</span>
-                            <DotScale value={val} />
-                          </span>
-                        ))}
-                      </div>
-
-                      <p className="mt-2 font-mono text-micro text-muted-foreground">
-                        {messages.coach.coachByName(checkIn.coachName)}
-                      </p>
-
-                      {checkIn.summary ? (
-                        <div className="mt-3 rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
-                          <p className="mb-0.5 text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                            {messages.coach.checkInSummarySection}
-                          </p>
-                          {checkIn.summary}
-                        </div>
-                      ) : null}
-
-                      <div className="mt-3 border-l-2 border-primary pl-3">
-                        <p className="text-micro font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                          {messages.coach.checkInFeedbackSection}
-                        </p>
-                        <p className="mt-0.5 text-sm leading-relaxed text-foreground">
-                          {checkIn.feedback}
-                        </p>
-                      </div>
-
-                      {checkIn.nextFocus ? (
-                        <div className="mt-3 rounded-md border border-primary/20 bg-primary-soft px-3 py-2 text-sm">
-                          <span className="font-medium text-primary">
-                            {messages.coach.nextFocusSection}
-                          </span>{" "}
-                          {checkIn.nextFocus}
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </TabsContent>
-
       {/* ── Nutrition ─────────────────────────────────────────────────────── */}
-      <TabsContent value="nutrition" className="space-y-6">
-        <TraineeMealPlanPanel traineeId={detail.trainee.id} />
+      <TabsContent value="nutrition" className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)]">
+          <div className="space-y-4">
+            <TraineeMealPlanPanel traineeId={detail.trainee.id} />
 
-        <div className="rounded-lg border border-border p-5">
-          <h2 className="text-base font-semibold">{messages.coach.nutritionTitle}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {messages.coach.nutritionDesc}
-          </p>
+            <div className="rounded-lg border border-border p-4">
+              <h2 className="text-base font-semibold">{messages.coach.nutritionTitle}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {messages.coach.nutritionDesc}
+              </p>
 
-          {!nutritionSummary ? (
-            <p className="mt-6 text-sm text-muted-foreground">{messages.coach.nutritionUnavailable}</p>
-          ) : nutritionSummary.daysTracked === 0 ? (
-            <p className="mt-6 text-sm text-muted-foreground">{messages.coach.noMealsLogged30Days}</p>
-          ) : (
-            <>
-              {/* Summary stat cards */}
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {!nutritionSummary ? (
+                <p className="mt-4 text-sm text-muted-foreground">{messages.coach.nutritionUnavailable}</p>
+              ) : nutritionSummary.daysTracked === 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">{messages.coach.noMealsLogged30Days}</p>
+              ) : (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {[
+                    {
+                      label: messages.coach.avgCaloriesLabel,
+                      value: `${nutritionSummary.avgCalories} kcal`,
+                      sub: nutritionSummary.traineeCalorieGoal
+                        ? messages.coach.calorieGoalLabel(nutritionSummary.traineeCalorieGoal)
+                        : undefined,
+                    },
+                    { label: messages.coach.avgProteinLabel, value: `${nutritionSummary.avgProtein} g` },
+                    { label: messages.coach.avgCarbsLabel, value: `${nutritionSummary.avgCarbs} g` },
+                    { label: messages.coach.avgFatLabel, value: `${nutritionSummary.avgFat} g` },
+                  ].map((card) => (
+                    <div key={card.label} className="rounded-md border border-border bg-muted/30 px-3 py-2.5">
+                      <p className="label-micro text-muted-foreground">{card.label}</p>
+                      <p className="mt-1 text-base font-semibold tnum">{card.value}</p>
+                      {card.sub && <p className="mt-0.5 truncate text-xs text-muted-foreground">{card.sub}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">{messages.coach.nutritionTitle} · 30 ngày</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {nutritionSummary ? messages.coach.daysTrackedLabel(nutritionSummary.daysTracked) : messages.coach.nutritionDesc}
+                </p>
+              </div>
+            </div>
+
+            {!nutritionSummary ? (
+              <p className="mt-4 text-sm text-muted-foreground">{messages.coach.nutritionUnavailable}</p>
+            ) : nutritionSummary.daysTracked === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">{messages.coach.noMealsLogged30Days}</p>
+            ) : (
+              <>
+                <div className="mt-3 grid grid-cols-4 gap-2 xl:hidden">
                 {[
                   {
                     label: messages.coach.avgCaloriesLabel,
@@ -1092,26 +624,22 @@ export function CoachTraineeDetailClient({
                   { label: messages.coach.avgCarbsLabel, value: `${nutritionSummary.avgCarbs} g` },
                   { label: messages.coach.avgFatLabel, value: `${nutritionSummary.avgFat} g` },
                 ].map((card) => (
-                  <div key={card.label} className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                  <div key={card.label} className="rounded-md border border-border bg-muted/30 px-3 py-2">
                     <p className="label-micro text-muted-foreground">{card.label}</p>
-                    <p className="mt-1 text-lg font-semibold tnum">{card.value}</p>
-                    {card.sub && <p className="mt-0.5 text-xs text-muted-foreground">{card.sub}</p>}
+                    <p className="mt-1 text-sm font-semibold tnum">{card.value}</p>
                   </div>
                 ))}
               </div>
 
-              <p className="mt-4 text-xs text-muted-foreground">
-                {messages.coach.daysTrackedLabel(nutritionSummary.daysTracked)}
-              </p>
-
               {/* Daily log accordion — tap a day to expand meal-by-meal breakdown */}
-              <div className="mt-4 flex flex-col gap-2.5">
+              <div className="mt-4 flex max-h-[520px] flex-col gap-2 overflow-y-auto pr-1">
                 {nutritionSummary.dailyLogs.map((row) => {
                   const goal = nutritionSummary.traineeCalorieGoal
                   const goalPct = goal > 0 ? Math.round((row.calories / goal) * 100) : null
                   const over = goal > 0 && row.calories > goal
                   const onTrack = goalPct != null && goalPct >= 90 && goalPct <= 110
                   const isOpen = expandedNutritionDate === row.date
+                  const bodyMetric = bodyMetricsByDate.get(row.date)
                   return (
                     <div
                       key={row.date}
@@ -1120,7 +648,7 @@ export function CoachTraineeDetailClient({
                       <button
                         type="button"
                         onClick={() => setExpandedNutritionDate(isOpen ? null : row.date)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
                       >
                         {isOpen ? (
                           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -1144,6 +672,10 @@ export function CoachTraineeDetailClient({
                           )}
                         </span>
                         <span className="hidden font-mono text-xs tabular-nums text-muted-foreground sm:inline">
+                          {bodyMetric?.weightKg != null ? `W ${formatNumber(bodyMetric.weightKg, " kg")}` : "W --"}
+                          {bodyMetric?.bodyFatPct != null ? ` · BF ${formatNumber(bodyMetric.bodyFatPct, "%")}` : ""}
+                        </span>
+                        <span className="hidden font-mono text-xs tabular-nums text-muted-foreground md:inline">
                           P {Math.round(row.protein)}g
                         </span>
                         {goal > 0 && (
@@ -1231,8 +763,9 @@ export function CoachTraineeDetailClient({
                   )
                 })}
               </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </TabsContent>
 

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { MoreHorizontal, Pencil, Play, User } from "lucide-react"
 import { useMemo, useState } from "react"
 
@@ -11,6 +12,7 @@ import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { useCreateWorkout } from "@/lib/queries/workouts"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
 import { getTotalSets, inferRoutineTag } from "@/lib/fitness/routine-tag"
@@ -45,14 +47,51 @@ function formatScheduledDate(date: Date) {
   return formatDateKey(date, "UTC")
 }
 
+function buildTrialWorkoutPayload(workout: Workout) {
+  return {
+    duration: workout.duration,
+    exercises: workout.exercises.map((exercise) => {
+      const firstSet = exercise.sets[0]
+
+      return {
+        notes: exercise.notes,
+        reps: firstSet?.targetReps ?? 1,
+        repsMin: firstSet?.targetRepsMin,
+        restTime: exercise.restTime,
+        rir: firstSet?.rir,
+        setIntensityTags: exercise.sets
+          .filter((set) => set.intensityTag)
+          .map((set) => ({ setNumber: set.setNumber, tag: set.intensityTag! })),
+        sets: Math.max(1, exercise.sets.length),
+        variationId: exercise.variation.id,
+        weight: firstSet?.weight,
+      }
+    }),
+    kind: workout.kind,
+    name: workout.name,
+    scheduledDate: formatDateKey(new Date()),
+  }
+}
+
 /**
  * One saved routine. Edit and delete only appear for personal routines —
  * coach-assigned sessions carry `isPersonal === false`, so the same card is
  * safe to reuse inside a program view.
  */
-export function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[]; workout: Workout }) {
+export function RoutineCard({
+  historyLogs,
+  startAsTodayTrial = false,
+  workout,
+}: {
+  historyLogs: WorkoutLog[]
+  startAsTodayTrial?: boolean
+  workout: Workout
+}) {
+  const router = useRouter()
   const { messages } = useLocale()
+  const createWorkoutMutation = useCreateWorkout()
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
   const tag = inferRoutineTag(workout)
   const totalSets = getTotalSets(workout)
   const muscleHighlights = useMemo(
@@ -67,6 +106,20 @@ export function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[
   const cardMeta = workout.scheduledDate
     ? messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))
     : messages.workoutPage.lastUsed(lastUsed)
+  const isStartingTrial = startAsTodayTrial && createWorkoutMutation.isPending
+
+  const handleStartTrial = async () => {
+    if (isStartingTrial) return
+
+    setStartError(null)
+
+    try {
+      const trialWorkout = await createWorkoutMutation.mutateAsync(buildTrialWorkoutPayload(workout))
+      router.push(`/workout/${trialWorkout.id}/start?logDate=${formatDateKey(new Date())}`)
+    } catch (error) {
+      setStartError(error instanceof Error ? error.message : messages.schedule.unableAddRoutine)
+    }
+  }
 
   return (
     <article className="group flex min-w-0 flex-col gap-3.5 overflow-hidden rounded-lg border border-border bg-card p-5 transition-colors duration-150 hover:border-foreground/20 sm:min-h-[286px]">
@@ -171,12 +224,25 @@ export function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[
       </div>
 
       <div className="mt-auto flex min-w-0 flex-col gap-2 sm:flex-row">
-        <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
-          <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
+        {startAsTodayTrial ? (
+          <Button
+            type="button"
+            disabled={isStartingTrial}
+            className="h-10 min-w-0 flex-1 justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
+            size="sm"
+            onClick={() => void handleStartTrial()}
+          >
             <Play className="h-4 w-4" />
-            {messages.workoutPage.start}
+            {isStartingTrial ? messages.workoutPage.saving : messages.workoutPage.start}
           </Button>
-        </Link>
+        ) : (
+          <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
+            <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
+              <Play className="h-4 w-4" />
+              {messages.workoutPage.start}
+            </Button>
+          </Link>
+        )}
         {workout.isPersonal ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
             <Button
@@ -200,6 +266,8 @@ export function RoutineCard({ historyLogs, workout }: { historyLogs: WorkoutLog[
           </div>
         ) : null}
       </div>
+
+      {startError ? <p className="text-xs leading-snug text-destructive-text">{startError}</p> : null}
 
       {workout.isPersonal ? (
         <RoutineBuilderDialog

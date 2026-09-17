@@ -1551,6 +1551,7 @@ function serializeProgram(program: ProgramRecord, options?: { viewerId?: string 
     duration: program.duration,
     googleSpreadsheetId: program.googleSpreadsheetId ?? undefined,
     googleSheetName: program.googleSheetName ?? undefined,
+    forkedFromProgramId: program.forkedFromProgramId ?? undefined,
     id: program.id,
     name: program.name,
     startDate: program.startDate ? formatUtcDateOnly(program.startDate) : undefined,
@@ -2858,6 +2859,11 @@ function sanitizeScore(value?: number | null) {
 
 function normalizePhoneNumber(value?: string | null) {
   return (value ?? "").replace(/\D/g, "")
+}
+
+function normalizeEmailAddress(value?: string | null) {
+  const email = (value ?? "").trim().toLowerCase()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ""
 }
 
 type VariationWithExercise = Prisma.VariationGetPayload<{
@@ -4863,9 +4869,81 @@ async function createCoachRequestForTrainee(profile: SerializedProfile, coachId:
   }
 }
 
+async function inviteTraineeForCoach(profile: SerializedProfile, identifier: string) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const query = identifier.trim()
+  const email = normalizeEmailAddress(query)
+  const phone = normalizePhoneNumber(query)
+
+  if (!email && !phone) {
+    throw new AuthServiceError("Vui lòng nhập email hoặc số điện thoại hợp lệ.", 400)
+  }
+
+  const trainee = await db.user.findFirst({
+    select: {
+      avatar: true,
+      coachId: true,
+      email: true,
+      fitnessGoals: true,
+      id: true,
+      name: true,
+      phone: true,
+    },
+    where: {
+      role: UserRole.trainee,
+      OR: [
+        ...(email ? [{ email }] : []),
+        ...(phone ? [{ phone }] : []),
+      ],
+    },
+  })
+
+  if (!trainee) {
+    throw new AuthServiceError("Không tìm thấy trainee theo email hoặc số điện thoại này.", 404)
+  }
+
+  if (trainee.coachId === profile.id) {
+    throw new AuthServiceError("Trainee này đã là client của bạn.", 409)
+  }
+
+  if (trainee.coachId) {
+    throw new AuthServiceError("Trainee này đang kết nối với coach khác.", 409)
+  }
+
+  const existingRequest = await db.coachRequest.findUnique({
+    where: {
+      traineeId_coachId: {
+        coachId: profile.id,
+        traineeId: trainee.id,
+      },
+    },
+  })
+
+  const request =
+    existingRequest != null
+      ? await db.coachRequest.update({
+          data: { status: CoachRequestStatus.pending },
+          include: { trainee: { select: TRAINEE_SUMMARY_SELECT } },
+          where: { id: existingRequest.id },
+        })
+      : await db.coachRequest.create({
+          data: {
+            coachId: profile.id,
+            traineeId: trainee.id,
+          },
+          include: { trainee: { select: TRAINEE_SUMMARY_SELECT } },
+        })
+
+  return {
+    request: serializeCoachRequest(request),
+  }
+}
+
 async function listCoachPrograms(
   profile: SerializedProfile,
-  options?: { includeArchived?: boolean },
+  options?: { includeArchived?: boolean; includePersonalized?: boolean },
 ) {
   assertCoach(profile)
   const db = ensurePrisma()
@@ -4876,6 +4954,7 @@ async function listCoachPrograms(
     },
     where: {
       createdById: profile.id,
+      ...(options?.includePersonalized ? {} : { forkedFromProgramId: null }),
       ...(options?.includeArchived ? {} : { archivedAt: null }),
     },
   })
@@ -4889,7 +4968,9 @@ async function getCoachNavCounts(profile: SerializedProfile) {
   const [programs, trainees] = await Promise.all([
     db.program.count({
       where: {
+        archivedAt: null,
         createdById: profile.id,
+        forkedFromProgramId: null,
       },
     }),
     db.user.count({
@@ -5800,6 +5881,7 @@ async function swapExerciseForTraineeFromWorkout(
         difficulty: originalProgram.difficulty,
         duration: originalProgram.duration,
         id: forkedProgramId,
+        forkedFromProgramId: originalProgramId,
         googleSpreadsheetId: originalProgram.googleSpreadsheetId,
         googleSheetName: originalProgram.googleSheetName,
         isAIGenerated: originalProgram.isAIGenerated,
@@ -5857,8 +5939,11 @@ async function swapExerciseForTraineeFromWorkout(
           oldExerciseName: targetExercise.variation.exercise.name,
           oldVariationId,
           originalProgramId,
+          originalWorkoutExerciseId: input.workoutExerciseId,
+          originalWorkoutId: workout.id,
           swappedAt: new Date().toISOString(),
           swappedWorkoutIds,
+          targetOrder,
           traineeId: profile.id,
           traineeName: profile.name,
         },
@@ -5882,6 +5967,144 @@ async function swapExerciseForTraineeFromWorkout(
     currentWorkoutExerciseIdMap,
     forkedProgramId,
     workoutId: workoutIdMap.get(workout.id) ?? workout.id,
+  }
+}
+
+function readNotificationMetadataString(metadata: Prisma.JsonValue | null, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return undefined
+
+  const value = (metadata as Record<string, unknown>)[key]
+  return typeof value === "string" && value.trim() ? value : undefined
+}
+
+function readNotificationMetadataNumber(metadata: Prisma.JsonValue | null, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return undefined
+
+  const value = (metadata as Record<string, unknown>)[key]
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, notificationId: string) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const notification = await db.notification.findFirst({
+    where: {
+      id: notificationId,
+      userId: profile.id,
+    },
+  })
+
+  if (!notification) {
+    throw new AuthServiceError("Không tìm thấy thông báo đổi bài.", 404)
+  }
+
+  const kind = readNotificationMetadataString(notification.metadata, "kind")
+  const approvedAt = readNotificationMetadataString(notification.metadata, "approvedAt")
+  const originalProgramId = readNotificationMetadataString(notification.metadata, "originalProgramId")
+  const originalWorkoutId = readNotificationMetadataString(notification.metadata, "originalWorkoutId")
+  const oldVariationId = readNotificationMetadataString(notification.metadata, "oldVariationId")
+  const newVariationId = readNotificationMetadataString(notification.metadata, "newVariationId")
+  const targetOrder = readNotificationMetadataNumber(notification.metadata, "targetOrder")
+
+  if (kind !== "trainee_swapped_exercise") {
+    throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
+  }
+
+  if (approvedAt) {
+    return { approved: true, alreadyApproved: true, notificationId, updatedExerciseCount: 0 }
+  }
+
+  if (!originalProgramId || !originalWorkoutId || !oldVariationId || !newVariationId || targetOrder == null) {
+    throw new AuthServiceError("Thông báo đổi bài này thiếu dữ liệu để duyệt. Hãy yêu cầu trainee đổi lại bài để tạo thông báo mới.", 409)
+  }
+
+  const originalProgram = await db.program.findFirst({
+    include: {
+      workouts: {
+        include: {
+          exercises: true,
+        },
+      },
+    },
+    where: {
+      createdById: profile.id,
+      id: originalProgramId,
+    },
+  })
+
+  if (!originalProgram) {
+    throw new AuthServiceError("Không tìm thấy program gốc của coach.", 404)
+  }
+
+  const referenceWorkout = originalProgram.workouts.find((workout) => workout.id === originalWorkoutId)
+
+  if (!referenceWorkout) {
+    throw new AuthServiceError("Không tìm thấy workout gốc trong program.", 404)
+  }
+
+  const targetExerciseIds = originalProgram.workouts.flatMap((workout) => {
+    const shouldUpdateWholeWorkout = isFutureWorkout(workout, referenceWorkout)
+    const isReferenceWorkout = workout.id === referenceWorkout.id
+
+    if (!shouldUpdateWholeWorkout && !isReferenceWorkout) {
+      return []
+    }
+
+    return workout.exercises
+      .filter((exercise) =>
+        exercise.variationId === oldVariationId &&
+        (shouldUpdateWholeWorkout || exercise.order >= targetOrder),
+      )
+      .map((exercise) => exercise.id)
+  })
+
+  if (targetExerciseIds.length === 0) {
+    throw new AuthServiceError("Không còn bài tập phù hợp để thay trong program gốc.", 409)
+  }
+
+  const nextMetadata = {
+    ...(
+      notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
+        ? (notification.metadata as Record<string, unknown>)
+        : {}
+    ),
+    approvedAt: new Date().toISOString(),
+    approvedByCoachId: profile.id,
+    approvedTargetExerciseIds: targetExerciseIds,
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.workoutExercise.updateMany({
+      data: { originalVariationId: oldVariationId },
+      where: {
+        id: { in: targetExerciseIds },
+        originalVariationId: null,
+      },
+    })
+
+    await tx.workoutExercise.updateMany({
+      data: { variationId: newVariationId },
+      where: {
+        id: { in: targetExerciseIds },
+      },
+    })
+
+    await tx.notification.update({
+      data: {
+        metadata: nextMetadata as Prisma.InputJsonValue,
+        readAt: notification.readAt ?? new Date(),
+      },
+      where: { id: notification.id },
+    })
+  })
+
+  return {
+    approved: true,
+    alreadyApproved: false,
+    notificationId,
+    originalProgramId,
+    updatedExerciseCount: targetExerciseIds.length,
   }
 }
 
@@ -7118,6 +7341,11 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
         orderBy: {
           assignedAt: "asc",
         },
+        where: {
+          program: {
+            createdById: profile.id,
+          },
+        },
       },
     },
     orderBy: {
@@ -7146,6 +7374,11 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
           },
           where: {
             completedAt: { not: null },
+            workout: {
+              program: {
+                createdById: profile.id,
+              },
+            },
             startedAt: { gte: clientDayStart(weekStart), lt: clientDayStart(weekEnd) },
             userId: {
               in: traineeIds,
@@ -7230,7 +7463,7 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
       name: trainee.name,
       phone: trainee.phone ?? undefined,
       plannedSessionsPerWeek,
-      programCount: trainee._count.programAssignments,
+      programCount: trainee.programAssignments.length,
       thisWeekWorkouts,
       totalWorkoutLogs: trainee._count.workoutLogs,
     }
@@ -7255,6 +7488,11 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
             include: PROGRAM_INCLUDE,
           },
         },
+        where: {
+          program: {
+            createdById: profile.id,
+          },
+        },
       },
       workoutLogs: {
         include: WORKOUT_LOG_INCLUDE,
@@ -7262,6 +7500,13 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
           startedAt: "desc",
         },
         take: 10,
+        where: {
+          workout: {
+            program: {
+              createdById: profile.id,
+            },
+          },
+        },
       },
     },
     where: {
@@ -7284,13 +7529,28 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
     db.workoutLog.findMany({
       include: WORKOUT_LOG_INCLUDE,
       orderBy: { startedAt: "asc" },
-      where: { startedAt: { gte: clientDayStart(weekStart), lt: clientDayStart(weekEnd) }, userId: trainee.id },
+      where: {
+        startedAt: { gte: clientDayStart(weekStart), lt: clientDayStart(weekEnd) },
+        userId: trainee.id,
+        workout: {
+          program: {
+            createdById: profile.id,
+          },
+        },
+      },
     }),
     // Full history: streaks and PR baselines need every earlier session.
     db.workoutLog.findMany({
       orderBy: { startedAt: "asc" },
       select: { completedAt: true, exerciseSnapshot: true, startedAt: true, totalVolume: true },
-      where: { userId: trainee.id },
+      where: {
+        userId: trainee.id,
+        workout: {
+          program: {
+            createdById: profile.id,
+          },
+        },
+      },
     }),
     db.bodyMetricEntry.findMany({
       include: {
@@ -7465,7 +7725,7 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       name: trainee.name,
       phone: trainee.phone ?? undefined,
       plannedSessionsPerWeek,
-      programCount: trainee._count.programAssignments,
+      programCount: trainee.programAssignments.length,
       thisWeekWorkouts,
       totalWorkoutLogs: trainee._count.workoutLogs,
     },
@@ -7761,6 +8021,7 @@ async function updateCoachRequestStatus(
 export {
   addWorkoutToTraineeProgram,
   adjustCoachProgramForTrainee,
+  approveTraineeExerciseSwapForCoach,
   archiveCoachProgram,
   assignCoachProgramToTrainee,
   buildProgramTreeCreateManyData,
@@ -7770,6 +8031,7 @@ export {
   createCoachCheckInForTrainee,
   createCoachExercise,
   createCoachRequestForTrainee,
+  inviteTraineeForCoach,
   createCoachProgram,
   createMealForUser,
   createPersonalWorkoutForTrainee,

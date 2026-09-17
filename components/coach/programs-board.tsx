@@ -15,6 +15,7 @@ import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
 import { ProgramViewerDialog } from "@/components/coach/program-viewer-dialog"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import {
   archiveCoachProgram,
@@ -33,7 +34,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
-import { Loader2, Plus, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Eye, Loader2, Pencil, Plus, Upload } from "lucide-react"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -83,8 +84,15 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
+  const [viewMode, setViewMode] = useState<"library" | "clients">("library")
+  const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
+  const includePersonalized = viewMode === "clients"
 
-  const programsQuery = useCoachData(queryKeys.coach.programs({ includeArchived: showArchived }), (token) => fetchCoachPrograms(token, { includeArchived: showArchived }), showArchived ? undefined : initialPrograms)
+  const programsQuery = useCoachData(
+    queryKeys.coach.programs({ includeArchived: showArchived, includePersonalized }),
+    (token) => fetchCoachPrograms(token, { includeArchived: showArchived, includePersonalized }),
+    showArchived || includePersonalized ? undefined : initialPrograms,
+  )
   const programs = programsQuery.data ?? []
   const setPrograms = programsQuery.setData
   const traineesQuery = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
@@ -109,6 +117,16 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const visiblePrograms = showArchived ? programs : programs.filter((p) => !p.archivedAt)
   const totalAssignments = visiblePrograms.reduce((sum, program) => sum + program.assignedTrainees.length, 0)
   const unassigned = visiblePrograms.filter((program) => program.assignedTrainees.length === 0).length
+  const clientProgramGroups = trainees
+    .map((trainee) => ({
+      trainee,
+      programs: visiblePrograms.filter((program) =>
+        program.assignedTrainees.some((assigned) => assigned.id === trainee.id) ||
+        trainee.assignedProgramIds?.includes(program.id),
+      ),
+    }))
+    .filter((group) => group.programs.length > 0)
+  const unassignedPrograms = visiblePrograms.filter((program) => program.assignedTrainees.length === 0)
 
   const handleDuplicate = async (program: CoachProgram) => {
     setBusyId(program.id)
@@ -210,6 +228,18 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     setPrograms((prev) => [program, ...prev.filter((item) => item.id !== program.id)])
   }
 
+  const toggleClientPrograms = (traineeId: string) => {
+    setExpandedClientIds((current) => {
+      const next = new Set(current)
+      if (next.has(traineeId)) {
+        next.delete(traineeId)
+      } else {
+        next.add(traineeId)
+      }
+      return next
+    })
+  }
+
   const editor =
     editorTarget === null ? null : (
       <ProgramEditorLazy
@@ -225,12 +255,36 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="label-micro">Programs</p>
-        <h1 className="mt-2 text-3xl font-semibold leading-none tracking-[-0.02em] sm:text-4xl">{visiblePrograms.length} authored.</h1>
+        <h1 className="mt-2 text-3xl font-semibold leading-none tracking-[-0.02em] sm:text-4xl">
+          {viewMode === "clients" ? `${clientProgramGroups.length} clients.` : `${visiblePrograms.length} authored.`}
+        </h1>
         <p className="mt-1.5 font-mono text-sm tnum text-muted-foreground">
-          {totalAssignments} clients training on a program · {unassigned} unassigned
+          {viewMode === "clients"
+            ? `${visiblePrograms.length} assigned program records · ${unassigned} unassigned`
+            : `${totalAssignments} clients training on a program · ${unassigned} unassigned`}
         </p>
       </div>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <div className="grid grid-cols-2 rounded-lg border border-border bg-card p-1">
+          <Button
+            type="button"
+            variant={viewMode === "library" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8"
+            onClick={() => setViewMode("library")}
+          >
+            Library
+          </Button>
+          <Button
+            type="button"
+            variant={viewMode === "clients" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8"
+            onClick={() => setViewMode("clients")}
+          >
+            By client
+          </Button>
+        </div>
         <label className="flex select-none items-center gap-2 text-sm text-muted-foreground sm:mr-2">
           <Switch checked={showArchived} onCheckedChange={setShowArchived} />
           Show archived
@@ -315,25 +369,139 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         <div className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{error}</div>
       ) : null}
 
-      <div
-        className="grid gap-3.5"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}
-      >
-        {visiblePrograms.map((program) => (
-          <ProgramCard
-            key={program.id}
-            program={program}
-            busy={busyId === program.id}
-            onEdit={() => setEditorTarget(program.id)}
-            onView={() => setViewTarget(program)}
-            onAssign={() => setAssignTarget(program)}
-            onDuplicate={() => void handleDuplicate(program)}
-            onArchive={() => void handleArchive(program)}
-            onRestore={() => void handleRestore(program)}
-            onDelete={() => void handleDelete(program)}
-          />
-        ))}
-      </div>
+      {viewMode === "library" ? (
+        <div
+          className="grid gap-3.5"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}
+        >
+          {visiblePrograms.map((program) => (
+            <ProgramCard
+              key={program.id}
+              program={program}
+              busy={busyId === program.id}
+              onEdit={() => setEditorTarget(program.id)}
+              onView={() => setViewTarget(program)}
+              onAssign={() => setAssignTarget(program)}
+              onDuplicate={() => void handleDuplicate(program)}
+              onArchive={() => void handleArchive(program)}
+              onRestore={() => void handleRestore(program)}
+              onDelete={() => void handleDelete(program)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {clientProgramGroups.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground xl:col-span-2">
+              No clients have assigned programs yet.
+            </div>
+          ) : (
+            clientProgramGroups.map(({ trainee, programs: traineePrograms }) => {
+              const isExpanded = expandedClientIds.has(trainee.id)
+
+              return (
+                <section key={trainee.id} className="overflow-hidden rounded-lg border border-border bg-card">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    aria-expanded={isExpanded}
+                    onClick={() => toggleClientPrograms(trainee.id)}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
+                        {trainee.name.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-base font-semibold">{trainee.name}</span>
+                        <span className="mt-0.5 block truncate text-sm text-muted-foreground">{trainee.email}</span>
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <Badge variant="micro" className="bg-muted text-muted-foreground">
+                        {traineePrograms.length} programs
+                      </Badge>
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      )}
+                    </span>
+                  </button>
+
+                  <div
+                    className={isExpanded ? "border-t border-border px-4 py-3" : "hidden"}
+                    aria-hidden={!isExpanded}
+                  >
+                    <div className="space-y-2">
+                      {traineePrograms.map((program) => (
+                        <div
+                          key={program.id}
+                          className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-foreground">{program.name}</p>
+                              {program.forkedFromProgramId ? (
+                                <Badge variant="micro" className="border-primary/20 bg-primary-soft text-primary">
+                                  Personalized copy
+                                </Badge>
+                              ) : null}
+                              {program.archivedAt ? (
+                                <Badge variant="micro" className="bg-muted text-muted-foreground">
+                                  Archived
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 font-mono text-micro text-muted-foreground">
+                              {program.workoutsPerWeek} days/week · {program.duration} weeks · {program.difficulty}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <Button type="button" variant="outline" size="sm" className="gap-1.5 bg-transparent" onClick={() => setViewTarget(program)}>
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </Button>
+                            <Button type="button" size="sm" className="gap-1.5" onClick={() => setEditorTarget(program.id)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                              Adjust
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              )
+            })
+          )}
+
+          {unassignedPrograms.length > 0 ? (
+            <section className="rounded-lg border border-border bg-card p-4 xl:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold">Unassigned</h2>
+                <Badge variant="micro" className="bg-muted text-muted-foreground">
+                  {unassignedPrograms.length} programs
+                </Badge>
+              </div>
+              <div className="mt-4 grid gap-2 lg:grid-cols-2">
+                {unassignedPrograms.map((program) => (
+                  <div key={program.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{program.name}</p>
+                      <p className="mt-1 font-mono text-micro text-muted-foreground">
+                        {program.workoutsPerWeek} days/week · {program.duration} weeks
+                      </p>
+                    </div>
+                    <Button type="button" size="sm" onClick={() => setAssignTarget(program)}>
+                      Assign
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      )}
 
       <ProgramViewerDialog program={viewTarget} onClose={() => setViewTarget(null)} />
 
