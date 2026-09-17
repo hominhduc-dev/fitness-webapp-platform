@@ -21,3 +21,6 @@ pnpm-debug.log*
 .vscode/
 .pr-worktrees/
 .exercise-sync-reports/
+
+# Generated ESLint report output
+eslint-results.json

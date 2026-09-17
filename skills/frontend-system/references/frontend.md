@@ -28,7 +28,7 @@
 | Framework | Next.js `16.3.5`, App Router, React `19.2.0` |
 | Ngôn ngữ | TypeScript 5, `strict`, alias `@/*` |
 | Styling | Tailwind CSS `4.1.9`, CSS variables trong `app/globals.css` |
-| UI primitives | shadcn/ui style `new-york`, Radix UI, Vaul drawer |
+| UI primitives | shadcn/ui style `new-york`, Radix UI |
 | Icons | `lucide-react` |
 | Charts | Recharts `2.15.4` |
 | Date | date-fns `4.1.0` |
@@ -178,7 +178,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 
 | Thư mục | Trách nhiệm |
 |---|---|
-| `components/ui` | Primitive dùng chung: button, input, dialog, drawer, select, tabs, glass filters |
+| `components/ui` | Primitive dùng chung: button, input, dialog, bottom sheet, select, tabs, glass filters |
 | `components/providers` | Theme, locale, auth và provider composition |
 | `components/layout` | Sidebar, mobile nav, account menu, loading shell, theme/language controls |
 | `components/dashboard` | Dashboard cards, quick actions, nutrition, recent activity |
@@ -198,7 +198,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 
 - Import từ `@/components/ui/*`; không dùng raw Radix trong feature nếu primitive đã tồn tại.
 - Dùng `Button` variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `link`.
-- Dialog dùng Radix `DialogContent`; drawer dùng Vaul `DrawerContent`; cả hai tự nhận `glass-surface`.
+- Dialog dùng Radix `DialogContent` và tự nhận `glass-surface`.
 - Sheet đáy trên mobile / dialog canh giữa từ `sm` dùng `BottomSheet` (`components/ui/bottom-sheet.tsx`)
   cùng `BottomSheetHeader/Body/Footer`. Primitive lo sẵn dvh sizing, safe-area đáy, Escape và scroll lock —
   không hand-roll `fixed inset-0` mới. Variant `floating` (overlay ôm inset) và `flush` (sheet chạm mép đáy);
@@ -531,7 +531,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Coach program editor | `components/coach/program-editor.tsx` | program page, fitness API/types |
 | Exercise picker/search | `components/exercises/*` | exercise search/display helpers |
 | Muscle highlight sai | `lib/fitness/muscle-profile.ts` | muscle-map mapping, renderer |
-| Dialog/drawer/input/button chung | `components/ui/*` | globals glass/data-slot rules |
+| Dialog/sheet/input/button chung | `components/ui/*` | globals glass/data-slot rules |
 | Login/session/profile | auth component/provider | `lib/auth/*`, Supabase client/server |
 | Copy/ngôn ngữ | domain file trong `lib/i18n/messages` | locale provider/server |
 | Metadata/PWA/font | `app/layout.tsx` | manifest, icon script |
