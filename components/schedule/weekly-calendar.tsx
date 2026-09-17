@@ -302,10 +302,12 @@ function getStatusBadge(entry: ScheduleEntry, messages: AppMessages) {
  *
  * Personal routines are deliberately exempt. They live in a synthetic one-week
  * program created by `createPersonalWorkoutForTrainee`, recur indefinitely, and
- * must keep appearing on every week — treating them like a one-week program
- * would make them vanish everywhere but the week they were created.
+ * must keep appearing on every week — placing them by week would make them
+ * vanish everywhere but the week they were created. That exemption keys off the
+ * program being the trainee's own, not off its duration: a one-week coach
+ * program is a real program and stops after its week.
  */
-function buildWorkoutsForWeek({
+export function buildWorkoutsForWeek({
   currentWeekWorkouts,
   programDetailsById,
   programs,
@@ -316,15 +318,17 @@ function buildWorkoutsForWeek({
   programs: TraineeProgram[]
   weekStart: Date
 }): Workout[] {
-  const multiWeekById = new Map(programs.filter((program) => program.duration > 1).map((program) => [program.id, program]))
+  const scheduledById = new Map(
+    programs.filter((program) => !program.isPersonal).map((program) => [program.id, program]),
+  )
 
   // Dated one-offs are pinned to real dates, and personal routines recur with no
   // end, so both carry over from the current week's payload untouched.
   const carriedOver = currentWeekWorkouts.filter(
-    (workout) => Boolean(workout.scheduledDate) || !workout.programId || !multiWeekById.has(workout.programId),
+    (workout) => Boolean(workout.scheduledDate) || !workout.programId || !scheduledById.has(workout.programId),
   )
 
-  const fromPrograms = Array.from(multiWeekById.values()).flatMap((program) => {
+  const fromPrograms = Array.from(scheduledById.values()).flatMap((program) => {
     const placement = resolveProgramWeekForWeekStart(
       resolveProgramAnchor(program.startDate, program.assignedAt),
       program.duration,
@@ -950,11 +954,11 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
     return combined
   }, [historyLogs, visibleRecentLogs, visibleWeekLogs])
 
-  const multiWeekPrograms = useMemo(() => programs.filter((program) => program.duration > 1), [programs])
+  const coachPrograms = useMemo(() => programs.filter((program) => !program.isPersonal), [programs])
 
-  const programQueries = useTraineePrograms(multiWeekPrograms.map((program) => program.id), weekOffset !== 0)
+  const programQueries = useTraineePrograms(coachPrograms.map((program) => program.id), weekOffset !== 0)
   const programDetailsById: Record<string, CoachProgram | null> = Object.fromEntries(
-    multiWeekPrograms.flatMap((program, index) => {
+    coachPrograms.flatMap((program, index) => {
       const query = programQueries[index]
       return query.data ? [[program.id, query.data] as [string, CoachProgram]] : query.isError ? [[program.id, null] as [string, CoachProgram | null]] : []
     }),

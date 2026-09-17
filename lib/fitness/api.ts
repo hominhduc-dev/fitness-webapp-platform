@@ -1438,7 +1438,14 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
   const response = await request<{
     activeSessions?: SerializedActiveWorkoutSession[]
     historyLogs: SerializedWorkoutLog[]
-    programs: Array<{ assignedAt: string; duration: number; id: string; name: string }>
+    programs: Array<{
+      assignedAt: string
+      duration: number
+      id: string
+      isPersonal?: boolean
+      name: string
+      startDate?: string
+    }>
     recentLogs: SerializedWorkoutLog[]
     schedule: Record<number, SerializedWorkout | null>
     scheduleEntries?: SerializedWorkoutScheduleEntry[]

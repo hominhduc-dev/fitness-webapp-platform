@@ -1953,11 +1953,15 @@ function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "s
   anchorDate: Date,
   programDuration: number,
   weekStart: Date,
+  /** True only for the synthetic program behind a trainee's own routines. */
+  isPersonalProgram: boolean,
 ): T[] {
   const duration = Math.max(1, Math.round(programDuration))
 
-  // Personal routines live in a synthetic one-week program and never expire.
-  if (duration <= 1) {
+  // A trainee's own routines live in a synthetic one-week program and recur
+  // forever. Reading that as "duration <= 1" also exempted every one-week coach
+  // program, which then repeated past its last week and ignored its start date.
+  if (isPersonalProgram) {
     return workouts
   }
 
@@ -3683,6 +3687,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
+      isPersonalProgram,
     )
 
     visibleWorkouts.forEach((workout) => {
@@ -3781,6 +3786,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       assignedAt: a.assignedAt,
       duration: a.program.duration,
       id: a.program.id,
+      isPersonal: a.program.createdById === profile.id,
       name: a.program.name,
       startDate: a.program.startDate ? formatUtcDateOnly(a.program.startDate) : undefined,
     })),
@@ -3873,6 +3879,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
+      isPersonalProgram,
     )
 
     visibleWorkouts.forEach((workout) => {
@@ -3982,6 +3989,7 @@ async function findTodayScheduleEntryForTrainee(userId: string) {
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
+      assignment.program.createdById === userId,
     ).map((workout) => serializeWorkout(workout, { isPersonal: assignment.program.createdById === userId })),
   )
   const entries = buildSerializedScheduleEntriesForWeek({
@@ -7073,6 +7081,8 @@ function countPlannedSessionsForWeek(
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
+      // The trainee's own routines were filtered out above.
+      false,
     ).length, 0)
 }
 
