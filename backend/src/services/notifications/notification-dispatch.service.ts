@@ -2,8 +2,8 @@ import { NotificationStatus, NotificationType, Prisma, type Notification } from 
 
 import { logger } from "../../lib/logger"
 import { ensurePrisma } from "../fitness-data/shared/guards"
-import { sendPushToUser } from "../push-notification.service"
 import { loadNotificationPreferences, type NotificationPreferenceSettings } from "./notification-preferences.service"
+import { enqueuePushDeliveries, notificationPushTag, processPushDeliveries } from "./push-delivery.service"
 
 /**
  * Every user-facing notification is stored in-app first and then pushed.
@@ -27,8 +27,6 @@ type NotificationDraft = {
   url: string
   userId: string
 }
-
-const DEFAULT_ICON = "/android-icon-192x192.png"
 
 /** Row data for `notification.create` / `createMany`, usable inside a transaction. */
 function buildNotificationData(draft: NotificationDraft, now = new Date()): Prisma.NotificationCreateManyInput {
@@ -70,36 +68,12 @@ function isPushAllowed(type: NotificationType, preference: NotificationPreferenc
   }
 }
 
-function readString(metadata: Prisma.JsonValue, key: string) {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return undefined
-  const value = (metadata as Record<string, unknown>)[key]
-  return typeof value === "string" ? value : undefined
-}
-
 /**
  * The device replaces a notification carrying the same tag instead of stacking
  * another one, so repeated saves of one program collapse into a single alert.
  */
 function buildPushTag(notification: Pick<Notification, "id" | "metadata" | "relatedEntityId" | "type">) {
-  switch (notification.type) {
-    case NotificationType.program_assigned:
-    case NotificationType.program_updated:
-      return `program:${notification.relatedEntityId ?? notification.id}`
-    case NotificationType.workout_session_open:
-      return `workout-session:${notification.relatedEntityId ?? notification.id}`
-    case NotificationType.weight_reminder:
-      return "weight-reminder"
-    case NotificationType.check_in_reminder:
-      return "check-in-reminder"
-    case NotificationType.meal_reminder:
-      return `meal-reminder:${readString(notification.metadata, "mealType") ?? "meal"}`
-    case NotificationType.workout_reminder:
-      return "workout-reminder"
-    case NotificationType.coach_weekly_review:
-      return "coach-weekly-review"
-    default:
-      return `notification:${notification.id}`
-  }
+  return notificationPushTag(notification)
 }
 
 /**
@@ -112,26 +86,28 @@ async function pushStoredNotifications(notifications: readonly Notification[]) {
   try {
     const preferenceFor = await loadNotificationPreferences(notifications.map((notification) => notification.userId))
 
-    await Promise.all(notifications.map(async (notification) => {
-      if (!isPushAllowed(notification.type, preferenceFor(notification.userId))) return
-
-      await sendPushToUser(notification.userId, {
-        body: notification.message,
-        data: { notificationId: notification.id, type: notification.type },
-        icon: DEFAULT_ICON,
-        tag: buildPushTag(notification),
-        title: notification.title,
-        url: readString(notification.metadata, "url") ?? "/dashboard",
-      })
-    }))
+    const allowed = notifications.filter((notification) =>
+      isPushAllowed(notification.type, preferenceFor(notification.userId)))
+    await enqueuePushDeliveries(allowed)
+    await processPushDeliveries(new Date(), allowed.map((notification) => notification.id))
   } catch (error) {
     logger.warn("unable to push notifications", { count: notifications.length, error })
   }
 }
 
 /** Fire-and-forget variant for request handlers that should not wait on push delivery. */
-function queuePushForNotifications(notifications: readonly Notification[]) {
-  void pushStoredNotifications(notifications)
+async function queuePushForNotifications(notifications: readonly Notification[]) {
+  if (notifications.length === 0) return
+
+  try {
+    const preferenceFor = await loadNotificationPreferences(notifications.map((notification) => notification.userId))
+    const allowed = notifications.filter((notification) =>
+      isPushAllowed(notification.type, preferenceFor(notification.userId)))
+    await enqueuePushDeliveries(allowed)
+    void processPushDeliveries(new Date(), allowed.map((notification) => notification.id))
+  } catch (error) {
+    logger.warn("unable to queue push notifications", { count: notifications.length, error })
+  }
 }
 
 function isUniqueConstraintError(error: unknown) {

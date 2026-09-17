@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { useLocale } from "@/components/providers/locale-provider"
 import {
   deletePushSubscription,
   fetchPushConfig,
   savePushSubscription,
   sendTestPush,
 } from "@/lib/fitness/api"
+import type { AppLocale } from "@/lib/i18n/config"
+import { getPushCapability, hasWebPushApis } from "@/lib/pwa/push-support"
 import { requireAccessToken } from "@/lib/queries/token"
 
-type PushSupportState = "checking" | "disabled" | "denied" | "granted" | "unsupported"
+type PushSupportState = "checking" | "disabled" | "denied" | "granted" | "ios_install_required" | "unsupported"
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -25,29 +28,55 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
-function isPushSupported() {
-  return (
-    typeof window !== "undefined" &&
-    "Notification" in window &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window
-  )
-}
-
 async function getServiceWorkerRegistration() {
   const existing = await navigator.serviceWorker.getRegistration("/")
   return existing ?? navigator.serviceWorker.register("/sw.js", { scope: "/" })
 }
 
+async function getCurrentPushSubscription() {
+  if (!hasWebPushApis()) return null
+  const registration = await navigator.serviceWorker.getRegistration("/")
+  return registration?.pushManager.getSubscription() ?? null
+}
+
+/** Reassigns the browser endpoint to the active account without prompting. */
+async function syncCurrentPushSubscription(accessToken: string, locale: AppLocale) {
+  if (getPushCapability() !== "supported" || Notification.permission !== "granted") return false
+
+  const subscription = await getCurrentPushSubscription()
+  if (!subscription) return false
+
+  await savePushSubscription(accessToken, subscription.toJSON(), locale)
+  return true
+}
+
+/** Revokes server ownership before auth is cleared; the endpoint stays reusable by the next account. */
+async function revokeCurrentPushSubscription(accessToken: string) {
+  const subscription = await getCurrentPushSubscription()
+  if (!subscription) return false
+
+  try {
+    await deletePushSubscription(accessToken, subscription.endpoint)
+  } catch (error) {
+    // If logout happens while the API is unavailable, invalidate the browser
+    // endpoint locally. The server will receive 404/410 and revoke its stale row.
+    await subscription.unsubscribe()
+    throw error
+  }
+  return true
+}
+
 export function usePushNotifications() {
+  const { locale } = useLocale()
   const [enabled, setEnabled] = useState(false)
   const [isBusy, setIsBusy] = useState(false)
   const [state, setState] = useState<PushSupportState>("checking")
 
   const refresh = useCallback(async () => {
-    if (!isPushSupported()) {
+    const capability = getPushCapability()
+    if (capability !== "supported") {
       setEnabled(false)
-      setState("unsupported")
+      setState(capability)
       return
     }
 
@@ -64,15 +93,26 @@ export function usePushNotifications() {
   }, [])
 
   useEffect(() => {
-    void refresh()
+    let active = true
+    queueMicrotask(() => {
+      if (active) void refresh()
+    })
+    return () => {
+      active = false
+    }
   }, [refresh])
 
   const subscribe = useCallback(async () => {
     setIsBusy(true)
     try {
-      if (!isPushSupported()) {
-        setState("unsupported")
-        throw new Error("Thiết bị hoặc trình duyệt này chưa hỗ trợ Web Push.")
+      const capability = getPushCapability()
+      if (capability !== "supported") {
+        setState(capability)
+        throw new Error(
+          capability === "ios_install_required"
+            ? "Hãy thêm YeahBuddy vào Màn hình chính rồi mở app từ icon để bật thông báo."
+            : "Thiết bị hoặc trình duyệt này chưa hỗ trợ Web Push.",
+        )
       }
 
       const config = await fetchPushConfig()
@@ -94,13 +134,13 @@ export function usePushNotifications() {
         userVisibleOnly: true,
       })
 
-      await savePushSubscription(await requireAccessToken(), subscription.toJSON())
+      await savePushSubscription(await requireAccessToken(), subscription.toJSON(), locale)
       setEnabled(true)
       setState("granted")
     } finally {
       setIsBusy(false)
     }
-  }, [])
+  }, [locale])
 
   const unsubscribe = useCallback(async () => {
     setIsBusy(true)
@@ -137,3 +177,6 @@ export function usePushNotifications() {
     unsubscribe,
   }
 }
+
+export { revokeCurrentPushSubscription, syncCurrentPushSubscription }
+export type { PushSupportState }

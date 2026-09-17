@@ -5,7 +5,7 @@ import { enUS, vi } from "date-fns/locale"
 import { Bell, CheckCheck, Settings } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import {
@@ -18,6 +18,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AppNotification } from "@/lib/fitness/types"
 import { presentNotification } from "@/lib/notifications/present"
+import { setAppBadge } from "@/lib/pwa/app-badge"
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/lib/queries/notifications"
 import { cn } from "@/lib/utils"
 
@@ -51,6 +52,10 @@ export function NotificationBell({
   const unreadCount = query.data?.unreadCount ?? 0
   const now = new Date()
   const dateLocale = locale === "vi" ? vi : enUS
+
+  useEffect(() => {
+    if (query.data) void setAppBadge(unreadCount)
+  }, [query.data, unreadCount])
 
   const handleSelect = (notification: AppNotification, href: string | null) => {
     if (!notification.readAt) markRead.mutate(notification.id)

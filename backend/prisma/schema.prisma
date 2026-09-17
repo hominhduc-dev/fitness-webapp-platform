@@ -162,6 +162,14 @@ enum NotificationStatus {
   cancelled
 }
 
+enum PushDeliveryStatus {
+  pending
+  processing
+  retrying
+  sent
+  failed
+}
+
 enum UserSex {
   male
   female
@@ -775,12 +783,14 @@ model Notification {
   /// scheduler ticks or backend instances race. Null for event notifications.
   dedupeKey         String?             @unique
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushDeliveries    PushDelivery[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
   @@index([userId, status, scheduledFor])
   @@index([userId, createdAt])
   @@index([relatedEntityType, relatedEntityId])
+  @@index([readAt])
 }
 
 /// Per-user notification settings. A user without a row gets the column defaults:
@@ -835,13 +845,36 @@ model PushSubscription {
   endpoint  String    @unique
   p256dh    String
   auth      String
+  /// Locale captured from this device, so OS-level push copy matches the app language.
+  locale    String    @default("en")
   userAgent String?
   revokedAt DateTime?
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries PushDelivery[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@index([userId, revokedAt])
+}
+
+model PushDelivery {
+  id             String             @id @default(uuid()) @db.Uuid
+  notificationId String             @db.Uuid
+  subscriptionId String             @db.Uuid
+  status         PushDeliveryStatus @default(pending)
+  attemptCount   Int                @default(0)
+  nextAttemptAt  DateTime           @default(now())
+  lastAttemptAt  DateTime?
+  sentAt         DateTime?
+  lastError      String?
+  notification   Notification       @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  subscription   PushSubscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([notificationId, subscriptionId])
+  @@index([status, nextAttemptAt])
+  @@index([subscriptionId, status])
 }
 
 model AdminAuditLog {

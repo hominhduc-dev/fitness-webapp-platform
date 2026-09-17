@@ -895,7 +895,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               <Switch
                 id="push-notifications"
                 checked={pushNotifications.enabled}
-                disabled={pushNotifications.isBusy || pushNotifications.state === "unsupported" || pushNotifications.state === "denied"}
+                disabled={pushNotifications.isBusy || pushNotifications.state === "unsupported" || pushNotifications.state === "ios_install_required" || pushNotifications.state === "denied"}
                 onCheckedChange={(checked) => void handlePushNotificationToggle(checked)}
                 aria-label={messages.profile.pushNotifications}
                 className="h-7 w-12 [&_[data-slot=switch-thumb]]:size-6"
@@ -904,13 +904,13 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
           >
             <div className="flex flex-col gap-2 text-xs leading-5 text-muted-foreground sm:text-sm">
               <p>{messages.profile.pushNotificationsCopy}</p>
-              <p className="leading-5">
-                {pushNotifications.state === "unsupported"
-                  ? messages.profile.pushNotificationsUnsupported
-                  : pushNotifications.state === "denied"
-                    ? messages.profile.pushNotificationsDenied
-                    : messages.profile.pushNotificationsIosHint}
-              </p>
+              {pushNotifications.state === "unsupported" ? (
+                <p className="leading-5">{messages.profile.pushNotificationsUnsupported}</p>
+              ) : pushNotifications.state === "ios_install_required" ? (
+                <p className="leading-5">{messages.profile.pushNotificationsIosHint}</p>
+              ) : pushNotifications.state === "denied" ? (
+                <p className="leading-5">{messages.profile.pushNotificationsDenied}</p>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"

@@ -4,14 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   bodyMetricFindMany: vi.fn(),
   draftFindMany: vi.fn(),
+  enqueuePushDeliveries: vi.fn(),
   findTodayScheduleEntryForTrainee: vi.fn(),
   mealFindMany: vi.fn(),
   userFindMany: vi.fn(),
   notificationCreate: vi.fn(),
+  notificationDeleteMany: vi.fn(),
   notificationFindMany: vi.fn(),
   preferenceFindMany: vi.fn(),
   recoveryFindMany: vi.fn(),
-  sendPushToUser: vi.fn(),
+  processPushDeliveries: vi.fn(),
   workoutLogFindMany: vi.fn(),
 }))
 
@@ -19,7 +21,7 @@ vi.mock("../../lib/prisma", () => ({
   prisma: {
     bodyMetricEntry: { findMany: mocks.bodyMetricFindMany },
     meal: { findMany: mocks.mealFindMany },
-    notification: { create: mocks.notificationCreate, findMany: mocks.notificationFindMany },
+    notification: { create: mocks.notificationCreate, deleteMany: mocks.notificationDeleteMany, findMany: mocks.notificationFindMany },
     notificationPreference: { findMany: mocks.preferenceFindMany },
     recoveryCheckIn: { findMany: mocks.recoveryFindMany },
     user: { findMany: mocks.userFindMany },
@@ -27,7 +29,11 @@ vi.mock("../../lib/prisma", () => ({
     workoutSessionDraft: { findMany: mocks.draftFindMany },
   },
 }))
-vi.mock("../push-notification.service", () => ({ sendPushToUser: mocks.sendPushToUser }))
+vi.mock("./push-delivery.service", () => ({
+  enqueuePushDeliveries: mocks.enqueuePushDeliveries,
+  notificationPushTag: vi.fn(),
+  processPushDeliveries: mocks.processPushDeliveries,
+}))
 vi.mock("../fitness-data/core", () => ({ findTodayScheduleEntryForTrainee: mocks.findTodayScheduleEntryForTrainee }))
 
 import { getRequestTimeZone } from "../../lib/time-zone"
@@ -35,6 +41,7 @@ import {
   runCoachWeeklyReviewJob,
   runDailyCheckInJob,
   runMealReminderJob,
+  runNotificationCleanupJob,
   runOpenWorkoutSessionJob,
   runWeightReminderJob,
   runWorkoutReminderJob,
@@ -63,7 +70,25 @@ beforeEach(() => {
   mocks.mealFindMany.mockResolvedValue([])
   mocks.draftFindMany.mockResolvedValue([])
   mocks.notificationCreate.mockImplementation(async ({ data }) => ({ id: "notification-1", ...data }))
-  mocks.sendPushToUser.mockResolvedValue({ failed: 0, sent: 1 })
+  mocks.notificationDeleteMany.mockResolvedValue({ count: 0 })
+  mocks.enqueuePushDeliveries.mockResolvedValue(1)
+  mocks.processPushDeliveries.mockResolvedValue({ candidates: 1, failed: 0, retrying: 0, sent: 1 })
+})
+
+describe("runNotificationCleanupJob", () => {
+  it("deletes read notifications older than 48 hours in a bounded batch", async () => {
+    mocks.notificationFindMany.mockResolvedValueOnce([{ id: "old-1" }, { id: "old-2" }])
+    mocks.notificationDeleteMany.mockResolvedValueOnce({ count: 2 })
+
+    await expect(runNotificationCleanupJob(NOW)).resolves.toEqual({ candidates: 2, sent: 0 })
+    expect(mocks.notificationFindMany).toHaveBeenCalledWith({
+      orderBy: { readAt: "asc" },
+      select: { id: true },
+      take: 500,
+      where: { readAt: { lt: new Date(NOW.getTime() - 48 * 60 * 60 * 1000) } },
+    })
+    expect(mocks.notificationDeleteMany).toHaveBeenCalledWith({ where: { id: { in: ["old-1", "old-2"] } } })
+  })
 })
 
 describe("runWeightReminderJob", () => {
@@ -82,7 +107,9 @@ describe("runWeightReminderJob", () => {
         type: NotificationType.weight_reminder,
       }),
     })
-    expect(mocks.sendPushToUser).toHaveBeenCalledWith(USER_ID, expect.objectContaining({ url: "/trackweight" }))
+    expect(mocks.enqueuePushDeliveries).toHaveBeenCalledWith([
+      expect.objectContaining({ metadata: expect.objectContaining({ url: "/trackweight" }), userId: USER_ID }),
+    ])
   })
 
   it("skips a day not selected, and a user who already logged today", async () => {
@@ -107,7 +134,7 @@ describe("runWeightReminderJob", () => {
       new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { clientVersion: "6", code: "P2002" }),
     )
     await expect(runWeightReminderJob(NOW)).resolves.toEqual({ candidates: 1, sent: 0 })
-    expect(mocks.sendPushToUser).not.toHaveBeenCalled()
+    expect(mocks.enqueuePushDeliveries).not.toHaveBeenCalled()
   })
 })
 
@@ -143,7 +170,9 @@ describe("runOpenWorkoutSessionJob", () => {
         title: "Workout still open",
       }),
     })
-    expect(mocks.sendPushToUser).toHaveBeenCalledWith(USER_ID, expect.objectContaining({ url: "/workout/workout-1/start" }))
+    expect(mocks.enqueuePushDeliveries).toHaveBeenCalledWith([
+      expect.objectContaining({ metadata: expect.objectContaining({ url: "/workout/workout-1/start" }), userId: USER_ID }),
+    ])
   })
 
   it("ignores a session already logged and users who turned the reminder off", async () => {

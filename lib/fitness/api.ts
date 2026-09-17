@@ -2226,12 +2226,12 @@ async function fetchPushConfig(): Promise<{ enabled: boolean; publicKey: string 
   return response.data
 }
 
-async function savePushSubscription(accessToken: string, subscription: PushSubscriptionJSON) {
+async function savePushSubscription(accessToken: string, subscription: PushSubscriptionJSON, locale: "en" | "vi") {
   const response = await request<ApiEnvelope<{ endpoint: string; id: string }>>(
     "/api/notifications/push/subscriptions",
     accessToken,
     {
-      body: JSON.stringify(subscription),
+      body: JSON.stringify({ ...subscription, locale }),
       method: "POST",
     },
   )
