@@ -1069,8 +1069,8 @@ export function ProgramEditor({
               )}
             >
               <p className="label-micro mb-2.5 hidden text-muted-foreground md:block">{messages.coach.programDetails}</p>
-              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2.5 md:grid-cols-[1.3fr_0.6fr_0.85fr_0.85fr_0.9fr] md:gap-3">
-                <label className="col-span-2 space-y-1 md:col-span-1">
+              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-3 md:grid-cols-[1.3fr_0.6fr_0.85fr_0.85fr_0.9fr] md:gap-3">
+                <label className="col-span-2 min-w-0 space-y-1 md:col-span-1">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programName}</span>
                   <Input
                     value={programName}
@@ -1079,7 +1079,7 @@ export function ProgramEditor({
                     className="h-9 pointer-coarse:h-10 bg-background/65"
                   />
                 </label>
-                <label className="space-y-1">
+                <label className="min-w-0 space-y-1">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDuration}</span>
                   <div className="relative">
                     <Input
@@ -1105,7 +1105,7 @@ export function ProgramEditor({
                     </span>
                   </div>
                 </label>
-                <label className="space-y-1">
+                <label className="min-w-0 space-y-1">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFrequency}</span>
                   <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
                     <SelectTrigger className="h-9 pointer-coarse:h-10 w-full bg-background/65">
@@ -1120,7 +1120,7 @@ export function ProgramEditor({
                     </SelectContent>
                   </Select>
                 </label>
-                <label className="space-y-1">
+                <label className="min-w-0 space-y-1">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programDifficulty}</span>
                   <Select value={difficulty} onValueChange={(value) => setDifficulty(value as CoachProgram["difficulty"])}>
                     <SelectTrigger className="h-9 pointer-coarse:h-10 w-full bg-background/65 capitalize">
@@ -1135,20 +1135,20 @@ export function ProgramEditor({
                     </SelectContent>
                   </Select>
                 </label>
-                <label className="space-y-1">
+                <label className="min-w-0 space-y-1">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programStartDate}</span>
                   <Input
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
                     aria-describedby="program-start-date-hint"
-                    className="h-9 pointer-coarse:h-10 bg-background/65 tnum"
+                    className="h-9 pointer-coarse:h-10 block w-full min-w-0 bg-background/65 tnum"
                   />
                   <span id="program-start-date-hint" className="line-clamp-2 block text-micro leading-tight text-muted-foreground">
                     {messages.coach.programStartDateHint}
                   </span>
                 </label>
-                <label className="col-span-2 space-y-1 md:col-span-5">
+                <label className="col-span-2 min-w-0 space-y-1 md:col-span-5">
                   <span className="text-micro font-medium text-muted-foreground">{messages.coach.programFocus}</span>
                   <Input
                     value={description}
