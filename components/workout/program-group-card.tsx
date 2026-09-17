@@ -7,7 +7,7 @@ import { useMemo } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { resolveCurrentWeekProgress, resolveProgramAnchor } from "@/lib/fitness/program-week"
+import { parseValidDate, resolveCurrentWeekProgress, resolveProgramAnchor } from "@/lib/fitness/program-week"
 import type { TraineeProgram } from "@/lib/fitness/types"
 import type { Workout } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -26,7 +26,7 @@ type ProgramGroupCardProps = {
  * lives behind the detail page rather than expanding here.
  */
 export function ProgramGroupCard({ program, workouts }: ProgramGroupCardProps) {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
 
   const progress = useMemo(
     () => resolveCurrentWeekProgress(resolveProgramAnchor(program.startDate, program.assignedAt), program.duration),
@@ -34,10 +34,25 @@ export function ProgramGroupCard({ program, workouts }: ProgramGroupCardProps) {
   )
 
   const isCompleted = progress?.kind === "completed"
-  // `not-started` and an unparseable assignedAt both read as week 1 — the
-  // program exists and has sessions, so showing "week 0" would be wrong.
+  // A coach can pin a start date in the future, so "not started" is a real
+  // state with a date to show rather than a stand-in for week 1.
+  const isNotStarted = progress?.kind === "not-started"
+  const startLabel = useMemo(() => {
+    if (!isNotStarted) {
+      return null
+    }
+
+    const anchor = parseValidDate(resolveProgramAnchor(program.startDate, program.assignedAt))
+
+    return anchor
+      ? new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { day: "numeric", month: "short" }).format(anchor)
+      : null
+  }, [isNotStarted, locale, program.assignedAt, program.startDate])
+
+  // An unparseable assignedAt still reads as week 1: the program exists and has
+  // sessions, so showing "week 0" would be wrong.
   const currentWeek = progress?.kind === "active" ? progress.weekIndex + 1 : isCompleted ? program.duration : 1
-  const percent = isCompleted ? 100 : Math.round((currentWeek / Math.max(1, program.duration)) * 100)
+  const percent = isCompleted ? 100 : isNotStarted ? 0 : Math.round((currentWeek / Math.max(1, program.duration)) * 100)
 
   return (
     <Link
@@ -58,10 +73,12 @@ export function ProgramGroupCard({ program, workouts }: ProgramGroupCardProps) {
 
       <div className="min-w-0">
         <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-xs leading-snug text-muted-foreground tnum">
-          <span className={cn(isCompleted && "text-foreground")}>
+          <span className={cn((isCompleted || startLabel) && "text-foreground")}>
             {isCompleted
               ? messages.workoutPage.programCompleted
-              : messages.workoutPage.weekProgress(currentWeek, program.duration)}
+              : startLabel
+                ? messages.workoutPage.programStartsOn(startLabel)
+                : messages.workoutPage.weekProgress(currentWeek, program.duration)}
           </span>
           <span>{messages.workoutPage.sessionsThisWeek(workouts.length)}</span>
         </div>
