@@ -1003,27 +1003,39 @@ export function ProgramEditor({
           isModal && "h-[calc(100svh-1rem)] max-h-[960px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
         )}
       >
-        <div className="shrink-0 border-b border-border/70 bg-background/25 px-4 pb-5 pt-5 sm:px-6 md:px-8">
-          <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="shrink-0 border-b border-border/70 bg-background/25 px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5 md:px-8">
+          <div className="mb-3 flex items-start justify-between gap-3 sm:mb-4 sm:gap-4">
             <div className="min-w-0 flex-1">
-              <p className="label-micro mb-1.5">
+              <p className="label-micro mb-1">
                 {isAdjustMode ? messages.coach.adjustProgram : programId ? messages.coach.editProgram : messages.coach.newProgram}
               </p>
-              <h1 className="truncate text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground">
+              {/* Two lines rather than one truncated one: a program name is how
+                  the coach tells their templates apart. */}
+              <h1
+                className="line-clamp-2 text-xl font-semibold leading-snug tracking-[-0.02em] text-foreground sm:text-2xl sm:leading-tight"
+                title={programName.trim() || messages.coach.untitledProgram}
+              >
                 {programName.trim() || messages.coach.untitledProgram}
               </h1>
-              <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
-                {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}
+              {/* Shape and progress sit on one line from `sm` up, where there is
+                  room for both, and stack on a phone. */}
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-xs text-muted-foreground tnum">
+                <span>
+                  {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}
+                </span>
+                {currentWeekProgress ? (
+                  <>
+                    <span aria-hidden="true" className="hidden sm:inline">·</span>
+                    <span className="text-primary">
+                      {currentWeekProgress.kind === "active"
+                        ? messages.coach.currentlyOnWeek(currentWeekProgress.weekIndex + 1, totalWeeks)
+                        : currentWeekProgress.kind === "not-started"
+                          ? messages.coach.currentWeekNotStarted
+                          : messages.coach.currentWeekCompleted}
+                    </span>
+                  </>
+                ) : null}
               </p>
-              {currentWeekProgress ? (
-                <p className="mt-1 font-mono text-xs text-primary tnum">
-                  {currentWeekProgress.kind === "active"
-                    ? messages.coach.currentlyOnWeek(currentWeekProgress.weekIndex + 1, totalWeeks)
-                    : currentWeekProgress.kind === "not-started"
-                      ? messages.coach.currentWeekNotStarted
-                      : messages.coach.currentWeekCompleted}
-                </p>
-              ) : null}
             </div>
             {onClose ? (
               <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close editor">
