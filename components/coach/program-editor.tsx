@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft } from "@/components/workout/routine-builder-dialog"
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
+import { SessionSlotGrid, swapDaySlots, type SessionSlotView } from "@/components/coach/session-slot-grid"
 
 type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
@@ -377,121 +378,6 @@ function RoutineDot({ tag }: { tag: RoutineTag }) {
   return <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: TAG_DOT_COLOR[tag] }} />
 }
 
-function RoutineTagBadge({ tag }: { tag: RoutineTag }) {
-  const { messages } = useLocale()
-
-  return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-      <RoutineDot tag={tag} />
-      {getRoutineTagLabel(tag, messages)}
-    </span>
-  )
-}
-
-function SessionSlot({
-  dayLabel,
-  onEdit,
-  onClick,
-  onToggleRest,
-  slot,
-}: {
-  dayLabel: string
-  onEdit?: () => void
-  onClick: () => void
-  onToggleRest: () => void
-  slot: ScheduleSlot
-}) {
-  const { messages } = useLocale()
-  const isRest = slot === null
-  const routine = slot?.routine ?? null
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "group relative flex min-h-[108px] flex-col overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all duration-200 ease-[cubic-bezier(.2,.7,.2,1)]",
-        isRest
-          ? "border-dashed border-border/80 bg-background/20 hover:border-foreground/25 hover:bg-background/35"
-          : "border-border/80 bg-background/55 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-background/75 hover:shadow-md",
-      )}
-    >
-      {routine ? (
-        <span
-          className="absolute inset-x-0 top-0 h-0.5 opacity-90"
-          style={{ backgroundColor: TAG_DOT_COLOR[routine.tag] }}
-        />
-      ) : null}
-      <span className="flex items-center justify-between">
-        <span className="rounded-full bg-muted/70 px-2 py-1 font-mono text-micro font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-          {dayLabel}
-        </span>
-        <span className="flex items-center gap-0.5">
-          {routine && onEdit ? (
-            <span
-              role="button"
-              tabIndex={0}
-              title={messages.coach.editRoutineExercises}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-all hover:border-border hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
-              onClick={(event) => {
-                event.stopPropagation()
-                onEdit()
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onEdit()
-                }
-              }}
-            >
-              <Pencil className="h-3 w-3" />
-            </span>
-          ) : null}
-          {!isRest ? (
-            <span
-              role="button"
-              tabIndex={0}
-              title={messages.coach.markAsRestDay}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-all hover:border-border hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
-              onClick={(event) => {
-                event.stopPropagation()
-                onToggleRest()
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onToggleRest()
-                }
-              }}
-            >
-              <X className="h-3 w-3" />
-            </span>
-          ) : null}
-        </span>
-      </span>
-
-      {routine ? (
-        <span className="mt-4 min-w-0">
-          <RoutineTagBadge tag={routine.tag} />
-          <span className="mt-2 block truncate text-sm font-semibold tracking-[-0.01em] text-foreground">{routine.name}</span>
-          <span className="mt-1 block font-mono text-micro text-muted-foreground tnum">
-            {messages.coach.exerciseCount(routine.exercises.length)}
-          </span>
-        </span>
-      ) : isRest ? (
-        <span className="flex flex-1 items-center justify-center text-xs text-muted-foreground/50">
-          {messages.coach.rest}
-        </span>
-      ) : (
-        <span className="flex flex-1 items-center justify-center text-muted-foreground">
-          <Plus className="h-4 w-4" />
-        </span>
-      )}
-    </button>
-  )
-}
 
 // ─── Converters: coach Routine ↔ shared RoutineDraftData ────────────────────
 
@@ -776,7 +662,24 @@ export function ProgramEditor({
   const completion = totalProgramSlots > 0 ? Math.min(100, Math.round((filledSessions / totalProgramSlots) * 100)) : 0
   const isArchived = archivedAt !== null
   const canSave = programName.trim().length > 0 && filledSessions > 0 && !isSaving && !isArchived
-  const activeWeekSlots = schedule[activeWeek] ?? schedule[0] ?? []
+  const activeWeekSlots = useMemo(() => schedule[activeWeek] ?? schedule[0] ?? [], [activeWeek, schedule])
+  const sessionViews = useMemo<SessionSlotView[]>(
+    () =>
+      DAY_OPTIONS.map((_day, dayIndex) => {
+        const slot = activeWeekSlots[dayIndex] ?? null
+
+        if (slot === null) {
+          return { kind: "rest" }
+        }
+
+        const routine = slot.routine
+
+        return routine
+          ? { exerciseCount: routine.exercises.length, kind: "session", name: routine.name, tag: routine.tag }
+          : { kind: "empty" }
+      }),
+    [activeWeekSlots],
+  )
   const dayLabels = useMemo(() => getDayLabels(locale), [locale])
 
   // Compute the trainee's progress through the program (which week they're "currently" in).
@@ -892,6 +795,28 @@ export function ProgramEditor({
       ),
     )
   }
+
+  const moveSessionToDay = (fromDayIndex: number, toDayIndex: number) => {
+    setSchedule((current) =>
+      current.map((week, weekIndex) =>
+        weekIndex === activeWeek ? swapDaySlots(week, fromDayIndex, toDayIndex) : week,
+      ),
+    )
+  }
+
+  const openSlot = (dayIndex: number) => {
+    if ((schedule[activeWeek] ?? [])[dayIndex] === null) {
+      toggleRestDay(activeWeek, dayIndex)
+      return
+    }
+
+    setPickerSlot({ dayIndex, weekIndex: activeWeek })
+  }
+
+  const editSlot = (dayIndex: number) =>
+    setBuilderMode({ kind: "edit-slot", slot: { dayIndex, weekIndex: activeWeek } })
+
+  const toggleRestForDay = (dayIndex: number) => toggleRestDay(activeWeek, dayIndex)
 
   const copyActiveWeekToAll = () => {
     const sourceWeek = schedule[activeWeek]
@@ -1329,29 +1254,16 @@ export function ProgramEditor({
             </div>
           ) : null}
 
-          <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-7", isArchived && "pointer-events-none opacity-70")}>
-            {DAY_OPTIONS.map((day, dayIndex) => (
-              <SessionSlot
-                key={day.scheduledDay}
-                dayLabel={dayLabels[dayIndex] ?? day.label}
-                slot={activeWeekSlots[dayIndex] ?? null}
-                onClick={() => {
-                  if (activeWeekSlots[dayIndex] === null) {
-                    toggleRestDay(activeWeek, dayIndex)
-                    return
-                  }
-
-                  setPickerSlot({ dayIndex, weekIndex: activeWeek })
-                }}
-                onEdit={
-                  activeWeekSlots[dayIndex]?.routine
-                    ? () => setBuilderMode({ kind: "edit-slot", slot: { dayIndex, weekIndex: activeWeek } })
-                    : undefined
-                }
-                onToggleRest={() => toggleRestDay(activeWeek, dayIndex)}
-              />
-            ))}
-          </div>
+          <SessionSlotGrid
+            className={cn(isArchived && "pointer-events-none opacity-70")}
+            dayLabels={dayLabels}
+            disabled={isArchived}
+            onEdit={editSlot}
+            onMove={moveSessionToDay}
+            onOpen={openSlot}
+            onToggleRest={toggleRestForDay}
+            views={sessionViews}
+          />
 
           <div className="mt-5 border-t border-border pt-4">
             <div className="mb-2 flex items-center justify-between">
