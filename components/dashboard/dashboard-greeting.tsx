@@ -87,7 +87,7 @@ export function DashboardGreeting({
   return (
     <section className="min-w-0">
       <div className="min-w-0 md:hidden">
-        <div className="fixed inset-x-0 top-0 z-50 flex items-start justify-between gap-2 bg-background px-3 pb-2 pt-[calc(0.45rem+env(safe-area-inset-top))]">
+        <div className="fixed inset-x-0 top-0 z-50 flex items-start justify-between gap-2 bg-background px-2 pb-2 pt-[calc(0.45rem+env(safe-area-inset-top))]">
           <div className="flex min-w-0 items-start gap-2">
             <div className="flex shrink-0 flex-col items-center">
               <button
@@ -103,6 +103,23 @@ export function DashboardGreeting({
                   </AvatarFallback>
                 </Avatar>
               </button>
+              <Link
+                href="/progress"
+                className="mt-1.5 inline-flex h-5 items-center rounded-full border border-primary/25 bg-primary-soft px-2 text-[0.62rem] font-semibold leading-none text-primary"
+              >
+                <Avatar className="size-11 border border-border bg-muted">
+                  {avatar ? <AvatarImage src={avatar} alt={fullName} className="object-cover" /> : null}
+                  <AvatarFallback className="bg-muted text-sm font-semibold text-foreground">
+                    {initials(fullName) || <User className="size-5" aria-hidden="true" />}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </div>
+            <div className="min-w-0 pt-1">
+              <h1 className="truncate text-base font-semibold leading-tight text-foreground">
+                {period ? copy.greeting[period] : copy.welcomeBack}, {firstName}!
+              </h1>
+              <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{copy.motto}</p>
             </div>
             <div className="min-w-0 pt-1">
               <h1 className="truncate text-base font-semibold leading-tight text-foreground">
@@ -124,7 +141,7 @@ export function DashboardGreeting({
             />
           </div>
         </div>
-        <div aria-hidden="true" className="h-[calc(3.75rem+env(safe-area-inset-top))]" />
+        <div aria-hidden="true" className="h-[calc(4.7rem+env(safe-area-inset-top))]" />
 
         <nav aria-label={copy.thisWeekDays} className="mt-4 grid grid-cols-7 gap-1.5">
           {(currentWeek ?? Array.from({ length: 7 }, () => null)).map((day, index) => (
