@@ -67,7 +67,11 @@ self.addEventListener("message", (event) => {
       try {
         const url = new URL(event.data.url, self.location.origin)
         if (url.origin === self.location.origin && isOfflinePage(url)) {
-          const response = await fetch(new Request(url.href, { credentials: "include", redirect: "manual" }))
+          const response = await fetch(new Request(url.href, {
+            credentials: "include",
+            headers: { Accept: "text/html" },
+            redirect: "manual",
+          }))
           if (response.ok && response.type === "basic") {
             const cache = await caches.open(PAGES_CACHE)
             await putAndTrim(cache, pageCacheKey(url), response.clone(), MAX_PAGE_ENTRIES)
