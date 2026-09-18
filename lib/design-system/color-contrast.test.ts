@@ -188,6 +188,51 @@ describe.each(themeTokens)("%s theme contrast", (_theme, tokens) => {
   })
 })
 
+/**
+ * Share cards leave the app as PNGs, so they composite on their own canvas
+ * rather than the page background, and they carry one palette across every
+ * theme — the tokens are declared only in `:root` on purpose.
+ */
+describe("share card palette", () => {
+  const shareTokens = [
+    "--share-canvas",
+    "--share-surface",
+    "--share-border",
+    "--share-foreground",
+    "--share-secondary",
+    "--share-muted",
+    "--share-accent",
+    "--share-accent-ink",
+  ] as const
+
+  const canvas = parseColor(resolveToken(lightTokens, "--share-canvas"))
+  const surface = composite(parseColor(resolveToken(lightTokens, "--share-surface")), canvas)
+
+  it.each([
+    ["--share-foreground", "canvas"],
+    ["--share-secondary", "canvas"],
+    ["--share-muted", "canvas"],
+    ["--share-muted", "surface"],
+  ])("keeps %s legible on the %s", (token, layer) => {
+    const background = layer === "canvas" ? canvas : surface
+    const text = composite(parseColor(resolveToken(lightTokens, token)), background)
+    expect(contrast(text, background)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it("keeps the accent strip readable", () => {
+    const accent = composite(parseColor(resolveToken(lightTokens, "--share-accent")), canvas)
+    const ink = composite(parseColor(resolveToken(lightTokens, "--share-accent-ink")), accent)
+    expect(contrast(ink, accent)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it("resolves identically in every theme", () => {
+    const baseline = shareTokens.map((token) => resolveToken(lightTokens, token))
+    for (const [, tokens] of themeTokens) {
+      expect(shareTokens.map((token) => resolveToken(tokens, token))).toEqual(baseline)
+    }
+  })
+})
+
 describe("light canvas", () => {
   it("keeps the browser chrome colour in sync with --background", () => {
     const background = resolveToken(lightTokens, "--background").toLowerCase()

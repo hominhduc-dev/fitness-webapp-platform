@@ -129,6 +129,20 @@
   --export-border: #cbd5e1;
   --export-heading: #f1f5f9;
 
+  /* A share card leaves the app as a PNG, so it carries one fixed palette
+     across every theme: the image a trainee posts to Instagram must not change
+     because they happened to be on Iron Orange that day. Deep ink + volt reads
+     the same on a white Zalo thread and a black Instagram feed. */
+  --share-canvas: #0b0f14;
+  --share-surface: #151d27;
+  --share-border: rgb(255 255 255 / 12%);
+  --share-foreground: #f8fafc;
+  --share-secondary: #cbd5e1;
+  --share-muted: #8b9bb0;
+  --share-accent: #b6f23a;
+  --share-accent-ink: #0b0f14;
+  --share-glow: rgb(182 242 58 / 20%);
+
   /* ── Body map ───────────────────────────────────────────────────────────── */
   /* The anatomical figure is an object drawn *on* a surface, not a surface, so
      it cannot borrow the muted fill: that token is a near-white tint here and
@@ -295,6 +309,14 @@
   --color-export-muted: var(--export-muted);
   --color-export-border: var(--export-border);
   --color-export-heading: var(--export-heading);
+  --color-share-canvas: var(--share-canvas);
+  --color-share-surface: var(--share-surface);
+  --color-share-border: var(--share-border);
+  --color-share-foreground: var(--share-foreground);
+  --color-share-secondary: var(--share-secondary);
+  --color-share-muted: var(--share-muted);
+  --color-share-accent: var(--share-accent);
+  --color-share-accent-ink: var(--share-accent-ink);
 }
 
 @layer base {

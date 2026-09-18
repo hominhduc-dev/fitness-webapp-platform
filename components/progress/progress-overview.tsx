@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import type React from "react"
-import { useMemo } from "react"
-import { ChevronRight, Dumbbell, Flame, Moon, Scale, TrendingUp } from "lucide-react"
+import { useMemo, useState } from "react"
+import { ChevronRight, Dumbbell, Flame, Moon, Scale, Share2, TrendingUp } from "lucide-react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { MuscleDistributionChart } from "@/components/progress/dashboard/muscle-distribution-chart"
@@ -13,10 +13,12 @@ import { TrainingVolumeChart } from "@/components/progress/dashboard/training-vo
 import { WorkoutFrequencyChart } from "@/components/progress/dashboard/workout-frequency-chart"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
+import { ShareStatsDialog } from "@/components/share/share-stats-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PROGRESS_OVERVIEW_RECOVERY_DAYS, PROGRESS_OVERVIEW_WEIGHT_DAYS } from "@/lib/fitness/progress-ranges"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { calculateLeanMassKg, convertWeightFromKg, formatSignedWeight, formatWeight, type WeightUnit } from "@/lib/fitness/weight"
+import { buildProgressShareCard } from "@/lib/share/stats-card"
 import {
   useDashboardAnalytics,
   useProgressAnalytics,
@@ -129,6 +131,34 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
   const averageSleepMinutes = recoveryQuery.data?.averages.sleepMinutes ?? null
   const totalWeeklyVolume = (analyticsQuery.data?.weeklyVolume ?? []).reduce((sum, point) => sum + point.volume, 0)
   const period = periodQuery.data
+
+  const [shareOpen, setShareOpen] = useState(false)
+  const shareCopy = messages.progressPage.share
+  // Built eagerly from the period the page already loaded, so opening the sheet
+  // costs no request and the card always matches what is on screen.
+  const shareCard = useMemo(
+    () =>
+      period
+        ? buildProgressShareCard({
+            athleteName: profile?.name,
+            copy: {
+              anonymousAthlete: shareCopy.anonymousAthlete,
+              avgDuration: messages.progressPage.avgDuration,
+              headlineCaption: shareCopy.headlineCaption,
+              newRecords: shareCopy.newRecords,
+              strength: shareCopy.strength,
+              vsPrevious: periodCopy.comparison,
+              workouts: periodCopy.completed,
+            },
+            localeCode,
+            periodLabel: periodCopy.period,
+            stamp: analyticsRange.end.toLocaleDateString(localeCode, { day: "numeric", month: "short", year: "numeric" }),
+            summary: period.summary,
+            weightUnit: unit,
+          })
+        : null,
+    [analyticsRange.end, localeCode, messages.progressPage.avgDuration, period, periodCopy, profile?.name, shareCopy, unit],
+  )
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -249,7 +279,19 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
       </div>
 
       <section aria-labelledby="progress-period" className="space-y-4">
-        <h2 id="progress-period" className="text-lg font-semibold tracking-tight text-foreground">{periodCopy.period}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="progress-period" className="text-lg font-semibold tracking-tight text-foreground">{periodCopy.period}</h2>
+          {shareCard ? (
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted pointer-coarse:min-h-11"
+            >
+              <Share2 className="size-4" aria-hidden="true" />
+              {shareCopy.trigger}
+            </button>
+          ) : null}
+        </div>
 
         {periodQuery.isPending ? (
           <div className="space-y-4">
@@ -291,6 +333,16 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
           </div>
         )}
       </section>
+
+      {shareOpen && shareCard ? (
+        <ShareStatsDialog
+          data={shareCard}
+          fileNamePrefix="yeahbuddy-progress"
+          onClose={() => setShareOpen(false)}
+          shareText={shareCopy.shareText}
+          shareTitle={shareCopy.title}
+        />
+      ) : null}
     </div>
   )
 }
