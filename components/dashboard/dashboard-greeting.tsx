@@ -5,7 +5,6 @@ import { ChevronRight, Flame } from "lucide-react"
 import { useSyncExternalStore } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
-import { useProgressAnalytics } from "@/lib/queries/progress"
 
 type DayPeriod = "morning" | "afternoon" | "evening"
 
@@ -21,16 +20,19 @@ function useDayPeriod() {
   return useSyncExternalStore<DayPeriod | null>(subscribeNever, currentDayPeriod, () => null)
 }
 
-export function DashboardGreeting({ firstName }: { firstName: string }) {
+export function DashboardGreeting({
+  firstName,
+  initialStreakWeeks,
+}: {
+  firstName: string
+  initialStreakWeeks: number
+}) {
   const { messages } = useLocale()
   const copy = messages.dashboard
   const period = useDayPeriod()
-  // Observe only: the greeting renders outside the Suspense boundary, so fetching
-  // here would race the server seed that DashboardOverviewClient applies.
-  const analyticsQuery = useProgressAnalytics({ enabled: false })
   // Consecutive Monday-to-Sunday weeks holding at least one workout, counted
   // server-side from the trainee's full log history.
-  const streakWeeks = analyticsQuery.data?.summary.currentStreakWeeks ?? 0
+  const streakWeeks = initialStreakWeeks
 
   return (
     <section className="min-w-0">
