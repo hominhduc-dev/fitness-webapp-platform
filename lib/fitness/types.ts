@@ -194,6 +194,8 @@ type CoachProgressSummary = {
 type ProgressAnalyticsSummary = {
   bestStreakDays: number
   currentStreakDays: number
+  /** Consecutive Monday-to-Sunday weeks with at least one workout. */
+  currentStreakWeeks: number
   totalVolumeThisMonth: number
   workoutsThisMonth: number
 }

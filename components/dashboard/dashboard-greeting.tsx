@@ -5,10 +5,7 @@ import { ChevronRight, Flame } from "lucide-react"
 import { useSyncExternalStore } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
-import { countCheckInStreak } from "@/lib/fitness/checkin-streak"
-import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
-import { useRecoveryHistory } from "@/lib/queries/progress"
-import { formatDateKey } from "@/lib/time-zone"
+import { useProgressAnalytics } from "@/lib/queries/progress"
 
 type DayPeriod = "morning" | "afternoon" | "evening"
 
@@ -30,10 +27,10 @@ export function DashboardGreeting({ firstName }: { firstName: string }) {
   const period = useDayPeriod()
   // Observe only: the greeting renders outside the Suspense boundary, so fetching
   // here would race the server seed that DashboardOverviewClient applies.
-  const historyQuery = useRecoveryHistory(READINESS_TREND_DEFAULT_DAYS, { enabled: false })
-  // Consecutive check-in days ending today (the user's own date, the same key
-  // check-ins are saved with). Capped by the 30-day history window.
-  const streakDays = historyQuery.data ? countCheckInStreak(historyQuery.data.entries, formatDateKey(new Date())) : 0
+  const analyticsQuery = useProgressAnalytics({ enabled: false })
+  // Consecutive Monday-to-Sunday weeks holding at least one workout, counted
+  // server-side from the trainee's full log history.
+  const streakWeeks = analyticsQuery.data?.summary.currentStreakWeeks ?? 0
 
   return (
     <section className="min-w-0">
@@ -50,7 +47,7 @@ export function DashboardGreeting({ firstName }: { firstName: string }) {
             className="dashboard-energy-accent inline-flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-primary-soft px-3 text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Flame className="size-4 fill-primary/15" aria-hidden="true" />
-            <span>{copy.dayStreak(streakDays)}</span>
+            <span>{copy.weekStreak(streakWeeks)}</span>
             <ChevronRight className="size-3.5" aria-hidden="true" />
           </Link>
         </div>

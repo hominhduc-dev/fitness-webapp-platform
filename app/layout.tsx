@@ -54,7 +54,13 @@ const themeInitScript = `
     var theme = isKnownTheme ? storedTheme : "light";
     // The public marketing route has a fixed light art direction. Keep the
     // stored preference untouched so authenticated routes can restore it.
-    if (window.location.pathname === "/") theme = "light";
+    //
+    // Only a visitor actually sees that route though: for a signed-in user "/"
+    // is a redirect into the app, and it is also the installed app's start_url,
+    // so forcing light here flashed a white splash in front of a dark app on
+    // every launch. The auth cookie is what the server decides on too.
+    var hasSession = /(?:^|; )sb-[^=]*-auth-token(?:\\.\\d+)?=./.test(document.cookie);
+    if (window.location.pathname === "/" && !hasSession) theme = "light";
     var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     var resolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
     var root = document.documentElement;
