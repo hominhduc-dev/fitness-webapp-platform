@@ -41,6 +41,11 @@ import {
   queueWorkoutSessionDraftDelete,
 } from "@/lib/offline/workout-log-queue"
 import {
+  deleteOfflineWorkoutSnapshot,
+  getOfflineWorkoutSnapshot,
+  saveOfflineWorkoutSnapshot,
+} from "@/lib/offline/workout-snapshot"
+import {
   useCreateWorkoutLog,
   useSwapWorkoutExercise,
   useWorkoutDetail,
@@ -975,8 +980,22 @@ function WorkoutSession() {
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const userId = profile?.id ?? null
+  // Full exercise/variation seed retained in IndexedDB for an offline restart.
+  const [offlineWorkoutState, setOfflineWorkoutState] = useState<{
+    workout: Workout | null
+    workoutId: string
+  } | null>(null)
+  const offlineWorkout = offlineWorkoutState?.workoutId === workoutId
+    ? offlineWorkoutState?.workout
+    : undefined
   // Session state still waiting in the offline queue; `undefined` while reading.
-  const [unsyncedDraft, setUnsyncedDraft] = useState<StoredWorkoutSession | "deleted" | null | undefined>(undefined)
+  const [unsyncedDraftState, setUnsyncedDraftState] = useState<{
+    draft: StoredWorkoutSession | "deleted" | null
+    workoutId: string
+  } | null>(null)
+  const unsyncedDraft = unsyncedDraftState?.workoutId === workoutId
+    ? unsyncedDraftState?.draft
+    : undefined
   const workoutQuery = useWorkoutDetail(workoutId ?? "", {
     activeSession: true, enabled: !workout,
   })
@@ -984,17 +1003,21 @@ function WorkoutSession() {
     // An unsent local change is newer than anything the server holds.
     enabled: Boolean(profile) && Boolean(workoutId) && !workout && unsyncedDraft === null,
   })
+  const workoutSeed = workoutQuery.data ?? offlineWorkout
   // A snapshot restored from storage refetches before seeding (see
   // useWorkoutDetail); offline that fetch pauses and the snapshot is used.
   const isRefreshingSeed = workoutQuery.fetchStatus === "fetching"
-  const isWorkoutUnavailableOffline = workoutQuery.isPending && workoutQuery.fetchStatus === "paused"
+  const isOfflineWorkoutResolved = offlineWorkout !== undefined
+  const isWorkoutUnavailableOffline =
+    isOfflineWorkoutResolved && !workoutSeed && workoutQuery.isPending && workoutQuery.fetchStatus === "paused"
   const isDraftResolved =
     unsyncedDraft !== undefined &&
     (unsyncedDraft !== null || !draftQuery.isPending || draftQuery.fetchStatus === "paused")
   const isLoading =
     authLoading ||
     (Boolean(profile) && !workout && (!workoutQuery.isError && !draftQuery.isError) &&
-      ((workoutQuery.isPending && !isWorkoutUnavailableOffline) || isRefreshingSeed || !isDraftResolved))
+      ((!workoutSeed && workoutQuery.isPending && !isWorkoutUnavailableOffline) ||
+        isRefreshingSeed || !isOfflineWorkoutResolved || !isDraftResolved))
   const logMutation = useCreateWorkoutLog()
   const swapMutation = useSwapWorkoutExercise()
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -1006,7 +1029,20 @@ function WorkoutSession() {
       // No IndexedDB (blocked storage): fall back to the server and localStorage.
       .catch(() => null)
       .then((draft) => {
-        if (!cancelled) setUnsyncedDraft(draft)
+        if (!cancelled) setUnsyncedDraftState({ draft, workoutId })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [userId, workoutId])
+
+  useEffect(() => {
+    if (!userId || !workoutId) return
+    let cancelled = false
+    getOfflineWorkoutSnapshot(userId, workoutId)
+      .catch(() => null)
+      .then((snapshot) => {
+        if (!cancelled) setOfflineWorkoutState({ workout: snapshot, workoutId })
       })
     return () => {
       cancelled = true
@@ -1032,12 +1068,12 @@ function WorkoutSession() {
 
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (workout || !workoutQuery.data || isRefreshingSeed || !isDraftResolved) return
+    if (workout || !workoutSeed || isRefreshingSeed || !isDraftResolved) return
     // Unsent local state > server draft > this tab's localStorage mirror.
     const storedSession = unsyncedDraft === "deleted"
       ? null
-      : unsyncedDraft ?? draftQuery.data ?? (workoutQuery.data.id ? readStoredWorkoutSession(workoutQuery.data.id) : null)
-    const nextWorkout = buildSessionSeed(workoutQuery.data, storedSession)
+      : unsyncedDraft ?? draftQuery.data ?? (workoutSeed.id ? readStoredWorkoutSession(workoutSeed.id) : null)
+    const nextWorkout = buildSessionSeed(workoutSeed, storedSession)
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
     deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
     programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.originalExercises)
@@ -1046,7 +1082,7 @@ function WorkoutSession() {
     setCurrentExerciseIndex(storedSession
       ? Math.min(Math.max(0, storedSession.currentExerciseIndex), Math.max(0, nextWorkout.exercises.length - 1)) : 0)
     setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
-  }, [draftQuery.data, isDraftResolved, isRefreshingSeed, unsyncedDraft, workout, workoutQuery.data])
+  }, [draftQuery.data, isDraftResolved, isRefreshingSeed, unsyncedDraft, workout, workoutSeed])
 
   // ── Timer: update elapsed every 30s ────────────────────────────────────────
   useEffect(() => {
@@ -1066,6 +1102,9 @@ function WorkoutSession() {
   // upload and holds it while offline.
   useEffect(() => {
     if (!workout || !workoutId || !userId || sessionRetiredRef.current) return
+    // Unlike the compact session draft, this includes the immutable exercise
+    // metadata required to rebuild the logger after iOS has killed the app.
+    void saveOfflineWorkoutSnapshot(userId, { ...workout, exercises }).catch(() => undefined)
     const storageKey = getWorkoutSessionStorageKey(workoutId)
     if (!hasSessionProgress(exercises) && deletedSetIdsRef.current.size === 0) {
       window.localStorage.removeItem(storageKey)
@@ -1435,6 +1474,7 @@ function WorkoutSession() {
       sessionRetiredRef.current = true
       if (savedOnline) {
         void queueWorkoutSessionDraftDelete(userId, workout.id).catch(() => undefined)
+        void deleteOfflineWorkoutSnapshot(userId, workout.id).catch(() => undefined)
       } else {
         // Also retires the draft. The dashboard's sync badge shows the log as
         // pending until it uploads.

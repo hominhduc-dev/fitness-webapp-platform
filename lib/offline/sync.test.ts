@@ -14,6 +14,7 @@ import {
   queueWorkoutLog,
   queueWorkoutSessionDraft,
 } from "./workout-log-queue"
+import { getOfflineWorkoutSnapshot, saveOfflineWorkoutSnapshot } from "./workout-snapshot"
 
 const mocks = vi.hoisted(() => ({
   client: null as import("@tanstack/react-query").QueryClient | null,
@@ -63,6 +64,7 @@ describe("offline sync", () => {
     mocks.deleteWorkoutSessionDraft.mockImplementation(async () => { calls.push("delete-draft") })
     const invalidate = vi.spyOn(mocks.client!, "invalidateQueries")
     const clientLogId = createClientLogId()
+    await saveOfflineWorkoutSnapshot("user-a", { id: "w1", exercises: [], name: "Push" } as import("@/lib/types").Workout)
     await queueWorkoutLog("user-a", "w1", { clientLogId, exercises: [] })
 
     stop = startOfflineSync("user-a")
@@ -73,6 +75,7 @@ describe("offline sync", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.workouts.all })
     expect(getOfflineSyncStatus()).toMatchObject({ failed: 0, pending: 0 })
     expect(getOfflineSyncStatus().lastSyncedAt).not.toBeNull()
+    expect(await getOfflineWorkoutSnapshot("user-a", "w1")).toBeNull()
   })
 
   it("keeps everything queued when the request never reaches the server", async () => {

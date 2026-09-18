@@ -8,6 +8,7 @@ import {
   settleOfflineMutation,
   subscribeToOfflineMutations,
 } from "@/lib/offline/workout-log-queue"
+import { deleteOfflineWorkoutSnapshot } from "@/lib/offline/workout-snapshot"
 import { getQueryClient } from "@/lib/queries/client"
 import { queryKeys } from "@/lib/queries/keys"
 import { userQueryKey } from "@/lib/queries/scoped"
@@ -123,6 +124,9 @@ async function send(record: OfflineMutation, accessToken: string): Promise<SendO
   }
 
   await settleOfflineMutation(record)
+  if (record.type === "workout-log.create") {
+    await deleteOfflineWorkoutSnapshot(record.userId, record.workoutId).catch(() => undefined)
+  }
   invalidateAfterSync(record)
   return "sent"
 }
