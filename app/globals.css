@@ -1038,9 +1038,7 @@ body {
 
 /* ── Core surfaces ──────────────────────────────────────────────────────── */
 
-.glass-surface,
-[data-slot="dialog-content"],
-[data-slot="drawer-content"] {
+.glass-surface {
   background:
     linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
     var(--glass-bg-strong);
@@ -1208,9 +1206,7 @@ select {
 .lg-bevel,
 .glass-card,
 .mobile-floating-nav,
-aside.glass-surface,
-[data-slot="dialog-content"],
-[data-slot="drawer-content"] {
+aside.glass-surface {
   isolation: isolate;
 }
 
@@ -1225,9 +1221,7 @@ aside.glass-surface,
 .lg-bevel::after,
 .glass-card::after,
 .mobile-floating-nav::after,
-aside.glass-surface::after,
-[data-slot="dialog-content"]::after,
-[data-slot="drawer-content"]::after {
+aside.glass-surface::after {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -1286,9 +1280,7 @@ aside.glass-surface::after,
 
    Each surface takes the filter authored at its own aspect ratio, so the bevel
    band lands at an even thickness the whole way round. */
-:root[data-liquid-glass="on"] .glass-surface,
-:root[data-liquid-glass="on"] [data-slot="dialog-content"],
-:root[data-liquid-glass="on"] [data-slot="drawer-content"] {
+:root[data-liquid-glass="on"] .glass-surface {
   -webkit-backdrop-filter: url("#lg-sheet") blur(6px) saturate(165%) brightness(108%);
   backdrop-filter: url("#lg-sheet") blur(6px) saturate(165%) brightness(108%);
 }
@@ -1384,11 +1376,7 @@ aside.glass-surface::after,
 }
 
 :root:not(.dark) .glass-surface,
-:root:not(.dark) [data-slot="dialog-content"],
-:root:not(.dark) [data-slot="drawer-content"],
-:root:not(.dark)[data-liquid-glass="on"] .glass-surface,
-:root:not(.dark)[data-liquid-glass="on"] [data-slot="dialog-content"],
-:root:not(.dark)[data-liquid-glass="on"] [data-slot="drawer-content"] {
+:root:not(.dark)[data-liquid-glass="on"] .glass-surface {
   border-color: var(--border);
   background: var(--card);
   box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
@@ -1418,9 +1406,7 @@ aside.glass-surface::after,
 :root:not(.dark) .glass-card::after,
 :root:not(.dark) .glass-surface::after,
 :root:not(.dark) .mobile-floating-nav::after,
-:root:not(.dark) aside.glass-surface::after,
-:root:not(.dark) [data-slot="dialog-content"]::after,
-:root:not(.dark) [data-slot="drawer-content"]::after {
+:root:not(.dark) aside.glass-surface::after {
   display: none;
 }
 
@@ -1529,9 +1515,7 @@ aside.glass-surface::after,
   .mobile-floating-nav,
   aside.glass-surface,
   .lg-dome,
-  .ai-bubble-trigger,
-  [data-slot="dialog-content"],
-  [data-slot="drawer-content"] {
+  .ai-bubble-trigger {
     background: var(--glass-solid);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -1540,9 +1524,7 @@ aside.glass-surface::after,
   .lg-bevel::after,
   .glass-card::after,
   .mobile-floating-nav::after,
-  aside.glass-surface::after,
-  [data-slot="dialog-content"]::after,
-  [data-slot="drawer-content"]::after {
+  aside.glass-surface::after {
     display: none;
   }
 }
