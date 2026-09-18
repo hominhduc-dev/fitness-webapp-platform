@@ -2257,6 +2257,13 @@ async function markAllNotificationsRead(accessToken: string) {
   return response.data
 }
 
+async function clearNotifications(accessToken: string) {
+  const response = await request<ApiEnvelope<{ deletedCount: number }>>("/api/notifications", accessToken, {
+    method: "DELETE",
+  })
+  return response.data
+}
+
 async function fetchPushConfig(): Promise<{ enabled: boolean; publicKey: string | null }> {
   const response = await request<ApiEnvelope<{ enabled: boolean; publicKey: string | null }>>(
     "/api/notifications/push/config",
@@ -2653,6 +2660,7 @@ export {
   approveTraineeExerciseSwap,
   copyProgramWeek,
   updateTraineeProgram,
+  clearNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   deletePushSubscription,

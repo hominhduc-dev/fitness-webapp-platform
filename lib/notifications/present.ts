@@ -38,10 +38,16 @@ function isInternalPath(value: string | undefined): value is string {
 
 function resolveNotificationHref(notification: AppNotification) {
   const url = readString(notification, "url")
-  if (isInternalPath(url)) return url
 
   const traineeId = readString(notification, "traineeId")
   const kind = readString(notification, "kind")
+  const mealType = readString(notification, "mealType") as NotificationMealType | undefined
+
+  if (notification.type === "meal_reminder") {
+    return mealType && MEAL_TYPES.includes(mealType) ? `/meals?meal=${mealType}` : "/meals"
+  }
+
+  if (isInternalPath(url)) return url
 
   switch (notification.type) {
     case "workout_logged":

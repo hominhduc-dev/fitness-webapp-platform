@@ -1,4 +1,5 @@
 export {
+  clearNotificationsForUser,
   listNotificationsForUser,
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,

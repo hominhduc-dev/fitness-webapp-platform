@@ -18,7 +18,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { MealsLoadingState } from "@/components/meals/meals-loading-state"
@@ -225,6 +226,7 @@ function MacroSplit({
 
 function MealSection({
   deleteLabel,
+  highlight,
   isSubmitting,
   label,
   meal,
@@ -233,6 +235,7 @@ function MealSection({
   onDeleteItem,
 }: {
   deleteLabel: string
+  highlight: boolean
   isSubmitting: boolean
   label: string
   meal: Meal
@@ -244,7 +247,13 @@ function MealSection({
   const items = meal.items ?? []
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card">
+    <section
+      id={`meal-section-${meta.type}`}
+      className={cn(
+        "scroll-mt-24 overflow-hidden rounded-lg border border-border bg-card transition-[box-shadow,border-color,background-color] duration-500",
+        highlight && "border-primary bg-primary/5 ring-2 ring-primary/70 ring-offset-2 ring-offset-background shadow-[0_0_32px_-10px_var(--primary)]",
+      )}
+    >
       <div className={cn("flex items-center gap-2.5 px-4 py-3.5", items.length > 0 && "border-b border-border")}>
         <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon className="h-[15px] w-[15px]" />
@@ -733,6 +742,7 @@ function AddFoodModal({
 export function MealsClient({ initialData }: { initialData?: MealsClientInitialData } = {}) {
   const { session } = useAuth()
   const { locale, messages } = useLocale()
+  const searchParams = useSearchParams()
   const initialDateKey = initialData?.selectedDateKey ?? formatDateKey(new Date())
   const [selectedDate, setSelectedDate] = useState(() => new Date(`${initialDateKey}T00:00:00`))
   const [addTo, setAddTo] = useState<MealType | null>(null)
@@ -740,6 +750,8 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const [error, setError] = useState<string | null>(null)
   const [showAIMealPlan, setShowAIMealPlan] = useState(false)
   const selectedDateKey = formatDateKey(selectedDate)
+  const requestedMeal = searchParams.get("meal")
+  const highlightedMeal = MEAL_META.some((meta) => meta.type === requestedMeal) ? requestedMeal as MealType : null
 
   const dayQuery = useNutritionDay(selectedDateKey, {
     initialData: selectedDateKey === initialData?.selectedDateKey ? initialData.nutritionDay : undefined,
@@ -761,6 +773,21 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const isLoading = dayQuery.isPending
   const loadDay = () => dayQuery.refetch()
   const displayError = error ?? dayQuery.error?.message ?? foodsQuery.error?.message
+
+  useEffect(() => {
+    if (!highlightedMeal) return
+
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(`meal-section-${highlightedMeal}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }, 120)
+
+    return () => {
+      window.clearTimeout(scrollTimer)
+    }
+  }, [highlightedMeal])
 
   const handleConsumePlan = async (mealType?: MealType) => {
     setError(null)
@@ -974,6 +1001,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
               <MealSection
                 key={meta.type}
                 deleteLabel={messages.meals.deleteFoodItem}
+                highlight={highlightedMeal === meta.type}
                 isSubmitting={isSubmitting}
                 label={getMealLabel(meta.type)}
                 meal={mealsByType.get(meta.type) ?? { calories: 0, name: getMealLabel(meta.type), type: meta.type }}

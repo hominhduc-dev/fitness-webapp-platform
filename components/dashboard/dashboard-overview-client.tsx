@@ -97,15 +97,17 @@ export function DashboardOverviewClient({
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
   return (
     <div className="space-y-4">
-      <WeekStrip
-        getDayPlan={(date) => {
-          const entry = dashboard.scheduleEntries.find((item) => isSameCalendarDate(item.date, date))
-          return {
-            completed: entry?.isCompleted ?? false,
-            workoutName: entry?.workout?.name ?? null,
-          }
-        }}
-      />
+      <div className="hidden md:block">
+        <WeekStrip
+          getDayPlan={(date) => {
+            const entry = dashboard.scheduleEntries.find((item) => isSameCalendarDate(item.date, date))
+            return {
+              completed: entry?.isCompleted ?? false,
+              workoutName: entry?.workout?.name ?? null,
+            }
+          }}
+        />
+      </div>
 
       <CheckInPrompt />
 

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import {
+  clearNotifications,
   fetchNotificationPreferences,
   fetchNotifications,
   markAllNotificationsRead,
@@ -137,6 +138,27 @@ function useNotificationListCache() {
       return previous
     },
   }
+}
+
+export function useClearNotifications() {
+  const cache = useNotificationListCache()
+
+  return useMutation({
+    mutationFn: async () => clearNotifications(await requireAccessToken()),
+    onMutate: async () => {
+      await cache.client.cancelQueries({ queryKey: cache.key })
+      const previous = cache.client.getQueryData<NotificationList>(cache.key)
+      cache.client.setQueryData<NotificationList>(cache.key, {
+        notifications: [],
+        unreadCount: 0,
+      })
+      return { previous }
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) cache.client.setQueryData(cache.key, context.previous)
+    },
+    onSettled: () => cache.client.invalidateQueries({ queryKey: cache.key }),
+  })
 }
 
 export function useMarkNotificationRead() {

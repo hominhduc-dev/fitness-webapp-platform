@@ -7949,6 +7949,19 @@ async function markAllNotificationsAsReadForUser(profile: SerializedProfile) {
   }
 }
 
+async function clearNotificationsForUser(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  const result = await db.notification.deleteMany({
+    where: {
+      userId: profile.id,
+    },
+  })
+
+  return {
+    deletedCount: result.count,
+  }
+}
+
 async function updateCoachRequestStatus(
   profile: SerializedProfile,
   requestId: string,
@@ -8028,6 +8041,7 @@ export {
   archiveCoachProgram,
   assignCoachProgramToTrainee,
   buildProgramTreeCreateManyData,
+  clearNotificationsForUser,
   copyTraineeProgramWeek,
   createBodyMetricForTrainee,
   createBodyMetricForCurrentTrainee,
