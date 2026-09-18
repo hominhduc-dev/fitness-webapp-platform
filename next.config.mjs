@@ -1,7 +1,19 @@
+import { readFileSync } from "node:fs"
+
 /** @type {import('next').NextConfig} */
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
 
+// The splash screen shows which build is running. Reading the version here
+// keeps package.json the single source of truth; the commit ref is whatever the
+// host exposes, and is simply absent on a local build.
+const { version: appVersion } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"))
+const buildRef = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? ""
+
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: appVersion,
+    NEXT_PUBLIC_BUILD_REF: buildRef,
+  },
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
