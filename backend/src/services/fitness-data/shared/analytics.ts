@@ -102,6 +102,36 @@ function calculateWorkoutStreaks(logs: ProgressAnalyticsLogRecord[]) {
   }
 }
 
+/**
+ * Consecutive Monday-to-Sunday weeks holding at least one workout, counted back
+ * from this week.
+ *
+ * Training is planned by the week, not the day: someone who lifts Tuesday and
+ * Friday has broken nothing, so a day-by-day streak reads as zero for most
+ * people most of the time. An empty current week still counts — there are days
+ * left in it, so the streak is measured from last week instead, the same grace
+ * `calculateWorkoutStreaks` gives the current day.
+ */
+function calculateWeeklyWorkoutStreak(logs: ProgressAnalyticsLogRecord[]) {
+  const weeks = new Set(logs.map((log) => startOfUtcWeek(clientCalendarDay(log.startedAt)).getTime()))
+  if (weeks.size === 0) return 0
+
+  // Week starts are UTC midnights and UTC has no daylight saving, so stepping
+  // back a fixed seven days always lands on the previous week's Monday.
+  const weekInMs = 7 * DAY_IN_MS
+  const thisWeek = startOfUtcWeek(clientCalendarDay()).getTime()
+
+  let cursor = weeks.has(thisWeek) ? thisWeek : thisWeek - weekInMs
+  let streak = 0
+
+  while (weeks.has(cursor)) {
+    streak += 1
+    cursor -= weekInMs
+  }
+
+  return streak
+}
+
 function buildWeeklyVolume(logs: ProgressAnalyticsLogRecord[]) {
   const today = clientCalendarDay().getTime()
   const startDay = today - 6 * DAY_IN_MS
@@ -666,6 +696,7 @@ export {
   buildTrainingVolumeByWeek,
   buildWeeklyVolume,
   buildWorkoutFrequency,
+  calculateWeeklyWorkoutStreak,
   calculateWorkoutStreaks,
   calculateWorkoutVolume,
   detectRecentPRs,
