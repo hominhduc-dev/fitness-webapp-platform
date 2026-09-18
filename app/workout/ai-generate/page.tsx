@@ -4,8 +4,8 @@ import { useGenerateAIProgram, useAcceptAIProgram, useGenerateAIDailyWorkout, us
 
 import { ArrowLeft, Bot, ShieldCheck, Sparkles } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useMemo, useState } from "react"
 
 import { ProgramGeneratorForm, type FormValues } from "@/components/ai/program-generator-form"
 import { ProgramPreview } from "@/components/ai/program-preview"
@@ -56,7 +56,7 @@ function formatLocalDate(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-export default function AIGeneratePage() {
+function AIGenerateView() {
   const { mutateAsync: generateAIProgram, isPending: generateAIProgramPending } = useGenerateAIProgram()
   const { mutateAsync: acceptAIProgram, isPending: acceptAIProgramPending } = useAcceptAIProgram()
   const { mutateAsync: generateAIDailyWorkout, isPending: generateAIDailyWorkoutPending } = useGenerateAIDailyWorkout()
@@ -64,7 +64,10 @@ export default function AIGeneratePage() {
   const { locale } = useLocale()
   const isVi = locale === "vi"
   const router = useRouter()
-  const [mode, setMode] = useState<"daily" | "program">("daily")
+  // Onboarding sends a trainee straight here with the goal they just picked.
+  const searchParams = useSearchParams()
+  const presetGoal = searchParams.get("goal")
+  const [mode, setMode] = useState<"daily" | "program">(searchParams.get("mode") === "program" ? "program" : "daily")
   const [result, setResult] = useState<GenerateResult | null>(null)
   const [dailyResult, setDailyResult] = useState<DailyGenerateResult | null>(null)
   const isGenerating = generateAIProgramPending || generateAIDailyWorkoutPending
@@ -209,10 +212,20 @@ export default function AIGeneratePage() {
         />
       ) : (
         <ProgramGeneratorForm
+          initialValues={presetGoal ? { goal: presetGoal } : undefined}
           onSubmit={handleGenerate}
           isLoading={isGenerating}
         />
       )}
     </main>
+  )
+}
+
+// useSearchParams needs a Suspense boundary above it during prerender.
+export default function AIGeneratePage() {
+  return (
+    <Suspense fallback={null}>
+      <AIGenerateView />
+    </Suspense>
   )
 }

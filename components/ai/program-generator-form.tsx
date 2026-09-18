@@ -60,7 +60,16 @@ const FOCUS_AREAS = [
   { value: "Abs", vi: "Bụng" }, { value: "Glutes", vi: "Mông" },
 ] as const
 
-function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: FormValues) => void; isLoading: boolean }) {
+function ProgramGeneratorForm({
+  initialValues,
+  isLoading,
+  onSubmit,
+}: {
+  /** Answers already known, e.g. the goal an onboarding trainee just picked. */
+  initialValues?: Partial<FormValues>
+  isLoading: boolean
+  onSubmit: (values: FormValues) => void
+}) {
   const { locale } = useLocale()
   const isVi = locale === "vi"
   const steps = isVi ? ["Mục tiêu", "Lịch tập", "Xác nhận"] : ["Goal", "Schedule", "Review"]
@@ -78,6 +87,7 @@ function ProgramGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: Form
     focusAreas: [],
     injuries: "",
     durationWeeks: 8,
+    ...initialValues,
   })
 
   useEffect(() => {
