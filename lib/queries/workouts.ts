@@ -6,7 +6,10 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
 import { userQueryKey, useUserQuery } from "@/lib/queries/scoped"
+import { warmOfflineWorkoutRoute } from "@/lib/offline/service-worker"
+import { saveOfflineWorkoutSnapshot } from "@/lib/offline/workout-snapshot"
 import type { CoachProgram } from "@/lib/fitness/types"
+import type { WorkoutCollection } from "@/lib/fitness/types"
 import type { Workout } from "@/lib/types"
 import {
   addWorkoutToProgram,
@@ -37,6 +40,59 @@ export function prefetchWorkouts(queryClient: QueryClient, userId: string) {
     queryFn: async () => fetchWorkouts(await requireAccessToken()),
     staleTime: 30_000,
   })
+}
+
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+/**
+ * Prepares the sessions a trainee is most likely to need without a network:
+ * every active session, today's effective session and the next incomplete one.
+ * The Query cache is the fast path; IndexedDB is the durable logger seed.
+ */
+export async function prefetchOfflineReadyWorkouts(queryClient: QueryClient, userId: string) {
+  await prefetchWorkouts(queryClient, userId)
+  const collection = queryClient.getQueryData<WorkoutCollection>(
+    userQueryKey(queryKeys.workouts.collection(), userId),
+  )
+  if (!collection) return
+
+  const today = localDateKey(new Date())
+  const nextWorkout = collection.scheduleEntries.find(
+    (entry) => localDateKey(entry.date) >= today && entry.workout && !entry.isCompleted,
+  )?.workout
+  const workoutById = new Map(collection.workouts.map((workout) => [workout.id, workout]))
+  if (collection.todayWorkout) workoutById.set(collection.todayWorkout.id, collection.todayWorkout)
+  if (nextWorkout) workoutById.set(nextWorkout.id, nextWorkout)
+
+  const ids = new Set([
+    ...collection.activeSessions.map((active) => active.workoutId),
+    collection.todayWorkout?.id,
+    nextWorkout?.id,
+  ].filter((id): id is string => Boolean(id)))
+
+  await Promise.all([...ids].map(async (workoutId) => {
+    let workout = workoutById.get(workoutId)
+    if (!workout) {
+      workout = await queryClient.fetchQuery({
+        queryFn: async () => fetchWorkoutDetail(await requireAccessToken(), workoutId),
+        queryKey: userQueryKey(queryKeys.workouts.detail(workoutId), userId),
+        staleTime: 30_000,
+      })
+    } else {
+      queryClient.setQueryData(
+        userQueryKey(queryKeys.workouts.detail(workoutId), userId),
+        (current: Workout | undefined) => current ?? workout,
+      )
+    }
+    if (!workout) return
+
+    await Promise.allSettled([
+      saveOfflineWorkoutSnapshot(userId, workout),
+      warmOfflineWorkoutRoute(workoutId),
+    ])
+  }))
 }
 
 export function useTraineePrograms(programIds: string[], enabled: boolean) {

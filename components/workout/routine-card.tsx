@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { MoreHorizontal, Pencil, Play, User } from "lucide-react"
 import { useMemo, useState } from "react"
@@ -8,6 +7,7 @@ import { useMemo, useState } from "react"
 import { RoutineBuilderDialog } from "@/components/workout/routine-builder-dialog"
 import { DeleteWorkoutButton } from "@/components/workout/delete-workout-button"
 import { RoutineDot } from "@/components/workout/routine-dot"
+import { WorkoutSessionLink } from "@/components/workout/workout-session-link"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -236,12 +236,12 @@ export function RoutineCard({
             {isStartingTrial ? messages.workoutPage.saving : messages.workoutPage.start}
           </Button>
         ) : (
-          <Link href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
+          <WorkoutSessionLink href={`/workout/${workout.id}/start`} className="min-w-0 flex-1">
             <Button className="h-10 w-full justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background hover:bg-foreground/90" size="sm">
               <Play className="h-4 w-4" />
               {messages.workoutPage.start}
             </Button>
-          </Link>
+          </WorkoutSessionLink>
         )}
         {workout.isPersonal ? (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">

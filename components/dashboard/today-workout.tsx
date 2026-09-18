@@ -7,6 +7,7 @@ import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
+import { WorkoutSessionLink } from "@/components/workout/workout-session-link"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { Workout } from "@/lib/types"
 import { formatRepTarget } from "@/lib/workout-reps"
@@ -121,10 +122,17 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
       </ul>
 
       <Button asChild size="lg" className="dashboard-primary-cta mt-4 h-10 w-full gap-2 rounded-xl text-sm lg:mt-auto">
-        <Link href={isCompleted ? '/schedule' : `/workout/${workout.id}/start${activeWorkout ? '' : `?logDate=${dateKey}`}`} scroll>
-          <Play className="size-4 fill-current" aria-hidden="true" />
-          {activeWorkout ? messages.schedule.resume : isCompleted ? messages.schedule.review : copy.startWorkout}
-        </Link>
+        {isCompleted ? (
+          <Link href="/schedule" scroll>
+            <Play className="size-4 fill-current" aria-hidden="true" />
+            {messages.schedule.review}
+          </Link>
+        ) : (
+          <WorkoutSessionLink href={`/workout/${workout.id}/start${activeWorkout ? '' : `?logDate=${dateKey}`}`} scroll>
+            <Play className="size-4 fill-current" aria-hidden="true" />
+            {activeWorkout ? messages.schedule.resume : copy.startWorkout}
+          </WorkoutSessionLink>
+        )}
       </Button>
     </section>
   )

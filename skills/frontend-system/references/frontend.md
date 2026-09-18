@@ -452,6 +452,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 - `app/layout.tsx`: icons, apple web app, theme color, viewport-fit cover.
 - App icons sinh bằng `npm run icons`.
 - `ServiceWorkerRegistrar` đăng ký `public/sw.js`; push permission chỉ được hỏi từ thao tác bật switch của người dùng.
+- Shell trainee idle-prefetch workout collection rồi chuẩn bị offline cho session đang active, workout hiệu lực hôm nay và session chưa hoàn thành kế tiếp: detail được seed vào TanStack Query, full logger snapshot nằm trong IndexedDB và exact `/workout/[id]/start` page shell được Service Worker warm. Offline Start/Resume dùng document navigation để worker phục vụ shell; logger ghi draft/log vào queue và tự sync khi online/foreground.
 - `PushSubscriptionAccountSync` rebind endpoint hiện có theo account + locale sau đăng nhập và khi Service Worker báo subscription đổi. Logout revoke ownership trên backend trước khi xóa Supabase session, nhưng giữ browser endpoint để account kế tiếp có thể rebind an toàn.
 - iOS/iPadOS chỉ hỗ trợ push khi chạy từ Home Screen. `lib/pwa/push-support.ts` phân biệt `ios_install_required` với browser thật sự không hỗ trợ để Settings hiển thị hướng dẫn đúng ngữ cảnh.
 - Push copy dùng locale lưu theo từng subscription; Service Worker cập nhật app badge từ unread count. Notification bell đồng bộ lại badge khi mark read/all-read.

@@ -76,7 +76,12 @@ export function ResumeWorkoutCard() {
   if (!session || onStartPage) return null
 
   const handleResume = () => {
-    router.push(`/workout/${session.workoutId}/start`, { scroll: true })
+    const href = `/workout/${session.workoutId}/start`
+    if (navigator.onLine === false) {
+      window.location.assign(new URL(href, window.location.href).href)
+      return
+    }
+    router.push(href, { scroll: true })
   }
 
   const handleDiscard = () => {

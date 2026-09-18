@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/lib/auth/api"
 import { useWeightEntries, useCreateWeightEntry, useProgressCalendar, useRecoveryHistory, useVolumeRecovery } from "./progress"
-import { ACTIVE_SESSION_SEED_REUSE_MS, prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
+import { ACTIVE_SESSION_SEED_REUSE_MS, prefetchOfflineReadyWorkouts, prefetchWorkouts, useWorkoutDetail, useWorkouts } from "./workouts"
 import { prefetchMeals, useAddMealItem, useFoods, useNutritionDay } from "./meals"
 import { useCoachLogs } from "./coach-logs"
 import { prefetchCoachRoutes, useCoachData, useCoachNavCounts } from "./coach-data"
@@ -19,6 +19,9 @@ const api = vi.hoisted(() => ({
   volume: vi.fn(), recovery: vi.fn(),
   navCounts: vi.fn(), trainees: vi.fn(), programs: vi.fn(), exercises: vi.fn(),
 }))
+const offline = vi.hoisted(() => ({ save: vi.fn(), warm: vi.fn() }))
+vi.mock("@/lib/offline/service-worker", () => ({ warmOfflineWorkoutRoute: offline.warm }))
+vi.mock("@/lib/offline/workout-snapshot", () => ({ saveOfflineWorkoutSnapshot: offline.save }))
 vi.mock("@/components/providers/auth-provider", () => ({
   useAuth: () => ({ profile: { id: state.userId }, session: { access_token: state.token } }),
 }))
@@ -42,7 +45,13 @@ function setup() {
   return { client, wrapper }
 }
 
-beforeEach(() => { vi.clearAllMocks(); state.userId = "user-a"; state.token = "token-1" })
+beforeEach(() => {
+  vi.clearAllMocks()
+  state.userId = "user-a"
+  state.token = "token-1"
+  offline.save.mockResolvedValue(undefined)
+  offline.warm.mockResolvedValue(true)
+})
 
 describe("client cache contracts", () => {
   it("uses the SSR seed and reuses it across provider remounts without a request", () => {
@@ -85,6 +94,33 @@ describe("client cache contracts", () => {
     expect(api.nutritionDay).toHaveBeenCalledTimes(1)
     expect(api.foods).toHaveBeenCalledTimes(1)
     hook.unmount(); client.clear()
+  })
+
+  it("prepares active, today and next workout details for an offline logger", async () => {
+    const { client } = setup()
+    const active = { id: "w-active", exercises: [], name: "Active" }
+    const today = { id: "w-today", exercises: [], name: "Today" }
+    const next = { id: "w-next", exercises: [], name: "Next" }
+    api.workouts.mockResolvedValue({
+      activeSessions: [{ workoutId: active.id }],
+      historyLogs: [],
+      programs: [],
+      recentLogs: [],
+      schedule: {},
+      scheduleEntries: [{ date: new Date("2099-09-19T00:00:00"), isCompleted: false, workout: next }],
+      todayWorkout: today,
+      weekLogs: [],
+      weekStats: { activeDaysThisWeek: 0, todayVolume: 0, workoutsThisWeek: 0 },
+      workouts: [active, today, next],
+    })
+
+    await prefetchOfflineReadyWorkouts(client, state.userId)
+
+    for (const workout of [active, today, next]) {
+      expect(client.getQueryData(userQueryKey(queryKeys.workouts.detail(workout.id), state.userId))).toBe(workout)
+      expect(offline.save).toHaveBeenCalledWith(state.userId, workout)
+      expect(offline.warm).toHaveBeenCalledWith(workout.id)
+    }
   })
 
   it("reuses coach route prefetch data on the Clients, Programs, Exercises and Stats pages", async () => {

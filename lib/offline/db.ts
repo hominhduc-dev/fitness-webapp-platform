@@ -1,6 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb"
 
 import type { WorkoutLogInput } from "@/lib/fitness/types"
+import type { Workout } from "@/lib/types"
 import type { StoredWorkoutSession } from "@/lib/workout/session-storage"
 
 export type OfflineMutationStatus = "pending" | "failed"
@@ -45,10 +46,21 @@ interface OfflineDatabase extends DBSchema {
     key: string
     value: OfflineMutation
   }
+  workoutSnapshots: {
+    indexes: { "by-user": string }
+    key: string
+    value: {
+      cachedAt: number
+      id: string
+      userId: string
+      workout: Workout
+      workoutId: string
+    }
+  }
 }
 
 const DATABASE_NAME = "yeahbuddy-offline"
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 2
 
 let databasePromise: Promise<IDBPDatabase<OfflineDatabase>> | null = null
 
@@ -59,8 +71,14 @@ export function isOfflineStorageAvailable() {
 export function getOfflineDatabase() {
   databasePromise ??= openDB<OfflineDatabase>(DATABASE_NAME, DATABASE_VERSION, {
     upgrade(database) {
-      const mutations = database.createObjectStore("mutations", { keyPath: "id" })
-      mutations.createIndex("by-user", "userId")
+      if (!database.objectStoreNames.contains("mutations")) {
+        const mutations = database.createObjectStore("mutations", { keyPath: "id" })
+        mutations.createIndex("by-user", "userId")
+      }
+      if (!database.objectStoreNames.contains("workoutSnapshots")) {
+        const snapshots = database.createObjectStore("workoutSnapshots", { keyPath: "id" })
+        snapshots.createIndex("by-user", "userId")
+      }
     },
     // Another tab upgraded the schema: let it proceed and reopen lazily.
     blocking() {

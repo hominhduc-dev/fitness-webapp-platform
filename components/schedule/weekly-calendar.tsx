@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { RoutineBuilderDialog, type RoutineDraftData } from "@/components/workout/routine-builder-dialog"
+import { WorkoutSessionLink } from "@/components/workout/workout-session-link"
 import { WorkoutLogReview, WorkoutPlanPreview } from "@/components/workout/workout-log-review"
 import { useQueryClient } from "@tanstack/react-query"
 import { useCreateWorkout, useTraineePrograms, useWorkoutDetail, useWorkouts } from "@/lib/queries/workouts"
@@ -645,17 +646,17 @@ function DayCard({
             </Button>
           ) : entry.isToday ? (
             <Button asChild size="sm" className="mt-auto">
-              <Link href={`/workout/${workout.id}/start?logDate=${getDateKey(entry.date)}`}>
+              <WorkoutSessionLink href={`/workout/${workout.id}/start?logDate=${getDateKey(entry.date)}`}>
                 <Play className="h-3.5 w-3.5 fill-current" />
                 {entry.log && !entry.log.completedAt ? messages.schedule.resume : messages.workoutPage.start}
-              </Link>
+              </WorkoutSessionLink>
             </Button>
           ) : isPastDay ? (
             <Button asChild variant="ghost" size="sm" className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary">
-              <Link href={`/workout/${workout.id}/start?logDate=${getDateKey(entry.date)}`}>
+              <WorkoutSessionLink href={`/workout/${workout.id}/start?logDate=${getDateKey(entry.date)}`}>
                 <Plus className="h-3.5 w-3.5" />
                 {messages.schedule.logWorkout}
-              </Link>
+              </WorkoutSessionLink>
             </Button>
           ) : onPreviewWorkout ? (
             <Button
@@ -670,10 +671,10 @@ function DayCard({
             </Button>
           ) : (
             <Button asChild variant="ghost" size="sm" className="mt-auto justify-start px-0 text-primary hover:bg-transparent hover:text-primary">
-              <Link href={`/workout/${workout.id}/start`}>
+              <WorkoutSessionLink href={`/workout/${workout.id}/start`}>
                 <Play className="h-3.5 w-3.5 fill-current" />
                 {messages.schedule.open}
-              </Link>
+              </WorkoutSessionLink>
             </Button>
           )}
         </>

@@ -57,6 +57,29 @@ self.addEventListener("message", (event) => {
   // Sent on sign-out: cached page HTML embeds the signed-in user's profile.
   if (event.data && event.data.type === "CLEAR_USER_CACHES") {
     event.waitUntil(caches.delete(PAGES_CACHE))
+    return
+  }
+
+  if (event.data && event.data.type === "CACHE_OFFLINE_PAGE") {
+    event.waitUntil((async () => {
+      const reply = event.ports && event.ports[0]
+      let ok = false
+      try {
+        const url = new URL(event.data.url, self.location.origin)
+        if (url.origin === self.location.origin && isOfflinePage(url)) {
+          const response = await fetch(new Request(url.href, { credentials: "include", redirect: "manual" }))
+          if (response.ok && response.type === "basic") {
+            const cache = await caches.open(PAGES_CACHE)
+            await putAndTrim(cache, pageCacheKey(url), response.clone(), MAX_PAGE_ENTRIES)
+            ok = true
+          }
+        }
+      } catch (_error) {
+        // Warming is best-effort. The normal navigation path still populates
+        // the page cache and the client keeps the IndexedDB workout snapshot.
+      }
+      reply?.postMessage({ ok })
+    })())
   }
 })
 
