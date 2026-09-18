@@ -45,6 +45,7 @@ import {
   getOfflineWorkoutSnapshot,
   saveOfflineWorkoutSnapshot,
 } from "@/lib/offline/workout-snapshot"
+import { warmOfflineWorkoutRoute } from "@/lib/offline/service-worker"
 import {
   useCreateWorkoutLog,
   useSwapWorkoutExercise,
@@ -1047,6 +1048,15 @@ function WorkoutSession() {
     return () => {
       cancelled = true
     }
+  }, [userId, workoutId])
+
+  // Client-side navigation only requests an RSC payload, not a document that
+  // the Service Worker can replay after iOS evicts the PWA from memory. Pin the
+  // exact logger document as soon as the session opens, independently of the
+  // dashboard's best-effort idle prefetch.
+  useEffect(() => {
+    if (!userId || !workoutId || navigator.onLine === false) return
+    void warmOfflineWorkoutRoute(workoutId)
   }, [userId, workoutId])
 
   // Reset after the workout replaces the loading state. Doing this earlier lets

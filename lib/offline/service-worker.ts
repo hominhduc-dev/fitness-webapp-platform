@@ -1,5 +1,6 @@
 const SERVICE_WORKER_URL = "/sw.js"
 const CACHE_OFFLINE_PAGE = "CACHE_OFFLINE_PAGE"
+const CACHE_REQUEST_TIMEOUT_MS = 10_000
 
 function supportsServiceWorker() {
   return typeof window !== "undefined" && "serviceWorker" in navigator
@@ -18,20 +19,44 @@ export async function registerServiceWorker() {
 export async function warmOfflineWorkoutRoute(workoutId: string): Promise<boolean> {
   if (!supportsServiceWorker()) return false
   const registration = await navigator.serviceWorker.ready
-  const worker = registration.active
-  if (!worker) return false
+  const route = `/workout/${encodeURIComponent(workoutId)}/start`
 
+  const warmWith = (worker: ServiceWorker | null): Promise<boolean> => {
+    if (!worker) return Promise.resolve(false)
+
+    return new Promise((resolve) => {
+      const channel = new MessageChannel()
+      const timeout = window.setTimeout(() => resolve(false), CACHE_REQUEST_TIMEOUT_MS)
+      channel.port1.onmessage = (event: MessageEvent<{ ok?: boolean }>) => {
+        window.clearTimeout(timeout)
+        resolve(event.data?.ok === true)
+      }
+      worker.postMessage(
+        { type: CACHE_OFFLINE_PAGE, url: route },
+        [channel.port2],
+      )
+    })
+  }
+
+  if (await warmWith(navigator.serviceWorker.controller ?? registration.active)) return true
+
+  // During a deployment the page can still be controlled by the previous
+  // worker, which does not understand CACHE_OFFLINE_PAGE. Wait once for the new
+  // worker to claim the page, then retry instead of leaving the logger unpinned.
   return new Promise((resolve) => {
-    const channel = new MessageChannel()
-    const timeout = window.setTimeout(() => resolve(false), 10_000)
-    channel.port1.onmessage = (event: MessageEvent<{ ok?: boolean }>) => {
+    let settled = false
+    const finish = (value: boolean) => {
+      if (settled) return
+      settled = true
       window.clearTimeout(timeout)
-      resolve(event.data?.ok === true)
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange)
+      resolve(value)
     }
-    worker.postMessage(
-      { type: CACHE_OFFLINE_PAGE, url: `/workout/${encodeURIComponent(workoutId)}/start` },
-      [channel.port2],
-    )
+    const handleControllerChange = () => {
+      void warmWith(navigator.serviceWorker.controller).then(finish)
+    }
+    const timeout = window.setTimeout(() => finish(false), CACHE_REQUEST_TIMEOUT_MS)
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange)
   })
 }
 
