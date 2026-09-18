@@ -126,7 +126,7 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 - Dùng `Suspense` quanh phần fetch chậm, không quanh toàn shell.
 - Route có `loading.tsx` dùng skeleton/shared `PageLoadingState`.
 - Skeleton phải gần kích thước layout thật để tránh CLS.
-- Hai boundary khởi động (`app/loading.tsx`, `app/(shell)/loading.tsx`) dùng `AppSplash` — wordmark tĩnh + build stamp, **không** progress bar. Splash lấy màu từ theme (`bg-background`) vì nó bàn giao thẳng sang app không có transition; canvas tối cố định sẽ nháy trên theme sáng.
+- Hai boundary khởi động (`app/loading.tsx`, `app/(shell)/loading.tsx`) dùng `AppSplash` — chỉ wordmark tĩnh, **không** progress bar. Splash lấy màu từ theme (`bg-background`) vì nó bàn giao thẳng sang app không có transition; canvas tối cố định sẽ nháy trên theme sáng.
 - `.page-loading-bar` chỉ còn dùng trong skeleton cấp route (`PageLoadingState`, `WorkoutSessionLoadingState`), không dùng cho cold start.
 
 ## 4. Data flow và state
@@ -551,7 +551,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Login/session/profile | auth component/provider | `lib/auth/*`, Supabase client/server |
 | Copy/ngôn ngữ | domain file trong `lib/i18n/messages` | locale provider/server |
 | Metadata/PWA/font | `app/layout.tsx` | manifest, icon script |
-| Splash/màn hình khởi động | `components/layout/app-splash.tsx` | `app/loading.tsx`, `app/(shell)/loading.tsx`, `lib/app-version.ts`, `next.config.mjs` env |
+| Splash/màn hình khởi động | `components/layout/app-splash.tsx` | `app/loading.tsx`, `app/(shell)/loading.tsx` |
 | API URL/proxy | `lib/supabase/config.ts` | `next.config.mjs`, domain API helper |
 
 ## 14. Checklist thay đổi frontend

@@ -1,5 +1,4 @@
 import { BrandLogo } from "@/components/ui/brand-logo"
-import { APP_VERSION } from "@/lib/app-version"
 import { cn } from "@/lib/utils"
 
 type AppSplashProps = {
@@ -34,7 +33,7 @@ export function AppSplash({ className, fullScreen = true, label }: AppSplashProp
       role="status"
       aria-live="polite"
       className={cn(
-        "relative flex w-full flex-col items-center justify-center bg-background px-6 text-foreground",
+        "flex w-full flex-col items-center justify-center bg-background px-6 text-foreground",
         fullScreen ? "min-h-[100dvh]" : "min-h-[calc(100dvh-4rem)]",
         className,
       )}
@@ -48,12 +47,6 @@ export function AppSplash({ className, fullScreen = true, label }: AppSplashProp
         textClassName="text-3xl font-bold tracking-tight sm:text-4xl"
       />
       <span className="sr-only">{label}</span>
-
-      {APP_VERSION ? (
-        <p className="absolute inset-x-0 bottom-[calc(2.5rem+env(safe-area-inset-bottom))] text-center font-mono text-xs tnum text-muted-foreground">
-          {APP_VERSION}
-        </p>
-      ) : null}
     </div>
   )
 }
