@@ -92,6 +92,46 @@ describe("custom exercise media", () => {
     expect(resolved?.media.type).toBe("video")
   })
 
+  it("builds upload URLs from the stored Cloudinary identity", () => {
+    const resolved = resolveExerciseMedia({
+      media: {
+        animationCloudName: "demo",
+        animationPublicId: "exercise-media/admin/variation/animation-id",
+        animationResourceType: "image",
+        animationType: "gif",
+        animationUrl: "https://res.cloudinary.com/demo/image/upload/v123/exercise-media/admin/variation/animation-id.gif",
+        animationVersion: "123",
+        thumbnailCloudName: "demo",
+        thumbnailPublicId: "exercise-media/admin/variation/thumbnail-id",
+        thumbnailResourceType: "image",
+        thumbnailUrl: "https://res.cloudinary.com/demo/image/upload/v124/exercise-media/admin/variation/thumbnail-id.png",
+        thumbnailVersion: "124",
+      },
+    })
+
+    // An animated image is delivered as MP4, which is far smaller than the GIF it replaces.
+    expect(resolved?.media.animationUrl).toBe(
+      "https://res.cloudinary.com/demo/image/upload/f_mp4,q_auto/v123/exercise-media/admin/variation/animation-id.mp4",
+    )
+    expect(resolved?.media.thumbnailUrl).toBe(
+      "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/v124/exercise-media/admin/variation/thumbnail-id.jpg",
+    )
+    expect(resolved?.media.type).toBe("video")
+  })
+
+  it("falls back to the stored URL when the upload has no Cloudinary identity", () => {
+    const resolved = resolveExerciseMedia({
+      media: {
+        animationType: "video",
+        animationUrl: "https://res.cloudinary.com/demo/video/upload/v1/legacy.mp4",
+        thumbnailUrl: "https://res.cloudinary.com/demo/image/upload/v1/legacy.jpg",
+      },
+    })
+
+    expect(resolved?.media.animationUrl).toBe("https://res.cloudinary.com/demo/video/upload/v1/legacy.mp4")
+    expect(resolved?.media.thumbnailUrl).toBe("https://res.cloudinary.com/demo/image/upload/v1/legacy.jpg")
+  })
+
   it("ignores synced external media", () => {
     expect(resolveExerciseMedia({
       externalSource: { media: { animationUrl: "https://cdn.example.com/x.gif", thumbnailUrl: "https://cdn.example.com/x.jpg" } },
