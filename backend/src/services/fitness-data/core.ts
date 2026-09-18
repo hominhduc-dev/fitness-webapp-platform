@@ -86,6 +86,7 @@ import {
   buildTrainingVolumeByWeek,
   buildWeeklyVolume,
   buildWorkoutFrequency,
+  calculateWeeklyWorkoutStreak,
   calculateWorkoutStreaks,
   calculateWorkoutVolume,
   detectRecentPRs,
@@ -6509,6 +6510,7 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
   )
   const totalVolumeThisMonth = workoutsThisMonth.reduce((sum, log) => sum + (log.totalVolume ?? 0), 0)
   const { bestStreakDays, currentStreakDays } = calculateWorkoutStreaks(workoutLogs as ProgressAnalyticsLogRecord[])
+  const currentStreakWeeks = calculateWeeklyWorkoutStreak(workoutLogs as ProgressAnalyticsLogRecord[])
 
   return {
     muscleGroupDistribution: buildMuscleGroupDistribution(workoutLogs as ProgressAnalyticsLogRecord[]).groups,
@@ -6517,6 +6519,7 @@ async function getProgressAnalyticsForCurrentTrainee(profile: SerializedProfile)
     summary: {
       bestStreakDays,
       currentStreakDays,
+      currentStreakWeeks,
       totalVolumeThisMonth: Math.round(totalVolumeThisMonth * 10) / 10,
       workoutsThisMonth: workoutsThisMonth.length,
     },
