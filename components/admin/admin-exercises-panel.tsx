@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import {
   ArrowDownUp,
   ChevronDown,
@@ -33,7 +33,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { matchesExerciseSearch, sortByExerciseRelevance, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
+import {
+  compileExerciseSearch,
+  createExerciseSearchDocument,
+  matchesExerciseSearchDocument,
+  sortByExerciseRelevance,
+  sortGroupsByExerciseRelevance,
+} from "@/lib/exercise-search"
 import { buildMuscleProfileHighlights, muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import { cn } from "@/lib/utils"
 import type { AdminExerciseImportRequest, AdminExerciseItem, AdminExerciseMediaFiles } from "@/lib/admin/types"
@@ -827,6 +833,7 @@ function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected
     return (
       <div
         key={e.id}
+        style={{ contentVisibility: "auto", containIntrinsicSize: "64px" }}
         className={cn(
           "grid grid-cols-[24px_minmax(0,1.4fr)_56px_84px] items-center gap-2 border-b border-border/50 px-4 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1.4fr)_minmax(0,1fr)_96px_64px_84px]",
           isSelected ? "bg-primary/5" : "hover:bg-muted/20",
@@ -1045,8 +1052,7 @@ export function ExerciseLibraryPanel({
 }: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
   const [rawQ, setRawQ] = useState("")
-  const [q, setQ] = useState("")
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const q = useDeferredValue(rawQ)
   const [openGroups, setOpenGroups] = useState<string[]>([])
   const [modal, setModal] = useState<"new" | AdminExerciseItem | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<
@@ -1070,13 +1076,10 @@ export function ExerciseLibraryPanel({
 
   function handleSearchChange(value: string) {
     setRawQ(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setQ(value), 200)
   }
 
   function resetFilters() {
     setRawQ("")
-    setQ("")
     setMuscleFilter("all")
     setEquipmentFilter("all")
     setProfileFilter("all")
@@ -1085,31 +1088,47 @@ export function ExerciseLibraryPanel({
     setSortBy("name")
   }
 
-  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
-
   const equipmentOptions = useMemo(
     () => Array.from(new Set(exercises.map((exercise) => exercise.equipment?.trim()).filter(Boolean) as string[]))
       .sort((left, right) => left.localeCompare(right, locale, { sensitivity: "base" })),
     [exercises, locale],
   )
 
+  const searchableExercises = useMemo(
+    () => exercises.map((exercise) => ({
+      document: createExerciseSearchDocument([
+        exercise.name,
+        exercise.variationName,
+        exercise.muscleGroup,
+        exercise.equipment,
+        exercise.createdBy?.name,
+      ]),
+      exercise,
+    })),
+    [exercises],
+  )
+
   /* Derived: filter + group */
   const filtered = useMemo(
-    () => exercises.filter((e) => {
-      if (!matchesExerciseSearch([e.name, e.variationName, e.muscleGroup, e.equipment], q)) return false
-      if (
-        muscleFilter !== "all" &&
-        !e.primaryMuscles.includes(muscleFilter) &&
-        !e.secondaryMuscles.includes(muscleFilter) &&
-        !muscleGroupToSlugs(e.muscleGroup).includes(muscleFilter)
-      ) return false
-      if (equipmentFilter !== "all" && (e.equipment ?? "").toLowerCase() !== equipmentFilter.toLowerCase()) return false
-      if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return false
-      if (activityFilter !== "all" && e.activityType !== activityFilter) return false
-      if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return false
-      return true
-    }),
-    [activityFilter, equipmentFilter, exercises, mediaFilter, muscleFilter, profileFilter, q],
+    () => {
+      const search = compileExerciseSearch(q)
+
+      return searchableExercises.flatMap(({ document, exercise: e }) => {
+        if (!matchesExerciseSearchDocument(document, search)) return []
+        if (
+          muscleFilter !== "all" &&
+          !e.primaryMuscles.includes(muscleFilter) &&
+          !e.secondaryMuscles.includes(muscleFilter) &&
+          !muscleGroupToSlugs(e.muscleGroup).includes(muscleFilter)
+        ) return []
+        if (equipmentFilter !== "all" && (e.equipment ?? "").toLowerCase() !== equipmentFilter.toLowerCase()) return []
+        if (profileFilter !== "all" && (e.muscleProfileStatus ?? "pending") !== profileFilter) return []
+        if (activityFilter !== "all" && e.activityType !== activityFilter) return []
+        if (mediaFilter !== "all" && Boolean(e.media) !== (mediaFilter === "present")) return []
+        return [e]
+      })
+    },
+    [activityFilter, equipmentFilter, mediaFilter, muscleFilter, profileFilter, q, searchableExercises],
   )
 
   // The dialog reads the latest list entry, so a media upload shows up without reopening it.
@@ -1135,6 +1154,7 @@ export function ExerciseLibraryPanel({
 
   /* Auto-expand when searching */
   const forceOpen = q.trim().length > 0
+  const isSearchPending = rawQ !== q
 
   function toggle(g: string) {
     setOpenGroups((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
@@ -1282,6 +1302,7 @@ export function ExerciseLibraryPanel({
             <Input
               value={rawQ}
               onChange={(e) => handleSearchChange(e.target.value)}
+              aria-busy={isSearchPending}
               placeholder={locale === "en" ? "Search exercises, equipment, or muscle..." : "Tìm bài tập, dụng cụ hoặc nhóm cơ..."}
               className="h-11 min-w-0 bg-background pl-9 text-sm"
             />

@@ -1,10 +1,78 @@
+export type ExerciseSearchDocument = {
+  compact: string
+  text: string
+}
+
+export type CompiledExerciseSearch = {
+  compact: string
+  normalized: string
+  tokens: string[]
+}
+
+/**
+ * Normalizes user-facing exercise text once so every picker behaves the same.
+ * Besides case and punctuation, Vietnamese diacritics are ignored: searching
+ * `dui` still finds `đùi`, which is especially useful on mobile keyboards.
+ */
+export function normalizeExerciseSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+}
+
+export function compileExerciseSearch(query: string): CompiledExerciseSearch {
+  const normalized = normalizeExerciseSearchText(query)
+
+  return {
+    compact: normalized.replace(/\s+/g, ""),
+    normalized,
+    tokens: normalized ? normalized.split(" ") : [],
+  }
+}
+
+/** Build once when the exercise collection changes, not once per keystroke. */
+export function createExerciseSearchDocument(fields: Array<string | null | undefined>): ExerciseSearchDocument {
+  const text = normalizeExerciseSearchText(fields.filter(Boolean).join(" "))
+  return { compact: text.replace(/\s+/g, ""), text }
+}
+
+export function matchesExerciseSearchDocument(
+  document: ExerciseSearchDocument,
+  search: CompiledExerciseSearch,
+): boolean {
+  if (search.tokens.length === 0) return true
+
+  return search.tokens.every(
+    (token) => document.text.includes(token) || document.compact.includes(token),
+  )
+}
+
+/** Backwards-compatible convenience API for small, one-off collections. */
 export function matchesExerciseSearch(fields: Array<string | null | undefined>, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase().replace(/-/g, " ")
-  if (!normalizedQuery) return true
-  const tokens = normalizedQuery.split(/\s+/)
-  const searchableSpaced = fields.filter(Boolean).join(" ").toLowerCase().replace(/-/g, " ")
-  const searchableCompact = searchableSpaced.replace(/\s+/g, "")
-  return tokens.every((token) => searchableSpaced.includes(token) || searchableCompact.includes(token))
+  return matchesExerciseSearchDocument(createExerciseSearchDocument(fields), compileExerciseSearch(query))
+}
+
+function scoreNormalizedExerciseName(name: string, search: CompiledExerciseSearch): number {
+  if (!search.normalized) return 0
+
+  const normalizedName = normalizeExerciseSearchText(name)
+
+  if (normalizedName === search.normalized) return 100
+  if (normalizedName.startsWith(search.normalized)) return 80
+  if (normalizedName.split(" ").some((word) => word.startsWith(search.normalized))) return 60
+  if (normalizedName.includes(search.normalized)) return 40
+
+  return search.tokens.reduce((score, token) => {
+    if (normalizedName.split(" ").some((word) => word.startsWith(token))) return score + 4
+    if (normalizedName.includes(token)) return score + 2
+    return score
+  }, 1)
 }
 
 /**
@@ -15,12 +83,7 @@ export function matchesExerciseSearch(fields: Array<string | null | undefined>, 
  *   1 — token match only
  */
 export function scoreExerciseSearch(name: string, query: string): number {
-  const q = query.trim().toLowerCase().replace(/-/g, " ")
-  if (!q) return 0
-  const n = name.toLowerCase().replace(/-/g, " ")
-  if (n === q) return 3
-  if (n.startsWith(q)) return 2
-  return 1
+  return scoreNormalizedExerciseName(name, compileExerciseSearch(query))
 }
 
 /**
@@ -28,8 +91,13 @@ export function scoreExerciseSearch(name: string, query: string): number {
  * Pass a getName fn to extract the exercise name from each item.
  */
 export function sortByExerciseRelevance<T>(items: T[], query: string, getName: (item: T) => string): T[] {
-  if (!query.trim()) return items
-  return [...items].sort((a, b) => scoreExerciseSearch(getName(b), query) - scoreExerciseSearch(getName(a), query))
+  const search = compileExerciseSearch(query)
+  if (!search.normalized) return items
+
+  return items
+    .map((item, index) => ({ index, item, score: scoreNormalizedExerciseName(getName(item), search) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ item }) => item)
 }
 
 /**
@@ -42,9 +110,16 @@ export function sortGroupsByExerciseRelevance<T>(
   getGroupName: (group: T) => string,
   getItems: (group: T) => Array<{ name: string }>,
 ): T[] {
-  if (!query.trim()) return groups
+  const search = compileExerciseSearch(query)
+  if (!search.normalized) return groups
+
+  const bestScore = (group: T) =>
+    getItems(group).reduce(
+      (best, exercise) => Math.max(best, scoreNormalizedExerciseName(exercise.name, search)),
+      0,
+    )
+
   return [...groups].sort((a, b) => {
-    const bestScore = (g: T) => Math.max(...getItems(g).map((e) => scoreExerciseSearch(e.name, query)))
     const scoreDiff = bestScore(b) - bestScore(a)
     if (scoreDiff !== 0) return scoreDiff
     return getGroupName(a).localeCompare(getGroupName(b))

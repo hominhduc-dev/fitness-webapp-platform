@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { Check, Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
 
@@ -11,7 +11,12 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { matchesExerciseSearch, sortByExerciseRelevance } from "@/lib/exercise-search"
+import {
+  compileExerciseSearch,
+  createExerciseSearchDocument,
+  matchesExerciseSearchDocument,
+  sortByExerciseRelevance,
+} from "@/lib/exercise-search"
 import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS } from "@/lib/fitness/muscle-profile"
 import { muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug } from "@/lib/types"
@@ -57,17 +62,22 @@ export function AddExerciseModal({
 }: AddExerciseModalProps) {
   const { locale, messages } = useLocale()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const exerciseById = useMemo(() => new Map(exercises.map((exercise) => [exercise.id, exercise])), [exercises])
   const handleClose = () => { setSelectedIds([]); onOpenChange?.(false); onClose?.(); }
-  const selectedExercises = selectedIds
-    .filter((id) => !existingVariationIds.includes(id))
-    .map((id) => exercises.find((exercise) => exercise.id === id))
-    .filter((exercise): exercise is ExerciseVariationOption => Boolean(exercise))
+  const selectedExercises = useMemo(
+    () => selectedIds
+      .filter((id) => !existingVariationIds.includes(id))
+      .map((id) => exerciseById.get(id))
+      .filter((exercise): exercise is ExerciseVariationOption => Boolean(exercise)),
+    [exerciseById, existingVariationIds, selectedIds],
+  )
   const confirmSelection = () => {
     if (loading || selectedExercises.length === 0) return
     onPickMany?.(selectedExercises)
     handleClose()
   }
   const [query, setQuery] = useState("")
+  const deferredQuery = useDeferredValue(query)
   const [muscle, setMuscle] = useState<"all" | MuscleSlug>("all")
   const [equipment, setEquipment] = useState("all")
   const [activityType, setActivityType] = useState<"all" | ExerciseActivityType>("all")
@@ -75,6 +85,20 @@ export function AddExerciseModal({
   const inputRef = useRef<HTMLInputElement>(null)
   const currentRef = useRef<HTMLButtonElement>(null)
   const existingSet = useMemo(() => new Set(existingVariationIds), [existingVariationIds])
+  const searchableExercises = useMemo(
+    () => exercises.map((exercise) => ({
+      document: createExerciseSearchDocument([
+        exercise.displayName,
+        exercise.name,
+        exercise.exerciseName,
+        exercise.variationName,
+        exercise.muscleGroup,
+        exercise.equipment,
+      ]),
+      exercise,
+    })),
+    [exercises],
+  )
   const filterCopy = locale === "vi"
     ? {
         activity: "Hoạt động",
@@ -115,26 +139,26 @@ export function AddExerciseModal({
   }, [exercises])
 
   const visible = useMemo(() => {
-    const filtered = exercises.filter((exercise) => {
+    const search = compileExerciseSearch(deferredQuery)
+    const filtered = searchableExercises.flatMap(({ document, exercise }) => {
       if (muscle !== "all") {
         const explicitMuscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
         const targetMuscles = explicitMuscles.length > 0
           ? explicitMuscles
           : muscleGroupToSlugs(exercise.muscleGroup)
-        if (!targetMuscles.includes(muscle)) return false
+        if (!targetMuscles.includes(muscle)) return []
       }
-      if (activityType !== "all" && exercise.activityType !== activityType) return false
+      if (activityType !== "all" && exercise.activityType !== activityType) return []
       if (equipment !== "all") {
-        if (equipment === NONE_EQUIPMENT) { if (exercise.equipment) return false }
-        else if (exercise.equipment !== equipment) return false
+        if (equipment === NONE_EQUIPMENT) { if (exercise.equipment) return [] }
+        else if (exercise.equipment !== equipment) return []
       }
-      return matchesExerciseSearch(
-        [exercise.displayName, exercise.name, exercise.exerciseName, exercise.variationName, exercise.muscleGroup, exercise.equipment],
-        query,
-      )
+      return matchesExerciseSearchDocument(document, search) ? [exercise] : []
     })
-    return sortByExerciseRelevance(filtered, query, (exercise) => exercise.displayName ?? exercise.name)
-  }, [activityType, exercises, muscle, equipment, query])
+    return sortByExerciseRelevance(filtered, deferredQuery, (exercise) => exercise.displayName ?? exercise.name)
+  }, [activityType, deferredQuery, equipment, muscle, searchableExercises])
+
+  const isSearchPending = query !== deferredQuery
 
   function toggleMuscle(slug: MapMuscleSlug) {
     if (!(MUSCLE_SLUGS as readonly string[]).includes(slug)) return
@@ -180,6 +204,7 @@ export function AddExerciseModal({
                 ref={inputRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                aria-busy={isSearchPending}
                 placeholder={messages.workoutPage.searchShortPlaceholder}
                 className="pl-9"
               />
@@ -223,6 +248,7 @@ export function AddExerciseModal({
                 // sits beside the pick button rather than inside it.
                 <div
                   key={exercise.id}
+                  style={{ contentVisibility: "auto", containIntrinsicSize: "64px" }}
                   className={cn(
                     "flex w-full items-center gap-3 pl-[22px] transition-colors",
                     index < visible.length - 1 && "border-b border-border",

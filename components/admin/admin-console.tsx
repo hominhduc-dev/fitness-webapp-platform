@@ -48,7 +48,6 @@ import type {
   ExerciseSyncPreview,
   ExerciseSyncRow,
 } from "@/lib/admin/types"
-import { matchesExerciseSearch, scoreExerciseSearch, sortGroupsByExerciseRelevance } from "@/lib/exercise-search"
 import { EXERCISE_ACTIVITY_TYPES, MUSCLE_SLUGS, parseActivityType, parseMuscleSlugs } from "@/lib/fitness/muscle-profile"
 import type { UserRole } from "@/lib/types"
 
@@ -79,13 +78,6 @@ type ExerciseImportIssue = {
 }
 
 type ExcelImportMode = "append" | "sync"
-
-type ExerciseGroupItem = {
-  exercises: AdminExerciseItem[]
-  groupKey: string
-  muscleGroup: string
-  totalUsageCount: number
-}
 
 const EXERCISE_IMPORT_HEADERS = {
   activityType: ["activity type", "activity_type", "exercise type", "exercise_type", "type", "loai hoat dong"],
@@ -199,11 +191,6 @@ function parseImportBoolean(value: unknown) {
 function parseImportNumber(value: unknown) {
   const numericValue = Number(value)
   return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : undefined
-}
-
-function getExerciseGroupKey(value?: string | null) {
-  const normalizedValue = value?.trim().toLowerCase()
-  return normalizedValue ? normalizedValue : "__other__"
 }
 
 function roleBadgeVariant(role: UserRole) {
@@ -560,11 +547,6 @@ export function AdminConsole() {
   const [requestStatusFilter, setRequestStatusFilter] = useState<AdminCoachRequest["status"] | "all">("all")
   const [connectionSearch, setConnectionSearch] = useState("")
   const [programSearch, setProgramSearch] = useState("")
-  // The exercise search box now lives in <AdminExercisesPanel>; the console only
-  // still needs the unfiltered grouping, so this stays a constant empty query.
-  const exerciseSearch = ""
-  // Only the setter is used — the effect below prunes keys for groups that scrolled out.
-  const [, setSelectedExerciseGroupKeys] = useState<string[]>([])
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
@@ -1559,10 +1541,6 @@ export function AdminConsole() {
           resetExerciseForm()
         }
 
-        setSelectedExerciseGroupKeys((currentKeys) =>
-          currentKeys.filter((groupKey) => groupKey !== getExerciseGroupKey(result.muscleGroup)),
-        )
-
         if (result.deletedCount === 0 && result.skippedCount > 0) {
           nextNotice =
             locale === "en"
@@ -1593,8 +1571,6 @@ export function AdminConsole() {
         if (exerciseForm.id && results.some((result) => result.deletedIds.includes(exerciseForm.id as string))) {
           resetExerciseForm()
         }
-
-        setSelectedExerciseGroupKeys([])
 
         if (deletedCount === 0 && skippedCount > 0) {
           nextNotice =
@@ -1654,79 +1630,6 @@ export function AdminConsole() {
   const filteredPrograms = programs.filter((program) =>
     matchesSearch([program.name, program.description, program.createdBy.name, program.createdBy.email], programSearch),
   )
-
-  const filteredExercises = exercises.filter((exercise) =>
-    matchesExerciseSearch(
-      [exercise.name, exercise.variationName, exercise.muscleGroup, exercise.equipment, exercise.createdBy?.name],
-      exerciseSearch,
-    ),
-  )
-  const groupedExercisesMap = new Map<string, ExerciseGroupItem>()
-  const sortedExercises = [...filteredExercises].sort((left, right) => {
-    const language = locale === "vi" ? "vi" : "en"
-
-    if (exerciseSearch.trim()) {
-      const scoreDiff = scoreExerciseSearch(right.name, exerciseSearch) - scoreExerciseSearch(left.name, exerciseSearch)
-      if (scoreDiff !== 0) return scoreDiff
-    }
-
-    const groupComparison = left.muscleGroup.localeCompare(right.muscleGroup, language, { sensitivity: "base" })
-
-    if (groupComparison !== 0) {
-      return groupComparison
-    }
-
-    const nameComparison = left.name.localeCompare(right.name, language, { sensitivity: "base" })
-
-    if (nameComparison !== 0) {
-      return nameComparison
-    }
-
-    const defaultComparison = Number(right.isDefault) - Number(left.isDefault)
-
-    if (defaultComparison !== 0) {
-      return defaultComparison
-    }
-
-    return left.variationName.localeCompare(right.variationName, language, { sensitivity: "base" })
-  })
-
-  for (const exercise of sortedExercises) {
-    const muscleGroup = exercise.muscleGroup.trim() || (locale === "en" ? "Other" : "Khác")
-    const groupKey = getExerciseGroupKey(muscleGroup)
-    const existingGroup = groupedExercisesMap.get(groupKey)
-
-    if (existingGroup) {
-      existingGroup.exercises.push(exercise)
-      existingGroup.totalUsageCount += exercise.usageCount
-      continue
-    }
-
-    groupedExercisesMap.set(groupKey, {
-      exercises: [exercise],
-      groupKey,
-      muscleGroup,
-      totalUsageCount: exercise.usageCount,
-    })
-  }
-
-  const groupedExercises = sortGroupsByExerciseRelevance(
-    Array.from(groupedExercisesMap.values()),
-    exerciseSearch,
-    (g) => g.muscleGroup,
-    (g) => g.exercises,
-  )
-  const visibleExerciseGroupKeys = groupedExercises.map((group) => group.groupKey)
-  const visibleExerciseGroupKeySignature = visibleExerciseGroupKeys.join("|")
-
-  useEffect(() => {
-    const visibleGroupKeySet = new Set(visibleExerciseGroupKeys)
-
-    setSelectedExerciseGroupKeys((currentKeys) => {
-      const nextKeys = currentKeys.filter((groupKey) => visibleGroupKeySet.has(groupKey))
-      return nextKeys.length === currentKeys.length ? currentKeys : nextKeys
-    })
-  }, [visibleExerciseGroupKeySignature])
 
   const filteredAuditLogs = auditLogs.filter((log) => {
     const matchesEntityType = auditEntityType === "all" ? true : log.entityType === auditEntityType
@@ -2573,5 +2476,3 @@ export function AdminConsole() {
     </>
   )
 }
-
-
