@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 function CoachCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="p-6">
         <div className="mb-4 flex items-start gap-4">
           <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
@@ -14,8 +14,8 @@ function CoachCardSkeleton() {
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-4">
-          <Skeleton className="h-[62px] rounded-lg" />
-          <Skeleton className="h-[62px] rounded-lg" />
+          <Skeleton className="h-[62px] rounded-xl" />
+          <Skeleton className="h-[62px] rounded-xl" />
         </div>
 
         <div className="flex gap-1">
@@ -26,7 +26,7 @@ function CoachCardSkeleton() {
       </div>
 
       <div className="border-t border-border bg-muted/30 p-4">
-        <Skeleton className="h-10 w-full rounded-md" />
+        <Skeleton className="h-10 w-full rounded-xl" />
       </div>
     </div>
   )
@@ -40,14 +40,14 @@ export default function Loading() {
         <Skeleton className="h-4 w-full max-w-xl" />
       </div>
 
-      <Skeleton className="mb-6 h-10 w-full rounded-md" />
+      <Skeleton className="mb-6 h-10 w-full rounded-xl" />
 
-      <div className="mb-8 rounded-xl border border-primary/30 bg-primary/5 p-6">
+      <div className="mb-8 rounded-2xl border border-primary/30 bg-primary/5 p-6">
         <Skeleton className="h-6 w-40" />
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {Array.from({ length: 3 }, (_, index) => (
             <div key={index} className="flex items-start gap-3">
-              <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+              <Skeleton className="h-8 w-8 shrink-0 rounded-xl" />
               <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-4 w-32 max-w-full" />
                 <Skeleton className="h-3.5 w-full" />
