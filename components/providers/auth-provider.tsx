@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { fetchCurrentProfile } from "@/lib/auth/api"
 import type { AppProfile, UpdateProfileInput, UploadAvatarInput } from "@/lib/auth/types"
-import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
+import { getOptionalBrowserSupabaseClient, hasStoredSupabaseSession } from "@/lib/supabase/client"
 import { useCurrentProfile, useUpdateProfile, useUploadAvatar } from "@/lib/queries/profile"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { queryKeys } from "@/lib/queries/keys"
@@ -30,10 +30,16 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 /**
  * An access token that expired while offline cannot be refreshed, so Supabase
- * reports no session. Without network that is not a sign-out.
+ * reports no session. That is not a sign-out.
+ *
+ * The signal is Supabase's own cookie rather than `navigator.onLine`: signing
+ * out deletes the cookie, while a failed refresh leaves it in place. Wi-Fi that
+ * is connected but cannot reach the internet — a gym's captive portal, a dead
+ * uplink — still reports `onLine === true`, and mid-workout that reported the
+ * trainee as signed out.
  */
 function isOfflineAuthGap(session: Session | null, initialProfile: AppProfile | null) {
-  return !session && Boolean(initialProfile) && typeof navigator !== "undefined" && navigator.onLine === false
+  return !session && Boolean(initialProfile) && hasStoredSupabaseSession()
 }
 
 export function AuthProvider({
@@ -59,8 +65,10 @@ export function AuthProvider({
   const syncProfile = useCallback(async function syncProfile(nextSession: Session | null) {
     const account = nextSession?.user.id ?? null
     if (accountRef.current !== account) {
-      // A first sign-in (no previous account) keeps what was cached offline for it.
-      if (accountRef.current) void clearOfflineUserData()
+      // A first sign-in (no previous account) keeps what was cached offline for
+      // it, and so does a session that merely went missing: `signOut()` clears
+      // this data itself, so only an actual switch to another account may.
+      if (accountRef.current && account) void clearOfflineUserData()
       accountRef.current = account
       revisionRef.current += 1
       queryClient.clear()
@@ -202,10 +210,14 @@ export function AuthProvider({
       }
 
       // Do not enter Supabase getSession from inside its auth callback lock.
-      if (accountRef.current !== (nextSession?.user.id ?? null)) {
-        if (accountRef.current) void clearOfflineUserData()
+      const nextAccount = nextSession?.user.id ?? null
+      if (accountRef.current !== nextAccount) {
+        // Same rule as syncProfile: only another account may drop this user's
+        // offline copies. A null session here can be a refresh that could not
+        // reach Supabase, and wiping would take the in-progress session with it.
+        if (accountRef.current && nextAccount) void clearOfflineUserData()
         revisionRef.current += 1
-        accountRef.current = nextSession?.user.id ?? null
+        accountRef.current = nextAccount
         queryClient.clear()
         setProfile(null)
       }

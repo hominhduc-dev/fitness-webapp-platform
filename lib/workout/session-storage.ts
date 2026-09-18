@@ -24,6 +24,13 @@ export type StoredWorkoutSession = {
   schemaVersion?: number
   startedAt: string
   /**
+   * When this copy was written locally. The localStorage mirror and the
+   * IndexedDB draft are written from the same effect, the first synchronously
+   * and the second not, so a process killed in between leaves them one edit
+   * apart; the stamp is how the survivor is chosen on the next launch.
+   */
+  updatedAt?: string
+  /**
    * Server `updatedAt` of the last successful draft sync. A local copy that was synced
    * but has no server draft anymore was cancelled/finished on another device; a copy
    * without it has never reached the server (offline) and must be kept.
@@ -97,16 +104,42 @@ export function readStoredWorkoutSession(workoutId: string): StoredWorkoutSessio
     const schemaVersion = isFiniteNumber(parsed.schemaVersion) ? parsed.schemaVersion : undefined
     const startedAt = typeof parsed.startedAt === "string" ? parsed.startedAt : new Date().toISOString()
     const syncedAt = typeof parsed.syncedAt === "string" ? parsed.syncedAt : undefined
+    const updatedAt = typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined
     const workoutName = typeof parsed.workoutName === "string" ? parsed.workoutName : undefined
     const exercises = sanitizeStoredWorkoutExercises(parsed.exercises)
     const deletedSetIds = Array.isArray(parsed.deletedSetIds)
       ? [...new Set<string>(parsed.deletedSetIds.filter((id: unknown): id is string => typeof id === "string"))]
       : []
-    return { currentExerciseIndex, deletedSetIds, exercises, schemaVersion, startedAt, syncedAt, workoutName }
+    return { currentExerciseIndex, deletedSetIds, exercises, schemaVersion, startedAt, syncedAt, updatedAt, workoutName }
   } catch {
     window.localStorage.removeItem(key)
     return null
   }
+}
+
+/**
+ * The most recently written of two copies of one session.
+ *
+ * Restoring used to take the queued IndexedDB draft unconditionally. That draft
+ * is written asynchronously right after the synchronous localStorage mirror, so
+ * an app killed between the two writes came back one set short.
+ */
+export function pickNewerStoredWorkoutSession(
+  primary: StoredWorkoutSession | null | undefined,
+  secondary: StoredWorkoutSession | null | undefined,
+): StoredWorkoutSession | null {
+  if (!primary) return secondary ?? null
+  if (!secondary) return primary
+  // Two different runs of the same workout are not two copies of one session.
+  if (primary.startedAt !== secondary.startedAt) return primary
+
+  const primaryAt = Date.parse(primary.updatedAt ?? "")
+  const secondaryAt = Date.parse(secondary.updatedAt ?? "")
+  // A copy written before this field existed carries no stamp; keep the
+  // established precedence rather than guess which came first.
+  if (!Number.isFinite(secondaryAt)) return primary
+  if (!Number.isFinite(primaryAt)) return secondary
+  return secondaryAt > primaryAt ? secondary : primary
 }
 
 export function clearStoredWorkoutSession(workoutId: string) {

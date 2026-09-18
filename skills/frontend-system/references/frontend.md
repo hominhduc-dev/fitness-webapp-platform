@@ -126,6 +126,8 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 - Dùng `Suspense` quanh phần fetch chậm, không quanh toàn shell.
 - Route có `loading.tsx` dùng skeleton/shared `PageLoadingState`.
 - Skeleton phải gần kích thước layout thật để tránh CLS.
+- Hai boundary khởi động (`app/loading.tsx`, `app/(shell)/loading.tsx`) dùng `AppSplash` — chỉ wordmark tĩnh, **không** progress bar. Splash lấy màu từ theme (`bg-background`) vì nó bàn giao thẳng sang app không có transition; canvas tối cố định sẽ nháy trên theme sáng.
+- `.page-loading-bar` chỉ còn dùng trong skeleton cấp route (`PageLoadingState`, `WorkoutSessionLoadingState`), không dùng cho cold start.
 
 ## 4. Data flow và state
 
@@ -181,7 +183,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 |---|---|
 | `components/ui` | Primitive dùng chung: button, input, dialog, bottom sheet, select, tabs, glass filters |
 | `components/providers` | Theme, locale, auth và provider composition |
-| `components/layout` | Sidebar, mobile nav, account menu, loading shell, theme/language controls |
+| `components/layout` | Sidebar, mobile nav, account menu, splash/loading shell, theme/language controls |
 | `components/dashboard` | Dashboard cards, quick actions, nutrition, recent activity |
 | `components/workout` | Routine board/builder, session resume, logs/export |
 | `components/schedule` | Weekly calendar và schedule dialogs |
@@ -465,6 +467,10 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 - App icons sinh bằng `npm run icons`.
 - `ServiceWorkerRegistrar` đăng ký `public/sw.js`; push permission chỉ được hỏi từ thao tác bật switch của người dùng.
 - Shell trainee idle-prefetch workout collection rồi chuẩn bị offline cho session đang active, workout hiệu lực hôm nay và session chưa hoàn thành kế tiếp: detail được seed vào TanStack Query, full logger snapshot nằm trong IndexedDB và exact `/workout/[id]/start` page shell được Service Worker warm. Offline Start/Resume dùng document navigation để worker phục vụ shell; logger ghi draft/log vào queue và tự sync khi online/foreground.
+- `OfflineRouteWarmer` (mount trong `AppProviders`) warm tuần tự 6 route trainee (`/dashboard`, `/workout`, `/schedule`, `/meals`, `/progress`, `/trackweight`) lúc idle mỗi lần khởi động và khi có mạng trở lại. Bắt buộc: điều hướng bằng `<Link>` chỉ fetch RSC payload nên worker không bao giờ thấy document để cache — route nằm trong `OFFLINE_PAGE_PREFIXES` vẫn vô dụng nếu không được warm.
+- `start_url` là `/`, mà `/` là redirect phía server nên không bao giờ cache được. Khi offline, worker trả một document bounce (`location.replace` + meta refresh) sang `/dashboard` nếu trang đó có trong cache. Không dùng 3xx: navigation request mang `redirect: "manual"`, trả redirect response sẽ thành fetch error.
+- Session đang tập được ghi hai nơi: localStorage (đồng bộ) và IndexedDB draft (bất đồng bộ). Khi khôi phục phải so `updatedAt` qua `pickNewerStoredWorkoutSession`, vì app bị kill giữa hai lệnh ghi sẽ để IndexedDB chậm một nhịp.
+- Session Supabase mất không đồng nghĩa đăng xuất: dùng `hasStoredSupabaseSession()` (cookie `sb-*-auth-token`) chứ không dùng `navigator.onLine` — wifi có sóng nhưng chết uplink vẫn báo `true`. `clearOfflineUserData()` chỉ được chạy khi thực sự đổi sang account khác hoặc khi `signOut()` gọi tường minh.
 - `PushSubscriptionAccountSync` rebind endpoint hiện có theo account + locale sau đăng nhập và khi Service Worker báo subscription đổi. Logout revoke ownership trên backend trước khi xóa Supabase session, nhưng giữ browser endpoint để account kế tiếp có thể rebind an toàn.
 - iOS/iPadOS chỉ hỗ trợ push khi chạy từ Home Screen. `lib/pwa/push-support.ts` phân biệt `ios_install_required` với browser thật sự không hỗ trợ để Settings hiển thị hướng dẫn đúng ngữ cảnh.
 - Push copy dùng locale lưu theo từng subscription; Service Worker cập nhật app badge từ unread count. Notification bell đồng bộ lại badge khi mark read/all-read.
@@ -549,6 +555,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Login/session/profile | auth component/provider | `lib/auth/*`, Supabase client/server |
 | Copy/ngôn ngữ | domain file trong `lib/i18n/messages` | locale provider/server |
 | Metadata/PWA/font | `app/layout.tsx` | manifest, icon script |
+| Splash/màn hình khởi động | `components/layout/app-splash.tsx` | `app/loading.tsx`, `app/(shell)/loading.tsx` |
 | API URL/proxy | `lib/supabase/config.ts` | `next.config.mjs`, domain API helper |
 
 ## 14. Checklist thay đổi frontend

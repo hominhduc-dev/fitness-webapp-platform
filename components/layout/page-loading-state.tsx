@@ -1,86 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { BrandLogo } from "@/components/ui/brand-logo"
 import { cn } from "@/lib/utils"
 
 type PageLoadingStateProps = {
   className?: string
   maxWidthClassName?: string
   showMetrics?: boolean
-}
-
-type AppLoadingScreenProps = {
-  className?: string
-  fullScreen?: boolean
-  variant?: "workspace" | "minimal"
-  label?: string
-}
-
-export function AppLoadingScreen({
-  className,
-  fullScreen = true,
-  variant = "workspace",
-  label,
-}: AppLoadingScreenProps) {
-  const isMinimal = variant === "minimal"
-  // No locale provider exists above a loading boundary, so callers pass the
-  // localized label in; the English default is only a last resort.
-  const displayLabel = label ?? (isMinimal ? "Loading" : "Loading workspace")
-
-  return (
-    <div
-      className={cn(
-        "flex w-full items-center justify-center bg-background px-4 text-foreground",
-        fullScreen
-          ? "min-h-[100dvh] pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(2rem+env(safe-area-inset-top))]"
-          : "min-h-[calc(100dvh-4rem)] py-10",
-        className,
-      )}
-    >
-      <div className={cn("w-full", isMinimal ? "max-w-[280px]" : "max-w-[440px]")}>
-        <div className={cn("flex items-center justify-center gap-2.5", isMinimal ? "mb-6" : "mb-8")}>
-          <BrandLogo markClassName="size-9 rounded-none" textClassName="text-2xl leading-none" />
-        </div>
-
-        <div className={cn("h-1 overflow-hidden rounded-full bg-primary-soft", isMinimal ? "mb-4" : "mb-5")}>
-          <div className="page-loading-bar h-full w-28 rounded-full" />
-        </div>
-
-        {!isMinimal && (
-          <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--glass-shadow)]">
-            <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-36" />
-                <Skeleton className="h-3.5 w-52 max-w-[58vw]" />
-              </div>
-              <Skeleton className="h-10 w-10 rounded-lg" />
-            </div>
-
-            <div className="space-y-3 pt-4">
-              {Array.from({ length: 3 }, (_, index) => (
-                <div key={index} className="grid grid-cols-[36px_1fr_54px] items-center gap-3">
-                  <Skeleton className="h-9 w-9 rounded-lg" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                  <Skeleton className="h-8 w-full rounded-lg" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <p
-          className={cn(
-            "text-center font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground",
-            isMinimal ? "mt-2" : "mt-5",
-          )}
-        >
-          {displayLabel}
-        </p>
-      </div>
-    </div>
-  )
 }
 
 export function PageLoadingState({

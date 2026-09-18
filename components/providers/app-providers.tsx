@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 
+import { OfflineRouteWarmer } from "@/components/offline/offline-route-warmer"
 import { OfflineSyncManager } from "@/components/offline/offline-sync-manager"
 import { PushSubscriptionAccountSync } from "@/components/pwa/push-subscription-account-sync"
 import { AuthProvider } from "@/components/providers/auth-provider"
@@ -40,6 +41,7 @@ export function AppProviders({
             {withAuth ? (
               <AuthProvider initialProfile={initialProfile}>
                 <OfflineSyncManager />
+                <OfflineRouteWarmer />
                 <PushSubscriptionAccountSync />
                 {children}
               </AuthProvider>

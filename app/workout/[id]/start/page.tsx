@@ -64,6 +64,7 @@ import {
   WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
   clearStoredWorkoutSession,
   getWorkoutSessionStorageKey,
+  pickNewerStoredWorkoutSession,
   readStoredWorkoutSession,
   type StoredWorkoutSession,
 } from "@/lib/workout/session-storage"
@@ -163,6 +164,7 @@ function createStoredWorkoutSession(
     })),
     schemaVersion: WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
     startedAt: startedAt.toISOString(),
+    updatedAt: new Date().toISOString(),
     workoutName,
   }
 }
@@ -1079,10 +1081,15 @@ function WorkoutSession() {
   // ── Load workout ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (workout || !workoutSeed || isRefreshingSeed || !isDraftResolved) return
-    // Unsent local state > server draft > this tab's localStorage mirror.
+    // Unsent local state > server draft > this tab's localStorage mirror. The
+    // mirror is written synchronously and the queued draft is not, so when both
+    // describe this run the newer of the two wins rather than the queued one.
+    const localMirror = workoutSeed.id ? readStoredWorkoutSession(workoutSeed.id) : null
     const storedSession = unsyncedDraft === "deleted"
       ? null
-      : unsyncedDraft ?? draftQuery.data ?? (workoutSeed.id ? readStoredWorkoutSession(workoutSeed.id) : null)
+      : unsyncedDraft
+        ? pickNewerStoredWorkoutSession(unsyncedDraft, localMirror)
+        : draftQuery.data ?? localMirror
     const nextWorkout = buildSessionSeed(workoutSeed, storedSession)
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
     deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
