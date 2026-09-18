@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ChevronDown, LogOut, Settings, User, X } from "lucide-react"
+import { LogOut, Settings, User, X } from "lucide-react"
 import { Fragment, Suspense, useEffect, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
@@ -118,6 +118,50 @@ function MobileNavLinks(props: { items: ShellNavItem[]; onSelect: () => void; op
   return <MobileNavLinkList {...props} section={searchParams.get("s")} />
 }
 
+function MobileHeaderTitle({
+  badge,
+  items,
+  pathname,
+  subtitle,
+}: {
+  badge?: string
+  items: ShellNavItem[]
+  pathname: string
+  subtitle: string
+}) {
+  const searchParams = useSearchParams()
+  const section = searchParams.get("s")
+  const activeItem = items.find((item) => isNavItemActive(pathname, item, section))
+
+  return (
+    <div className="min-w-0 pt-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <h1 className="truncate text-base font-semibold leading-tight text-foreground">
+          {activeItem?.label ?? "YeahBuddy"}
+        </h1>
+        {badge ? (
+          <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] text-primary">
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">
+        {subtitle}
+      </p>
+    </div>
+  )
+}
+
+function initials(name: string | null | undefined) {
+  return (name ?? "")
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+}
+
 /* ------------------------------------------------------------------ */
 export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   const { messages } = useLocale()
@@ -172,6 +216,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         : getTraineeNavItems(messages)
 
   const badge = ROLE_BADGE[role]
+  const profileName = profile?.name ?? profile?.email ?? "YeahBuddy"
   // The trainee nav keeps Weekly Schedule in the center under the shorter
   // product label "Routine" so the five mobile destinations stay stable.
   const primaryItems = role === "trainee"
@@ -214,38 +259,48 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
       {/* Pinned: the page scrolls under it, so the account menu and the
           notification bell stay reachable without scrolling back up. */}
       <header className={cn(
-        "sticky top-0 z-40 bg-background/80 px-4 pb-2 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xl md:hidden",
+        "sticky top-0 z-40 bg-background px-3 pb-2 pt-[calc(0.45rem+env(safe-area-inset-top))] md:hidden",
         role === "trainee" && pathname === "/dashboard" && "hidden",
       )}>
-        <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-3">
-          <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"} className="flex min-w-0 items-center gap-2">
-            <BrandLogo markClassName="size-8 rounded-none" textClassName="text-xl" />
-            {badge ? (
-              <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] text-primary">
-                {badge}
-              </span>
-            ) : null}
-          </Link>
-          <div className="ml-auto flex items-center gap-1">
-            {/* Offline / sync state for queued workout logs; empty when all is sent. */}
-            <SyncStatusBadge />
-            <NotificationBell />
+        <div className="mx-auto flex min-h-[3.75rem] w-full max-w-[96rem] items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start gap-2">
             <button
               type="button"
               aria-label={open ? messages.common.closeNavigation : messages.common.openNavigation}
               aria-controls="mobile-more-navigation"
               aria-expanded={open}
               onClick={() => setOpen((value) => !value)}
-              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Avatar className="size-10 border border-border">
-                {profile?.avatar ? <AvatarImage src={profile.avatar} alt="" className="object-cover" /> : null}
-                <AvatarFallback className="bg-primary-soft text-primary">
-                  <User className="size-4" strokeWidth={1.7} aria-hidden="true" />
+              <Avatar className="size-11 border border-border bg-muted">
+                {profile?.avatar ? <AvatarImage src={profile.avatar} alt={profileName} className="object-cover" /> : null}
+                <AvatarFallback className="bg-muted text-sm font-semibold text-foreground">
+                  {initials(profileName) || <User className="size-5" strokeWidth={1.7} aria-hidden="true" />}
                 </AvatarFallback>
               </Avatar>
-              <ChevronDown className={cn("size-4 text-foreground transition-transform", open && "rotate-180")} aria-hidden="true" />
             </button>
+            <Suspense
+              fallback={(
+                <div className="min-w-0">
+                  <h1 className="truncate text-base font-semibold leading-tight text-foreground">YeahBuddy</h1>
+                  <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{messages.dashboard.welcomeBack}</p>
+                </div>
+              )}
+            >
+              <MobileHeaderTitle
+                badge={badge}
+                items={navItems}
+                pathname={pathname}
+                subtitle={messages.dashboard.welcomeBack}
+              />
+            </Suspense>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <SyncStatusBadge />
+            <NotificationBell
+              className="size-10 bg-transparent text-foreground hover:bg-muted/40 [&_svg]:size-6"
+              side="bottom"
+            />
           </div>
         </div>
       </header>
