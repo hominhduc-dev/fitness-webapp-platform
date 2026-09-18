@@ -1508,6 +1508,13 @@ aside.glass-surface::after {
   background-size: 100vw 100vh;
 }
 
+@media (max-width: 767px) {
+  main.flex-1.overflow-auto > :is(div, main, section).mx-auto[class*="py-6"],
+  main.flex-1.overflow-auto > .relative > :is(div, main, section).mx-auto[class*="py-6"] {
+    padding-top: 0.5rem;
+  }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .glass-surface,
   .glass-card,
