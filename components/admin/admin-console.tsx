@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SkeletonCard } from "@/components/layout/trainee-loading-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -445,17 +446,17 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {Array.from({ length: 5 }, (_, index) => (
-          <div key={index} className="rounded-lg border border-border bg-card p-5">
+          <SkeletonCard key={index} className="p-5">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-3 h-9 w-28" />
             <Skeleton className="mt-2 h-4 w-36" />
-          </div>
+          </SkeletonCard>
         ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
         {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="rounded-lg border border-border bg-card p-4">
+          <SkeletonCard key={index} className="p-4">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="mt-2 h-4 w-48 max-w-full" />
             <div className="mt-6 flex h-44 items-end gap-2">
@@ -467,7 +468,7 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
                 </div>
               ))}
             </div>
-          </div>
+          </SkeletonCard>
         ))}
       </div>
 

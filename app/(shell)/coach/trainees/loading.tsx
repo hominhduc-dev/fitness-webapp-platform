@@ -21,7 +21,7 @@ export default function Loading() {
           <Skeleton className="h-7 w-32" />
           <Skeleton className="h-3 w-20" />
         </div>
-        <Skeleton className="mb-3 h-10 w-full rounded-md" />
+        <Skeleton className="mb-3 h-10 w-full rounded-xl" />
         <div className="flex gap-1.5 overflow-hidden pb-0.5">
           {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-8 w-20 shrink-0 rounded-full" />)}
         </div>

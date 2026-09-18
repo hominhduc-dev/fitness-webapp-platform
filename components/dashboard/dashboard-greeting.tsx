@@ -176,13 +176,18 @@ export function DashboardGreeting({
 
       <div className="hidden items-start justify-between gap-4 md:flex">
         <div className="min-w-0 flex-1">
-        <div className="hidden min-w-0 md:block">
           <h1 className="text-2xl font-semibold leading-tight text-foreground">
             {period ? copy.greeting[period] : copy.welcomeBack}, {firstName}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">{copy.motto}</p>
         </div>
-
+        <div className="flex shrink-0 items-center">
+          <Link
+            href="/progress"
+            className="inline-flex h-8 items-center rounded-full border border-primary/25 bg-primary-soft px-4 text-sm font-semibold leading-none text-primary transition-colors hover:bg-primary/15"
+          >
+            {copy.weekStreak(streakWeeks)}
+          </Link>
         </div>
       </div>
     </section>

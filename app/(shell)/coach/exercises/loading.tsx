@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 function ExerciseGroupSkeleton({ open = false }: { open?: boolean }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex h-[52px] items-center gap-2.5 px-4 py-3">
         <Skeleton className="h-4 w-4 rounded" />
         <Skeleton className="h-4 w-32" />
@@ -41,15 +41,15 @@ export default function Loading() {
       <div className="space-y-5">
         <div className="flex flex-wrap gap-2">
           {Array.from({ length: 3 }, (_, index) => (
-            <Skeleton key={index} className="h-10 w-36 rounded-md" />
+            <Skeleton key={index} className="h-10 w-36 rounded-xl" />
           ))}
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px_140px]">
-          <Skeleton className="h-10 w-full rounded-md" />
-          <Skeleton className="h-10 w-full rounded-md" />
-          <Skeleton className="h-10 w-full rounded-md" />
-          <Skeleton className="h-10 w-full rounded-md" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+          <Skeleton className="h-10 w-full rounded-xl" />
         </div>
 
         <div className="flex flex-col gap-2.5">

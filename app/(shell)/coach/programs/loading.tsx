@@ -1,26 +1,27 @@
+import { SkeletonCard } from "@/components/layout/trainee-loading-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 
 function ProgramCardSkeleton() {
   return (
-    <div className="flex min-h-[276px] flex-col gap-3.5 rounded-lg border border-border bg-card p-5">
+    <SkeletonCard className="flex min-h-[276px] flex-col gap-3.5 p-5">
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1 space-y-2">
           <Skeleton className="h-5 w-44 max-w-full" />
           <Skeleton className="h-3 w-32" />
         </div>
-        <Skeleton className="h-8 w-8 rounded-md" />
+        <Skeleton className="h-8 w-8 rounded-xl" />
       </div>
       <div className="space-y-2">
         <Skeleton className="h-3.5 w-full" />
         <Skeleton className="h-3.5 w-4/5" />
       </div>
-      <Skeleton className="min-h-12 w-full rounded-md" />
+      <Skeleton className="min-h-12 w-full rounded-xl" />
       <div className="flex gap-2">
-        <Skeleton className="h-10 flex-1 rounded-md" />
-        <Skeleton className="h-10 w-20 rounded-md" />
+        <Skeleton className="h-10 flex-1 rounded-xl" />
+        <Skeleton className="h-10 w-20 rounded-xl" />
       </div>
       <Skeleton className="h-3 w-28" />
-    </div>
+    </SkeletonCard>
   )
 }
 
@@ -34,9 +35,9 @@ export default function Loading() {
           <Skeleton className="h-4 w-72 max-w-full" />
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <Skeleton className="h-10 w-full rounded-md sm:w-32" />
-          <Skeleton className="h-10 w-full rounded-md sm:w-36" />
-          <Skeleton className="h-10 w-full rounded-md sm:w-32" />
+          <Skeleton className="h-10 w-full rounded-xl sm:w-32" />
+          <Skeleton className="h-10 w-full rounded-xl sm:w-36" />
+          <Skeleton className="h-10 w-full rounded-xl sm:w-32" />
         </div>
       </div>
 
