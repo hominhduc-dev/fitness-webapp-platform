@@ -1,27 +1,18 @@
 import "dotenv/config"
 
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
-import { basename, dirname, extname, join, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
+import { mkdir, writeFile } from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
 
 import { Prisma, PrismaClient } from "@prisma/client"
 import xlsx from "xlsx"
 
-import { env } from "../config/env"
 import {
-  EXERCISE_MEDIA_BUCKET,
   EXTERNAL_SOURCE_METADATA_KEY,
-  publicObjectUrl,
   readExternalSourceMetadata,
 } from "../lib/exercise-media"
 import {
-  EXERCISE_MEDIA_UPLOAD_CONCURRENCY,
-  EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
   assertMediaUploadFlags,
-  ensureExerciseMediaBucket,
-  uploadWithRetry,
 } from "../lib/exercise-media-upload"
-import { supabaseAdmin } from "../lib/supabase"
 
 type WorkbookRow = {
   Image?: string
@@ -60,13 +51,6 @@ type PlannedUpdate = {
   targetExerciseName: string
   targetVariationName: string
   variationId: string
-}
-
-type UploadedMedia = {
-  animationObjectPath: string
-  animationUrl: string
-  thumbnailObjectPath: string
-  thumbnailUrl: string
 }
 
 type CliOptions = {
@@ -247,20 +231,12 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function buildMetadata(existingMetadata: Prisma.JsonValue | null, row: NormalizedRow, uploadedMedia?: UploadedMedia) {
+function buildMetadata(existingMetadata: Prisma.JsonValue | null, row: NormalizedRow) {
   const existing = asRecord(existingMetadata)
-  const animationUrl = uploadedMedia?.animationUrl ?? row.animationUrl
-  const thumbnailUrl = uploadedMedia?.thumbnailUrl ?? row.thumbnailUrl
   const media: Record<string, Prisma.InputJsonValue> = {
     animationType: "video",
-    animationUrl,
-    thumbnailUrl,
-  }
-  if (uploadedMedia) {
-    media.animationObjectPath = uploadedMedia.animationObjectPath
-    media.sourceAnimationUrl = row.animationUrl
-    media.sourceThumbnailUrl = row.thumbnailUrl
-    media.thumbnailObjectPath = uploadedMedia.thumbnailObjectPath
+    animationUrl: row.animationUrl,
+    thumbnailUrl: row.thumbnailUrl,
   }
   if (row.localAnimationUrl) media.localAnimationUrl = row.localAnimationUrl
   if (row.localThumbnailUrl) media.localThumbnailUrl = row.localThumbnailUrl
@@ -368,111 +344,9 @@ function buildPlan(rows: NormalizedRow[], variations: VariationRecord[]) {
   return { conflicts, unmatched, updates }
 }
 
-function localPathFromUrl(value: string | undefined, label: string, row: NormalizedRow) {
-  if (!value) throw new Error(`Missing ${label} for workbook row ${row.rowNumber} (${row.exerciseId}).`)
-  try {
-    const url = new URL(value)
-    if (url.protocol === "file:") return fileURLToPath(url)
-  } catch {
-    return resolve(value)
-  }
-  throw new Error(`Unsupported ${label} URL for workbook row ${row.rowNumber}: ${value}`)
-}
-
-function extensionForPath(path: string, fallback: string) {
-  const extension = extname(path).toLowerCase()
-  return extension || fallback
-}
-
-function requireSupabaseUrl() {
-  if (!env.supabaseUrl) throw new Error("SUPABASE_URL is required to build Storage public URLs.")
-  return env.supabaseUrl
-}
-
-function buildUploadedMedia(row: NormalizedRow, imagePath: string, videoPath: string): UploadedMedia {
-  const supabaseUrl = requireSupabaseUrl()
-  const imageObjectPath = `external/images/${row.exerciseId}${extensionForPath(imagePath, ".jpg")}`
-  const videoObjectPath = `external/videos/${row.exerciseId}${extensionForPath(videoPath, ".mp4")}`
-  return {
-    animationObjectPath: videoObjectPath,
-    animationUrl: publicObjectUrl(supabaseUrl, videoObjectPath),
-    thumbnailObjectPath: imageObjectPath,
-    thumbnailUrl: publicObjectUrl(supabaseUrl, imageObjectPath),
-  }
-}
-
-async function readMediaFile(path: string, row: NormalizedRow, label: string) {
-  const fileStat = await stat(path)
-  if (!fileStat.isFile()) throw new Error(`${label} is not a file for workbook row ${row.rowNumber}: ${path}`)
-  if (fileStat.size > EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE) {
-    throw new Error(`${label} exceeds ${EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE} bytes for workbook row ${row.rowNumber}: ${path}`)
-  }
-  return readFile(path)
-}
-
 async function uploadMatchedMedia(updates: PlannedUpdate[]) {
-  if (!supabaseAdmin) throw new Error("Supabase service-role client is not configured.")
-  await ensureExerciseMediaBucket()
-
-  const bucket = supabaseAdmin.storage.from(EXERCISE_MEDIA_BUCKET)
-  const uploadedMediaByExerciseId = new Map<string, UploadedMedia>()
-  const entries = updates.flatMap((update) => {
-    const row = update.row
-    const imagePath = localPathFromUrl(row.localThumbnailUrl, "local_image_url", row)
-    const videoPath = localPathFromUrl(row.localAnimationUrl, "local_video_url", row)
-    const uploadedMedia = buildUploadedMedia(row, imagePath, videoPath)
-    uploadedMediaByExerciseId.set(row.exerciseId, uploadedMedia)
-    return [
-      {
-        contentType: "image/jpeg" as const,
-        label: "thumbnail",
-        localPath: imagePath,
-        objectPath: uploadedMedia.thumbnailObjectPath,
-        row,
-      },
-      {
-        contentType: "video/mp4" as const,
-        label: "animation",
-        localPath: videoPath,
-        objectPath: uploadedMedia.animationObjectPath,
-        row,
-      },
-    ]
-  })
-
-  let cursor = 0
-  let uploaded = 0
-  let skipped = 0
-
-  async function worker() {
-    while (cursor < entries.length) {
-      const entry = entries[cursor++]
-      const buffer = await readMediaFile(entry.localPath, entry.row, `${entry.label} ${basename(entry.localPath)}`)
-      const result = await uploadWithRetry(() => bucket.upload(entry.objectPath, buffer, {
-        cacheControl: "31536000",
-        contentType: entry.contentType,
-        upsert: false,
-      }))
-      if (result === "uploaded") uploaded += 1
-      else skipped += 1
-      const processed = uploaded + skipped
-      if (processed % 25 === 0 || processed === entries.length) {
-        console.error(`[external-media] ${processed}/${entries.length} uploaded=${uploaded} skipped=${skipped}`)
-      }
-    }
-  }
-
-  await Promise.all(Array.from({
-    length: Math.min(EXERCISE_MEDIA_UPLOAD_CONCURRENCY, entries.length || 1),
-  }, () => worker()))
-
-  for (const update of updates) {
-    const uploadedMedia = uploadedMediaByExerciseId.get(update.row.exerciseId)
-    if (!uploadedMedia) throw new Error(`Missing uploaded media map for ${update.row.exerciseId}.`)
-    update.metadata = buildMetadata(update.currentMetadata, update.row, uploadedMedia)
-  }
-
-  return { objects: entries.length, skipped, uploaded }
+  void updates
+  throw new Error("--upload-media to Supabase Storage has been removed. Backfill external exercise media through Cloudinary instead.")
 }
 
 async function main() {
@@ -483,9 +357,8 @@ async function main() {
     const rows = readRows(options.workbookPath, options.sheetName)
     const variations = await prisma.variation.findMany({ include: { exercise: true } })
     const plan = buildPlan(rows, variations)
-    const media = options.uploadMedia
-      ? { requested: true, ...(await uploadMatchedMedia(plan.updates)) }
-      : { requested: false }
+    if (options.uploadMedia) await uploadMatchedMedia(plan.updates)
+    const media = { requested: false }
 
     if (options.apply) {
       await prisma.$transaction(async (tx) => {

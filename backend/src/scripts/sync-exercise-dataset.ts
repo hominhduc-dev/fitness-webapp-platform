@@ -2,7 +2,7 @@ import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdtemp, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { promisify } from "node:util"
 
 import { Prisma } from "@prisma/client"
@@ -19,16 +19,11 @@ import {
   selectVariation,
   type ExerciseDatasetRecord,
 } from "../domain/exercise-dataset"
-import { EXERCISE_MEDIA_BUCKET } from "../lib/exercise-media"
 import {
   EXERCISE_MEDIA_MAX_FILE_SIZE,
-  EXERCISE_MEDIA_UPLOAD_CONCURRENCY,
   assertMediaUploadFlags,
-  buildMediaUploadEntries,
-  uploadWithRetry,
 } from "../lib/exercise-media-upload"
 import { prisma } from "../lib/prisma"
-import { supabaseAdmin } from "../lib/supabase"
 
 const execFileAsync = promisify(execFile)
 const BACKEND_DIRECTORY = resolve(__dirname, "../..")
@@ -356,94 +351,12 @@ async function applySyncPlan(plan: SyncPlan, sourceCommit: string) {
   return { createdExerciseIds }
 }
 
-function isNotFoundMessage(message: string) {
-  const normalized = message.toLowerCase()
-  return normalized.includes("not found") || normalized.includes("does not exist")
-}
-
-async function ensureExerciseMediaBucket() {
-  if (!supabaseAdmin) throw new Error("Supabase service-role client is not configured.")
-  const configuration = {
-    allowedMimeTypes: ["image/jpeg", "image/gif"],
-    fileSizeLimit: EXERCISE_MEDIA_MAX_FILE_SIZE,
-    public: true,
-  }
-  const { error } = await supabaseAdmin.storage.getBucket(EXERCISE_MEDIA_BUCKET)
-  if (error && isNotFoundMessage(error.message)) {
-    const { error: createError } = await supabaseAdmin.storage.createBucket(EXERCISE_MEDIA_BUCKET, configuration)
-    if (createError && !createError.message.toLowerCase().includes("already exists")) throw createError
-    return
-  }
-  if (error) throw error
-  const { error: updateError } = await supabaseAdmin.storage.updateBucket(EXERCISE_MEDIA_BUCKET, configuration)
-  if (updateError) throw updateError
-}
-
-async function uploadMedia(records: ExerciseDatasetRecord[], datasetDirectory: string, sourceCommit: string) {
-  if (!supabaseAdmin) throw new Error("Supabase service-role client is not configured.")
-  await ensureExerciseMediaBucket()
-  const bucket = supabaseAdmin.storage.from(EXERCISE_MEDIA_BUCKET)
-  const entries = buildMediaUploadEntries(records, datasetDirectory, sourceCommit)
-  let cursor = 0
-  let uploaded = 0
-  let skipped = 0
-
-  async function worker() {
-    while (cursor < entries.length) {
-      const entry = entries[cursor++]
-      const buffer = await readFile(resolveDatasetAsset(datasetDirectory, relative(datasetDirectory, resolve(entry.localPath))))
-      const result = await uploadWithRetry(() => bucket.upload(entry.objectPath, buffer, {
-        cacheControl: "31536000",
-        contentType: entry.contentType,
-        upsert: false,
-      }))
-      if (result === "uploaded") uploaded += 1
-      else skipped += 1
-      const processed = uploaded + skipped
-      if (processed % 250 === 0 || processed === entries.length) {
-        console.error(`[exercise-media] ${processed}/${entries.length} uploaded=${uploaded} skipped=${skipped}`)
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: EXERCISE_MEDIA_UPLOAD_CONCURRENCY }, () => worker()))
-  return { skipped, uploaded }
-}
-
-async function listStorageNames(prefix: string) {
-  if (!supabaseAdmin) throw new Error("Supabase service-role client is not configured.")
-  const names: string[] = []
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabaseAdmin.storage.from(EXERCISE_MEDIA_BUCKET).list(prefix, {
-      limit: 1000,
-      offset,
-      sortBy: { column: "name", order: "asc" },
-    })
-    if (error) throw error
-    names.push(...data.map((item) => item.name))
-    if (data.length < 1000) return names
-  }
-}
-
-async function verifyRollout(records: ExerciseDatasetRecord[], sourceCommit: string) {
+async function verifyRollout() {
   if (!prisma) throw new Error("Database is not configured.")
-  const [sourcedVariations, imageNames, videoNames] = await Promise.all([
-    prisma.variation.count({ where: { source: EXERCISE_DATASET_SOURCE } }),
-    listStorageNames(`${sourceCommit}/images`),
-    listStorageNames(`${sourceCommit}/videos`),
-  ])
-  const expectedImages = new Set(records.map((record) => basename(record.image)))
-  const expectedVideos = new Set(records.map((record) => basename(record.gif_url)))
-  const missingImages = [...expectedImages].filter((name) => !imageNames.includes(name))
-  const missingVideos = [...expectedVideos].filter((name) => !videoNames.includes(name))
+  const sourcedVariations = await prisma.variation.count({ where: { source: EXERCISE_DATASET_SOURCE } })
 
   return {
-    imageObjects: imageNames.length,
-    missingImages,
-    missingVideos,
     sourcedVariations,
-    storageObjects: imageNames.length + videoNames.length,
-    videoObjects: videoNames.length,
   }
 }
 
@@ -493,11 +406,11 @@ async function main() {
     }
 
     if (options.uploadMedia) {
-      report.media = { requested: true, ...(await uploadMedia(records, prepared.directory, options.sourceCommit)) }
+      throw new Error("--upload-media to Supabase Storage has been removed. Backfill exercise media through Cloudinary instead.")
     }
 
     const applyResult = await applySyncPlan(plan, options.sourceCommit)
-    const verification = options.uploadMedia ? await verifyRollout(records, options.sourceCommit) : undefined
+    const verification = await verifyRollout()
     Object.assign(report, {
       applied: true,
       appliedAt: new Date().toISOString(),

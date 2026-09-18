@@ -67,13 +67,26 @@ type AdminExerciseMediaKind = "thumbnail" | "animation"
 /** Files an admin picked for a variation; a missing side keeps the current media. */
 type AdminExerciseMediaFiles = Partial<Record<AdminExerciseMediaKind, File>>
 
-/** A one-time grant to upload one media file straight to Storage. */
+/** A one-time grant to upload one media file straight to Cloudinary. */
 type AdminExerciseMediaUpload = {
-  bucket: string
+  apiKey: string
+  cloudName: string
   contentType: string
   kind: AdminExerciseMediaKind
-  objectPath: string
-  token: string
+  publicId: string
+  resourceType: "image" | "video"
+  signature: string
+  timestamp: number
+  uploadUrl: string
+}
+
+type AdminExerciseMediaUploadedAsset = {
+  cloudName: string
+  contentType: string
+  publicId: string
+  resourceType: "image" | "video"
+  secureUrl: string
+  version: number
 }
 
 type AdminExerciseItem = ExerciseMuscleProfile & {
@@ -83,8 +96,8 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   id: string
   isDefault: boolean
   media?: ExerciseMedia
-  /** Where `media` comes from: uploaded by an admin, synced from a workbook, or the exercise dataset. */
-  mediaSource?: "custom" | "external" | "dataset"
+  /** Where `media` comes from: admin upload or Cloudinary CDN metadata. */
+  mediaSource?: "custom" | "cdn"
   muscleGroup: string
   muscleProfileRationale?: string
   muscleProfileSource?: MuscleProfileSource
@@ -317,6 +330,7 @@ export type {
   AdminExerciseMediaFiles,
   AdminExerciseMediaKind,
   AdminExerciseMediaUpload,
+  AdminExerciseMediaUploadedAsset,
   AdminExerciseImportResult,
   AdminExerciseImportRequest,
   AdminExerciseImportRow,

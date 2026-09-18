@@ -38,8 +38,7 @@ function getMediaEditorCopy(locale: "en" | "vi") {
     saved: en ? "Media updated." : "Đã cập nhật media.",
     source: (source: AdminExerciseItem["mediaSource"]) => {
       if (source === "custom") return en ? "Uploaded" : "Admin tải lên"
-      if (source === "external") return en ? "Synced" : "Đồng bộ"
-      if (source === "dataset") return "Dataset"
+      if (source === "cdn") return "CDN"
       return en ? "Missing" : "Chưa có"
     },
     title: "Media",

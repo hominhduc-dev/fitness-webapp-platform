@@ -9,7 +9,14 @@ import { EXERCISE_MEDIA_FILE_RULES } from "../lib/exercise-media"
  */
 
 const largestMediaFileBytes = Math.max(...Object.values(EXERCISE_MEDIA_FILE_RULES).map((rule) => rule.maxBytes))
-const objectPath = z.string().trim().min(1).max(300)
+const uploadedCloudinaryMedia = z.object({
+  cloudName: z.string().trim().min(1).max(120),
+  contentType: z.string().trim().min(1).max(100),
+  publicId: z.string().trim().min(1).max(300),
+  resourceType: z.enum(["image", "video"]),
+  secureUrl: z.url(),
+  version: z.number().int().positive(),
+})
 
 const exerciseIdParams = z.object({
   exerciseId: z.uuid("exerciseId không hợp lệ."),
@@ -23,10 +30,10 @@ const exerciseMediaUploadSchema = z.object({
 
 const saveExerciseMediaSchema = z
   .object({
-    animationObjectPath: objectPath.optional(),
-    thumbnailObjectPath: objectPath.optional(),
+    animationUpload: uploadedCloudinaryMedia.optional(),
+    thumbnailUpload: uploadedCloudinaryMedia.optional(),
   })
-  .refine((value) => Boolean(value.animationObjectPath || value.thumbnailObjectPath), {
+  .refine((value) => Boolean(value.animationUpload || value.thumbnailUpload), {
     message: "Chọn ít nhất một file media.",
   })
 
