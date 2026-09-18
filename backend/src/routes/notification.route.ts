@@ -3,6 +3,7 @@ import { Router } from "express"
 import { asyncHandler, validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
+  clearNotificationsForUser,
   listNotificationsForUser,
   markAllNotificationsAsReadForUser,
   markNotificationAsReadForUser,
@@ -103,6 +104,14 @@ notificationRouter.post(
   asyncHandler(async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await markAllNotificationsAsReadForUser(profile))
+  }),
+)
+
+notificationRouter.delete(
+  "/",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await clearNotificationsForUser(profile))
   }),
 )
 

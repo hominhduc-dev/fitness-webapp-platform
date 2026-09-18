@@ -39,7 +39,9 @@ describe("presentNotification", () => {
     const en = getMessages("en")
 
     expect(presentNotification(notification({ metadata: { mealType: "lunch" }, type: "meal_reminder" }), en, "en"))
-      .toMatchObject({ message: "Don't forget to log your lunch.", title: "Lunch reminder" })
+      .toMatchObject({ href: "/meals?meal=lunch", message: "Don't forget to log your lunch.", title: "Lunch reminder" })
+    expect(presentNotification(notification({ metadata: { mealType: "snack", url: "/meals" }, type: "meal_reminder" }), en, "en").href)
+      .toBe("/meals?meal=snack")
 
     expect(presentNotification(
       notification({ metadata: { time: "18:00", workoutName: "Chest Day" }, type: "workout_reminder" }),

@@ -153,6 +153,15 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
     setOpen(false)
   }, [pathname])
 
+  useEffect(() => {
+    function handleOpenMobileMore() {
+      setOpen(true)
+    }
+
+    window.addEventListener("yeahbuddy:open-mobile-more", handleOpenMobileMore)
+    return () => window.removeEventListener("yeahbuddy:open-mobile-more", handleOpenMobileMore)
+  }, [])
+
   // Build nav items per role
   // For admin, exclude /profile from the nav list — it's shown in the footer section
   const navItems =
@@ -204,7 +213,10 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
     <Fragment>
       {/* Pinned: the page scrolls under it, so the account menu and the
           notification bell stay reachable without scrolling back up. */}
-      <header className="sticky top-0 z-40 bg-background/80 px-4 pb-2 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xl md:hidden">
+      <header className={cn(
+        "sticky top-0 z-40 bg-background/80 px-4 pb-2 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xl md:hidden",
+        role === "trainee" && pathname === "/dashboard" && "hidden",
+      )}>
         <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-3">
           <Link href={role === "trainee" ? "/dashboard" : role === "coach" ? "/coach" : "/admin"} className="flex min-w-0 items-center gap-2">
             <BrandLogo markClassName="size-8 rounded-none" textClassName="text-xl" />

@@ -2,7 +2,7 @@
 
 import { formatDistanceToNow } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { Bell, Check, CheckCheck, Loader2, Settings } from "lucide-react"
+import { Bell, Check, CheckCheck, Loader2, RotateCcw, Settings } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -20,7 +20,12 @@ import type { AppNotification } from "@/lib/fitness/types"
 import { presentNotification } from "@/lib/notifications/present"
 import { setAppBadge } from "@/lib/pwa/app-badge"
 import { useApproveTraineeExerciseSwap } from "@/lib/queries/coach"
-import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from "@/lib/queries/notifications"
+import {
+  useClearNotifications,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotifications,
+} from "@/lib/queries/notifications"
 import { cn } from "@/lib/utils"
 
 function formatBadge(count: number) {
@@ -52,6 +57,7 @@ export function NotificationBell({
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const query = useNotifications()
+  const clearNotifications = useClearNotifications()
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
   const approveExerciseSwap = useApproveTraineeExerciseSwap()
@@ -99,15 +105,26 @@ export function NotificationBell({
       >
         <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
           <p className="text-sm font-semibold text-foreground">{copy.title}</p>
-          <button
-            type="button"
-            disabled={unreadCount === 0 || markAllRead.isPending}
-            onClick={() => markAllRead.mutate()}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary-soft disabled:pointer-events-none disabled:text-muted-foreground"
-          >
-            <CheckCheck className="size-3.5" aria-hidden="true" />
-            {copy.markAllRead}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={notifications.length === 0 || clearNotifications.isPending}
+              onClick={() => clearNotifications.mutate()}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:text-muted-foreground/50"
+            >
+              <RotateCcw className="size-3.5" aria-hidden="true" />
+              {copy.reset}
+            </button>
+            <button
+              type="button"
+              disabled={unreadCount === 0 || markAllRead.isPending}
+              onClick={() => markAllRead.mutate()}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary-soft disabled:pointer-events-none disabled:text-muted-foreground"
+            >
+              <CheckCheck className="size-3.5" aria-hidden="true" />
+              {copy.markAllRead}
+            </button>
+          </div>
         </div>
         <DropdownMenuSeparator className="m-0" />
 

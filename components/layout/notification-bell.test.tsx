@@ -9,6 +9,7 @@ import { NotificationBell } from "./notification-bell"
 
 const state = vi.hoisted(() => ({
   list: { notifications: [], unreadCount: 0 } as NotificationList,
+  clear: vi.fn(),
   markAll: vi.fn(),
   markRead: vi.fn(),
   push: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@/components/providers/locale-provider", async () => {
 })
 
 vi.mock("@/lib/queries/notifications", () => ({
+  useClearNotifications: () => ({ isPending: false, mutate: state.clear }),
   useMarkAllNotificationsRead: () => ({ isPending: false, mutate: state.markAll }),
   useMarkNotificationRead: () => ({ mutate: state.markRead }),
   useNotifications: () => ({ data: state.list, isError: false, isPending: false }),
@@ -42,6 +44,7 @@ function notification(overrides: Partial<AppNotification>): AppNotification {
 }
 
 beforeEach(() => {
+  state.clear.mockReset()
   state.markAll.mockReset()
   state.markRead.mockReset()
   state.push.mockReset()
@@ -72,6 +75,9 @@ describe("NotificationBell", () => {
     expect(await screen.findByText("Weekly trainee review")).toBeInTheDocument()
     expect(screen.getByText("Your 3 trainees logged 7 workouts this week. Review their progress.")).toBeInTheDocument()
     expect(screen.getByText("Time to log your weight")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Reset" }))
+    expect(state.clear).toHaveBeenCalledTimes(1)
 
     await user.click(screen.getByText("Weekly trainee review"))
     expect(state.markRead).toHaveBeenCalledWith("review")
