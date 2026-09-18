@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { MealsLoadingState } from "@/components/meals/meals-loading-state"
@@ -76,6 +76,15 @@ const FOOD_CATEGORIES: Array<{ id: FoodCategory | "all"; labelKey: keyof ReturnT
   { id: "drink", labelKey: "categoryDrink" },
   { id: "other", labelKey: "categoryOther" },
 ]
+
+function subscribeAfterHydration(onStoreChange: () => void) {
+  const frame = window.requestAnimationFrame(onStoreChange)
+  return () => window.cancelAnimationFrame(frame)
+}
+
+function useHasHydrated() {
+  return useSyncExternalStore(subscribeAfterHydration, () => true, () => false)
+}
 
 const MEAL_META: Array<{ icon: LucideIcon; type: MealType }> = [
   { icon: Sunrise, type: "breakfast" },
@@ -743,6 +752,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const { session } = useAuth()
   const { locale, messages } = useLocale()
   const searchParams = useSearchParams()
+  const hasHydrated = useHasHydrated()
   const initialDateKey = initialData?.selectedDateKey ?? formatDateKey(new Date())
   const [selectedDate, setSelectedDate] = useState(() => new Date(`${initialDateKey}T00:00:00`))
   const [addTo, setAddTo] = useState<MealType | null>(null)
@@ -762,15 +772,16 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const consumePlan = useConsumePlannedMeals(selectedDateKey)
   const updateItemAmount = useUpdateMealItemAmount(selectedDateKey)
   const createFood = useCreateCustomFood()
-  const nutritionDay = dayQuery.data ?? {
+  const canUseClientData = Boolean(initialData) || hasHydrated
+  const nutritionDay = (canUseClientData ? dayQuery.data : undefined) ?? {
     date: selectedDate,
     meals: [],
     recentFoods: [],
     targets: initialData?.nutritionDay?.targets ?? DEFAULT_NUTRITION_TARGETS,
     totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
   }
-  const foods = foodsQuery.data ?? []
-  const isLoading = dayQuery.isPending
+  const foods = canUseClientData ? foodsQuery.data ?? [] : []
+  const isLoading = !canUseClientData || dayQuery.isPending
   const loadDay = () => dayQuery.refetch()
   const displayError = error ?? dayQuery.error?.message ?? foodsQuery.error?.message
 
@@ -909,6 +920,10 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (isLoading && !canUseClientData && !initialData) {
+    return <MealsLoadingState />
   }
 
   if (dayQuery.isPending && !dayQuery.data) {
