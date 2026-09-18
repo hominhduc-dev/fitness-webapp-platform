@@ -4,6 +4,7 @@ import {
   type StoredWorkoutSession,
   getWorkoutSessionStorageKey,
   markStoredWorkoutSessionSynced,
+  pickNewerStoredWorkoutSession,
   readStoredWorkoutSession,
   reconcileActiveSessions,
 } from "./session-storage"
@@ -71,5 +72,47 @@ describe("markStoredWorkoutSessionSynced", () => {
     markStoredWorkoutSessionSynced("workout", STARTED_AT, "2026-09-16T09:21:00.000Z")
 
     expect(readStoredWorkoutSession("workout")?.syncedAt).toBeUndefined()
+  })
+})
+
+describe("pickNewerStoredWorkoutSession", () => {
+  const copy = (updatedAt: string | undefined, startedAt = STARTED_AT): StoredWorkoutSession => ({
+    currentExerciseIndex: 0,
+    exercises: [],
+    startedAt,
+    updatedAt,
+  })
+
+  it("keeps the queued draft when it is the newer write", () => {
+    const queued = copy("2026-09-16T09:20:00.000Z")
+    expect(pickNewerStoredWorkoutSession(queued, copy("2026-09-16T09:19:00.000Z"))).toBe(queued)
+  })
+
+  it("takes the localStorage mirror when the queued draft is a write behind", () => {
+    const mirror = copy("2026-09-16T09:21:00.000Z")
+    expect(pickNewerStoredWorkoutSession(copy("2026-09-16T09:20:00.000Z"), mirror)).toBe(mirror)
+  })
+
+  it("prefers a stamped copy over one written before the field existed", () => {
+    const stamped = copy("2026-09-16T09:20:00.000Z")
+    expect(pickNewerStoredWorkoutSession(copy(undefined), stamped)).toBe(stamped)
+  })
+
+  it("keeps the established precedence when neither copy is stamped", () => {
+    const queued = copy(undefined)
+    expect(pickNewerStoredWorkoutSession(queued, copy(undefined))).toBe(queued)
+  })
+
+  it("never mixes two different runs of the same workout", () => {
+    const queued = copy("2026-09-16T09:20:00.000Z")
+    const otherRun = copy("2026-09-17T07:30:00.000Z", "2026-09-17T07:00:00.000Z")
+    expect(pickNewerStoredWorkoutSession(queued, otherRun)).toBe(queued)
+  })
+
+  it("falls back to whichever copy exists", () => {
+    const only = copy("2026-09-16T09:20:00.000Z")
+    expect(pickNewerStoredWorkoutSession(null, only)).toBe(only)
+    expect(pickNewerStoredWorkoutSession(only, null)).toBe(only)
+    expect(pickNewerStoredWorkoutSession(null, null)).toBeNull()
   })
 })

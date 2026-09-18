@@ -28,6 +28,13 @@ const BYPASS_PREFIXES = ["/backend/", "/api/", "/auth/", "/_next/image", "/_next
 // carry other people's data and are deliberately left out.
 const OFFLINE_PAGE_PREFIXES = ["/dashboard", "/workout", "/schedule", "/meals", "/progress", "/trackweight"]
 
+// The installed app launches at the manifest's start_url, which the server
+// redirects to the signed-in role's landing page. That redirect cannot run
+// without a network and "/" is never itself a cached page, so a launch without
+// signal would land on offline.html with the app one un-navigable step away.
+const LAUNCH_PATH = "/"
+const LAUNCH_FALLBACK_PATH = "/dashboard"
+
 const PUBLIC_ASSET_PATTERN = /\.(?:png|jpe?g|svg|ico|webp|avif|woff2?)$/
 
 self.addEventListener("install", (event) => {
@@ -161,10 +168,33 @@ async function networkFirstPage(event, url) {
     const cachedPage = await pages.match(pageCacheKey(url))
     if (cachedPage) return cachedPage
 
+    // Replay the launch redirect from cache. It is a document rather than a 3xx
+    // because a navigation request carries `redirect: "manual"`, and answering
+    // one with a redirect response is a fetch error, not a redirect. Bouncing
+    // the client keeps the URL and the document in agreement, which serving the
+    // landing page's HTML under "/" would not. Roles with no offline shell have
+    // nothing cached here and fall through to the offline page as before.
+    if (url.pathname === LAUNCH_PATH) {
+      const landing = await pages.match(`${url.origin}${LAUNCH_FALLBACK_PATH}`)
+      if (landing) return launchRedirectDocument()
+    }
+
     const offline = await caches.match(OFFLINE_URL)
     if (offline) return offline
     throw error
   }
+}
+
+// `replace` rather than `assign`: the launch bounce must not become a history
+// entry the back gesture can land on. The meta refresh covers a client that
+// blocks inline script.
+function launchRedirectDocument() {
+  return new Response(
+    `<!doctype html><meta charset="utf-8">` +
+      `<meta http-equiv="refresh" content="0;url=${LAUNCH_FALLBACK_PATH}">` +
+      `<script>location.replace(${JSON.stringify(LAUNCH_FALLBACK_PATH)})</script>`,
+    { headers: { "Cache-Control": "no-store", "Content-Type": "text/html; charset=utf-8" } },
+  )
 }
 
 function isOfflinePage(url) {

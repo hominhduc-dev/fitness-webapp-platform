@@ -12,14 +12,17 @@ export async function registerServiceWorker() {
 }
 
 /**
- * Asks the active worker to fetch and retain the exact authenticated workout
- * route while the network is available. A later offline navigation can then
- * boot the client logger instead of falling through to offline.html.
+ * Asks the active worker to fetch and retain one authenticated route while the
+ * network is available.
+ *
+ * Inside the app every link is a client-side navigation, which only fetches an
+ * RSC payload — the worker never sees a document and therefore never caches
+ * one. Without this, a route is offline-capable only if the trainee happened to
+ * open it with a full page load.
  */
-export async function warmOfflineWorkoutRoute(workoutId: string): Promise<boolean> {
+export async function warmOfflineRoute(route: string): Promise<boolean> {
   if (!supportsServiceWorker()) return false
   const registration = await navigator.serviceWorker.ready
-  const route = `/workout/${encodeURIComponent(workoutId)}/start`
 
   const warmWith = (worker: ServiceWorker | null): Promise<boolean> => {
     if (!worker) return Promise.resolve(false)
@@ -58,6 +61,11 @@ export async function warmOfflineWorkoutRoute(workoutId: string): Promise<boolea
     const timeout = window.setTimeout(() => finish(false), CACHE_REQUEST_TIMEOUT_MS)
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange)
   })
+}
+
+/** The logger document for one workout, which is the route a session needs. */
+export function warmOfflineWorkoutRoute(workoutId: string): Promise<boolean> {
+  return warmOfflineRoute(`/workout/${encodeURIComponent(workoutId)}/start`)
 }
 
 /**
