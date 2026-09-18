@@ -103,12 +103,6 @@ export function DashboardGreeting({
                   </AvatarFallback>
                 </Avatar>
               </button>
-              <Link
-                href="/progress"
-                className="mt-1.5 inline-flex h-5 items-center rounded-full border border-primary/25 bg-primary-soft px-2 text-[0.62rem] font-semibold leading-none text-primary"
-              >
-                {copy.weekStreak(streakWeeks)}
-              </Link>
             </div>
             <div className="min-w-0 pt-1">
               <h1 className="truncate text-base font-semibold leading-tight text-foreground">
@@ -117,10 +111,18 @@ export function DashboardGreeting({
               <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{copy.motto}</p>
             </div>
           </div>
-          <NotificationBell
-            className="size-10 bg-transparent text-foreground hover:bg-muted/40 [&_svg]:size-6"
-            side="bottom"
-          />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Link
+              href="/progress"
+              className="inline-flex h-8 items-center rounded-full border border-primary/25 bg-primary-soft px-3 text-xs font-semibold leading-none text-primary"
+            >
+              {copy.weekStreak(streakWeeks)}
+            </Link>
+            <NotificationBell
+              className="size-10 bg-transparent text-foreground hover:bg-muted/40 [&_svg]:size-6"
+              side="bottom"
+            />
+          </div>
         </div>
         <div aria-hidden="true" className="h-[calc(4.7rem+env(safe-area-inset-top))]" />
 

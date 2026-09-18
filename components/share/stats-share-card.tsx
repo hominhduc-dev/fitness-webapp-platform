@@ -58,22 +58,6 @@ const SHARE_CARD_METRICS: Record<ShareCardFormatId, ShareCardMetrics> = {
   },
 }
 
-function BrandMark({ size }: { size: number }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      className="shrink-0 text-share-accent"
-    >
-      <rect x="1" y="1" width="22" height="22" rx="7" fill="currentColor" />
-      <path d="M13.4 4.5 7 13.2h4.1L10.6 19.5 17 10.8h-4.1l.5-6.3Z" fill="var(--share-accent-ink)" />
-    </svg>
-  )
-}
-
 /**
  * The visual card itself — presentational only, no data fetching and no share
  * plumbing, so it renders identically in the preview and in the off-screen node
@@ -109,15 +93,13 @@ export function StatsShareCard({
       />
 
       <header className="flex shrink-0 items-center justify-between" style={{ gap: metrics.gap }}>
-        <span className="flex min-w-0 items-center" style={{ gap: metrics.wordmark * 0.4 }}>
-          <BrandMark size={metrics.wordmark * 1.15} />
-          <span
-            className="truncate font-bold uppercase tracking-tight"
-            style={{ fontSize: metrics.wordmark, letterSpacing: "-0.02em" }}
-          >
-            YeahBuddy
-          </span>
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element -- The share-card renderer serialises this DOM image into the exported PNG. */}
+        <img
+          src="/header-logo.png"
+          alt="YeahBuddy"
+          className="min-w-0 shrink object-contain object-left"
+          style={{ height: metrics.wordmark * 2.2, width: metrics.wordmark * 9 }}
+        />
         <span
           className="shrink-0 whitespace-nowrap rounded-full border border-share-border font-medium text-share-secondary"
           style={{
