@@ -36,6 +36,7 @@
 | Auth | Supabase Auth, SSR cookie session qua `@supabase/ssr` |
 | Visual material | CSS/SVG liquid glass + optional `@ybouane/liquidglass` WebGL |
 | Test | Vitest 4 + jsdom + Testing Library |
+| Ảnh chia sẻ | `html-to-image` `1.11.13` + Web Share API level 2 |
 | Client server-state | TanStack Query 5, hooks trong `lib/queries/` |
 | PWA/observability | manifest, Vercel Analytics/Speed Insights trên Vercel; GA4 khi có `NEXT_PUBLIC_GA_MEASUREMENT_ID` |
 
@@ -185,6 +186,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 | `components/workout` | Routine board/builder, session resume, logs/export |
 | `components/schedule` | Weekly calendar và schedule dialogs |
 | `components/progress` | Charts, progress calendar, muscle areas, weight tracking |
+| `components/share` | Thẻ thống kê xuất ra PNG và sheet chia sẻ lên mạng xã hội |
 | `components/meals` | Meal and food tracking experience |
 | `components/coach` | Coach dashboards, trainee/program/exercise workflows |
 | `components/admin` | Admin console and exercise governance |
@@ -192,6 +194,7 @@ Không có global Redux/Zustand store. Không thêm global store nếu state ch�
 | `components/body` | Anatomical SVG renderer only |
 | `components/auth` | Login/register/recovery modal flows |
 | `lib/fitness` | Typed API, domain mapping, muscle profiles, date ranges |
+| `lib/share` | Builder dữ liệu thẻ (thuần) và lớp render PNG/share của trình duyệt |
 | `lib/i18n/messages` | Copy theo domain, đủ `en` và `vi` |
 
 ### Primitive conventions
@@ -316,9 +319,18 @@ Trong JSX chỉ ưu tiên:
 - trạng thái dạng chữ: `text-success-text`, `text-warning-text`, `text-info-text`, `text-destructive-text`;
 - trạng thái dạng nền: `bg-success`, `bg-warning`, `bg-info`, `bg-destructive`; nền nhẹ dùng hậu tố `-soft`;
 - nội dung trên solid status dùng `*-foreground`, ví dụ `bg-success text-success-foreground`;
-- context đặc thù đã có contract: `overlay`, `inverse-*`, `export-*`, `chart-*`.
+- context đặc thù đã có contract: `overlay`, `inverse-*`, `export-*`, `share-*`, `chart-*`.
 
 Không dùng `bg-white`, `text-black`, Tailwind hue thô, hex/rgb/hsl hoặc `dark:*` để mô phỏng semantic token đã có. Literal chỉ hợp lệ trong `globals.css`, artwork giải phẫu, filter kỹ thuật hoặc brand asset đã được allowlist. `npm run lint:colors` thực thi contract này và chạy trong CI.
+
+### Share card contract (`--share-*`)
+
+Thẻ thống kê rời khỏi app dưới dạng PNG và được xem trên Instagram/Facebook/Zalo, nên nó giữ **một palette cố định cho mọi theme**: `--share-*` chỉ khai báo trong `:root`, không override ở `.dark` hay palette nào. Ảnh người dùng đăng không được đổi màu chỉ vì hôm đó họ bật Iron Orange.
+
+- Card render ở kích thước pixel thật (1080×1080 hoặc 1080×1920); type scale dùng px tuyệt đối qua inline style, màu vẫn đi qua token `bg-share-*` / `text-share-*`.
+- Preview thu nhỏ bằng `transform: scale()` trên **ancestor**; node được serialize phải giữ nguyên box 1080px.
+- `html-to-image` serialize qua SVG `foreignObject`: không dùng `backdrop-filter`, SVG filter hay glass layer bên trong card — chỉ fill phẳng, border và gradient.
+- Contrast của cặp `--share-*` được kiểm tra trong `lib/design-system/color-contrast.test.ts`, composite trên `--share-canvas` thay vì `--background`.
 
 ### Contrast contract
 
@@ -529,6 +541,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Schedule/calendar | `components/schedule/weekly-calendar.tsx` | schedule page SSR loader, fitness API |
 | Meals | `components/meals/meals-client.tsx` | fitness API/messages |
 | Progress/chart | `components/progress/*` | progress page initial fetch, Recharts |
+| Thẻ chia sẻ/xuất ảnh | `components/share/share-stats-dialog.tsx` | `components/share/stats-share-card.tsx`, `lib/share/*`, token `--share-*` |
 | Coach program editor | `components/coach/program-editor.tsx` | program page, fitness API/types |
 | Exercise picker/search | `components/exercises/*` | exercise search/display helpers |
 | Muscle highlight sai | `lib/fitness/muscle-profile.ts` | muscle-map mapping, renderer |
