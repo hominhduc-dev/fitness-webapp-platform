@@ -18,7 +18,17 @@ describe("exerciseMediaUploadSchema", () => {
 describe("saveExerciseMediaSchema", () => {
   it("requires at least one uploaded object", () => {
     expect(saveExerciseMediaSchema.safeParse({}).success).toBe(false)
-    expect(saveExerciseMediaSchema.safeParse({ thumbnailObjectPath: "library/images/a.png" }).success).toBe(true)
+    expect(saveExerciseMediaSchema.safeParse({ thumbnailObjectPath: "library/images/a.png" }).success).toBe(false)
+    expect(saveExerciseMediaSchema.safeParse({
+      thumbnailUpload: {
+        cloudName: "demo",
+        contentType: "image/png",
+        publicId: "exercise-media/admin/variation/thumbnail-id",
+        resourceType: "image",
+        secureUrl: "https://res.cloudinary.com/demo/image/upload/v123/exercise-media/admin/variation/thumbnail-id.jpg",
+        version: 123,
+      },
+    }).success).toBe(true)
   })
 })
 

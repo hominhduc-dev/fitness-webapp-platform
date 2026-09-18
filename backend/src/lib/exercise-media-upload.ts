@@ -1,17 +1,22 @@
-import type { ExerciseDatasetRecord } from "../domain/exercise-dataset"
+import { createHash, randomUUID } from "node:crypto"
+
+import { env } from "../config/env"
 import { ExternalServiceError, ValidationError } from "../services/errors"
-import { EXERCISE_MEDIA_ALLOWED_MIME_TYPES, EXERCISE_MEDIA_BUCKET } from "./exercise-media"
-import { supabaseAdmin } from "./supabase"
 
 const EXERCISE_MEDIA_MAX_FILE_SIZE = 1024 * 1024
 const EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE = 10 * 1024 * 1024
-const EXERCISE_MEDIA_UPLOAD_CONCURRENCY = 8
-const EXERCISE_MEDIA_UPLOAD_MAX_ATTEMPTS = 3
+const CLOUDINARY_ADMIN_MEDIA_ROOT = "exercise-media/admin"
 
-type UploadEntry = {
-  contentType: "image/gif" | "image/jpeg" | "video/mp4"
-  localPath: string
-  objectPath: string
+type CloudinaryUploadGrant = {
+  apiKey: string
+  cloudName: string
+  contentType: string
+  kind: "thumbnail" | "animation"
+  publicId: string
+  resourceType: "image" | "video"
+  signature: string
+  timestamp: number
+  uploadUrl: string
 }
 
 function assertMediaUploadFlags(options: {
@@ -20,102 +25,65 @@ function assertMediaUploadFlags(options: {
   uploadMedia: boolean
 }) {
   if (options.uploadMedia && !options.apply) {
-    throw new ValidationError("--upload-media requires --apply because uploads mutate Storage.")
+    throw new ValidationError("--upload-media requires --apply because uploads mutate media storage.")
   }
   if (options.uploadMedia && !options.confirmMediaRights) {
     throw new ValidationError("--upload-media requires --confirm-media-rights.")
   }
 }
 
-function buildMediaUploadEntries(
-  records: ExerciseDatasetRecord[],
-  datasetDirectory: string,
-  sourceCommit: string,
-) {
-  return records.flatMap<UploadEntry>((record) => [
-    {
-      contentType: "image/jpeg",
-      localPath: `${datasetDirectory}/${record.image}`,
-      objectPath: `${sourceCommit}/${record.image}`,
-    },
-    {
-      contentType: "image/gif",
-      localPath: `${datasetDirectory}/${record.gif_url}`,
-      objectPath: `${sourceCommit}/${record.gif_url}`,
-    },
-  ])
+function cloudinarySignature(params: Record<string, string | number>, apiSecret = env.cloudinaryApiSecret) {
+  if (!apiSecret) throw new ExternalServiceError("Cloudinary API secret is not configured.")
+  const payload = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== "")
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&")
+  return createHash("sha1").update(`${payload}${apiSecret}`).digest("hex")
 }
 
-function errorMessage(error: unknown) {
-  if (error instanceof Error) return error.message
-  if (error && typeof error === "object" && "message" in error) return String(error.message)
-  return String(error)
+function createCloudinaryExerciseMediaPublicId(variationId: string, kind: "thumbnail" | "animation") {
+  return `${CLOUDINARY_ADMIN_MEDIA_ROOT}/${variationId}/${kind}-${randomUUID()}`
 }
 
-function isAlreadyExistsError(error: unknown) {
-  const message = errorMessage(error).toLowerCase()
-  return message.includes("already exists") || message.includes("duplicate") || message.includes("resource already exists")
-}
-
-function isRetryableStorageError(error: unknown) {
-  const status = error && typeof error === "object" && "statusCode" in error
-    ? Number(error.statusCode)
-    : undefined
-  const message = errorMessage(error).toLowerCase()
-  return status === 429 || Boolean(status && status >= 500) || message.includes("timeout") || message.includes("fetch failed")
-}
-
-function isNotFoundMessage(message: string) {
-  const normalized = message.toLowerCase()
-  return normalized.includes("not found") || normalized.includes("does not exist")
-}
-
-/** Creates the public media bucket, or brings its type and size limits up to date. */
-async function ensureExerciseMediaBucket() {
-  if (!supabaseAdmin) throw new ExternalServiceError("Supabase service-role client is not configured.")
-  const configuration = {
-    allowedMimeTypes: EXERCISE_MEDIA_ALLOWED_MIME_TYPES,
-    fileSizeLimit: EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
-    public: true,
+function requireCloudinaryMediaConfig() {
+  if (!env.cloudinaryCloudName || !env.cloudinaryApiKey || !env.cloudinaryApiSecret) {
+    throw new ExternalServiceError("Cloudinary is not configured for exercise media uploads.")
   }
-  const { error } = await supabaseAdmin.storage.getBucket(EXERCISE_MEDIA_BUCKET)
-  if (error && isNotFoundMessage(error.message)) {
-    const { error: createError } = await supabaseAdmin.storage.createBucket(EXERCISE_MEDIA_BUCKET, configuration)
-    if (createError && !createError.message.toLowerCase().includes("already exists")) {
-      throw new ExternalServiceError(`Storage bucket setup failed: ${createError.message}`, { cause: createError })
-    }
-    return
+  return {
+    apiKey: env.cloudinaryApiKey,
+    cloudName: env.cloudinaryCloudName,
   }
-  if (error) throw new ExternalServiceError(`Storage bucket lookup failed: ${error.message}`, { cause: error })
-  const { error: updateError } = await supabaseAdmin.storage.updateBucket(EXERCISE_MEDIA_BUCKET, configuration)
-  if (updateError) throw new ExternalServiceError(`Storage bucket update failed: ${updateError.message}`, { cause: updateError })
 }
 
-async function uploadWithRetry(
-  upload: () => Promise<{ error: unknown | null }>,
-  wait: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-) {
-  let lastError: unknown
-  for (let attempt = 1; attempt <= EXERCISE_MEDIA_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
-    const { error } = await upload()
-    if (!error) return "uploaded" as const
-    if (isAlreadyExistsError(error)) return "skipped" as const
-    lastError = error
-    if (!isRetryableStorageError(error) || attempt === EXERCISE_MEDIA_UPLOAD_MAX_ATTEMPTS) break
-    await wait(250 * attempt)
+function createCloudinaryUploadGrant(input: {
+  contentType: string
+  kind: "thumbnail" | "animation"
+  publicId: string
+  timestamp?: number
+}): CloudinaryUploadGrant {
+  const { apiKey, cloudName } = requireCloudinaryMediaConfig()
+  const resourceType = input.kind === "thumbnail" ? "image" : "video"
+  const timestamp = input.timestamp ?? Math.floor(Date.now() / 1000)
+  return {
+    apiKey,
+    cloudName,
+    contentType: input.contentType,
+    kind: input.kind,
+    publicId: input.publicId,
+    resourceType,
+    signature: cloudinarySignature({ public_id: input.publicId, timestamp }),
+    timestamp,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/${resourceType}/upload`,
   }
-  throw new ExternalServiceError(`Storage upload failed: ${errorMessage(lastError)}`, { cause: lastError })
 }
 
 export {
   EXERCISE_MEDIA_MAX_FILE_SIZE,
-  EXERCISE_MEDIA_UPLOAD_CONCURRENCY,
-  EXERCISE_MEDIA_UPLOAD_MAX_ATTEMPTS,
   EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
   assertMediaUploadFlags,
-  buildMediaUploadEntries,
-  ensureExerciseMediaBucket,
-  isAlreadyExistsError,
-  uploadWithRetry,
+  cloudinarySignature,
+  createCloudinaryExerciseMediaPublicId,
+  createCloudinaryUploadGrant,
 }
-export type { UploadEntry }
+export type { CloudinaryUploadGrant }

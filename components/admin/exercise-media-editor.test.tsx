@@ -58,7 +58,7 @@ describe("ExerciseMediaEditor", () => {
   })
 
   it("replaces a single side when the exercise already has media", () => {
-    render(<ExerciseMediaEditor exercise={{ ...exercise, media: syncedMedia, mediaSource: "external" }} locale="en" onRemove={vi.fn()} onSave={vi.fn()} />)
+    render(<ExerciseMediaEditor exercise={{ ...exercise, media: syncedMedia, mediaSource: "cdn" }} locale="en" onRemove={vi.fn()} onSave={vi.fn()} />)
 
     pick("Thumbnail", thumbnailFile)
 
@@ -78,7 +78,7 @@ describe("ExerciseMediaEditor", () => {
 
   it("shows the upload error from the server", async () => {
     const onSave = vi.fn().mockRejectedValue(new Error("Storage is down"))
-    render(<ExerciseMediaEditor exercise={{ ...exercise, media: syncedMedia, mediaSource: "dataset" }} locale="en" onRemove={vi.fn()} onSave={onSave} />)
+    render(<ExerciseMediaEditor exercise={{ ...exercise, media: syncedMedia, mediaSource: "cdn" }} locale="en" onRemove={vi.fn()} onSave={onSave} />)
 
     pick("Animation", animationFile)
     fireEvent.click(screen.getByRole("button", { name: "Upload media" }))

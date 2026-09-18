@@ -429,9 +429,9 @@ adminRouter.patch("/exercises/:exerciseId", async (req, res) => {
   }
 })
 
-// Media files go from the browser straight to Storage through a signed upload
-// URL, so large animations never pass through the API's JSON body limit. The
-// save call then verifies each uploaded object before pointing the variation at it.
+// Media files go from the browser straight to Cloudinary through signed upload
+// params, so large animations never pass through the API's JSON body limit. The
+// save call then verifies each uploaded asset before pointing the variation at it.
 adminRouter.post(
   "/exercises/:exerciseId/media/upload-url",
   validated({ body: exerciseMediaUploadSchema, params: exerciseIdParams }, async (req, res) => {

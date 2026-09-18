@@ -13,6 +13,7 @@ import type {
   AdminExerciseImportResult,
   AdminExerciseMediaKind,
   AdminExerciseMediaUpload,
+  AdminExerciseMediaUploadedAsset,
   AdminExerciseImportRequest,
   AdminExerciseImportRow,
   AdminMiniUser,
@@ -499,7 +500,10 @@ async function createAdminExerciseMediaUploadRequest(
 async function saveAdminExerciseMediaRequest(
   accessToken: string,
   exerciseId: string,
-  input: { animationObjectPath?: string; thumbnailObjectPath?: string },
+  input: {
+    animationUpload?: AdminExerciseMediaUploadedAsset
+    thumbnailUpload?: AdminExerciseMediaUploadedAsset
+  },
 ) {
   const response = await request<{ exercise: SerializedAdminExerciseItem }>(
     `/api/admin/exercises/${exerciseId}/media`,
