@@ -115,16 +115,19 @@ export function usePushNotifications() {
         )
       }
 
-      const config = await fetchPushConfig()
-      if (!config.enabled || !config.publicKey) {
-        setState("disabled")
-        throw new Error("Server chưa cấu hình VAPID key cho push notification.")
-      }
-
+      // Ask before any await that hits the network: Safari (iOS included) only
+      // honors requestPermission() while the user activation from the tap is still
+      // alive, and a config round-trip can outlive it.
       const permission = await Notification.requestPermission()
       if (permission !== "granted") {
         setState(permission === "denied" ? "denied" : "disabled")
         throw new Error("Bạn chưa cấp quyền nhận thông báo.")
+      }
+
+      const config = await fetchPushConfig()
+      if (!config.enabled || !config.publicKey) {
+        setState("disabled")
+        throw new Error("Server chưa cấu hình VAPID key cho push notification.")
       }
 
       const registration = await getServiceWorkerRegistration()

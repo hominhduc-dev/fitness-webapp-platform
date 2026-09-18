@@ -50,6 +50,15 @@ export const notificationsMessages = {
         },
       },
     },
+    pushPrompt: {
+      body: "Workout reminders, meal nudges and coach updates reach you even when the app is closed.",
+      dismiss: "Not now",
+      enable: "Turn on",
+      iosAction: "Got it",
+      iosBody: "On iPhone and iPad, notifications only work from the installed app. Tap Share, choose Add to Home Screen, then open YeahBuddy from its icon.",
+      iosTitle: "Add YeahBuddy to your Home Screen",
+      title: "Turn on notifications",
+    },
   },
   vi: {
     notificationCenter: {
@@ -98,6 +107,15 @@ export const notificationsMessages = {
           title: "Buổi tập chưa hoàn thành",
         },
       },
+    },
+    pushPrompt: {
+      body: "Nhắc giờ tập, nhắc bữa ăn và cập nhật từ coach sẽ đến với bạn kể cả khi đã đóng app.",
+      dismiss: "Để sau",
+      enable: "Bật ngay",
+      iosAction: "Đã hiểu",
+      iosBody: "Trên iPhone/iPad, thông báo chỉ hoạt động khi mở app đã cài. Nhấn nút Chia sẻ, chọn Thêm vào MH chính, rồi mở YeahBuddy từ icon.",
+      iosTitle: "Thêm YeahBuddy vào Màn hình chính",
+      title: "Bật thông báo",
     },
   },
 }

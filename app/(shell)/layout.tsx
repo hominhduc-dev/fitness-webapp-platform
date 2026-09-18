@@ -4,6 +4,7 @@ import { ShellHeader } from "@/components/layout/shell-header"
 import { ShellMain } from "@/components/layout/shell-main"
 import { SidebarClient } from "@/components/layout/sidebar-client"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { PushPermissionPrompt } from "@/components/pwa/push-permission-prompt"
 import { AppProviders } from "@/components/providers/app-providers"
 import { CoachRoutePrefetch } from "@/components/providers/coach-route-prefetch"
 import { TraineeRoutePrefetch } from "@/components/providers/trainee-route-prefetch"
@@ -28,6 +29,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
         </div>
 
         {profile.role === "trainee" && <ResumeWorkoutCard />}
+        <PushPermissionPrompt />
       </div>
     </AppProviders>
   )
