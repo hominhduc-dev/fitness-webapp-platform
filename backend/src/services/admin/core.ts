@@ -37,6 +37,7 @@ import {
   type UploadedExerciseMediaFile,
 } from "../../lib/exercise-media"
 import {
+  cloudinaryResourceTypeFor,
   cloudinarySignature,
   createCloudinaryExerciseMediaPublicId,
   createCloudinaryUploadGrant,
@@ -2479,7 +2480,7 @@ function verifyCloudinaryUploadedExerciseMedia(
   upload: CloudinaryUploadedExerciseMedia | undefined,
 ): UploadedExerciseMediaFile | undefined {
   if (!upload) return undefined
-  const expectedResourceType = kind === "thumbnail" ? "image" : "video"
+  const expectedResourceType = cloudinaryResourceTypeFor(upload.contentType)
   if (upload.cloudName !== env.cloudinaryCloudName || upload.resourceType !== expectedResourceType) {
     throw new ValidationError("Thông tin media Cloudinary không hợp lệ.")
   }

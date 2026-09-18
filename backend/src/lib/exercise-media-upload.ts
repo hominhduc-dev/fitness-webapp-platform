@@ -56,6 +56,16 @@ function requireCloudinaryMediaConfig() {
   }
 }
 
+/**
+ * Cloudinary keeps images and videos in separate resource types, and an account can
+ * refuse a GIF sent to the video endpoint ("Unsupported file type gif"). The animation
+ * slot accepts GIF and WebP as well as MP4, so the resource type follows the file, not
+ * the slot. A GIF stored as an image is still delivered as MP4 through `f_mp4`.
+ */
+function cloudinaryResourceTypeFor(contentType: string): "image" | "video" {
+  return contentType === "video/mp4" ? "video" : "image"
+}
+
 function createCloudinaryUploadGrant(input: {
   contentType: string
   kind: "thumbnail" | "animation"
@@ -63,7 +73,7 @@ function createCloudinaryUploadGrant(input: {
   timestamp?: number
 }): CloudinaryUploadGrant {
   const { apiKey, cloudName } = requireCloudinaryMediaConfig()
-  const resourceType = input.kind === "thumbnail" ? "image" : "video"
+  const resourceType = cloudinaryResourceTypeFor(input.contentType)
   const timestamp = input.timestamp ?? Math.floor(Date.now() / 1000)
   return {
     apiKey,
@@ -82,6 +92,7 @@ export {
   EXERCISE_MEDIA_MAX_FILE_SIZE,
   EXTERNAL_EXERCISE_MEDIA_MAX_FILE_SIZE,
   assertMediaUploadFlags,
+  cloudinaryResourceTypeFor,
   cloudinarySignature,
   createCloudinaryExerciseMediaPublicId,
   createCloudinaryUploadGrant,

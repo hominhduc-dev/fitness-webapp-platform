@@ -150,6 +150,50 @@ function cloudinaryAssetUrl(input: {
   return parts.join("/")
 }
 
+/**
+ * Admin uploads record the Cloudinary identity of each file, so the delivery URL is
+ * built at read time — that is what applies `f_auto,q_auto`, and turns an animated
+ * image (GIF/WebP) into MP4 through `f_mp4`. Records written before the upload flow
+ * stored an identity keep working through their saved URL.
+ */
+function serializeCustomMedia(media: JsonRecord | undefined, cloudName = env.cloudinaryCloudName): SerializedExerciseMedia | undefined {
+  if (!media) return undefined
+
+  const resolvedCloudName = asCloudinaryToken(media.animationCloudName)
+    ?? asCloudinaryToken(media.thumbnailCloudName)
+    ?? cloudName
+  const animationPublicId = asCloudinaryPath(media.animationPublicId)
+  const thumbnailPublicId = asCloudinaryPath(media.thumbnailPublicId)
+  if (!resolvedCloudName || !animationPublicId || !thumbnailPublicId) return serializeUrlMedia(media)
+
+  const animationResourceType = asCloudinaryToken(media.animationResourceType)
+    ?? (media.animationType === "video" ? "video" : "image")
+
+  return {
+    animationUrl: cloudinaryAssetUrl({
+      cloudName: resolvedCloudName,
+      deliveryType: "upload",
+      extension: "mp4",
+      publicId: animationPublicId,
+      resourceType: animationResourceType,
+      transform: animationResourceType === "video" ? "f_auto,q_auto" : "f_mp4,q_auto",
+      version: asCloudinaryVersion(media.animationVersion),
+    }),
+    height: EXERCISE_MEDIA_DIMENSION,
+    thumbnailUrl: cloudinaryAssetUrl({
+      cloudName: resolvedCloudName,
+      deliveryType: "upload",
+      extension: "jpg",
+      publicId: thumbnailPublicId,
+      resourceType: asCloudinaryToken(media.thumbnailResourceType) ?? "image",
+      transform: "f_auto,q_auto",
+      version: asCloudinaryVersion(media.thumbnailVersion),
+    }),
+    type: "video",
+    width: EXERCISE_MEDIA_DIMENSION,
+  }
+}
+
 function serializeCdnMedia(media: JsonRecord | undefined, cloudName = env.cloudinaryCloudName): SerializedExerciseMedia | undefined {
   if (!cloudName) return undefined
 
@@ -193,7 +237,7 @@ function resolveExerciseMedia(
   metadata: unknown,
   cloudinaryCloudName = env.cloudinaryCloudName,
 ): { media: SerializedExerciseMedia; source: ExerciseMediaSource } | undefined {
-  const customMedia = serializeUrlMedia(readCustomExerciseMedia(metadata))
+  const customMedia = serializeCustomMedia(readCustomExerciseMedia(metadata), cloudinaryCloudName)
   if (customMedia) return { media: customMedia, source: "custom" }
 
   const cdnMedia = serializeCdnMedia(readCdnExerciseMedia(metadata), cloudinaryCloudName)
@@ -281,6 +325,12 @@ function buildCustomExerciseMedia(input: {
   const animationCloudName = input.animation?.cloudName ?? input.previousCustom?.animationCloudName
   if (typeof thumbnailCloudName === "string") record.thumbnailCloudName = thumbnailCloudName
   if (typeof animationCloudName === "string") record.animationCloudName = animationCloudName
+
+  // Which Cloudinary pipeline delivers the file: a GIF or WebP animation is an image.
+  const thumbnailResourceType = input.thumbnail?.resourceType ?? input.previousCustom?.thumbnailResourceType
+  const animationResourceType = input.animation?.resourceType ?? input.previousCustom?.animationResourceType
+  if (typeof thumbnailResourceType === "string") record.thumbnailResourceType = thumbnailResourceType
+  if (typeof animationResourceType === "string") record.animationResourceType = animationResourceType
 
   return record
 }
