@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
 import {
   approveTraineeExerciseSwap,
+  rejectTraineeExerciseSwap,
   assignCoachProgram,
   createCoachBodyMetric,
   createCoachCheckIn,
@@ -25,6 +26,18 @@ export function useApproveTraineeExerciseSwap() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.all })
+    },
+  })
+}
+
+export function useRejectTraineeExerciseSwap() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (notificationId: string) =>
+      rejectTraineeExerciseSwap(await requireAccessToken(), notificationId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
     },
   })
 }

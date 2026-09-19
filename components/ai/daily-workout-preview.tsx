@@ -1,13 +1,12 @@
 "use client"
 
-import { AlertTriangle, Check, Clock3, Dumbbell, Loader2, Play, RefreshCw, Sparkles } from "lucide-react"
+import { Check, Clock3, Dumbbell, Loader2, Play, RefreshCw, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
 import type { AIDailyWorkout } from "@/lib/fitness/api"
-import { cn } from "@/lib/utils"
 
-function DailyWorkoutPreview({ workout, exerciseNames, mappingRate, onAccept, onRegenerate, isAccepting }: { workout: AIDailyWorkout; exerciseNames: Map<string, string>; mappingRate: number; onAccept: () => void; onRegenerate: () => void; isAccepting: boolean }) {
+function DailyWorkoutPreview({ workout, exerciseNames, onAccept, onRegenerate, isAccepting }: { workout: AIDailyWorkout; exerciseNames: Map<string, string>; onAccept: () => void; onRegenerate: () => void; isAccepting: boolean }) {
   const { locale } = useLocale()
   const isVi = locale === "vi"
   return (
@@ -16,9 +15,8 @@ function DailyWorkoutPreview({ workout, exerciseNames, mappingRate, onAccept, on
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-4" />{isVi ? "Buổi tập AI cho hôm nay" : "Today's AI workout"}</div>
         <h2 className="mt-3 text-xl font-semibold sm:text-2xl">{workout.name}</h2>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{workout.description}</p>
-        <div className="mt-4 flex flex-wrap gap-2 text-xs"><span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5"><Clock3 className="size-3.5" />{workout.duration} {isVi ? "phút" : "min"}</span><span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5"><Dumbbell className="size-3.5" />{workout.exercises.length} {isVi ? "bài" : "exercises"}</span><span className={cn("rounded-full px-3 py-1.5", mappingRate >= 80 ? "bg-ok-soft text-success-text" : "bg-warning-soft text-warning-text")}>{mappingRate}% {isVi ? "khả dụng" : "available"}</span></div>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs"><span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5"><Clock3 className="size-3.5" />{workout.duration} {isVi ? "phút" : "min"}</span><span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5"><Dumbbell className="size-3.5" />{workout.exercises.length} {isVi ? "bài" : "exercises"}</span></div>
         {workout.warmup && <div className="mt-4 rounded-2xl border border-border/70 bg-background/40 p-4"><p className="label-micro mb-1.5">{isVi ? "Khởi động" : "Warm-up"}</p><p className="text-sm leading-relaxed">{workout.warmup}</p></div>}
-        {mappingRate < 80 && <div className="mt-4 flex gap-2 rounded-xl bg-warning-soft p-3 text-xs text-warning-text"><AlertTriangle className="size-4 shrink-0" />{isVi ? "Một số bài chưa khớp thư viện. Hãy kiểm tra trước khi lưu." : "Some exercises are not matched to the library. Review them before saving."}</div>}
       </section>
 
       <section className="space-y-2.5">

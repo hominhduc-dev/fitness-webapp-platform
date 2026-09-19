@@ -9,6 +9,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh"
 import { PushPermissionPrompt } from "@/components/pwa/push-permission-prompt"
 import { AppProviders } from "@/components/providers/app-providers"
 import { CoachRoutePrefetch } from "@/components/providers/coach-route-prefetch"
+import { ContextualProductTour } from "@/components/onboarding/contextual-product-tour"
 import { TraineeRoutePrefetch } from "@/components/providers/trainee-route-prefetch"
 import { ResumeWorkoutCard } from "@/components/workout/resume-workout-card"
 import { requireAppUser } from "@/lib/auth/server"
@@ -45,6 +46,7 @@ export default async function AppShellLayout({ children }: { children: ReactNode
 
         {profile.role === "trainee" && <ResumeWorkoutCard />}
         <PushPermissionPrompt />
+        <ContextualProductTour role={profile.role} />
       </div>
     </AppProviders>
   )

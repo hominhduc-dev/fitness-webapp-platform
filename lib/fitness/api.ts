@@ -2366,7 +2366,16 @@ type AIProgramGenerationResult = {
       }>
     }>
   }
-  mappingRate: number
+}
+
+async function rejectTraineeExerciseSwap(accessToken: string, notificationId: string) {
+  return request<{
+    rejected: boolean
+    alreadyRejected: boolean
+    notificationId: string
+  }>(`/api/coach/notifications/${notificationId}/reject-exercise-swap`, accessToken, {
+    method: "POST",
+  })
 }
 
 async function generateAIProgram(accessToken: string, input: AIProgramGenerationInput) {
@@ -2444,7 +2453,6 @@ async function generateAIDailyWorkout(accessToken: string, input: {
   const response = await request<ApiEnvelope<{
     generationId: string
     workout: AIDailyWorkout
-    mappingRate: number
   }>>("/api/ai/generate-workout", accessToken, {
     method: "POST",
     body: JSON.stringify(input),
@@ -2549,7 +2557,6 @@ export type AIChatAction =
   | {
       type: "program_draft"
       generationId: string
-      mappingRate: number
       program: {
         name: string
         description: string
@@ -2658,6 +2665,7 @@ export {
   fetchWorkouts,
   addWorkoutToProgram,
   approveTraineeExerciseSwap,
+  rejectTraineeExerciseSwap,
   copyProgramWeek,
   updateTraineeProgram,
   clearNotifications,

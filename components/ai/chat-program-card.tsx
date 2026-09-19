@@ -48,7 +48,7 @@ function ChatProgramCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug">{program.name}</p>
           <p className="text-micro text-muted-foreground">
-            {program.duration} {isVi ? "tuần" : "weeks"} · {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"} · {action.mappingRate}% {isVi ? "bài tập khớp" : "exercises matched"}
+            {program.duration} {isVi ? "tuần" : "weeks"} · {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"}
           </p>
         </div>
       </div>

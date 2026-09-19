@@ -28,8 +28,8 @@ describe("AI date and payload boundaries", () => {
     }
   })
   it("rejects malformed daily metadata and numeric overflow", () => {
-    const data = { name: "Workout", description: "", kind: "full_body", duration: 30, warmup: "", exercises: [{ variationId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301", sets: 3, reps: 10 }] }
-    for (const patch of [{ kind: "invented" }, { duration: -1 }, { name: "" }, { exercises: Array(21).fill(data.exercises[0]) }, { exercises: [{ ...data.exercises[0], restTime: Infinity }] }]) {
+    const data = { description: "", kind: "full_body", warmup: "", exercises: [{ variationRef: "v1", sets: 3, reps: 10 }] }
+    for (const patch of [{ kind: "invented" }, { exercises: Array(21).fill(data.exercises[0]) }, { exercises: [{ ...data.exercises[0], restTime: Infinity }] }]) {
       expect(() => parseAI(dailyOutputSchema, { ...data, ...patch })).toThrow(expect.objectContaining({ status: 422 }))
     }
   })

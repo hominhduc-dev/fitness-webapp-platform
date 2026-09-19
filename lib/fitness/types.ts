@@ -846,7 +846,6 @@ type AIGeneratedProgram = {
 type AIGenerateProgramResult = {
   generationId: string
   program: AIGeneratedProgram
-  mappingRate: number
 }
 
 type AIGenerateMealPlanInput = {

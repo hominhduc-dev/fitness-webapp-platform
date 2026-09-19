@@ -3,6 +3,7 @@ import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
 
 import { env } from "../../config/env"
 import { prisma } from "../../lib/prisma"
+import { isUnsafeDailyCalorieGoal, UNSAFE_CALORIE_GOAL_CODE, UNSAFE_CALORIE_GOAL_MESSAGE } from "../../lib/nutrition/safety"
 import { supabaseAdmin, supabasePublic } from "../../lib/supabase"
 import { AuthServiceError } from "../errors"
 
@@ -303,6 +304,9 @@ function normalizeDailyCalorieGoal(value?: number | null) {
     throw new AuthServiceError(
       `Mục tiêu calories mỗi ngày phải nằm trong khoảng ${MIN_DAILY_CALORIE_GOAL}-${MAX_DAILY_CALORIE_GOAL}.`,
     )
+  }
+  if (isUnsafeDailyCalorieGoal(rounded)) {
+    throw new AuthServiceError(UNSAFE_CALORIE_GOAL_MESSAGE, 422, { code: UNSAFE_CALORIE_GOAL_CODE })
   }
 
   return rounded

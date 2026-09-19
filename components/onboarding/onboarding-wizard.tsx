@@ -161,6 +161,7 @@ export function OnboardingWizard() {
 
   const handleSkip = () => {
     skipOnboarding()
+    window.localStorage.setItem("yb_onboarding_tour_pending", "1")
     router.replace("/dashboard")
   }
 
@@ -191,6 +192,7 @@ export function OnboardingWizard() {
     }
 
     const goal = AI_GOALS[goals[0] as (typeof GOAL_VALUES)[number]] ?? "general_fitness"
+    window.localStorage.setItem("yb_onboarding_tour_pending", "1")
     router.replace(`/workout/ai-generate?mode=program&goal=${goal}`)
   }
 

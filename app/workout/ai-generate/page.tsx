@@ -40,13 +40,11 @@ type GenerateResult = {
       }>
     }>
   }
-  mappingRate: number
 }
 
 type DailyGenerateResult = {
   generationId: string
   workout: AIDailyWorkout
-  mappingRate: number
 }
 
 function formatLocalDate(date: Date) {
@@ -194,7 +192,6 @@ function AIGenerateView() {
         <DailyWorkoutPreview
           workout={dailyResult.workout}
           exerciseNames={exerciseNames}
-          mappingRate={dailyResult.mappingRate}
           onAccept={() => void handleAcceptDaily()}
           onRegenerate={() => setDailyResult(null)}
           isAccepting={isAccepting}
@@ -205,7 +202,6 @@ function AIGenerateView() {
         <ProgramPreview
           program={result.program}
           exerciseNames={exerciseNames}
-          mappingRate={result.mappingRate}
           onAccept={handleAccept}
           onRegenerate={() => setResult(null)}
           isAccepting={isAccepting}

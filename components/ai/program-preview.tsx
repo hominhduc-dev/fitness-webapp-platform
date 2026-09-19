@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Check, Loader2, RefreshCw, Sparkles } from "lucide-react"
+import { Check, Loader2, RefreshCw, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -37,14 +37,12 @@ type PreviewProgram = {
 function ProgramPreview({
   program,
   exerciseNames,
-  mappingRate,
   onAccept,
   onRegenerate,
   isAccepting,
 }: {
   program: PreviewProgram
   exerciseNames: Map<string, string>
-  mappingRate: number
   onAccept: () => void
   onRegenerate: () => void
   isAccepting: boolean
@@ -74,16 +72,7 @@ function ProgramPreview({
           <span className="rounded-full bg-muted px-2.5 py-1">
             {program.workoutsPerWeek} {isVi ? "buổi/tuần" : "days/week"}
           </span>
-          <span className={cn("rounded-full px-2.5 py-1", mappingRate >= 80 ? "bg-ok-soft text-success-text" : "bg-warning-soft text-warning-text")}>
-            {mappingRate}% {isVi ? "bài tập khả dụng" : "exercises available"}
-          </span>
         </div>
-        {mappingRate < 80 && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-warning/20 bg-warning-soft p-3 text-xs text-warning-text">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            {isVi ? "Một số bài AI đề xuất chưa có trong thư viện. Hãy kiểm tra kỹ trước khi lưu hoặc tạo lại cấu hình." : "Some AI-recommended exercises are not in the library. Review them before saving or adjust the setup."}
-          </div>
-        )}
       </div>
 
       {/* Workouts */}

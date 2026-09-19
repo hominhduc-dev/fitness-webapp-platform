@@ -1,6 +1,7 @@
 export {
   adjustCoachProgramForTrainee,
   approveTraineeExerciseSwapForCoach,
+  rejectTraineeExerciseSwapForCoach,
   archiveCoachProgram,
   assignCoachProgramToTrainee,
   createCoachProgram,
