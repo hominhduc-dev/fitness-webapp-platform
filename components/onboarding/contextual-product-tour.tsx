@@ -88,7 +88,7 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
       activeTour = driver({
         animate: true,
         allowClose: true,
-        overlayOpacity: 0.62,
+        overlayOpacity: 0.76,
         smoothScroll: true,
         showProgress: true,
         progressText: "{{current}} / {{total}}",

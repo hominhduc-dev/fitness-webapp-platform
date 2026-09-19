@@ -1559,6 +1559,14 @@ aside.glass-surface::after {
 .driver-popover .driver-popover-prev-btn { color: var(--muted-foreground); }
 .driver-popover .driver-popover-close-btn { color: var(--muted-foreground); }
 
+/* Make the active target read as the focal point above the dimmed page. */
+.driver-active-element {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 4px;
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 24%, transparent), 0 0 24px color-mix(in srgb, var(--primary) 42%, transparent) !important;
+}
+
 @media (max-width: 639px) {
   .driver-popover,
   .driver-popover.yb-tour-popover {
