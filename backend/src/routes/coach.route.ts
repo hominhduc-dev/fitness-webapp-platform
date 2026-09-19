@@ -7,6 +7,7 @@ import { requireCurrentProfile } from "../services/auth.service"
 import {
   adjustCoachProgramForTrainee,
   approveTraineeExerciseSwapForCoach,
+  rejectTraineeExerciseSwapForCoach,
   assignCoachProgramToTrainee,
   createCoachExercise,
   createBodyMetricForTrainee,
@@ -330,6 +331,17 @@ coachRouter.post("/notifications/:notificationId/approve-exercise-swap", async (
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
     const result = await approveTraineeExerciseSwapForCoach(profile.profile, String(req.params.notificationId))
+
+    res.json(result)
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/notifications/:notificationId/reject-exercise-swap", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await rejectTraineeExerciseSwapForCoach(profile.profile, String(req.params.notificationId))
 
     res.json(result)
   } catch (error) {

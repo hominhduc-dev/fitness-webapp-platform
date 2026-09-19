@@ -7,6 +7,7 @@ import { dateKeyInstant, plusDays } from "../../lib/ai/calendar"
 import { formatFoodQuantity, roundNutrition } from "../../lib/nutrition/food-utils"
 import { fitPortions, type Nutrients, type ScalableItem } from "../../lib/nutrition/portion-scaler"
 import { AppError } from "../errors"
+import { SAFETY_RULES, traineeInput } from "./prompts/shared"
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const
 type PlanMealType = (typeof MEAL_TYPES)[number]
@@ -268,7 +269,7 @@ function constraintSection(filters: PromptFilters, recentFoodNames: readonly str
   return [
     `## Dị ứng (đã loại khỏi catalog, tuyệt đối không dùng): ${filters.allergies.length > 0 ? filters.allergies.join(", ") : "Không có"}`,
     `## Chế độ ăn: ${filters.dietType ? DIET_LABELS[filters.dietType] ?? filters.dietType : "Bình thường"}`,
-    filters.preferences ? `## Sở thích / hạn chế thêm: ${filters.preferences}` : "",
+    filters.preferences ? `## Sở thích / hạn chế thêm\n${traineeInput(filters.preferences, "Không có")}` : "",
     `## Ngân sách: ${BUDGET_LABELS[filters.budget ?? "medium"] ?? "Trung bình"}`,
     `## Thời gian nấu: ${COOKING_TIME_LABELS[filters.cookingTime ?? "normal"] ?? "Bình thường"}`,
     `## Món đã ăn gần đây (tránh lặp)\n${recentFoodNames.length > 0 ? recentFoodNames.join(", ") : "Chưa có dữ liệu"}`,
@@ -292,6 +293,7 @@ function buildDayPlanPrompt(input: {
   const systemPrompt = `Bạn là chuyên gia dinh dưỡng AI. Lên thực đơn theo ẩm thực Việt Nam, đa dạng, dễ nấu và thực tế.
 
 QUY TẮC BẮT BUỘC:
+${SAFETY_RULES}
 ${PORTION_RULES}
 - Mỗi ngày trả ĐÚNG các bữa được yêu cầu cho ngày đó (không thêm, không bớt), mỗi loại bữa một lần, đúng thứ tự ngày.
 - Nhiều ngày thì đổi món chính giữa các ngày và tránh các món đã ăn gần đây.`
@@ -337,6 +339,7 @@ function buildMealSwapPrompt(input: {
   const systemPrompt = `Bạn là chuyên gia dinh dưỡng AI. Đề xuất MỘT bữa ăn thay thế theo ẩm thực Việt Nam.
 
 QUY TẮC BẮT BUỘC:
+${SAFETY_RULES}
 ${PORTION_RULES}
 - Chỉ trả đúng một bữa có type "${input.mealType}".`
 

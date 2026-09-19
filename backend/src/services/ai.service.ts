@@ -22,12 +22,16 @@ import { claimGeneration, validateAccessibleVariations } from "./ai/acceptance"
 import { parseAI, programOutputSchema, mappedProgramSchema, dailyOutputSchema, mappedDailySchema, mealPlanOutputSchema, mealSchema, mappedMealsSchema, storedMealPlanSchema, dateSchema, type StoredMealPlan } from "../lib/ai/output-schemas"
 import { generateProgramSchema, generateDailyWorkoutSchema, generateMealPlanSchema, chatSchema } from "../routes/ai.schemas"
 import { startOfClientDay, dateKeyInstant, plusDays } from "../lib/ai/calendar"
-import { buildAIChatSystemPrompt } from "./ai/context/prompt"
+import { buildAIChatSystemPrompt, DRAFT_CREATED_REPLY, NEUTRAL_FALLBACK_REPLY } from "./ai/context/chat-prompt"
 import type { ChatMessage } from "./ai/context/types"
+import { buildDailyWorkoutPrompt } from "./ai/prompts/daily-workout"
+import { buildExerciseCatalogIndex } from "./ai/prompts/shared"
+import { buildProgramPrompt } from "./ai/prompts/workout-program"
 import { AppError, AuthServiceError, TooManyRequestsError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 import { addMealItemForUser, calculateItemNutrition } from "./nutrition.service"
 import type { Nutrients } from "../lib/nutrition/portion-scaler"
+import { isUnsafeDailyCalorieGoal, UNSAFE_CALORIE_GOAL_CODE, UNSAFE_CALORIE_GOAL_MESSAGE } from "../lib/nutrition/safety"
 import { selectFoodsForPrompt } from "./ai/food-catalog"
 import {
   applyMealPlanOverrides,
@@ -115,13 +119,6 @@ function ensurePrisma() {
   return prisma
 }
 
-function requirePromptVariation(id: string, catalog: Array<{ variations: Array<{ id: string }> }>, context: string) {
-  if (!catalog.some(exercise => exercise.variations.some(variation => variation.id === id))) {
-    throw new AppError(`${context}: bài tập ${id} không nằm trong thư viện phù hợp thiết bị. Không có bài nào được tự thay thế; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_EXERCISE" })
-  }
-  return id
-}
-
 // ---------------------------------------------------------------------------
 // Workout Program Generation
 // ---------------------------------------------------------------------------
@@ -141,14 +138,12 @@ type AIWorkoutOutput = {
   name: string
   description: string
   workouts: Array<{
-    name: string
     kind: string
     weekIndex: number
     scheduledDay: number
     duration: number
     exercises: Array<{
-      exerciseName: string
-      variationName?: string
+      variationRef: string
       sets: number
       reps: number
       repsMin?: number
@@ -157,26 +152,6 @@ type AIWorkoutOutput = {
       weight?: number
     }>
   }>
-}
-
-const GOAL_LABELS: Record<string, string> = {
-  build_muscle: "Tăng cơ bắp",
-  lose_weight: "Giảm cân",
-  strength: "Tăng sức mạnh",
-  endurance: "Tăng sức bền",
-  general_fitness: "Thể lực tổng hợp",
-}
-
-const EQUIPMENT_LABELS: Record<string, string> = {
-  full_gym: "Phòng gym đầy đủ thiết bị",
-  home_dumbbells: "Tạ đôi tại nhà",
-  bodyweight: "Tập với trọng lượng cơ thể",
-}
-
-const LEVEL_LABELS: Record<string, string> = {
-  beginner: "Người mới bắt đầu",
-  intermediate: "Trung cấp",
-  advanced: "Nâng cao",
 }
 
 const ENGLISH_WORKOUT_NAMES: Record<WorkoutKind, string> = {
@@ -261,15 +236,19 @@ async function generateWorkoutProgramForSubject(
     orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
   })
 
-
-  const recentLogs = await db.workoutLog.findMany({
-    where: {
-      userId: subject.id,
-      startedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-    },
-    orderBy: { startedAt: "desc" },
-    take: 20,
-  })
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const recentLogWhere = {
+    userId: subject.id,
+    startedAt: { gte: thirtyDaysAgo },
+  }
+  const [recentLogs, sessionsLast30Days] = await Promise.all([
+    db.workoutLog.findMany({
+      where: recentLogWhere,
+      orderBy: { startedAt: "desc" },
+      take: 20,
+    }),
+    db.workoutLog.count({ where: recentLogWhere }),
+  ])
 
   const recentExerciseNames = recentLogs.flatMap((log) =>
     parseExerciseSnapshot(log.exerciseSnapshot)
@@ -277,7 +256,7 @@ async function generateWorkoutProgramForSubject(
       .filter((name): name is string => Boolean(name)),
   )
 
-  const catalogForPrompt = selectCatalogForPrompt(
+  const selectedCatalog = selectCatalogForPrompt(
     exercises.map((e) => ({
       id: e.id,
       name: e.name,
@@ -291,66 +270,18 @@ async function generateWorkoutProgramForSubject(
       recentExerciseNames,
     },
   )
+  const catalog = buildExerciseCatalogIndex(selectedCatalog)
   const recoveryContext = await buildRecoveryContext(db, subject, new Date())
 
-  const systemPrompt = `Bạn là một personal trainer AI chuyên nghiệp. Tạo chương trình tập luyện cá nhân hoá dựa trên thông tin người dùng.
-
-QUY TẮC BẮT BUỘC:
-1. CHỈ sử dụng bài tập từ Exercise Catalog được cung cấp. KHÔNG tự nghĩ ra bài tập mới.
-2. variationId BẮT BUỘC là ID variation trong catalog; không tự tạo ID hoặc thay thế thiết bị.
-3. Trả về JSON thuần tuý, KHÔNG wrap trong markdown code block.
-4. weekIndex bắt đầu từ 0, scheduledDay: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7.
-5. kind phải là một trong: push, pull, legs, full_body, cardio, other.
-6. Chỉ tạo lịch cho tuần đầu tiên (weekIndex=0). Các tuần sau sẽ lặp lại.
-7. workouts[].name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Push Day, Back Day, Leg Day, Full Body Day. Không dùng tên tiếng Việt.
-8. Mọi bài tập BẮT BUỘC có sets (số nguyên 1-12) và reps (số nguyên 1-200). Tổng sets phải phù hợp thời lượng; không nhồi volume quá mức. repsMin chỉ là cận dưới tùy chọn, không thay thế reps.`
-
-  const weightInfo = subject.targetWeightKg
-    ? `Cân nặng mục tiêu: ${subject.targetWeightKg}kg`
-    : ""
-  const heightInfo = subject.heightCm ? `Chiều cao: ${subject.heightCm}cm` : ""
-
-  const userPrompt = `## Thông tin người dùng
-- Người được thiết kế program: ${subject.name}${owner.id !== subject.id ? ` (trainee của coach ${owner.name})` : ""}
-- Mục tiêu: ${GOAL_LABELS[input.goal] ?? input.goal}
-- Recovery / Readiness: ${recoveryContext?.content ?? "Chưa có dữ liệu phục hồi; không tự suy đoán."}
-- Trình độ: ${LEVEL_LABELS[input.experienceLevel] ?? input.experienceLevel}
-- ${heightInfo} ${weightInfo}
-- Số buổi/tuần: ${input.daysPerWeek}
-- Thời lượng mỗi buổi: ${input.sessionDuration} phút
-- Thiết bị: ${EQUIPMENT_LABELS[input.availableEquipment] ?? input.availableEquipment}
-${input.focusAreas?.length ? `- Vùng tập trung: ${input.focusAreas.join(", ")}` : ""}
-${input.injuries ? `- Chấn thương/hạn chế: ${input.injuries}` : ""}
-- Thời gian chương trình: ${input.durationWeeks} tuần
-
-## Lịch sử tập (30 ngày qua)
-- Số buổi đã tập: ${recentLogs.length}
-
-## Exercise Catalog (CHỈ dùng exercises trong list này)
-${JSON.stringify(catalogForPrompt, null, 0)}
-
-## Output JSON Schema
-{
-  "name": "string - tên chương trình bằng tiếng Việt",
-  "description": "string - mô tả ngắn bằng tiếng Việt",
-  "workouts": [{
-    "name": "string - tên buổi tập",
-    "kind": "push|pull|legs|full_body|cardio|other",
-    "weekIndex": 0,
-    "scheduledDay": "number 0-6",
-    "duration": "number - phút",
-    "exercises": [{
-      "variationId": "UUID chính xác của variation trong catalog",
-      "variationName": "string - tên variation từ catalog",
-      "sets": "number",
-      "reps": "number",
-      "repsMin": "number (optional)",
-      "rir": "number (optional, 0-4)",
-      "restTime": "number giây (optional)",
-      "weight": "number kg (optional)"
-    }]
-  }]
-}`
+  const { systemPrompt, userPrompt, promptVersion } = buildProgramPrompt({
+    ...input,
+    catalog,
+    sessionsLast30Days,
+    recoverySummary: recoveryContext?.content,
+    coachName: owner.id !== subject.id ? owner.name : undefined,
+    heightCm: subject.heightCm,
+    targetWeightKg: subject.targetWeightKg,
+  })
 
   const generation = await db.aIGeneration.create({
     data: {
@@ -358,7 +289,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
       userId: owner.id,
       type: AIGenerationType.workout_program,
       status: AIGenerationStatus.pending,
-      input: { ...input, ...(metadata ?? {}) } as unknown as Prisma.InputJsonValue,
+      input: { ...input, ...(metadata ?? {}), promptVersion } as unknown as Prisma.InputJsonValue,
     },
   })
 
@@ -371,6 +302,9 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
     })
 
     const aiOutput = parseAI(programOutputSchema, normalizeAIWorkoutOutput(response.data))
+    if (aiOutput.workouts.some(w => w.weekIndex !== 0)) throw new AppError("AI trả workout ngoài tuần đầu. Hãy tạo lại.", { status: 422 })
+    const scheduledDays = new Set(aiOutput.workouts.map(w => w.scheduledDay))
+    if (scheduledDays.size !== aiOutput.workouts.length) throw new AppError("AI xếp nhiều buổi vào cùng một ngày. Hãy tạo lại.", { status: 422 })
     if (aiOutput.workouts.some(w => w.duration > input.sessionDuration)) throw new AppError("Thời lượng AI tạo vượt quá yêu cầu. Hãy tạo lại.", { status: 422 })
     if (aiOutput.workouts.length !== input.daysPerWeek) throw new AppError("Số buổi AI tạo không khớp yêu cầu. Hãy tạo lại.", { status: 422 })
     validateWorkoutWorkload(aiOutput.workouts, input.sessionDuration)
@@ -378,7 +312,7 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
     const mappedWorkouts = aiOutput.workouts.map((workout) => {
       const mappedExercises = workout.exercises
         .map((exercise) => {
-          const variationId = requirePromptVariation(exercise.variationId, catalogForPrompt, workout.name)
+          const variationId = catalog.resolve(exercise.variationRef, String(workout.kind))
           return {
             variationId,
             sets: exercise.sets,
@@ -399,8 +333,6 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         exercises: mappedExercises,
       }
     })
-
-    const mappingRate = 1
 
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -431,7 +363,6 @@ ${JSON.stringify(catalogForPrompt, null, 0)}
         workoutsPerWeek: input.daysPerWeek,
         workouts: mappedWorkouts,
       },
-      mappingRate: Math.round(mappingRate * 100),
     }
   } catch (error) {
     await db.aIGeneration.update({
@@ -651,14 +582,11 @@ type GenerateDailyWorkoutInput = {
 }
 
 type AIDailyWorkoutOutput = {
-  name: string
   description: string
   kind: string
-  duration: number
   warmup: string
   exercises: Array<{
-    exerciseName: string
-    variationName?: string
+    variationRef: string
     sets: number
     reps: number
     repsMin?: number
@@ -713,10 +641,41 @@ async function generateDailyWorkout(profile: SerializedProfile, input: GenerateD
     where: { OR: [{ createdById: null }, { createdById: profile.id }] },
     orderBy: [{ muscleGroup: "asc" }, { name: "asc" }],
   })
-  const catalogForPrompt = selectCatalogForPrompt(exercises, input)
+  const selectedCatalog = selectCatalogForPrompt(
+    exercises.map((e) => ({
+      id: e.id,
+      name: e.name,
+      muscleGroup: e.muscleGroup,
+      createdById: e.createdById,
+      variations: e.variations.map((v) => ({ id: v.id, name: v.name, equipment: v.equipment })),
+    })),
+    input,
+  )
+  const catalog = buildExerciseCatalogIndex(selectedCatalog)
   const recoveryContext = await buildRecoveryContext(db, profile, new Date())
-  const recentLogs = await db.workoutLog.count({
-    where: { userId: profile.id, startedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+  const [sessionsLast30Days, recentKindLogs] = await Promise.all([
+    db.workoutLog.count({
+      where: { userId: profile.id, startedAt: { gte: thirtyDaysAgo } },
+    }),
+    db.workoutLog.findMany({
+      where: { userId: profile.id, startedAt: { gte: threeDaysAgo } },
+      orderBy: { startedAt: "desc" },
+      take: 3,
+      select: { workout: { select: { kind: true } } },
+    }),
+  ])
+  const recentKinds = recentKindLogs
+    .map(log => log.workout?.kind)
+    .filter((kind): kind is WorkoutKind => Boolean(kind))
+
+  const { systemPrompt, userPrompt, promptVersion } = buildDailyWorkoutPrompt({
+    ...input,
+    catalog,
+    sessionsLast30Days,
+    recentKinds,
+    recoverySummary: recoveryContext?.content,
   })
 
   const generation = await db.aIGeneration.create({
@@ -725,54 +684,9 @@ async function generateDailyWorkout(profile: SerializedProfile, input: GenerateD
       userId: profile.id,
       type: AIGenerationType.workout_program,
       status: AIGenerationStatus.pending,
-      input: { ...input, mode: "daily" } as unknown as Prisma.InputJsonValue,
+      input: { ...input, mode: "daily", promptVersion } as unknown as Prisma.InputJsonValue,
     },
   })
-
-  const systemPrompt = `Bạn là personal trainer AI. Hãy tạo ĐÚNG MỘT buổi tập cho hôm nay.
-
-QUY TẮC BẮT BUỘC:
-1. CHỈ dùng bài tập và variation có trong Exercise Catalog.
-2. variationId BẮT BUỘC là ID variation trong catalog; không tự tạo ID hoặc thay thế thiết bị.
-3. Điều chỉnh volume theo trình độ, thời lượng và mức năng lượng hôm nay.
-4. Tôn trọng tuyệt đối chấn thương hoặc bài cần tránh.
-5. Trả về JSON thuần tuý, không dùng markdown.
-6. kind chỉ được là push, pull, legs, full_body, cardio hoặc other.
-7. name BẮT BUỘC bằng tiếng Anh, Title Case và ngắn gọn, ví dụ: Leg Day, Back Day, Push Day hoặc Full Body Day. Không dùng tên tiếng Việt.`
-
-  const userPrompt = `## Người tập
-- Ngày tập: ${input.date}
-- Mục tiêu: ${GOAL_LABELS[input.goal] ?? input.goal}
-- Trình độ: ${LEVEL_LABELS[input.experienceLevel] ?? input.experienceLevel}
-- Thời lượng: ${input.sessionDuration} phút
-- Thiết bị: ${EQUIPMENT_LABELS[input.availableEquipment] ?? input.availableEquipment}
-- Mức năng lượng: ${input.energyLevel}
-${input.focusAreas?.length ? `- Nhóm cơ hôm nay: ${input.focusAreas.join(", ")}` : "- Nhóm cơ hôm nay: AI tự cân đối"}
-${input.injuries ? `- Chấn thương/hạn chế: ${input.injuries}` : "- Không khai báo chấn thương"}
-- Số buổi đã tập trong 30 ngày: ${recentLogs}
-\n## Recovery / Readiness\n${recoveryContext?.content ?? "Chưa có dữ liệu phục hồi; không tự suy đoán."}
-
-## Exercise Catalog
-${JSON.stringify(catalogForPrompt)}
-
-## Output JSON Schema
-{
-  "name": "Tên buổi tập bằng tiếng Việt",
-  "description": "Mô tả ngắn",
-  "kind": "push|pull|legs|full_body|cardio|other",
-  "duration": ${input.sessionDuration},
-  "warmup": "Hướng dẫn khởi động ngắn",
-  "exercises": [{
-    "variationId": "UUID chính xác của variation trong catalog",
-    "variationName": "Variation chính xác từ catalog",
-    "sets": 3,
-    "reps": 12,
-    "repsMin": 8,
-    "rir": 2,
-    "restTime": 90,
-    "weight": 0
-  }]
-}`
 
   try {
     const response = await getAIProvider().generateStructuredJSON<AIDailyWorkoutOutput>({
@@ -782,10 +696,14 @@ ${JSON.stringify(catalogForPrompt)}
     })
     const raw = parseAI(dailyOutputSchema, normalizeAIWorkoutOutput({ workouts: [response.data] }).workouts[0])
     const mappedExercises = raw.exercises.map(exercise => ({
-      ...exercise,
-      variationId: requirePromptVariation(exercise.variationId, catalogForPrompt, raw.name),
+      sets: exercise.sets,
+      reps: exercise.reps,
+      repsMin: exercise.repsMin,
+      rir: exercise.rir,
+      restTime: exercise.restTime,
+      weight: exercise.weight,
+      variationId: catalog.resolve(exercise.variationRef, String(raw.kind)),
     }))
-    const mappingRate = 1
 
     const mapped: MappedDailyWorkoutOutput = {
       date: input.date,
@@ -797,7 +715,7 @@ ${JSON.stringify(catalogForPrompt)}
       warmup: raw.warmup,
       exercises: mappedExercises,
     }
-    validateWorkoutWorkload([raw], input.sessionDuration)
+    validateWorkoutWorkload([{ duration: input.sessionDuration, exercises: raw.exercises }], input.sessionDuration)
     await db.aIGeneration.update({
       where: { id: generation.id },
       data: {
@@ -807,7 +725,7 @@ ${JSON.stringify(catalogForPrompt)}
       },
     })
 
-    return { generationId: generation.id, workout: mapped, mappingRate: Math.round(mappingRate * 100) }
+    return { generationId: generation.id, workout: mapped }
   } catch (error) {
     await db.aIGeneration.update({
       where: { id: generation.id },
@@ -930,6 +848,10 @@ function mealPlanGoals(profile: SerializedProfile): Nutrients {
   }
 }
 
+function profileHasCustomMacroGoals(profile: SerializedProfile) {
+  return profile.dailyProteinGoal != null || profile.dailyCarbsGoal != null || profile.dailyFatGoal != null
+}
+
 function mealPlanFilters(profile: SerializedProfile, input: { budget?: string; cookingTime?: string; preferences?: string }): PromptFilters {
   return {
     allergies: profile.foodAllergies ?? [],
@@ -1004,6 +926,9 @@ async function generateMealPlan(profile: SerializedProfile, rawInput: GenerateMe
   if (!Number.isFinite(goals.calories) || goals.calories <= 0) {
     throw new AppError("Hãy cập nhật mục tiêu calories trong hồ sơ trước khi tạo thực đơn.", { status: 422, code: "AI_MISSING_CALORIE_GOAL" })
   }
+  if (isUnsafeDailyCalorieGoal(goals.calories)) {
+    throw new AppError(UNSAFE_CALORIE_GOAL_MESSAGE, { status: 422, code: UNSAFE_CALORIE_GOAL_CODE })
+  }
   const db = ensurePrisma()
   await checkRateLimit(profile.id, AIGenerationType.meal_plan)
 
@@ -1015,7 +940,7 @@ async function generateMealPlan(profile: SerializedProfile, rawInput: GenerateMe
   ])
 
   // Plan only what is left of each day: meal types not yet eaten, against the remaining goals.
-  const customMacros = hasCustomMacroGoals(goals)
+  const customMacros = profileHasCustomMacroGoals(profile)
   const plannedDays = dates.map((date) => {
     const logged = consumedByDate.get(date)
     const consumed = roundNutrients(logged?.totals ?? emptyNutrients())
@@ -1281,14 +1206,11 @@ function validateWorkoutWorkload(workouts: Array<{ duration: number; exercises: 
 // AI Chat — one-shot fitness Q&A
 // ---------------------------------------------------------------------------
 
-const FALLBACK_REPLY = "Mình là AI Coach, chỉ hỗ trợ về tập luyện, dinh dưỡng và sức khoẻ thôi nhé! 💪"
-
 /** A draft the chat produced that the user still has to confirm. */
 type ChatAction =
   | {
       type: "program_draft"
       generationId: string
-      mappingRate: number
       program: MappedProgramOutput
     }
   | {
@@ -1379,7 +1301,7 @@ async function chatWithAI(
       : message
 
     const response = await ai.generateText({ systemPrompt, userPrompt, maxTokens: 1024 })
-    return { reply: response.data.trim() || FALLBACK_REPLY }
+    return { reply: response.data.trim() || NEUTRAL_FALLBACK_REPLY }
   }
 
   const messages: AIConversationMessage[] = [
@@ -1395,7 +1317,7 @@ async function chatWithAI(
   })
 
   if (turn.toolCalls.length === 0) {
-    return { reply: turn.text.trim() || FALLBACK_REPLY }
+    return { reply: turn.text.trim() || NEUTRAL_FALLBACK_REPLY }
   }
 
   // Every tool call must get a result back or the next request is rejected, so
@@ -1444,7 +1366,6 @@ async function chatWithAI(
         action = {
           type: "program_draft",
           generationId: result.generationId,
-          mappingRate: result.mappingRate,
           program: result.program as MappedProgramOutput,
         }
         pushToolResult(call, {
@@ -1453,7 +1374,6 @@ async function chatWithAI(
           description: result.program.description,
           durationWeeks: result.program.duration,
           workoutsPerWeek: result.program.workoutsPerWeek,
-          mappingRate: result.mappingRate,
           workouts: result.program.workouts.map((workout) => ({
             name: workout.name,
             scheduledDay: workout.scheduledDay,
@@ -1496,7 +1416,7 @@ async function chatWithAI(
     }
   }
 
-  let reply = turn.text.trim() || FALLBACK_REPLY
+  let reply = turn.text.trim() || NEUTRAL_FALLBACK_REPLY
   try {
     const followUp = await ai.generateWithTools({
       systemPrompt,
@@ -1512,7 +1432,7 @@ async function chatWithAI(
   } catch {
     // The draft action is already persisted; keep it visible when the
     // explanatory follow-up provider call fails.
-    reply = action ? "Mình đã tạo bản nháp. Bạn kiểm tra nội dung và bấm xác nhận trong ứng dụng để lưu nhé." : reply
+    reply = action ? DRAFT_CREATED_REPLY : reply
   }
   return action ? { reply, action } : { reply }
 }

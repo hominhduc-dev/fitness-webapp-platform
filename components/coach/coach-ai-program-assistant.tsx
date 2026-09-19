@@ -131,7 +131,6 @@ function CoachAIProgramAssistant({ onAccepted, traineeId, traineeName }: CoachAI
             <ProgramPreview
               exerciseNames={exerciseNames}
               isAccepting={acceptProgram.isPending}
-              mappingRate={draft.mappingRate}
               onAccept={() => void handleAccept()}
               onRegenerate={() => setDraft(null)}
               program={draft.program}

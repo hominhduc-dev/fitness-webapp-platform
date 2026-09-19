@@ -34,7 +34,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
-import { ChevronDown, ChevronRight, Eye, Loader2, Pencil, Plus, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Eye, Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -126,7 +126,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       ),
     }))
     .filter((group) => group.programs.length > 0)
-  const unassignedPrograms = visiblePrograms.filter((program) => program.assignedTrainees.length === 0)
 
   const handleDuplicate = async (program: CoachProgram) => {
     setBusyId(program.id)
@@ -260,17 +259,17 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         </h1>
         <p className="mt-1.5 font-mono text-sm tnum text-muted-foreground">
           {viewMode === "clients"
-            ? `${visiblePrograms.length} assigned program records · ${unassigned} unassigned`
+            ? `${totalAssignments} assigned program records`
             : `${totalAssignments} clients training on a program · ${unassigned} unassigned`}
         </p>
       </div>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-        <div className="grid grid-cols-2 rounded-lg border border-border bg-card p-1">
+        <div className="grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1 shadow-sm">
           <Button
             type="button"
             variant={viewMode === "library" ? "secondary" : "ghost"}
             size="sm"
-            className="h-8"
+            className={viewMode === "library" ? "h-9 bg-primary font-semibold text-primary-foreground hover:bg-primary/90" : "h-9 font-medium"}
             onClick={() => setViewMode("library")}
           >
             Library
@@ -279,7 +278,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
             type="button"
             variant={viewMode === "clients" ? "secondary" : "ghost"}
             size="sm"
-            className="h-8"
+            className={viewMode === "clients" ? "h-9 bg-primary font-semibold text-primary-foreground hover:bg-primary/90" : "h-9 font-medium"}
             onClick={() => setViewMode("clients")}
           >
             By client
@@ -465,6 +464,19 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
                               <Pencil className="h-3.5 w-3.5" />
                               Adjust
                             </Button>
+                            {program.forkedFromProgramId ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon-sm"
+                                className="shrink-0 text-destructive hover:bg-destructive-soft hover:text-destructive"
+                                aria-label={`Delete personalized copy ${program.name}`}
+                                title="Delete personalized copy"
+                                onClick={() => void handleDelete(program)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -475,31 +487,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
             })
           )}
 
-          {unassignedPrograms.length > 0 ? (
-            <section className="rounded-lg border border-border bg-card p-4 xl:col-span-2">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base font-semibold">Unassigned</h2>
-                <Badge variant="micro" className="bg-muted text-muted-foreground">
-                  {unassignedPrograms.length} programs
-                </Badge>
-              </div>
-              <div className="mt-4 grid gap-2 lg:grid-cols-2">
-                {unassignedPrograms.map((program) => (
-                  <div key={program.id} className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-3 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{program.name}</p>
-                      <p className="mt-1 font-mono text-micro text-muted-foreground">
-                        {program.workoutsPerWeek} days/week · {program.duration} weeks
-                      </p>
-                    </div>
-                    <Button type="button" size="sm" onClick={() => setAssignTarget(program)}>
-                      Assign
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
         </div>
       )}
 

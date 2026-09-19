@@ -2,7 +2,7 @@
 
 import { formatDistanceToNow } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { Bell, Check, CheckCheck, Loader2, RotateCcw, Settings } from "lucide-react"
+import { Bell, Check, CheckCheck, Loader2, RotateCcw, Settings, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -15,11 +15,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AppNotification } from "@/lib/fitness/types"
 import { presentNotification } from "@/lib/notifications/present"
 import { setAppBadge } from "@/lib/pwa/app-badge"
-import { useApproveTraineeExerciseSwap } from "@/lib/queries/coach"
+import { useApproveTraineeExerciseSwap, useRejectTraineeExerciseSwap } from "@/lib/queries/coach"
 import {
   useClearNotifications,
   useMarkAllNotificationsRead,
@@ -35,7 +37,8 @@ function formatBadge(count: number) {
 function isPendingExerciseSwapApproval(notification: AppNotification) {
   return notification.type === "general" &&
     notification.metadata?.kind === "trainee_swapped_exercise" &&
-    typeof notification.metadata?.approvedAt !== "string"
+    typeof notification.metadata?.approvedAt !== "string" &&
+    typeof notification.metadata?.rejectedAt !== "string"
 }
 
 /**
@@ -61,6 +64,8 @@ export function NotificationBell({
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
   const approveExerciseSwap = useApproveTraineeExerciseSwap()
+  const rejectExerciseSwap = useRejectTraineeExerciseSwap()
+  const [selectedSwap, setSelectedSwap] = useState<AppNotification | null>(null)
 
   const notifications = query.data?.notifications ?? []
   const unreadCount = query.data?.unreadCount ?? 0
@@ -153,7 +158,14 @@ export function NotificationBell({
               return (
                 <DropdownMenuItem
                   key={notification.id}
-                  onSelect={() => handleSelect(notification, view.href)}
+                  onSelect={() => {
+                    if (canApproveSwap) {
+                      handleSelect(notification, null)
+                      setSelectedSwap(notification)
+                    } else {
+                      handleSelect(notification, view.href)
+                    }
+                  }}
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2.5",
                     unread && "bg-primary-soft/40",
@@ -209,6 +221,81 @@ export function NotificationBell({
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
+
+      <Dialog open={Boolean(selectedSwap)} onOpenChange={(nextOpen) => !nextOpen && setSelectedSwap(null)}>
+        <DialogContent className="w-[min(92vw,32rem)] rounded-2xl">
+          {selectedSwap ? (
+            <SwapDetailDialog
+              notification={selectedSwap}
+              locale={locale}
+              onApprove={() => {
+                approveExerciseSwap.mutate(selectedSwap.id, { onSuccess: () => setSelectedSwap(null) })
+              }}
+              onReject={() => {
+                rejectExerciseSwap.mutate(selectedSwap.id, { onSuccess: () => setSelectedSwap(null) })
+              }}
+              approving={approveExerciseSwap.isPending}
+              rejecting={rejectExerciseSwap.isPending}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </DropdownMenu>
+  )
+}
+
+function SwapDetailDialog({
+  approving,
+  locale,
+  notification,
+  onApprove,
+  onReject,
+  rejecting,
+}: {
+  approving: boolean
+  locale: string
+  notification: AppNotification
+  onApprove: () => void
+  onReject: () => void
+  rejecting: boolean
+}) {
+  const metadata = notification.metadata ?? {}
+  const oldExerciseName = typeof metadata.oldExerciseName === "string" ? metadata.oldExerciseName : "Bài tập hiện tại"
+  const newExerciseName = typeof metadata.newExerciseName === "string" ? metadata.newExerciseName : "Bài tập mới"
+  const traineeName = typeof metadata.traineeName === "string" ? metadata.traineeName : "Trainee"
+  const programName = typeof notification.message === "string" ? notification.message.split(" in ").at(1)?.replace(/\.$/, "") : null
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{locale === "vi" ? "Yêu cầu đổi bài tập" : "Exercise replacement request"}</DialogTitle>
+        <DialogDescription>
+          {locale === "vi" ? `${traineeName} muốn thay đổi bài tập trong ${programName ?? "chương trình"}.` : `${traineeName} replaced an exercise in ${programName ?? "the program"}.`}
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-3 py-2">
+        <div className="rounded-xl border border-border bg-muted/20 p-4">
+          <p className="label-micro text-muted-foreground">{locale === "vi" ? "Bài tập thay đổi" : "Exercise change"}</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+            <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium">{oldExerciseName}</div>
+            <span className="text-center text-muted-foreground">→</span>
+            <div className="rounded-lg border border-primary/30 bg-primary-soft px-3 py-2 text-sm font-medium text-primary">{newExerciseName}</div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {locale === "vi" ? "Duyệt sẽ cập nhật bài tập tương ứng trong chương trình gốc. Từ chối sẽ giữ thay đổi ở bản cá nhân hóa của trainee và đóng yêu cầu này." : "Approving updates the matching exercise in the original program. Rejecting keeps the trainee's personalized change and closes this request."}
+        </p>
+      </div>
+      <DialogFooter className="gap-2 sm:justify-end">
+        <Button variant="outline" onClick={onReject} disabled={approving || rejecting}>
+          {rejecting ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+          {locale === "vi" ? "Từ chối" : "Reject"}
+        </Button>
+        <Button onClick={onApprove} disabled={approving || rejecting}>
+          {approving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          {locale === "vi" ? "Duyệt đổi bài" : "Approve swap"}
+        </Button>
+      </DialogFooter>
+    </>
   )
 }

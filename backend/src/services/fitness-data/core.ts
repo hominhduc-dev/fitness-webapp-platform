@@ -6109,6 +6109,40 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
   }
 }
 
+async function rejectTraineeExerciseSwapForCoach(profile: SerializedProfile, notificationId: string) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const notification = await db.notification.findFirst({
+    where: { id: notificationId, userId: profile.id },
+  })
+  if (!notification) throw new AuthServiceError("Không tìm thấy thông báo đổi bài.", 404)
+
+  const kind = readNotificationMetadataString(notification.metadata, "kind")
+  const rejectedAt = readNotificationMetadataString(notification.metadata, "rejectedAt")
+  if (kind !== "trainee_swapped_exercise") {
+    throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
+  }
+  if (rejectedAt) {
+    return { rejected: true, alreadyRejected: true, notificationId }
+  }
+
+  const nextMetadata = {
+    ...(notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
+      ? (notification.metadata as Record<string, unknown>)
+      : {}),
+    rejectedAt: new Date().toISOString(),
+    rejectedByCoachId: profile.id,
+  }
+
+  await db.notification.update({
+    data: { metadata: nextMetadata as Prisma.InputJsonValue, readAt: notification.readAt ?? new Date() },
+    where: { id: notification.id },
+  })
+
+  return { rejected: true, alreadyRejected: false, notificationId }
+}
+
 function isFutureWorkout(
   candidate: { scheduledDay: number | null; weekIndex: number | null },
   reference: { scheduledDay: number | null; weekIndex: number | null },
@@ -6127,7 +6161,7 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
   assertCoach(profile)
 
   const existingProgram = await db.program.findFirst({
-    select: { id: true },
+    select: { id: true, forkedFromProgramId: true },
     where: {
       createdById: profile.id,
       id: programId,
@@ -6138,25 +6172,27 @@ async function deleteCoachProgram(profile: SerializedProfile, programId: string)
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
   }
 
-  // Hard-delete is only allowed when the program is a draft: no assignments AND
-  // no workout logs anywhere. WorkoutLog.programId is checked alongside the live
-  // workout FK so orphaned logs (created before workouts were deleted on edit)
-  // also block hard-delete.
+  // A personalized copy belongs to the coach and may be removed with its
+  // trainee assignment. Original/library programs still require zero
+  // assignments. Logs always block hard-delete so history remains intact.
   const [assignmentCount, liveLogCount, orphanLogCount] = await Promise.all([
     db.programAssignment.count({ where: { programId: existingProgram.id } }),
     db.workoutLog.count({ where: { workout: { programId: existingProgram.id } } }),
     db.workoutLog.count({ where: { programId: existingProgram.id } }),
   ])
 
-  if (assignmentCount > 0 || liveLogCount > 0 || orphanLogCount > 0) {
+  if ((!existingProgram.forkedFromProgramId && assignmentCount > 0) || liveLogCount > 0 || orphanLogCount > 0) {
     throw new AuthServiceError(
       "Program đã có assignment hoặc log — dùng Archive thay vì Delete.",
       409,
     )
   }
 
-  await db.program.delete({
-    where: { id: existingProgram.id },
+  await db.$transaction(async (tx) => {
+    if (existingProgram.forkedFromProgramId) {
+      await tx.programAssignment.deleteMany({ where: { programId: existingProgram.id } })
+    }
+    await tx.program.delete({ where: { id: existingProgram.id } })
   })
 
   return {
@@ -8038,6 +8074,7 @@ export {
   addWorkoutToTraineeProgram,
   adjustCoachProgramForTrainee,
   approveTraineeExerciseSwapForCoach,
+  rejectTraineeExerciseSwapForCoach,
   archiveCoachProgram,
   assignCoachProgramToTrainee,
   buildProgramTreeCreateManyData,

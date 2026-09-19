@@ -15,8 +15,8 @@ const noodleId = "3f2504e0-4f89-41d3-9a0c-0305e82c3303"
 // Macro goals are exactly what eight 100 g portions of rice provide, so an exact draft needs no scaling.
 const profile = { id: "user", dailyCalorieGoal: 2000, dailyProteinGoal: 80, dailyCarbsGoal: 320, dailyFatGoal: 48 } as SerializedProfile
 const input = { goal: "strength", experienceLevel: "beginner", daysPerWeek: 2, durationWeeks: 1, sessionDuration: 30, availableEquipment: "bodyweight" }
-const exercise = { variationId: id, sets: 3, reps: 10 }
-const workout = { name: "Full Body", kind: "full_body", duration: 30, weekIndex: 0, scheduledDay: 1, exercises: [exercise] }
+const exercise = { variationRef: "v1", sets: 3, reps: 10 }
+const workout = { kind: "full_body", duration: 30, weekIndex: 0, scheduledDay: 1, exercises: [exercise] }
 const rice = { id, name: "Rice", category: "staple", calories: 250, protein: 10, carbs: 40, fat: 6, fiber: 1, sodium: 10, sugar: 0, servingAmount: 100, servingUnit: "g", servingLabel: "100 g" }
 function program() { return { name: "Plan", description: "", workouts: [workout, { ...workout, scheduledDay: 3 }] } }
 function meals(types = ["breakfast", "lunch", "dinner", "snack"], amountValue = 100, foodId = id) {
@@ -38,16 +38,16 @@ describe("AI generation runtime contracts", () => {
   it("maps exact IDs and excludes unreachable variations from the prompt", async () => {
     provider.generateStructuredJSON.mockResolvedValue({ data: program(), tokenUsage: 100 })
     const result = await generateWorkoutProgram(profile, input)
-    expect(result.mappingRate).toBe(100)
     expect(result.program.workouts[0].exercises[0].variationId).toBe(id)
     const prompt = provider.generateStructuredJSON.mock.calls[0][0].userPrompt
-    expect(prompt).toContain(id)
+    expect(prompt).toContain("v1")
+    expect(prompt).not.toContain(id)
     expect(prompt).not.toContain(wrongId)
   })
   it.each(["missing", "unreachable", "empty", "duplicate-day", "wrong-count", "bad-rir", "bad-weight"])("rejects %s output without silently dropping or substituting", async defect => {
     const data = structuredClone(program())
-    if (defect === "missing") Reflect.deleteProperty(data.workouts[0].exercises[0], "variationId")
-    if (defect === "unreachable") data.workouts[0].exercises[0].variationId = wrongId
+    if (defect === "missing") Reflect.deleteProperty(data.workouts[0].exercises[0], "variationRef")
+    if (defect === "unreachable") data.workouts[0].exercises[0].variationRef = "v999"
     if (defect === "empty") data.workouts[0].exercises = []
     if (defect === "duplicate-day") data.workouts[1].scheduledDay = 1
     if (defect === "wrong-count") data.workouts.pop()
@@ -58,7 +58,7 @@ describe("AI generation runtime contracts", () => {
     expect(db.aIGeneration.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "failed" }) }))
   })
   it("validates daily workout output too", async () => {
-    provider.generateStructuredJSON.mockResolvedValue({ data: { ...workout, warmup: "", description: "", exercises: [{ ...exercise, reps: -1 }] } })
+    provider.generateStructuredJSON.mockResolvedValue({ data: { kind: workout.kind, warmup: "", description: "", exercises: [{ ...exercise, reps: -1 }] } })
     await expect(generateDailyWorkout(profile, { ...input, date: "2026-09-11", energyLevel: "normal" })).rejects.toMatchObject({ status: 422 })
     expect(db.aIGeneration.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "failed" }) }))
   })

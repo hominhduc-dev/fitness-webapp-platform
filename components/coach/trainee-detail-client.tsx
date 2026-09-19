@@ -573,9 +573,9 @@ export function CoachTraineeDetailClient({
       </TabsContent>
 
       {/* ── Nutrition ─────────────────────────────────────────────────────── */}
-      <TabsContent value="nutrition" className="space-y-4">
-        <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)]">
-          <div className="space-y-4">
+      <TabsContent value="nutrition" className="min-w-0 max-w-full space-y-4 overflow-x-hidden">
+        <div className="grid min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)]">
+          <div className="min-w-0 space-y-4">
             <TraineeMealPlanPanel traineeId={detail.trainee.id} />
 
             <div className="rounded-lg border border-border p-4">
@@ -613,9 +613,9 @@ export function CoachTraineeDetailClient({
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+          <div className="min-w-0 max-w-full rounded-lg border border-border p-4">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
                 <h2 className="text-base font-semibold">{messages.coach.nutritionTitle} · 30 ngày</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {nutritionSummary ? messages.coach.daysTrackedLabel(nutritionSummary.daysTracked) : messages.coach.nutritionDesc}
@@ -650,7 +650,7 @@ export function CoachTraineeDetailClient({
               </div>
 
               {/* Daily log accordion — tap a day to expand meal-by-meal breakdown */}
-              <div className="mt-4 flex max-h-[520px] flex-col gap-2 overflow-y-auto pr-1">
+              <div className="mt-4 flex min-w-0 max-w-full max-h-[520px] flex-col gap-2 overflow-x-hidden overflow-y-auto pr-1">
                 {nutritionSummary.dailyLogs.map((row) => {
                   const goal = nutritionSummary.traineeCalorieGoal
                   const goalPct = goal > 0 ? Math.round((row.calories / goal) * 100) : null
@@ -666,19 +666,19 @@ export function CoachTraineeDetailClient({
                       <button
                         type="button"
                         onClick={() => setExpandedNutritionDate(isOpen ? null : row.date)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+                        className="flex min-w-0 w-full max-w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted/40 sm:gap-3"
                       >
                         {isOpen ? (
                           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         ) : (
                           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
-                        <span className="w-14 shrink-0 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                        <span className="w-12 shrink-0 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground sm:w-14">
                           {row.date}
                         </span>
                         <span
                           className={cn(
-                            "flex-1 truncate font-mono text-sm tabular-nums",
+                            "min-w-0 flex-1 truncate font-mono text-sm tabular-nums",
                             over ? "text-warning-text" : "text-foreground",
                           )}
                         >
@@ -689,7 +689,7 @@ export function CoachTraineeDetailClient({
                             </span>
                           )}
                         </span>
-                        <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                        <span className="max-w-[5.5rem] shrink-0 truncate font-mono text-xs tabular-nums text-muted-foreground sm:max-w-none">
                           {bodyMetric?.weightKg != null ? `W ${formatNumber(bodyMetric.weightKg, " kg")}` : "W --"}
                           {bodyMetric?.bodyFatPct != null ? ` · BF ${formatNumber(bodyMetric.bodyFatPct, "%")}` : ""}
                         </span>

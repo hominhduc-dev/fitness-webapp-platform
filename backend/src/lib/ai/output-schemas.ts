@@ -12,17 +12,18 @@ const prescription = z.object({
   sets: integer(1, 12), reps: integer(1, 200), repsMin: integer(1, 200).optional(),
   rir: integer(0, 4).optional(), restTime: integer(0, 900).optional(), weight: z.number().min(0).max(1000).optional(),
 }).refine(v => v.repsMin == null || v.repsMin <= v.reps, "repsMin không được lớn hơn reps")
-const exercise = prescription.safeExtend({ variationId: z.uuid(), exerciseName: text.optional(), variationName: text.optional() })
+const aiExercise = prescription.safeExtend({ variationRef: z.string().trim().min(1).max(12) })
 const mappedExercise = prescription.safeExtend({ variationId: z.uuid() })
-const workout = z.object({ name: text, kind, weekIndex: z.literal(0), scheduledDay: integer(0, 6), duration: integer(10, 240), exercises: z.array(exercise).min(1).max(20) })
+const aiWorkout = z.object({ kind, weekIndex: z.literal(0), scheduledDay: integer(0, 6), duration: integer(10, 240), exercises: z.array(aiExercise).min(1).max(20) })
+const mappedWorkout = z.object({ name: text, kind, weekIndex: z.literal(0), scheduledDay: integer(0, 6), duration: integer(10, 240), exercises: z.array(mappedExercise).min(1).max(20) })
 const uniqueDays = (v: { workouts: { scheduledDay: number }[] }) => new Set(v.workouts.map(w => w.scheduledDay)).size === v.workouts.length
-export const programOutputSchema = z.object({ name: text, description, workouts: z.array(workout).min(1).max(7) }).refine(uniqueDays, "Các buổi tập không được trùng ngày")
+export const programOutputSchema = z.object({ name: text, description, workouts: z.array(aiWorkout).min(1).max(7) }).refine(uniqueDays, "Các buổi tập không được trùng ngày")
 export const mappedProgramSchema = z.object({
   name: text, description, difficulty, duration: integer(1, 16), workoutsPerWeek: integer(2, 7),
-  workouts: z.array(workout.extend({ exercises: z.array(mappedExercise).min(1).max(20) })).min(2).max(7),
+  workouts: z.array(mappedWorkout).min(2).max(7),
 }).refine(uniqueDays, "Các buổi tập không được trùng ngày").refine(v => v.workoutsPerWeek === v.workouts.length, "Số buổi tập không khớp workoutsPerWeek")
-export const dailyOutputSchema = z.object({ name: text, description, kind, duration: integer(20, 120), warmup: description, exercises: z.array(exercise).min(1).max(20) })
-export const mappedDailySchema = dailyOutputSchema.extend({ date: dateSchema, difficulty, exercises: z.array(mappedExercise).min(1).max(20) })
+export const dailyOutputSchema = z.object({ description, kind, warmup: description, exercises: z.array(aiExercise).min(1).max(20) })
+export const mappedDailySchema = z.object({ date: dateSchema, name: text, description, difficulty, kind, duration: integer(20, 120), warmup: description, exercises: z.array(mappedExercise).min(1).max(20) })
 export const mealItemSchema = z.object({ foodId: z.uuid(), foodName: text.optional(), amountValue: z.number().positive().max(5000), amountUnit: z.enum(["serving", "g", "ml"]) })
 const mealType = z.enum(["breakfast", "lunch", "dinner", "snack"])
 export const mealSchema = z.object({ type: mealType, suggestion: description, items: z.array(mealItemSchema).min(1).max(3) })

@@ -50,7 +50,7 @@ export function TraineeMealPlanPanel({ traineeId }: { traineeId: string }) {
     })
 
   return (
-    <div className="rounded-lg border border-border p-5">
+    <div className="min-w-0 max-w-full rounded-lg border border-border p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-base font-semibold">Thực đơn dự kiến</h2>
