@@ -1536,6 +1536,7 @@ aside.glass-surface::after {
 
 /* Driver.js uses a fixed popover so the contextual tour stays usable while
    the highlighted card scrolls through a mobile viewport. */
+.driver-popover,
 .driver-popover.yb-tour-popover {
   max-width: min(360px, calc(100vw - 24px));
   border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border));
@@ -1545,20 +1546,21 @@ aside.glass-surface::after {
   box-shadow: 0 20px 50px rgb(0 0 0 / 42%), 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
-.driver-popover.yb-tour-popover .driver-popover-title { color: var(--foreground); font-size: 1rem; }
-.driver-popover.yb-tour-popover .driver-popover-description { color: var(--muted-foreground); line-height: 1.55; }
-.driver-popover.yb-tour-popover .driver-popover-progress-text { color: var(--primary); font-family: var(--font-mono); }
+.driver-popover .driver-popover-title { color: var(--foreground); font-size: 1rem; }
+.driver-popover .driver-popover-description { color: var(--muted-foreground); line-height: 1.55; }
+.driver-popover .driver-popover-progress-text { color: var(--primary); font-family: var(--font-mono); }
 .driver-popover-footer button {
   border: 0;
   border-radius: 0.625rem;
   font-weight: 600;
 }
-.driver-popover.yb-tour-popover .driver-popover-next-btn,
-.driver-popover.yb-tour-popover .driver-popover-done-btn { background: var(--primary); color: var(--primary-foreground); text-shadow: none; }
-.driver-popover.yb-tour-popover .driver-popover-prev-btn { color: var(--muted-foreground); }
-.driver-popover.yb-tour-popover .driver-popover-close-btn { color: var(--muted-foreground); }
+.driver-popover .driver-popover-next-btn,
+.driver-popover .driver-popover-done-btn { background: var(--primary); color: var(--primary-foreground); text-shadow: none; }
+.driver-popover .driver-popover-prev-btn { color: var(--muted-foreground); }
+.driver-popover .driver-popover-close-btn { color: var(--muted-foreground); }
 
 @media (max-width: 639px) {
+  .driver-popover,
   .driver-popover.yb-tour-popover {
     position: fixed !important;
     inset: auto 0.75rem 0.75rem !important;
@@ -1566,6 +1568,6 @@ aside.glass-surface::after {
     max-width: none;
     padding: 1rem;
   }
-  .driver-popover.yb-tour-popover .driver-popover-footer { gap: 0.5rem; }
-  .driver-popover.yb-tour-popover .driver-popover-footer button { min-height: 2.5rem; padding: 0.5rem 0.75rem; }
+  .driver-popover .driver-popover-footer { gap: 0.5rem; }
+  .driver-popover .driver-popover-footer button { min-height: 2.5rem; padding: 0.5rem 0.75rem; }
 }

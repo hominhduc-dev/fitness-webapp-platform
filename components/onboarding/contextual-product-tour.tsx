@@ -93,6 +93,7 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
         nextBtnText: "Next",
         prevBtnText: "Back",
         doneBtnText: "Done",
+        popoverClass: "yb-tour-popover",
         steps: selected.steps.map((step) => ({
           element: step.target,
           popover: {
@@ -100,7 +101,6 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
             description: step.body,
             side: "top",
             align: "center",
-            popoverClass: "yb-tour-popover",
           },
         })),
         onDestroyed: () => {
