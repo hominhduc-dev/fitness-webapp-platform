@@ -1562,9 +1562,7 @@ aside.glass-surface::after {
 @media (max-width: 639px) {
   .driver-popover,
   .driver-popover.yb-tour-popover {
-    position: fixed !important;
-    inset: auto 0.75rem 0.75rem !important;
-    width: auto !important;
+    width: min(360px, calc(100vw - 24px)) !important;
     max-width: none;
     padding: 1rem;
   }

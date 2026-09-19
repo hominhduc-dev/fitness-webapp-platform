@@ -101,8 +101,8 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
           popover: {
             title: step.title,
             description: step.body,
-            side: "top",
-            align: "center",
+            side: "bottom",
+            align: "start",
           },
         })),
         onDestroyed: () => {
