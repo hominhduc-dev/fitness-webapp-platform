@@ -82,6 +82,8 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
           ? { key: `${CONTEXT_KEY_PREFIX}${contextTour.key}`, steps: contextTour.steps }
           : null
       if (!selected || selected.steps.length === 0) return
+      const availableSteps = selected.steps.filter((step) => !step.target || document.querySelector(step.target))
+      if (availableSteps.length === 0) return
 
       activeTour = driver({
         animate: true,
@@ -94,7 +96,7 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
         prevBtnText: "Back",
         doneBtnText: "Done",
         popoverClass: "yb-tour-popover",
-        steps: selected.steps.map((step) => ({
+        steps: availableSteps.map((step) => ({
           element: step.target,
           popover: {
             title: step.title,
