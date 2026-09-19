@@ -84,8 +84,25 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
       if (!selected || selected.steps.length === 0) return
 
       activeTour = driver({
-        animate: true, allowClose: true, overlayOpacity: 0.62, smoothScroll: true, showProgress: true,
-        steps: selected.steps.map((step) => ({ element: step.target, popover: { title: step.title, description: step.body, side: "bottom", align: "center" } })),
+        animate: true,
+        allowClose: true,
+        overlayOpacity: 0.62,
+        smoothScroll: true,
+        showProgress: true,
+        progressText: "{{current}} / {{total}}",
+        nextBtnText: "Next",
+        prevBtnText: "Back",
+        doneBtnText: "Done",
+        steps: selected.steps.map((step) => ({
+          element: step.target,
+          popover: {
+            title: step.title,
+            description: step.body,
+            side: "top",
+            align: "center",
+            popoverClass: "yb-tour-popover",
+          },
+        })),
         onDestroyed: () => {
           writeStorage(selected.key)
           if (selected.key === WELCOME_KEY) window.localStorage.removeItem("yb_onboarding_tour_pending")
