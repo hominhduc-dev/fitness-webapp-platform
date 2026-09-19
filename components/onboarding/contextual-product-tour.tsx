@@ -102,7 +102,24 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
             title: step.title,
             description: step.body,
             side: "bottom",
-            align: "start",
+            align: "center",
+            onPopoverRender: (popover) => {
+              if (!step.target) return
+              const target = document.querySelector<HTMLElement>(step.target)
+              if (!target) return
+              const targetRect = target.getBoundingClientRect()
+              const popoverWidth = Math.min(360, window.innerWidth - 24)
+              const left = Math.max(12, Math.min(
+                targetRect.left + (targetRect.width - popoverWidth) / 2,
+                window.innerWidth - popoverWidth - 12,
+              ))
+              const top = Math.min(
+                window.innerHeight - popover.wrapper.offsetHeight - 12,
+                targetRect.bottom + 12,
+              )
+              popover.wrapper.style.left = `${left}px`
+              popover.wrapper.style.top = `${Math.max(12, top)}px`
+            },
           },
         })),
         onDestroyed: () => {
