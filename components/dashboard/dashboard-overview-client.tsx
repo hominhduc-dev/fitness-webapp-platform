@@ -96,7 +96,7 @@ export function DashboardOverviewClient({
   const nextWorkout = resolveNextWorkoutLabel(dashboard.scheduleEntries, messages)
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour="dashboard-overview">
       <div className="hidden md:block">
         <WeekStrip
           getDayPlan={(date) => {
@@ -111,14 +111,14 @@ export function DashboardOverviewClient({
 
       <CheckInPrompt />
 
-      <QuickActions onOpenAIChat={() => setAIChatOpen(true)} />
+      <div data-tour="dashboard-actions"><QuickActions onOpenAIChat={() => setAIChatOpen(true)} /></div>
 
       {/* Mobile keeps the task-first reading order. Desktop follows the
           overview matrix from the dashboard mockup. */}
       {/* Phones pair readiness and nutrition as two squares; every other card
           spans both columns. From `sm` the pair goes back to full width. */}
       <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-        <div className="order-3 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+        <div className="order-3 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-1 lg:row-span-2 lg:row-start-1" data-tour="dashboard-workout">
           <TodayWorkout
             activeSessions={dashboard.activeSessions}
             preferActiveSession={hasHydrated}
@@ -136,7 +136,7 @@ export function DashboardOverviewClient({
           <NutritionSummary nutrition={dailyNutrition} />
         </div>
 
-        <div className="order-4 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-2">
+        <div className="order-4 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-2" data-tour="dashboard-progress">
           <WeeklyProgressCard
             activeDays={activeDaysThisWeek}
             completedWorkouts={workoutsThisWeek}

@@ -72,7 +72,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
     : null
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6" data-tour="coach-client-overview">
       {/* Back nav */}
       <div className="mb-5 flex items-center gap-2">
         <Link href="/coach/trainees">
@@ -116,7 +116,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Detail tabs (overview, progress, metrics, check-ins, logs) */}
-      <CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} />
+      <div data-tour="coach-client-tabs"><CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} /></div>
     </div>
   )
 }
