@@ -36,6 +36,7 @@ export function WeeklyVolumeCard() {
             <h2 className="text-base font-semibold text-foreground">{copy.weeklyVolume}</h2>
             <button
               type="button"
+              data-tour="dashboard-volume-info"
               aria-label={locale === "vi" ? "Giải thích chỉ số tập luyện" : "Explain training metrics"}
               title={locale === "vi" ? "Giải thích chỉ số tập luyện" : "Explain training metrics"}
               className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

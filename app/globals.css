@@ -1534,8 +1534,7 @@ aside.glass-surface::after {
   }
 }
 
-/* Driver.js uses a fixed popover so the contextual tour stays usable while
-   the highlighted card scrolls through a mobile viewport. */
+/* Driver.js popovers inherit the app theme while staying anchored near the active target. */
 .driver-popover,
 .driver-popover.yb-tour-popover {
   max-width: min(360px, calc(100vw - 24px));
@@ -1549,6 +1548,15 @@ aside.glass-surface::after {
 .driver-popover .driver-popover-title { color: var(--foreground); font-size: 1rem; }
 .driver-popover .driver-popover-description { color: var(--muted-foreground); line-height: 1.55; }
 .driver-popover .driver-popover-progress-text { color: var(--primary); font-family: var(--font-mono); }
+.driver-popover .driver-popover-arrow { border-color: var(--card); }
+.driver-popover .driver-popover-arrow-side-left,
+.driver-popover .driver-popover-arrow-side-right { border-top-color: transparent; border-bottom-color: transparent; }
+.driver-popover .driver-popover-arrow-side-left { border-right-color: transparent; }
+.driver-popover .driver-popover-arrow-side-right { border-left-color: transparent; }
+.driver-popover .driver-popover-arrow-side-top,
+.driver-popover .driver-popover-arrow-side-bottom { border-left-color: transparent; border-right-color: transparent; }
+.driver-popover .driver-popover-arrow-side-top { border-bottom-color: transparent; }
+.driver-popover .driver-popover-arrow-side-bottom { border-top-color: transparent; }
 .driver-popover-footer button {
   border: 0;
   border-radius: 0.625rem;

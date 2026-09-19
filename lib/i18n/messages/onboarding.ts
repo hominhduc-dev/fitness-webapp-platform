@@ -19,6 +19,150 @@ export const onboardingMessages = {
       heightQuestion: "How tall are you?",
       next: "Next",
       saveError: "We could not save your profile. Please try again.",
+      productTour: {
+        dashboard: {
+          checkIn: {
+            title: "Daily check-in",
+            body: "Start here to check recovery, readiness and what today should look like.",
+          },
+          quickActions: {
+            title: "Quick actions",
+            body: "Jump straight into the most common logs and trainee tools without hunting through tabs.",
+          },
+          readiness: {
+            title: "Readiness",
+            body: "Use this card to understand sleep, fatigue, stress and soreness before training.",
+          },
+          nutrition: {
+            title: "Nutrition",
+            body: "Track calories, macros and meal progress for the day at a glance.",
+          },
+          todayWorkout: {
+            title: "Today's workout",
+            body: "See the next workout or rest-day guidance and open the plan when you are ready.",
+          },
+          weeklyProgress: {
+            title: "Weekly progress",
+            body: "Review completed sessions, active days, volume and the next scheduled workout.",
+          },
+          weeklyVolume: {
+            title: "Weekly muscle volume",
+            body: "Check hard sets by muscle group and spot when a muscle is near or above its recovery range.",
+          },
+          trainingMetrics: {
+            title: "Training metrics",
+            body: "Tap this info button to understand hard sets, MEV, MAV, MRV and e1RM.",
+          },
+          recentActivity: {
+            title: "Recent activity",
+            body: "Use recent sessions to quickly review what was completed and when.",
+          },
+        },
+        coachPrograms: {
+          library: {
+            title: "Program library",
+            body: "Create, import and maintain reusable program templates here.",
+          },
+          byClient: {
+            title: "By client",
+            body: "Switch to By client to see only assigned programs grouped under each trainee.",
+          },
+          actions: {
+            title: "Assign with intent",
+            body: "Open a program to review it, adjust a personalized copy or assign it to a client.",
+          },
+        },
+        coachClientDetail: {
+          overview: {
+            title: "Client snapshot",
+            body: "Overview gives you a quick read on training consistency, body metrics and recent sessions.",
+          },
+          tabs: {
+            title: "Nutrition and logs",
+            body: "Use Nutrition and Workout logs to inspect the details behind the weekly picture.",
+          },
+          actions: {
+            title: "Coach actions",
+            body: "Assign programs, add check-ins and keep the client's next action close at hand.",
+          },
+        },
+        coachWorkoutBuilder: {
+          week: {
+            title: "Build the week",
+            body: "Add workouts to each week and place them on the days your client will train.",
+          },
+          exercises: {
+            title: "Prescribe clearly",
+            body: "Choose exercises, sets, reps, rest and intensity so the plan is ready to execute.",
+          },
+          save: {
+            title: "Save, then assign",
+            body: "Save the program when it is ready, then assign it from the program library or client detail.",
+          },
+        },
+        traineeWorkout: {
+          today: {
+            title: "Your training plan",
+            body: "Find today's session and the rest of your assigned workouts in one place.",
+          },
+          list: {
+            title: "Log every set",
+            body: "Start a workout, record reps and weight, and keep the plan connected to your real performance.",
+          },
+          actions: {
+            title: "Adapt when needed",
+            body: "You can replace an exercise during a session and keep the rest of your workout moving.",
+          },
+        },
+        traineeNutrition: {
+          summary: {
+            title: "Plan your day",
+            body: "See planned meals and your daily calorie and macro targets at a glance.",
+          },
+          log: {
+            title: "Log what you eat",
+            body: "Record meals and portions so your nutrition summary reflects the real day.",
+          },
+          actions: {
+            title: "Adjust with context",
+            body: "Use the daily totals to make small, practical changes instead of chasing perfection.",
+          },
+        },
+        traineeProgress: {
+          overview: {
+            title: "See the trend",
+            body: "Progress brings training, strength, body weight and consistency into one view.",
+          },
+          metrics: {
+            title: "Read the signals",
+            body: "Use volume and recovery metrics to understand whether your current workload is sustainable.",
+          },
+          actions: {
+            title: "Make the next decision",
+            body: "Look for trends over time before changing your plan after a single session.",
+          },
+        },
+        traineeSchedule: {
+          calendar: {
+            title: "Your training calendar",
+            body: "See upcoming workouts, rest days and completed sessions across the week.",
+          },
+          week: {
+            title: "Plan around real life",
+            body: "Use the schedule to understand what is next and keep your training rhythm realistic.",
+          },
+          actions: {
+            title: "Stay flexible",
+            body: "A missed day is information, not failure. Return to the next useful session and keep going.",
+          },
+        },
+        controls: {
+          next: "Next",
+          back: "Back",
+          done: "Done",
+          progress: (current: string, total: string) => `${current} / ${total}`,
+        },
+      },
       sexAccent: "sex?",
       sexFemale: "Female",
       sexMale: "Male",
@@ -52,6 +196,150 @@ export const onboardingMessages = {
       heightQuestion: "Bạn cao bao nhiêu?",
       next: "Tiếp tục",
       saveError: "Chưa lưu được hồ sơ. Hãy thử lại.",
+      productTour: {
+        dashboard: {
+          checkIn: {
+            title: "Check-in hằng ngày",
+            body: "Bắt đầu ở đây để xem phục hồi, mức sẵn sàng và kế hoạch phù hợp cho hôm nay.",
+          },
+          quickActions: {
+            title: "Thao tác nhanh",
+            body: "Đi thẳng tới các thao tác thường dùng mà không cần tìm qua nhiều tab.",
+          },
+          readiness: {
+            title: "Mức sẵn sàng",
+            body: "Theo dõi giấc ngủ, mệt mỏi, căng thẳng và đau nhức trước khi tập.",
+          },
+          nutrition: {
+            title: "Dinh dưỡng",
+            body: "Xem nhanh calories, macro và tiến độ các bữa trong ngày.",
+          },
+          todayWorkout: {
+            title: "Buổi tập hôm nay",
+            body: "Xem buổi tập kế tiếp hoặc gợi ý ngày nghỉ, rồi mở giáo án khi bạn sẵn sàng.",
+          },
+          weeklyProgress: {
+            title: "Tiến độ tuần",
+            body: "Xem số buổi đã hoàn thành, ngày hoạt động, volume và buổi tập kế tiếp.",
+          },
+          weeklyVolume: {
+            title: "Volume cơ theo tuần",
+            body: "Theo dõi hard set theo từng nhóm cơ và nhận biết khi cơ gần hoặc vượt vùng phục hồi.",
+          },
+          trainingMetrics: {
+            title: "Chỉ số tập luyện",
+            body: "Bấm nút thông tin để hiểu hard set, MEV, MAV, MRV và e1RM.",
+          },
+          recentActivity: {
+            title: "Hoạt động gần đây",
+            body: "Xem nhanh các buổi vừa hoàn thành và thời điểm đã tập.",
+          },
+        },
+        coachPrograms: {
+          library: {
+            title: "Thư viện chương trình",
+            body: "Tạo, import và quản lý các program template có thể tái sử dụng tại đây.",
+          },
+          byClient: {
+            title: "Theo client",
+            body: "Chuyển sang Theo client để chỉ xem chương trình đã assign, được nhóm theo từng trainee.",
+          },
+          actions: {
+            title: "Assign có chủ đích",
+            body: "Mở program để kiểm tra, chỉnh bản cá nhân hóa hoặc assign cho client.",
+          },
+        },
+        coachClientDetail: {
+          overview: {
+            title: "Tổng quan client",
+            body: "Overview cho bạn đọc nhanh về độ đều, chỉ số cơ thể và các buổi tập gần đây.",
+          },
+          tabs: {
+            title: "Dinh dưỡng và log",
+            body: "Dùng Nutrition và Workout logs để xem chi tiết phía sau bức tranh trong tuần.",
+          },
+          actions: {
+            title: "Thao tác coach",
+            body: "Assign program, thêm check-in và giữ hành động kế tiếp của client trong tầm tay.",
+          },
+        },
+        coachWorkoutBuilder: {
+          week: {
+            title: "Xây tuần tập",
+            body: "Thêm workout vào từng tuần và đặt vào ngày client sẽ tập.",
+          },
+          exercises: {
+            title: "Kê bài rõ ràng",
+            body: "Chọn bài, set, rep, nghỉ và cường độ để giáo án sẵn sàng thực hiện.",
+          },
+          save: {
+            title: "Lưu rồi assign",
+            body: "Lưu program khi đã sẵn sàng, sau đó assign từ thư viện hoặc trang chi tiết client.",
+          },
+        },
+        traineeWorkout: {
+          today: {
+            title: "Kế hoạch tập",
+            body: "Xem buổi hôm nay và các workout được assign ở cùng một chỗ.",
+          },
+          list: {
+            title: "Log từng set",
+            body: "Bắt đầu buổi tập, ghi reps và weight để giáo án phản ánh hiệu suất thật.",
+          },
+          actions: {
+            title: "Linh hoạt khi cần",
+            body: "Bạn có thể đổi bài trong buổi tập và vẫn tiếp tục phần còn lại.",
+          },
+        },
+        traineeNutrition: {
+          summary: {
+            title: "Lên kế hoạch trong ngày",
+            body: "Xem các bữa đã lên kế hoạch cùng mục tiêu calories và macro trong ngày.",
+          },
+          log: {
+            title: "Ghi lại bữa ăn",
+            body: "Ghi món và khẩu phần để tổng kết dinh dưỡng phản ánh đúng ngày thực tế.",
+          },
+          actions: {
+            title: "Điều chỉnh có ngữ cảnh",
+            body: "Dựa vào tổng ngày để chỉnh nhỏ và thực tế, thay vì cố hoàn hảo từng bữa.",
+          },
+        },
+        traineeProgress: {
+          overview: {
+            title: "Xem xu hướng",
+            body: "Progress gom tập luyện, sức mạnh, cân nặng và độ đều vào một màn hình.",
+          },
+          metrics: {
+            title: "Đọc tín hiệu",
+            body: "Dùng volume và phục hồi để hiểu workload hiện tại có bền vững không.",
+          },
+          actions: {
+            title: "Ra quyết định kế tiếp",
+            body: "Nhìn xu hướng theo thời gian trước khi đổi kế hoạch chỉ vì một buổi tập.",
+          },
+        },
+        traineeSchedule: {
+          calendar: {
+            title: "Lịch tập của bạn",
+            body: "Xem workout sắp tới, ngày nghỉ và các buổi đã hoàn thành trong tuần.",
+          },
+          week: {
+            title: "Lên lịch theo đời sống thật",
+            body: "Dùng lịch để biết bước kế tiếp và giữ nhịp tập thực tế.",
+          },
+          actions: {
+            title: "Giữ sự linh hoạt",
+            body: "Lỡ một ngày là dữ liệu, không phải thất bại. Quay lại buổi hữu ích kế tiếp và tiếp tục.",
+          },
+        },
+        controls: {
+          next: "Tiếp",
+          back: "Quay lại",
+          done: "Xong",
+          progress: (current: string, total: string) => `${current} / ${total}`,
+        },
+      },
       sexAccent: "giới tính",
       sexFemale: "Nữ",
       sexMale: "Nam",

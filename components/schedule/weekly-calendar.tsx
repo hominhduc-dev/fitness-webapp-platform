@@ -570,6 +570,7 @@ function DayCard({
 
   return (
     <div
+      data-tour={entry.isToday ? "trainee-schedule-week" : undefined}
       className={cn(
         "relative flex min-h-[164px] flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-4 shadow-sm ring-1 ring-border/70 transition-colors duration-150",
         "dark:ring-border/80",
@@ -1230,11 +1231,13 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
             {messages.schedule.doneToGo(completedCount, plannedCount, Math.max(0, plannedCount - completedCount))}
           </p>
         </div>
-        <SourceFilters showSource={showSource} onChange={setShowSource} />
+        <div data-tour="trainee-schedule-actions">
+          <SourceFilters showSource={showSource} onChange={setShowSource} />
+        </div>
       </div>
 
       <p className="label-micro mb-3">{weekOffset === 0 ? messages.schedule.thisWeek : formatWeekRangeLabel(displayWeekStart)}</p>
-      <div className="mb-8" data-tour="trainee-schedule-week">
+      <div className="mb-8">
         {isLoadingProgramWeeks ? (
           // Rendering the current week's sessions while the real ones load would
           // show exactly the wrong data this fix exists to prevent.
@@ -1256,7 +1259,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
         )}
       </div>
 
-      <div className="mt-7 text-center" data-tour="trainee-schedule-actions">
+      <div className="mt-7 text-center">
         <Button asChild variant="ghost">
           <Link href="/workout">
             <CalendarDays className="h-4 w-4" />

@@ -324,6 +324,7 @@ export function CoachTraineeDetailClient({
   return (
     <Tabs defaultValue="overview" className="space-y-6">
       <TabsList
+        data-tour="coach-client-tabs"
         className={cn(
           "flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0",
           "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -460,7 +461,7 @@ export function CoachTraineeDetailClient({
         />
 
         {/* Assigned programs */}
-        <div className="rounded-lg border border-border p-5">
+        <div className="rounded-lg border border-border p-5" data-tour="coach-client-actions">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h2 className="text-base font-semibold">{messages.coach.assignedProgramsTitle}</h2>

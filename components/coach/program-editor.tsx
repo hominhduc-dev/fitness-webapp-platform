@@ -1276,7 +1276,7 @@ export function ProgramEditor({
             </div>
           ) : null}
 
-          <section className="rounded-2xl border border-border bg-card/80 p-3.5 shadow-sm sm:p-4">
+          <section className="rounded-2xl border border-border bg-card/80 p-3.5 shadow-sm sm:p-4" data-tour="coach-workout-exercises">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
@@ -1363,7 +1363,7 @@ export function ProgramEditor({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5 sm:flex sm:justify-end">
+          <div className="grid grid-cols-2 gap-2.5 sm:flex sm:justify-end" data-tour="coach-workout-save">
           {onClose ? (
             <Button type="button" variant="outline" className="w-full rounded-xl bg-background/70 sm:w-auto" onClick={onClose}>
               {messages.common.cancel}
