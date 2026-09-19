@@ -263,8 +263,8 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
             : `${totalAssignments} clients training on a program · ${unassigned} unassigned`}
         </p>
       </div>
-      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-        <div className="grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1 shadow-sm">
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center" data-tour="coach-program-actions">
+        <div className="grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1 shadow-sm" data-tour="coach-program-tabs">
           <Button
             type="button"
             variant={viewMode === "library" ? "secondary" : "ghost"}
@@ -371,6 +371,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       {viewMode === "library" ? (
         <div
           className="grid gap-3.5"
+          data-tour="coach-program-library"
           style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}
         >
           {visiblePrograms.map((program) => (

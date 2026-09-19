@@ -1015,6 +1015,7 @@ export function ProgramEditor({
       ) : null}
 
       <div
+        data-tour="coach-workout-builder"
         className={cn(
           "glass-surface flex w-full max-w-[min(1480px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-[var(--glass-shadow)]",
           isModal && "h-[calc(100svh-1rem)] max-h-[980px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
