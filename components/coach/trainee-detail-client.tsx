@@ -26,6 +26,13 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -157,7 +164,7 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       {/* Header */}
-      <div className="grid grid-cols-[80px_1fr_100px_80px] gap-3 border-b border-border bg-muted/30 px-4 py-2">
+      <div className="hidden grid-cols-[80px_1fr_100px_80px] gap-3 border-b border-border bg-muted/30 px-4 py-2 sm:grid">
         <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDateCol}</span>
         <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionTypeCol}</span>
         <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionVolumeCol}</span>
@@ -167,7 +174,7 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
         <div
           key={i}
           className={cn(
-            "grid grid-cols-[80px_1fr_100px_80px] items-center gap-3 px-4 py-3",
+            "grid gap-2 px-4 py-3 sm:grid-cols-[80px_1fr_100px_80px] sm:items-center sm:gap-3",
             i < sessions.length - 1 && "border-b border-border",
           )}
         >
@@ -175,17 +182,19 @@ function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
             {s.date}
           </span>
           <div className="text-sm font-medium text-foreground">{s.kind}</div>
-          <span className="font-mono text-sm tabular-nums text-foreground">
-            {(s.volume / 1000).toFixed(1)}k kg
-          </span>
-          <span
-            className={cn(
-              "font-mono text-sm tabular-nums",
-              s.complete >= 1 ? "text-success-text" : "text-warning-text",
-            )}
-          >
-            {Math.round(s.complete * 100)}%
-          </span>
+          <div className="flex flex-wrap gap-2 sm:contents">
+            <span className="rounded-full bg-muted px-2.5 py-1 font-mono text-xs tabular-nums text-foreground sm:rounded-none sm:bg-transparent sm:p-0 sm:text-sm">
+              {(s.volume / 1000).toFixed(1)}k kg
+            </span>
+            <span
+              className={cn(
+                "rounded-full bg-muted px-2.5 py-1 font-mono text-xs tabular-nums sm:rounded-none sm:bg-transparent sm:p-0 sm:text-sm",
+                s.complete >= 1 ? "text-success-text" : "text-warning-text",
+              )}
+            >
+              {Math.round(s.complete * 100)}%
+            </span>
+          </div>
         </div>
       ))}
     </div>
@@ -297,6 +306,7 @@ export function CoachTraineeDetailClient({
   }
 
   const nutritionSummary = detail.nutritionSummary
+  const expandedNutritionLog = nutritionSummary?.dailyLogs.find((row) => row.date === expandedNutritionDate) ?? null
   const bodyMetricsByDate = new Map<string, CoachTraineeDetail["bodyMetrics"][number]>()
   for (const entry of detail.bodyMetrics) {
     const dateKey = formatDateKey(entry.recordedAt)
@@ -619,7 +629,7 @@ export function CoachTraineeDetailClient({
               <p className="mt-4 text-sm text-muted-foreground">{messages.coach.noMealsLogged30Days}</p>
             ) : (
               <>
-                <div className="mt-3 grid grid-cols-4 gap-2 xl:hidden">
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:hidden">
                 {[
                   {
                     label: messages.coach.avgCaloriesLabel,
@@ -679,7 +689,7 @@ export function CoachTraineeDetailClient({
                             </span>
                           )}
                         </span>
-                        <span className="hidden font-mono text-xs tabular-nums text-muted-foreground sm:inline">
+                        <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
                           {bodyMetric?.weightKg != null ? `W ${formatNumber(bodyMetric.weightKg, " kg")}` : "W --"}
                           {bodyMetric?.bodyFatPct != null ? ` · BF ${formatNumber(bodyMetric.bodyFatPct, "%")}` : ""}
                         </span>
@@ -796,6 +806,70 @@ export function CoachTraineeDetailClient({
           </div>
         </div>
       </TabsContent>
+      <Dialog open={Boolean(expandedNutritionLog)} onOpenChange={(open) => !open && setExpandedNutritionDate(null)}>
+        <DialogContent className="max-h-[86dvh] max-w-[min(94vw,560px)] overflow-hidden p-0">
+          {expandedNutritionLog ? (
+            <>
+              <DialogHeader className="border-b border-border px-4 py-4 text-left">
+                <DialogTitle>{formatDayKey(expandedNutritionLog.date)}</DialogTitle>
+                <DialogDescription>
+                  {integerFormatter.format(expandedNutritionLog.calories)} kcal
+                  {bodyMetricsByDate.get(expandedNutritionLog.date)?.weightKg != null
+                    ? ` · ${formatNumber(bodyMetricsByDate.get(expandedNutritionLog.date)?.weightKg, " kg")}`
+                    : ""}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[calc(86dvh-92px)] overflow-y-auto px-4 py-4">
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      [messages.coach.proteinCol, expandedNutritionLog.protein],
+                      [messages.coach.carbsCol, expandedNutritionLog.carbs],
+                      [messages.coach.fatCol, expandedNutritionLog.fat],
+                    ] as [string, number][]
+                  ).map(([label, value]) => (
+                    <div key={label} className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                      <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+                      <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums text-foreground">{Math.round(value)}g</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {MEAL_SECTIONS.map(({ icon: Icon, type }) => {
+                    const items = expandedNutritionLog.items.filter((item) => item.mealType === type)
+                    if (items.length === 0) return null
+                    const mealCalories = items.reduce((sum, item) => sum + item.calories, 0)
+                    return (
+                      <section key={type} className="overflow-hidden rounded-lg border border-border">
+                        <div className="flex items-center gap-2.5 bg-muted/20 px-3 py-2">
+                          <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{mealTypeLabels[type]}</span>
+                          <span className="font-mono text-micro tabular-nums text-muted-foreground">{Math.round(mealCalories)} kcal</span>
+                        </div>
+                        {items.map((item) => (
+                          <div key={item.id} className="flex items-start gap-3 border-t border-border/40 px-3 py-2.5">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-foreground">
+                                {item.name}
+                                {item.amountLabel ? <span className="text-muted-foreground"> {item.amountLabel}</span> : null}
+                              </p>
+                              <p className="mt-0.5 font-mono text-micro tabular-nums text-muted-foreground">
+                                P{Math.round(item.protein ?? 0)} · C{Math.round(item.carbs ?? 0)} · F{Math.round(item.fat ?? 0)}
+                              </p>
+                            </div>
+                            <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{Math.round(item.calories)} kcal</span>
+                          </div>
+                        ))}
+                      </section>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Tabs>
   )
 }

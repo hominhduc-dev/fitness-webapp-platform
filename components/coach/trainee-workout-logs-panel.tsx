@@ -394,7 +394,7 @@ export function TraineeWorkoutLogsPanel({
   }
 
   const renderLogCard = (log: WorkoutLog) => (
-    <div key={log.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div key={log.id} className="rounded-xl border border-border bg-card p-3 shadow-sm sm:rounded-2xl sm:p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-lg font-semibold">{log.workout.name}</p>
@@ -430,7 +430,7 @@ export function TraineeWorkoutLogsPanel({
           const exerciseVolume = calculateExerciseVolume(exercise)
 
           return (
-            <div key={exercise.id} className="rounded-xl border border-border bg-muted/15 px-4 py-4">
+            <div key={exercise.id} className="rounded-xl border border-border bg-muted/15 px-3 py-3 sm:px-4 sm:py-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="font-medium">
@@ -470,7 +470,55 @@ export function TraineeWorkoutLogsPanel({
                 </div>
               ) : null}
 
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 space-y-2 sm:hidden">
+                {exercise.sets.map((set) => {
+                  const previousPerformance = formatPreviousPerformance(set)
+                  const setVolume = calculateSetVolume(set)
+
+                  return (
+                    <div key={set.id} className="rounded-lg border border-border bg-card px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono text-xs font-semibold text-foreground">Set {set.setNumber}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Target {formatRepTarget({ reps: set.targetReps, repsMin: set.targetRepsMin })}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            set.completed ? "bg-primary-soft text-primary" : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {set.completed ? "Done" : "Pending"}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="font-mono text-micro uppercase text-muted-foreground">Actual</p>
+                          <p className="font-mono text-foreground">{formatMetricValue(set.actualReps, { zeroAsValid: true })}</p>
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="font-mono text-micro uppercase text-muted-foreground">Weight</p>
+                          <p className="font-mono text-foreground">{formatMetricValue(set.weight, { suffix: " kg", zeroAsValid: true })}</p>
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="font-mono text-micro uppercase text-muted-foreground">Vol</p>
+                          <p className="font-mono text-foreground">{formatMetricValue(setVolume, { suffix: " kg", zeroAsValid: true })}</p>
+                        </div>
+                      </div>
+                      {set.notes || previousPerformance ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {set.notes ?? ""}
+                          {set.notes && previousPerformance ? " · " : ""}
+                          {previousPerformance ? `Prev ${previousPerformance}` : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto sm:block">
                 <table className="min-w-full border-separate border-spacing-0 text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">

@@ -1352,19 +1352,6 @@ aside.glass-surface::after {
     var(--glass-bg);
 }
 
-/* The WebGL canvas owns refraction, lighting and shadow after it initializes.
-   Remove the SVG/CSS optical layer to avoid rendering the material twice. */
-[data-liquid-glass-renderer="webgl"] {
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: none;
-}
-
-[data-liquid-glass-renderer="webgl"]::after {
-  display: none;
-}
-
 /* ============================================================
    Clean SaaS editorial light mode
    Light theme favours opaque white surfaces, thin grid lines and cobalt
@@ -1500,8 +1487,8 @@ aside.glass-surface::after {
   box-shadow: none;
 }
 
-/* A small, self-contained capture scene keeps the WebGL nav inexpensive. The
-   library sees the same page material without rasterizing the full dashboard. */
+/* A small local scene gives the fixed mobile nav a stable backdrop to refract
+   without depending on whatever page content happens to scroll underneath. */
 .mobile-liquid-glass-scene {
   background: var(--page-backdrop);
   background-position: center bottom;

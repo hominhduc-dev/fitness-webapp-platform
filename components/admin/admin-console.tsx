@@ -544,6 +544,7 @@ export function AdminConsole() {
   })
   const [userSearch, setUserSearch] = useState("")
   const [userRoleFilter, setUserRoleFilter] = useState<UserRole | "all">("all")
+  const [userDetailDialogOpen, setUserDetailDialogOpen] = useState(false)
   const [requestSearch, setRequestSearch] = useState("")
   const [requestStatusFilter, setRequestStatusFilter] = useState<AdminCoachRequest["status"] | "all">("all")
   const [connectionSearch, setConnectionSearch] = useState("")
@@ -611,6 +612,7 @@ export function AdminConsole() {
   function loadUserDetail(userId: string) {
     setError(null)
     setSelectedUserId(userId)
+    setUserDetailDialogOpen(true)
   }
 
   function resetExerciseForm() {
@@ -1764,21 +1766,21 @@ export function AdminConsole() {
                     <button
                       key={user.id}
                       type="button"
-                      onClick={() => { setSelectedUserId(user.id); setActiveSection("users") }}
-                      className="flex items-center gap-3 border-t border-border/50 py-2.5 text-left transition-colors first:border-t-0 hover:bg-muted/30"
+                      onClick={() => { loadUserDetail(user.id); setActiveSection("users") }}
+                      className="flex min-w-0 items-start gap-3 border-t border-border/50 py-2.5 text-left transition-colors first:border-t-0 hover:bg-muted/30 sm:items-center"
                     >
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
                         {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
                           <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-micro">{user.role}</Badge>
                           {!user.isActive ? <Badge variant="destructive" className="shrink-0 text-micro">{locale === "en" ? "Locked" : "Khoá"}</Badge> : null}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                       </div>
-                      <span className="shrink-0 font-mono text-micro text-muted-foreground">{formatDateTime(user.createdAt, locale)}</span>
+                      <span className="hidden shrink-0 whitespace-nowrap font-mono text-micro text-muted-foreground sm:inline">{formatDateTime(user.createdAt, locale)}</span>
                     </button>
                   )) : <EmptyState copy={locale === "en" ? "No recent users." : "Chưa có user mới."} />}
                 </div>
@@ -1793,16 +1795,16 @@ export function AdminConsole() {
                 </div>
                 <div className="flex flex-col">
                   {dashboard?.pendingCoachRequests.length ? dashboard.pendingCoachRequests.map((request) => (
-                    <div key={request.id} className="flex items-center justify-between border-t border-border/50 py-2.5 first:border-t-0">
+                    <div key={request.id} className="flex min-w-0 flex-col gap-1 border-t border-border/50 py-2.5 first:border-t-0 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <span className="font-medium text-foreground">{request.trainee.name}</span>
+                        <div className="flex min-w-0 items-center gap-1.5 text-sm">
+                          <span className="truncate font-medium text-foreground">{request.trainee.name}</span>
                           <span className="text-muted-foreground">→</span>
-                          <span className="text-muted-foreground">{request.coach.name}</span>
+                          <span className="truncate text-muted-foreground">{request.coach.name}</span>
                         </div>
                         <p className="truncate text-xs text-muted-foreground">{request.trainee.email}</p>
                       </div>
-                      <span className="ml-3 shrink-0 font-mono text-micro text-muted-foreground">{formatDateTime(request.createdAt, locale)}</span>
+                      <span className="shrink-0 whitespace-nowrap font-mono text-micro text-muted-foreground sm:ml-3">{formatDateTime(request.createdAt, locale)}</span>
                     </div>
                   )) : <EmptyState copy={locale === "en" ? "No pending coach requests." : "Không có yêu cầu chờ duyệt."} />}
                 </div>
@@ -1870,7 +1872,7 @@ export function AdminConsole() {
               </div>
 
               {/* User detail panel */}
-              <div className="rounded-lg border border-border bg-card p-[22px]">
+              <div className="hidden rounded-lg border border-border bg-card p-[22px] xl:block">
                 {userDetail ? (
                   <div className="space-y-5">
                     {/* Header */}
@@ -2244,6 +2246,92 @@ export function AdminConsole() {
             )}
           </div>
       </main>
+
+      <Dialog open={userDetailDialogOpen && Boolean(userDetail)} onOpenChange={setUserDetailDialogOpen}>
+        <DialogContent className="max-h-[85dvh] max-w-[min(92vw,520px)] overflow-y-auto">
+          {userDetail ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex min-w-0 items-center gap-3 text-left">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
+                    {userDetail.user.name.split(" ").filter(Boolean).map((word: string) => word[0]).join("").slice(0, 2)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate">{userDetail.user.name}</span>
+                    <span className="mt-0.5 block truncate text-sm font-normal text-muted-foreground">{userDetail.user.email}</span>
+                  </span>
+                </DialogTitle>
+                <DialogDescription>
+                  {locale === "en" ? "Account detail and quick admin actions." : "Chi tiết tài khoản và thao tác nhanh của admin."}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={roleBadgeVariant(userDetail.user.role)}>{userDetail.user.role}</Badge>
+                  {!userDetail.user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
+                </div>
+
+                <div className="divide-y divide-border/50 rounded-lg border border-border">
+                  {([
+                    { k: locale === "en" ? "Username" : "Username", v: userDetail.user.username ?? "--" },
+                    { k: locale === "en" ? "Phone" : "Số điện thoại", v: userDetail.user.phone ?? "--", mono: true },
+                    { k: locale === "en" ? "Coach" : "Coach", v: userDetail.assignedCoach?.name ?? "--" },
+                    { k: locale === "en" ? "Joined" : "Ngày tạo", v: formatDateTime(userDetail.user.createdAt, locale), mono: true },
+                    { k: locale === "en" ? "Workouts" : "Workouts", v: String(userDetail.user.stats.workoutLogs), mono: true },
+                    ...(userDetail.user.role === "coach" ? [{ k: locale === "en" ? "Clients" : "Clients", v: String(userDetail.user.stats.trainees), mono: true }] : []),
+                  ] as Array<{ k: string; v: string; mono?: boolean }>).map((row) => (
+                    <div key={row.k} className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-sm">
+                      <p className="label-micro text-muted-foreground">{row.k}</p>
+                      <p className={cn("min-w-0 truncate text-right text-foreground", row.mono && "font-mono")}>{row.v}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(["trainee", "coach", "admin"] as const).map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setSelectedRole(role)}
+                        className={cn(
+                          "rounded-md px-3 py-2 font-mono text-xs transition-colors",
+                          selectedRole === role ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {role}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} />
+                    <Button variant="outline" onClick={() => void handleResetPassword()} disabled={!resetPassword || actionKey === `password-${userDetail.user.id}`}>
+                      {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                      {locale === "en" ? "Reset" : "Reset"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
+                <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
+                  {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {locale === "en" ? "Save role" : "Lưu vai trò"}
+                </Button>
+                <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
+                  {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : (locale === "en" ? "Unlock account" : "Mở khoá tài khoản")}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isImportDialogOpen} onOpenChange={handleImportDialogChange}>
         <DialogContent className="sm:max-w-3xl">

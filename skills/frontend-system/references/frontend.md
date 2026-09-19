@@ -34,7 +34,7 @@
 | Date | date-fns `4.1.0` |
 | Class composition | `clsx` + `tailwind-merge` qua `cn()` |
 | Auth | Supabase Auth, SSR cookie session qua `@supabase/ssr` |
-| Visual material | CSS/SVG liquid glass + optional `@ybouane/liquidglass` WebGL |
+| Visual material | CSS/SVG liquid glass |
 | Test | Vitest 4 + jsdom + Testing Library |
 | Ảnh chia sẻ | `html-to-image` `1.11.13` + Web Share API level 2 |
 | Client server-state | TanStack Query 5, hooks trong `lib/queries/` |
@@ -372,7 +372,7 @@ Thẻ thống kê rời khỏi app dưới dạng PNG và được xem trên Ins
 | Light fallback | Opaque `var(--card)` surfaces, thin `var(--border)`, 0–2px editorial shadow |
 | Dark fallback | CSS gradient + backdrop blur + semantic `--glass-*` tokens |
 | Dark Chromium enhancement | SVG `backdrop-filter: url(#...)` khi capability probe pass |
-| Mobile nav enhancement | `@ybouane/liquidglass` WebGL qua `useLiquidGlass()`; light CSS can flatten the nav |
+| Mobile nav material | CSS/SVG liquid glass via `.mobile-floating-nav`; light CSS can flatten the nav |
 
 Shared classes:
 
@@ -387,11 +387,9 @@ Light-mode overrides in `app/globals.css` intentionally flatten `.glass-surface`
 
 ### Glass guardrails
 
-- Luôn giữ CSS fallback; WebGL failure không được chặn navigation.
+- Liquid glass dùng một pipeline CSS/SVG duy nhất; không thêm WebGL/canvas renderer song song.
 - `prefers-reduced-transparency: reduce` chuyển sang opaque `--glass-solid`.
 - `prefers-reduced-motion: reduce` gần như tắt animation/transition.
-- Khi WebGL active, CSS nền của target bị đặt transparent; canvas phải được recreate khi visual dependency đổi.
-- `useLiquidGlass(ref, config, renderKey)` dùng `renderKey=resolvedTheme` cho mobile nav để tránh cache theme cũ.
 - Không đặt `position: relative` cho `.ai-bubble-trigger`; nó phải giữ `fixed`.
 
 ## 8. Responsive và mobile
@@ -538,7 +536,7 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 | Yêu cầu/bug | Đọc đầu tiên | Sau đó nếu cần |
 |---|---|---|
 | Màu, theme, contrast | `app/globals.css` | `theme-provider.tsx`, `app/layout.tsx` |
-| Bottom nav/mobile menu | `components/layout/shell-header.tsx` | `shell-nav.ts`, `use-liquid-glass.ts`, glass CSS |
+| Bottom nav/mobile menu | `components/layout/shell-header.tsx` | `shell-nav.ts`, glass CSS |
 | Desktop sidebar | `components/layout/sidebar.tsx` | `shell-nav.ts`, sidebar tokens |
 | AI bubble | `components/ai/chat-bubble.tsx` | `.ai-bubble-trigger` trong globals |
 | Page shell/overlap/fixed UI | `app/(shell)/layout.tsx` | `components/layout/shell-main.tsx`, shell header, resume card, globals safe area |

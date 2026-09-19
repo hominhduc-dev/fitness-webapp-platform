@@ -1,11 +1,10 @@
 /**
  * SVG filter definitions for the liquid-glass material.
  *
- * The optical model is the one @ybouane/liquidglass implements in a WebGL
- * fragment shader — rim refraction, chromatic aberration, a soft edge falloff —
- * rebuilt out of SVG filter primitives so it can ride on `backdrop-filter`
- * instead of a canvas. Nothing is rasterized, so text stays selectable and the
- * DOM underneath keeps working normally.
+ * The optical model uses rim refraction, chromatic aberration and a soft edge
+ * falloff, rebuilt out of SVG filter primitives so it can ride on
+ * `backdrop-filter` instead of a canvas. Nothing is rasterized, so text stays
+ * selectable and the DOM underneath keeps working normally.
  *
  * Only Chromium resolves `url(#id)` inside `backdrop-filter`; Safari parses it
  * and paints nothing, Firefox ignores it. The `data-liquid-glass` flag set by

@@ -79,10 +79,10 @@ function ClientCard({ trainee }: { trainee: CoachTrainee & { _status: Status } }
   return (
     <Link
       href={`/coach/trainees/${trainee.id}`}
-      className="group block rounded-lg border border-border bg-background px-3 py-3 transition-colors hover:border-ring/40 hover:bg-muted/35"
+      className="group block rounded-lg border border-border bg-background px-2.5 py-2.5 transition-colors hover:border-ring/40 hover:bg-muted/35 sm:px-3 sm:py-3"
     >
-      <div className="flex items-start gap-3">
-        <Avatar className="h-9 w-9 flex-shrink-0">
+      <div className="flex items-start gap-2 sm:gap-3">
+        <Avatar className="h-8 w-8 flex-shrink-0 sm:h-9 sm:w-9">
           <AvatarImage src={trainee.avatar ?? undefined} />
           <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
             {getInitials(trainee.name)}
@@ -101,7 +101,7 @@ function ClientCard({ trainee }: { trainee: CoachTrainee & { _status: Status } }
           {trainee.email ? (
             <div className="mt-0.5 truncate text-xs text-muted-foreground">{trainee.email}</div>
           ) : null}
-          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-mono text-micro text-muted-foreground">
+          <div className="mt-2 hidden flex-wrap gap-x-2 gap-y-1 font-mono text-micro text-muted-foreground sm:flex">
             <span>{program}</span>
             <span aria-hidden="true">·</span>
             <span>{workload}</span>
@@ -195,11 +195,11 @@ export function TraineesClientView({ initialTrainees }: Props) {
   }))
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
+    <div className="mx-auto w-full max-w-6xl px-3 py-4 md:px-6 md:py-6">
       {/* Header */}
-      <div className="border-b border-border px-6 pb-4 pt-5">
-        <div className="mb-3.5 flex items-baseline justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight">{messages.coach.clients}</h1>
+      <div className="border-b border-border px-2 pb-3 pt-2 sm:px-6 sm:pb-4 sm:pt-5">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{messages.coach.clients}</h1>
           <div className="flex items-center gap-3">
             <span className="label-micro text-muted-foreground tnum">
               {messages.coach.clientTotal(trainees.length)}
@@ -240,14 +240,14 @@ export function TraineesClientView({ initialTrainees }: Props) {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-4 px-6 py-5 lg:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2 px-2 py-3 sm:gap-4 sm:px-6 sm:py-5">
             {kanbanColumns.map((column) => (
               <section
                 key={column.status}
-                className="min-h-[260px] rounded-xl border border-border bg-muted/20"
+                className="min-h-0 rounded-xl border border-border bg-muted/20"
                 aria-label={column.title}
               >
-                <div className="border-b border-border px-4 py-3">
+                <div className="border-b border-border px-2 py-2 sm:px-4 sm:py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                       <span
@@ -255,16 +255,16 @@ export function TraineesClientView({ initialTrainees }: Props) {
                         style={{ background: STATUS_COLOR[column.status] }}
                         aria-hidden="true"
                       />
-                      <h2 className="truncate text-sm font-semibold text-foreground">{column.title}</h2>
+                      <h2 className="truncate text-xs font-semibold text-foreground sm:text-sm">{column.title}</h2>
                     </div>
                     <span className="rounded-full bg-background px-2 py-0.5 font-mono text-micro text-muted-foreground">
                       {column.items.length}
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{column.description}</p>
+                  <p className="mt-1.5 hidden text-xs leading-relaxed text-muted-foreground sm:block">{column.description}</p>
                 </div>
 
-                <div className="space-y-2 p-3">
+                <div className="max-h-[calc(100dvh-235px)] space-y-2 overflow-y-auto p-1.5 sm:max-h-none sm:p-3">
                   {column.items.length > 0 ? (
                     column.items.map((trainee) => <ClientCard key={trainee.id} trainee={trainee} />)
                   ) : (

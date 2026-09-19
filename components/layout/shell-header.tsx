@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { LogOut, Settings, User, X } from "lucide-react"
-import { Fragment, Suspense, useEffect, useRef, useState } from "react"
+import { Fragment, Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
 import { BrandLogo } from "@/components/ui/brand-logo"
@@ -21,8 +21,6 @@ import {
   type ShellNavItem,
 } from "@/components/layout/shell-nav"
 import { cn } from "@/lib/utils"
-import { useLiquidGlass } from "@/components/ui/use-liquid-glass"
-import { useTheme } from "@/components/providers/theme-provider"
 
 const ROLE_BADGE: Partial<Record<AppRole, string>> = {
   admin: "Admin",
@@ -53,6 +51,7 @@ function NavItems({
         <Link
           key={item.href}
           href={item.href}
+          prefetch
           onClick={onSelect}
           className={cn(
             "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors",
@@ -103,7 +102,7 @@ function MobileNavLinkList({
           // change: tapping the current page's icon never changes the
           // pathname, so the sheet used to stay open until "More" was
           // tapped again.
-          <Link key={item.href} href={item.href} onClick={onSelect} aria-current={active ? "page" : undefined} title={item.label} className={cn("flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-all", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+          <Link key={item.href} href={item.href} prefetch onClick={onSelect} aria-current={active ? "page" : undefined} title={item.label} className={cn("flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-[background-color,color,transform,box-shadow] duration-200 ease-out active:scale-[0.96]", visuallyActive ? "bg-primary-soft text-primary shadow-[inset_0_1px_0_var(--glass-rim-soft)]" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
             <item.icon className="h-5 w-5" strokeWidth={visuallyActive ? 2 : 1.7} aria-hidden="true" />
             <span className={cn("max-w-full truncate text-[0.6875rem] leading-4", visuallyActive && "font-semibold")}>{item.label}</span>
           </Link>
@@ -165,32 +164,11 @@ function initials(name: string | null | undefined) {
 /* ------------------------------------------------------------------ */
 export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
   const { messages } = useLocale()
-  const { resolvedTheme } = useTheme()
   const { profile, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const mobileNavRef = useRef<HTMLElement>(null)
-
-  useLiquidGlass(
-    mobileNavRef,
-    {
-      blurAmount: 0.4,
-      refraction: 0.72,
-      chromAberration: 0.05,
-      edgeHighlight: 0.14,
-      specular: 0.12,
-      fresnel: 0.9,
-      cornerRadius: 32,
-      zRadius: 28,
-      brightness: -0.08,
-      saturation: 0.12,
-      shadowOpacity: 0.24,
-      shadowSpread: 12,
-    },
-    resolvedTheme,
-  )
 
   // Auto-close when the route changes (e.g. after clicking a nav link)
   useEffect(() => {
@@ -308,7 +286,6 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
       <div className="mobile-liquid-glass-root fixed bottom-[var(--mobile-nav-offset)] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
         <nav
-          ref={mobileNavRef}
           className={cn(
             "mobile-floating-nav glass-surface relative grid w-full gap-0.5 rounded-[1.75rem] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl",
             role === "coach" ? "grid-cols-4" : "grid-cols-5",
@@ -360,6 +337,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
 
             <Link
               href="/profile"
+              prefetch
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
             >
