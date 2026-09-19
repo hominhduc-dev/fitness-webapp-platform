@@ -945,7 +945,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-between">
+      <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-between" data-tour="trainee-nutrition-actions">
         <div>
           <p className="label-micro mb-2">
             {selectedDateKey === todayKey ? messages.meals.nutritionToday : messages.meals.nutritionOnDate(format(selectedDate, "dd/MM/yyyy"))}
@@ -983,7 +983,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
 
       {displayError ? <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{displayError}</div> : null}
 
-      <section className="mb-5 rounded-lg border border-border bg-card p-[18px] md:mb-6 md:p-6">
+      <section className="mb-5 rounded-lg border border-border bg-card p-[18px] md:mb-6 md:p-6" data-tour="trainee-nutrition-summary">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-9">
           <div className="flex items-center justify-center gap-4 md:justify-start">
             <CalorieRing consumed={totals.calories} target={targets.calories} totals={totals} />
@@ -1009,7 +1009,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
       </section>
 
       <div className="grid items-start gap-5 lg:grid-cols-[1.55fr_1fr]">
-        <div>
+        <div data-tour="trainee-nutrition-log">
           <p className="label-micro mb-3">{messages.meals.meals}</p>
           <div className={cn("space-y-3", isLoading && "opacity-60")}>
             {MEAL_META.map((meta) => (

@@ -140,14 +140,14 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
 
   return (
     <>
-      <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end">
+      <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end" data-tour="trainee-workout-today">
         <div>
           <span className="label-micro mb-2 block">{messages.workoutPage.routines}</span>
           <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-4xl">
             {messages.workoutPage.savedRoutines(cardCount)}
           </h1>
         </div>
-        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row" data-tour="trainee-workout-actions">
           <Link href="/workout/ai-generate" className="min-w-0 sm:w-auto">
             <Button variant="outline" className="h-10 w-full justify-center gap-2 rounded-lg px-4 text-sm font-semibold sm:w-auto">
               <Sparkles className="h-4 w-4" />
@@ -168,7 +168,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
       </div>
 
       {programGroups.length + standaloneWorkouts.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3" data-tour="trainee-workout-list">
           {programGroups.map((group) => (
             <ProgramGroupCard key={group.program.id} program={group.program} workouts={group.workouts} />
           ))}
@@ -186,7 +186,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">{messages.workoutPage.oneOffSessionsCopy}</p>
           </div>
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3" data-tour={programGroups.length + standaloneWorkouts.length > 0 ? undefined : "trainee-workout-list"}>
             {datedWorkouts.map((workout) => (
               <RoutineCard key={workout.id} historyLogs={historyLogs} workout={workout} />
             ))}
@@ -195,7 +195,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
       ) : null}
 
       {cardCount === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center">
+        <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center" data-tour="trainee-workout-list">
           <p className="text-sm font-medium text-foreground">{messages.workoutPage.noRoutinesTitle}</p>
           <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.noRoutinesCopy}</p>
           <div className="mt-5 flex justify-center">

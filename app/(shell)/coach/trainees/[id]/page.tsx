@@ -116,7 +116,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Detail tabs (overview, progress, metrics, check-ins, logs) */}
-      <div data-tour="coach-client-tabs"><CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} /></div>
+      <CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} />
     </div>
   )
 }

@@ -911,7 +911,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
   return (
     <>
       <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
-        <header className="mb-4 md:mb-5">
+        <header className="mb-4 md:mb-5" data-tour="trainee-progress-overview">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground">{copy.analytics.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{copy.analytics.description}</p>
         </header>
@@ -919,6 +919,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
         <div
           role="tablist"
           aria-label={copy.analytics.title}
+          data-tour="trainee-progress-actions"
           className="mb-4 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1 md:mb-6 md:w-[26rem]"
         >
           {PROGRESS_TABS.map((t) => (
@@ -938,7 +939,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
           ))}
         </div>
 
-        {tab === "overview" ? <ProgressOverview analyticsRange={initialData.analyticsRange} /> : null}
+        {tab === "overview" ? (
+          <div data-tour="trainee-progress-metrics">
+            <ProgressOverview analyticsRange={initialData.analyticsRange} />
+          </div>
+        ) : null}
 
         {tab === "history" ? (
           <div className="space-y-4">

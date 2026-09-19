@@ -24,7 +24,7 @@ export function CheckInPrompt() {
   return (
     <>
       {checkedInToday ? null : (
-        <section className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 md:gap-4 md:px-4 md:py-3">
+        <section className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 md:gap-4 md:px-4 md:py-3" data-tour="dashboard-check-in">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning-text">
             <Sun className="size-6" aria-hidden="true" />
           </span>
