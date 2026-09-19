@@ -11,7 +11,7 @@ const { db, tx, provider } = vi.hoisted(() => {
   }
   return {
     tx,
-    db: { aIGeneration: { findUnique: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() }, exercise: { findMany: vi.fn() }, workoutLog: { findMany: vi.fn() }, $transaction: vi.fn() },
+    db: { aIGeneration: { findUnique: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() }, exercise: { findMany: vi.fn() }, workoutLog: { findMany: vi.fn(), count: vi.fn() }, $transaction: vi.fn() },
     provider: { generateStructuredJSON: vi.fn() },
   }
 })

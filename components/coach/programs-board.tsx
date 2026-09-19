@@ -470,7 +470,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
                                 type="button"
                                 variant="outline"
                                 size="icon-sm"
-                                className="shrink-0 text-destructive hover:bg-destructive-soft hover:text-destructive"
+                                className="shrink-0 text-destructive-text hover:bg-destructive-soft hover:text-destructive-text"
                                 aria-label={`Delete personalized copy ${program.name}`}
                                 title="Delete personalized copy"
                                 onClick={() => void handleDelete(program)}
