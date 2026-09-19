@@ -1191,7 +1191,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
 
   return (
     <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between" data-tour="trainee-schedule-calendar">
         <div>
           <div className="mb-2.5 flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center rounded-full border border-border bg-background">
@@ -1234,7 +1234,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
       </div>
 
       <p className="label-micro mb-3">{weekOffset === 0 ? messages.schedule.thisWeek : formatWeekRangeLabel(displayWeekStart)}</p>
-      <div className="mb-8">
+      <div className="mb-8" data-tour="trainee-schedule-week">
         {isLoadingProgramWeeks ? (
           // Rendering the current week's sessions while the real ones load would
           // show exactly the wrong data this fix exists to prevent.
@@ -1256,7 +1256,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
         )}
       </div>
 
-      <div className="mt-7 text-center">
+      <div className="mt-7 text-center" data-tour="trainee-schedule-actions">
         <Button asChild variant="ghost">
           <Link href="/workout">
             <CalendarDays className="h-4 w-4" />
