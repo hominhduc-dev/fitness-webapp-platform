@@ -169,6 +169,9 @@ describe("Black + Volt palette contract", () => {
     ["--success", "#4ade80"],
     ["--warning", "#facc15"],
     ["--destructive", "#ff5a5f"],
+    // Info stays blue even though --brand-accent is volt: the four semantic
+    // roles have to stay distinguishable from each other and from the brand.
+    ["--info", "#89c8ff"],
   ])("keeps %s at %s", (token, expected) => {
     expect(resolveToken(tokens, token)).toBe(expected)
   })

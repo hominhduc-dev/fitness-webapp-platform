@@ -833,6 +833,16 @@ input[type="button"] {
   --ok: #4ade80;
   --warn: #facc15;
   --danger: #ff5a5f;
+  /* Info is pinned alongside the other three semantics rather than inherited.
+     Everywhere else --info-token aliases --brand-accent, which here is volt
+     (#c7ff32) — that turned the solid info fill volt-green while its soft
+     surface and ink stayed blue (--info-soft / --info-text come from .dark),
+     so a `bg-info` badge was indistinguishable from a brand one and info
+     alerts drew a green rim around a blue panel. The dark family's blue keeps
+     Info distinct from success green, warning yellow and danger red, which is
+     the whole job of the role. --brand-accent itself is left at volt for the
+     highlight/chart use the palette contract pins it to. */
+  --info-token: #89c8ff;
 
   --accent-ink-color: #b6f23a;
   --primary-foreground: #0d0f0e;
