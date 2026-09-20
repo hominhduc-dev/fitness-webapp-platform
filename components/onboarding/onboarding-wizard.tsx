@@ -191,6 +191,12 @@ export function OnboardingWizard() {
       await createWeightEntry.mutateAsync({ weightKg: convertWeightToKg(weightValue, unit) }).catch(() => undefined)
     }
 
+    // Reaching the end is a dismissal too: sex/birthDate/height can each be left
+    // blank above, so `isProfileOnboarded()` may still say "not onboarded" here.
+    // Without this, the shell would redirect back into the wizard on the very
+    // next visit — including right after accepting the AI program this screen
+    // is about to open — with no cookie to break the loop.
+    skipOnboarding()
     const goal = AI_GOALS[goals[0] as (typeof GOAL_VALUES)[number]] ?? "general_fitness"
     window.localStorage.setItem("yb_onboarding_tour_pending", "1")
     router.replace(`/workout/ai-generate?mode=program&goal=${goal}`)

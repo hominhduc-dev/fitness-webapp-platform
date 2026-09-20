@@ -72,6 +72,11 @@ describe("OnboardingWizard", () => {
     })
     expect(state.createWeightEntry).toHaveBeenCalledWith({ weightKg: 72 })
     expect(state.replace).toHaveBeenCalledWith("/workout/ai-generate?mode=program&goal=build_muscle")
+    // Sex, birthDate and height can each be left blank, so the profile alone
+    // cannot be trusted to keep the shell from redirecting back here — the
+    // cookie is what actually breaks the loop after this screen hands off to
+    // the AI generator.
+    expect(document.cookie).toContain("yb_onboarding_skipped=1")
   })
 
   it("converts a weight entered in pounds before storing it", async () => {
