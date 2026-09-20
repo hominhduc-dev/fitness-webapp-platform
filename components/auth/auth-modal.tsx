@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { startTransition, useEffect, useState } from "react"
+import { startTransition, useCallback, useEffect, useRef, useState } from "react"
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, X, AlertCircle, CheckCircle } from "lucide-react"
 import Link from "next/link"
 
@@ -26,6 +26,7 @@ import { getRoleLandingPath } from "@/lib/auth/roles"
 import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
 import { trackRegistrationEvent } from "@/lib/analytics/registration"
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile"
 
 interface AuthModalProps {
   defaultTab?: "login" | "register"
@@ -35,6 +36,12 @@ interface AuthModalProps {
 }
 
 const REMEMBERED_IDENTIFIER_KEY = "yeahbuddy:remembered-identifier"
+
+/**
+ * When set, the Turnstile CAPTCHA widget is rendered in login/register forms.
+ * Leave empty to disable CAPTCHA (e.g. local development).
+ */
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
 
 function sanitizeRedirectPath(path?: string | null) {
   if (!path || !path.startsWith("/")) {
@@ -76,6 +83,24 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("")
   const [acceptTerms, setAcceptTerms] = useState(false)
   const finalRedirectPath = sanitizeRedirectPath(redirectToPath)
+
+  // ---------- Turnstile CAPTCHA ----------
+  const turnstileRef = useRef<TurnstileInstance | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const captchaEnabled = TURNSTILE_SITE_KEY.length > 0
+
+  const resetCaptcha = useCallback(() => {
+    setCaptchaToken(null)
+    turnstileRef.current?.reset()
+  }, [])
+
+  const onCaptchaSuccess = useCallback((token: string) => {
+    setCaptchaToken(token)
+  }, [])
+
+  const onCaptchaExpire = useCallback(() => {
+    setCaptchaToken(null)
+  }, [])
 
   useEffect(() => {
     setActiveTab(defaultTab)
@@ -170,6 +195,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
     try {
       const response = await loginRequest({
+        captchaToken: captchaToken ?? undefined,
         identifier: loginIdentifier,
         password: loginPassword,
       })
@@ -188,6 +214,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       setError(message)
     } finally {
       setIsLoading(false)
+      resetCaptcha()
     }
   }
 
@@ -219,6 +246,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
     try {
       const response = await registerRequest({
+        captchaToken: captchaToken ?? undefined,
         email: registerEmail,
         name: registerName,
         password: registerPassword,
@@ -254,6 +282,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       setError(message)
     } finally {
       setIsLoading(false)
+      resetCaptcha()
     }
   }
 
@@ -277,6 +306,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
     try {
       const response = await forgotPasswordRequest({
+        captchaToken: captchaToken ?? undefined,
         identifier: targetIdentifier,
         redirectTo: createCallbackRedirect("/reset-password"),
       })
@@ -290,6 +320,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       setError(message)
     } finally {
       setIsLoading(false)
+      resetCaptcha()
     }
   }
 
@@ -329,6 +360,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     setActiveTab(value as "login" | "register")
     setError(null)
     setSuccess(null)
+    resetCaptcha()
   }
 
   const renderOAuthButton = (provider: "google" | "apple", label: string, icon: React.ReactNode) => (
@@ -443,10 +475,22 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               </button>
             </div>
 
+            {captchaEnabled && (
+              <div className="flex justify-center">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={TURNSTILE_SITE_KEY}
+                  onSuccess={onCaptchaSuccess}
+                  onExpire={onCaptchaExpire}
+                  options={{ size: "flexible", theme: "auto" }}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 sm:h-11 text-base sm:text-sm"
-              disabled={isLoading || oauthLoadingProvider !== null || !isSupabaseConfigured}
+              disabled={isLoading || oauthLoadingProvider !== null || !isSupabaseConfigured || (captchaEnabled && !captchaToken)}
             >
               {isLoading ? (
                 <>
@@ -585,10 +629,22 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               </p>
             </div>
 
+            {captchaEnabled && (
+              <div className="flex justify-center">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={TURNSTILE_SITE_KEY}
+                  onSuccess={onCaptchaSuccess}
+                  onExpire={onCaptchaExpire}
+                  options={{ size: "flexible", theme: "auto" }}
+                />
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 sm:h-11 text-base sm:text-sm"
-              disabled={isLoading || oauthLoadingProvider !== null || !acceptTerms || !isSupabaseConfigured}
+              disabled={isLoading || oauthLoadingProvider !== null || !acceptTerms || !isSupabaseConfigured || (captchaEnabled && !captchaToken)}
             >
               {isLoading ? (
                 <>
