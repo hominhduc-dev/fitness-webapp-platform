@@ -89,7 +89,7 @@ function createHeaders(accessToken?: string) {
   }
 }
 
-async function loginRequest(input: { identifier: string; password: string }) {
+async function loginRequest(input: { captchaToken?: string; identifier: string; password: string }) {
   return request<AuthResponse>("/api/auth/login", {
     body: JSON.stringify(input),
     headers: createHeaders(),
@@ -98,6 +98,7 @@ async function loginRequest(input: { identifier: string; password: string }) {
 }
 
 async function registerRequest(input: {
+  captchaToken?: string
   email: string
   name: string
   password: string
@@ -132,7 +133,7 @@ async function refreshSessionRequest(input: { accessToken?: string; refreshToken
   })
 }
 
-async function forgotPasswordRequest(input: { identifier: string; redirectTo?: string }) {
+async function forgotPasswordRequest(input: { captchaToken?: string; identifier: string; redirectTo?: string }) {
   return request<AuthResponse>("/api/auth/forgot-password", {
     body: JSON.stringify(input),
     headers: createHeaders(),

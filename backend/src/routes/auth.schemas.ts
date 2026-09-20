@@ -14,7 +14,11 @@ const email = z.string().trim().max(320)
 const password = z.string().max(200)
 const redirectTo = z.string().url().max(2048).optional()
 
+/** Cloudflare Turnstile token forwarded to Supabase Auth for bot protection. */
+const captchaToken = z.string().max(2048).optional()
+
 const registerSchema = z.object({
+  captchaToken,
   email,
   name: z.string().trim().max(120),
   password,
@@ -31,12 +35,17 @@ const claimOAuthRoleSchema = z.object({
 
 const loginSchema = z
   .object({
+    captchaToken,
     email: email.optional(),
     identifier: z.string().trim().max(320).optional(),
     password,
   })
   // The web client sends `identifier`; older callers send `email`.
-  .transform((value) => ({ identifier: value.identifier || value.email || "", password: value.password }))
+  .transform((value) => ({
+    captchaToken: value.captchaToken,
+    identifier: value.identifier || value.email || "",
+    password: value.password,
+  }))
 
 const refreshSchema = z.object({
   accessToken: z.string().max(4096).optional(),
@@ -45,11 +54,16 @@ const refreshSchema = z.object({
 
 const forgotPasswordSchema = z
   .object({
+    captchaToken,
     email: email.optional(),
     identifier: z.string().trim().max(320).optional(),
     redirectTo,
   })
-  .transform((value) => ({ email: value.identifier || value.email || "", redirectTo: value.redirectTo }))
+  .transform((value) => ({
+    captchaToken: value.captchaToken,
+    email: value.identifier || value.email || "",
+    redirectTo: value.redirectTo,
+  }))
 
 const avatarSchema = z.object({
   // Base64 data URLs are large by nature; the express.json 5 MB limit is the outer bound.

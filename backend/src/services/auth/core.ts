@@ -900,6 +900,7 @@ async function getVerifiedUser(accessToken: string) {
 }
 
 async function registerUser(input: {
+  captchaToken?: string
   email: string
   name: string
   password: string
@@ -933,6 +934,7 @@ async function registerUser(input: {
     email,
     password,
     options: {
+      captchaToken: input.captchaToken,
       data: {
         name,
         ...(phone ? { phone } : {}),
@@ -1006,13 +1008,14 @@ async function claimOAuthSignupRole(accessToken: string, role: string | null | u
   }
 }
 
-async function loginUser(input: { identifier: string; password: string }) {
+async function loginUser(input: { captchaToken?: string; identifier: string; password: string }) {
   const client = ensureAuthClient()
   const email = await resolveLoginEmail(input.identifier)
 
   const { data, error } = await client.auth.signInWithPassword({
     email,
     password: input.password,
+    options: { captchaToken: input.captchaToken },
   })
 
   if (error || !data.user) {
@@ -1354,7 +1357,7 @@ async function uploadCurrentProfileAvatar(
   }
 }
 
-async function requestPasswordReset(input: { email: string; redirectTo?: string }) {
+async function requestPasswordReset(input: { captchaToken?: string; email: string; redirectTo?: string }) {
   let email: string
 
   try {
@@ -1372,6 +1375,7 @@ async function requestPasswordReset(input: { email: string; redirectTo?: string 
 
   async function sendWithSupabase() {
     const { error } = await client.auth.resetPasswordForEmail(email, {
+      captchaToken: input.captchaToken,
       redirectTo,
     })
 
