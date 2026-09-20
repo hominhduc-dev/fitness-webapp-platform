@@ -156,6 +156,16 @@ describe("coach self-signup", () => {
     expect(result.session).not.toBeNull()
   })
 
+  it("forwards a Turnstile token during password sign-in", async () => {
+    storeProfile(buildProfileRow({ coachApprovalStatus: "approved", isActive: true }))
+
+    await loginUser({ captchaToken: "turnstile-token", identifier: authUser.email, password: "password123" })
+
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith(expect.objectContaining({
+      options: { captchaToken: "turnstile-token" },
+    }))
+  })
+
   it("keeps a rejected coach out with its own message", async () => {
     storeProfile(buildProfileRow({ coachApprovalStatus: "rejected", isActive: false }))
 

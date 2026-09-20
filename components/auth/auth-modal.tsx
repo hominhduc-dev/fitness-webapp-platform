@@ -468,7 +468,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               <button
                 type="button"
                 onClick={() => void handleForgotPassword()}
-                disabled={!isSupabaseConfigured}
+                disabled={!isSupabaseConfigured || (captchaEnabled && !captchaToken)}
                 className="text-xs sm:text-sm text-primary hover:text-primary/80 transition-colors"
               >
                 {messages.auth.forgotPassword}

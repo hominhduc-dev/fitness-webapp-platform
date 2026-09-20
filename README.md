@@ -279,6 +279,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:4000
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-or-publishable-key
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-site-key
 ```
 
 ### Backend: `backend/.env`
@@ -499,7 +500,10 @@ NEXT_PUBLIC_APP_URL=https://your-domain.example
 NEXT_PUBLIC_API_URL=https://your-backend-domain.example
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=...
 ```
+
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` is public. Store its matching secret only in Supabase Dashboard → Authentication → Attack Protection. Deploy the frontend variable before enabling CAPTCHA protection in Supabase.
 
 ### Backend
 
