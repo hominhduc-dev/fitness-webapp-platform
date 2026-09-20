@@ -50,16 +50,33 @@ export function useAcceptAIDailyWorkout() {
   return useAIMutation(api.acceptAIDailyWorkout, [queryKeys.workouts.all, queryKeys.coach.all, queryKeys.progress.all])
 }
 
+/**
+ * The plan left behind by a sheet that was closed without saving. Read when the
+ * sheet opens so an accidental dismissal does not cost another generation out
+ * of the daily budget.
+ */
+export function useAIMealPlanDraft() {
+  return useUserQuery({
+    queryKey: queryKeys.ai.mealPlanDraft(),
+    queryFn: async () => api.fetchAIMealPlanDraft(await requireAccessToken()),
+    staleTime: 0,
+  })
+}
+
 export function useGenerateAIMealPlan() {
-  return useAIMutation(api.generateAIMealPlan, [])
+  return useAIMutation(api.generateAIMealPlan, [queryKeys.ai.all])
 }
 
 export function useAcceptAIMealPlan() {
-  return useAIMutation(api.acceptAIMealPlan, [queryKeys.meals.all, ["workouts", "dashboard"]])
+  return useAIMutation(api.acceptAIMealPlan, [queryKeys.ai.all, queryKeys.meals.all, ["workouts", "dashboard"]])
 }
 
 export function useRegenerateAIMealPlanMeal() {
-  return useAIMutation(api.regenerateAIMealPlanMeal, [])
+  return useAIMutation(api.regenerateAIMealPlanMeal, [queryKeys.ai.all])
+}
+
+export function useDiscardAIMealPlanDraft() {
+  return useAIMutation(api.discardAIMealPlanDraft, [queryKeys.ai.all])
 }
 
 export function useSendAIChatMessage() {

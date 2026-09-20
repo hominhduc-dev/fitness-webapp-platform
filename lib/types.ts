@@ -264,6 +264,8 @@ export interface NutritionFood {
   protein: number
   reviewStatus: "pending" | "approved" | "rejected"
   servingAmount: number
+  /** What one serving weighs. Absent when the food's portion has no recorded weight. */
+  servingGrams?: number
   servingLabel: string
   servingUnit: string
   slug: string

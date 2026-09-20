@@ -2505,6 +2505,20 @@ async function acceptAIDailyWorkout(accessToken: string, generationId: string) {
   return response.data
 }
 
+/** The plan left over from a sheet that was closed without saving, if any. */
+async function fetchAIMealPlanDraft(accessToken: string) {
+  const response = await request<ApiEnvelope<AIMealPlan | null>>("/api/ai/meal-plan-draft", accessToken)
+  return response.data
+}
+
+async function discardAIMealPlanDraft(accessToken: string, generationId: string) {
+  const response = await request<ApiEnvelope<{ discarded: boolean }>>("/api/ai/discard-meal-plan", accessToken, {
+    method: "POST",
+    body: JSON.stringify({ generationId }),
+  })
+  return response.data
+}
+
 async function generateAIMealPlan(accessToken: string, input: {
   date: string
   days?: number
@@ -2648,6 +2662,8 @@ export {
   fetchExerciseLibrary,
   fetchExercises,
   fetchDashboard,
+  discardAIMealPlanDraft,
+  fetchAIMealPlanDraft,
   generateAIMealPlan,
   generateAIProgram,
   generateAIDailyWorkout,

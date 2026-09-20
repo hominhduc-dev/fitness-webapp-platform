@@ -22,6 +22,7 @@ type PlanFood = {
   carbs: number | null
   fat: number | null
   servingAmount: number
+  servingGrams: number | null
   servingUnit: string
   servingLabel: string
   priceTier?: string | null
@@ -106,8 +107,9 @@ function canPlanCalories(targets: Nutrients) {
   return targets.calories >= MIN_PLANNABLE_CALORIES
 }
 
-/** Mirrors `calculateItemNutrition`: g/ml scale by the serving size, servings multiply. */
+/** Mirrors `calculateItemNutrition`: grams scale by the serving's weight, a matching g/ml unit by the serving size, servings multiply. */
 function unitMultiplier(food: PlanFood, unit: PlanAmountUnit) {
+  if (unit === "g" && food.servingGrams != null && food.servingGrams > 0) return 1 / food.servingGrams
   return unit !== "serving" && food.servingUnit === unit && food.servingAmount > 0 ? 1 / food.servingAmount : 1
 }
 
@@ -116,20 +118,34 @@ function requirePlanFood(foodsById: ReadonlyMap<string, PlanFood>, item: DraftIt
   if (!food) {
     throw new AppError(`Món ${item.foodId} không thuộc thư viện được phép (đã lọc dị ứng, chế độ ăn, ngân sách). Không có món nào bị bỏ qua; hãy tạo lại.`, { status: 422, code: "AI_UNAVAILABLE_FOOD" })
   }
-  if (item.amountUnit !== "serving" && (food.servingUnit !== item.amountUnit || food.servingAmount <= 0)) {
+  const weighable = item.amountUnit === "g" && food.servingGrams != null && food.servingGrams > 0
+  if (item.amountUnit !== "serving" && !weighable && (food.servingUnit !== item.amountUnit || food.servingAmount <= 0)) {
     throw new AppError(`Không thể quy đổi đơn vị ${item.amountUnit} cho món ${food.name}. Hãy dùng serving hoặc đúng servingUnit của món.`, { status: 422 })
   }
   return food
 }
 
+/**
+ * A portion leaves the solver in whatever unit the model picked, and is stored
+ * in grams whenever the food has a weight — nobody can measure "0.7 tô". The
+ * nutrition is then derived from the rounded gram amount so the numbers shown
+ * here are the ones the meal is saved with.
+ */
 function mapPlanItem(food: PlanFood, amountValue: number, amountUnit: PlanAmountUnit): MappedItem {
-  const multiplier = amountValue * unitMultiplier(food, amountUnit)
+  const grams =
+    food.servingUnit !== "ml" && food.servingGrams != null && food.servingGrams > 0
+      ? Math.max(1, Math.round(food.servingGrams * amountValue * unitMultiplier(food, amountUnit)))
+      : null
+  const amount: { amountUnit: PlanAmountUnit; amountValue: number } =
+    grams == null ? { amountUnit, amountValue } : { amountUnit: "g", amountValue: grams }
+  const multiplier = amount.amountValue * unitMultiplier(food, amount.amountUnit)
+
   return {
     foodId: food.id,
     foodName: food.name,
-    amountValue,
-    amountUnit,
-    quantityLabel: formatFoodQuantity(food, { amountValue, amountUnit }),
+    amountValue: amount.amountValue,
+    amountUnit: amount.amountUnit,
+    quantityLabel: formatFoodQuantity(food, amount),
     calories: roundNutrition(food.calories * multiplier),
     protein: roundNutrition((food.protein ?? 0) * multiplier),
     carbs: roundNutrition((food.carbs ?? 0) * multiplier),
