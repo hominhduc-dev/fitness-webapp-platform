@@ -133,6 +133,15 @@ export const volumeRecoveryMessages = {
             : action === "deload"
               ? `${muscle} is above MRV with repeated recovery issues. Consider a deload.`
               : `Keep ${muscle} volume steady while more data is collected.`,
+      sessionHint: (action: string, muscle: string, currentSets: number, recommendedSets: number) =>
+        action === "increase"
+          ? `${muscle}: add a hard set this week (${currentSets} → ${recommendedSets}).`
+          : action === "decrease"
+            ? `${muscle}: ease off — ${recommendedSets} hard sets this week instead of ${currentSets}.`
+            : action === "deload"
+              ? `${muscle}: deload — keep it to ${recommendedSets} hard sets this week.`
+              : `${muscle}: hold at ${currentSets} hard sets while more data is collected.`,
+      addTheSet: "Add the set",
       formTitle: "Daily recovery check-in",
       formDescription: "A quick check-in improves the confidence of volume recommendations.",
       sleepQuality: "Sleep quality",
@@ -265,6 +274,15 @@ export const volumeRecoveryMessages = {
             : action === "deload"
               ? `${muscle} đang trên MRV với dấu hiệu phục hồi kém lặp lại. Nên cân nhắc deload.`
               : `Giữ ổn định volume của ${muscle} trong khi tiếp tục thu thập dữ liệu.`,
+      sessionHint: (action: string, muscle: string, currentSets: number, recommendedSets: number) =>
+        action === "increase"
+          ? `${muscle}: thêm một hard set trong tuần này (${currentSets} → ${recommendedSets}).`
+          : action === "decrease"
+            ? `${muscle}: giảm nhẹ — ${recommendedSets} hard set tuần này thay vì ${currentSets}.`
+            : action === "deload"
+              ? `${muscle}: tuần deload — giữ ở mức ${recommendedSets} hard set.`
+              : `${muscle}: giữ nguyên ${currentSets} hard set trong khi thu thập thêm dữ liệu.`,
+      addTheSet: "Thêm set",
       formTitle: "Check-in phục hồi hằng ngày",
       formDescription: "Một check-in nhanh giúp đề xuất volume đáng tin cậy hơn.",
       sleepQuality: "Chất lượng giấc ngủ",
@@ -332,8 +350,6 @@ export const volumeRecoveryMessages = {
       last30: "30 ngày",
       accept: "Áp dụng",
       dismiss: "Để sau",
-      accepted: "Đã áp dụng",
-      dismissed: "Đã bỏ qua",
       editLandmarks: "Chỉnh ngưỡng",
       landmarksTitle: "Ngưỡng volume",
       landmarksDescription: "Số set nặng mỗi tuần cho nhóm cơ này. Mỗi giá trị phải lớn hơn hoặc bằng giá trị trước.",

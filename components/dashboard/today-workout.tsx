@@ -3,12 +3,15 @@
 import Link from "next/link"
 import type { ActiveWorkoutSession } from "@/lib/workout/session-storage"
 import { useActiveWorkoutSessionList } from "@/lib/workout/use-active-workout-sessions"
-import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play } from "lucide-react"
+import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play, Sparkles } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { WorkoutSessionLink } from "@/components/workout/workout-session-link"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+import { acceptedCoachHints, coachHintForProfiles } from "@/lib/fitness/coach-hints"
+import { muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
+import { useVolumeRecovery } from "@/lib/queries/progress"
 import type { Workout } from "@/lib/types"
 import { formatRepTarget } from "@/lib/workout-reps"
 
@@ -30,6 +33,7 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
   const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const { messages } = useLocale()
   const copy = messages.dashboard
+  const volumeRecoveryQuery = useVolumeRecovery()
 
   const header = (
     <div className="flex items-center justify-between gap-3">
@@ -65,6 +69,13 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
     { icon: Dumbbell, label: `${workout.exercises.length} ${copy.exercises}` },
     { icon: Layers, label: `${totalSets} ${copy.sets}` },
   ]
+  // Only a recommendation today's exercises can actually act on is worth the
+  // space here.
+  const volumeCopy = messages.volumeRecovery
+  const coachHint = coachHintForProfiles(
+    acceptedCoachHints(volumeRecoveryQuery.data),
+    muscleProfilesFromWorkout(workout),
+  )
 
   return (
       <section className="glass-card flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4">
@@ -95,6 +106,20 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
           </li>
         ))}
       </ul>
+
+      {coachHint ? (
+        <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-primary-soft px-2.5 py-2 text-xs leading-[1.45] text-foreground">
+          <Sparkles className="mt-px size-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <span className="min-w-0">
+            {volumeCopy.sessionHint(
+              coachHint.action,
+              volumeCopy.muscleLabels[coachHint.muscleSlug as keyof typeof volumeCopy.muscleLabels] ?? coachHint.muscleSlug,
+              coachHint.currentSets,
+              coachHint.recommendedSets,
+            )}
+          </span>
+        </p>
+      ) : null}
 
       {/* The exercise list has room on wider screens; phones keep the card short. */}
       <ul className="mt-4 hidden min-w-0 space-y-1.5 md:block">
