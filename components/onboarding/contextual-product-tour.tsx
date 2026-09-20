@@ -97,6 +97,15 @@ function scrollTargetIntoView(target: HTMLElement) {
   }
 }
 
+const MOBILE_NAV_SELECTOR = ".mobile-liquid-glass-root"
+
+function getSafeBottomOffset(viewportHeight: number) {
+  const nav = document.querySelector<HTMLElement>(MOBILE_NAV_SELECTOR)
+  const navRect = nav?.getBoundingClientRect()
+  if (!navRect || navRect.height === 0) return 24
+  return Math.max(24, viewportHeight - navRect.top + 12)
+}
+
 function positionPopoverNearTarget(popover: { arrow: HTMLElement; wrapper: HTMLElement }, target: HTMLElement) {
   const applyPosition = () => {
     const targetRect = target.getBoundingClientRect()
@@ -105,7 +114,7 @@ function positionPopoverNearTarget(popover: { arrow: HTMLElement; wrapper: HTMLE
     const viewportHeight = window.innerHeight
     const gap = 12
     const safeTop = 16
-    const safeBottom = Math.max(112, Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom-offset")) || 0)
+    const safeBottom = getSafeBottomOffset(viewportHeight)
     const maxLeft = viewportWidth - popoverRect.width - 12
     const left = Math.max(12, Math.min(targetRect.left + (targetRect.width - popoverRect.width) / 2, maxLeft))
     const belowTop = targetRect.bottom + gap
