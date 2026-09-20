@@ -200,8 +200,6 @@ export const volumeRecoveryMessages = {
       last30: "30 days",
       accept: "Apply",
       dismiss: "Not now",
-      accepted: "Applied",
-      dismissed: "Dismissed",
       editLandmarks: "Edit landmarks",
       landmarksTitle: "Volume landmarks",
       landmarksDescription: "Weekly hard sets for this muscle. Each value must be at least the one before it.",

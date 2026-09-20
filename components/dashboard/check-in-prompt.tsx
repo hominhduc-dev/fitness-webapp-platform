@@ -8,6 +8,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { useVolumeRecovery } from "@/lib/queries/progress"
 import { formatDateKey } from "@/lib/time-zone"
+import { CoachInsightCard } from "./coach-insight"
 
 export function CheckInPrompt() {
   const { messages } = useLocale()
@@ -23,7 +24,11 @@ export function CheckInPrompt() {
 
   return (
     <>
-      {checkedInToday ? null : (
+      {/* One slot: the nudge to check in, then the recommendation that the
+          check-in unlocked. */}
+      {checkedInToday ? (
+        <CoachInsightCard />
+      ) : (
         <section className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 md:gap-4 md:px-4 md:py-3" data-tour="dashboard-check-in">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning-text">
             <Sun className="size-6" aria-hidden="true" />
