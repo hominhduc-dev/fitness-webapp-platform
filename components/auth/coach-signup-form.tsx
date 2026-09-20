@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link"
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, Lock, Mail, Phone, ShieldCheck, User } from "lucide-react"
 
 import { GoogleIcon } from "@/components/ui/brand-icons"
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,8 @@ import { trackRegistrationEvent } from "@/lib/analytics/registration"
 import { ApiError, registerRequest } from "@/lib/auth/api"
 import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
 
 /**
  * Coach self-signup. A coach account is created locked and waits in the admin
@@ -43,7 +46,15 @@ export function CoachSignupForm({
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false)
   const [error, setError] = useState<string | null>(defaultError)
   const [isSubmitted, setIsSubmitted] = useState(defaultSubmitted)
+  const turnstileRef = useRef<TurnstileInstance | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const captchaEnabled = TURNSTILE_SITE_KEY.length > 0
   const supabaseConfigError = getSupabasePublicConfigError()
+
+  const resetCaptcha = useCallback(() => {
+    setCaptchaToken(null)
+    turnstileRef.current?.reset()
+  }, [])
 
   useEffect(() => {
     trackRegistrationEvent("form_view", { method: "email", role: "coach" })
@@ -113,6 +124,7 @@ export function CoachSignupForm({
       const redirectUrl = new URL("/auth/callback", getAppBaseUrl())
       redirectUrl.searchParams.set("next", "/?auth=login")
       const response = await registerRequest({
+        captchaToken: captchaToken ?? undefined,
         email,
         name,
         password,
@@ -134,6 +146,7 @@ export function CoachSignupForm({
         rawError instanceof ApiError || rawError instanceof Error ? rawError.message : messages.auth.registerFailed,
       )
     } finally {
+      resetCaptcha()
       setIsSubmitting(false)
     }
   }
@@ -281,6 +294,18 @@ export function CoachSignupForm({
           </p>
         </div>
 
+        {captchaEnabled ? (
+          <div className="flex justify-center">
+            <Turnstile
+              ref={turnstileRef}
+              onExpire={() => setCaptchaToken(null)}
+              onSuccess={setCaptchaToken}
+              options={{ size: "flexible", theme: "auto" }}
+              siteKey={TURNSTILE_SITE_KEY}
+            />
+          </div>
+        ) : null}
+
         {error ? (
           <p role="alert" className="rounded-lg border border-destructive/20 bg-destructive-soft p-3 text-sm text-destructive-text">
             {error}
@@ -289,7 +314,7 @@ export function CoachSignupForm({
 
         <Button
           className="h-12 w-full text-base sm:h-11 sm:text-sm"
-          disabled={isSubmitting || isGoogleRedirecting || !acceptTerms}
+          disabled={isSubmitting || isGoogleRedirecting || !acceptTerms || (captchaEnabled && !captchaToken)}
           type="submit"
         >
           {isSubmitting ? (

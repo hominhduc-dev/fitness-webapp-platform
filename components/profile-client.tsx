@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile"
 import { forgotPasswordRequest } from "@/lib/auth/api"
 import type { AppActivityLevel, AppProfile, AppSex, UpdateProfileInput } from "@/lib/auth/types"
 import { useResetTraineeData } from "@/lib/queries/profile"
@@ -47,6 +48,8 @@ import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { usePushNotifications } from "@/lib/push-notifications"
 import { getAppBaseUrl } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""
 
 const availableGoalValues = ["Build Muscle", "Lose Weight", "Increase Strength", "Improve Endurance", "Flexibility"] as const
 type GoalValue = (typeof availableGoalValues)[number]
@@ -143,6 +146,9 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   const [savingSection, setSavingSection] = useState<string | null>(null)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
+  const passwordResetTurnstileRef = useRef<TurnstileInstance | null>(null)
+  const [passwordResetCaptchaToken, setPasswordResetCaptchaToken] = useState<string | null>(null)
+  const captchaEnabled = TURNSTILE_SITE_KEY.length > 0
   const [isChangingEmail, setIsChangingEmail] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isResettingData, setIsResettingData] = useState(false)
@@ -465,6 +471,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
       redirectUrl.searchParams.set("next", "/reset-password")
 
       const response = await forgotPasswordRequest({
+        captchaToken: passwordResetCaptchaToken ?? undefined,
         identifier: profile.email,
         redirectTo: redirectUrl.toString(),
       })
@@ -473,6 +480,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
     } catch (rawError) {
       notifyError(rawError instanceof Error ? rawError.message : messages.profile.resetEmailFailed)
     } finally {
+      setPasswordResetCaptchaToken(null)
+      passwordResetTurnstileRef.current?.reset()
       setIsSendingReset(false)
     }
   }
@@ -952,6 +961,17 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
             id={SECTION_IDS.security}
             title={messages.profile.security}
           >
+            {captchaEnabled ? (
+              <div className="flex justify-start">
+                <Turnstile
+                  ref={passwordResetTurnstileRef}
+                  onExpire={() => setPasswordResetCaptchaToken(null)}
+                  onSuccess={setPasswordResetCaptchaToken}
+                  options={{ size: "flexible", theme: "auto" }}
+                  siteKey={TURNSTILE_SITE_KEY}
+                />
+              </div>
+            ) : null}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button asChild className="gap-2 sm:w-auto">
                 <Link href="/reset-password">
@@ -965,7 +985,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
                 variant="ghost"
                 className="text-muted-foreground sm:w-auto"
                 onClick={() => void handlePasswordReset()}
-                disabled={isSendingReset}
+                disabled={isSendingReset || (captchaEnabled && !passwordResetCaptchaToken)}
               >
                 {isSendingReset ? (
                   <>

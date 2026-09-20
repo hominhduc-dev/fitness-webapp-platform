@@ -44,4 +44,17 @@ describe("registerUser", () => {
       }),
     }))
   })
+
+  it("forwards a Turnstile token to Supabase", async () => {
+    await registerUser({
+      captchaToken: "turnstile-token",
+      email: "trainee@example.com",
+      name: "New Trainee",
+      password: "password123",
+    })
+
+    expect(mocks.signUp).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({ captchaToken: "turnstile-token" }),
+    }))
+  })
 })
