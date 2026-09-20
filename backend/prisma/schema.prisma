@@ -102,6 +102,12 @@ enum FoodSource {
   user
 }
 
+enum FoodReviewStatus {
+  pending
+  approved
+  rejected
+}
+
 enum FoodCategory {
   staple
   protein
@@ -241,6 +247,7 @@ model User {
   exerciseImportReviews  ExerciseImportRequest[]   @relation("ExerciseImportReviewer")
   muscleProfilesReviewed Variation[]               @relation("MuscleProfileReviewer")
   foodsCreated           Food[]                    @relation("FoodCreator")
+  foodsReviewed          Food[]                    @relation("FoodReviewer")
   googleConnection       GoogleConnection?
   notifications          Notification[]
   pushSubscriptions      PushSubscription[]
@@ -452,15 +459,22 @@ model Food {
   /// Optional; AI meal plans only filter on these when they are set.
   priceTier     FoodPriceTier?
   prepMinutes   Int?
-  source        FoodSource     @default(system)
-  isVerified    Boolean        @default(false)
+  source        FoodSource       @default(system)
+  isVerified    Boolean          @default(false)
+  reviewStatus  FoodReviewStatus @default(pending)
+  reviewedAt    DateTime?
+  reviewNote    String?
   createdById   String?        @db.Uuid
   createdBy     User?          @relation("FoodCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedById  String?        @db.Uuid
+  reviewedBy    User?          @relation("FoodReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   mealItems     MealFoodItem[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([createdById])
+  @@index([reviewStatus, createdAt])
+  @@index([reviewedById])
   @@index([category])
   @@index([name])
 }

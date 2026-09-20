@@ -6,6 +6,7 @@ import type { ExerciseActivityType, MuscleProfileStatus, MuscleSlug } from "@/li
 import type {
   AdminAuditLogItem,
   AdminCoachRequest,
+  AdminCustomFoodItem,
   AdminConnectionsData,
   AdminDashboardData,
   AdminExerciseGroupDeleteResult,
@@ -56,6 +57,12 @@ type SerializedAdminExerciseGroupDeleteResult = AdminExerciseGroupDeleteResult
 
 type SerializedAdminAuditLogItem = Omit<AdminAuditLogItem, "createdAt"> & {
   createdAt: string
+}
+
+type SerializedAdminCustomFoodItem = Omit<AdminCustomFoodItem, "createdAt" | "reviewedAt" | "updatedAt"> & {
+  createdAt: string
+  reviewedAt: string | null
+  updatedAt: string
 }
 
 type SerializedAdminUserDetail = Omit<AdminUserDetail, "assignedPrograms" | "coachRequests" | "createdPrograms" | "recentAuditLogs" | "recentWorkoutLogs" | "user"> & {
@@ -203,6 +210,15 @@ function mapAdminAuditLogItem(log: SerializedAdminAuditLogItem): AdminAuditLogIt
   return {
     ...log,
     createdAt: new Date(log.createdAt),
+  }
+}
+
+function mapAdminCustomFoodItem(food: SerializedAdminCustomFoodItem): AdminCustomFoodItem {
+  return {
+    ...food,
+    createdAt: new Date(food.createdAt),
+    reviewedAt: food.reviewedAt ? new Date(food.reviewedAt) : null,
+    updatedAt: new Date(food.updatedAt),
   }
 }
 
@@ -641,6 +657,27 @@ async function fetchAdminAuditLogs(accessToken: string, options?: { entityType?:
   return response.logs.map(mapAdminAuditLogItem)
 }
 
+async function fetchAdminCustomFoods(
+  accessToken: string,
+  options?: { search?: string; status?: "pending" | "approved" | "rejected" | "all" },
+) {
+  const query = buildQuery({ search: options?.search, status: options?.status })
+  const response = await request<{ foods: SerializedAdminCustomFoodItem[] }>(`/api/admin/foods${query}`, accessToken)
+  return response.foods.map(mapAdminCustomFoodItem)
+}
+
+async function reviewAdminCustomFoodRequest(
+  accessToken: string,
+  foodId: string,
+  input: { decision: "approved" | "rejected"; reviewNote?: string },
+) {
+  const response = await request<{ food: SerializedAdminCustomFoodItem }>(`/api/admin/foods/${foodId}/review`, accessToken, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+  return mapAdminCustomFoodItem(response.food)
+}
+
 export {
   applyExerciseSyncRequest,
   assignAdminCoachConnection,
@@ -654,6 +691,7 @@ export {
   deleteAdminProgramRequest,
   fetchAdminAuditLogs,
   fetchAdminCoachRequests,
+  fetchAdminCustomFoods,
   fetchAdminConnections,
   fetchAdminDashboard,
   fetchAdminExercises,
@@ -668,6 +706,7 @@ export {
   removeAdminExerciseMediaRequest,
   resetAdminUserPasswordRequest,
   reviewAdminCoachSignupRequest,
+  reviewAdminCustomFoodRequest,
   reviewAdminExerciseImportRequest,
   saveAdminExerciseMediaRequest,
   transferAdminExerciseMetadataRequest,

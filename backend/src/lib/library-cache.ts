@@ -9,8 +9,7 @@
  *  - Exercise library: invalidated explicitly on the frequent coach write paths
  *    (create/update/delete). Rare admin edits are NOT explicitly invalidated and
  *    instead fall off via the short TTL — so staleness is bounded to EXERCISE_LIBRARY_TTL_MS.
- *  - System food catalog: written only by the offline seed script, never at
- *    runtime, so a pure TTL with no invalidation is always correct.
+ *  - System food catalog: invalidated when an admin promotes a custom food.
  */
 import { TtlCache } from "./cache"
 
@@ -30,4 +29,9 @@ export const CACHE_KEYS = {
 export function invalidateExerciseLibrary() {
   libraryCache.delete(CACHE_KEYS.exerciseLibrary)
   libraryCache.delete(CACHE_KEYS.exerciseVariations)
+}
+
+/** Drop the shared food catalog after a custom food becomes system-visible. */
+export function invalidateSystemFoodCatalog() {
+  libraryCache.delete(CACHE_KEYS.systemFoods)
 }

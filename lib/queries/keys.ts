@@ -150,6 +150,7 @@ export const queryKeys = {
     connections: () => ["admin", "connections"] as const,
     programs: () => ["admin", "programs"] as const,
     exercises: () => ["admin", "exercises"] as const,
+    foods: () => ["admin", "foods"] as const,
     exerciseImportRequests: () => ["admin", "exercise-import-requests"] as const,
     auditLogs: (options?: { limit?: number }) =>
       ["admin", "audit-logs", { limit: options?.limit ?? null }] as const,

@@ -60,12 +60,29 @@ const reviewCoachSignupSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
 })
 
+const customFoodQuery = z.object({
+  search: z.string().trim().max(120).optional(),
+  status: z.enum(["pending", "approved", "rejected", "all"]).optional(),
+})
+
+const customFoodParams = z.object({
+  foodId: z.uuid("foodId không hợp lệ."),
+})
+
+const reviewCustomFoodSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  reviewNote: z.string().trim().max(500).optional(),
+})
+
 export {
   coachSignupParams,
   coachSignupQuery,
+  customFoodParams,
+  customFoodQuery,
   exerciseIdParams,
   exerciseMediaUploadSchema,
   reviewCoachSignupSchema,
+  reviewCustomFoodSchema,
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
 }

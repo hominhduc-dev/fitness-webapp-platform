@@ -172,6 +172,27 @@ type AdminAuditLogItem = {
   metadata?: unknown
 }
 
+type AdminCustomFoodItem = {
+  calories: number
+  carbs: number
+  category: string
+  createdAt: Date
+  createdBy: Pick<AdminMiniUser, "email" | "id" | "name"> | null
+  fat: number
+  id: string
+  name: string
+  protein: number
+  reviewNote: string | null
+  reviewedAt: Date | null
+  reviewedBy: Pick<AdminMiniUser, "email" | "id" | "name"> | null
+  reviewStatus: "pending" | "approved" | "rejected"
+  servingAmount: number
+  servingLabel: string
+  servingUnit: string
+  source: "system" | "user"
+  updatedAt: Date
+}
+
 type AdminUserWorkoutLog = {
   completedAt?: Date
   id: string
@@ -318,6 +339,7 @@ type ExerciseSyncResult = {
 
 export type {
   AdminAuditLogItem,
+  AdminCustomFoodItem,
   AdminCoachOverview,
   AdminCoachRequest,
   AdminChartPoint,

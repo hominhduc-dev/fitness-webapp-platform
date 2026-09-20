@@ -1,4 +1,14 @@
-import { FoodCategory, FoodSource, MealStatus, MealType, type Prisma } from "@prisma/client"
+import {
+  FoodCategory,
+  FoodReviewStatus,
+  FoodSource,
+  MealStatus,
+  MealType,
+  NotificationStatus,
+  NotificationType,
+  UserRole,
+  type Prisma,
+} from "@prisma/client"
 
 import { CACHE_KEYS, FOOD_CATALOG_TTL_MS, libraryCache } from "../lib/library-cache"
 import { buildFoodSlug, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
@@ -166,6 +176,7 @@ function serializeFood(food: {
   sodium?: number | null
   source: FoodSource
   sugar?: number | null
+  reviewStatus: FoodReviewStatus
 }) {
   return {
     calories: food.calories,
@@ -183,6 +194,7 @@ function serializeFood(food: {
     sodium: food.sodium ?? undefined,
     source: food.source,
     sugar: food.sugar ?? undefined,
+    reviewStatus: food.reviewStatus,
   }
 }
 
@@ -314,8 +326,8 @@ async function listFoodsForUser(profile: SerializedProfile, options?: { category
   const query = typeof options?.query === "string" ? options.query.trim().toLowerCase() : ""
   const category = parseFoodCategory(options?.category)
 
-  // System foods are written only by the offline seed script, never at runtime,
-  // so the full catalog is cached with a pure TTL (no invalidation needed).
+  // Admin-approved custom foods are promoted to system foods; that write
+  // invalidates this cache immediately.
   const systemFoods = await libraryCache.getOrLoad(CACHE_KEYS.systemFoods, FOOD_CATALOG_TTL_MS, () =>
     db.food.findMany({
       orderBy: { name: "asc" },
@@ -355,8 +367,10 @@ async function createFoodForUser(profile: SerializedProfile, input: Record<strin
   const fat = parseOptionalMacro(input.fat) ?? 0
   const slug = buildFoodSlug(name, { userId: profile.id })
 
-  const food = await db.food.upsert({
-    create: {
+  const submittedAt = new Date()
+  const food = await db.$transaction(async (tx) => {
+    const savedFood = await tx.food.upsert({
+      create: {
       calories: roundNutrition(calories),
       carbs,
       category,
@@ -368,9 +382,10 @@ async function createFoodForUser(profile: SerializedProfile, input: Record<strin
       servingLabel,
       servingUnit: serving.servingUnit,
       slug,
-      source: FoodSource.user,
-    },
-    update: {
+        reviewStatus: FoodReviewStatus.pending,
+        source: FoodSource.user,
+      },
+      update: {
       calories: roundNutrition(calories),
       carbs,
       category,
@@ -380,11 +395,47 @@ async function createFoodForUser(profile: SerializedProfile, input: Record<strin
       servingAmount: serving.servingAmount,
       servingLabel,
       servingUnit: serving.servingUnit,
-      source: FoodSource.user,
-    },
-    where: {
-      slug,
-    },
+        isVerified: false,
+        reviewNote: null,
+        reviewedAt: null,
+        reviewedById: null,
+        reviewStatus: FoodReviewStatus.pending,
+        source: FoodSource.user,
+      },
+      where: {
+        slug,
+      },
+    })
+
+    const admins = await tx.user.findMany({
+      select: { id: true },
+      where: { isActive: true, role: UserRole.admin },
+    })
+
+    if (admins.length > 0) {
+      await tx.notification.createMany({
+        data: admins.map((admin) => ({
+          channel: "in_app" as const,
+          message: `${profile.name} đã gửi món “${name}” để xét duyệt.`,
+          metadata: {
+            creatorId: profile.id,
+            foodId: savedFood.id,
+            kind: "custom_food_review",
+            url: "/admin?s=foods",
+          },
+          relatedEntityId: savedFood.id,
+          relatedEntityType: "food_review",
+          scheduledFor: submittedAt,
+          sentAt: submittedAt,
+          status: NotificationStatus.sent,
+          title: "Có món ăn tuỳ chỉnh chờ duyệt",
+          type: NotificationType.general,
+          userId: admin.id,
+        })),
+      })
+    }
+
+    return savedFood
   })
 
   return serializeFood(food)
