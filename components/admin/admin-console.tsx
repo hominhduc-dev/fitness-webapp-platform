@@ -18,6 +18,7 @@ import { useEffect, useState, type ChangeEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
 import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -322,6 +323,7 @@ type AdminSectionId =
   | "connections"
   | "programs"
   | "exercises"
+  | "foods"
   | "audit"
 
 function AdminShellHeader({
@@ -395,6 +397,11 @@ function AdminShellHeader({
         locale === "en"
           ? `${formatNumber(exerciseCount, locale)} exercises · Grouped by muscle group`
           : `${formatNumber(exerciseCount, locale)} bài tập · Nhóm theo nhóm cơ`,
+    },
+    foods: {
+      label: locale === "en" ? "Custom foods" : "Món tuỳ chỉnh",
+      title: locale === "en" ? "Food review queue." : "Hàng chờ duyệt món ăn.",
+      sub: locale === "en" ? "Approve trainee foods for the shared catalog" : "Duyệt món trainee để đưa vào thư viện chung",
     },
     programs: {
       label: locale === "en" ? "Programs" : "Giáo án",
@@ -564,6 +571,7 @@ export function AdminConsole() {
     "connections",
     "programs",
     "exercises",
+    "foods",
     "audit",
   ]
   const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
@@ -2189,6 +2197,10 @@ export function AdminConsole() {
                 setSyncRows([])
               }}
             />
+          </TabsContent>
+
+          <TabsContent value="foods">
+            <AdminFoodsPanel locale={locale} />
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-4">

@@ -104,6 +104,15 @@ export function useAdminAuditLogs(options?: Args<typeof api.fetchAdminAuditLogs>
   })
 }
 
+export function useAdminCustomFoods(options?: Args<typeof api.fetchAdminCustomFoods>[0], initialData?: Result<typeof api.fetchAdminCustomFoods>) {
+  return useUserQuery<Result<typeof api.fetchAdminCustomFoods>>({
+    queryKey: [...queryKeys.admin.foods(), options ?? {}],
+    queryFn: async () => api.fetchAdminCustomFoods(await requireAccessToken(), options),
+    initialData,
+    staleTime: 30_000,
+  })
+}
+
 function useAdminMutation<A extends unknown[], T>(fn: (token: string, ...args: A) => Promise<T>, domains: readonly QueryKey[]) {
   const client = useQueryClient()
   return useMutation({
@@ -196,6 +205,10 @@ export function useReviewAdminCoachSignupRequest() {
     queryKeys.coach.all,
     queryKeys.profile.all,
   ])
+}
+
+export function useReviewAdminCustomFoodRequest() {
+  return useAdminMutation(api.reviewAdminCustomFoodRequest, [queryKeys.admin.all, queryKeys.meals.all, queryKeys.notifications.all])
 }
 
 export function useUpdateAdminUserRequest() {

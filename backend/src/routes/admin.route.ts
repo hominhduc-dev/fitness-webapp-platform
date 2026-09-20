@@ -27,6 +27,7 @@ import {
   listAdminCoachSignups,
   listAdminConnections,
   listAdminExercises,
+  listAdminCustomFoods,
   listAdminExerciseImportRequests,
   listAdminPrograms,
   listAdminUsers,
@@ -35,6 +36,7 @@ import {
   removeAdminExerciseMedia,
   resetAdminUserPassword,
   reviewAdminCoachSignup,
+  reviewAdminCustomFood,
   reviewExerciseImportRequest,
   saveAdminExerciseMedia,
   transferAdminExerciseMetadata,
@@ -46,9 +48,12 @@ import { validated } from "../middleware/validate"
 import {
   coachSignupParams,
   coachSignupQuery,
+  customFoodParams,
+  customFoodQuery,
   exerciseIdParams,
   exerciseMediaUploadSchema,
   reviewCoachSignupSchema,
+  reviewCustomFoodSchema,
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
 } from "./admin.schemas"
@@ -180,6 +185,26 @@ adminRouter.patch(
     const user = await reviewAdminCoachSignup(profile, req.params.userId, req.body.decision)
 
     res.json({ user })
+  }),
+)
+
+adminRouter.get(
+  "/foods",
+  validated({ query: customFoodQuery }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const foods = await listAdminCustomFoods(profile, req.query)
+
+    res.json({ foods })
+  }),
+)
+
+adminRouter.patch(
+  "/foods/:foodId/review",
+  validated({ body: reviewCustomFoodSchema, params: customFoodParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const food = await reviewAdminCustomFood(profile, req.params.foodId, req.body)
+
+    res.json({ food })
   }),
 )
 

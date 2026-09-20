@@ -28,6 +28,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import type { createCustomFood } from "@/lib/fitness/api"
 import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay, useUpdateMealItemAmount } from "@/lib/queries/meals"
@@ -507,7 +508,9 @@ function AddFoodModal({
     foodNamePlaceholder: string
     logFood: string
     noFoodsFound: string
+    pendingReview: string
     protein: string
+    rejectedReview: string
     recentFoods: string
     recentFoodsHint: string
     saveFood: string
@@ -667,7 +670,14 @@ function AddFoodModal({
                       {active ? <Check className="size-4" /> : <Utensils className="size-3.5" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
+                        {food.source === "user" ? (
+                          <Badge variant={food.reviewStatus === "rejected" ? "destructive" : "secondary"} className="shrink-0 text-micro">
+                            {food.reviewStatus === "rejected" ? labels.rejectedReview : labels.pendingReview}
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="mt-1 truncate font-mono text-micro text-muted-foreground tnum">
                         {food.servingLabel} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
                       </p>
@@ -840,7 +850,9 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
     foodNamePlaceholder: messages.meals.foodNameNewPlaceholder,
     logFood: messages.meals.logFood,
     noFoodsFound: messages.meals.noFoodsFound,
+    pendingReview: messages.meals.pendingReview,
     protein: messages.meals.protein,
+    rejectedReview: messages.meals.rejectedReview,
     recentFoods: messages.meals.recentFoods,
     recentFoodsHint: messages.meals.recentFoodsHint,
     saveFood: messages.meals.saveFood,

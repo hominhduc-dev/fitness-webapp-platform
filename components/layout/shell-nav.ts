@@ -66,6 +66,7 @@ export function getAdminNavItems(messages: AppMessages, options?: { compactLabel
     { href: "/admin?s=connections", icon: Link2, label: messages.shell.connections },
     { href: "/admin?s=programs", icon: ClipboardList, label: messages.shell.programs },
     { href: "/admin?s=exercises", icon: Dumbbell, label: messages.shell.exercises },
+    { href: "/admin?s=foods", icon: Utensils, label: options?.compactLabels ? messages.shell.nutrition : messages.shell.mealTracking },
     { href: "/admin?s=audit", icon: ScrollText, label: messages.shell.audit },
     { href: "/profile", icon: Settings, label: messages.common.settings },
   ]

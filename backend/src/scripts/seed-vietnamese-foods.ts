@@ -1,4 +1,4 @@
-import { FoodSource } from "@prisma/client"
+import { FoodReviewStatus, FoodSource } from "@prisma/client"
 
 import { buildFoodSlug, parseServingLabel } from "../lib/nutrition/food-utils"
 import { VIETNAMESE_FOODS } from "../lib/nutrition/vietnamese-foods"
@@ -33,6 +33,7 @@ async function main() {
         isVerified: true,
         name: food.name,
         protein: food.protein,
+        reviewStatus: FoodReviewStatus.approved,
         servingAmount: serving.servingAmount,
         servingLabel: food.servingLabel,
         servingUnit: serving.servingUnit,
@@ -47,6 +48,7 @@ async function main() {
         isVerified: true,
         name: food.name,
         protein: food.protein,
+        reviewStatus: FoodReviewStatus.approved,
         servingAmount: serving.servingAmount,
         servingLabel: food.servingLabel,
         servingUnit: serving.servingUnit,

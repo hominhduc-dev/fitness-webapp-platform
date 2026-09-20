@@ -262,6 +262,7 @@ export interface NutritionFood {
   id: string
   name: string
   protein: number
+  reviewStatus: "pending" | "approved" | "rejected"
   servingAmount: number
   servingLabel: string
   servingUnit: string
