@@ -124,6 +124,8 @@ describe("Volt Lime palette contract", () => {
     ["--brand-accent", "#a3e635"],
     ["--brand-primary", "#3f6f0d"],
     ["--foreground", "#172012"],
+    // Info stays blue even though --brand-accent is lime.
+    ["--info", "#3b82f6"],
   ])("keeps %s at %s", (token, expected) => {
     expect(resolveToken(tokens, token)).toBe(expected)
   })
@@ -145,6 +147,8 @@ describe("Iron Orange palette contract", () => {
     ["--muted-foreground", "#667085"],
     ["--success", "#16a05d"],
     ["--destructive", "#ef4444"],
+    // Info stays blue even though --brand-accent is amber.
+    ["--info", "#3b82f6"],
   ])("keeps %s at %s", (token, expected) => {
     expect(resolveToken(tokens, token)).toBe(expected)
   })
@@ -188,6 +192,20 @@ describe.each(themeTokens)("%s theme contrast", (_theme, tokens) => {
     expect(tokens.get("--surface")).toBeTruthy()
     expect(tokens.get("--surface-subtle")).toBeTruthy()
     expect(tokens.get("--surface-hover")).toBeTruthy()
+  })
+
+  /**
+   * The four semantic solids are aliases, so a palette that overrides the
+   * brand token behind one of them can silently collapse two roles onto the
+   * same colour — Performance Green resolved Info and Success to the same
+   * hex, because --info-token aliases --brand-accent and --ok aliases
+   * --brand-secondary, which that palette set identically.
+   */
+  it("keeps the four semantic solids on distinct colours", () => {
+    const solids = ["--success", "--warning", "--info", "--destructive"].map((token) =>
+      resolveToken(tokens, token),
+    )
+    expect(new Set(solids).size).toBe(solids.length)
   })
 })
 
