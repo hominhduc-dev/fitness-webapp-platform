@@ -1219,11 +1219,15 @@ export function ProgramEditor({
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programFocus}</span>
                   <span className="relative block">
                     <Target className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  {/* pr clears the counter below: `200/200` is the widest it ever
+                      gets (font-mono + tnum, so the width is fixed) at 49px, plus
+                      its right-3 offset — 61px. pr-16 left 3px of that, which a
+                      font fallback would swallow. */}
                   <Input
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder={messages.coach.descriptionPlaceholder}
-                      className="h-9 bg-background/65 pl-10 pr-16 text-sm md:h-10"
+                      className="h-9 bg-background/65 pl-10 pr-[4.5rem] text-sm md:h-10"
                     disabled={isArchived}
                     maxLength={200}
                   />
