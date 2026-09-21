@@ -5665,14 +5665,118 @@ async function adjustCoachProgramForTrainee(
 // workoutExercise in future workouts of the same program using that variation.
 // Past workouts and already-logged sessions are untouched.
 //
-// If the workout belongs to a program the trainee doesn't own (i.e. a coach's
-// program), we fork the whole program into a new one owned by the coach, move
+// If the workout belongs to a coach's program the trainee has not personalized
+// yet, we fork the whole program into a new one owned by the coach, move
 // the trainee's assignment + logs to the fork, then apply the swap on the
 // fork. The coach's original stays pristine so their other trainees are
 // unaffected. A metadata-tagged notification tells the coach it happened.
 //
 // If it's the trainee's own personal workout program, we patch in-place with
 // no fork and no notification.
+//
+// If it's already the trainee's personalized copy, we patch that copy in place
+// and notify the coach. Forking a copy would only strand the previous one.
+
+/**
+ * Walks a fork chain back to the coach's library entry.
+ *
+ * Copies made before swaps stopped re-forking can sit several links deep, so
+ * this follows the chain rather than taking a single hop. The bound keeps a
+ * cycle in bad data from hanging the request.
+ */
+async function resolveProgramForkRoot(programId: string) {
+  const db = ensurePrisma()
+  let currentId = programId
+
+  for (let hop = 0; hop < 10; hop += 1) {
+    const program = await db.program.findUnique({
+      select: { forkedFromProgramId: true },
+      where: { id: currentId },
+    })
+
+    if (!program?.forkedFromProgramId) return currentId
+    currentId = program.forkedFromProgramId
+  }
+
+  return currentId
+}
+
+/**
+ * Tells the coach a trainee swapped an exercise inside a personalized copy.
+ *
+ * Approving rewrites the coach's own program, so the metadata points at the
+ * library entry the copy descends from and at the workout there in the same
+ * week and day slot — the fork copies both verbatim. When that workout cannot
+ * be found, because the coach restructured the program since, the approve keys
+ * are left out: approving then fails with the existing "swap again to raise a
+ * fresh request" message instead of editing the wrong workout.
+ */
+async function notifyCoachOfTraineeSwap(input: {
+  newExerciseName: string
+  newVariationId: string
+  oldExerciseName: string
+  oldVariationId: string
+  profile: SerializedProfile
+  program: { createdById: string; id: string; name: string }
+  swappedWorkoutIds: string[]
+  targetOrder: number
+  workout: { id: string; scheduledDay: number | null; weekIndex: number | null }
+  workoutExerciseId: string
+}) {
+  const db = ensurePrisma()
+
+  const rootProgramId = await resolveProgramForkRoot(input.program.id)
+  const rootWorkout = rootProgramId === input.program.id
+    ? null
+    : await db.workout.findFirst({
+        select: { id: true },
+        where: {
+          programId: rootProgramId,
+          scheduledDay: input.workout.scheduledDay,
+          weekIndex: input.workout.weekIndex,
+        },
+      })
+
+  const approvable = rootWorkout
+    ? {
+        originalProgramId: rootProgramId,
+        originalWorkoutExerciseId: input.workoutExerciseId,
+        originalWorkoutId: rootWorkout.id,
+        targetOrder: input.targetOrder,
+      }
+    : {}
+
+  await db.notification.create({
+    data: {
+      channel: "in_app",
+      message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
+      metadata: {
+        ...approvable,
+        kind: "trainee_swapped_exercise",
+        newExerciseName: input.newExerciseName,
+        newVariationId: input.newVariationId,
+        oldExerciseName: input.oldExerciseName,
+        oldVariationId: input.oldVariationId,
+        // The copy that was edited, so the coach lands on what the trainee
+        // actually sees rather than on the library entry.
+        personalizedProgramId: input.program.id,
+        swappedAt: new Date().toISOString(),
+        swappedWorkoutIds: input.swappedWorkoutIds,
+        traineeId: input.profile.id,
+        traineeName: input.profile.name,
+      },
+      relatedEntityId: input.program.id,
+      relatedEntityType: "program",
+      scheduledFor: new Date(),
+      sentAt: new Date(),
+      status: NotificationStatus.sent,
+      title: "Trainee replaced an exercise",
+      type: NotificationType.general,
+      userId: input.program.createdById,
+    },
+  })
+}
+
 async function swapExerciseForTraineeFromWorkout(
   profile: SerializedProfile,
   input: {
@@ -5726,8 +5830,14 @@ async function swapExerciseForTraineeFromWorkout(
 
   const targetOrder = targetExercise.order
 
-  // Personal workout (trainee owns the program) — no fork, no notification.
-  if (!workout.program || workout.program.createdById === profile.id) {
+  /**
+   * Swaps this exercise and every later recurrence of it, in the program the
+   * trainee is already on. Returns the workout ids it touched.
+   *
+   * Shared by the two paths that must not fork, so a personalized copy behaves
+   * exactly like a program the trainee owns.
+   */
+  const applySwapInPlace = async () => {
     const workoutIds = workout.programId
       ? (await db.workout.findMany({
           select: { id: true, scheduledDay: true, weekIndex: true },
@@ -5753,11 +5863,53 @@ async function swapExerciseForTraineeFromWorkout(
       await tx.workoutExercise.updateMany({ where: swapWhere, data: { variationId: input.newVariationId } })
     })
 
-    return {
-      currentSetIdMap: {} as Record<string, string>,
-      currentWorkoutExerciseIdMap: {} as Record<string, string>,
-      forkedProgramId: null,
-      workoutId: workout.id,
+    return workoutIds
+  }
+
+  // Ids stay put when nothing is forked, so the client keeps its in-progress
+  // session (see the isForkedSwap check in the session page).
+  const inPlaceResult = {
+    currentSetIdMap: {} as Record<string, string>,
+    currentWorkoutExerciseIdMap: {} as Record<string, string>,
+    forkedProgramId: null,
+    workoutId: workout.id,
+  }
+
+  // Personal workout (trainee owns the program) — no fork, no notification.
+  if (!workout.program || workout.program.createdById === profile.id) {
+    await applySwapInPlace()
+    return inPlaceResult
+  }
+
+  // Already this trainee's personalized copy. Forking again would chain a copy
+  // onto a copy, and because the fork transaction moves the assignment to the
+  // new row it would strand the one the trainee is leaving: a program the coach
+  // owns, holding a whole workout tree, that neither coach view can reach —
+  // Library asks for forkedFromProgramId: null, By client groups on assignments
+  // it no longer has. Swap in place and tell the coach about it instead.
+  if (workout.program.forkedFromProgramId) {
+    const sharedWith = await db.programAssignment.count({
+      where: { programId: workout.program.id, userId: { not: profile.id } },
+    })
+
+    // A copy is single-trainee by construction. If one were ever shared, an
+    // in-place edit would silently rewrite somebody else's plan, so fork.
+    if (sharedWith === 0) {
+      const swappedWorkoutIds = await applySwapInPlace()
+      await notifyCoachOfTraineeSwap({
+        newExerciseName: newVariation.exercise.name,
+        newVariationId: input.newVariationId,
+        oldExerciseName: targetExercise.variation.exercise.name,
+        oldVariationId,
+        program: workout.program,
+        profile,
+        swappedWorkoutIds,
+        targetOrder,
+        workout,
+        workoutExerciseId: input.workoutExerciseId,
+      })
+
+      return inPlaceResult
     }
   }
 

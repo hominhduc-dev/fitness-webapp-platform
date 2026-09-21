@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SerializedProfile } from "../auth.service"
 
 const mocks = vi.hoisted(() => ({
+  assignmentCount: vi.fn(),
   assignmentCreateMany: vi.fn(),
   assignmentDelete: vi.fn(),
   assignmentFindUnique: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../../lib/prisma", () => {
     notification: { create: mocks.notificationCreate },
     program: { create: mocks.programCreate, findUnique: mocks.programFindUnique },
     programAssignment: {
+      count: mocks.assignmentCount,
       createMany: mocks.assignmentCreateMany,
       delete: mocks.assignmentDelete,
       findUnique: mocks.assignmentFindUnique,
@@ -47,11 +49,18 @@ const TRAINEE_ID = "00000000-0000-4000-8000-0000000000a0"
 const ORIGINAL_PROGRAM_ID = "00000000-0000-4000-8000-0000000000b1"
 const COPY_PROGRAM_ID = "00000000-0000-4000-8000-0000000000b2"
 const WORKOUT_ID = "00000000-0000-4000-8000-0000000000c1"
+const ROOT_WORKOUT_ID = "00000000-0000-4000-8000-0000000000c9"
 const EXERCISE_ID = "00000000-0000-4000-8000-0000000000d1"
 const OLD_VARIATION_ID = "00000000-0000-4000-8000-0000000000e1"
 const NEW_VARIATION_ID = "00000000-0000-4000-8000-0000000000e2"
 
 const trainee = { id: TRAINEE_ID, name: "Minh Duc", role: UserRole.trainee } as SerializedProfile
+
+const swapInput = {
+  newVariationId: NEW_VARIATION_ID,
+  workoutExerciseId: EXERCISE_ID,
+  workoutId: WORKOUT_ID,
+}
 
 /** One exercise, one set — the smallest shape the fork loop will copy. */
 function buildExercise() {
@@ -114,22 +123,33 @@ function arrangeSwap({ forkedFromProgramId, programId }: { forkedFromProgramId: 
     weekIndex: 0,
   }
 
-  mocks.workoutFindFirst.mockResolvedValue(workout)
-  mocks.variationFindUnique.mockResolvedValue({
-    exercise: { name: "Hack Squat" },
-    id: NEW_VARIATION_ID,
-  })
+  mocks.workoutFindFirst.mockImplementation(async (args?: { where?: { programId?: string } }) =>
+    // The notification looks the root program's workout up by its week/day
+    // slot; every other findFirst here is the session workout itself.
+    args?.where?.programId ? { id: ROOT_WORKOUT_ID } : workout,
+  )
+  mocks.workoutFindMany.mockResolvedValue([{ id: WORKOUT_ID, scheduledDay: 0, weekIndex: 0 }])
+  mocks.variationFindUnique.mockResolvedValue({ exercise: { name: "Hack Squat" }, id: NEW_VARIATION_ID })
   mocks.assignmentFindUnique.mockResolvedValue({
     assignedAt: new Date("2026-09-01T00:00:00.000Z"),
     programId,
     userId: TRAINEE_ID,
   })
-  mocks.programFindUnique.mockResolvedValue({ ...program, workouts: [workout] })
+  mocks.assignmentCount.mockResolvedValue(0)
+  mocks.programFindUnique.mockImplementation(
+    async (args?: { select?: { forkedFromProgramId?: boolean }; where?: { id?: string } }) => {
+      // resolveProgramForkRoot asks only for the parent pointer as it climbs.
+      if (args?.select?.forkedFromProgramId) {
+        return { forkedFromProgramId: args.where?.id === programId ? forkedFromProgramId : null }
+      }
+      return { ...program, workouts: [workout] }
+    },
+  )
 
   return { program, workout }
 }
 
-describe("trainee exercise swap — who ends up owning the copy", () => {
+describe("trainee exercise swap — ownership and re-forking", () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -137,70 +157,79 @@ describe("trainee exercise swap — who ends up owning the copy", () => {
   it("forks the coach's original and keeps the coach as the owner", async () => {
     arrangeSwap({ forkedFromProgramId: null, programId: ORIGINAL_PROGRAM_ID })
 
-    const result = await swapExerciseForTraineeFromWorkout(trainee, {
-      newVariationId: NEW_VARIATION_ID,
-      workoutExerciseId: EXERCISE_ID,
-      workoutId: WORKOUT_ID,
-    })
+    const result = await swapExerciseForTraineeFromWorkout(trainee, swapInput)
 
     expect(result.forkedProgramId).not.toBeNull()
     expect(mocks.programCreate).toHaveBeenCalledTimes(1)
 
-    // The whole question: the new row carries the coach's id, not the trainee's.
+    // The copy is the coach's row, not the trainee's.
     const created = mocks.programCreate.mock.calls[0][0].data
     expect(created.createdById).toBe(COACH_ID)
     expect(created.forkedFromProgramId).toBe(ORIGINAL_PROGRAM_ID)
 
-    // The trainee's only claim on it is an assignment row.
+    // The trainee's only claim on it is an assignment.
     expect(mocks.assignmentCreateMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ userId: TRAINEE_ID })],
     })
   })
 
   /**
-   * Characterization, not endorsement: this records what the code does today,
-   * which is almost certainly wrong. Nothing in the swap path looks at
-   * forkedFromProgramId, so a personalized copy is forked again exactly like a
-   * library original — and because the transaction moves the assignment to the
-   * new row, the copy the trainee just left keeps its whole workout tree with
-   * nobody on it.
-   *
-   * Such an orphan is invisible in both coach views: the Library tab asks for
-   * forkedFromProgramId: null, and the By client tab groups on assignments it
-   * no longer has. Every swap therefore leaves the coach one more unreachable
-   * program. Change this test with the fix.
+   * The regression this file exists for. Re-forking chained a copy onto a copy
+   * and, because the fork transaction moves the assignment to the new row, left
+   * the previous copy with a whole workout tree and nobody on it — a program
+   * the coach owned that neither coach view could reach.
    */
-  it("forks a second time when the trainee swaps again inside the personalized copy", async () => {
+  it("swaps in place inside a personalized copy instead of forking it again", async () => {
     arrangeSwap({ forkedFromProgramId: ORIGINAL_PROGRAM_ID, programId: COPY_PROGRAM_ID })
 
-    const result = await swapExerciseForTraineeFromWorkout(trainee, {
-      newVariationId: NEW_VARIATION_ID,
-      workoutExerciseId: EXERCISE_ID,
-      workoutId: WORKOUT_ID,
-    })
+    const result = await swapExerciseForTraineeFromWorkout(trainee, swapInput)
 
-    expect(result.forkedProgramId).not.toBeNull()
-    expect(mocks.programCreate).toHaveBeenCalledTimes(1)
-    expect(mocks.programCreate.mock.calls[0][0].data.forkedFromProgramId).toBe(COPY_PROGRAM_ID)
+    expect(mocks.programCreate).not.toHaveBeenCalled()
+    expect(mocks.assignmentDelete).not.toHaveBeenCalled()
+    expect(mocks.workoutExerciseUpdateMany).toHaveBeenCalled()
 
-    // And the copy the trainee was on loses its only assignment to the new one,
-    // leaving a program row the coach owns and nobody is on.
-    expect(mocks.assignmentDelete).toHaveBeenCalledWith({
-      where: { programId_userId: { programId: COPY_PROGRAM_ID, userId: TRAINEE_ID } },
-    })
-    expect(mocks.programCreate.mock.calls[0][0].data.createdById).toBe(COACH_ID)
+    // Ids stay put, so the client keeps the session it has open.
+    expect(result.forkedProgramId).toBeNull()
+    expect(result.workoutId).toBe(WORKOUT_ID)
   })
 
-  it("edits in place when the trainee owns the program, with no fork and no coach notification", async () => {
+  it("still tells the coach, pointing the approval at the library original", async () => {
+    arrangeSwap({ forkedFromProgramId: ORIGINAL_PROGRAM_ID, programId: COPY_PROGRAM_ID })
+
+    await swapExerciseForTraineeFromWorkout(trainee, swapInput)
+
+    expect(mocks.notificationCreate).toHaveBeenCalledTimes(1)
+    const notification = mocks.notificationCreate.mock.calls[0][0].data
+    expect(notification.userId).toBe(COACH_ID)
+
+    // Approving rewrites the coach's own program, so this must resolve past the
+    // copy to the library entry it descends from.
+    expect(notification.metadata).toMatchObject({
+      kind: "trainee_swapped_exercise",
+      originalProgramId: ORIGINAL_PROGRAM_ID,
+      originalWorkoutId: ROOT_WORKOUT_ID,
+      personalizedProgramId: COPY_PROGRAM_ID,
+      traineeId: TRAINEE_ID,
+    })
+  })
+
+  it("falls back to forking when the copy turns out to be shared", async () => {
+    arrangeSwap({ forkedFromProgramId: ORIGINAL_PROGRAM_ID, programId: COPY_PROGRAM_ID })
+    // Single-trainee by construction, but an in-place edit on a shared copy
+    // would silently rewrite somebody else's plan.
+    mocks.assignmentCount.mockResolvedValue(1)
+
+    const result = await swapExerciseForTraineeFromWorkout(trainee, swapInput)
+
+    expect(mocks.programCreate).toHaveBeenCalledTimes(1)
+    expect(result.forkedProgramId).not.toBeNull()
+  })
+
+  it("edits in place when the trainee owns the program, with no fork and no notification", async () => {
     const { program, workout } = arrangeSwap({ forkedFromProgramId: null, programId: ORIGINAL_PROGRAM_ID })
     mocks.workoutFindFirst.mockResolvedValue({ ...workout, program: { ...program, createdById: TRAINEE_ID } })
-    mocks.workoutFindMany.mockResolvedValue([{ id: WORKOUT_ID, scheduledDay: 0, weekIndex: 0 }])
 
-    const result = await swapExerciseForTraineeFromWorkout(trainee, {
-      newVariationId: NEW_VARIATION_ID,
-      workoutExerciseId: EXERCISE_ID,
-      workoutId: WORKOUT_ID,
-    })
+    const result = await swapExerciseForTraineeFromWorkout(trainee, swapInput)
 
     expect(result.forkedProgramId).toBeNull()
     expect(mocks.programCreate).not.toHaveBeenCalled()
