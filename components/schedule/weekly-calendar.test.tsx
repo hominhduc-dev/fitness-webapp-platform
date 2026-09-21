@@ -69,11 +69,29 @@ describe("buildWorkoutsForWeek", () => {
       duration: 1,
       id: "program-1",
       isPersonal: true,
+      isStandaloneRoutine: true,
       name: "Personal routine",
     }
 
     expect(idsForWeek(personal, weekStart(2026, 8, 14))).toEqual(["day-1"])
     expect(idsForWeek(personal, weekStart(2026, 9, 12))).toEqual(["day-1"])
+  })
+
+  it("week-gates a program the trainee authored, unlike their routines", () => {
+    // An accepted AI plan is the trainee's own, but it runs to a schedule.
+    // Reading it as a routine handed back every week at once.
+    const ownProgram: TraineeProgram = {
+      assignedAt: new Date("2026-09-10T00:00:00.000Z"),
+      duration: 4,
+      id: "program-1",
+      isPersonal: true,
+      isStandaloneRoutine: false,
+      name: "My AI program",
+      startDate: "2026-09-21",
+    }
+
+    expect(idsForWeek(ownProgram, weekStart(2026, 8, 14))).toEqual([])
+    expect(idsForWeek(ownProgram, weekStart(2026, 8, 21))).toEqual(["day-1"])
   })
 
   it("keeps a session pinned to a real date whatever the program does", () => {
