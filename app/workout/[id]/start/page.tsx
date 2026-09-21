@@ -71,6 +71,7 @@ import {
   readStoredWorkoutSession,
   type StoredWorkoutSession,
 } from "@/lib/workout/session-storage"
+import { markWorkoutCelebration } from "@/lib/workout/celebration"
 import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { nextExerciseCollapsed } from "@/lib/workout/exercise-collapse"
@@ -1555,6 +1556,11 @@ function WorkoutSession() {
         await queueWorkoutLog(userId, workout.id, input, workout.name)
       }
       clearStoredWorkoutSession(workout.id)
+      // Set on both paths: a queued log is still a finished workout, and the
+      // trainee earned the same celebration whether or not the phone had signal.
+      // This screen cannot show it itself — the push below unmounts it — so the
+      // dashboard spends the flag on arrival.
+      markWorkoutCelebration({ savedOnline, workoutName: workout.name })
       router.push("/dashboard")
     } catch (saveError) {
       sessionRetiredRef.current = false

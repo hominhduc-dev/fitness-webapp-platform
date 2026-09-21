@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from "react"
 
 import { AIChatBubble } from "@/components/ai/chat-bubble"
+import { WorkoutCelebration } from "@/components/workout/workout-celebration"
 import { CheckInPrompt } from "./check-in-prompt"
 import { NutritionSummary } from "./nutrition-summary"
 import { QuickActions } from "./quick-actions"
@@ -97,6 +98,9 @@ export function DashboardOverviewClient({
   const volumeUnitLabel = preferredWeightUnit === "lbs" ? messages.dashboard.lbs : "kg"
   return (
     <div className="space-y-4">
+      {/* Renders nothing until a finished session left a flag behind. */}
+      <WorkoutCelebration />
+
       <div className="hidden md:block">
         <WeekStrip
           getDayPlan={(date) => {
