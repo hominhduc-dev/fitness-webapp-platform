@@ -47,6 +47,7 @@ import type {
   AdminExerciseItem,
   AdminExerciseMediaFiles,
   AdminExerciseImportRow,
+  AdminUserDetail,
   ExerciseSyncPreview,
   ExerciseSyncRow,
 } from "@/lib/admin/types"
@@ -315,6 +316,56 @@ function EmptyState({ copy }: { copy: string }) {
   return <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
 }
 
+/**
+ * The read-only half of the user detail: who the coach trains and what the
+ * trainee last logged.
+ *
+ * Shared because the detail renders twice — inline panel from `xl`, dialog
+ * below it — and these two blocks had only ever been written into the panel,
+ * so the narrow layout silently dropped them.
+ */
+function UserDetailHistory({ locale, userDetail }: { locale: "en" | "vi"; userDetail: AdminUserDetail }) {
+  return (
+    <>
+      {userDetail.connectedTrainees.length > 0 ? (
+        <div className="rounded-lg border border-border bg-muted/20 p-4">
+          <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Connected trainees" : "Trainee đang kết nối"}</h4>
+          <div className="space-y-2">
+            {userDetail.connectedTrainees.map((trainee) => (
+              <div key={trainee.id} className="flex items-center justify-between gap-3 border-t border-border/50 py-2 text-sm first:border-t-0">
+                <span className="min-w-0 truncate font-medium text-foreground">{trainee.name}</span>
+                <span className="min-w-0 truncate text-muted-foreground">{trainee.email}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {userDetail.recentWorkoutLogs.length > 0 ? (
+        <div className="rounded-lg border border-border bg-muted/20 p-4">
+          <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
+          <div className="space-y-0">
+            {userDetail.recentWorkoutLogs.map((log) => (
+              <div key={log.id} className="flex items-center justify-between gap-3 border-t border-border/50 py-2 text-sm first:border-t-0">
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  {log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Snapshot")}
+                </span>
+                <span className="shrink-0 font-mono text-micro text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Tailwind's `xl`. Must track the `xl:block` on the inline user-detail panel:
+ * the dialog stands in for that panel, so the two switch at the same width.
+ */
+const WIDE_USER_DETAIL_QUERY = "(min-width: 80rem)"
+
 type AdminSectionId =
   | "dashboard"
   | "users"
@@ -552,6 +603,7 @@ export function AdminConsole() {
   const [userSearch, setUserSearch] = useState("")
   const [userRoleFilter, setUserRoleFilter] = useState<UserRole | "all">("all")
   const [userDetailDialogOpen, setUserDetailDialogOpen] = useState(false)
+  const [isWideUserDetail, setIsWideUserDetail] = useState(false)
   const [requestSearch, setRequestSearch] = useState("")
   const [requestStatusFilter, setRequestStatusFilter] = useState<AdminCoachRequest["status"] | "all">("all")
   const [connectionSearch, setConnectionSearch] = useState("")
@@ -584,6 +636,31 @@ export function AdminConsole() {
     if (next !== activeSection) setActiveSectionState(next)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionFromUrl])
+
+  /**
+   * The user detail has two homes: the inline panel, which the layout reveals
+   * at `xl`, and the dialog that stands in for it below that. Picking between
+   * them has to happen in JS — a Radix dialog hidden with a CSS utility still
+   * mounts its overlay, traps focus and locks the page scroll.
+   *
+   * The query has to stay in step with the panel's own `xl:block`; a
+   * mismatched value would leave a band of widths showing both or neither.
+   */
+  useEffect(() => {
+    const query = window.matchMedia?.(WIDE_USER_DETAIL_QUERY)
+    if (!query) return
+
+    const sync = () => {
+      setIsWideUserDetail(query.matches)
+      // Growing past the breakpoint with the dialog still open would drop the
+      // modal straight onto the panel that now renders the same user.
+      if (query.matches) setUserDetailDialogOpen(false)
+    }
+
+    sync()
+    query.addEventListener("change", sync)
+    return () => query.removeEventListener("change", sync)
+  }, [])
 
   // State setter that also pushes URL
   function setActiveSection(section: AdminSectionId) {
@@ -620,7 +697,9 @@ export function AdminConsole() {
   function loadUserDetail(userId: string) {
     setError(null)
     setSelectedUserId(userId)
-    setUserDetailDialogOpen(true)
+    // From `xl` up the inline panel is already on screen showing this user, so
+    // only the narrow layout — where that panel is hidden — needs the dialog.
+    if (!isWideUserDetail) setUserDetailDialogOpen(true)
   }
 
   function resetExerciseForm() {
@@ -1959,35 +2038,7 @@ export function AdminConsole() {
                       </Button>
                     </div>
 
-                    {/* Connected trainees (coach view) */}
-                    {userDetail.connectedTrainees.length > 0 ? (
-                      <div className="rounded-lg border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Connected trainees" : "Trainee đang kết nối"}</h4>
-                        <div className="space-y-2">
-                          {userDetail.connectedTrainees.map((trainee) => (
-                            <div key={trainee.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
-                              <span className="font-medium text-foreground">{trainee.name}</span>
-                              <span className="text-muted-foreground">{trainee.email}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Recent workout logs */}
-                    {userDetail.recentWorkoutLogs.length > 0 ? (
-                      <div className="rounded-lg border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
-                        <div className="space-y-0">
-                          {userDetail.recentWorkoutLogs.map((log) => (
-                            <div key={log.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
-                              <span className="font-medium text-foreground">{log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Snapshot")}</span>
-                              <span className="font-mono text-micro text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                    <UserDetailHistory locale={locale} userDetail={userDetail} />
                   </div>
                 ) : (
                   <EmptyState copy={locale === "en" ? "Select a user to view details." : "Chọn một user để xem chi tiết."} />
@@ -2329,6 +2380,8 @@ export function AdminConsole() {
                     </Button>
                   </div>
                 </div>
+
+                <UserDetailHistory locale={locale} userDetail={userDetail} />
               </div>
 
               <DialogFooter className="flex-col gap-2 sm:flex-row">
