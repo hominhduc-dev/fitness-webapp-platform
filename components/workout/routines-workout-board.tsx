@@ -78,10 +78,11 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
   )
 
   // A personal routine is wrapped in a synthetic one-week program by
-  // `createPersonalWorkoutForTrainee`, so what separates a real program from a
-  // standalone routine is who created it — not how many weeks it runs.
+  // `createPersonalWorkoutForTrainee`, and only that wrapper should scatter
+  // into loose cards. Authorship cannot be the test: a trainee also authors the
+  // AI program they accepted, and that is a plan like a coach's.
   const programById = useMemo(
-    () => new Map(programs.filter((program) => !program.isPersonal).map((program) => [program.id, program])),
+    () => new Map(programs.filter((program) => !program.isStandaloneRoutine).map((program) => [program.id, program])),
     [programs],
   )
 

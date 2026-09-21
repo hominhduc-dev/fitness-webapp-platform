@@ -2015,6 +2015,25 @@ function normalizeWeekIndexForVisibility(weekIndex: number | null | undefined) {
 }
 
 /**
+ * Whether a program is only the wrapper around one ad-hoc routine.
+ *
+ * `createPersonalWorkoutForTrainee` stores a routine as a synthetic one-week,
+ * one-workout program, and that has to keep reading as a loose routine rather
+ * than as a plan. Ownership alone cannot be the test, because a trainee also
+ * owns an accepted AI program — a real multi-week plan that should behave
+ * exactly like a coach's. Shape alone cannot be the test either: a coach's
+ * one-week program is a plan with a start date, not a routine.
+ */
+function isStandaloneRoutineProgram(
+  program: { createdById: string; duration: number; workoutCount: number },
+  viewerId: string,
+) {
+  return (
+    program.createdById === viewerId && program.workoutCount <= 1 && Math.round(program.duration) <= 1
+  )
+}
+
+/**
  * Picks the workouts a trainee should see this week.
  *
  * Resolving one workout at a time is not enough: deciding whether a week is
@@ -2030,14 +2049,14 @@ function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "s
   programDuration: number,
   weekStart: Date,
   /** True only for the synthetic program behind a trainee's own routines. */
-  isPersonalProgram: boolean,
+  isStandaloneRoutine: boolean,
 ): T[] {
   const duration = Math.max(1, Math.round(programDuration))
 
   // A trainee's own routines live in a synthetic one-week program and recur
   // forever. Reading that as "duration <= 1" also exempted every one-week coach
   // program, which then repeated past its last week and ignored its start date.
-  if (isPersonalProgram) {
+  if (isStandaloneRoutine) {
     return workouts
   }
 
@@ -3762,19 +3781,29 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   const weekStart = startOfUtcWeek(clientCalendarDay())
 
   assignments.forEach((assignment) => {
-    const isPersonalProgram = assignment.program.createdById === profile.id
+    // Owning the program is what makes its sessions read as "self"; being a
+    // lone ad-hoc routine is what exempts it from week gating. An accepted AI
+    // program is the first thing to be the one without the other.
+    const isOwnProgram = assignment.program.createdById === profile.id
     const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
-      isPersonalProgram,
+      isStandaloneRoutineProgram(
+        {
+          createdById: assignment.program.createdById,
+          duration: assignment.program.duration,
+          workoutCount: assignment.program.workouts.length,
+        },
+        profile.id,
+      ),
     )
 
     visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
-      if (isPersonalProgram) {
+      if (isOwnProgram) {
         personalWorkoutIds.add(workout.id)
       }
     })
@@ -3870,6 +3899,14 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       duration: a.program.duration,
       id: a.program.id,
       isPersonal: a.program.createdById === profile.id,
+      isStandaloneRoutine: isStandaloneRoutineProgram(
+        {
+          createdById: a.program.createdById,
+          duration: a.program.duration,
+          workoutCount: a.program.workouts.length,
+        },
+        profile.id,
+      ),
       name: a.program.name,
       startDate: a.program.startDate ? formatUtcDateOnly(a.program.startDate) : undefined,
     })),
@@ -3956,19 +3993,26 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   const personalWorkoutIds = new Set<string>()
 
   assignments.forEach((assignment) => {
-    const isPersonalProgram = assignment.program.createdById === profile.id
+    const isOwnProgram = assignment.program.createdById === profile.id
     const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
-      isPersonalProgram,
+      isStandaloneRoutineProgram(
+        {
+          createdById: assignment.program.createdById,
+          duration: assignment.program.duration,
+          workoutCount: assignment.program.workouts.length,
+        },
+        profile.id,
+      ),
     )
 
     visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
-      if (isPersonalProgram) {
+      if (isOwnProgram) {
         personalWorkoutIds.add(workout.id)
       }
     })
@@ -4928,7 +4972,7 @@ async function copyTraineeProgramWeek(profile: SerializedProfile, programId: str
 async function updateTraineeProgramDetails(
   profile: SerializedProfile,
   programId: string,
-  input: { description?: string | null; name?: string },
+  input: { description?: string | null; name?: string; startDate?: string | null },
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -4944,6 +4988,10 @@ async function updateTraineeProgramDetails(
     data: {
       ...(name ? { name } : {}),
       ...(input.description !== undefined ? { description: input.description || null } : {}),
+      // Week 1 is anchored here instead of to the assignment date. Only the
+      // owner reaches this, so an AI program can be pinned to the Monday the
+      // trainee actually means to start.
+      ...(input.startDate !== undefined ? { startDate: normalizeProgramStartDateInput(input.startDate) } : {}),
     },
     include: PROGRAM_INCLUDE,
     where: { id: programId },

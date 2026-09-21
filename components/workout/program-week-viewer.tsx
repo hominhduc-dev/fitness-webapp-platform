@@ -92,6 +92,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [draftName, setDraftName] = useState(program.name)
   const [draftDescription, setDraftDescription] = useState(program.description ?? "")
+  const [draftStartDate, setDraftStartDate] = useState(program.startDate ?? "")
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -156,6 +157,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
               onClick={() => {
                 setDraftName(program.name)
                 setDraftDescription(program.description ?? "")
+                setDraftStartDate(program.startDate ?? "")
                 setIsInfoOpen(true)
               }}
             >
@@ -312,6 +314,18 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
+            <div className="space-y-1.5">
+              <label className="label-micro block" htmlFor="program-start-date">
+                {messages.workoutPage.programStartDateLabel}
+              </label>
+              <Input
+                id="program-start-date"
+                type="date"
+                value={draftStartDate}
+                onChange={(event) => setDraftStartDate(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">{messages.workoutPage.programStartDateHint}</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsInfoOpen(false)}>
@@ -325,6 +339,7 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
                   updateMutation.mutateAsync({ programId: program.id, input: {
                     description: draftDescription.trim() || null,
                     name: draftName.trim(),
+                    startDate: draftStartDate || null,
                   } }),
                 )
               }}

@@ -1616,7 +1616,7 @@ async function copyProgramWeek(accessToken: string, programId: string, fromWeekI
 async function updateTraineeProgram(
   accessToken: string,
   programId: string,
-  input: { description?: string | null; name?: string },
+  input: { description?: string | null; name?: string; startDate?: string | null },
 ) {
   const response = await request<{ program: SerializedCoachProgram }>(
     `/api/workouts/programs/${programId}`,

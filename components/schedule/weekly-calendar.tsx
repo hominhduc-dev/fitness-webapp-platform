@@ -320,7 +320,7 @@ export function buildWorkoutsForWeek({
   weekStart: Date
 }): Workout[] {
   const scheduledById = new Map(
-    programs.filter((program) => !program.isPersonal).map((program) => [program.id, program]),
+    programs.filter((program) => !program.isStandaloneRoutine).map((program) => [program.id, program]),
   )
 
   // Dated one-offs are pinned to real dates, and personal routines recur with no
@@ -956,11 +956,14 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
     return combined
   }, [historyLogs, visibleRecentLogs, visibleWeekLogs])
 
-  const coachPrograms = useMemo(() => programs.filter((program) => !program.isPersonal), [programs])
+  // Every program that runs on a week schedule, whoever wrote it — a coach's,
+  // or the AI plan this trainee accepted. Only an ad-hoc routine is excluded,
+  // because it recurs instead of belonging to a week.
+  const weekScheduledPrograms = useMemo(() => programs.filter((program) => !program.isStandaloneRoutine), [programs])
 
-  const programQueries = useTraineePrograms(coachPrograms.map((program) => program.id), weekOffset !== 0)
+  const programQueries = useTraineePrograms(weekScheduledPrograms.map((program) => program.id), weekOffset !== 0)
   const programDetailsById: Record<string, CoachProgram | null> = Object.fromEntries(
-    coachPrograms.flatMap((program, index) => {
+    weekScheduledPrograms.flatMap((program, index) => {
       const query = programQueries[index]
       return query.data ? [[program.id, query.data] as [string, CoachProgram]] : query.isError ? [[program.id, null] as [string, CoachProgram | null]] : []
     }),

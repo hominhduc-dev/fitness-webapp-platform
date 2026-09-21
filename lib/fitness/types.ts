@@ -34,8 +34,14 @@ type TraineeProgram = {
   assignedAt: Date
   duration: number
   id: string
-  /** True for the synthetic program behind the trainee's own routines. */
+  /** True when the trainee authored the program, which is what marks its sessions as their own. */
   isPersonal?: boolean
+  /**
+   * True only for the synthetic one-week wrapper around a single ad-hoc
+   * routine. An accepted AI program is authored by the trainee too, but it is a
+   * real plan and reads as one.
+   */
+  isStandaloneRoutine?: boolean
   name: string
   /** `YYYY-MM-DD`. Overrides `assignedAt` as the week-1 anchor when set. */
   startDate?: string
