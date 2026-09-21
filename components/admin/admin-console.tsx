@@ -2163,8 +2163,12 @@ export function AdminConsole() {
             </div>
 
             {/* Bottom 2-col: recent users + pending requests */}
-            <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-              <Card className="p-5">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+              {/* min-w-0: a grid item refuses to shrink under its content's
+                  min-content width, and an email has no spaces to break on, so
+                  without this the track grows past the viewport and the
+                  truncate below never gets a chance. */}
+              <Card className="min-w-0 p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-base font-semibold text-foreground">{locale === "en" ? "Recent users" : "Người dùng mới nhất"}</p>
                   <p className="label-micro text-muted-foreground">{locale === "en" ? "Newest accounts" : "Tài khoản mới nhất"}</p>
@@ -2196,7 +2200,7 @@ export function AdminConsole() {
                 </div>
               </Card>
 
-              <Card className="p-5">
+              <Card className="min-w-0 p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-base font-semibold text-foreground">{locale === "en" ? "Pending requests" : "Yêu cầu chờ duyệt"}</p>
                   <Badge variant={pendingRequestCount > 0 ? "default" : "outline"} className="font-mono text-micro">
@@ -2243,7 +2247,7 @@ export function AdminConsole() {
             </div>
 
             {/* Master-detail */}
-            <div className="grid items-start gap-4 xl:grid-cols-[360px_1fr]">
+            <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
               {/* User list — rows with left border indicator */}
               <Card className="overflow-hidden">
                 {usersPage.total ? usersPage.pageItems.map((user) => (
