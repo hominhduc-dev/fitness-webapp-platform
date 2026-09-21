@@ -85,10 +85,15 @@ function planCopyAction(input: {
   }
 
   // The fork pointer leads nowhere: either it points at itself, or the coach
-  // deleted the original, which nothing prevents because forkedFromProgramId
-  // carries no foreign key. Merging is impossible and deleting would destroy
-  // the only copy of this trainee's plan and logs, so the copy is promoted to a
+  // deleted the original. Merging is impossible and deleting would destroy the
+  // only copy of this trainee's plan and logs, so the copy is promoted to a
   // program of its own and left exactly where it is.
+  //
+  // forkedFromProgramId has since gained a SET NULL foreign key, so neither
+  // shape can be created again, and the migration that added it cleared the
+  // ones that existed — by nulling the pointer, which is this same promotion.
+  // These branches remain for a run made against a database that has not taken
+  // that migration yet.
   if (input.isOwnRoot) return { kind: "promote", reason: "fork pointer resolves to itself" }
   if (!input.rootExists) return { kind: "promote", reason: "the original no longer exists" }
 

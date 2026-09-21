@@ -499,7 +499,15 @@ model Program {
   isAIGenerated       Boolean             @default(false)
   /// Non-null when this program is a trainee-personalized copy forked from a
   /// coach-authored template, for example after the trainee swaps an exercise.
+  ///
+  /// Swaps no longer fork, so nothing sets this any more; it survives for the
+  /// copies made before that changed. SetNull rather than Cascade: deleting the
+  /// original must not take the copy with it, because the copy is the only
+  /// place that trainee's plan and workout logs live. Losing the pointer just
+  /// promotes the copy to a program in its own right.
   forkedFromProgramId String?             @db.Uuid
+  forkedFromProgram   Program?            @relation("ProgramFork", fields: [forkedFromProgramId], references: [id], onDelete: SetNull)
+  forks               Program[]           @relation("ProgramFork")
   googleSpreadsheetId String?
   googleSheetName     String?
   createdById         String              @db.Uuid
