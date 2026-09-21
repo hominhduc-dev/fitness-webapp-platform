@@ -310,7 +310,7 @@ function ChartPanel({
   title: string
 }) {
   return (
-    <Card className="p-[18px] transition-colors duration-150 hover:border-primary/30">
+    <Card className="p-5 transition-colors duration-150 hover:border-primary/30">
       <p className="text-base font-semibold text-foreground">{title}</p>
       <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
 
@@ -2160,7 +2160,7 @@ export function AdminConsole() {
 
             {/* Bottom 2-col: recent users + pending requests */}
             <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-              <div className="rounded-lg border border-border bg-card p-[18px]">
+              <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-base font-semibold text-foreground">{locale === "en" ? "Recent users" : "Người dùng mới nhất"}</p>
                   <p className="label-micro text-muted-foreground">{locale === "en" ? "Newest accounts" : "Tài khoản mới nhất"}</p>
@@ -2190,9 +2190,9 @@ export function AdminConsole() {
                     </button>
                   )) : <EmptyState copy={locale === "en" ? "No recent users." : "Chưa có user mới."} />}
                 </div>
-              </div>
+              </Card>
 
-              <div className="rounded-lg border border-border bg-card p-[18px]">
+              <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-base font-semibold text-foreground">{locale === "en" ? "Pending requests" : "Yêu cầu chờ duyệt"}</p>
                   <Badge variant={pendingRequestCount > 0 ? "default" : "outline"} className="font-mono text-micro">
@@ -2214,7 +2214,7 @@ export function AdminConsole() {
                     </div>
                   )) : <EmptyState copy={locale === "en" ? "No pending coach requests." : "Không có yêu cầu chờ duyệt."} />}
                 </div>
-              </div>
+              </Card>
             </div>
           </TabsContent>
 
@@ -2242,7 +2242,7 @@ export function AdminConsole() {
             {/* Master-detail */}
             <div className="grid items-start gap-4 xl:grid-cols-[360px_1fr]">
               {/* User list — rows with left border indicator */}
-              <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <Card className="overflow-hidden">
                 {usersPage.total ? usersPage.pageItems.map((user) => (
                   <button
                     key={user.id}
@@ -2282,7 +2282,7 @@ export function AdminConsole() {
                     icon={Users}
                   />
                 )}
-              </div>
+              </Card>
               <Pagination
                 className="shrink-0"
                 labels={paginationLabels(locale, usersPage)}
@@ -2292,7 +2292,7 @@ export function AdminConsole() {
               />
 
               {/* User detail panel */}
-              <div className="hidden rounded-lg border border-border bg-card p-[22px] xl:block">
+              <Card className="hidden p-5 xl:block">
                 {userDetail ? (
                   <div className="space-y-5">
                     {/* Header */}
@@ -2339,7 +2339,7 @@ export function AdminConsole() {
                 ) : (
                   <EmptyState copy={locale === "en" ? "Select a user to view details." : "Chọn một user để xem chi tiết."} />
                 )}
-              </div>
+              </Card>
             </div>
           </TabsContent>
 
@@ -2372,7 +2372,7 @@ export function AdminConsole() {
             {/* Request list */}
             <div className="flex flex-col gap-2.5">
               {requestsPage.total ? requestsPage.pageItems.map((request) => (
-                <div key={request.id} className="rounded-lg border border-border bg-card p-4">
+                <Card key={request.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <span className="text-sm font-semibold text-foreground">{request.trainee.name}</span>
                     <span className="text-muted-foreground">→</span>
@@ -2397,7 +2397,7 @@ export function AdminConsole() {
                       {locale === "en" ? "Delete" : "Xoá"}
                     </Button>
                   </div>
-                </div>
+                </Card>
               )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} icon={UserRoundCheck} />}
             </div>
             <Pagination
@@ -2411,7 +2411,7 @@ export function AdminConsole() {
 
           <TabsContent value="connections" className="space-y-4">
             {/* Assign panel */}
-            <div className="rounded-lg border border-border bg-card p-[18px]">
+            <Card className="p-5">
               <p className="label-micro mb-3 text-muted-foreground">{locale === "en" ? "Assign coach to trainee" : "Gán coach cho trainee"}</p>
               <div className="flex flex-wrap gap-2">
                 <Select value={assignTraineeId} onValueChange={setAssignTraineeId}>
@@ -2445,7 +2445,7 @@ export function AdminConsole() {
                   {locale === "en" ? "Assign coach" : "Gán coach"}
                 </Button>
               </div>
-            </div>
+            </Card>
 
             {/* Search + connection table */}
             <div className="flex gap-2">
@@ -2455,7 +2455,7 @@ export function AdminConsole() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <Card className="overflow-hidden">
               {connectionsPage.total ? connectionsPage.pageItems.map((connection) => (
                 <div key={connection.trainee.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
                   <div className="min-w-0 flex-1">
@@ -2477,7 +2477,7 @@ export function AdminConsole() {
                     icon={Link2}
                   />
               )}
-            </div>
+            </Card>
             <Pagination
               className="shrink-0"
               labels={paginationLabels(locale, connectionsPage)}
@@ -2495,7 +2495,7 @@ export function AdminConsole() {
             </div>
 
             {/* Program rows */}
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <Card className="overflow-hidden">
               {programsPage.total ? programsPage.pageItems.map((program) => (
                 <div
                   key={program.id}
@@ -2522,7 +2522,7 @@ export function AdminConsole() {
                     icon={ClipboardList}
                   />
               )}
-            </div>
+            </Card>
             <Pagination
               className="shrink-0"
               labels={paginationLabels(locale, programsPage)}
@@ -2591,7 +2591,7 @@ export function AdminConsole() {
             </div>
 
             {/* Audit rows */}
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <Card className="overflow-hidden">
               {auditPage.total ? auditPage.pageItems.map((log) => (
                 <div key={log.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
                   <IconTile size="sm">
@@ -2618,7 +2618,7 @@ export function AdminConsole() {
                     icon={ScrollText}
                   />
               )}
-            </div>
+            </Card>
             <Pagination
               className="shrink-0"
               labels={paginationLabels(locale, auditPage)}
@@ -2750,9 +2750,10 @@ export function AdminConsole() {
                   : "So sánh file với toàn bộ thư viện. Đồng bộ có thể xoá bài không còn trong file."}
             </p>
             {actionError ? (
-              <div role="alert" className="max-h-40 overflow-auto whitespace-pre-line rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-                {actionError}
-              </div>
+              <Alert variant="destructive" className="max-h-40 overflow-auto whitespace-pre-line">
+                <AlertCircle />
+                <AlertDescription>{actionError}</AlertDescription>
+              </Alert>
             ) : null}
             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="exercise-import-file">{locale === "en" ? "Select file" : "Chọn file"}</Label>
@@ -2788,7 +2789,7 @@ export function AdminConsole() {
             </div>
 
             {importFileName && excelImportMode === "append" ? (
-              <div className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
+              <Card className="grid gap-3 p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "File" : "File"}</p>
                   <p className="mt-1 truncate text-sm font-medium">{importFileName}</p>
@@ -2801,7 +2802,7 @@ export function AdminConsole() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "Issues" : "Lỗi"}</p>
                   <p className="mt-1 text-sm font-medium">{formatNumber(importIssues.length, locale)}</p>
                 </div>
-              </div>
+              </Card>
             ) : null}
 
             {actionKey === "exercise-import-parse" ? (
@@ -2819,7 +2820,7 @@ export function AdminConsole() {
             ) : null}
 
             {importIssues.length ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4">
+              <Alert variant="destructive">
                 <h4 className="text-sm font-semibold">{locale === "en" ? "Validation issues" : "Lỗi cần sửa"}</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (
@@ -2832,11 +2833,11 @@ export function AdminConsole() {
                     <p>{locale === "en" ? `+${importIssues.length - 8} more issues` : `+${importIssues.length - 8} lỗi khác`}</p>
                   ) : null}
                 </div>
-              </div>
+              </Alert>
             ) : null}
 
             {importRows.length && excelImportMode === "append" ? (
-              <div className="rounded-lg border border-border bg-card">
+              <Card>
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{locale === "en" ? "Preview" : "Xem trước"}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -2878,7 +2879,7 @@ export function AdminConsole() {
                       : `Đang hiển thị 8/${importRows.length} dòng hợp lệ.`}
                   </div>
                 ) : null}
-              </div>
+              </Card>
             ) : null}
           </div>
 

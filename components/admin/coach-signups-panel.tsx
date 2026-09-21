@@ -7,6 +7,7 @@ import { useToast } from "@/components/providers/toast-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
 import type { AdminUserListItem } from "@/lib/admin/types"
@@ -117,7 +118,7 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
+      <Card>
         {signupsQuery.isPending ? (
           <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -198,7 +199,7 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
             )
           })
         )}
-      </div>
+      </Card>
     </div>
   )
 }
