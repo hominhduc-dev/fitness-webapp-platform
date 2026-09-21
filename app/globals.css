@@ -1524,6 +1524,40 @@ aside.glass-surface::after {
   background-size: 100vw 100vh;
 }
 
+/* ============================================================
+   Admin workspace — fixed-height, page never scrolls
+   The console is a control surface rather than a document: its section body
+   scrolls inside its own pane so the header, filters and pagination stay put
+   at every breakpoint.
+
+   That needs a definite height the whole way down, which the shell does not
+   otherwise provide: `.app-shell` is `min-h-[100dvh]`, and PullToRefresh puts
+   an auto-height wrapper between <main> and the page, breaking any
+   `height: 100%` chain. These rules supply the missing links, scoped with
+   `:has()` so no other route's scrolling changes.
+
+   <main>'s own bottom padding is deliberately left alone — on phones it
+   reserves the gap for the floating nav, and because the workspace measures
+   against main's content box it lands above the nav for free.
+   ============================================================ */
+.app-shell:has(.admin-workspace) {
+  height: 100dvh;
+}
+
+.app-shell:has(.admin-workspace) > div,
+.app-shell:has(.admin-workspace) main {
+  min-height: 0;
+}
+
+/* PullToRefresh's wrapper, the one element between <main> and the console. */
+.app-shell:has(.admin-workspace) main > div {
+  height: 100%;
+}
+
+.admin-workspace {
+  height: 100%;
+}
+
 @media (max-width: 767px) {
   main.flex-1.overflow-auto > :is(div, main, section).mx-auto[class*="py-6"],
   main.flex-1.overflow-auto > .relative > :is(div, main, section).mx-auto[class*="py-6"] {

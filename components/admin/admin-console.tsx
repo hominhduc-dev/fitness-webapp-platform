@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  AlertCircle,
   Download,
   KeyRound,
   Link2,
@@ -23,6 +24,7 @@ import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -1942,8 +1944,12 @@ export function AdminConsole() {
   const pendingRequestCount = coachRequests.filter((request) => request.status === "pending").length
   return (
     <>
-      <main className="min-w-0">
-          <div className="space-y-6 px-4 py-6 md:px-9 md:py-8">
+      {/* A fixed-height workspace: the page itself never scrolls, the section
+          body does. See `.admin-workspace` in globals.css for the height chain
+          this depends on. A plain div, not <main> — the shell already owns the
+          document's one <main>, and nesting a second is invalid. */}
+      <div className="admin-workspace flex flex-col gap-4 px-4 py-4 md:px-9 md:py-6">
+          <div className="shrink-0 space-y-3">
             <AdminShellHeader
               activeSection={activeSection}
               auditCount={auditLogs.length}
@@ -1957,13 +1963,15 @@ export function AdminConsole() {
               userCount={users.length}
             />
 
-            <div className={error ? "min-h-[42px]" : "hidden"}>
-              {error ? (
-                <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-                  {error}
-                </div>
-              ) : null}
-            </div>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertCircle />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden semantic-scrollbar">
 
             {isConsolePending ? (
               <AdminConsoleLoadingState locale={locale} />
@@ -2446,7 +2454,7 @@ export function AdminConsole() {
               </Tabs>
             )}
           </div>
-      </main>
+      </div>
 
       <Dialog open={userDetailDialogOpen && Boolean(userDetail)} onOpenChange={setUserDetailDialogOpen}>
         <DialogContent className="max-h-[85dvh] max-w-[min(92vw,520px)] overflow-y-auto">
