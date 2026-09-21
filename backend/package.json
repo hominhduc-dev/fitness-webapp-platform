@@ -28,7 +28,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:validate": "prisma validate"
+    "prisma:validate": "prisma validate",
+    "merge:forked-programs": "tsx src/scripts/merge-forked-programs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",

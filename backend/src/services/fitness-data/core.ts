@@ -703,6 +703,54 @@ function serializeWorkout(
   }
 }
 
+/**
+ * Folds a trainee's own exercise substitutions into workouts read from a
+ * coach's program.
+ *
+ * Overrides live beside the coach's rows rather than in them, so every read
+ * that serves a trainee has to apply them. Doing it by mutating the fetched
+ * records keeps this to one call per read path and leaves serializeWorkout — and
+ * everything downstream that walks a WorkoutRecord — untouched.
+ *
+ * Pass the trainee's id, not the viewer's: a coach looking at a trainee's plan
+ * should see what that trainee actually does.
+ */
+async function applyTraineeExerciseOverrides<T extends { exercises: WorkoutExerciseRecord[] }>(
+  workouts: T[],
+  userId: string,
+) {
+  const db = ensurePrisma()
+
+  const exerciseIds = workouts.flatMap((workout) => workout.exercises.map((exercise) => exercise.id))
+  if (exerciseIds.length === 0) return workouts
+
+  const overrides = await db.traineeExerciseOverride.findMany({
+    include: { variation: { include: { exercise: true, muscleTargets: true } } },
+    where: { userId, workoutExerciseId: { in: exerciseIds } },
+  })
+  if (overrides.length === 0) return workouts
+
+  const overrideByExerciseId = new Map(overrides.map((override) => [override.workoutExerciseId, override]))
+
+  for (const workout of workouts) {
+    for (const exercise of workout.exercises) {
+      const override = overrideByExerciseId.get(exercise.id)
+      if (!override) continue
+
+      // The coach has moved this slot on to something else since the trainee
+      // substituted it. Their newer choice wins; the stale override is ignored
+      // rather than quietly reinstating an exercise the coach dropped.
+      if (override.replacedVariationId !== exercise.variationId) continue
+
+      exercise.originalVariationId = exercise.variationId
+      exercise.variationId = override.variationId
+      exercise.variation = override.variation
+    }
+  }
+
+  return workouts
+}
+
 function serializeWorkoutSessionDraft(draft: WorkoutSessionDraftRecord) {
   return {
     currentExerciseIndex: draft.currentExerciseIndex,
@@ -3706,7 +3754,7 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
     })
   })
 
-  const serializedWorkouts = Array.from(workoutMap.values())
+  const orderedWorkouts = Array.from(workoutMap.values())
     .sort((left, right) => {
       if (left.scheduledDate && right.scheduledDate) {
         return left.scheduledDate.getTime() - right.scheduledDate.getTime()
@@ -3722,6 +3770,8 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
       return (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
     })
+
+  const serializedWorkouts = (await applyTraineeExerciseOverrides(orderedWorkouts, profile.id))
     .map((workout) =>
       serializeWorkout(workout, {
         hasCoachUpdate: coachUpdateWorkoutIds.has(workout.id),
@@ -3898,7 +3948,7 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
     })
   })
 
-  const serializedWorkouts = Array.from(workoutMap.values())
+  const orderedDashboardWorkouts = Array.from(workoutMap.values())
     .sort((left, right) => {
       if (left.scheduledDate && right.scheduledDate) {
         return left.scheduledDate.getTime() - right.scheduledDate.getTime()
@@ -3914,6 +3964,8 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
 
       return (left.scheduledDay ?? 7) - (right.scheduledDay ?? 7)
     })
+
+  const serializedWorkouts = (await applyTraineeExerciseOverrides(orderedDashboardWorkouts, profile.id))
     .map((workout) => serializeWorkout(workout, { isPersonal: personalWorkoutIds.has(workout.id) }))
 
   const recurringWorkouts = serializedWorkouts.filter((workout) => !workout.scheduledDate)
@@ -3990,15 +4042,18 @@ async function findTodayScheduleEntryForTrainee(userId: string) {
     }),
   ])
 
-  const workouts = assignments.flatMap((assignment) =>
+  const visibleWorkouts = assignments.flatMap((assignment) =>
     selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
       assignment.program.createdById === userId,
-    ).map((workout) => serializeWorkout(workout, { isPersonal: assignment.program.createdById === userId })),
+    ).map((workout) => ({ isPersonal: assignment.program.createdById === userId, workout })),
   )
+
+  await applyTraineeExerciseOverrides(visibleWorkouts.map((entry) => entry.workout), userId)
+  const workouts = visibleWorkouts.map((entry) => serializeWorkout(entry.workout, { isPersonal: entry.isPersonal }))
   const entries = buildSerializedScheduleEntriesForWeek({
     logs: weekLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     todayStart,
@@ -4061,6 +4116,10 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
   if (!workout) {
     throw new AuthServiceError("Không tìm thấy workout.", 404)
   }
+
+  // Before previous-performance is built, so history is looked up against the
+  // exercise the trainee is actually going to do.
+  await applyTraineeExerciseOverrides([workout as WorkoutWithProgramRecord], profile.id)
 
   const previousPerformanceByWorkoutExerciseId = await buildPreviousSetPerformanceByWorkoutExercise(
     profile.id,
@@ -4125,6 +4184,10 @@ async function createWorkoutLogForTrainee(
   if (!workout) {
     throw new AuthServiceError("Không tìm thấy workout.", 404)
   }
+
+  // The snapshot below records the muscle profile of what was trained, so it
+  // has to describe the trainee's substitution, not the coach's slot.
+  await applyTraineeExerciseOverrides([workout as WorkoutRecord], profile.id)
 
   const serializedWorkout = serializeWorkout(workout as WorkoutRecord)
   const totalVolume = calculateWorkoutVolume(input.exercises)
@@ -4748,6 +4811,8 @@ async function updateTraineeProgramDetails(
     where: { id: programId },
   })
 
+  await applyTraineeExerciseOverrides((program as ProgramRecord).workouts, profile.id)
+
   return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
 }
 
@@ -5021,6 +5086,8 @@ async function getTraineeProgramDetail(profile: SerializedProfile, programId: st
   if (!program) {
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
   }
+
+  await applyTraineeExerciseOverrides((program as ProgramRecord).workouts, profile.id)
 
   return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
 }
@@ -5665,14 +5732,125 @@ async function adjustCoachProgramForTrainee(
 // workoutExercise in future workouts of the same program using that variation.
 // Past workouts and already-logged sessions are untouched.
 //
-// If the workout belongs to a program the trainee doesn't own (i.e. a coach's
-// program), we fork the whole program into a new one owned by the coach, move
+// If the workout belongs to a coach's program the trainee has not personalized
+// yet, we fork the whole program into a new one owned by the coach, move
 // the trainee's assignment + logs to the fork, then apply the swap on the
 // fork. The coach's original stays pristine so their other trainees are
 // unaffected. A metadata-tagged notification tells the coach it happened.
 //
 // If it's the trainee's own personal workout program, we patch in-place with
 // no fork and no notification.
+//
+// If it's already the trainee's personalized copy, we patch that copy in place
+// and notify the coach. Forking a copy would only strand the previous one.
+
+/**
+ * Walks a fork chain back to the coach's library entry.
+ *
+ * Copies made before swaps stopped re-forking can sit several links deep, so
+ * this follows the chain rather than taking a single hop. The bound keeps a
+ * cycle in bad data from hanging the request.
+ */
+async function resolveProgramForkRoot(programId: string) {
+  const db = ensurePrisma()
+  let currentId = programId
+
+  for (let hop = 0; hop < 10; hop += 1) {
+    const program = await db.program.findUnique({
+      select: { forkedFromProgramId: true },
+      where: { id: currentId },
+    })
+
+    if (!program?.forkedFromProgramId) return currentId
+    currentId = program.forkedFromProgramId
+  }
+
+  return currentId
+}
+
+/**
+ * Tells the coach a trainee swapped an exercise in one of their programs.
+ *
+ * Approving rewrites the coach's own rows, so the metadata has to name the
+ * program that holds them. Normally that is the program the trainee is on,
+ * because a swap no longer copies anything. Legacy personalized copies are
+ * still out there, though, and their rows are not the ones the coach edits in
+ * their library — for those the chain is walked back to the library entry and
+ * the workout matched by week and day slot, which a fork copied verbatim. When
+ * no such workout is found, because the coach restructured the program since,
+ * the approve keys are left out: approving then fails with the existing "swap
+ * again to raise a fresh request" message instead of editing the wrong workout.
+ */
+async function notifyCoachOfTraineeSwap(input: {
+  isPersonalizedCopy: boolean
+  newExerciseName: string
+  newVariationId: string
+  oldExerciseName: string
+  oldVariationId: string
+  profile: SerializedProfile
+  program: { createdById: string; id: string; name: string }
+  swappedWorkoutIds: string[]
+  targetOrder: number
+  workout: { id: string; scheduledDay: number | null; weekIndex: number | null }
+  workoutExerciseId: string
+}) {
+  const db = ensurePrisma()
+
+  const rootProgramId = input.isPersonalizedCopy
+    ? await resolveProgramForkRoot(input.program.id)
+    : input.program.id
+
+  const rootWorkout = rootProgramId === input.program.id
+    ? { id: input.workout.id }
+    : await db.workout.findFirst({
+        select: { id: true },
+        where: {
+          programId: rootProgramId,
+          scheduledDay: input.workout.scheduledDay,
+          weekIndex: input.workout.weekIndex,
+        },
+      })
+
+  const approvable = rootWorkout
+    ? {
+        originalProgramId: rootProgramId,
+        originalWorkoutExerciseId: input.workoutExerciseId,
+        originalWorkoutId: rootWorkout.id,
+        targetOrder: input.targetOrder,
+      }
+    : {}
+
+  await db.notification.create({
+    data: {
+      channel: "in_app",
+      message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
+      metadata: {
+        ...approvable,
+        kind: "trainee_swapped_exercise",
+        newExerciseName: input.newExerciseName,
+        newVariationId: input.newVariationId,
+        oldExerciseName: input.oldExerciseName,
+        oldVariationId: input.oldVariationId,
+        // The program the trainee is actually on. Same as originalProgramId
+        // now that swaps do not copy; different only for a legacy copy.
+        personalizedProgramId: input.program.id,
+        swappedAt: new Date().toISOString(),
+        swappedWorkoutIds: input.swappedWorkoutIds,
+        traineeId: input.profile.id,
+        traineeName: input.profile.name,
+      },
+      relatedEntityId: input.program.id,
+      relatedEntityType: "program",
+      scheduledFor: new Date(),
+      sentAt: new Date(),
+      status: NotificationStatus.sent,
+      title: "Trainee replaced an exercise",
+      type: NotificationType.general,
+      userId: input.program.createdById,
+    },
+  })
+}
+
 async function swapExerciseForTraineeFromWorkout(
   profile: SerializedProfile,
   input: {
@@ -5711,7 +5889,16 @@ async function swapExerciseForTraineeFromWorkout(
     throw new AuthServiceError("Không tìm thấy bài tập trong workout.", 404)
   }
 
-  const oldVariationId = targetExercise.variationId
+  // The trainee may already be substituting this slot, in which case the
+  // variation they are looking at is theirs, not the one on the coach's row.
+  const existingOverride = await db.traineeExerciseOverride.findUnique({
+    select: { replacedVariationId: true, variationId: true },
+    where: {
+      userId_workoutExerciseId: { userId: profile.id, workoutExerciseId: targetExercise.id },
+    },
+  })
+
+  const oldVariationId = existingOverride?.variationId ?? targetExercise.variationId
   if (oldVariationId === input.newVariationId) {
     throw new AuthServiceError("Variation mới trùng variation hiện tại.", 400)
   }
@@ -5726,8 +5913,15 @@ async function swapExerciseForTraineeFromWorkout(
 
   const targetOrder = targetExercise.order
 
-  // Personal workout (trainee owns the program) — no fork, no notification.
-  if (!workout.program || workout.program.createdById === profile.id) {
+  /**
+   * Every slot this swap covers: the one being replaced, plus each later
+   * recurrence of the same exercise in the program.
+   *
+   * Matching is done on what the trainee actually sees — their override where
+   * one exists, the coach's row otherwise — because a second swap starts from
+   * the substitute, not from whatever the coach's row still holds.
+   */
+  const resolveSwapScope = async () => {
     const workoutIds = workout.programId
       ? (await db.workout.findMany({
           select: { id: true, scheduledDay: true, weekIndex: true },
@@ -5738,237 +5932,113 @@ async function swapExerciseForTraineeFromWorkout(
         ).map((candidate) => candidate.id)
       : [workout.id]
 
-    const swapWhere = {
-      variationId: oldVariationId,
-      OR: [
-        { workoutId: workout.id, order: { gte: targetOrder } },
-        { workoutId: { in: workoutIds.filter((id) => id !== workout.id) } },
-      ],
-    }
-    await db.$transaction(async (tx) => {
-      await tx.workoutExercise.updateMany({
-        where: { ...swapWhere, originalVariationId: null },
-        data: { originalVariationId: oldVariationId },
-      })
-      await tx.workoutExercise.updateMany({ where: swapWhere, data: { variationId: input.newVariationId } })
+    const candidates = await db.workoutExercise.findMany({
+      select: { id: true, variationId: true, workoutId: true },
+      where: {
+        OR: [
+          { workoutId: workout.id, order: { gte: targetOrder } },
+          { workoutId: { in: workoutIds.filter((id) => id !== workout.id) } },
+        ],
+      },
     })
+
+    const overrides = await db.traineeExerciseOverride.findMany({
+      select: { variationId: true, workoutExerciseId: true },
+      where: {
+        userId: profile.id,
+        workoutExerciseId: { in: candidates.map((candidate) => candidate.id) },
+      },
+    })
+    const overrideByExerciseId = new Map(
+      overrides.map((override) => [override.workoutExerciseId, override.variationId]),
+    )
+
+    const slots = candidates.filter(
+      (candidate) => (overrideByExerciseId.get(candidate.id) ?? candidate.variationId) === oldVariationId,
+    )
 
     return {
-      currentSetIdMap: {} as Record<string, string>,
-      currentWorkoutExerciseIdMap: {} as Record<string, string>,
-      forkedProgramId: null,
-      workoutId: workout.id,
+      slots,
+      swappedWorkoutIds: Array.from(new Set(slots.map((slot) => slot.workoutId))),
     }
   }
 
-  // Coach's program — fork.
-  const originalProgram = workout.program
-  const originalProgramId = originalProgram.id
-
-  const [existingAssignment, fullProgram] = await Promise.all([
-    db.programAssignment.findUnique({
-      where: { programId_userId: { programId: originalProgramId, userId: profile.id } },
-    }),
-    db.program.findUnique({
-      include: {
-        workouts: {
-          include: {
-            exercises: {
-              include: { sets: true },
-              orderBy: { order: "asc" },
-            },
-          },
-          orderBy: [{ weekIndex: "asc" }, { scheduledDay: "asc" }, { createdAt: "asc" }],
-        },
-      },
-      where: { id: originalProgramId },
-    }),
-  ])
-
-  if (!existingAssignment || !fullProgram) {
-    throw new AuthServiceError("Không tìm thấy assignment gốc.", 404)
+  // Ids never move now, so the client keeps its in-progress session (see the
+  // isForkedSwap check in the session page).
+  const swapResult = {
+    currentSetIdMap: {} as Record<string, string>,
+    currentWorkoutExerciseIdMap: {} as Record<string, string>,
+    forkedProgramId: null,
+    workoutId: workout.id,
   }
 
-  const workoutIdMap = new Map<string, string>()
-  const workoutExerciseIdMap = new Map<string, string>()
-  // ID mappings scoped to the workout the user is actively swapping in — the client
-  // needs these to migrate its in-progress localStorage session (keyed by workoutId
-  // and referencing exercise/set IDs) across the fork without losing completed sets.
-  const currentWorkoutExerciseIdMap: Record<string, string> = {}
-  const currentSetIdMap: Record<string, string> = {}
+  // The trainee's own program — the rows are theirs, so edit them.
+  if (!workout.program || workout.program.createdById === profile.id) {
+    const { slots } = await resolveSwapScope()
+    const slotIds = slots.map((slot) => slot.id)
 
-  const workoutRows: Prisma.WorkoutCreateManyInput[] = []
-  const exerciseRows: Prisma.WorkoutExerciseCreateManyInput[] = []
-  const setRows: Prisma.ExerciseSetCreateManyInput[] = []
-
-  const forkedProgramId = randomUUID()
-
-  for (const sourceWorkout of fullProgram.workouts) {
-    const newWorkoutId = randomUUID()
-    workoutIdMap.set(sourceWorkout.id, newWorkoutId)
-
-    workoutRows.push({
-      duration: sourceWorkout.duration ?? undefined,
-      id: newWorkoutId,
-      kind: sourceWorkout.kind ?? undefined,
-      name: sourceWorkout.name,
-      notes: sourceWorkout.notes ?? undefined,
-      programId: forkedProgramId,
-      scheduledDate: sourceWorkout.scheduledDate ?? undefined,
-      scheduledDay: sourceWorkout.scheduledDay ?? undefined,
-      weekIndex: sourceWorkout.weekIndex ?? undefined,
-    })
-
-    const shouldSwapWholeWorkout = isFutureWorkout(sourceWorkout, workout)
-    const isCurrentWorkout = sourceWorkout.id === workout.id
-
-    for (const sourceExercise of sourceWorkout.exercises) {
-      const newExerciseId = randomUUID()
-      workoutExerciseIdMap.set(sourceExercise.id, newExerciseId)
-      if (isCurrentWorkout) {
-        currentWorkoutExerciseIdMap[sourceExercise.id] = newExerciseId
-      }
-
-      const shouldSwap =
-        sourceExercise.variationId === oldVariationId &&
-        (shouldSwapWholeWorkout || (isCurrentWorkout && sourceExercise.order >= targetOrder))
-
-      exerciseRows.push({
-        id: newExerciseId,
-        notes: sourceExercise.notes ?? undefined,
-        order: sourceExercise.order,
-        restTime: sourceExercise.restTime ?? undefined,
-        variationId: shouldSwap ? input.newVariationId : sourceExercise.variationId,
-        originalVariationId: shouldSwap ? (sourceExercise.originalVariationId ?? sourceExercise.variationId) : sourceExercise.originalVariationId,
-        workoutId: newWorkoutId,
+    await db.$transaction(async (tx) => {
+      await tx.workoutExercise.updateMany({
+        where: { id: { in: slotIds }, originalVariationId: null },
+        data: { originalVariationId: oldVariationId },
       })
+      await tx.workoutExercise.updateMany({
+        where: { id: { in: slotIds } },
+        data: { variationId: input.newVariationId },
+      })
+    })
 
-      for (const sourceSet of sourceExercise.sets) {
-        const newSetId = randomUUID()
-        if (isCurrentWorkout) {
-          currentSetIdMap[sourceSet.id] = newSetId
-        }
-        setRows.push({
-          actualReps: sourceSet.actualReps ?? undefined,
-          completed: sourceSet.completed,
-          id: newSetId,
-          intensityTag: sourceSet.intensityTag ?? undefined,
-          notes: sourceSet.notes ?? undefined,
-          rir: sourceSet.rir ?? undefined,
-          setNumber: sourceSet.setNumber,
-          targetReps: sourceSet.targetReps,
-          targetRepsMin: sourceSet.targetRepsMin ?? undefined,
-          weight: sourceSet.weight ?? undefined,
-          workoutExerciseId: newExerciseId,
-        })
-      }
-    }
+    return swapResult
   }
 
-  const swappedWorkoutIds = Array.from(workoutIdMap.entries())
-    .filter(([sourceWorkoutId]) => {
-      const source = fullProgram.workouts.find((candidate) => candidate.id === sourceWorkoutId)
-      if (!source) return false
-      if (source.id === workout.id) return true
-      return isFutureWorkout(source, workout)
-    })
-    .map(([, newWorkoutId]) => newWorkoutId)
+  // A coach's program. The slot stays the coach's and their other trainees keep
+  // seeing their choice; this trainee gets a private substitution instead, and
+  // the coach decides whether it becomes part of the program.
+  //
+  // This is deliberately not a fork. Forking copied the coach's whole program
+  // per swap, moved the trainee's assignment and logs onto the copy, and left
+  // the coach owning program rows nobody could reach.
+  const { slots, swappedWorkoutIds } = await resolveSwapScope()
 
-  await retryTransaction(() => db.$transaction(async (transaction) => {
-    await transaction.program.create({
-      data: {
-        createdById: originalProgram.createdById,
-        description: originalProgram.description ?? undefined,
-        difficulty: originalProgram.difficulty,
-        duration: originalProgram.duration,
-        id: forkedProgramId,
-        forkedFromProgramId: originalProgramId,
-        googleSpreadsheetId: originalProgram.googleSpreadsheetId,
-        googleSheetName: originalProgram.googleSheetName,
-        isAIGenerated: originalProgram.isAIGenerated,
-        name: originalProgram.name,
-        workoutsPerWeek: originalProgram.workoutsPerWeek,
-      },
-    })
-
-    await transaction.programAssignment.createMany({
-      data: [{
-        assignedAt: existingAssignment.assignedAt,
-        programId: forkedProgramId,
-        userId: profile.id,
-      }],
-    })
-
-    if (workoutRows.length > 0) {
-      await transaction.workout.createMany({ data: workoutRows })
-    }
-    if (exerciseRows.length > 0) {
-      await transaction.workoutExercise.createMany({ data: exerciseRows })
-    }
-    if (setRows.length > 0) {
-      await transaction.exerciseSet.createMany({ data: setRows })
-    }
-
-    await transaction.programAssignment.delete({
-      where: {
-        programId_userId: {
-          programId: originalProgramId,
+  await db.$transaction(async (tx) => {
+    for (const slot of slots) {
+      // replacedVariationId records the coach's row as it stands, not the
+      // variation the trainee is coming from: it exists so a later coach edit
+      // to the slot can be detected as having moved past this override.
+      await tx.traineeExerciseOverride.upsert({
+        create: {
+          replacedVariationId: slot.variationId,
           userId: profile.id,
+          variationId: input.newVariationId,
+          workoutExerciseId: slot.id,
         },
-      },
-    })
-
-    // Carry log history over so program-scoped queries (prev-performance,
-    // exports) still see this trainee's past sessions after the fork.
-    await transaction.workoutLog.updateMany({
-      data: { programId: forkedProgramId },
-      where: {
-        programId: originalProgramId,
-        userId: profile.id,
-      },
-    })
-
-    await transaction.notification.create({
-      data: {
-        channel: "in_app",
-        message: `Trainee ${profile.name} swapped an exercise in ${originalProgram.name}.`,
-        metadata: {
-          forkedProgramId,
-          kind: "trainee_swapped_exercise",
-          newExerciseName: newVariation.exercise.name,
-          newVariationId: input.newVariationId,
-          oldExerciseName: targetExercise.variation.exercise.name,
-          oldVariationId,
-          originalProgramId,
-          originalWorkoutExerciseId: input.workoutExerciseId,
-          originalWorkoutId: workout.id,
-          swappedAt: new Date().toISOString(),
-          swappedWorkoutIds,
-          targetOrder,
-          traineeId: profile.id,
-          traineeName: profile.name,
+        update: { replacedVariationId: slot.variationId, variationId: input.newVariationId },
+        where: {
+          userId_workoutExerciseId: { userId: profile.id, workoutExerciseId: slot.id },
         },
-        relatedEntityId: forkedProgramId,
-        relatedEntityType: "program",
-        scheduledFor: new Date(),
-        sentAt: new Date(),
-        status: NotificationStatus.sent,
-        title: "Trainee replaced an exercise",
-        type: NotificationType.general,
-        userId: originalProgram.createdById,
-      },
-    })
-  }, {
-    maxWait: 15000,
-    timeout: 60000,
-  }))
+      })
+    }
+  })
 
-  return {
-    currentSetIdMap,
-    currentWorkoutExerciseIdMap,
-    forkedProgramId,
-    workoutId: workoutIdMap.get(workout.id) ?? workout.id,
-  }
+  await notifyCoachOfTraineeSwap({
+    isPersonalizedCopy: Boolean(workout.program.forkedFromProgramId),
+    newExerciseName: newVariation.exercise.name,
+    newVariationId: input.newVariationId,
+    oldExerciseName: targetExercise.variation.exercise.name,
+    // The coach's own row, not what the trainee was substituting. Approving
+    // rewrites the coach's program, and on a second swap their row still holds
+    // the original — matching on the trainee's previous substitute would find
+    // nothing there and fail the approval.
+    oldVariationId: targetExercise.variationId,
+    profile,
+    program: workout.program,
+    swappedWorkoutIds,
+    targetOrder,
+    workout,
+    workoutExerciseId: input.workoutExerciseId,
+  })
+
+  return swapResult
 }
 
 function readNotificationMetadataString(metadata: Prisma.JsonValue | null, key: string) {
@@ -6007,6 +6077,7 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
   const oldVariationId = readNotificationMetadataString(notification.metadata, "oldVariationId")
   const newVariationId = readNotificationMetadataString(notification.metadata, "newVariationId")
   const targetOrder = readNotificationMetadataNumber(notification.metadata, "targetOrder")
+  const traineeId = readNotificationMetadataString(notification.metadata, "traineeId")
 
   if (kind !== "trainee_swapped_exercise") {
     throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
@@ -6090,6 +6161,17 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
         id: { in: targetExerciseIds },
       },
     })
+
+    // The coach's own rows now hold the trainee's choice, so the substitution
+    // that stood in for it has nothing left to do. Leaving it would also make
+    // it stale the moment the coach next edits the slot. Rejecting, by
+    // contrast, keeps the override — that is the trainee's personalized change
+    // surviving a "no", exactly as the notification copy promises.
+    if (traineeId) {
+      await tx.traineeExerciseOverride.deleteMany({
+        where: { userId: traineeId, workoutExerciseId: { in: targetExerciseIds } },
+      })
+    }
 
     await tx.notification.update({
       data: {
@@ -7716,6 +7798,14 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
   const avgCarbs = daysTracked > 0 ? Math.round(dailyNutritionLogs.reduce((s, d) => s + d.carbs, 0) / daysTracked) : 0
   const avgFat = daysTracked > 0 ? Math.round(dailyNutritionLogs.reduce((s, d) => s + d.fat, 0) / daysTracked) : 0
 
+  // The coach is looking at this trainee's plan, so it shows the trainee's
+  // substitutions — the same thing they used to see when a swap forked the
+  // program and the fork was what got listed here.
+  await applyTraineeExerciseOverrides(
+    trainee.programAssignments.flatMap((assignment) => (assignment.program as ProgramRecord).workouts),
+    trainee.id,
+  )
+
   return {
     bodyMetrics: bodyMetrics.map((entry) => serializeBodyMetricEntry(entry as BodyMetricRecord)),
     checkIns: checkIns.map((entry) => serializeCoachCheckIn(entry as CoachCheckInRecord)),
@@ -8075,6 +8165,7 @@ export {
   adjustCoachProgramForTrainee,
   approveTraineeExerciseSwapForCoach,
   rejectTraineeExerciseSwapForCoach,
+  applyTraineeExerciseOverrides,
   archiveCoachProgram,
   assignCoachProgramToTrainee,
   buildProgramTreeCreateManyData,
