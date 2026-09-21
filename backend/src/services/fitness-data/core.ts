@@ -4576,8 +4576,10 @@ async function duplicateAssignedWorkoutAsPersonalRoutine(profile: SerializedProf
           kind: workout.kind ?? undefined,
           name: workout.name,
           notes: workout.notes ?? undefined,
-          // No scheduledDay: a trial belongs to the day the trainee runs it,
-          // not to the slot it holds in the coach's week.
+          // Today, not the slot it holds in the coach's week: a trial belongs
+          // to the day the trainee actually runs it, and this is what puts it
+          // on their schedule rather than leaving it dateless.
+          scheduledDate: clientCalendarDay(),
         },
       },
       workoutsPerWeek: 1,
