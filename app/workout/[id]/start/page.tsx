@@ -378,7 +378,7 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
     set.previousPerformance.reps > programTarget.reps
   // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
   return (
-    <div className={cn(completed ? "bg-muted" : "bg-transparent")}>
+    <div data-tour="session-set" className={cn(completed ? "bg-muted" : "bg-transparent")}>
       <div
         className={cn(
           "grid min-w-0 items-center",
@@ -732,6 +732,7 @@ function LiftExerciseBlock({
 
   return (
     <div
+      data-tour="session-exercise"
       className={cn(
         "mb-4 min-w-0 overflow-hidden rounded-lg border transition-colors duration-[180ms]",
         // Done follows the active palette rather than a fixed green: a finished
@@ -1676,7 +1677,10 @@ function WorkoutSession() {
         </div>
 
         {/* Session stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-lg bg-card overflow-hidden mb-7">
+        <div
+          data-tour="session-stats"
+          className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-lg bg-card overflow-hidden mb-7"
+        >
           <StatCell
             label={messages.workoutPage.started}
             value={startedLabel}
@@ -1772,6 +1776,7 @@ function WorkoutSession() {
 
           {/* Finish workout */}
           <Button
+            data-tour="session-finish"
             className="w-full md:w-auto bg-foreground text-background hover:bg-foreground/90 font-semibold"
             onClick={handleFinishWorkout}
             disabled={completedSets === 0 || isSaving}

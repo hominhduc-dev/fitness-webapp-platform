@@ -14,10 +14,12 @@ type TourMessages = AppMessages["onboarding"]["productTour"]
 const WELCOME_KEY = "yb_product_tour_welcome_v1"
 const CONTEXT_KEY_PREFIX = "yb_product_tour_context_v1:"
 const DASHBOARD_TOUR_KEY = "trainee-dashboard"
+/** /workout/{id}/start — the live logging screen, not the workout list. */
+const SESSION_PATH = /^\/workout\/[^/]+\/start\/?$/
 const TOUR_START_RETRY_MS = 80
 const TOUR_START_MAX_ATTEMPTS = 8
 
-function buildTours(copy: TourMessages) {
+export function buildTours(copy: TourMessages) {
   const dashboardSteps: TourStep[] = [
     { ...copy.dashboard.checkIn, target: "[data-tour='dashboard-check-in']" },
     { ...copy.dashboard.quickActions, target: "[data-tour='dashboard-quick-actions']" },
@@ -47,7 +49,16 @@ function buildTours(copy: TourMessages) {
       { ...copy.coachWorkoutBuilder.exercises, target: "[data-tour='coach-workout-exercises']" },
       { ...copy.coachWorkoutBuilder.save, target: "[data-tour='coach-workout-save']" },
     ] },
-    { key: "trainee-workout", roles: ["trainee"], match: (p) => p === "/workout" || p.startsWith("/workout/"), steps: [
+    // Ahead of "trainee-workout" on purpose: `find` takes the first match, and
+    // that tour's `/workout/` prefix also covers this route while none of its
+    // targets exist here. Left second, the session tour could never be picked.
+    { key: "trainee-workout-session", roles: ["trainee"], match: (p) => SESSION_PATH.test(p), steps: [
+      { ...copy.traineeWorkoutSession.stats, target: "[data-tour='session-stats']" },
+      { ...copy.traineeWorkoutSession.exercise, target: "[data-tour='session-exercise']" },
+      { ...copy.traineeWorkoutSession.set, target: "[data-tour='session-set']" },
+      { ...copy.traineeWorkoutSession.finish, target: "[data-tour='session-finish']" },
+    ] },
+    { key: "trainee-workout", roles: ["trainee"], match: (p) => (p === "/workout" || p.startsWith("/workout/")) && !SESSION_PATH.test(p), steps: [
       { ...copy.traineeWorkout.today, target: "[data-tour='trainee-workout-today']" },
       { ...copy.traineeWorkout.list, target: "[data-tour='trainee-workout-list']" },
       { ...copy.traineeWorkout.actions, target: "[data-tour='trainee-workout-actions']" },
