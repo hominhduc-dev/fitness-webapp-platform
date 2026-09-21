@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FilterChip } from "@/components/ui/filter-chip"
-import { Input } from "@/components/ui/input"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Textarea } from "@/components/ui/textarea"
 import type { AdminCustomFoodItem } from "@/lib/admin/types"
 import { useAdminCustomFoods, useReviewAdminCustomFoodRequest } from "@/lib/queries/admin"
@@ -68,10 +68,9 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder={locale === "en" ? "Search food or creator…" : "Tìm món hoặc người tạo…"}
+          <InputWithIcon
+            icon={<Search />}
+                        placeholder={locale === "en" ? "Search food or creator…" : "Tìm món hoặc người tạo…"}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />

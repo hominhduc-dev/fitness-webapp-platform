@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Check,
   Download,
+  Dumbbell,
   FileSpreadsheet,
   ImageUp,
   Loader2,
@@ -1480,8 +1481,9 @@ export function ExerciseLibraryPanel({
           />
         ))}
         {grouped.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
-            {copy.noMatches}
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-12 text-center">
+            <Dumbbell aria-hidden className="size-8 text-muted-foreground/60" />
+            <p className="text-sm text-muted-foreground">{copy.noMatches}</p>
           </div>
         )}
       </div>

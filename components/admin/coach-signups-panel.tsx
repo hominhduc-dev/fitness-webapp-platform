@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FilterChip } from "@/components/ui/filter-chip"
-import { Input } from "@/components/ui/input"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import type { AdminUserListItem } from "@/lib/admin/types"
 import type { CoachApprovalStatus } from "@/lib/auth/types"
 import { useAdminCoachSignups, useReviewAdminCoachSignupRequest } from "@/lib/queries/admin"
@@ -96,10 +96,9 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 basis-[220px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            onChange={(event) => setSearch(event.target.value)}
+          <InputWithIcon
+            icon={<Search />}
+                        onChange={(event) => setSearch(event.target.value)}
             placeholder={locale === "en" ? "Search coach signups…" : "Tìm hồ sơ coach…"}
             value={search}
           />

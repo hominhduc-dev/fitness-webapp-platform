@@ -51,6 +51,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
 import { Pagination, usePaginatedList } from "@/components/ui/pagination"
 import { SkeletonCard } from "@/components/layout/trainee-loading-shell"
@@ -2222,8 +2223,7 @@ export function AdminConsole() {
             {/* Search + role filter chips */}
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 basis-[220px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search name, email, phone…" : "Tìm tên, email, số điện thoại…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search name, email, phone…" : "Tìm tên, email, số điện thoại…"} />
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["all", "trainee", "coach", "admin"] as const).map((r) => (
@@ -2352,8 +2352,7 @@ export function AdminConsole() {
             {/* Search + status filter chips */}
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 basis-[220px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search requests…" : "Tìm yêu cầu…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search requests…" : "Tìm yêu cầu…"} />
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["all", "pending", "approved", "rejected"] as const).map((s) => (
@@ -2450,8 +2449,7 @@ export function AdminConsole() {
             {/* Search + connection table */}
             <div className="flex gap-2">
               <div className="relative flex-1 max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search connections…" : "Tìm connection…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search connections…" : "Tìm connection…"} />
               </div>
             </div>
 
@@ -2490,8 +2488,7 @@ export function AdminConsole() {
           <TabsContent value="programs" className="space-y-4">
             {/* Search */}
             <div className="relative max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs or coach…" : "Tìm giáo án hoặc coach…"} className="pl-9" />
+              <InputWithIcon icon={<Search />} value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs or coach…" : "Tìm giáo án hoặc coach…"} />
             </div>
 
             {/* Program rows */}
@@ -2573,8 +2570,7 @@ export function AdminConsole() {
             {/* Search + type filter chips */}
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 basis-[220px] max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search actions…" : "Tìm hành động…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search actions…" : "Tìm hành động…"} />
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["all", "user", "request", "exercise", "program", "connection"] as const).map((t) => (
