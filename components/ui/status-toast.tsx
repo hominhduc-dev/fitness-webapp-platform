@@ -5,7 +5,12 @@ import { CheckCircle2, TriangleAlert, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
-export type StatusToastTone = "error" | "success"
+/**
+ * "celebration" is a success the trainee earned rather than one the system
+ * reports, so it wears the active palette instead of the fixed success
+ * green — matching the confetti it arrives with.
+ */
+export type StatusToastTone = "celebration" | "error" | "success"
 
 export type StatusToastProps = {
   action?: React.ReactNode
@@ -23,7 +28,8 @@ export type StatusToastProps = {
  * presentational is what lets a preview page or a test render one directly.
  */
 export function StatusToast({ action, description, dismissLabel, onDismiss, title, tone }: StatusToastProps) {
-  const Icon = tone === "success" ? CheckCircle2 : TriangleAlert
+  const isError = tone === "error"
+  const Icon = isError ? TriangleAlert : CheckCircle2
 
   return (
     // The tint an Alert variant carries is nearly transparent, which reads fine
@@ -35,7 +41,10 @@ export function StatusToast({ action, description, dismissLabel, onDismiss, titl
         "animate-in fade-in-0 slide-in-from-bottom-2 duration-200",
       )}
     >
-      <Alert role={tone === "success" ? "status" : "alert"} variant={tone === "success" ? "success" : "destructive"}>
+      <Alert
+        role={isError ? "alert" : "status"}
+        variant={isError ? "destructive" : tone === "celebration" ? "primary" : "success"}
+      >
         <Icon />
         <AlertTitle className="pr-6">{title}</AlertTitle>
         {description ? <AlertDescription className="pr-6">{description}</AlertDescription> : null}
