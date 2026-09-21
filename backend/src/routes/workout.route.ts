@@ -11,6 +11,7 @@ import {
   deletePersonalWorkoutForTrainee,
   deleteWorkoutSessionDraftForTrainee,
   deleteWorkoutLogForTrainee,
+  duplicateAssignedWorkoutAsPersonalRoutine,
   exportWorkoutLogsToGoogleSheetsForTrainee,
   getTraineeProgramDetail,
   getWorkoutDetailForTrainee,
@@ -163,6 +164,16 @@ workoutRouter.patch(
   validated({ body: personalWorkoutSchema, params: workoutIdParams }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     res.json({ workout: await updatePersonalWorkoutForTrainee(profile, req.params.workoutId, req.body) })
+  }),
+)
+
+workoutRouter.post(
+  "/:workoutId/duplicate-to-routine",
+  validated({ params: workoutIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.status(201).json({
+      workout: await duplicateAssignedWorkoutAsPersonalRoutine(profile, req.params.workoutId),
+    })
   }),
 )
 

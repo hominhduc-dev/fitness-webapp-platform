@@ -2,6 +2,7 @@
 
 import {
   ArrowDownNarrowWide,
+  CalendarClock,
   Check,
   ChevronDown,
   ChevronUp,
@@ -49,6 +50,7 @@ import {
 import { warmOfflineWorkoutRoute } from "@/lib/offline/service-worker"
 import {
   useCreateWorkoutLog,
+  useDuplicateWorkoutToRoutine,
   useSwapWorkoutExercise,
   useWorkoutDetail,
   useWorkoutSessionDraft,
@@ -1079,6 +1081,8 @@ function WorkoutSession() {
         isRefreshingSeed || !isOfflineWorkoutResolved || !isDraftResolved))
   const logMutation = useCreateWorkoutLog()
   const swapMutation = useSwapWorkoutExercise()
+  const duplicateToRoutineMutation = useDuplicateWorkoutToRoutine()
+  const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
 
   useEffect(() => {
@@ -1642,6 +1646,47 @@ function WorkoutSession() {
                 : messages.workoutPage.thisWorkoutUnavailable)}
           </p>
           <Button className="mt-4" onClick={() => router.push("/workout")}>
+            {messages.workoutPage.backToWorkouts}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // The coach set a start date the trainee has not reached. The server refuses
+  // the log either way; stopping here means they find out before training the
+  // session rather than when they try to save it.
+  if (workout.lockedUntil) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
+          <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-warn-soft">
+            <CalendarClock className="size-5 text-warning-text" />
+          </div>
+          <p className="text-lg font-semibold">{messages.workoutPage.lockedTitle}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {messages.workoutPage.lockedBody(workout.lockedUntil)}
+          </p>
+          <Button
+            className="mt-5 w-full"
+            disabled={duplicateToRoutineMutation.isPending}
+            onClick={async () => {
+              setDuplicateError(null)
+              try {
+                const copy = await duplicateToRoutineMutation.mutateAsync(workout.id)
+                router.replace(`/workout/${copy.id}/start`)
+              } catch {
+                setDuplicateError(messages.workoutPage.lockedTryItFailed)
+              }
+            }}
+          >
+            {messages.workoutPage.lockedTryIt}
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">{messages.workoutPage.lockedTryItHint}</p>
+          {duplicateError ? (
+            <p role="alert" className="mt-2 text-sm text-destructive-text">{duplicateError}</p>
+          ) : null}
+          <Button variant="ghost" className="mt-3 w-full" onClick={() => router.push("/workout")}>
             {messages.workoutPage.backToWorkouts}
           </Button>
         </div>

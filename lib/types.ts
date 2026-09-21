@@ -155,6 +155,12 @@ export interface Workout {
   id: string
   hasCoachUpdate?: boolean
   isPersonal?: boolean
+  /**
+   * `YYYY-MM-DD` the coach's program opens on, present only while the trainee
+   * is still before it. Training this session is refused until then; the
+   * trainee can copy the day into their own routines to try it early.
+   */
+  lockedUntil?: string
   programId?: string
   kind?: WorkoutKind
   name: string

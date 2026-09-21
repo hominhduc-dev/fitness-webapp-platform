@@ -668,6 +668,8 @@ function serializeWorkout(
     coachUpdatesByWorkoutExerciseId?: Map<string, CoachUpdate>
     hasCoachUpdate?: boolean
     isPersonal?: boolean
+    /** Day key the coach's program opens on, when the trainee is still before it. */
+    lockedUntil?: Date | null
     previousPerformanceByWorkoutExerciseId?: Map<string, Map<number, PreviousExerciseSetPerformance>>
   },
 ) {
@@ -693,6 +695,7 @@ function serializeWorkout(
     ...(options?.hasCoachUpdate ? { hasCoachUpdate: true } : {}),
     id: workout.id,
     isPersonal: options?.isPersonal ?? false,
+    ...(options?.lockedUntil ? { lockedUntil: formatUtcDateOnly(options.lockedUntil) } : {}),
     kind: workout.kind ?? undefined,
     name: workout.name,
     notes: workout.notes ?? undefined,
@@ -1960,6 +1963,29 @@ function resolveProgramAnchorDate(startDate: Date | null | undefined, assignedAt
  */
 function hasAssignmentStarted(anchorDate: Date, weekStart: Date) {
   return weekStart.getTime() >= startOfUtcWeek(anchorDate).getTime()
+}
+
+/**
+ * The start date a coach program has not reached yet, or null if it is open.
+ *
+ * Week-based, deliberately the same rule as selectVisibleWorkoutsForAssignmentWeek:
+ * a program starting on a Monday is open for that whole week, and a trainee is
+ * never shown a session they would then be refused when they try to save it.
+ *
+ * Only an explicit start date locks anything. Without one the anchor is the
+ * assignment date, which is always in the past — and a trainee's own routines
+ * are theirs to run whenever they like.
+ */
+function resolveProgramLockDate(
+  program: { createdById: string; startDate: Date | null } | null | undefined,
+  traineeId: string,
+  /** The week being judged. Defaults to the trainee's current one. */
+  weekStart: Date = startOfUtcWeek(clientCalendarDay()),
+) {
+  if (!program || program.createdById === traineeId || !program.startDate) return null
+  if (hasAssignmentStarted(program.startDate, weekStart)) return null
+
+  return program.startDate
 }
 
 function getAssignmentWeekIndex(assignedAt: Date, weekStart: Date, duration: number) {
@@ -4134,6 +4160,10 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
   return serializeWorkout(workout as WorkoutWithProgramRecord, {
     coachUpdatesByWorkoutExerciseId,
     isPersonal: workout.program?.createdById === profile.id,
+    // Reported rather than thrown: the workout stays readable, so previewing a
+    // future week and the offline prefetch both keep working, and only the act
+    // of starting a session is refused.
+    lockedUntil: resolveProgramLockDate(workout.program, profile.id),
     previousPerformanceByWorkoutExerciseId,
   })
 }
@@ -4168,7 +4198,7 @@ async function createWorkoutLogForTrainee(
   }
 
   const workout = await db.workout.findFirst({
-    include: WORKOUT_INCLUDE,
+    include: WORKOUT_WITH_PROGRAM_INCLUDE,
     where: {
       id: workoutId,
       program: {
@@ -4183,6 +4213,20 @@ async function createWorkoutLogForTrainee(
 
   if (!workout) {
     throw new AuthServiceError("Không tìm thấy workout.", 404)
+  }
+
+  // The authoritative gate. The session screen refuses first, using the
+  // lockedUntil it was served, but an offline queue can replay a log written
+  // before the screen knew — and a log saved against a program that has not
+  // started lands on its week 1 sheet row and collides with the real session.
+  // Training it early is not forbidden, only training it *here*: the trainee
+  // copies the day into their own routines instead.
+  const lockDate = resolveProgramLockDate(workout.program, profile.id)
+  if (lockDate) {
+    throw new AuthServiceError(
+      `Chương trình này bắt đầu từ ${formatUtcDateOnly(lockDate)}. Hãy sao chép buổi tập sang routine của bạn nếu muốn tập thử.`,
+      409,
+    )
   }
 
   // The snapshot below records the muscle profile of what was trained, so it
@@ -4454,6 +4498,100 @@ async function createPersonalWorkoutForTrainee(
   return serializeWorkout(workout as WorkoutRecord, {
     isPersonal: true,
   })
+}
+
+/**
+ * Copies a day out of an assigned program into the trainee's own routines.
+ *
+ * This is how a trainee trains a program early without training it *in* the
+ * coach's program: the copy is their own one-week program, so its logs carry
+ * their program id, never reach the coach's sheet, and cannot collide with the
+ * real session on the same week-1 row once the program opens.
+ *
+ * The copy is a snapshot. Later coach edits do not reach it, which is the point
+ * — it is the trainee's routine now.
+ */
+async function duplicateAssignedWorkoutAsPersonalRoutine(profile: SerializedProfile, workoutId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const workout = await db.workout.findFirst({
+    include: WORKOUT_WITH_PROGRAM_INCLUDE,
+    where: {
+      id: workoutId,
+      program: { assignments: { some: { userId: profile.id } } },
+    },
+  })
+
+  if (!workout) {
+    throw new AuthServiceError("Không tìm thấy workout.", 404)
+  }
+
+  if (workout.program?.createdById === profile.id) {
+    throw new AuthServiceError("Buổi tập này đã thuộc routine của bạn.", 409)
+  }
+
+  // The trainee's substitutions come along: they are copying what they intend
+  // to train, not what the coach's row happens to say.
+  await applyTraineeExerciseOverrides([workout as WorkoutWithProgramRecord], profile.id)
+
+  const program = await db.program.create({
+    data: {
+      assignments: { create: { userId: profile.id } },
+      createdById: profile.id,
+      description: "Personal workout created by trainee.",
+      difficulty: ProgramDifficulty.beginner,
+      duration: 1,
+      name: workout.name,
+      workouts: {
+        create: {
+          duration: workout.duration ?? undefined,
+          // Every set target is carried over one by one. Routing this through
+          // PersonalWorkoutInput would flatten each exercise to a single
+          // reps/weight, losing a coach's per-set progression.
+          exercises: {
+            create: workout.exercises
+              .slice()
+              .sort((left, right) => left.order - right.order)
+              .map((exercise, index) => ({
+                notes: exercise.notes ?? undefined,
+                order: index + 1,
+                restTime: exercise.restTime ?? undefined,
+                sets: {
+                  create: exercise.sets
+                    .slice()
+                    .sort((left, right) => left.setNumber - right.setNumber)
+                    .map((set) => ({
+                      intensityTag: set.intensityTag ?? undefined,
+                      rir: set.rir ?? undefined,
+                      setNumber: set.setNumber,
+                      targetReps: set.targetReps,
+                      targetRepsMin: set.targetRepsMin ?? undefined,
+                      weight: set.weight ?? undefined,
+                    })),
+                },
+                variationId: exercise.variationId,
+              })),
+          },
+          kind: workout.kind ?? undefined,
+          name: workout.name,
+          notes: workout.notes ?? undefined,
+          // No scheduledDay: a trial belongs to the day the trainee runs it,
+          // not to the slot it holds in the coach's week.
+        },
+      },
+      workoutsPerWeek: 1,
+    },
+    include: { workouts: { include: WORKOUT_INCLUDE } },
+  })
+
+  const created = program.workouts[0]
+
+  if (!created) {
+    throw new AuthServiceError("Không thể tạo buổi tập.", 500)
+  }
+
+  return serializeWorkout(created as WorkoutRecord, { isPersonal: true })
 }
 
 async function updatePersonalWorkoutForTrainee(
@@ -8167,6 +8305,7 @@ export {
   rejectTraineeExerciseSwapForCoach,
   applyTraineeExerciseOverrides,
   archiveCoachProgram,
+  resolveProgramLockDate,
   assignCoachProgramToTrainee,
   buildProgramTreeCreateManyData,
   clearNotificationsForUser,
@@ -8187,6 +8326,7 @@ export {
   deleteMealForUser,
   deletePersonalWorkoutForTrainee,
   deleteWorkoutSessionDraftForTrainee,
+  duplicateAssignedWorkoutAsPersonalRoutine,
   deleteWorkoutLogCommentForCoach,
   deleteWorkoutLogForTrainee,
   exportCoachWorkoutLogsToGoogleSheetsForTrainee,
