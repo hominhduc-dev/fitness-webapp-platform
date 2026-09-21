@@ -114,6 +114,24 @@ export const onboardingMessages = {
             body: "You can replace an exercise during a session and keep the rest of your workout moving.",
           },
         },
+        traineeWorkoutSession: {
+          stats: {
+            title: "Your session so far",
+            body: "Elapsed time, sets completed, volume lifted and how many exercises are planned — all live as you log.",
+          },
+          exercise: {
+            title: "One block per exercise",
+            body: "A block turns your theme colour once every set inside it is ticked, so you can see what is left at a glance.",
+          },
+          set: {
+            title: "Log a set",
+            body: "Enter weight and reps, then tick it off. Previous shows what you did last time, so you know what to beat.",
+          },
+          finish: {
+            title: "Finish when you are done",
+            body: "Saving logs the session and takes you back to your dashboard. It works offline too — the log uploads once you are back on.",
+          },
+        },
         traineeNutrition: {
           summary: {
             title: "Plan your day",
@@ -289,6 +307,24 @@ export const onboardingMessages = {
           actions: {
             title: "Linh hoạt khi cần",
             body: "Bạn có thể đổi bài trong buổi tập và vẫn tiếp tục phần còn lại.",
+          },
+        },
+        traineeWorkoutSession: {
+          stats: {
+            title: "Buổi tập đang diễn ra",
+            body: "Thời gian, số set đã xong, tổng khối lượng và số bài đã lên kế hoạch — cập nhật ngay khi bạn ghi.",
+          },
+          exercise: {
+            title: "Mỗi bài một khối",
+            body: "Khối sẽ đổi sang màu theme khi mọi set bên trong được tick, nên bạn nhìn là biết còn bài nào.",
+          },
+          set: {
+            title: "Ghi một set",
+            body: "Nhập tạ và số rep rồi tick hoàn thành. Cột Previous cho biết lần trước bạn làm bao nhiêu để lấy mốc vượt qua.",
+          },
+          finish: {
+            title: "Bấm hoàn tất khi xong",
+            body: "Lưu xong sẽ ghi lại buổi tập và đưa bạn về dashboard. Mất mạng vẫn dùng được — log sẽ tự tải lên khi có mạng lại.",
           },
         },
         traineeNutrition: {

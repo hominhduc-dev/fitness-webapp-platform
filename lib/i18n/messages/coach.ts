@@ -105,7 +105,10 @@ export const coachMessages = {
       dayFallbackName: (day: number) => `Day ${day}`,
       daysPerWeekShort: (days: number) => `${days} days/week`,
       dayStreak: (days: number) => `${days}-day streak`,
-      descriptionPlaceholder: "Short description (e.g. Heavy compounds Mon/Thu, accessory volume Tue/Sat)",
+      // Kept short enough to read whole on a 320px phone: the field is one line
+      // with an icon and a counter eating into it, so a longer example is clipped
+      // mid-word and reads as broken rather than as a hint.
+      descriptionPlaceholder: "e.g. Heavy compounds",
       editRoutine: "Edit routine",
       editRoutineExercises: "Edit routine exercises",
       equipmentDefault: "default",
@@ -428,7 +431,7 @@ export const coachMessages = {
       dayFallbackName: (day: number) => `Ngày ${day}`,
       daysPerWeekShort: (days: number) => `${days} ngày/tuần`,
       dayStreak: (days: number) => `${days} ngày streak`,
-      descriptionPlaceholder: "Mô tả ngắn (vd: Compound nặng T2/T5, accessory T3/T7)",
+      descriptionPlaceholder: "vd: Compound nặng",
       editRoutine: "Sửa routine",
       editRoutineExercises: "Sửa bài tập trong routine",
       equipmentDefault: "mặc định",

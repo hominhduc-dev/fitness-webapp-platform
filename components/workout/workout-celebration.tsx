@@ -45,7 +45,9 @@ export function WorkoutCelebration() {
         ? celebration.workoutName
         : messages.workoutPage.celebrationQueued,
       title: messages.workoutPage.celebrationTitle,
-      tone: "success",
+      // Wears the palette, like the confetti beside it and the done blocks the
+      // trainee just filled in.
+      tone: "celebration",
     })
 
     if (prefersReducedMotion()) return

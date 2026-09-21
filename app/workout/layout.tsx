@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { ContextualProductTour } from "@/components/onboarding/contextual-product-tour"
 import { AppProviders } from "@/components/providers/app-providers"
 import { requireAppUser } from "@/lib/auth/server"
 import { getServerLocale } from "@/lib/i18n/server"
@@ -12,6 +13,10 @@ export default async function WorkoutSessionLayout({ children }: { children: Rea
   return (
     <AppProviders initialLocale={locale} initialProfile={profile}>
       {children}
+      {/* These routes sit outside the (shell) group, which is the only other
+          place the tour is mounted — without this the session screen has no
+          tour at all, whatever is registered for its path. */}
+      <ContextualProductTour role={profile.role} />
     </AppProviders>
   )
 }

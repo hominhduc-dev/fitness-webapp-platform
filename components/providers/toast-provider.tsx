@@ -121,7 +121,9 @@ function ToastItem({
   toast: ToastRecord
 }) {
   const { duration, id, tone } = toast
-  const resolvedDuration = duration === undefined ? (tone === "success" ? DEFAULT_SUCCESS_DURATION_MS : null) : duration
+  // Anything that is not an error dismisses itself; only a failure names
+  // something the reader has to go and act on, so only a failure waits.
+  const resolvedDuration = duration === undefined ? (tone === "error" ? null : DEFAULT_SUCCESS_DURATION_MS) : duration
 
   useEffect(() => {
     if (!resolvedDuration) return

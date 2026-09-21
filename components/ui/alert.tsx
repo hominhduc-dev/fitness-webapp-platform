@@ -12,6 +12,10 @@ const alertVariants = cva(
         warning: "border-warning/30 bg-warn-soft text-warning-text [&>svg]:text-warning-text",
         success: "border-success/30 bg-ok-soft text-success-text [&>svg]:text-success-text",
         info: "border-info/30 bg-info-soft text-info-text [&>svg]:text-info-text",
+        // Not a status: this one carries the brand, for a moment that belongs
+        // to the trainee rather than to the system. The pairing is the one the
+        // colour-contrast test already pins across every palette.
+        primary: "border-primary/30 bg-primary-soft text-primary [&>svg]:text-primary",
       },
     },
     defaultVariants: {
