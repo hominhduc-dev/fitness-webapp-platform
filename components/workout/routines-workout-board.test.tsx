@@ -61,8 +61,32 @@ describe("RoutinesWorkoutBoard", () => {
   })
 
   it("leaves a trainee's own routines out of the program cards", () => {
-    renderBoard({ programs: [{ ...coachProgram, id: "personal-1", isPersonal: true, name: "My routine" }] })
+    renderBoard({
+      programs: [
+        { ...coachProgram, id: "personal-1", isPersonal: true, isStandaloneRoutine: true, name: "My routine" },
+      ],
+    })
 
     expect(screen.queryByRole("heading", { name: "My routine" })).not.toBeInTheDocument()
+  })
+
+  it("gives a program the trainee authored a card of its own", () => {
+    // An accepted AI plan is written by the trainee like a routine is, but it is
+    // a real program: it used to scatter into loose cards on that likeness
+    // alone.
+    renderBoard({
+      programs: [
+        {
+          ...coachProgram,
+          duration: 4,
+          id: "ai-1",
+          isPersonal: true,
+          isStandaloneRoutine: false,
+          name: "My AI program",
+        },
+      ],
+    })
+
+    expect(screen.getByRole("heading", { name: "My AI program" })).toBeInTheDocument()
   })
 })

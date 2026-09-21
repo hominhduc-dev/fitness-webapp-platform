@@ -1,5 +1,8 @@
 export {
   addWorkoutToTraineeProgram,
+  archiveTraineeProgram,
+  deleteTraineeProgram,
+  restoreTraineeProgram,
   copyTraineeProgramWeek,
   createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,

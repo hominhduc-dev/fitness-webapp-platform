@@ -2015,6 +2015,25 @@ function normalizeWeekIndexForVisibility(weekIndex: number | null | undefined) {
 }
 
 /**
+ * Whether a program is only the wrapper around one ad-hoc routine.
+ *
+ * `createPersonalWorkoutForTrainee` stores a routine as a synthetic one-week,
+ * one-workout program, and that has to keep reading as a loose routine rather
+ * than as a plan. Ownership alone cannot be the test, because a trainee also
+ * owns an accepted AI program — a real multi-week plan that should behave
+ * exactly like a coach's. Shape alone cannot be the test either: a coach's
+ * one-week program is a plan with a start date, not a routine.
+ */
+function isStandaloneRoutineProgram(
+  program: { createdById: string; duration: number; workoutCount: number },
+  viewerId: string,
+) {
+  return (
+    program.createdById === viewerId && program.workoutCount <= 1 && Math.round(program.duration) <= 1
+  )
+}
+
+/**
  * Picks the workouts a trainee should see this week.
  *
  * Resolving one workout at a time is not enough: deciding whether a week is
@@ -2030,14 +2049,14 @@ function selectVisibleWorkoutsForAssignmentWeek<T extends Pick<WorkoutRecord, "s
   programDuration: number,
   weekStart: Date,
   /** True only for the synthetic program behind a trainee's own routines. */
-  isPersonalProgram: boolean,
+  isStandaloneRoutine: boolean,
 ): T[] {
   const duration = Math.max(1, Math.round(programDuration))
 
   // A trainee's own routines live in a synthetic one-week program and recur
   // forever. Reading that as "duration <= 1" also exempted every one-week coach
   // program, which then repeated past its last week and ignored its start date.
-  if (isPersonalProgram) {
+  if (isStandaloneRoutine) {
     return workouts
   }
 
@@ -3752,6 +3771,18 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       program: { archivedAt: null },
     },
   })
+  // Archived programs are kept out of the board and the week schedule above, so
+  // they are read separately: a trainee who put one away still needs a way back
+  // to it. Only their own, since a coach's archived program is not theirs to
+  // restore.
+  const archivedAssignments = await db.programAssignment.findMany({
+    orderBy: { assignedAt: "desc" },
+    select: { program: { select: { archivedAt: true, duration: true, id: true, name: true } } },
+    where: {
+      program: { archivedAt: { not: null }, createdById: profile.id },
+      userId: profile.id,
+    },
+  })
   const coachUpdateWorkoutIds = await buildCoachUpdateWorkoutIdsForAssignments(
     profile,
     assignments as TraineeProgramAssignmentWithWorkouts[],
@@ -3762,19 +3793,29 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
   const weekStart = startOfUtcWeek(clientCalendarDay())
 
   assignments.forEach((assignment) => {
-    const isPersonalProgram = assignment.program.createdById === profile.id
+    // Owning the program is what makes its sessions read as "self"; being a
+    // lone ad-hoc routine is what exempts it from week gating. An accepted AI
+    // program is the first thing to be the one without the other.
+    const isOwnProgram = assignment.program.createdById === profile.id
     const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
-      isPersonalProgram,
+      isStandaloneRoutineProgram(
+        {
+          createdById: assignment.program.createdById,
+          duration: assignment.program.duration,
+          workoutCount: assignment.program.workouts.length,
+        },
+        profile.id,
+      ),
     )
 
     visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
-      if (isPersonalProgram) {
+      if (isOwnProgram) {
         personalWorkoutIds.add(workout.id)
       }
     })
@@ -3864,12 +3905,30 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   return {
     activeSessions,
+    archivedPrograms: archivedAssignments.flatMap((a) =>
+      a.program.archivedAt
+        ? [{
+            archivedAt: a.program.archivedAt,
+            duration: a.program.duration,
+            id: a.program.id,
+            name: a.program.name,
+          }]
+        : [],
+    ),
     historyLogs: historyLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     programs: assignments.map((a) => ({
       assignedAt: a.assignedAt,
       duration: a.program.duration,
       id: a.program.id,
       isPersonal: a.program.createdById === profile.id,
+      isStandaloneRoutine: isStandaloneRoutineProgram(
+        {
+          createdById: a.program.createdById,
+          duration: a.program.duration,
+          workoutCount: a.program.workouts.length,
+        },
+        profile.id,
+      ),
       name: a.program.name,
       startDate: a.program.startDate ? formatUtcDateOnly(a.program.startDate) : undefined,
     })),
@@ -3956,19 +4015,26 @@ async function getDashboardForTrainee(profile: SerializedProfile) {
   const personalWorkoutIds = new Set<string>()
 
   assignments.forEach((assignment) => {
-    const isPersonalProgram = assignment.program.createdById === profile.id
+    const isOwnProgram = assignment.program.createdById === profile.id
     const visibleWorkouts = selectVisibleWorkoutsForAssignmentWeek(
       assignment.program.workouts as WorkoutRecord[],
       resolveProgramAnchorDate(assignment.program.startDate, assignment.assignedAt),
       assignment.program.duration,
       weekStart,
-      isPersonalProgram,
+      isStandaloneRoutineProgram(
+        {
+          createdById: assignment.program.createdById,
+          duration: assignment.program.duration,
+          workoutCount: assignment.program.workouts.length,
+        },
+        profile.id,
+      ),
     )
 
     visibleWorkouts.forEach((workout) => {
       workoutMap.set(workout.id, workout)
 
-      if (isPersonalProgram) {
+      if (isOwnProgram) {
         personalWorkoutIds.add(workout.id)
       }
     })
@@ -4760,7 +4826,16 @@ async function deletePersonalWorkoutForTrainee(profile: SerializedProfile, worko
  * editing those belongs to the coach, and letting a trainee rewrite them would
  * silently diverge from what the coach is tracking.
  */
-async function assertTraineeOwnsProgram(profile: SerializedProfile, programId: string) {
+/**
+ * `allowArchived` exists for the lifecycle actions only. Editing an archived
+ * program stays refused — but restoring one, or deleting it for good, is
+ * precisely what a trainee reaches for once it is archived.
+ */
+async function assertTraineeOwnsProgram(
+  profile: SerializedProfile,
+  programId: string,
+  options?: { allowArchived?: boolean },
+) {
   const db = ensurePrisma()
   const program = await db.program.findFirst({
     select: { archivedAt: true, duration: true, id: true },
@@ -4775,7 +4850,7 @@ async function assertTraineeOwnsProgram(profile: SerializedProfile, programId: s
     throw new AuthServiceError("Không tìm thấy chương trình của bạn.", 404)
   }
 
-  if (program.archivedAt) {
+  if (program.archivedAt && !options?.allowArchived) {
     throw new AuthServiceError("Chương trình đã lưu trữ, không thể chỉnh sửa.", 409)
   }
 
@@ -4930,7 +5005,7 @@ async function copyTraineeProgramWeek(profile: SerializedProfile, programId: str
 async function updateTraineeProgramDetails(
   profile: SerializedProfile,
   programId: string,
-  input: { description?: string | null; name?: string },
+  input: { description?: string | null; name?: string; startDate?: string | null },
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -4946,6 +5021,10 @@ async function updateTraineeProgramDetails(
     data: {
       ...(name ? { name } : {}),
       ...(input.description !== undefined ? { description: input.description || null } : {}),
+      // Week 1 is anchored here instead of to the assignment date. Only the
+      // owner reaches this, so an AI program can be pinned to the Monday the
+      // trainee actually means to start.
+      ...(input.startDate !== undefined ? { startDate: normalizeProgramStartDateInput(input.startDate) } : {}),
     },
     include: PROGRAM_INCLUDE,
     where: { id: programId },
@@ -4954,6 +5033,71 @@ async function updateTraineeProgramDetails(
   await applyTraineeExerciseOverrides((program as ProgramRecord).workouts, profile.id)
 
   return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
+}
+
+/**
+ * Putting a program away. Its sessions leave the board and the week schedule,
+ * but nothing is destroyed — restoring brings all of it back.
+ */
+async function archiveTraineeProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const owned = await assertTraineeOwnsProgram(profile, programId, { allowArchived: true })
+
+  const program = await db.program.update({
+    // Archiving twice keeps the first date rather than moving it.
+    data: { archivedAt: owned.archivedAt ?? new Date() },
+    include: PROGRAM_INCLUDE,
+    where: { id: owned.id },
+  })
+
+  return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
+}
+
+async function restoreTraineeProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const owned = await assertTraineeOwnsProgram(profile, programId, { allowArchived: true })
+
+  const program = await db.program.update({
+    data: { archivedAt: null },
+    include: PROGRAM_INCLUDE,
+    where: { id: owned.id },
+  })
+
+  return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
+}
+
+/**
+ * Deleting for good. A logged session is history, so it blocks the delete and
+ * points at archiving instead — the rule a coach's programs already follow.
+ *
+ * The trainee's own assignment is not a reason to block, which is where this
+ * parts company with `deleteCoachProgram`: a coach's library program having an
+ * assignment means it is out with someone, while a trainee's program always
+ * carries the self-assignment that delivers it. Workouts and that assignment
+ * both cascade away with the row.
+ */
+async function deleteTraineeProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const owned = await assertTraineeOwnsProgram(profile, programId, { allowArchived: true })
+
+  const [liveLogCount, orphanLogCount] = await Promise.all([
+    db.workoutLog.count({ where: { workout: { programId: owned.id } } }),
+    db.workoutLog.count({ where: { programId: owned.id } }),
+  ])
+
+  if (liveLogCount > 0 || orphanLogCount > 0) {
+    throw new AuthServiceError(
+      "Chương trình đã có buổi tập được ghi lại — hãy lưu trữ thay vì xoá để giữ lịch sử.",
+      409,
+    )
+  }
+
+  await db.program.delete({ where: { id: owned.id } })
+
+  return { deleted: true, id: owned.id }
 }
 
 async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
@@ -8381,4 +8525,7 @@ export {
   upsertWorkoutSessionDraftForTrainee,
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
+  archiveTraineeProgram,
+  deleteTraineeProgram,
+  restoreTraineeProgram,
 }

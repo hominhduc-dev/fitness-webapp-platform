@@ -73,9 +73,11 @@ const updateTraineeProgramSchema = z
   .object({
     description: z.string().max(2000).nullish(),
     name: z.string().trim().min(1, "Tên chương trình không được để trống.").max(120).optional(),
+    /** Week 1's anchor. Null clears it, so the assignment date anchors again. */
+    startDate: isoDate.nullish(),
   })
   .refine(
-    (value) => value.name !== undefined || value.description !== undefined,
+    (value) => value.name !== undefined || value.description !== undefined || value.startDate !== undefined,
     "Cần ít nhất một trường để cập nhật.",
   )
 

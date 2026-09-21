@@ -50,12 +50,16 @@ async function ProgramDetailContent({ programId }: { programId: string }) {
   // Only a program the trainee authored is theirs to reshape; a coach's plan
   // stays read-only here, and the backend enforces the same rule.
   const canEdit = program.createdBy === profile.id && !program.archivedAt
+  // Archiving, restoring and deleting outlive editing: the whole point of
+  // restore is that it works on a program editing is already closed for.
+  const canManage = program.createdBy === profile.id
 
   return (
     <ProgramWeekViewer
       initialData={workoutData}
       assignedAt={assignedAt}
       canEdit={canEdit}
+      canManage={canManage}
       historyLogs={workoutData.historyLogs}
       program={program}
     />
