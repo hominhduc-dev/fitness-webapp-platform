@@ -506,6 +506,11 @@ input[type="button"] {
   --brand-primary-soft:  #dff3e8;
   --brand-secondary:     #16a05d;
   --brand-accent:        #16a05d;
+  /* Pinned to the light family's blue. --info-token otherwise aliases
+     --brand-accent, which here is the same hex as --brand-secondary — and
+     --ok aliases that — so Info and Success resolved to an identical colour
+     while --info-soft/--info-text stayed blue. */
+  --info-token: #3b82f6;
 
   --ink-0:   #f5f8f6;
   --ink-50:  #eaf5ef;
@@ -566,6 +571,10 @@ input[type="button"] {
   --brand-primary-soft:  #f0f7e7;
   --brand-secondary:     #16a05d;
   --brand-accent:        #a3e635;
+  /* Pinned to the light family's blue: --info-token otherwise aliases
+     --brand-accent (lime here), which left the solid info fill lime while
+     --info-soft/--info-text stayed blue. */
+  --info-token: #3b82f6;
   /* The supplied lime remains the brand/chart hue; controls use its darker
      accessible state so primary text and buttons meet WCAG AA. */
   --accent-color:        #3f6f0d;
@@ -603,6 +612,11 @@ input[type="button"] {
   --brand-secondary:     #16a05d;
   --brand-accent:        #ffb020;
   --ok:                  var(--brand-secondary);
+  /* Pinned to the light family's blue: --info-token otherwise aliases
+     --brand-accent (amber here), which left the solid info fill amber —
+     near-indistinguishable from warning — while --info-soft/--info-text
+     stayed blue. */
+  --info-token: #3b82f6;
   /* Bright orange is preserved for charts and highlights. Interactive
      primary uses Primary Dark so it remains legible as both text and fill. */
   --accent-color:        #c2410c;
@@ -638,6 +652,11 @@ input[type="button"] {
   --brand-primary-soft:  #fde8e8;
   --brand-secondary:     #16a05d;
   --brand-accent:        #ffb703;
+  /* Pinned to the light family's blue: --info-token otherwise aliases
+     --brand-accent (amber here), which left the solid info fill amber —
+     near-indistinguishable from warning — while --info-soft/--info-text
+     stayed blue. */
+  --info-token: #3b82f6;
   /* Crimson Primary is a vivid highlight; Primary Dark carries interactive
      text/button contrast on the pale crimson surface. */
   --accent-color:        #b91c2a;
@@ -833,6 +852,16 @@ input[type="button"] {
   --ok: #4ade80;
   --warn: #facc15;
   --danger: #ff5a5f;
+  /* Info is pinned alongside the other three semantics rather than inherited.
+     Everywhere else --info-token aliases --brand-accent, which here is volt
+     (#c7ff32) — that turned the solid info fill volt-green while its soft
+     surface and ink stayed blue (--info-soft / --info-text come from .dark),
+     so a `bg-info` badge was indistinguishable from a brand one and info
+     alerts drew a green rim around a blue panel. The dark family's blue keeps
+     Info distinct from success green, warning yellow and danger red, which is
+     the whole job of the role. --brand-accent itself is left at volt for the
+     highlight/chart use the palette contract pins it to. */
+  --info-token: #89c8ff;
 
   --accent-ink-color: #b6f23a;
   --primary-foreground: #0d0f0e;
