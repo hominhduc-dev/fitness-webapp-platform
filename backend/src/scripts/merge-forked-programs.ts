@@ -51,6 +51,50 @@ function slotKey(workout: { scheduledDay: number | null; weekIndex: number | nul
   return `${workout.weekIndex ?? "null"}:${workout.scheduledDay ?? "null"}`
 }
 
+type CopyPlan =
+  | { kind: "merge" }
+  | { kind: "promote"; reason: string }
+  | { kind: "deleteOrphan" }
+  | { kind: "skip"; reason: string }
+
+/**
+ * Decides what to do with one personalized copy.
+ *
+ * Kept pure and separate from the writing below so the rule that matters — a
+ * copy holding workout logs is never deleted, and is only ever merged when
+ * there is a live program to merge it into — can be tested without a database.
+ * Every branch that could lose history returns "skip" or "promote"; only
+ * "merge" and "deleteOrphan" write anything destructive, and neither is reached
+ * while logs are at risk.
+ */
+function planCopyAction(input: {
+  assignmentCount: number
+  isOwnRoot: boolean
+  logCount: number
+  rootExists: boolean
+}): CopyPlan {
+  if (input.assignmentCount === 0) {
+    // Logs without a trainee to attribute them to: leave it for a human rather
+    // than delete a program that still carries history.
+    if (input.logCount > 0) return { kind: "skip", reason: `unassigned but holds ${input.logCount} logs` }
+    return { kind: "deleteOrphan" }
+  }
+
+  if (input.assignmentCount > 1) {
+    return { kind: "skip", reason: `${input.assignmentCount} assignments, expected one` }
+  }
+
+  // The fork pointer leads nowhere: either it points at itself, or the coach
+  // deleted the original, which nothing prevents because forkedFromProgramId
+  // carries no foreign key. Merging is impossible and deleting would destroy
+  // the only copy of this trainee's plan and logs, so the copy is promoted to a
+  // program of its own and left exactly where it is.
+  if (input.isOwnRoot) return { kind: "promote", reason: "fork pointer resolves to itself" }
+  if (!input.rootExists) return { kind: "promote", reason: "the original no longer exists" }
+
+  return { kind: "merge" }
+}
+
 async function main() {
   if (!prisma) throw new Error("DATABASE_URL is required.")
   const db = prisma
@@ -72,52 +116,60 @@ async function main() {
   console.log(`Found ${copies.length} personalized ${copies.length === 1 ? "copy" : "copies"}.`)
 
   let merged = 0
+  let promoted = 0
   let orphansDeleted = 0
   let overridesPlanned = 0
   let logsMoved = 0
   const skipped: string[] = []
 
   for (const copy of copies) {
-    // The orphans the re-forking bug left: a copy nobody is assigned to. There
-    // is no trainee whose overrides these could become.
-    if (copy.assignments.length === 0) {
-      const logCount = await db.workoutLog.count({ where: { programId: copy.id } })
-      if (logCount > 0) {
-        skipped.push(`${copy.id} (${copy.name}): unassigned but holds ${logCount} logs`)
-        continue
-      }
+    const logCount = await db.workoutLog.count({ where: { programId: copy.id } })
+    const rootId = await resolveRootProgramId(db, copy.id)
+    const isOwnRoot = rootId === copy.id
+    const root = isOwnRoot
+      ? null
+      : await db.program.findUnique({
+          include: {
+            workouts: {
+              include: { exercises: { orderBy: { order: "asc" } } },
+              orderBy: [{ weekIndex: "asc" }, { scheduledDay: "asc" }],
+            },
+          },
+          where: { id: rootId },
+        })
 
+    const plan = planCopyAction({
+      assignmentCount: copy.assignments.length,
+      isOwnRoot,
+      logCount,
+      rootExists: Boolean(root),
+    })
+
+    if (plan.kind === "skip") {
+      skipped.push(`${copy.id} (${copy.name}): ${plan.reason}`)
+      continue
+    }
+
+    if (plan.kind === "deleteOrphan") {
       console.log(`  orphan  ${copy.id}  ${copy.name}`)
       orphansDeleted += 1
       if (apply) await db.program.delete({ where: { id: copy.id } })
       continue
     }
 
-    if (copy.assignments.length > 1) {
-      skipped.push(`${copy.id} (${copy.name}): ${copy.assignments.length} assignments, expected one`)
+    if (plan.kind === "promote") {
+      // Nothing moves: one column, no deletion, no assignment reassigned, no
+      // log touched. The trainee carries on against the same workout ids.
+      console.log(`  promote ${copy.id}  ${copy.name}  (${plan.reason}; ${logCount} logs stay put)`)
+      promoted += 1
+      if (apply) {
+        await db.program.update({ data: { forkedFromProgramId: null }, where: { id: copy.id } })
+      }
       continue
     }
 
     const assignment = copy.assignments[0]
-    const rootId = await resolveRootProgramId(db, copy.id)
-    if (rootId === copy.id) {
-      skipped.push(`${copy.id} (${copy.name}): fork pointer does not resolve to another program`)
-      continue
-    }
-
-    const root = await db.program.findUnique({
-      include: {
-        workouts: {
-          include: { exercises: { orderBy: { order: "asc" } } },
-          orderBy: [{ weekIndex: "asc" }, { scheduledDay: "asc" }],
-        },
-      },
-      where: { id: rootId },
-    })
-    if (!root) {
-      skipped.push(`${copy.id} (${copy.name}): root program ${rootId} is gone`)
-      continue
-    }
+    if (!root) throw new Error(`Unreachable: merge planned for ${copy.id} without a root.`)
 
     const rootWorkoutBySlot = new Map(root.workouts.map((workout) => [slotKey(workout), workout]))
 
@@ -159,15 +211,13 @@ async function main() {
       continue
     }
 
-    const copyLogCount = await db.workoutLog.count({ where: { programId: copy.id } })
-
     console.log(
       `  merge   ${copy.id}  ${copy.name}  → ${rootId}  ` +
-      `(${overrides.length} overrides, ${copyLogCount} logs, trainee ${assignment.userId})`,
+      `(${overrides.length} overrides, ${logCount} logs, trainee ${assignment.userId})`,
     )
     merged += 1
     overridesPlanned += overrides.length
-    logsMoved += copyLogCount
+    logsMoved += logCount
 
     if (!apply) continue
 
@@ -215,7 +265,10 @@ async function main() {
   }
 
   console.log("")
-  console.log(`${apply ? "Applied" : "Would apply"}: ${merged} merged, ${orphansDeleted} orphans deleted,`)
+  console.log(
+    `${apply ? "Applied" : "Would apply"}: ${merged} merged, ${promoted} promoted, ` +
+    `${orphansDeleted} orphans deleted,`,
+  )
   console.log(`  ${overridesPlanned} override rows, ${logsMoved} logs moved.`)
 
   if (skipped.length > 0) {
@@ -227,11 +280,15 @@ async function main() {
   if (!apply) console.log("\nDry run. Re-run with --apply to write.")
 }
 
-main()
-  .catch((error) => {
-    console.error(error)
-    process.exitCode = 1
-  })
-  .finally(async () => {
-    await prisma?.$disconnect()
-  })
+if (require.main === module) {
+  void main()
+    .catch((error) => {
+      console.error(error instanceof Error ? error.message : error)
+      process.exitCode = 1
+    })
+    .finally(async () => {
+      await prisma?.$disconnect()
+    })
+}
+
+export { planCopyAction }
