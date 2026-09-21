@@ -116,4 +116,29 @@ describe("resolveProgramAnchor", () => {
       weekIndex: 1,
     })
   })
+
+  /**
+   * The boundary has to be the backend's. `hasAssignmentStarted` opens a
+   * program for the whole week its start date falls in, so a Wednesday start
+   * is live from the Monday — the trainee can already log it. Reporting
+   * "not started" there would have labelled a session they were free to train.
+   */
+  it("counts a mid-week start as started from that week's Monday", () => {
+    // Wednesday 2026-09-30 sits in the week beginning Monday 2026-09-28.
+    const startDate = "2026-09-30"
+
+    expect(resolveCurrentWeekProgress(startDate, 4, new Date("2026-09-28T09:00:00.000Z"))).toEqual({
+      kind: "active",
+      weekIndex: 0,
+    })
+    expect(resolveCurrentWeekProgress(startDate, 4, new Date("2026-09-21T09:00:00.000Z"))).toEqual({
+      kind: "not-started",
+    })
+  })
+
+  it("still reports a start date a whole week out as not started", () => {
+    expect(resolveCurrentWeekProgress("2026-09-28", 4, new Date("2026-09-21T09:00:00.000Z"))).toEqual({
+      kind: "not-started",
+    })
+  })
 })
