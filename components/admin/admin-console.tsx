@@ -2079,12 +2079,15 @@ export function AdminConsole() {
   const pendingRequestCount = coachRequests.filter((request) => request.status === "pending").length
   return (
     <>
-      {/* A fixed-height workspace: the page itself never scrolls, the section
-          body does. See `.admin-workspace` in globals.css for the height chain
-          this depends on. A plain div, not <main> — the shell already owns the
-          document's one <main>, and nesting a second is invalid. */}
-      <div className="admin-workspace flex flex-col gap-4 px-4 py-4 md:px-9 md:py-6">
-          <div className="shrink-0 space-y-3">
+      {/* The console scrolls as an ordinary page. The two things that stay
+          put — the shell header and the mobile nav bar — are already pinned by
+          the shell itself (sticky and fixed respectively), so nothing here
+          should pin a second region on top of them.
+
+          A plain div, not <main>: the shell already owns the document's one
+          <main>, and nesting a second is invalid. */}
+      <div className="space-y-5 px-4 py-4 md:px-9 md:py-6">
+          <div className="space-y-3">
             <AdminShellHeader
               activeSection={activeSection}
               auditCount={auditLogs.length}
@@ -2106,7 +2109,7 @@ export function AdminConsole() {
             ) : null}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden semantic-scrollbar">
+          <div>
 
             {isConsolePending ? (
               <AdminConsoleLoadingState locale={locale} />
@@ -2284,7 +2287,6 @@ export function AdminConsole() {
                 )}
               </Card>
               <Pagination
-                className="shrink-0"
                 labels={paginationLabels(locale, usersPage)}
                 onPageChange={usersPage.setPage}
                 page={usersPage.page}
@@ -2400,7 +2402,6 @@ export function AdminConsole() {
               )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} icon={UserRoundCheck} />}
             </div>
             <Pagination
-              className="shrink-0"
               labels={paginationLabels(locale, requestsPage)}
               onPageChange={requestsPage.setPage}
               page={requestsPage.page}
@@ -2477,7 +2478,6 @@ export function AdminConsole() {
               )}
             </Card>
             <Pagination
-              className="shrink-0"
               labels={paginationLabels(locale, connectionsPage)}
               onPageChange={connectionsPage.setPage}
               page={connectionsPage.page}
@@ -2521,7 +2521,6 @@ export function AdminConsole() {
               )}
             </Card>
             <Pagination
-              className="shrink-0"
               labels={paginationLabels(locale, programsPage)}
               onPageChange={programsPage.setPage}
               page={programsPage.page}
@@ -2616,7 +2615,6 @@ export function AdminConsole() {
               )}
             </Card>
             <Pagination
-              className="shrink-0"
               labels={paginationLabels(locale, auditPage)}
               onPageChange={auditPage.setPage}
               page={auditPage.page}
