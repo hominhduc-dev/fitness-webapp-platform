@@ -3771,6 +3771,18 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
       program: { archivedAt: null },
     },
   })
+  // Archived programs are kept out of the board and the week schedule above, so
+  // they are read separately: a trainee who put one away still needs a way back
+  // to it. Only their own, since a coach's archived program is not theirs to
+  // restore.
+  const archivedAssignments = await db.programAssignment.findMany({
+    orderBy: { assignedAt: "desc" },
+    select: { program: { select: { archivedAt: true, duration: true, id: true, name: true } } },
+    where: {
+      program: { archivedAt: { not: null }, createdById: profile.id },
+      userId: profile.id,
+    },
+  })
   const coachUpdateWorkoutIds = await buildCoachUpdateWorkoutIdsForAssignments(
     profile,
     assignments as TraineeProgramAssignmentWithWorkouts[],
@@ -3893,6 +3905,16 @@ async function listWorkoutsForTrainee(profile: SerializedProfile) {
 
   return {
     activeSessions,
+    archivedPrograms: archivedAssignments.flatMap((a) =>
+      a.program.archivedAt
+        ? [{
+            archivedAt: a.program.archivedAt,
+            duration: a.program.duration,
+            id: a.program.id,
+            name: a.program.name,
+          }]
+        : [],
+    ),
     historyLogs: historyLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     programs: assignments.map((a) => ({
       assignedAt: a.assignedAt,
@@ -4802,7 +4824,16 @@ async function deletePersonalWorkoutForTrainee(profile: SerializedProfile, worko
  * editing those belongs to the coach, and letting a trainee rewrite them would
  * silently diverge from what the coach is tracking.
  */
-async function assertTraineeOwnsProgram(profile: SerializedProfile, programId: string) {
+/**
+ * `allowArchived` exists for the lifecycle actions only. Editing an archived
+ * program stays refused — but restoring one, or deleting it for good, is
+ * precisely what a trainee reaches for once it is archived.
+ */
+async function assertTraineeOwnsProgram(
+  profile: SerializedProfile,
+  programId: string,
+  options?: { allowArchived?: boolean },
+) {
   const db = ensurePrisma()
   const program = await db.program.findFirst({
     select: { archivedAt: true, duration: true, id: true },
@@ -4817,7 +4848,7 @@ async function assertTraineeOwnsProgram(profile: SerializedProfile, programId: s
     throw new AuthServiceError("Không tìm thấy chương trình của bạn.", 404)
   }
 
-  if (program.archivedAt) {
+  if (program.archivedAt && !options?.allowArchived) {
     throw new AuthServiceError("Chương trình đã lưu trữ, không thể chỉnh sửa.", 409)
   }
 
@@ -5000,6 +5031,71 @@ async function updateTraineeProgramDetails(
   await applyTraineeExerciseOverrides((program as ProgramRecord).workouts, profile.id)
 
   return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
+}
+
+/**
+ * Putting a program away. Its sessions leave the board and the week schedule,
+ * but nothing is destroyed — restoring brings all of it back.
+ */
+async function archiveTraineeProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const owned = await assertTraineeOwnsProgram(profile, programId, { allowArchived: true })
+
+  const program = await db.program.update({
+    // Archiving twice keeps the first date rather than moving it.
+    data: { archivedAt: owned.archivedAt ?? new Date() },
+    include: PROGRAM_INCLUDE,
+    where: { id: owned.id },
+  })
+
+  return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
+}
+
+async function restoreTraineeProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const owned = await assertTraineeOwnsProgram(profile, programId, { allowArchived: true })
+
+  const program = await db.program.update({
+    data: { archivedAt: null },
+    include: PROGRAM_INCLUDE,
+    where: { id: owned.id },
+  })
+
+  return serializeProgram(program as ProgramRecord, { viewerId: profile.id })
+}
+
+/**
+ * Deleting for good. A logged session is history, so it blocks the delete and
+ * points at archiving instead — the rule a coach's programs already follow.
+ *
+ * The trainee's own assignment is not a reason to block, which is where this
+ * parts company with `deleteCoachProgram`: a coach's library program having an
+ * assignment means it is out with someone, while a trainee's program always
+ * carries the self-assignment that delivers it. Workouts and that assignment
+ * both cascade away with the row.
+ */
+async function deleteTraineeProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+  const owned = await assertTraineeOwnsProgram(profile, programId, { allowArchived: true })
+
+  const [liveLogCount, orphanLogCount] = await Promise.all([
+    db.workoutLog.count({ where: { workout: { programId: owned.id } } }),
+    db.workoutLog.count({ where: { programId: owned.id } }),
+  ])
+
+  if (liveLogCount > 0 || orphanLogCount > 0) {
+    throw new AuthServiceError(
+      "Chương trình đã có buổi tập được ghi lại — hãy lưu trữ thay vì xoá để giữ lịch sử.",
+      409,
+    )
+  }
+
+  await db.program.delete({ where: { id: owned.id } })
+
+  return { deleted: true, id: owned.id }
 }
 
 async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
@@ -8427,4 +8523,7 @@ export {
   upsertWorkoutSessionDraftForTrainee,
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
+  archiveTraineeProgram,
+  deleteTraineeProgram,
+  restoreTraineeProgram,
 }

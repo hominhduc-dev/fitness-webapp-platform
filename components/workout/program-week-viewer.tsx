@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, Copy, Loader2, Pencil, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Archive, ArchiveRestore, ArrowLeft, Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { FilterChip } from "@/components/workout/filter-chip"
@@ -14,7 +15,16 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import { useAddWorkoutToProgram, useCopyProgramWeek, useUpdateTraineeProgram, useTraineeProgram, useWorkouts } from "@/lib/queries/workouts"
+import {
+  useAddWorkoutToProgram,
+  useArchiveTraineeProgram,
+  useCopyProgramWeek,
+  useDeleteTraineeProgram,
+  useRestoreTraineeProgram,
+  useUpdateTraineeProgram,
+  useTraineeProgram,
+  useWorkouts,
+} from "@/lib/queries/workouts"
 import type { WorkoutCollection } from "@/lib/fitness/types"
 import { clampWeeks, resolveCurrentWeekProgress, resolveProgramAnchor } from "@/lib/fitness/program-week"
 import type { CoachProgram } from "@/lib/fitness/types"
@@ -26,6 +36,8 @@ type ProgramWeekViewerProps = {
   initialData?: WorkoutCollection
   assignedAt?: Date
   canEdit?: boolean
+  /** Archive, restore and delete. Outlives `canEdit`, which an archive closes. */
+  canManage?: boolean
   historyLogs: WorkoutLog[]
   program: CoachProgram
 }
@@ -47,13 +59,17 @@ function getDayLabels(locale: AppLocale) {
  * The coach editor covers the same ground but is an authoring tool bound to
  * coach-only endpoints, so this stays a separate, much smaller view.
  */
-export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: initialLogs, program: initialProgram, initialData }: ProgramWeekViewerProps) {
+export function ProgramWeekViewer({ assignedAt, canEdit = false, canManage = false, historyLogs: initialLogs, program: initialProgram, initialData }: ProgramWeekViewerProps) {
   const { data: program = initialProgram } = useTraineeProgram(initialProgram.id, initialProgram)
   const { data: collection } = useWorkouts(initialData)
   const historyLogs = collection?.historyLogs ?? initialLogs
   const addMutation = useAddWorkoutToProgram()
   const copyMutation = useCopyProgramWeek()
   const updateMutation = useUpdateTraineeProgram()
+  const archiveMutation = useArchiveTraineeProgram()
+  const restoreMutation = useRestoreTraineeProgram()
+  const deleteMutation = useDeleteTraineeProgram()
+  const router = useRouter()
   const { locale, messages } = useLocale()
   const totalWeeks = clampWeeks(program.duration)
 
@@ -93,8 +109,10 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
   const [draftName, setDraftName] = useState(program.name)
   const [draftDescription, setDraftDescription] = useState(program.description ?? "")
   const [draftStartDate, setDraftStartDate] = useState(program.startDate ?? "")
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isArchived = Boolean(program.archivedAt)
 
   const weekWorkouts = workoutsByWeek.get(activeWeek) ?? []
   const isCompleted = progress?.kind === "completed"
@@ -165,7 +183,42 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
               {messages.workoutPage.editProgramInfo}
             </Button>
           ) : null}
+          {canManage ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isBusy}
+                className="mt-1 h-8 gap-1.5 rounded-lg bg-transparent px-2.5 text-xs"
+                onClick={() =>
+                  void run(() =>
+                    isArchived ? restoreMutation.mutateAsync(program.id) : archiveMutation.mutateAsync(program.id),
+                  )
+                }
+              >
+                {isArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                {isArchived ? messages.workoutPage.restoreProgram : messages.workoutPage.archiveProgram}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isBusy}
+                className="mt-1 h-8 gap-1.5 rounded-lg bg-transparent px-2.5 text-xs text-destructive-text"
+                onClick={() => setIsDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {messages.workoutPage.deleteProgram}
+              </Button>
+            </>
+          ) : null}
         </div>
+        {isArchived ? (
+          <p className="mt-2 rounded-lg bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+            {messages.workoutPage.programArchivedNotice}
+          </p>
+        ) : null}
         {program.description ? (
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{program.description}</p>
         ) : null}
@@ -345,6 +398,35 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, historyLogs: in
               }}
             >
               {messages.workoutPage.saveChanges}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-[min(92vw,440px)]">
+          <DialogHeader className="text-left">
+            <DialogTitle>{messages.workoutPage.deleteProgramTitle}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {messages.workoutPage.deleteProgramCopy}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              {messages.workoutPage.cancel}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isBusy}
+              onClick={() => {
+                setIsDeleteOpen(false)
+                void run(async () => {
+                  await deleteMutation.mutateAsync(program.id)
+                  router.push("/workout")
+                })
+              }}
+            >
+              {messages.workoutPage.deleteProgram}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -13,7 +13,7 @@ import { RoutinesLoadingState } from "@/components/workout/routines-loading-stat
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { getTagLabel, inferRoutineTag, type RoutineTag } from "@/lib/fitness/routine-tag"
-import type { TraineeProgram } from "@/lib/fitness/types"
+import type { ArchivedTraineeProgram, TraineeProgram } from "@/lib/fitness/types"
 import type { WorkoutCollection } from "@/lib/fitness/types"
 import { useWorkouts } from "@/lib/queries/workouts"
 import type { Workout } from "@/lib/types"
@@ -29,6 +29,7 @@ type ProgramGroup = {
 
 const FILTERS: RoutineTag[] = ["all", "push", "pull", "legs", "upper", "lower", "full"]
 const EMPTY_PROGRAMS: TraineeProgram[] = []
+const EMPTY_ARCHIVED_PROGRAMS: ArchivedTraineeProgram[] = []
 const EMPTY_WORKOUTS: Workout[] = []
 
 function CreateRoutineButton() {
@@ -51,6 +52,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
   const data = workoutsQuery.data
   const historyLogs = data?.historyLogs ?? []
   const programs = data?.programs ?? EMPTY_PROGRAMS
+  const archivedPrograms = data?.archivedPrograms ?? EMPTY_ARCHIVED_PROGRAMS
   const workouts = data?.workouts ?? EMPTY_WORKOUTS
   const { messages } = useLocale()
   const [filter, setFilter] = useState<RoutineTag>("all")
@@ -195,7 +197,31 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
         </section>
       ) : null}
 
-      {cardCount === 0 ? (
+      {/* Archiving takes a program off the board, so without this there would be
+          no way back to the page that restores it. */}
+      {archivedPrograms.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="mb-3.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
+            {messages.workoutPage.archivedPrograms}
+          </h2>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {archivedPrograms.map((program) => (
+              <Link
+                key={program.id}
+                href={`/workout/programs/${program.id}`}
+                className="rounded-lg border border-dashed border-border px-4 py-3.5 transition-colors hover:bg-muted/50"
+              >
+                <p className="truncate text-sm font-medium text-foreground">{program.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {messages.workoutPage.archivedProgramWeeks(program.duration)}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {cardCount === 0 && archivedPrograms.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center" data-tour="trainee-workout-list">
           <p className="text-sm font-medium text-foreground">{messages.workoutPage.noRoutinesTitle}</p>
           <p className="mt-1 text-sm text-muted-foreground">{messages.workoutPage.noRoutinesCopy}</p>

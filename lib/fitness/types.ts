@@ -80,8 +80,17 @@ type WeeklyCaloriesPoint = {
   target: number
 }
 
+/** A program the trainee put away. Kept out of the board's week, still restorable. */
+type ArchivedTraineeProgram = {
+  archivedAt: Date
+  duration: number
+  id: string
+  name: string
+}
+
 type WorkoutCollection = {
   activeSessions: ActiveWorkoutSession[]
+  archivedPrograms: ArchivedTraineeProgram[]
   historyLogs: WorkoutLog[]
   programs: TraineeProgram[]
   recentLogs: WorkoutLog[]
@@ -789,6 +798,7 @@ export type {
   RecoveryCheckIn,
   RecoveryCheckInInput,
   TraineeDashboardData,
+  ArchivedTraineeProgram,
   TraineeProgram,
   WeeklyCaloriesPoint,
   WorkoutCollection,

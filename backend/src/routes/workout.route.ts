@@ -5,10 +5,12 @@ import { asyncHandler, validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   addWorkoutToTraineeProgram,
+  archiveTraineeProgram,
   copyTraineeProgramWeek,
   createPersonalWorkoutForTrainee,
   createWorkoutLogForTrainee,
   deletePersonalWorkoutForTrainee,
+  deleteTraineeProgram,
   deleteWorkoutSessionDraftForTrainee,
   deleteWorkoutLogForTrainee,
   duplicateAssignedWorkoutAsPersonalRoutine,
@@ -19,6 +21,7 @@ import {
   listWorkoutLogsForExportTrainee,
   listWorkoutSessionDraftsForTrainee,
   listWorkoutsForTrainee,
+  restoreTraineeProgram,
   swapExerciseForTraineeFromWorkout,
   updatePersonalWorkoutForTrainee,
   updateTraineeProgramDetails,
@@ -67,6 +70,30 @@ workoutRouter.patch(
   validated({ body: updateTraineeProgramSchema, params: programIdParams }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     res.json({ program: await updateTraineeProgramDetails(profile, req.params.programId, req.body) })
+  }),
+)
+
+workoutRouter.post(
+  "/programs/:programId/archive",
+  validated({ params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ program: await archiveTraineeProgram(profile, req.params.programId) })
+  }),
+)
+
+workoutRouter.post(
+  "/programs/:programId/restore",
+  validated({ params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json({ program: await restoreTraineeProgram(profile, req.params.programId) })
+  }),
+)
+
+workoutRouter.delete(
+  "/programs/:programId",
+  validated({ params: programIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    res.json(await deleteTraineeProgram(profile, req.params.programId))
   }),
 )
 

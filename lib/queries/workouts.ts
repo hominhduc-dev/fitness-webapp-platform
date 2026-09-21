@@ -20,6 +20,9 @@ import {
   deleteWorkoutLog,
   fetchActiveWorkoutSessions,
   swapWorkoutExercise,
+  archiveTraineeProgram,
+  deleteTraineeProgram,
+  restoreTraineeProgram,
   updateTraineeProgram,
   updateWorkout,
   duplicateWorkoutToRoutine,
@@ -322,6 +325,33 @@ export function useUpdateTraineeProgram() {
       programId: string
       input: Parameters<typeof updateTraineeProgram>[2]
     }) => updateTraineeProgram(await requireAccessToken(), programId, input),
+    onSuccess: invalidateTrainingData,
+  })
+}
+
+export function useArchiveTraineeProgram() {
+  const invalidateTrainingData = useInvalidateTrainingData()
+
+  return useMutation({
+    mutationFn: async (programId: string) => archiveTraineeProgram(await requireAccessToken(), programId),
+    onSuccess: invalidateTrainingData,
+  })
+}
+
+export function useRestoreTraineeProgram() {
+  const invalidateTrainingData = useInvalidateTrainingData()
+
+  return useMutation({
+    mutationFn: async (programId: string) => restoreTraineeProgram(await requireAccessToken(), programId),
+    onSuccess: invalidateTrainingData,
+  })
+}
+
+export function useDeleteTraineeProgram() {
+  const invalidateTrainingData = useInvalidateTrainingData()
+
+  return useMutation({
+    mutationFn: async (programId: string) => deleteTraineeProgram(await requireAccessToken(), programId),
     onSuccess: invalidateTrainingData,
   })
 }

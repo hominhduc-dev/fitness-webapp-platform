@@ -1440,12 +1440,19 @@ async function fetchWorkoutLogDetail(accessToken: string, logId: string): Promis
 async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
   const response = await request<{
     activeSessions?: SerializedActiveWorkoutSession[]
+    archivedPrograms?: Array<{
+      archivedAt: string
+      duration: number
+      id: string
+      name: string
+    }>
     historyLogs: SerializedWorkoutLog[]
     programs: Array<{
       assignedAt: string
       duration: number
       id: string
       isPersonal?: boolean
+      isStandaloneRoutine?: boolean
       name: string
       startDate?: string
     }>
@@ -1464,6 +1471,7 @@ async function fetchWorkouts(accessToken: string): Promise<WorkoutCollection> {
 
   return {
     activeSessions: response.activeSessions ?? [],
+    archivedPrograms: (response.archivedPrograms ?? []).map((p) => ({ ...p, archivedAt: new Date(p.archivedAt) })),
     historyLogs: (response.historyLogs ?? []).map(mapWorkoutLog),
     programs: (response.programs ?? []).map((p) => ({ ...p, assignedAt: new Date(p.assignedAt) })),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
@@ -1625,6 +1633,32 @@ async function updateTraineeProgram(
   )
 
   return mapCoachProgram(response.program)
+}
+
+async function archiveTraineeProgram(accessToken: string, programId: string) {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/workouts/programs/${programId}/archive`,
+    accessToken,
+    { method: "POST" },
+  )
+
+  return mapCoachProgram(response.program)
+}
+
+async function restoreTraineeProgram(accessToken: string, programId: string) {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/workouts/programs/${programId}/restore`,
+    accessToken,
+    { method: "POST" },
+  )
+
+  return mapCoachProgram(response.program)
+}
+
+async function deleteTraineeProgram(accessToken: string, programId: string) {
+  return request<{ deleted: boolean; id: string }>(`/api/workouts/programs/${programId}`, accessToken, {
+    method: "DELETE",
+  })
 }
 
 async function createWorkoutLog(accessToken: string, workoutId: string, input: WorkoutLogInput) {
@@ -2696,6 +2730,9 @@ export {
   approveTraineeExerciseSwap,
   rejectTraineeExerciseSwap,
   copyProgramWeek,
+  archiveTraineeProgram,
+  deleteTraineeProgram,
+  restoreTraineeProgram,
   updateTraineeProgram,
   clearNotifications,
   markAllNotificationsRead,
