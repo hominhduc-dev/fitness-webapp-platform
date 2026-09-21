@@ -10,21 +10,23 @@ import { requireAccessToken } from "@/lib/queries/token"
 type Result<F extends (...args: never[]) => unknown> = Awaited<ReturnType<F>>
 type Args<F> = F extends (token: string, ...args: infer A) => unknown ? A : never
 
-export function useAdminDashboard(initialData?: Result<typeof api.fetchAdminDashboard>) {
+export function useAdminDashboard(initialData?: Result<typeof api.fetchAdminDashboard>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminDashboard>>({
     queryKey: queryKeys.admin.dashboard(),
     queryFn: async () => api.fetchAdminDashboard(await requireAccessToken()),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminUsers(options?: Args<typeof api.fetchAdminUsers>[0], initialData?: Result<typeof api.fetchAdminUsers>) {
+export function useAdminUsers(options?: Args<typeof api.fetchAdminUsers>[0], initialData?: Result<typeof api.fetchAdminUsers>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminUsers>>({
     queryKey:  [...queryKeys.admin.users(), options ?? {}],
     queryFn: async () => api.fetchAdminUsers(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
@@ -38,78 +40,87 @@ export function useAdminUserDetail(userId: string, initialData?: Result<typeof a
   })
 }
 
-export function useAdminCoachRequests(options?: Args<typeof api.fetchAdminCoachRequests>[0], initialData?: Result<typeof api.fetchAdminCoachRequests>) {
+export function useAdminCoachRequests(options?: Args<typeof api.fetchAdminCoachRequests>[0], initialData?: Result<typeof api.fetchAdminCoachRequests>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminCoachRequests>>({
     queryKey:  [...queryKeys.admin.coachRequests(), options ?? {}],
     queryFn: async () => api.fetchAdminCoachRequests(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
 export function useAdminCoachSignups(
   options?: Args<typeof api.fetchAdminCoachSignups>[0],
   initialData?: Result<typeof api.fetchAdminCoachSignups>,
+  enabled = true,
 ) {
   return useUserQuery<Result<typeof api.fetchAdminCoachSignups>>({
     queryKey: [...queryKeys.admin.coachSignups(), options ?? {}],
     queryFn: async () => api.fetchAdminCoachSignups(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminConnections(options?: Args<typeof api.fetchAdminConnections>[0], initialData?: Result<typeof api.fetchAdminConnections>) {
+export function useAdminConnections(options?: Args<typeof api.fetchAdminConnections>[0], initialData?: Result<typeof api.fetchAdminConnections>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminConnections>>({
     queryKey:  [...queryKeys.admin.connections(), options ?? {}],
     queryFn: async () => api.fetchAdminConnections(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminPrograms(options?: Args<typeof api.fetchAdminPrograms>[0], initialData?: Result<typeof api.fetchAdminPrograms>) {
+export function useAdminPrograms(options?: Args<typeof api.fetchAdminPrograms>[0], initialData?: Result<typeof api.fetchAdminPrograms>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminPrograms>>({
     queryKey:  [...queryKeys.admin.programs(), options ?? {}],
     queryFn: async () => api.fetchAdminPrograms(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminExercises(options?: Args<typeof api.fetchAdminExercises>[0], initialData?: Result<typeof api.fetchAdminExercises>) {
+export function useAdminExercises(options?: Args<typeof api.fetchAdminExercises>[0], initialData?: Result<typeof api.fetchAdminExercises>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminExercises>>({
     queryKey:  [...queryKeys.admin.exercises(), options ?? {}],
     queryFn: async () => api.fetchAdminExercises(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminExerciseImportRequests(options?: Args<typeof api.fetchAdminExerciseImportRequests>[0], initialData?: Result<typeof api.fetchAdminExerciseImportRequests>) {
+export function useAdminExerciseImportRequests(options?: Args<typeof api.fetchAdminExerciseImportRequests>[0], initialData?: Result<typeof api.fetchAdminExerciseImportRequests>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminExerciseImportRequests>>({
     queryKey:  [...queryKeys.admin.exerciseImportRequests(), options ?? null],
     queryFn: async () => api.fetchAdminExerciseImportRequests(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminAuditLogs(options?: Args<typeof api.fetchAdminAuditLogs>[0], initialData?: Result<typeof api.fetchAdminAuditLogs>) {
+export function useAdminAuditLogs(options?: Args<typeof api.fetchAdminAuditLogs>[0], initialData?: Result<typeof api.fetchAdminAuditLogs>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminAuditLogs>>({
     queryKey:  [...queryKeys.admin.auditLogs(), options ?? {}],
     queryFn: async () => api.fetchAdminAuditLogs(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 
-export function useAdminCustomFoods(options?: Args<typeof api.fetchAdminCustomFoods>[0], initialData?: Result<typeof api.fetchAdminCustomFoods>) {
+export function useAdminCustomFoods(options?: Args<typeof api.fetchAdminCustomFoods>[0], initialData?: Result<typeof api.fetchAdminCustomFoods>, enabled = true) {
   return useUserQuery<Result<typeof api.fetchAdminCustomFoods>>({
     queryKey: [...queryKeys.admin.foods(), options ?? {}],
     queryFn: async () => api.fetchAdminCustomFoods(await requireAccessToken(), options),
     initialData,
     staleTime: 30_000,
+    enabled,
   })
 }
 

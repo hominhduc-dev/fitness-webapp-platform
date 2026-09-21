@@ -509,6 +509,46 @@ function UserDetailHistory({ locale, userDetail }: { locale: "en" | "vi"; userDe
  */
 const WIDE_USER_DETAIL_QUERY = "(min-width: 80rem)"
 
+/**
+ * What each section actually reads.
+ *
+ * The console used to fire all nine list queries on mount and hold the whole
+ * screen behind `isLoading` until the slowest one landed, so opening Overview
+ * waited on the full exercise library, the audit log and every connection —
+ * none of which Overview renders. Sections now fetch only their own data, and
+ * a disabled query reports `isLoading: false`, so the gate below narrows to
+ * whatever is on screen without any extra bookkeeping.
+ *
+ * A section's entry has to cover what its header copy reads too, not just its
+ * body: `users` shows coach/admin totals that come from the dashboard stats,
+ * and `connections` counts pending coach requests.
+ */
+const SECTION_DATA = {
+  audit: ["auditLogs"],
+  "coach-signups": ["coachSignups"],
+  connections: ["connections", "coachRequests"],
+  dashboard: ["dashboard", "coachRequests"],
+  exercises: ["exercises"],
+  foods: [],
+  programs: ["programs"],
+  requests: ["coachRequests"],
+  users: ["users", "dashboard"],
+} as const satisfies Record<string, readonly string[]>
+
+type AdminDataKey = (typeof SECTION_DATA)[keyof typeof SECTION_DATA][number]
+
+const VALID_SECTIONS = [
+  "dashboard",
+  "users",
+  "coach-signups",
+  "requests",
+  "connections",
+  "programs",
+  "exercises",
+  "foods",
+  "audit",
+] as const satisfies readonly AdminSectionId[]
+
 type AdminSectionId =
   | "dashboard"
   | "users"
@@ -685,17 +725,28 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
 
 export function AdminConsole() {
   const { locale } = useLocale()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
+  const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
+    VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard",
+  )
+  // Resolved before the queries below so each one knows whether this section
+  // actually reads it.
+  const sectionNeeds: readonly AdminDataKey[] = SECTION_DATA[activeSection]
+  const needs = (key: AdminDataKey) => sectionNeeds.includes(key)
+
   const [requestedUserId, setSelectedUserId] = useState<string | null>(null)
-  const dashboardQuery = queries.useAdminDashboard()
-  const usersQuery = queries.useAdminUsers()
-  const coachRequestsQuery = queries.useAdminCoachRequests()
+  const dashboardQuery = queries.useAdminDashboard(undefined, needs("dashboard"))
+  const usersQuery = queries.useAdminUsers(undefined, undefined, needs("users"))
+  const coachRequestsQuery = queries.useAdminCoachRequests(undefined, undefined, needs("coachRequests"))
   // Only for the header count; the queue itself lives in <CoachSignupsPanel>.
-  const coachSignupsQuery = queries.useAdminCoachSignups({ status: "pending" })
-  const connectionsQuery = queries.useAdminConnections()
-  const programsQuery = queries.useAdminPrograms()
-  const exercisesQuery = queries.useAdminExercises()
-  const importRequestsQuery = queries.useAdminExerciseImportRequests("pending")
-  const auditLogsQuery = queries.useAdminAuditLogs()
+  const coachSignupsQuery = queries.useAdminCoachSignups({ status: "pending" }, undefined, needs("coachSignups"))
+  const connectionsQuery = queries.useAdminConnections(undefined, undefined, needs("connections"))
+  const programsQuery = queries.useAdminPrograms(undefined, undefined, needs("programs"))
+  const exercisesQuery = queries.useAdminExercises(undefined, undefined, needs("exercises"))
+  const importRequestsQuery = queries.useAdminExerciseImportRequests("pending", undefined, needs("exercises"))
+  const auditLogsQuery = queries.useAdminAuditLogs(undefined, undefined, needs("auditLogs"))
   const dashboard = dashboardQuery.data
   const users = usersQuery.data ?? []
   const selectedUserId = users.some((user) => user.id === requestedUserId) ? requestedUserId : users[0]?.id ?? null
@@ -754,24 +805,7 @@ export function AdminConsole() {
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
-  const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
-  const VALID_SECTIONS: AdminSectionId[] = [
-    "dashboard",
-    "users",
-    "coach-signups",
-    "requests",
-    "connections",
-    "programs",
-    "exercises",
-    "foods",
-    "audit",
-  ]
-  const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
-    VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard"
-  )
 
   // Sync URL → state when user navigates via sidebar
   useEffect(() => {
