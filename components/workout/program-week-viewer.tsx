@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, ArchiveRestore, ArrowLeft, Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Archive, ArchiveRestore, ArrowLeft, CalendarClock, Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { FilterChip } from "@/components/workout/filter-chip"
@@ -289,6 +289,19 @@ export function ProgramWeekViewer({ assignedAt, canEdit = false, canManage = fal
               {messages.workoutPage.copyWeek(activeWeek + 1)}
             </Button>
           ) : null}
+        </div>
+      ) : null}
+
+      {/* Said once for the page rather than on every card: the Start buttons
+          below quietly do something different while the program is not open,
+          and until now nothing explained that. */}
+      {startSessionsAsTodayTrial && program.startDate ? (
+        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-info/30 bg-info-soft px-3.5 py-3 text-sm text-info-text">
+          <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="min-w-0">
+            <span className="font-medium">{messages.workoutPage.notStartedBanner(program.startDate)}</span>{" "}
+            {messages.workoutPage.notStartedBannerTrial}
+          </p>
         </div>
       ) : null}
 

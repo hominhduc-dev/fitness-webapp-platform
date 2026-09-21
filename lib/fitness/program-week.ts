@@ -112,10 +112,17 @@ export function resolveCurrentWeekProgress(
 ): CurrentWeekProgress {
   const assignedDate = parseValidDate(assignedAt)
   if (!assignedDate) return null
-  if (assignedDate.getTime() > now.getTime()) return { kind: "not-started" }
 
   const assignmentWeekStart = startOfUtcWeek(assignedDate)
   const currentWeekStart = startOfUtcWeek(now)
+
+  // Compared by week, not by day. Everything below already counts in whole
+  // weeks, and the backend opens a program for the whole week its start date
+  // falls in (`hasAssignmentStarted`). Comparing instants here made a program
+  // starting mid-week read as "not started" on the Monday, while the backend
+  // was already serving its week 1 and letting the trainee log it.
+  if (assignmentWeekStart.getTime() > currentWeekStart.getTime()) return { kind: "not-started" }
+
   const elapsedWeeks = Math.floor((currentWeekStart.getTime() - assignmentWeekStart.getTime()) / (DAY_IN_MS * 7))
   const lastWeekIndex = Math.max(0, clampWeeks(totalWeeks) - 1)
 

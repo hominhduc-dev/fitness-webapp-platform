@@ -12,7 +12,7 @@ import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { useCreateWorkout } from "@/lib/queries/workouts"
+import { useDuplicateWorkoutToRoutine } from "@/lib/queries/workouts"
 import type { AppMessages } from "@/lib/i18n/messages"
 import { buildMuscleProfileHighlights, muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
 import { getTotalSets, inferRoutineTag } from "@/lib/fitness/routine-tag"
@@ -47,32 +47,6 @@ function formatScheduledDate(date: Date) {
   return formatDateKey(date, "UTC")
 }
 
-function buildTrialWorkoutPayload(workout: Workout) {
-  return {
-    duration: workout.duration,
-    exercises: workout.exercises.map((exercise) => {
-      const firstSet = exercise.sets[0]
-
-      return {
-        notes: exercise.notes,
-        reps: firstSet?.targetReps ?? 1,
-        repsMin: firstSet?.targetRepsMin,
-        restTime: exercise.restTime,
-        rir: firstSet?.rir,
-        setIntensityTags: exercise.sets
-          .filter((set) => set.intensityTag)
-          .map((set) => ({ setNumber: set.setNumber, tag: set.intensityTag! })),
-        sets: Math.max(1, exercise.sets.length),
-        variationId: exercise.variation.id,
-        weight: firstSet?.weight,
-      }
-    }),
-    kind: workout.kind,
-    name: workout.name,
-    scheduledDate: formatDateKey(new Date()),
-  }
-}
-
 /**
  * One saved routine. Edit and delete only appear for personal routines —
  * coach-assigned sessions carry `isPersonal === false`, so the same card is
@@ -89,7 +63,7 @@ export function RoutineCard({
 }) {
   const router = useRouter()
   const { messages } = useLocale()
-  const createWorkoutMutation = useCreateWorkout()
+  const duplicateToRoutineMutation = useDuplicateWorkoutToRoutine()
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const tag = inferRoutineTag(workout)
@@ -106,15 +80,23 @@ export function RoutineCard({
   const cardMeta = workout.scheduledDate
     ? messages.workoutPage.scheduledFor(formatScheduledDate(workout.scheduledDate))
     : messages.workoutPage.lastUsed(lastUsed)
-  const isStartingTrial = startAsTodayTrial && createWorkoutMutation.isPending
+  const isStartingTrial = startAsTodayTrial && duplicateToRoutineMutation.isPending
 
+  /**
+   * Copies the day into the trainee's own routines and starts that instead.
+   *
+   * The copy is built on the server rather than from a payload assembled here.
+   * The old client-side build read `sets[0]` for reps, weight and RIR and
+   * applied them to every set, so a coach's per-set progression arrived
+   * flattened; it also could not see the trainee's own exercise substitutions.
+   */
   const handleStartTrial = async () => {
     if (isStartingTrial) return
 
     setStartError(null)
 
     try {
-      const trialWorkout = await createWorkoutMutation.mutateAsync(buildTrialWorkoutPayload(workout))
+      const trialWorkout = await duplicateToRoutineMutation.mutateAsync(workout.id)
       router.push(`/workout/${trialWorkout.id}/start?logDate=${formatDateKey(new Date())}`)
     } catch (error) {
       setStartError(error instanceof Error ? error.message : messages.schedule.unableAddRoutine)
