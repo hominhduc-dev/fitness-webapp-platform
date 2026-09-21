@@ -6,6 +6,7 @@ export {
   deletePersonalWorkoutForTrainee,
   deleteWorkoutSessionDraftForTrainee,
   deleteWorkoutLogForTrainee,
+  duplicateAssignedWorkoutAsPersonalRoutine,
   exportWorkoutLogsToGoogleSheetsForTrainee,
   getWorkoutDetailForTrainee,
   getWorkoutSessionDraftForTrainee,

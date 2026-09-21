@@ -119,6 +119,7 @@ type SerializedWorkout = {
   id: string
   isPersonal?: boolean
   kind?: string
+  lockedUntil?: string
   name: string
   notes?: string
   programId?: string | null
@@ -720,6 +721,7 @@ function mapWorkout(workout: SerializedWorkout): Workout {
     id: workout.id,
     isPersonal: workout.isPersonal,
     kind: workout.kind as Workout["kind"],
+    lockedUntil: workout.lockedUntil,
     name: workout.name,
     notes: workout.notes,
     programId: workout.programId ?? undefined,
@@ -1508,6 +1510,16 @@ async function exportWorkoutLogsToGoogleSheets(
 
 async function fetchWorkoutDetail(accessToken: string, workoutId: string) {
   const response = await request<{ workout: SerializedWorkout }>(`/api/workouts/${workoutId}`, accessToken)
+  return mapWorkout(response.workout)
+}
+
+/** Copies a day out of an assigned program into the trainee's own routines. */
+async function duplicateWorkoutToRoutine(accessToken: string, workoutId: string) {
+  const response = await request<{ workout: SerializedWorkout }>(
+    `/api/workouts/${workoutId}/duplicate-to-routine`,
+    accessToken,
+    { method: "POST" },
+  )
   return mapWorkout(response.workout)
 }
 
@@ -2673,6 +2685,7 @@ export {
   fetchNutritionDay,
   fetchNotifications,
   submitCoachExerciseImportRequest,
+  duplicateWorkoutToRoutine,
   fetchWorkoutDetail,
   fetchWorkoutSessionDraft,
   fetchActiveWorkoutSessions,

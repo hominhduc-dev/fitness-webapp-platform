@@ -22,6 +22,7 @@ import {
   swapWorkoutExercise,
   updateTraineeProgram,
   updateWorkout,
+  duplicateWorkoutToRoutine,
   fetchWorkouts,
   fetchWorkoutDetail,
   fetchWorkoutSessionDraft,
@@ -262,6 +263,21 @@ export function useSwapWorkoutExercise() {
     onSuccess: (_result, { workoutId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.detail(workoutId) })
     },
+  })
+}
+
+/**
+ * Copies a day out of an assigned program into the trainee's own routines.
+ *
+ * Invalidates the whole training set rather than one workout: the copy is a new
+ * program of its own, so the routines list and schedule both gain an entry.
+ */
+export function useDuplicateWorkoutToRoutine() {
+  const invalidateTrainingData = useInvalidateTrainingData()
+
+  return useMutation({
+    mutationFn: async (workoutId: string) => duplicateWorkoutToRoutine(await requireAccessToken(), workoutId),
+    onSuccess: () => invalidateTrainingData(),
   })
 }
 
