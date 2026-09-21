@@ -2,20 +2,31 @@
 
 import {
   Activity,
+  AlertCircle,
+  ClipboardList,
   Download,
+  Dumbbell,
+  Flame,
   KeyRound,
   Link2,
   Loader2,
+  Lock,
   Plus,
   RefreshCw,
   Save,
+  ScrollText,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
   UserRoundCheck,
+  Users,
+  Utensils,
+  type LucideIcon,
 } from "lucide-react"
-import { useEffect, useState, type ChangeEvent } from "react"
+import { useEffect, useState, type ChangeEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
@@ -23,8 +34,14 @@ import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
 import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { FilterChip } from "@/components/ui/filter-chip"
+import { IconTile } from "@/components/ui/icon-tile"
+import { MetricCard } from "@/components/ui/metric-card"
 import {
   Dialog,
   DialogContent,
@@ -34,7 +51,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
+import { Pagination, usePaginatedList } from "@/components/ui/pagination"
 import { SkeletonCard } from "@/components/layout/trainee-loading-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -47,6 +66,7 @@ import type {
   AdminExerciseItem,
   AdminExerciseMediaFiles,
   AdminExerciseImportRow,
+  AdminUserDetail,
   ExerciseSyncPreview,
   ExerciseSyncRow,
 } from "@/lib/admin/types"
@@ -195,6 +215,16 @@ function parseImportNumber(value: unknown) {
   return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : undefined
 }
 
+/** Two-letter monogram, the fallback every admin avatar falls back to. */
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2)
+}
+
 function roleBadgeVariant(role: UserRole) {
   switch (role) {
     case "admin":
@@ -280,40 +310,371 @@ function ChartPanel({
   subtitle: string
   title: string
 }) {
-  const maxValue = Math.max(...points.map((point) => point.value), 1)
+  return (
+    <Card className="p-5 transition-colors duration-150 hover:border-primary/30">
+      <p className="text-base font-semibold text-foreground">{title}</p>
+      <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+
+      {/* The bars were hand-drawn divs: no axis, no hover value, and nothing
+          at all for a screen reader. Recharts is the project's chart stack;
+          the table below is the text alternative, since a chart carries no
+          accessible content of its own. */}
+      <div aria-hidden className="h-[132px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={points} margin={{ bottom: 0, left: -24, right: 4, top: 4 }}>
+            <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--border)" />
+            <XAxis
+              axisLine={false}
+              dataKey="label"
+              dy={6}
+              minTickGap={8}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+              tickLine={false}
+            />
+            <YAxis
+              allowDecimals={false}
+              axisLine={false}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+              tickLine={false}
+              width={44}
+            />
+            <Tooltip
+              cursor={{ fill: "var(--muted)" }}
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                color: "var(--foreground)",
+                fontSize: 12,
+              }}
+            />
+            <Bar dataKey="value" fill="var(--primary)" maxBarSize={22} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <table className="sr-only">
+        <caption>{`${title} — ${subtitle}`}</caption>
+        <tbody>
+          {points.map((point) => (
+            <tr key={point.label}>
+              <th scope="row">{point.label}</th>
+              <td>{point.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  )
+}
+
+/**
+ * Empty state. The icon is the one place in a list where fitness iconography
+ * earns its keep — nothing is repeating, so it reads as subject matter rather
+ * than decoration.
+ */
+function EmptyState({ action, copy, icon: Icon }: { action?: ReactNode; copy: string; icon?: LucideIcon }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+      {Icon ? <Icon aria-hidden className="size-8 text-muted-foreground/60" /> : null}
+      <p className="text-sm text-muted-foreground">{copy}</p>
+      {action}
+    </div>
+  )
+}
+
+/**
+ * Account facts, label against value.
+ *
+ * The fixed label column is what makes this safe in both homes: the panel's
+ * old `justify-between` let a long email or a date run back into its own
+ * label, and there is far less room for that in the dialog.
+ */
+function UserDetailFacts({ locale, userDetail }: { locale: "en" | "vi"; userDetail: AdminUserDetail }) {
+  const rows: Array<{ key: string; mono?: boolean; value: string }> = [
+    { key: locale === "en" ? "Username" : "Username", value: userDetail.user.username ?? "—" },
+    { key: locale === "en" ? "Phone" : "Số điện thoại", mono: true, value: userDetail.user.phone ?? "—" },
+    { key: locale === "en" ? "Coach" : "Coach", value: userDetail.assignedCoach?.name ?? "—" },
+    { key: locale === "en" ? "Joined" : "Ngày tạo", mono: true, value: formatDateTime(userDetail.user.createdAt, locale) },
+    { key: locale === "en" ? "Workouts" : "Workouts", mono: true, value: String(userDetail.user.stats.workoutLogs) },
+    ...(userDetail.user.role === "coach"
+      ? [{ key: locale === "en" ? "Clients" : "Clients", mono: true, value: String(userDetail.user.stats.trainees) }]
+      : []),
+  ]
 
   return (
-    <div className="rounded-lg border border-border bg-card p-[18px] transition-colors duration-150 hover:border-primary/30">
-      <p className="text-base font-semibold text-foreground">{title}</p>
-      <p className="mb-4 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+    <div className="divide-y divide-border/50 rounded-lg border border-border">
+      {rows.map((row) => (
+        <div key={row.key} className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-sm">
+          <p className="label-micro text-muted-foreground">{row.key}</p>
+          <p className={cn("min-w-0 truncate text-right text-foreground", row.mono && "font-mono")}>{row.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-      <div className="flex h-[132px] items-end gap-2">
-        {points.map((point, index) => {
-          const height = point.value === 0 ? 3 : Math.max((point.value / maxValue) * 110, 8)
-          const isCurrent = index === points.length - 1
-
-          return (
-            <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-1.5">
-              <span className="font-mono text-micro text-muted-foreground tnum">
-                {point.value >= 1000 ? `${(point.value / 1000).toFixed(1)}k` : point.value}
-              </span>
-              <div
-                className={`w-full rounded ${isCurrent ? "bg-primary" : "bg-muted"}`}
-                style={{ height: `${height}px` }}
-              />
-              <span className="font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
-                {point.label}
-              </span>
-            </div>
-          )
-        })}
+/**
+ * Role selector. Three fixed options, so they get equal columns rather than
+ * content-width chips — the widths stop shifting as the labels change.
+ */
+function UserDetailRolePicker({
+  locale,
+  onSelect,
+  selectedRole,
+}: {
+  locale: "en" | "vi"
+  onSelect: (role: UserRole) => void
+  selectedRole: UserRole
+}) {
+  return (
+    <div>
+      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {(["trainee", "coach", "admin"] as const).map((role) => (
+          <button
+            key={role}
+            type="button"
+            // The pressed state is carried by colour alone otherwise, which
+            // says nothing to a screen reader.
+            aria-pressed={selectedRole === role}
+            onClick={() => onSelect(role)}
+            className={cn(
+              "rounded-md px-3 py-2 font-mono text-xs transition-colors pointer-coarse:min-h-11",
+              selectedRole === role
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {role}
+          </button>
+        ))}
       </div>
     </div>
   )
 }
-function EmptyState({ copy }: { copy: string }) {
-  return <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
+
+/** Manual password reset. Stacks below `sm` so the field keeps a usable width. */
+function UserDetailPasswordReset({
+  isPending,
+  locale,
+  onPasswordChange,
+  onReset,
+  password,
+}: {
+  isPending: boolean
+  locale: "en" | "vi"
+  onPasswordChange: (value: string) => void
+  onReset: () => void
+  password: string
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <p className="label-micro mb-2 text-muted-foreground">
+        {locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          type="password"
+          value={password}
+          onChange={(event) => onPasswordChange(event.target.value)}
+          placeholder={locale === "en" ? "New password" : "Mật khẩu mới"}
+          className="flex-1"
+        />
+        <Button variant="outline" onClick={onReset} disabled={!password || isPending}>
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          {locale === "en" ? "Reset" : "Reset"}
+        </Button>
+      </div>
+    </div>
+  )
 }
+
+/**
+ * Save-role and lock/unlock. A fragment, because the panel lays these out in
+ * a plain row while the dialog owes them to `DialogFooter`.
+ */
+function UserDetailActions({
+  isActive,
+  isPending,
+  locale,
+  onSaveRole,
+  onToggleActive,
+}: {
+  isActive: boolean
+  isPending: boolean
+  locale: "en" | "vi"
+  onSaveRole: () => void
+  onToggleActive: () => void
+}) {
+  return (
+    <>
+      <Button onClick={onSaveRole} disabled={isPending}>
+        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {locale === "en" ? "Save role" : "Lưu vai trò"}
+      </Button>
+      <Button variant={isActive ? "destructive" : "outline"} onClick={onToggleActive} disabled={isPending}>
+        {isActive
+          ? locale === "en"
+            ? "Lock account"
+            : "Khoá tài khoản"
+          : locale === "en"
+            ? "Unlock account"
+            : "Mở khoá tài khoản"}
+      </Button>
+    </>
+  )
+}
+
+/**
+ * The read-only half of the user detail: who the coach trains and what the
+ * trainee last logged.
+ *
+ * Shared because the detail renders twice — inline panel from `xl`, dialog
+ * below it — and these two blocks had only ever been written into the panel,
+ * so the narrow layout silently dropped them.
+ */
+function UserDetailHistory({ locale, userDetail }: { locale: "en" | "vi"; userDetail: AdminUserDetail }) {
+  return (
+    <>
+      {userDetail.connectedTrainees.length > 0 ? (
+        <div className="rounded-lg border border-border bg-muted/20 p-4">
+          <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Connected trainees" : "Trainee đang kết nối"}</h4>
+          <div className="space-y-2">
+            {userDetail.connectedTrainees.map((trainee) => (
+              <div key={trainee.id} className="flex items-center justify-between gap-3 border-t border-border/50 py-2 text-sm first:border-t-0">
+                <span className="min-w-0 truncate font-medium text-foreground">{trainee.name}</span>
+                <span className="min-w-0 truncate text-muted-foreground">{trainee.email}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {userDetail.recentWorkoutLogs.length > 0 ? (
+        <div className="rounded-lg border border-border bg-muted/20 p-4">
+          <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
+          <div className="space-y-0">
+            {userDetail.recentWorkoutLogs.map((log) => (
+              <div key={log.id} className="flex items-center justify-between gap-3 border-t border-border/50 py-2 text-sm first:border-t-0">
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  {log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Snapshot")}
+                </span>
+                <span className="shrink-0 font-mono text-micro text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Tailwind's `xl`. Must track the `xl:block` on the inline user-detail panel:
+ * the dialog stands in for that panel, so the two switch at the same width.
+ */
+const WIDE_USER_DETAIL_QUERY = "(min-width: 80rem)"
+
+/**
+ * What each section actually reads.
+ *
+ * The console used to fire all nine list queries on mount and hold the whole
+ * screen behind `isLoading` until the slowest one landed, so opening Overview
+ * waited on the full exercise library, the audit log and every connection —
+ * none of which Overview renders. Sections now fetch only their own data, and
+ * a disabled query reports `isLoading: false`, so the gate below narrows to
+ * whatever is on screen without any extra bookkeeping.
+ *
+ * A section's entry has to cover what its header copy reads too, not just its
+ * body: `users` shows coach/admin totals that come from the dashboard stats,
+ * and `connections` counts pending coach requests.
+ */
+const SECTION_DATA = {
+  audit: ["auditLogs"],
+  "coach-signups": ["coachSignups"],
+  connections: ["connections", "coachRequests"],
+  dashboard: ["dashboard", "coachRequests"],
+  exercises: ["exercises"],
+  foods: [],
+  programs: ["programs"],
+  requests: ["coachRequests"],
+  users: ["users", "dashboard"],
+} as const satisfies Record<string, readonly string[]>
+
+type AdminDataKey = (typeof SECTION_DATA)[keyof typeof SECTION_DATA][number]
+
+/** Rows per page. Bounded so a list can never outgrow the fixed workspace. */
+const LIST_PAGE_SIZE = 25
+
+/**
+ * Audit rows are scanned, not read line by line, so the leading glyph earns
+ * its place only if it separates one kind of entry from another — every row
+ * carrying the same icon is noise. The vocabulary is the sidebar's, so a log
+ * entry and the section it refers to look alike.
+ */
+const AUDIT_ENTITY_ICON: Record<string, LucideIcon> = {
+  connection: Link2,
+  exercise: Dumbbell,
+  food: Utensils,
+  program: ClipboardList,
+  request: UserRoundCheck,
+  user: Users,
+}
+
+/**
+ * Filter chips printed their raw enum value — "all", "coach-signups",
+ * lowercase English, the same in both locales.
+ */
+const FILTER_LABELS: Record<string, { en: string; vi: string }> = {
+  admin: { en: "Admin", vi: "Admin" },
+  all: { en: "All", vi: "Tất cả" },
+  approved: { en: "Approved", vi: "Đã duyệt" },
+  coach: { en: "Coach", vi: "Coach" },
+  connection: { en: "Connection", vi: "Kết nối" },
+  exercise: { en: "Exercise", vi: "Bài tập" },
+  food: { en: "Food", vi: "Món ăn" },
+  monthly: { en: "Monthly", vi: "Theo tháng" },
+  pending: { en: "Pending", vi: "Chờ duyệt" },
+  program: { en: "Program", vi: "Giáo án" },
+  refused: { en: "Refused", vi: "Từ chối" },
+  rejected: { en: "Rejected", vi: "Từ chối" },
+  request: { en: "Request", vi: "Yêu cầu" },
+  trainee: { en: "Trainee", vi: "Trainee" },
+  user: { en: "User", vi: "User" },
+  weekly: { en: "Weekly", vi: "Theo tuần" },
+}
+
+function filterLabel(value: string, locale: "en" | "vi") {
+  return FILTER_LABELS[value]?.[locale] ?? value
+}
+
+/** Prev/next labels plus the "12–25 / 214 · page 1/9" status line. */
+function paginationLabels(
+  locale: "en" | "vi",
+  page: { from: number; page: number; pageCount: number; to: number; total: number },
+) {
+  return {
+    next: locale === "en" ? "Next page" : "Trang sau",
+    previous: locale === "en" ? "Previous page" : "Trang trước",
+    status:
+      locale === "en"
+        ? `${page.from}–${page.to} of ${page.total} · page ${page.page}/${page.pageCount}`
+        : `${page.from}–${page.to} / ${page.total} · trang ${page.page}/${page.pageCount}`,
+  }
+}
+
+const VALID_SECTIONS = [
+  "dashboard",
+  "users",
+  "coach-signups",
+  "requests",
+  "connections",
+  "programs",
+  "exercises",
+  "foods",
+  "audit",
+] as const satisfies readonly AdminSectionId[]
 
 type AdminSectionId =
   | "dashboard"
@@ -491,17 +852,28 @@ function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
 
 export function AdminConsole() {
   const { locale } = useLocale()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
+  const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
+    VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard",
+  )
+  // Resolved before the queries below so each one knows whether this section
+  // actually reads it.
+  const sectionNeeds: readonly AdminDataKey[] = SECTION_DATA[activeSection]
+  const needs = (key: AdminDataKey) => sectionNeeds.includes(key)
+
   const [requestedUserId, setSelectedUserId] = useState<string | null>(null)
-  const dashboardQuery = queries.useAdminDashboard()
-  const usersQuery = queries.useAdminUsers()
-  const coachRequestsQuery = queries.useAdminCoachRequests()
+  const dashboardQuery = queries.useAdminDashboard(undefined, needs("dashboard"))
+  const usersQuery = queries.useAdminUsers(undefined, undefined, needs("users"))
+  const coachRequestsQuery = queries.useAdminCoachRequests(undefined, undefined, needs("coachRequests"))
   // Only for the header count; the queue itself lives in <CoachSignupsPanel>.
-  const coachSignupsQuery = queries.useAdminCoachSignups({ status: "pending" })
-  const connectionsQuery = queries.useAdminConnections()
-  const programsQuery = queries.useAdminPrograms()
-  const exercisesQuery = queries.useAdminExercises()
-  const importRequestsQuery = queries.useAdminExerciseImportRequests("pending")
-  const auditLogsQuery = queries.useAdminAuditLogs()
+  const coachSignupsQuery = queries.useAdminCoachSignups({ status: "pending" }, undefined, needs("coachSignups"))
+  const connectionsQuery = queries.useAdminConnections(undefined, undefined, needs("connections"))
+  const programsQuery = queries.useAdminPrograms(undefined, undefined, needs("programs"))
+  const exercisesQuery = queries.useAdminExercises(undefined, undefined, needs("exercises"))
+  const importRequestsQuery = queries.useAdminExerciseImportRequests("pending", undefined, needs("exercises"))
+  const auditLogsQuery = queries.useAdminAuditLogs(undefined, undefined, needs("auditLogs"))
   const dashboard = dashboardQuery.data
   const users = usersQuery.data ?? []
   const selectedUserId = users.some((user) => user.id === requestedUserId) ? requestedUserId : users[0]?.id ?? null
@@ -552,6 +924,7 @@ export function AdminConsole() {
   const [userSearch, setUserSearch] = useState("")
   const [userRoleFilter, setUserRoleFilter] = useState<UserRole | "all">("all")
   const [userDetailDialogOpen, setUserDetailDialogOpen] = useState(false)
+  const [isWideUserDetail, setIsWideUserDetail] = useState(false)
   const [requestSearch, setRequestSearch] = useState("")
   const [requestStatusFilter, setRequestStatusFilter] = useState<AdminCoachRequest["status"] | "all">("all")
   const [connectionSearch, setConnectionSearch] = useState("")
@@ -559,24 +932,7 @@ export function AdminConsole() {
   const [auditSearch, setAuditSearch] = useState("")
   const [auditEntityType, setAuditEntityType] = useState("all")
   const [chartView, setChartView] = useState<"weekly" | "monthly">("weekly")
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
-  const sectionFromUrl = (searchParams.get("s") ?? "dashboard") as AdminSectionId
-  const VALID_SECTIONS: AdminSectionId[] = [
-    "dashboard",
-    "users",
-    "coach-signups",
-    "requests",
-    "connections",
-    "programs",
-    "exercises",
-    "foods",
-    "audit",
-  ]
-  const [activeSection, setActiveSectionState] = useState<AdminSectionId>(
-    VALID_SECTIONS.includes(sectionFromUrl) ? sectionFromUrl : "dashboard"
-  )
 
   // Sync URL → state when user navigates via sidebar
   useEffect(() => {
@@ -584,6 +940,31 @@ export function AdminConsole() {
     if (next !== activeSection) setActiveSectionState(next)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionFromUrl])
+
+  /**
+   * The user detail has two homes: the inline panel, which the layout reveals
+   * at `xl`, and the dialog that stands in for it below that. Picking between
+   * them has to happen in JS — a Radix dialog hidden with a CSS utility still
+   * mounts its overlay, traps focus and locks the page scroll.
+   *
+   * The query has to stay in step with the panel's own `xl:block`; a
+   * mismatched value would leave a band of widths showing both or neither.
+   */
+  useEffect(() => {
+    const query = window.matchMedia?.(WIDE_USER_DETAIL_QUERY)
+    if (!query) return
+
+    const sync = () => {
+      setIsWideUserDetail(query.matches)
+      // Growing past the breakpoint with the dialog still open would drop the
+      // modal straight onto the panel that now renders the same user.
+      if (query.matches) setUserDetailDialogOpen(false)
+    }
+
+    sync()
+    query.addEventListener("change", sync)
+    return () => query.removeEventListener("change", sync)
+  }, [])
 
   // State setter that also pushes URL
   function setActiveSection(section: AdminSectionId) {
@@ -620,7 +1001,9 @@ export function AdminConsole() {
   function loadUserDetail(userId: string) {
     setError(null)
     setSelectedUserId(userId)
-    setUserDetailDialogOpen(true)
+    // From `xl` up the inline panel is already on screen showing this user, so
+    // only the narrow layout — where that panel is hidden — needs the dialog.
+    if (!isWideUserDetail) setUserDetailDialogOpen(true)
   }
 
   function resetExerciseForm() {
@@ -1646,6 +2029,16 @@ export function AdminConsole() {
     const matchesEntityType = auditEntityType === "all" ? true : log.entityType === auditEntityType
     return matchesEntityType && matchesSearch([log.action, log.entityType, log.entityLabel, log.admin.name], auditSearch)
   })
+
+  // Every list is paged. The workspace does not grow, so an unbounded list
+  // would just push its own pagination out of reach — and rendering a few
+  // thousand audit rows to scroll past was never the fastest way to find one.
+  const usersPage = usePaginatedList(filteredUsers, LIST_PAGE_SIZE)
+  const requestsPage = usePaginatedList(filteredRequests, LIST_PAGE_SIZE)
+  const connectionsPage = usePaginatedList(filteredConnections, LIST_PAGE_SIZE)
+  const programsPage = usePaginatedList(filteredPrograms, LIST_PAGE_SIZE)
+  const auditPage = usePaginatedList(filteredAuditLogs, LIST_PAGE_SIZE)
+
   const isExerciseGroupDelete =
     confirmState?.kind === "exercise-group" || confirmState?.kind === "exercise-groups"
   const isBulkExerciseGroupDelete = confirmState?.kind === "exercise-groups"
@@ -1686,8 +2079,12 @@ export function AdminConsole() {
   const pendingRequestCount = coachRequests.filter((request) => request.status === "pending").length
   return (
     <>
-      <main className="min-w-0">
-          <div className="space-y-6 px-4 py-6 md:px-9 md:py-8">
+      {/* A fixed-height workspace: the page itself never scrolls, the section
+          body does. See `.admin-workspace` in globals.css for the height chain
+          this depends on. A plain div, not <main> — the shell already owns the
+          document's one <main>, and nesting a second is invalid. */}
+      <div className="admin-workspace flex flex-col gap-4 px-4 py-4 md:px-9 md:py-6">
+          <div className="shrink-0 space-y-3">
             <AdminShellHeader
               activeSection={activeSection}
               auditCount={auditLogs.length}
@@ -1701,13 +2098,15 @@ export function AdminConsole() {
               userCount={users.length}
             />
 
-            <div className={error ? "min-h-[42px]" : "hidden"}>
-              {error ? (
-                <div className="rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-                  {error}
-                </div>
-              ) : null}
-            </div>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertCircle />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden semantic-scrollbar">
 
             {isConsolePending ? (
               <AdminConsoleLoadingState locale={locale} />
@@ -1718,39 +2117,37 @@ export function AdminConsole() {
             {/* Stat cards */}
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
               {([
-                { label: locale === "en" ? "Total users" : "Tổng user", value: dashboard?.stats.totalUsers ?? 0, sub: locale === "en" ? "all roles" : "mọi vai trò" },
-                { label: locale === "en" ? "Coaches" : "Coaches", value: dashboard?.stats.totalCoaches ?? 0, sub: locale === "en" ? "coach accounts" : "tài khoản coach" },
-                { label: locale === "en" ? "Trainees" : "Trainees", value: dashboard?.stats.totalTrainees ?? 0, sub: locale === "en" ? "fitness users" : "người dùng fitness" },
-                { label: locale === "en" ? "Active 7d" : "Active 7d", value: dashboard?.stats.activeUsersLast7Days ?? 0, sub: locale === "en" ? "activity in 7 days" : "hoạt động 7 ngày" },
-                { label: locale === "en" ? "Active 30d" : "Active 30d", value: dashboard?.stats.activeUsersLast30Days ?? 0, sub: locale === "en" ? "activity in 30 days" : "hoạt động 30 ngày", accent: true },
+                { icon: Users, label: locale === "en" ? "Total users" : "Tổng user", sub: locale === "en" ? "all roles" : "mọi vai trò", tone: "neutral", value: dashboard?.stats.totalUsers ?? 0 },
+                { icon: ShieldCheck, label: locale === "en" ? "Coaches" : "Coaches", sub: locale === "en" ? "coach accounts" : "tài khoản coach", tone: "neutral", value: dashboard?.stats.totalCoaches ?? 0 },
+                { icon: Dumbbell, label: locale === "en" ? "Trainees" : "Trainees", sub: locale === "en" ? "fitness users" : "người dùng fitness", tone: "neutral", value: dashboard?.stats.totalTrainees ?? 0 },
+                { icon: Flame, label: locale === "en" ? "Active 7d" : "Active 7d", sub: locale === "en" ? "activity in 7 days" : "hoạt động 7 ngày", tone: "success", value: dashboard?.stats.activeUsersLast7Days ?? 0 },
+                { icon: Activity, label: locale === "en" ? "Active 30d" : "Active 30d", sub: locale === "en" ? "activity in 30 days" : "hoạt động 30 ngày", tone: "primary", value: dashboard?.stats.activeUsersLast30Days ?? 0 },
               ] as const).map((card) => (
-                <div key={card.label} className="rounded-lg border border-border bg-card p-[18px]">
-                  <p className="label-micro text-muted-foreground">{card.label}</p>
-                  <div className={`mt-2 font-mono text-4xl font-semibold leading-none tracking-[-0.02em] tnum ${"accent" in card && card.accent ? "text-primary" : "text-foreground"}`}>
-                    {card.value.toLocaleString()}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
-                </div>
+                <MetricCard
+                  key={card.label}
+                  icon={card.icon}
+                  subtitle={card.sub}
+                  title={card.label}
+                  tone={card.tone}
+                  value={card.value.toLocaleString()}
+                  variant="featured"
+                />
               ))}
             </div>
 
             {/* Chart toggle + label */}
             <div className="flex items-center justify-between">
               <p className="label-micro text-muted-foreground">{locale === "en" ? "Platform charts" : "Biểu đồ nền tảng"}</p>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {(["weekly", "monthly"] as const).map((view) => (
-                  <button
+                  <FilterChip
                     key={view}
-                    type="button"
+                    active={chartView === view}
+                    aria-pressed={chartView === view}
                     onClick={() => setChartView(view)}
-                    className={`rounded px-3 py-1 font-mono text-micro transition-colors ${
-                      chartView === view
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
                   >
-                    {view === "weekly" ? (locale === "en" ? "Weekly" : "Theo tuần") : (locale === "en" ? "Monthly" : "Theo tháng")}
-                  </button>
+                    {filterLabel(view, locale)}
+                  </FilterChip>
                 ))}
               </div>
             </div>
@@ -1764,7 +2161,7 @@ export function AdminConsole() {
 
             {/* Bottom 2-col: recent users + pending requests */}
             <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-              <div className="rounded-lg border border-border bg-card p-[18px]">
+              <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-base font-semibold text-foreground">{locale === "en" ? "Recent users" : "Người dùng mới nhất"}</p>
                   <p className="label-micro text-muted-foreground">{locale === "en" ? "Newest accounts" : "Tài khoản mới nhất"}</p>
@@ -1777,9 +2174,11 @@ export function AdminConsole() {
                       onClick={() => { loadUserDetail(user.id); setActiveSection("users") }}
                       className="flex min-w-0 items-start gap-3 border-t border-border/50 py-2.5 text-left transition-colors first:border-t-0 hover:bg-muted/30 sm:items-center"
                     >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                        {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
-                      </div>
+                      <Avatar className="size-8 shrink-0">
+                        <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                          {initials(user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
@@ -1792,9 +2191,9 @@ export function AdminConsole() {
                     </button>
                   )) : <EmptyState copy={locale === "en" ? "No recent users." : "Chưa có user mới."} />}
                 </div>
-              </div>
+              </Card>
 
-              <div className="rounded-lg border border-border bg-card p-[18px]">
+              <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-base font-semibold text-foreground">{locale === "en" ? "Pending requests" : "Yêu cầu chờ duyệt"}</p>
                   <Badge variant={pendingRequestCount > 0 ? "default" : "outline"} className="font-mono text-micro">
@@ -1816,7 +2215,7 @@ export function AdminConsole() {
                     </div>
                   )) : <EmptyState copy={locale === "en" ? "No pending coach requests." : "Không có yêu cầu chờ duyệt."} />}
                 </div>
-              </div>
+              </Card>
             </div>
           </TabsContent>
 
@@ -1824,23 +2223,18 @@ export function AdminConsole() {
             {/* Search + role filter chips */}
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 basis-[220px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search name, email, phone…" : "Tìm tên, email, số điện thoại…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={locale === "en" ? "Search name, email, phone…" : "Tìm tên, email, số điện thoại…"} />
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {(["all", "trainee", "coach", "admin"] as const).map((r) => (
-                  <button
+                  <FilterChip
                     key={r}
-                    type="button"
+                    active={userRoleFilter === r}
+                    aria-pressed={userRoleFilter === r}
                     onClick={() => setUserRoleFilter(r)}
-                    className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                      userRoleFilter === r
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
                   >
-                    {r}
-                  </button>
+                    {filterLabel(r, locale)}
+                  </FilterChip>
                 ))}
               </div>
             </div>
@@ -1848,8 +2242,8 @@ export function AdminConsole() {
             {/* Master-detail */}
             <div className="grid items-start gap-4 xl:grid-cols-[360px_1fr]">
               {/* User list — rows with left border indicator */}
-              <div className="rounded-lg border border-border bg-card overflow-hidden">
-                {filteredUsers.length ? filteredUsers.map((user) => (
+              <Card className="overflow-hidden">
+                {usersPage.total ? usersPage.pageItems.map((user) => (
                   <button
                     key={user.id}
                     type="button"
@@ -1860,34 +2254,54 @@ export function AdminConsole() {
                         : "border-l-[3px] border-l-transparent hover:bg-muted/30"
                     }`}
                   >
-                    <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                      {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
-                    </div>
+                    <Avatar className="size-9 shrink-0">
+                        <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                          {initials(user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
-                        {!user.isActive ? <span className="shrink-0 text-xs text-destructive-text">🔒</span> : null}
+                        {/* An emoji here took no colour or size token, drew
+                            differently on every platform and carried no
+                            accessible name. */}
+                        {!user.isActive ? (
+                          <Lock
+                            aria-label={locale === "en" ? "Locked" : "Đã khoá"}
+                            className="size-3.5 shrink-0 text-destructive-text"
+                          />
+                        ) : null}
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                     </div>
                     <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-micro">{user.role}</Badge>
                   </button>
                 )) : (
-                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    {locale === "en" ? "No users match." : "Không có user nào khớp."}
-                  </div>
+                  <EmptyState
+                    copy={locale === "en" ? "No users match." : "Không có user nào khớp."}
+                    icon={Users}
+                  />
                 )}
-              </div>
+              </Card>
+              <Pagination
+                className="shrink-0"
+                labels={paginationLabels(locale, usersPage)}
+                onPageChange={usersPage.setPage}
+                page={usersPage.page}
+                pageCount={usersPage.pageCount}
+              />
 
               {/* User detail panel */}
-              <div className="hidden rounded-lg border border-border bg-card p-[22px] xl:block">
+              <Card className="hidden p-5 xl:block">
                 {userDetail ? (
                   <div className="space-y-5">
                     {/* Header */}
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold uppercase text-muted-foreground">
-                        {userDetail.user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
-                      </div>
+                      <Avatar className="size-12 shrink-0">
+                        <AvatarFallback className="font-mono text-sm font-semibold uppercase text-muted-foreground">
+                          {initials(userDetail.user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-xl font-semibold tracking-[-0.01em] text-foreground">{userDetail.user.name}</h3>
@@ -1898,101 +2312,34 @@ export function AdminConsole() {
                       </div>
                     </div>
 
-                    {/* Role chips */}
-                    <div>
-                      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
-                      <div className="flex gap-1.5">
-                        {(["trainee", "coach", "admin"] as const).map((r) => (
-                          <button
-                            key={r}
-                            type="button"
-                            onClick={() => setSelectedRole(r)}
-                            className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                              selectedRole === r
-                                ? "bg-foreground text-background"
-                                : "bg-muted text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {r}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <UserDetailFacts locale={locale} userDetail={userDetail} />
 
-                    {/* Info rows */}
-                    <div className="divide-y divide-border/50">
-                      {([
-                        { k: locale === "en" ? "Username" : "Username", v: userDetail.user.username ?? "—" },
-                        { k: locale === "en" ? "Phone" : "Số điện thoại", v: userDetail.user.phone ?? "—", mono: true },
-                        { k: locale === "en" ? "Coach" : "Coach", v: userDetail.assignedCoach?.name ?? "—" },
-                        { k: locale === "en" ? "Joined" : "Ngày tạo", v: formatDateTime(userDetail.user.createdAt, locale), mono: true },
-                        { k: locale === "en" ? "Workouts" : "Workouts", v: String(userDetail.user.stats.workoutLogs), mono: true },
-                        ...(userDetail.user.role === "coach" ? [{ k: locale === "en" ? "Clients" : "Clients", v: String(userDetail.user.stats.trainees), mono: true }] : []),
-                      ] as Array<{ k: string; v: string; mono?: boolean }>).map((row) => (
-                        <div key={row.k} className="flex items-center justify-between py-2.5">
-                          <p className="label-micro text-muted-foreground">{row.k}</p>
-                          <p className={`text-sm text-foreground ${row.mono ? "font-mono" : ""}`}>{row.v}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <UserDetailRolePicker locale={locale} onSelect={setSelectedRole} selectedRole={selectedRole} />
 
-                    {/* Password reset */}
-                    <div className="rounded-lg border border-border bg-muted/20 p-4">
-                      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
-                      <div className="flex gap-2">
-                        <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} className="flex-1" />
-                        <Button variant="outline" size="sm" onClick={() => void handleResetPassword()} disabled={!resetPassword || actionKey === `password-${userDetail.user.id}`}>
-                          {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                          {locale === "en" ? "Reset" : "Reset"}
-                        </Button>
-                      </div>
-                    </div>
+                    <UserDetailPasswordReset
+                      isPending={actionKey === `password-${userDetail.user.id}`}
+                      locale={locale}
+                      onPasswordChange={setResetPassword}
+                      onReset={() => void handleResetPassword()}
+                      password={resetPassword}
+                    />
 
-                    {/* Account actions */}
                     <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                        {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        {locale === "en" ? "Save role" : "Lưu vai trò"}
-                      </Button>
-                      <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                        {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : (locale === "en" ? "Unlock account" : "Mở khoá tài khoản")}
-                      </Button>
+                      <UserDetailActions
+                        isActive={userDetail.user.isActive}
+                        isPending={actionKey === `user-${userDetail.user.id}`}
+                        locale={locale}
+                        onSaveRole={() => void handleUserUpdate({ role: selectedRole })}
+                        onToggleActive={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })}
+                      />
                     </div>
 
-                    {/* Connected trainees (coach view) */}
-                    {userDetail.connectedTrainees.length > 0 ? (
-                      <div className="rounded-lg border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Connected trainees" : "Trainee đang kết nối"}</h4>
-                        <div className="space-y-2">
-                          {userDetail.connectedTrainees.map((trainee) => (
-                            <div key={trainee.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
-                              <span className="font-medium text-foreground">{trainee.name}</span>
-                              <span className="text-muted-foreground">{trainee.email}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Recent workout logs */}
-                    {userDetail.recentWorkoutLogs.length > 0 ? (
-                      <div className="rounded-lg border border-border bg-muted/20 p-4">
-                        <h4 className="mb-3 text-sm font-medium">{locale === "en" ? "Recent workout logs" : "Workout logs gần đây"}</h4>
-                        <div className="space-y-0">
-                          {userDetail.recentWorkoutLogs.map((log) => (
-                            <div key={log.id} className="flex items-center justify-between border-t border-border/50 py-2 first:border-t-0 text-sm">
-                              <span className="font-medium text-foreground">{log.workout?.name ?? (locale === "en" ? "Workout snapshot" : "Snapshot")}</span>
-                              <span className="font-mono text-micro text-muted-foreground">{formatDateTime(log.startedAt, locale)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                    <UserDetailHistory locale={locale} userDetail={userDetail} />
                   </div>
                 ) : (
                   <EmptyState copy={locale === "en" ? "Select a user to view details." : "Chọn một user để xem chi tiết."} />
                 )}
-              </div>
+              </Card>
             </div>
           </TabsContent>
 
@@ -2005,31 +2352,26 @@ export function AdminConsole() {
             {/* Search + status filter chips */}
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 basis-[220px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search requests…" : "Tìm yêu cầu…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder={locale === "en" ? "Search requests…" : "Tìm yêu cầu…"} />
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {(["all", "pending", "approved", "rejected"] as const).map((s) => (
-                  <button
+                  <FilterChip
                     key={s}
-                    type="button"
+                    active={requestStatusFilter === s}
+                    aria-pressed={requestStatusFilter === s}
                     onClick={() => setRequestStatusFilter(s)}
-                    className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                      requestStatusFilter === s
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
                   >
-                    {s}
-                  </button>
+                    {filterLabel(s, locale)}
+                  </FilterChip>
                 ))}
               </div>
             </div>
 
             {/* Request list */}
             <div className="flex flex-col gap-2.5">
-              {filteredRequests.length ? filteredRequests.map((request) => (
-                <div key={request.id} className="rounded-lg border border-border bg-card p-4">
+              {requestsPage.total ? requestsPage.pageItems.map((request) => (
+                <Card key={request.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <span className="text-sm font-semibold text-foreground">{request.trainee.name}</span>
                     <span className="text-muted-foreground">→</span>
@@ -2054,14 +2396,21 @@ export function AdminConsole() {
                       {locale === "en" ? "Delete" : "Xoá"}
                     </Button>
                   </div>
-                </div>
-              )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} />}
+                </Card>
+              )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} icon={UserRoundCheck} />}
             </div>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, requestsPage)}
+              onPageChange={requestsPage.setPage}
+              page={requestsPage.page}
+              pageCount={requestsPage.pageCount}
+            />
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-4">
             {/* Assign panel */}
-            <div className="rounded-lg border border-border bg-card p-[18px]">
+            <Card className="p-5">
               <p className="label-micro mb-3 text-muted-foreground">{locale === "en" ? "Assign coach to trainee" : "Gán coach cho trainee"}</p>
               <div className="flex flex-wrap gap-2">
                 <Select value={assignTraineeId} onValueChange={setAssignTraineeId}>
@@ -2095,18 +2444,17 @@ export function AdminConsole() {
                   {locale === "en" ? "Assign coach" : "Gán coach"}
                 </Button>
               </div>
-            </div>
+            </Card>
 
             {/* Search + connection table */}
             <div className="flex gap-2">
               <div className="relative flex-1 max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search connections…" : "Tìm connection…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={connectionSearch} onChange={(event) => setConnectionSearch(event.target.value)} placeholder={locale === "en" ? "Search connections…" : "Tìm connection…"} />
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {filteredConnections.length ? filteredConnections.map((connection) => (
+            <Card className="overflow-hidden">
+              {connectionsPage.total ? connectionsPage.pageItems.map((connection) => (
                 <div key={connection.trainee.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-sm">
@@ -2122,23 +2470,30 @@ export function AdminConsole() {
                   </Button>
                 </div>
               )) : (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {locale === "en" ? "No connections found." : "Chưa có connection nào."}
-                </div>
+                <EmptyState
+                    copy={locale === "en" ? "No connections found." : "Chưa có connection nào."}
+                    icon={Link2}
+                  />
               )}
-            </div>
+            </Card>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, connectionsPage)}
+              onPageChange={connectionsPage.setPage}
+              page={connectionsPage.page}
+              pageCount={connectionsPage.pageCount}
+            />
           </TabsContent>
 
           <TabsContent value="programs" className="space-y-4">
             {/* Search */}
             <div className="relative max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs or coach…" : "Tìm giáo án hoặc coach…"} className="pl-9" />
+              <InputWithIcon icon={<Search />} value={programSearch} onChange={(event) => setProgramSearch(event.target.value)} placeholder={locale === "en" ? "Search programs or coach…" : "Tìm giáo án hoặc coach…"} />
             </div>
 
             {/* Program rows */}
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {filteredPrograms.length ? filteredPrograms.map((program) => (
+            <Card className="overflow-hidden">
+              {programsPage.total ? programsPage.pageItems.map((program) => (
                 <div
                   key={program.id}
                   className="grid items-center gap-2 border-t border-border/50 px-4 py-3 first:border-t-0 grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_90px_80px_80px_auto]"
@@ -2159,11 +2514,19 @@ export function AdminConsole() {
                   </Button>
                 </div>
               )) : (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {locale === "en" ? "No programs found." : "Chưa có giáo án nào."}
-                </div>
+                <EmptyState
+                    copy={locale === "en" ? "No programs found." : "Chưa có giáo án nào."}
+                    icon={ClipboardList}
+                  />
               )}
-            </div>
+            </Card>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, programsPage)}
+              onPageChange={programsPage.setPage}
+              page={programsPage.page}
+              pageCount={programsPage.pageCount}
+            />
           </TabsContent>
 
           <TabsContent value="exercises">
@@ -2207,34 +2570,32 @@ export function AdminConsole() {
             {/* Search + type filter chips */}
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 basis-[220px] max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search actions…" : "Tìm hành động…"} className="pl-9" />
+                <InputWithIcon icon={<Search />} value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} placeholder={locale === "en" ? "Search actions…" : "Tìm hành động…"} />
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["all", "user", "request", "exercise", "program", "connection"] as const).map((t) => (
-                  <button
+                  <FilterChip
                     key={t}
-                    type="button"
+                    active={auditEntityType === t}
+                    aria-pressed={auditEntityType === t}
                     onClick={() => setAuditEntityType(t)}
-                    className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                      auditEntityType === t
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
                   >
-                    {t}
-                  </button>
+                    {filterLabel(t, locale)}
+                  </FilterChip>
                 ))}
               </div>
             </div>
 
             {/* Audit rows */}
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {filteredAuditLogs.length ? filteredAuditLogs.map((log) => (
+            <Card className="overflow-hidden">
+              {auditPage.total ? auditPage.pageItems.map((log) => (
                 <div key={log.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                    <Activity className="h-[15px] w-[15px] text-muted-foreground" />
-                  </div>
+                  <IconTile size="sm">
+                    {(() => {
+                      const EntityIcon = AUDIT_ENTITY_ICON[log.entityType] ?? Activity
+                      return <EntityIcon />
+                    })()}
+                  </IconTile>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">{log.action}</span>
@@ -2248,16 +2609,24 @@ export function AdminConsole() {
                   </div>
                 </div>
               )) : (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {locale === "en" ? "No audit logs match the current filters." : "Không có audit log nào khớp bộ lọc."}
-                </div>
+                <EmptyState
+                    copy={locale === "en" ? "No audit logs match the current filters." : "Không có audit log nào khớp bộ lọc."}
+                    icon={ScrollText}
+                  />
               )}
-            </div>
+            </Card>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, auditPage)}
+              onPageChange={auditPage.setPage}
+              page={auditPage.page}
+              pageCount={auditPage.pageCount}
+            />
           </TabsContent>
               </Tabs>
             )}
           </div>
-      </main>
+      </div>
 
       <Dialog open={userDetailDialogOpen && Boolean(userDetail)} onOpenChange={setUserDetailDialogOpen}>
         <DialogContent className="max-h-[85dvh] max-w-[min(92vw,520px)] overflow-y-auto">
@@ -2265,9 +2634,11 @@ export function AdminConsole() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex min-w-0 items-center gap-3 text-left">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                    {userDetail.user.name.split(" ").filter(Boolean).map((word: string) => word[0]).join("").slice(0, 2)}
-                  </span>
+                  <Avatar className="size-10 shrink-0">
+                        <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                          {initials(userDetail.user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                   <span className="min-w-0">
                     <span className="block truncate">{userDetail.user.name}</span>
                     <span className="mt-0.5 block truncate text-sm font-normal text-muted-foreground">{userDetail.user.email}</span>
@@ -2284,61 +2655,29 @@ export function AdminConsole() {
                   {!userDetail.user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
                 </div>
 
-                <div className="divide-y divide-border/50 rounded-lg border border-border">
-                  {([
-                    { k: locale === "en" ? "Username" : "Username", v: userDetail.user.username ?? "--" },
-                    { k: locale === "en" ? "Phone" : "Số điện thoại", v: userDetail.user.phone ?? "--", mono: true },
-                    { k: locale === "en" ? "Coach" : "Coach", v: userDetail.assignedCoach?.name ?? "--" },
-                    { k: locale === "en" ? "Joined" : "Ngày tạo", v: formatDateTime(userDetail.user.createdAt, locale), mono: true },
-                    { k: locale === "en" ? "Workouts" : "Workouts", v: String(userDetail.user.stats.workoutLogs), mono: true },
-                    ...(userDetail.user.role === "coach" ? [{ k: locale === "en" ? "Clients" : "Clients", v: String(userDetail.user.stats.trainees), mono: true }] : []),
-                  ] as Array<{ k: string; v: string; mono?: boolean }>).map((row) => (
-                    <div key={row.k} className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-sm">
-                      <p className="label-micro text-muted-foreground">{row.k}</p>
-                      <p className={cn("min-w-0 truncate text-right text-foreground", row.mono && "font-mono")}>{row.v}</p>
-                    </div>
-                  ))}
-                </div>
+                <UserDetailFacts locale={locale} userDetail={userDetail} />
 
-                <div>
-                  <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(["trainee", "coach", "admin"] as const).map((role) => (
-                      <button
-                        key={role}
-                        type="button"
-                        onClick={() => setSelectedRole(role)}
-                        className={cn(
-                          "rounded-md px-3 py-2 font-mono text-xs transition-colors",
-                          selectedRole === role ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {role}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <UserDetailRolePicker locale={locale} onSelect={setSelectedRole} selectedRole={selectedRole} />
 
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} />
-                    <Button variant="outline" onClick={() => void handleResetPassword()} disabled={!resetPassword || actionKey === `password-${userDetail.user.id}`}>
-                      {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                      {locale === "en" ? "Reset" : "Reset"}
-                    </Button>
-                  </div>
-                </div>
+                <UserDetailPasswordReset
+                  isPending={actionKey === `password-${userDetail.user.id}`}
+                  locale={locale}
+                  onPasswordChange={setResetPassword}
+                  onReset={() => void handleResetPassword()}
+                  password={resetPassword}
+                />
+
+                <UserDetailHistory locale={locale} userDetail={userDetail} />
               </div>
 
               <DialogFooter className="flex-col gap-2 sm:flex-row">
-                <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                  {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {locale === "en" ? "Save role" : "Lưu vai trò"}
-                </Button>
-                <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                  {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : (locale === "en" ? "Unlock account" : "Mở khoá tài khoản")}
-                </Button>
+                <UserDetailActions
+                  isActive={userDetail.user.isActive}
+                  isPending={actionKey === `user-${userDetail.user.id}`}
+                  locale={locale}
+                  onSaveRole={() => void handleUserUpdate({ role: selectedRole })}
+                  onToggleActive={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })}
+                />
               </DialogFooter>
             </>
           ) : null}
@@ -2407,9 +2746,10 @@ export function AdminConsole() {
                   : "So sánh file với toàn bộ thư viện. Đồng bộ có thể xoá bài không còn trong file."}
             </p>
             {actionError ? (
-              <div role="alert" className="max-h-40 overflow-auto whitespace-pre-line rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-                {actionError}
-              </div>
+              <Alert variant="destructive" className="max-h-40 overflow-auto whitespace-pre-line">
+                <AlertCircle />
+                <AlertDescription>{actionError}</AlertDescription>
+              </Alert>
             ) : null}
             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
               <Label htmlFor="exercise-import-file">{locale === "en" ? "Select file" : "Chọn file"}</Label>
@@ -2445,7 +2785,7 @@ export function AdminConsole() {
             </div>
 
             {importFileName && excelImportMode === "append" ? (
-              <div className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
+              <Card className="grid gap-3 p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "File" : "File"}</p>
                   <p className="mt-1 truncate text-sm font-medium">{importFileName}</p>
@@ -2458,7 +2798,7 @@ export function AdminConsole() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">{locale === "en" ? "Issues" : "Lỗi"}</p>
                   <p className="mt-1 text-sm font-medium">{formatNumber(importIssues.length, locale)}</p>
                 </div>
-              </div>
+              </Card>
             ) : null}
 
             {actionKey === "exercise-import-parse" ? (
@@ -2476,7 +2816,7 @@ export function AdminConsole() {
             ) : null}
 
             {importIssues.length ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4">
+              <Alert variant="destructive">
                 <h4 className="text-sm font-semibold">{locale === "en" ? "Validation issues" : "Lỗi cần sửa"}</h4>
                 <div className="mt-3 space-y-2 text-sm text-muted-foreground">
                   {importIssues.slice(0, 8).map((issue, index) => (
@@ -2489,11 +2829,11 @@ export function AdminConsole() {
                     <p>{locale === "en" ? `+${importIssues.length - 8} more issues` : `+${importIssues.length - 8} lỗi khác`}</p>
                   ) : null}
                 </div>
-              </div>
+              </Alert>
             ) : null}
 
             {importRows.length && excelImportMode === "append" ? (
-              <div className="rounded-lg border border-border bg-card">
+              <Card>
                 <div className="border-b border-border px-4 py-3">
                   <h4 className="text-sm font-semibold">{locale === "en" ? "Preview" : "Xem trước"}</h4>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -2535,7 +2875,7 @@ export function AdminConsole() {
                       : `Đang hiển thị 8/${importRows.length} dòng hợp lệ.`}
                   </div>
                 ) : null}
-              </div>
+              </Card>
             ) : null}
           </div>
 

@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Check,
   Download,
+  Dumbbell,
   FileSpreadsheet,
   ImageUp,
   Loader2,
@@ -28,6 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { MuscleMap, TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -902,7 +904,7 @@ function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+    <Card className="overflow-hidden">
       {/* Group header */}
       <div className={cn("flex w-full items-center gap-3 px-4 py-2.5 transition-colors", open && "bg-muted/30")}>
         <button
@@ -992,7 +994,7 @@ function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected
           })}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -1233,7 +1235,7 @@ export function ExerciseLibraryPanel({
   return (
     <div className="space-y-5">
       {importRequests.length > 0 ? (
-        <div className="rounded-lg border border-border bg-card">
+        <Card>
           <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="label-micro text-muted-foreground">{copy.pendingReview}</p>
@@ -1291,7 +1293,7 @@ export function ExerciseLibraryPanel({
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-4">
@@ -1479,8 +1481,9 @@ export function ExerciseLibraryPanel({
           />
         ))}
         {grouped.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
-            {copy.noMatches}
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-12 text-center">
+            <Dumbbell aria-hidden className="size-8 text-muted-foreground/60" />
+            <p className="text-sm text-muted-foreground">{copy.noMatches}</p>
           </div>
         )}
       </div>

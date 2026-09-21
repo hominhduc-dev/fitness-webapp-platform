@@ -4,9 +4,12 @@ import { useState } from "react"
 import { Check, Loader2, Search, ShieldCheck, X } from "lucide-react"
 
 import { useToast } from "@/components/providers/toast-provider"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Card } from "@/components/ui/card"
+import { FilterChip } from "@/components/ui/filter-chip"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import type { AdminUserListItem } from "@/lib/admin/types"
 import type { CoachApprovalStatus } from "@/lib/auth/types"
 import { useAdminCoachSignups, useReviewAdminCoachSignupRequest } from "@/lib/queries/admin"
@@ -93,31 +96,28 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 basis-[220px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            onChange={(event) => setSearch(event.target.value)}
+          <InputWithIcon
+            icon={<Search />}
+                        onChange={(event) => setSearch(event.target.value)}
             placeholder={locale === "en" ? "Search coach signups…" : "Tìm hồ sơ coach…"}
             value={search}
           />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {STATUS_FILTERS.map((value) => (
-            <button
+            <FilterChip
               key={value}
-              type="button"
+              active={status === value}
+              aria-pressed={status === value}
               onClick={() => setStatus(value)}
-              className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                status === value ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
             >
               {statusLabel(value)}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
+      <Card>
         {signupsQuery.isPending ? (
           <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -145,14 +145,16 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
                 key={signup.id}
                 className="flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0"
               >
-                <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                  {signup.name
-                    .split(" ")
-                    .filter(Boolean)
-                    .map((word) => word[0])
-                    .join("")
-                    .slice(0, 2)}
-                </div>
+                <Avatar className="size-9 shrink-0">
+                  <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                    {signup.name
+                      .split(" ")
+                      .filter(Boolean)
+                      .map((word) => word[0])
+                      .join("")
+                      .slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
 
                 <div className="min-w-0 flex-1 basis-[200px]">
                   <div className="flex items-center gap-2">
@@ -196,7 +198,7 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
             )
           })
         )}
-      </div>
+      </Card>
     </div>
   )
 }

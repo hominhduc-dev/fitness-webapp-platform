@@ -1,12 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Loader2, Search, X } from "lucide-react"
+import { AlertCircle, Check, Loader2, Search, Utensils, X } from "lucide-react"
 
 import { useToast } from "@/components/providers/toast-provider"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { FilterChip } from "@/components/ui/filter-chip"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Textarea } from "@/components/ui/textarea"
 import type { AdminCustomFoodItem } from "@/lib/admin/types"
 import { useAdminCustomFoods, useReviewAdminCustomFoodRequest } from "@/lib/queries/admin"
@@ -66,24 +68,23 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder={locale === "en" ? "Search food or creator…" : "Tìm món hoặc người tạo…"}
+          <InputWithIcon
+            icon={<Search />}
+                        placeholder={locale === "en" ? "Search food or creator…" : "Tìm món hoặc người tạo…"}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
         <div className="flex flex-wrap gap-1.5">
           {STATUS_FILTERS.map((value) => (
-            <button
+            <FilterChip
               key={value}
-              className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${status === value ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-              type="button"
+              active={status === value}
+              aria-pressed={status === value}
               onClick={() => setStatus(value)}
             >
               {statusLabel(value)}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>
@@ -91,13 +92,24 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
       {foodsQuery.isPending ? (
         <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground">{locale === "en" ? "Loading foods…" : "Đang tải món ăn…"}</div>
       ) : foodsQuery.error ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive-text">{foodsQuery.error.message}</div>
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{foodsQuery.error.message}</AlertDescription>
+        </Alert>
       ) : foods.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">{locale === "en" ? "No custom foods match this filter." : "Không có món tuỳ chỉnh phù hợp bộ lọc."}</div>
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center">
+          <Utensils aria-hidden className="size-8 text-muted-foreground/60" />
+          <p className="text-sm text-muted-foreground">
+            {locale === "en" ? "No custom foods match this filter." : "Không có món tuỳ chỉnh phù hợp bộ lọc."}
+          </p>
+        </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
+          {/* Each food stays an <article>: it is a standalone item in the
+              queue, and Card is a plain div with no asChild slot to lend its
+              styling to a semantic element. */}
           {foods.map((food) => (
-            <article key={food.id} className="rounded-lg border border-border bg-card p-4">
+            <article key={food.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-semibold text-foreground">{food.name}</h3>
