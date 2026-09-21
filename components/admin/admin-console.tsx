@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ScrollText,
   Search,
   ShieldCheck,
   Trash2,
@@ -23,8 +24,9 @@ import {
   Utensils,
   type LucideIcon,
 } from "lucide-react"
-import { useEffect, useState, type ChangeEvent } from "react"
+import { useEffect, useState, type ChangeEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
 import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
@@ -35,6 +37,7 @@ import { useToast } from "@/components/providers/toast-provider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { FilterChip } from "@/components/ui/filter-chip"
 import { IconTile } from "@/components/ui/icon-tile"
 import { MetricCard } from "@/components/ui/metric-card"
@@ -295,39 +298,77 @@ function ChartPanel({
   subtitle: string
   title: string
 }) {
-  const maxValue = Math.max(...points.map((point) => point.value), 1)
-
   return (
-    <div className="rounded-lg border border-border bg-card p-[18px] transition-colors duration-150 hover:border-primary/30">
+    <Card className="p-[18px] transition-colors duration-150 hover:border-primary/30">
       <p className="text-base font-semibold text-foreground">{title}</p>
-      <p className="mb-4 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+      <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
 
-      <div className="flex h-[132px] items-end gap-2">
-        {points.map((point, index) => {
-          const height = point.value === 0 ? 3 : Math.max((point.value / maxValue) * 110, 8)
-          const isCurrent = index === points.length - 1
-
-          return (
-            <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-1.5">
-              <span className="font-mono text-micro text-muted-foreground tnum">
-                {point.value >= 1000 ? `${(point.value / 1000).toFixed(1)}k` : point.value}
-              </span>
-              <div
-                className={`w-full rounded ${isCurrent ? "bg-primary" : "bg-muted"}`}
-                style={{ height: `${height}px` }}
-              />
-              <span className="font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
-                {point.label}
-              </span>
-            </div>
-          )
-        })}
+      {/* The bars were hand-drawn divs: no axis, no hover value, and nothing
+          at all for a screen reader. Recharts is the project's chart stack;
+          the table below is the text alternative, since a chart carries no
+          accessible content of its own. */}
+      <div aria-hidden className="h-[132px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={points} margin={{ bottom: 0, left: -24, right: 4, top: 4 }}>
+            <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--border)" />
+            <XAxis
+              axisLine={false}
+              dataKey="label"
+              dy={6}
+              minTickGap={8}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+              tickLine={false}
+            />
+            <YAxis
+              allowDecimals={false}
+              axisLine={false}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+              tickLine={false}
+              width={44}
+            />
+            <Tooltip
+              cursor={{ fill: "var(--muted)" }}
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                color: "var(--foreground)",
+                fontSize: 12,
+              }}
+            />
+            <Bar dataKey="value" fill="var(--primary)" maxBarSize={22} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-    </div>
+
+      <table className="sr-only">
+        <caption>{`${title} — ${subtitle}`}</caption>
+        <tbody>
+          {points.map((point) => (
+            <tr key={point.label}>
+              <th scope="row">{point.label}</th>
+              <td>{point.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   )
 }
-function EmptyState({ copy }: { copy: string }) {
-  return <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{copy}</div>
+
+/**
+ * Empty state. The icon is the one place in a list where fitness iconography
+ * earns its keep — nothing is repeating, so it reads as subject matter rather
+ * than decoration.
+ */
+function EmptyState({ action, copy, icon: Icon }: { action?: ReactNode; copy: string; icon?: LucideIcon }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+      {Icon ? <Icon aria-hidden className="size-8 text-muted-foreground/60" /> : null}
+      <p className="text-sm text-muted-foreground">{copy}</p>
+      {action}
+    </div>
+  )
 }
 
 /**
@@ -2221,9 +2262,10 @@ export function AdminConsole() {
                     <Badge variant={roleBadgeVariant(user.role)} className="shrink-0 text-micro">{user.role}</Badge>
                   </button>
                 )) : (
-                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    {locale === "en" ? "No users match." : "Không có user nào khớp."}
-                  </div>
+                  <EmptyState
+                    copy={locale === "en" ? "No users match." : "Không có user nào khớp."}
+                    icon={Users}
+                  />
                 )}
               </div>
               <Pagination
@@ -2339,7 +2381,7 @@ export function AdminConsole() {
                     </Button>
                   </div>
                 </div>
-              )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} />}
+              )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} icon={UserRoundCheck} />}
             </div>
             <Pagination
               className="shrink-0"
@@ -2413,9 +2455,10 @@ export function AdminConsole() {
                   </Button>
                 </div>
               )) : (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {locale === "en" ? "No connections found." : "Chưa có connection nào."}
-                </div>
+                <EmptyState
+                    copy={locale === "en" ? "No connections found." : "Chưa có connection nào."}
+                    icon={Link2}
+                  />
               )}
             </div>
             <Pagination
@@ -2457,9 +2500,10 @@ export function AdminConsole() {
                   </Button>
                 </div>
               )) : (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {locale === "en" ? "No programs found." : "Chưa có giáo án nào."}
-                </div>
+                <EmptyState
+                    copy={locale === "en" ? "No programs found." : "Chưa có giáo án nào."}
+                    icon={ClipboardList}
+                  />
               )}
             </div>
             <Pagination
@@ -2552,9 +2596,10 @@ export function AdminConsole() {
                   </div>
                 </div>
               )) : (
-                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {locale === "en" ? "No audit logs match the current filters." : "Không có audit log nào khớp bộ lọc."}
-                </div>
+                <EmptyState
+                    copy={locale === "en" ? "No audit logs match the current filters." : "Không có audit log nào khớp bộ lọc."}
+                    icon={ScrollText}
+                  />
               )}
             </div>
             <Pagination
