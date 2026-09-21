@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Loader2, Search, X } from "lucide-react"
+import { Check, Loader2, Search, Utensils, X } from "lucide-react"
 
 import { useToast } from "@/components/providers/toast-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { AdminCustomFoodItem } from "@/lib/admin/types"
@@ -76,14 +77,14 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
         </div>
         <div className="flex flex-wrap gap-1.5">
           {STATUS_FILTERS.map((value) => (
-            <button
+            <FilterChip
               key={value}
-              className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${status === value ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-              type="button"
+              active={status === value}
+              aria-pressed={status === value}
               onClick={() => setStatus(value)}
             >
               {statusLabel(value)}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>
@@ -93,7 +94,12 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
       ) : foodsQuery.error ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive-text">{foodsQuery.error.message}</div>
       ) : foods.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">{locale === "en" ? "No custom foods match this filter." : "Không có món tuỳ chỉnh phù hợp bộ lọc."}</div>
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center">
+          <Utensils aria-hidden className="size-8 text-muted-foreground/60" />
+          <p className="text-sm text-muted-foreground">
+            {locale === "en" ? "No custom foods match this filter." : "Không có món tuỳ chỉnh phù hợp bộ lọc."}
+          </p>
+        </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {foods.map((food) => (

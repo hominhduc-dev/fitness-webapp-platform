@@ -36,6 +36,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FilterChip } from "@/components/ui/filter-chip"
@@ -211,6 +212,16 @@ function parseImportBoolean(value: unknown) {
 function parseImportNumber(value: unknown) {
   const numericValue = Number(value)
   return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : undefined
+}
+
+/** Two-letter monogram, the fallback every admin avatar falls back to. */
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2)
 }
 
 function roleBadgeVariant(role: UserRole) {
@@ -2162,9 +2173,11 @@ export function AdminConsole() {
                       onClick={() => { loadUserDetail(user.id); setActiveSection("users") }}
                       className="flex min-w-0 items-start gap-3 border-t border-border/50 py-2.5 text-left transition-colors first:border-t-0 hover:bg-muted/30 sm:items-center"
                     >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                        {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
-                      </div>
+                      <Avatar className="size-8 shrink-0">
+                        <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                          {initials(user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
@@ -2241,9 +2254,11 @@ export function AdminConsole() {
                         : "border-l-[3px] border-l-transparent hover:bg-muted/30"
                     }`}
                   >
-                    <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                      {user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
-                    </div>
+                    <Avatar className="size-9 shrink-0">
+                        <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                          {initials(user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
@@ -2282,9 +2297,11 @@ export function AdminConsole() {
                   <div className="space-y-5">
                     {/* Header */}
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-sm font-semibold uppercase text-muted-foreground">
-                        {userDetail.user.name.split(" ").filter(Boolean).map((w: string) => w[0]).join("").slice(0, 2)}
-                      </div>
+                      <Avatar className="size-12 shrink-0">
+                        <AvatarFallback className="font-mono text-sm font-semibold uppercase text-muted-foreground">
+                          {initials(userDetail.user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-xl font-semibold tracking-[-0.01em] text-foreground">{userDetail.user.name}</h3>
@@ -2621,9 +2638,11 @@ export function AdminConsole() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex min-w-0 items-center gap-3 text-left">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                    {userDetail.user.name.split(" ").filter(Boolean).map((word: string) => word[0]).join("").slice(0, 2)}
-                  </span>
+                  <Avatar className="size-10 shrink-0">
+                        <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                          {initials(userDetail.user.name)}
+                        </AvatarFallback>
+                      </Avatar>
                   <span className="min-w-0">
                     <span className="block truncate">{userDetail.user.name}</span>
                     <span className="mt-0.5 block truncate text-sm font-normal text-muted-foreground">{userDetail.user.email}</span>

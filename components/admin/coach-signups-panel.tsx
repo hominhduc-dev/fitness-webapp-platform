@@ -4,8 +4,10 @@ import { useState } from "react"
 import { Check, Loader2, Search, ShieldCheck, X } from "lucide-react"
 
 import { useToast } from "@/components/providers/toast-provider"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FilterChip } from "@/components/ui/filter-chip"
 import { Input } from "@/components/ui/input"
 import type { AdminUserListItem } from "@/lib/admin/types"
 import type { CoachApprovalStatus } from "@/lib/auth/types"
@@ -101,18 +103,16 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
             value={search}
           />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {STATUS_FILTERS.map((value) => (
-            <button
+            <FilterChip
               key={value}
-              type="button"
+              active={status === value}
+              aria-pressed={status === value}
               onClick={() => setStatus(value)}
-              className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                status === value ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
             >
               {statusLabel(value)}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>
@@ -145,14 +145,16 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
                 key={signup.id}
                 className="flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0"
               >
-                <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-xs font-semibold uppercase text-muted-foreground">
-                  {signup.name
-                    .split(" ")
-                    .filter(Boolean)
-                    .map((word) => word[0])
-                    .join("")
-                    .slice(0, 2)}
-                </div>
+                <Avatar className="size-9 shrink-0">
+                  <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">
+                    {signup.name
+                      .split(" ")
+                      .filter(Boolean)
+                      .map((word) => word[0])
+                      .join("")
+                      .slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
 
                 <div className="min-w-0 flex-1 basis-[200px]">
                   <div className="flex items-center gap-2">
