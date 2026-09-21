@@ -269,6 +269,7 @@ model User {
   recoveryCheckIns       RecoveryCheckIn[]
   muscleVolumeProfiles   UserMuscleVolumeProfile[]
   volumeRecommendations  VolumeRecommendation[]
+  exerciseOverrides      TraineeExerciseOverride[]
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @updatedAt
 
@@ -311,6 +312,7 @@ model Variation {
   muscleProfileReviewedBy   User?                   @relation("MuscleProfileReviewer", fields: [muscleProfileReviewedById], references: [id], onDelete: SetNull)
   muscleTargets             VariationMuscleTarget[]
   workoutExercises          WorkoutExercise[]
+  traineeOverrides          TraineeExerciseOverride[] @relation("TraineeOverrideVariation")
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
 
@@ -588,11 +590,41 @@ model WorkoutExercise {
   workout             Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   variation           Variation     @relation(fields: [variationId], references: [id], onDelete: Restrict)
   sets                ExerciseSet[]
+  traineeOverrides    TraineeExerciseOverride[]
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
   @@index([variationId])
   @@index([workoutId, order])
+}
+
+/// One trainee's substitute for a single exercise slot in a coach's program.
+///
+/// This is what lets a trainee swap an exercise mid-session without forking the
+/// coach's program: the slot still belongs to the coach and every other trainee
+/// on that program still sees the coach's choice, while this row is read back
+/// only for this trainee. When the coach approves the swap, the change is
+/// written into the coach's own WorkoutExercise and the row is dropped.
+model TraineeExerciseOverride {
+  id                String          @id @default(uuid()) @db.Uuid
+  userId            String          @db.Uuid
+  workoutExerciseId String          @db.Uuid
+  /// What the trainee does instead.
+  variationId       String          @db.Uuid
+  /// What the slot held when the trainee swapped. If the coach later moves the
+  /// slot to something else, this no longer matches and the override is stale —
+  /// the coach's newer choice wins.
+  replacedVariationId String        @db.Uuid
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  variation         Variation       @relation("TraineeOverrideVariation", fields: [variationId], references: [id], onDelete: Restrict)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([userId, workoutExerciseId])
+  @@index([userId])
+  @@index([workoutExerciseId])
+  @@index([variationId])
 }
 
 model ExerciseSet {
