@@ -544,11 +544,14 @@ function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onTog
                 "flex h-[22px] w-[22px] items-center justify-center rounded",
                 "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
                 completed
-                  ? "bg-[var(--success)] border-0"
+                  ? "border-0 bg-primary"
                   : "border-[1.5px] border-border bg-transparent",
               )}
             >
-              {completed && <Check className="h-3.5 w-3.5 text-success-foreground" strokeWidth={2.5} />}
+              {/* The tick has to move with the fill: --success-foreground is a
+                  near-black green, which is not a contrast pair for the brand
+                  colour underneath it. */}
+              {completed && <Check className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />}
             </span>
           </button>
           <DropdownMenu>
@@ -731,8 +734,12 @@ function LiftExerciseBlock({
     <div
       className={cn(
         "mb-4 min-w-0 overflow-hidden rounded-lg border transition-colors duration-[180ms]",
+        // Done follows the active palette rather than a fixed green: a finished
+        // block is progress through this workout, not a system "success", and
+        // the screen already spends green on the coach-update chips, where it
+        // does mean something specific.
         allSetsCompleted
-          ? "border-[color-mix(in_srgb,var(--success)_45%,transparent)] bg-[color-mix(in_srgb,var(--success)_10%,transparent)]"
+          ? "border-[color-mix(in_srgb,var(--primary)_45%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
           : "border-border bg-card",
       )}
     >
