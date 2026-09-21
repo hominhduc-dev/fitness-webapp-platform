@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Pagination, usePaginatedList } from "@/components/ui/pagination"
 import { SkeletonCard } from "@/components/layout/trainee-loading-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -538,6 +539,24 @@ const SECTION_DATA = {
 } as const satisfies Record<string, readonly string[]>
 
 type AdminDataKey = (typeof SECTION_DATA)[keyof typeof SECTION_DATA][number]
+
+/** Rows per page. Bounded so a list can never outgrow the fixed workspace. */
+const LIST_PAGE_SIZE = 25
+
+/** Prev/next labels plus the "12–25 / 214 · page 1/9" status line. */
+function paginationLabels(
+  locale: "en" | "vi",
+  page: { from: number; page: number; pageCount: number; to: number; total: number },
+) {
+  return {
+    next: locale === "en" ? "Next page" : "Trang sau",
+    previous: locale === "en" ? "Previous page" : "Trang trước",
+    status:
+      locale === "en"
+        ? `${page.from}–${page.to} of ${page.total} · page ${page.page}/${page.pageCount}`
+        : `${page.from}–${page.to} / ${page.total} · trang ${page.page}/${page.pageCount}`,
+  }
+}
 
 const VALID_SECTIONS = [
   "dashboard",
@@ -1904,6 +1923,16 @@ export function AdminConsole() {
     const matchesEntityType = auditEntityType === "all" ? true : log.entityType === auditEntityType
     return matchesEntityType && matchesSearch([log.action, log.entityType, log.entityLabel, log.admin.name], auditSearch)
   })
+
+  // Every list is paged. The workspace does not grow, so an unbounded list
+  // would just push its own pagination out of reach — and rendering a few
+  // thousand audit rows to scroll past was never the fastest way to find one.
+  const usersPage = usePaginatedList(filteredUsers, LIST_PAGE_SIZE)
+  const requestsPage = usePaginatedList(filteredRequests, LIST_PAGE_SIZE)
+  const connectionsPage = usePaginatedList(filteredConnections, LIST_PAGE_SIZE)
+  const programsPage = usePaginatedList(filteredPrograms, LIST_PAGE_SIZE)
+  const auditPage = usePaginatedList(filteredAuditLogs, LIST_PAGE_SIZE)
+
   const isExerciseGroupDelete =
     confirmState?.kind === "exercise-group" || confirmState?.kind === "exercise-groups"
   const isBulkExerciseGroupDelete = confirmState?.kind === "exercise-groups"
@@ -2113,7 +2142,7 @@ export function AdminConsole() {
             <div className="grid items-start gap-4 xl:grid-cols-[360px_1fr]">
               {/* User list — rows with left border indicator */}
               <div className="rounded-lg border border-border bg-card overflow-hidden">
-                {filteredUsers.length ? filteredUsers.map((user) => (
+                {usersPage.total ? usersPage.pageItems.map((user) => (
                   <button
                     key={user.id}
                     type="button"
@@ -2142,6 +2171,13 @@ export function AdminConsole() {
                   </div>
                 )}
               </div>
+              <Pagination
+                className="shrink-0"
+                labels={paginationLabels(locale, usersPage)}
+                onPageChange={usersPage.setPage}
+                page={usersPage.page}
+                pageCount={usersPage.pageCount}
+              />
 
               {/* User detail panel */}
               <div className="hidden rounded-lg border border-border bg-card p-[22px] xl:block">
@@ -2225,7 +2261,7 @@ export function AdminConsole() {
 
             {/* Request list */}
             <div className="flex flex-col gap-2.5">
-              {filteredRequests.length ? filteredRequests.map((request) => (
+              {requestsPage.total ? requestsPage.pageItems.map((request) => (
                 <div key={request.id} className="rounded-lg border border-border bg-card p-4">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <span className="text-sm font-semibold text-foreground">{request.trainee.name}</span>
@@ -2254,6 +2290,13 @@ export function AdminConsole() {
                 </div>
               )) : <EmptyState copy={locale === "en" ? "No requests match the current filters." : "Không có yêu cầu nào khớp bộ lọc."} />}
             </div>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, requestsPage)}
+              onPageChange={requestsPage.setPage}
+              page={requestsPage.page}
+              pageCount={requestsPage.pageCount}
+            />
           </TabsContent>
 
           <TabsContent value="connections" className="space-y-4">
@@ -2303,7 +2346,7 @@ export function AdminConsole() {
             </div>
 
             <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {filteredConnections.length ? filteredConnections.map((connection) => (
+              {connectionsPage.total ? connectionsPage.pageItems.map((connection) => (
                 <div key={connection.trainee.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-sm">
@@ -2324,6 +2367,13 @@ export function AdminConsole() {
                 </div>
               )}
             </div>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, connectionsPage)}
+              onPageChange={connectionsPage.setPage}
+              page={connectionsPage.page}
+              pageCount={connectionsPage.pageCount}
+            />
           </TabsContent>
 
           <TabsContent value="programs" className="space-y-4">
@@ -2335,7 +2385,7 @@ export function AdminConsole() {
 
             {/* Program rows */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {filteredPrograms.length ? filteredPrograms.map((program) => (
+              {programsPage.total ? programsPage.pageItems.map((program) => (
                 <div
                   key={program.id}
                   className="grid items-center gap-2 border-t border-border/50 px-4 py-3 first:border-t-0 grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_90px_80px_80px_auto]"
@@ -2361,6 +2411,13 @@ export function AdminConsole() {
                 </div>
               )}
             </div>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, programsPage)}
+              onPageChange={programsPage.setPage}
+              page={programsPage.page}
+              pageCount={programsPage.pageCount}
+            />
           </TabsContent>
 
           <TabsContent value="exercises">
@@ -2427,7 +2484,7 @@ export function AdminConsole() {
 
             {/* Audit rows */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {filteredAuditLogs.length ? filteredAuditLogs.map((log) => (
+              {auditPage.total ? auditPage.pageItems.map((log) => (
                 <div key={log.id} className="flex items-center gap-3 border-t border-border/50 px-4 py-3 first:border-t-0">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                     <Activity className="h-[15px] w-[15px] text-muted-foreground" />
@@ -2450,6 +2507,13 @@ export function AdminConsole() {
                 </div>
               )}
             </div>
+            <Pagination
+              className="shrink-0"
+              labels={paginationLabels(locale, auditPage)}
+              onPageChange={auditPage.setPage}
+              page={auditPage.page}
+              pageCount={auditPage.pageCount}
+            />
           </TabsContent>
               </Tabs>
             )}
