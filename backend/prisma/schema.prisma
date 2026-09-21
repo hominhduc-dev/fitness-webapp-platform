@@ -139,6 +139,7 @@ enum AIGenerationStatus {
   completed
   failed
   accepted
+  discarded
 }
 
 enum NotificationType {
@@ -449,6 +450,10 @@ model Food {
   servingAmount Float          @default(1)
   servingUnit   String         @default("serving")
   servingLabel  String
+  /// What one serving weighs. Prepared dishes are sold by the bowl or plate, so
+  /// without this there is no way to show or enter them in grams. Null means the
+  /// weight is unknown and the food keeps its own serving label.
+  servingGrams  Float?
   calories      Float
   protein       Float?
   carbs         Float?

@@ -11,6 +11,7 @@ import {
   Plus,
   Repeat,
   Search,
+  Sparkles,
   Trash2,
   TrendingUp,
   X,
@@ -53,6 +54,8 @@ import {
   useWorkoutSessionDraft,
 } from "@/lib/queries/workouts"
 import { useExercises } from "@/lib/queries/exercises"
+import { useSetVolumeRecommendationStatus, useVolumeRecovery } from "@/lib/queries/progress"
+import { acceptedCoachHints, coachHintForExercise, type CoachHint } from "@/lib/fitness/coach-hints"
 import { cn } from "@/lib/utils"
 import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { IntensityTagBadge, getIntensityTagLabel } from "@/components/workout/set-intensity-tag"
@@ -638,6 +641,8 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
 
 interface LiftExerciseBlockProps {
   exercise: WorkoutExercise
+  coachHint: CoachHint | null
+  onApplyCoachHint: (hint: CoachHint, exerciseId: string) => void
   programSetTargets: Map<string, ProgramSetTarget>
   weightUnit: "kg" | "lbs"
   isCurrent: boolean
@@ -653,6 +658,8 @@ interface LiftExerciseBlockProps {
 
 function LiftExerciseBlock({
   exercise,
+  coachHint,
+  onApplyCoachHint,
   programSetTargets,
   weightUnit,
   isCurrent,
@@ -684,6 +691,15 @@ function LiftExerciseBlock({
     isDefault: exercise.variation.isDefault,
     variationName: exercise.variation.name,
   })
+  const volumeCopy = messages.volumeRecovery
+  const coachHintText = coachHint
+    ? volumeCopy.sessionHint(
+        coachHint.action,
+        volumeCopy.muscleLabels[coachHint.muscleSlug as keyof typeof volumeCopy.muscleLabels] ?? coachHint.muscleSlug,
+        coachHint.currentSets,
+        coachHint.recommendedSets,
+      )
+    : null
 
   useEffect(() => {
     onCollapseRef.current = onCollapse
@@ -754,6 +770,27 @@ function LiftExerciseBlock({
             <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
               <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
               <span className="text-xs leading-[1.4] text-foreground">{coachUpdate.text}</span>
+            </div>
+          ) : null}
+          {/* Volume recommendation the trainee accepted, shown on the exercise
+              that actually drives that muscle's volume. */}
+          {coachHint && coachHintText ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md bg-primary-soft px-2.5 py-[7px]">
+              <Sparkles className="h-[13px] w-[13px] shrink-0 text-primary" aria-hidden="true" />
+              <span className="min-w-0 flex-1 text-xs leading-[1.4] text-foreground">{coachHintText}</span>
+              {coachHint.action === "increase" ? (
+                <button
+                  type="button"
+                  onClick={() => onApplyCoachHint(coachHint, exercise.id)}
+                  className={cn(
+                    "shrink-0 rounded border-0 bg-primary px-2 py-1 text-primary-foreground",
+                    "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
+                    "transition-opacity hover:opacity-90",
+                  )}
+                >
+                  {volumeCopy.addTheSet}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -980,6 +1017,16 @@ function WorkoutSession() {
   const replacementCandidates = replacementsQuery.data ?? []
   const loadingReplacements = replacementsQuery.isFetching
   const [swapInFlight, setSwapInFlight] = useState(false)
+  // Recommendations accepted on the dashboard, surfaced here on the exercises
+  // that actually drive each muscle's volume.
+  const volumeRecoveryQuery = useVolumeRecovery()
+  const answerRecommendation = useSetVolumeRecommendationStatus()
+  // Drops a hint the moment it is acted on, so a slow refetch cannot leave the
+  // button up long enough to add the set twice.
+  const [appliedHintSlugs, setAppliedHintSlugs] = useState<string[]>([])
+  const coachHints = acceptedCoachHints(volumeRecoveryQuery.data).filter(
+    (hint) => !appliedHintSlugs.includes(hint.muscleSlug),
+  )
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const userId = profile?.id ?? null
@@ -1419,6 +1466,16 @@ function WorkoutSession() {
     )
   }
 
+  const handleApplyCoachHint = (hint: CoachHint, exerciseId: string) => {
+    setAppliedHintSlugs((prev) => [...prev, hint.muscleSlug])
+    handleAddSet(exerciseId)
+    answerRecommendation.mutate({
+      muscleSlug: hint.muscleSlug,
+      status: "applied",
+      weekStart: volumeRecoveryQuery.data?.weekStart,
+    })
+  }
+
   /**
    * Stops this page from writing the session again and queues removal of the
    * server draft. Without the flag, a state update still rendering (a forked
@@ -1651,6 +1708,11 @@ function WorkoutSession() {
           >
             <LiftExerciseBlock
               exercise={exercise}
+              coachHint={coachHintForExercise(coachHints, {
+                ...exercise.variation,
+                muscleGroup: exercise.exercise.muscleGroup,
+              })}
+              onApplyCoachHint={handleApplyCoachHint}
               programSetTargets={programSetTargetsRef.current}
               weightUnit={weightUnit}
               isCurrent={index === currentExerciseIndex}

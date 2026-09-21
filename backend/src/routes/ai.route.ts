@@ -1,15 +1,17 @@
 import { Router } from "express"
 
 import { aiLimiter } from "../middleware/rate-limit"
-import { validated } from "../middleware/validate"
+import { asyncHandler, validated } from "../middleware/validate"
 import {
   acceptDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
   chatWithAI,
+  discardMealPlanDraft,
   generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
+  getMealPlanDraft,
   regenerateAIMealPlanMeal,
 } from "../services/ai.service"
 import { requireCurrentProfile } from "../services/auth.service"
@@ -26,8 +28,27 @@ import { getAccessToken, sendData } from "./route.utils"
 
 const aiRouter = Router()
 
+// Reading or throwing away an existing draft spends no provider tokens, so both
+// sit above the AI budget below and lean on the global API limiter instead.
+// Opening the sheet must not cost the caller a generation slot.
+aiRouter.get(
+  "/meal-plan-draft",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getMealPlanDraft(profile))
+  }),
+)
+
+aiRouter.post(
+  "/discard-meal-plan",
+  validated({ body: generationIdSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await discardMealPlanDraft(profile, req.body.generationId))
+  }),
+)
+
 // Every route below spends provider tokens, so the tighter per-caller budget
-// applies to the whole router rather than being repeated per endpoint.
+// applies to the rest of the router rather than being repeated per endpoint.
 aiRouter.use(aiLimiter)
 
 aiRouter.post(

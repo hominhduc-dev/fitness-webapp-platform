@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { Activity, Brain, Check, ChevronLeft, Dumbbell, Moon, X } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -10,15 +10,12 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
-import { useSetVolumeRecommendationStatus, useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
+import { useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
 import { formatDateKey } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
 import { LandmarkEditor } from "./landmark-editor"
 import { ReadinessTrend } from "./readiness-trend"
 import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
-
-const actionPriority = { deload: 0, decrease: 1, increase: 2, maintain: 3 } as const
-
 
 type CheckInOption = { description: string; label: string; value: number }
 
@@ -435,13 +432,8 @@ export function VolumeRecoveryPanel() {
   const { messages } = useLocale()
   const copy = messages.volumeRecovery
   const query = useVolumeRecovery()
-  const answerRecommendation = useSetVolumeRecommendationStatus()
   const [checkInOpen, setCheckInOpen] = useState(false)
   const data = query.data
-  const insight = useMemo(
-    () => data?.muscles.slice().sort((left, right) => actionPriority[left.recommendation.action] - actionPriority[right.recommendation.action])[0] ?? null,
-    [data],
-  )
 
   if (query.isPending) return <VolumeRecoverySkeleton />
   if (query.error || !data) {
@@ -494,46 +486,6 @@ export function VolumeRecoveryPanel() {
           {checkInLabel}
         </Button>
       </section>
-
-      {insight ? (
-        <section className="rounded-2xl border border-primary/20 bg-primary-soft p-4 sm:p-5">
-          <p className="label-micro text-primary">{copy.coachInsight}</p>
-          <p className="mt-2 text-sm leading-6 text-foreground">
-            {copy.recommendation(
-              insight.recommendation.action,
-              copy.muscleLabels[insight.muscleSlug as keyof typeof copy.muscleLabels] ?? insight.muscleSlug,
-            )}
-          </p>
-          {insight.recommendation.status === "pending" ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={answerRecommendation.isPending}
-                onClick={() => answerRecommendation.mutate({ muscleSlug: insight.muscleSlug, status: "accepted", weekStart: data.weekStart })}
-              >
-                {copy.accept}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={answerRecommendation.isPending}
-                onClick={() => answerRecommendation.mutate({ muscleSlug: insight.muscleSlug, status: "dismissed", weekStart: data.weekStart })}
-              >
-                {copy.dismiss}
-              </Button>
-            </div>
-          ) : (
-            <p className="mt-3 font-mono text-micro uppercase tracking-[0.08em] text-primary">
-              {insight.recommendation.status === "dismissed" ? copy.dismissed : copy.accepted}
-            </p>
-          )}
-          {answerRecommendation.error ? (
-            <p className="mt-2 text-sm text-destructive-text">{answerRecommendation.error.message}</p>
-          ) : null}
-        </section>
-      ) : null}
 
       <ReadinessTrend />
 

@@ -1,6 +1,12 @@
 "use client"
 
-import { useAcceptAIMealPlan, useGenerateAIMealPlan, useRegenerateAIMealPlanMeal } from "@/lib/queries/ai"
+import {
+  useAcceptAIMealPlan,
+  useAIMealPlanDraft,
+  useDiscardAIMealPlanDraft,
+  useGenerateAIMealPlan,
+  useRegenerateAIMealPlanMeal,
+} from "@/lib/queries/ai"
 
 import { Bot, Check, Loader2, RefreshCw, Sparkles, X } from "lucide-react"
 import { useState } from "react"
@@ -95,20 +101,27 @@ function MealPlanGenerator({
   const { mutateAsync: generateAIMealPlan, isPending: isGenerating } = useGenerateAIMealPlan()
   const { mutateAsync: acceptAIMealPlan, isPending: isAccepting } = useAcceptAIMealPlan()
   const { mutateAsync: regenerateMeal } = useRegenerateAIMealPlanMeal()
+  const { mutateAsync: discardDraft } = useDiscardAIMealPlanDraft()
+  const draftQuery = useAIMealPlanDraft()
   const [days, setDays] = useState<number>(1)
   const [allergiesText, setAllergiesText] = useState(() => (profile?.foodAllergies ?? []).join(", "))
   const [dietType, setDietType] = useState<AppDietType | null>(profile?.dietType ?? null)
   const [preferences, setPreferences] = useState("")
   const [budget, setBudget] = useState<string>("medium")
   const [cookingTime, setCookingTime] = useState<string>("normal")
-  const [plan, setPlan] = useState<AIMealPlan | null>(null)
+  const [localPlan, setLocalPlan] = useState<AIMealPlan | null>(null)
+  const [discardedId, setDiscardedId] = useState<string | null>(null)
   const [edits, setEdits] = useState<MealPlanEdits>({})
   const [swappingKey, setSwappingKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // This sheet unmounts when it closes, so the plan is read back from the
+  // server draft rather than regenerated. Anything produced in this session
+  // takes precedence over what was stored.
+  const storedPlan = draftQuery.data && draftQuery.data.generationId !== discardedId ? draftQuery.data : null
+  const plan = localPlan ?? storedPlan
 
   const handleGenerate = async () => {
     setError(null)
-    setPlan(null)
     setEdits({})
 
     try {
@@ -117,7 +130,7 @@ function MealPlanGenerator({
       if (!sameList(allergies, profile?.foodAllergies ?? []) || dietType !== (profile?.dietType ?? null)) {
         await updateProfile({ dietType, foodAllergies: allergies })
       }
-      setPlan(await generateAIMealPlan([{ date, days, preferences: preferences || undefined, budget, cookingTime }]))
+      setLocalPlan(await generateAIMealPlan([{ date, days, preferences: preferences || undefined, budget, cookingTime }]))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tạo thực đơn. Vui lòng thử lại.")
     }
@@ -129,12 +142,31 @@ function MealPlanGenerator({
     setSwappingKey(`${dayDate}|${mealType}`)
     try {
       const next = await regenerateMeal([{ generationId: plan.generationId, date: dayDate, mealType }])
-      setPlan(next)
+      setLocalPlan(next)
       setEdits((current) => omitMealEdits(current, dayDate, mealType))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không đổi được bữa này. Vui lòng thử lại.")
     } finally {
       setSwappingKey(null)
+    }
+  }
+
+  /**
+   * Throwing the plan away has to reach the server too, otherwise reopening the
+   * sheet restores the very plan the trainee just rejected.
+   */
+  const handleDiscard = async () => {
+    if (!plan) return
+    setError(null)
+    setDiscardedId(plan.generationId)
+    setLocalPlan(null)
+    setEdits({})
+
+    try {
+      await discardDraft([plan.generationId])
+    } catch {
+      // The sheet already shows the form again, and generating retires older
+      // drafts anyway, so a failed discard is not worth interrupting for.
     }
   }
 
@@ -169,7 +201,14 @@ function MealPlanGenerator({
           </div>
         )}
 
-        {plan ? (
+        {/* Waiting on the stored draft first, so a restored plan does not
+            appear after a flash of the empty form. */}
+        {draftQuery.isPending && !localPlan ? (
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Đang tải thực đơn...
+          </div>
+        ) : plan ? (
           <div className="space-y-4">
             <MealPlanDraft
               plan={plan}
@@ -190,7 +229,7 @@ function MealPlanGenerator({
               <Button
                 variant="outline"
                 className="flex-1 gap-2"
-                onClick={() => setPlan(null)}
+                onClick={() => void handleDiscard()}
                 disabled={isAccepting || swappingKey !== null}
               >
                 <RefreshCw className="size-4" />

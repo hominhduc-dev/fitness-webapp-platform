@@ -170,6 +170,7 @@ function serializeFood(food: {
   name: string
   protein: number | null
   servingAmount: number
+  servingGrams?: number | null
   servingLabel: string
   servingUnit: string
   slug: string
@@ -188,6 +189,7 @@ function serializeFood(food: {
     name: food.name,
     protein: food.protein ?? 0,
     servingAmount: food.servingAmount,
+    servingGrams: food.servingGrams ?? undefined,
     servingLabel: food.servingLabel,
     servingUnit: food.servingUnit,
     slug: food.slug,
@@ -461,6 +463,7 @@ function calculateItemNutrition(
     fiber: number | null
     protein: number | null
     servingAmount: number
+    servingGrams: number | null
     servingUnit: string
     sodium: number | null
     sugar: number | null
@@ -471,10 +474,15 @@ function calculateItemNutrition(
   },
 ) {
   const amountUnit = normalizeAmountUnit(input.amountUnit)
+  // Grams work against the serving's own weight, so a portion sold by the bowl
+  // can still be logged as "500 g". Foods with no recorded weight fall through
+  // to the older rules and stay counted in servings.
   const multiplier =
-    amountUnit !== "serving" && food.servingUnit === amountUnit && food.servingAmount > 0
-      ? input.amountValue / food.servingAmount
-      : input.amountValue
+    amountUnit === "g" && food.servingGrams != null && food.servingGrams > 0
+      ? input.amountValue / food.servingGrams
+      : amountUnit !== "serving" && food.servingUnit === amountUnit && food.servingAmount > 0
+        ? input.amountValue / food.servingAmount
+        : input.amountValue
   const amountLabel = amountUnit === "serving" ? (input.amountValue === 1 ? undefined : `×${input.amountValue}`) : `${input.amountValue} ${amountUnit}`
 
   return {
@@ -488,7 +496,14 @@ function calculateItemNutrition(
     quantity: roundNutrition(multiplier, 4),
     sodium: food.sodium == null ? undefined : roundNutrition(food.sodium * multiplier, 0),
     sugar: food.sugar == null ? undefined : roundNutrition(food.sugar * multiplier),
-    weightGrams: amountUnit === "g" ? input.amountValue : undefined,
+    // Recorded for every food whose serving has a known weight, not just the
+    // ones the caller happened to express in grams.
+    weightGrams:
+      food.servingGrams != null && food.servingGrams > 0
+        ? roundNutrition(food.servingGrams * multiplier)
+        : amountUnit === "g"
+          ? input.amountValue
+          : undefined,
   }
 }
 

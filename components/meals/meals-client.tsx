@@ -541,10 +541,17 @@ function AddFoodModal({
   const showRecentFoods = !query.trim() && category === "all" && recentFoods.length > 0
 
   function pickFood(food: NutritionFood) {
-    const gramUnit = food.servingUnit === "g" || food.servingUnit === "ml" ? food.servingUnit : "serving"
+    // Anything with a known serving weight is logged in grams, so a dish sold
+    // by the bowl is still something the trainee can weigh. Drinks keep ml.
+    const unit =
+      food.servingUnit === "g" || food.servingUnit === "ml"
+        ? food.servingUnit
+        : food.servingGrams && food.servingGrams > 0
+          ? "g"
+          : "serving"
     setSelectedFood(food)
-    setAmountUnit(gramUnit)
-    setAmountValue(gramUnit === "serving" ? 1 : food.servingAmount)
+    setAmountUnit(unit)
+    setAmountValue(unit === "serving" ? 1 : unit === "g" && food.servingUnit !== "g" ? (food.servingGrams ?? 1) : food.servingAmount)
   }
 
   async function handleCreateFood(input: Parameters<typeof createCustomFood>[1]) {
@@ -559,10 +566,14 @@ function AddFoodModal({
     }
   }
 
+  // Mirrors `calculateItemNutrition` on the server so the preview matches what
+  // gets saved.
   const multiplier =
-    selectedFood && amountUnit !== "serving" && selectedFood.servingUnit === amountUnit && selectedFood.servingAmount > 0
-      ? amountValue / selectedFood.servingAmount
-      : amountValue
+    selectedFood && amountUnit === "g" && selectedFood.servingGrams && selectedFood.servingGrams > 0
+      ? amountValue / selectedFood.servingGrams
+      : selectedFood && amountUnit !== "serving" && selectedFood.servingUnit === amountUnit && selectedFood.servingAmount > 0
+        ? amountValue / selectedFood.servingAmount
+        : amountValue
 
   return (
     <BottomSheet

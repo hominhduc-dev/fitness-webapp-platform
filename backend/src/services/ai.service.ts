@@ -831,6 +831,7 @@ const MEAL_PLAN_FOOD_SELECT = {
   priceTier: true,
   protein: true,
   servingAmount: true,
+  servingGrams: true,
   servingLabel: true,
   servingUnit: true,
   source: true,
@@ -1009,6 +1010,17 @@ async function generateMealPlan(profile: SerializedProfile, rawInput: GenerateMe
         tokenUsage: response.tokenUsage,
       },
     })
+    // Only the newest plan is a live draft. Retiring the earlier ones keeps
+    // discarding this one from resurrecting a plan the trainee moved on from.
+    await db.aIGeneration.updateMany({
+      data: { status: AIGenerationStatus.discarded },
+      where: {
+        id: { not: generation.id },
+        status: AIGenerationStatus.completed,
+        type: AIGenerationType.meal_plan,
+        userId: profile.id,
+      },
+    })
 
     return buildMealPlanResponse(generation.id, plan, foodsById)
   } catch (error) {
@@ -1099,6 +1111,53 @@ async function acceptAIMealPlan(profile: SerializedProfile, generationId: string
     }
     return { accepted: true, dates: days.map(day => day.date), logged, skipped: 0 }
   }, { maxWait: 15000, timeout: 60000, isolationLevel: "Serializable" }))
+}
+
+// ---------------------------------------------------------------------------
+// The draft a trainee left open
+// ---------------------------------------------------------------------------
+
+/**
+ * The plan a trainee generated and has neither saved nor thrown away. The sheet
+ * showing it unmounts when it closes, and generating another one costs a slot
+ * out of the daily budget, so a dismissed sheet reads its draft back from here.
+ */
+async function getMealPlanDraft(profile: SerializedProfile): Promise<MealPlanResponse | null> {
+  const db = ensurePrisma()
+  const generation = await db.aIGeneration.findFirst({
+    orderBy: { createdAt: "desc" },
+    where: { status: AIGenerationStatus.completed, type: AIGenerationType.meal_plan, userId: profile.id },
+  })
+  if (!generation) return null
+
+  const output = generation.output as { mapped?: unknown } | null
+  // A draft written in the old array shape cannot be rendered, and neither can
+  // one that no longer parses. Report no draft rather than failing the open.
+  if (!output?.mapped || Array.isArray(output.mapped)) return null
+  const plan = storedMealPlanSchema.safeParse(output.mapped)
+  if (!plan.success) return null
+
+  const foods = await loadMealPlanFoods(db, profile.id)
+  return buildMealPlanResponse(generation.id, plan.data, new Map<string, PlanFood>(foods.map((food) => [food.id, food])))
+}
+
+/**
+ * Discarding keeps the row so it still counts against the daily budget —
+ * deleting it would make "Tạo lại" a way to generate without limit.
+ */
+async function discardMealPlanDraft(profile: SerializedProfile, generationId: string) {
+  const db = ensurePrisma()
+  const { count } = await db.aIGeneration.updateMany({
+    data: { status: AIGenerationStatus.discarded },
+    where: {
+      id: generationId,
+      status: AIGenerationStatus.completed,
+      type: AIGenerationType.meal_plan,
+      userId: profile.id,
+    },
+  })
+
+  return { discarded: count === 1 }
 }
 
 // ---------------------------------------------------------------------------
@@ -1443,9 +1502,11 @@ export {
   acceptAIProgram,
   acceptCoachTraineeAIProgram,
   chatWithAI,
+  discardMealPlanDraft,
   generateCoachTraineeWorkoutProgram,
   generateDailyWorkout,
   generateMealPlan,
+  getMealPlanDraft,
   generateWorkoutProgram,
   regenerateAIMealPlanMeal,
 }

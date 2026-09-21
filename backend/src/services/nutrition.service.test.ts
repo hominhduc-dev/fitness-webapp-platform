@@ -10,12 +10,13 @@ const per100g = {
   fiber: 3,
   protein: 10,
   servingAmount: 100,
+  servingGrams: 100,
   servingUnit: "g",
   sodium: 400,
   sugar: 5,
 }
 
-/** A food defined per portion, e.g. a Vietnamese "1 tô" entry. */
+/** A portion food whose weight was never recorded, so grams cannot be derived. */
 const perServing = {
   calories: 350,
   carbs: 40,
@@ -23,10 +24,14 @@ const perServing = {
   fiber: null,
   protein: 25,
   servingAmount: 1,
+  servingGrams: null,
   servingUnit: "serving",
   sodium: null,
   sugar: null,
 }
+
+/** A dish sold by the bowl that does have a weight: "1 tô" = 700 g. */
+const perBowl = { ...perServing, servingGrams: 700 }
 
 describe("normalizeAmountUnit", () => {
   it("accepts the two weight/volume units", () => {
@@ -113,9 +118,35 @@ describe("calculateItemNutrition", () => {
   })
 
   it("handles a zero serving amount without dividing by zero", () => {
-    const result = calculateItemNutrition({ ...per100g, servingAmount: 0 }, { amountUnit: "g", amountValue: 50 })
+    const result = calculateItemNutrition(
+      { ...per100g, servingAmount: 0, servingGrams: 0 },
+      { amountUnit: "g", amountValue: 50 },
+    )
 
     expect(Number.isFinite(result.calories)).toBe(true)
     expect(result.quantity).toBe(50)
+  })
+
+  it("logs a dish sold by the bowl in grams once its serving weight is known", () => {
+    // Half a 700 g bowl is half its nutrition, which is the whole point of
+    // recording the weight: "1 tô" is not something anyone can weigh.
+    const result = calculateItemNutrition(perBowl, { amountUnit: "g", amountValue: 350 })
+
+    expect(result.quantity).toBe(0.5)
+    expect(result.calories).toBe(175)
+    expect(result.protein).toBe(12.5)
+    expect(result.weightGrams).toBe(350)
+  })
+
+  it("reports the gram weight of a portion logged in servings", () => {
+    // The trainee picked two bowls; the tracker should still say 1400 g.
+    expect(calculateItemNutrition(perBowl, { amountUnit: "serving", amountValue: 2 }).weightGrams).toBe(1400)
+  })
+
+  it("keeps counting in servings when the food has no recorded weight", () => {
+    const result = calculateItemNutrition(perServing, { amountUnit: "g", amountValue: 350 })
+
+    expect(result.quantity).toBe(350)
+    expect(result.weightGrams).toBe(350)
   })
 })

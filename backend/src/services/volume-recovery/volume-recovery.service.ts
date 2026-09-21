@@ -299,7 +299,7 @@ async function listRecoveryHistoryForTrainee(profile: SerializedProfile, days: n
  */
 async function setVolumeRecommendationStatusForTrainee(
   profile: SerializedProfile,
-  input: { muscleSlug: string; status: "accepted" | "dismissed"; weekStart?: Date },
+  input: { muscleSlug: string; status: "accepted" | "applied" | "dismissed"; weekStart?: Date },
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
@@ -315,12 +315,17 @@ async function setVolumeRecommendationStatusForTrainee(
     })
   }
 
-  const timestamps = input.status === "accepted"
-    ? { acceptedAt: new Date(), dismissedAt: null }
-    : { acceptedAt: null, dismissedAt: new Date() }
   const existing = await db.volumeRecommendation.findFirst({
     where: { muscleSlug: input.muscleSlug, userId: profile.id, weekStart },
   })
+  const now = new Date()
+  // `applied` follows `accepted`, so it keeps the earlier acceptance rather
+  // than overwriting when it happened.
+  const timestamps = input.status === "accepted"
+    ? { acceptedAt: now, appliedAt: null, dismissedAt: null }
+    : input.status === "applied"
+      ? { acceptedAt: existing?.acceptedAt ?? now, appliedAt: now, dismissedAt: null }
+      : { acceptedAt: null, appliedAt: null, dismissedAt: now }
   const data = {
     action: muscle.recommendation.action,
     algorithmVersion: VOLUME_RECOVERY_ALGORITHM_VERSION,

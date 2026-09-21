@@ -69,6 +69,10 @@ export const queryKeys = {
       ["exercises", "library", normalizeExerciseOptions(options)] as const,
   },
 
+  ai: {
+    all: ["ai"] as const,
+    mealPlanDraft: () => ["ai", "meal-plan-draft"] as const,
+  },
   meals: {
     all: ["meals"] as const,
     nutritionDay: (dateKey: string) => ["meals", "nutrition-day", dateKey] as const,

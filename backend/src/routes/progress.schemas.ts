@@ -43,7 +43,7 @@ const recoveryHistoryQuerySchema = z.object({
 
 const volumeRecommendationStatusSchema = z.object({
   muscleSlug,
-  status: z.enum(["accepted", "dismissed"]),
+  status: z.enum(["accepted", "applied", "dismissed"]),
   weekStart: dateKey.optional(),
 })
 

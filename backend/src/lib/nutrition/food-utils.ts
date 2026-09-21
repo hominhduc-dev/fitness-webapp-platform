@@ -38,21 +38,26 @@ function roundNutrition(value: number, fractionDigits = 1) {
 /**
  * How much of a food to show the trainee.
  *
- * Prefers real weight — most of the library stores its serving in grams (or
- * millilitres for drinks), so "2 serving" can be shown as the "200 g" it
- * actually is. Prepared dishes ("1 tô", "1 dĩa") carry no weight anywhere in
- * the data, so those keep their own label rather than inventing a number.
+ * Always a real weight where one is known, because "2 × 1 tô" is not something
+ * anyone can put on a scale. A food still missing `servingGrams` keeps its own
+ * serving label rather than inventing a number.
  */
 function formatFoodQuantity(
-  food: { servingAmount: number; servingUnit: string; servingLabel: string },
+  food: { servingAmount: number; servingGrams?: number | null; servingUnit: string; servingLabel: string },
   input: { amountValue: number; amountUnit: string },
 ) {
   if (input.amountUnit === "g" || input.amountUnit === "ml") {
     return `${roundNutrition(input.amountValue, 0)} ${input.amountUnit}`
   }
 
+  // A food already measured by weight or volume keeps its own unit; a drink
+  // belongs in millilitres rather than being converted to grams.
   if ((food.servingUnit === "g" || food.servingUnit === "ml") && food.servingAmount > 0) {
     return `${roundNutrition(input.amountValue * food.servingAmount, 0)} ${food.servingUnit}`
+  }
+
+  if (food.servingGrams != null && food.servingGrams > 0) {
+    return `${roundNutrition(input.amountValue * food.servingGrams, 0)} g`
   }
 
   const label = food.servingLabel?.trim()
