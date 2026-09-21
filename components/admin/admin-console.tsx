@@ -317,6 +317,149 @@ function EmptyState({ copy }: { copy: string }) {
 }
 
 /**
+ * Account facts, label against value.
+ *
+ * The fixed label column is what makes this safe in both homes: the panel's
+ * old `justify-between` let a long email or a date run back into its own
+ * label, and there is far less room for that in the dialog.
+ */
+function UserDetailFacts({ locale, userDetail }: { locale: "en" | "vi"; userDetail: AdminUserDetail }) {
+  const rows: Array<{ key: string; mono?: boolean; value: string }> = [
+    { key: locale === "en" ? "Username" : "Username", value: userDetail.user.username ?? "—" },
+    { key: locale === "en" ? "Phone" : "Số điện thoại", mono: true, value: userDetail.user.phone ?? "—" },
+    { key: locale === "en" ? "Coach" : "Coach", value: userDetail.assignedCoach?.name ?? "—" },
+    { key: locale === "en" ? "Joined" : "Ngày tạo", mono: true, value: formatDateTime(userDetail.user.createdAt, locale) },
+    { key: locale === "en" ? "Workouts" : "Workouts", mono: true, value: String(userDetail.user.stats.workoutLogs) },
+    ...(userDetail.user.role === "coach"
+      ? [{ key: locale === "en" ? "Clients" : "Clients", mono: true, value: String(userDetail.user.stats.trainees) }]
+      : []),
+  ]
+
+  return (
+    <div className="divide-y divide-border/50 rounded-lg border border-border">
+      {rows.map((row) => (
+        <div key={row.key} className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-sm">
+          <p className="label-micro text-muted-foreground">{row.key}</p>
+          <p className={cn("min-w-0 truncate text-right text-foreground", row.mono && "font-mono")}>{row.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Role selector. Three fixed options, so they get equal columns rather than
+ * content-width chips — the widths stop shifting as the labels change.
+ */
+function UserDetailRolePicker({
+  locale,
+  onSelect,
+  selectedRole,
+}: {
+  locale: "en" | "vi"
+  onSelect: (role: UserRole) => void
+  selectedRole: UserRole
+}) {
+  return (
+    <div>
+      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {(["trainee", "coach", "admin"] as const).map((role) => (
+          <button
+            key={role}
+            type="button"
+            // The pressed state is carried by colour alone otherwise, which
+            // says nothing to a screen reader.
+            aria-pressed={selectedRole === role}
+            onClick={() => onSelect(role)}
+            className={cn(
+              "rounded-md px-3 py-2 font-mono text-xs transition-colors pointer-coarse:min-h-11",
+              selectedRole === role
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {role}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Manual password reset. Stacks below `sm` so the field keeps a usable width. */
+function UserDetailPasswordReset({
+  isPending,
+  locale,
+  onPasswordChange,
+  onReset,
+  password,
+}: {
+  isPending: boolean
+  locale: "en" | "vi"
+  onPasswordChange: (value: string) => void
+  onReset: () => void
+  password: string
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <p className="label-micro mb-2 text-muted-foreground">
+        {locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          type="password"
+          value={password}
+          onChange={(event) => onPasswordChange(event.target.value)}
+          placeholder={locale === "en" ? "New password" : "Mật khẩu mới"}
+          className="flex-1"
+        />
+        <Button variant="outline" onClick={onReset} disabled={!password || isPending}>
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          {locale === "en" ? "Reset" : "Reset"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Save-role and lock/unlock. A fragment, because the panel lays these out in
+ * a plain row while the dialog owes them to `DialogFooter`.
+ */
+function UserDetailActions({
+  isActive,
+  isPending,
+  locale,
+  onSaveRole,
+  onToggleActive,
+}: {
+  isActive: boolean
+  isPending: boolean
+  locale: "en" | "vi"
+  onSaveRole: () => void
+  onToggleActive: () => void
+}) {
+  return (
+    <>
+      <Button onClick={onSaveRole} disabled={isPending}>
+        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {locale === "en" ? "Save role" : "Lưu vai trò"}
+      </Button>
+      <Button variant={isActive ? "destructive" : "outline"} onClick={onToggleActive} disabled={isPending}>
+        {isActive
+          ? locale === "en"
+            ? "Lock account"
+            : "Khoá tài khoản"
+          : locale === "en"
+            ? "Unlock account"
+            : "Mở khoá tài khoản"}
+      </Button>
+    </>
+  )
+}
+
+/**
  * The read-only half of the user detail: who the coach trains and what the
  * trainee last logged.
  *
@@ -1977,65 +2120,26 @@ export function AdminConsole() {
                       </div>
                     </div>
 
-                    {/* Role chips */}
-                    <div>
-                      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
-                      <div className="flex gap-1.5">
-                        {(["trainee", "coach", "admin"] as const).map((r) => (
-                          <button
-                            key={r}
-                            type="button"
-                            onClick={() => setSelectedRole(r)}
-                            className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                              selectedRole === r
-                                ? "bg-foreground text-background"
-                                : "bg-muted text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {r}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <UserDetailFacts locale={locale} userDetail={userDetail} />
 
-                    {/* Info rows */}
-                    <div className="divide-y divide-border/50">
-                      {([
-                        { k: locale === "en" ? "Username" : "Username", v: userDetail.user.username ?? "—" },
-                        { k: locale === "en" ? "Phone" : "Số điện thoại", v: userDetail.user.phone ?? "—", mono: true },
-                        { k: locale === "en" ? "Coach" : "Coach", v: userDetail.assignedCoach?.name ?? "—" },
-                        { k: locale === "en" ? "Joined" : "Ngày tạo", v: formatDateTime(userDetail.user.createdAt, locale), mono: true },
-                        { k: locale === "en" ? "Workouts" : "Workouts", v: String(userDetail.user.stats.workoutLogs), mono: true },
-                        ...(userDetail.user.role === "coach" ? [{ k: locale === "en" ? "Clients" : "Clients", v: String(userDetail.user.stats.trainees), mono: true }] : []),
-                      ] as Array<{ k: string; v: string; mono?: boolean }>).map((row) => (
-                        <div key={row.k} className="flex items-center justify-between py-2.5">
-                          <p className="label-micro text-muted-foreground">{row.k}</p>
-                          <p className={`text-sm text-foreground ${row.mono ? "font-mono" : ""}`}>{row.v}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <UserDetailRolePicker locale={locale} onSelect={setSelectedRole} selectedRole={selectedRole} />
 
-                    {/* Password reset */}
-                    <div className="rounded-lg border border-border bg-muted/20 p-4">
-                      <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
-                      <div className="flex gap-2">
-                        <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} className="flex-1" />
-                        <Button variant="outline" size="sm" onClick={() => void handleResetPassword()} disabled={!resetPassword || actionKey === `password-${userDetail.user.id}`}>
-                          {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                          {locale === "en" ? "Reset" : "Reset"}
-                        </Button>
-                      </div>
-                    </div>
+                    <UserDetailPasswordReset
+                      isPending={actionKey === `password-${userDetail.user.id}`}
+                      locale={locale}
+                      onPasswordChange={setResetPassword}
+                      onReset={() => void handleResetPassword()}
+                      password={resetPassword}
+                    />
 
-                    {/* Account actions */}
                     <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                        {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        {locale === "en" ? "Save role" : "Lưu vai trò"}
-                      </Button>
-                      <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                        {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : (locale === "en" ? "Unlock account" : "Mở khoá tài khoản")}
-                      </Button>
+                      <UserDetailActions
+                        isActive={userDetail.user.isActive}
+                        isPending={actionKey === `user-${userDetail.user.id}`}
+                        locale={locale}
+                        onSaveRole={() => void handleUserUpdate({ role: selectedRole })}
+                        onToggleActive={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })}
+                      />
                     </div>
 
                     <UserDetailHistory locale={locale} userDetail={userDetail} />
@@ -2335,63 +2439,29 @@ export function AdminConsole() {
                   {!userDetail.user.isActive ? <Badge variant="destructive">{locale === "en" ? "Locked" : "Đã khoá"}</Badge> : null}
                 </div>
 
-                <div className="divide-y divide-border/50 rounded-lg border border-border">
-                  {([
-                    { k: locale === "en" ? "Username" : "Username", v: userDetail.user.username ?? "--" },
-                    { k: locale === "en" ? "Phone" : "Số điện thoại", v: userDetail.user.phone ?? "--", mono: true },
-                    { k: locale === "en" ? "Coach" : "Coach", v: userDetail.assignedCoach?.name ?? "--" },
-                    { k: locale === "en" ? "Joined" : "Ngày tạo", v: formatDateTime(userDetail.user.createdAt, locale), mono: true },
-                    { k: locale === "en" ? "Workouts" : "Workouts", v: String(userDetail.user.stats.workoutLogs), mono: true },
-                    ...(userDetail.user.role === "coach" ? [{ k: locale === "en" ? "Clients" : "Clients", v: String(userDetail.user.stats.trainees), mono: true }] : []),
-                  ] as Array<{ k: string; v: string; mono?: boolean }>).map((row) => (
-                    <div key={row.k} className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-sm">
-                      <p className="label-micro text-muted-foreground">{row.k}</p>
-                      <p className={cn("min-w-0 truncate text-right text-foreground", row.mono && "font-mono")}>{row.v}</p>
-                    </div>
-                  ))}
-                </div>
+                <UserDetailFacts locale={locale} userDetail={userDetail} />
 
-                <div>
-                  <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Role" : "Vai trò"}</p>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(["trainee", "coach", "admin"] as const).map((role) => (
-                      <button
-                        key={role}
-                        type="button"
-                        onClick={() => setSelectedRole(role)}
-                        className={cn(
-                          "rounded-md px-3 py-2 font-mono text-xs transition-colors",
-                          selectedRole === role ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {role}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <UserDetailRolePicker locale={locale} onSelect={setSelectedRole} selectedRole={selectedRole} />
 
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="label-micro mb-2 text-muted-foreground">{locale === "en" ? "Manual password reset" : "Reset mật khẩu thủ công"}</p>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder={locale === "en" ? "New password" : "Mật khẩu mới"} />
-                    <Button variant="outline" onClick={() => void handleResetPassword()} disabled={!resetPassword || actionKey === `password-${userDetail.user.id}`}>
-                      {actionKey === `password-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                      {locale === "en" ? "Reset" : "Reset"}
-                    </Button>
-                  </div>
-                </div>
+                <UserDetailPasswordReset
+                  isPending={actionKey === `password-${userDetail.user.id}`}
+                  locale={locale}
+                  onPasswordChange={setResetPassword}
+                  onReset={() => void handleResetPassword()}
+                  password={resetPassword}
+                />
 
                 <UserDetailHistory locale={locale} userDetail={userDetail} />
               </div>
 
               <DialogFooter className="flex-col gap-2 sm:flex-row">
-                <Button onClick={() => void handleUserUpdate({ role: selectedRole })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                  {actionKey === `user-${userDetail.user.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {locale === "en" ? "Save role" : "Lưu vai trò"}
-                </Button>
-                <Button variant={userDetail.user.isActive ? "destructive" : "outline"} onClick={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })} disabled={actionKey === `user-${userDetail.user.id}`}>
-                  {userDetail.user.isActive ? (locale === "en" ? "Lock account" : "Khoá tài khoản") : (locale === "en" ? "Unlock account" : "Mở khoá tài khoản")}
-                </Button>
+                <UserDetailActions
+                  isActive={userDetail.user.isActive}
+                  isPending={actionKey === `user-${userDetail.user.id}`}
+                  locale={locale}
+                  onSaveRole={() => void handleUserUpdate({ role: selectedRole })}
+                  onToggleActive={() => void handleUserUpdate({ isActive: !userDetail.user.isActive })}
+                />
               </DialogFooter>
             </>
           ) : null}
