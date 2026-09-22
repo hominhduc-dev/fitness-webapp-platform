@@ -5809,6 +5809,23 @@ async function updateCoachProgram(
   return serializeProgram(program as ProgramRecord)
 }
 
+/**
+ * Whether a program fork made by adjusting one trainee's copy may keep the
+ * original's spreadsheet link.
+ *
+ * Safe exactly when this trainee was the only one assigned to the original
+ * program — nobody else is left holding a program that still points at the
+ * same sheet. Otherwise the fork and the original would both write into it:
+ * the "Spreadsheet này đang dùng chung với..." export conflict, discovered
+ * only later, by whichever trainee happens to export first, rather than
+ * caught here. Left unset, the fork needs a fresh import before Sheets
+ * export works again — a one-time inconvenience against a bug that corrupts
+ * another trainee's data.
+ */
+function canForkKeepSpreadsheetLink(hasSpreadsheetLink: boolean, otherAssigneeCount: number) {
+  return hasSpreadsheetLink && otherAssigneeCount === 0
+}
+
 async function adjustCoachProgramForTrainee(
   profile: SerializedProfile,
   programId: string,
@@ -5899,6 +5916,13 @@ async function adjustCoachProgramForTrainee(
       exerciseRows,
     )
 
+    const otherAssigneeCount = existingProgram.googleSpreadsheetId
+      ? await transaction.programAssignment.count({
+          where: { programId: existingProgram.id, userId: { not: traineeId } },
+        })
+      : 0
+    const keepsSpreadsheetLink = canForkKeepSpreadsheetLink(existingProgram.googleSpreadsheetId != null, otherAssigneeCount)
+
     await transaction.program.create({
       data: {
         createdById: profile.id,
@@ -5906,8 +5930,8 @@ async function adjustCoachProgramForTrainee(
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
         id: programId,
-        googleSpreadsheetId: existingProgram.googleSpreadsheetId,
-        googleSheetName: existingProgram.googleSheetName,
+        googleSpreadsheetId: keepsSpreadsheetLink ? existingProgram.googleSpreadsheetId : undefined,
+        googleSheetName: keepsSpreadsheetLink ? existingProgram.googleSheetName : undefined,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? existingProgram.startDate,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
@@ -8526,6 +8550,7 @@ export {
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
   archiveTraineeProgram,
+  canForkKeepSpreadsheetLink,
   deleteTraineeProgram,
   restoreTraineeProgram,
 }
