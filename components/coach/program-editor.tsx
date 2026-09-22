@@ -39,6 +39,7 @@ import {
   fetchCoachProgram,
   fetchCoachTrainees,
   restoreCoachProgram,
+  unlinkGoogleSheetFromCoachProgram,
   updateCoachProgram,
 } from "@/lib/fitness/api"
 import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
@@ -594,10 +595,12 @@ export function ProgramEditor({
   const updateProgram = useCoachMutation(updateCoachProgram)
   const adjustProgram = useCoachMutation(adjustCoachProgram)
   const restoreProgram = useCoachMutation(restoreCoachProgram)
+  const unlinkGoogleSheet = useCoachMutation(unlinkGoogleSheetFromCoachProgram)
   const [initializedProgram, setInitializedProgram] = useState<string | null>(null)
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
   const [assignedTrainees, setAssignedTrainees] = useState<AssignedTrainee[]>([])
   const [archivedAt, setArchivedAt] = useState<Date | null>(null)
+  const [googleSheetConflict, setGoogleSheetConflict] = useState<CoachProgram["googleSheetConflict"]>(null)
   const [routineLibrary, setRoutineLibrary] = useState<Routine[]>([])
   const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8, 4))
   const [activeWeek, setActiveWeek] = useState(0)
@@ -622,6 +625,7 @@ export function ProgramEditor({
   const isLoadingPage = Boolean(programId && programQuery.isPending)
   const [isSaving, setIsSaving] = useState(false)
   const [isRestoring, setIsRestoring] = useState(false)
+  const [isUnlinkingGoogleSheet, setIsUnlinkingGoogleSheet] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -650,6 +654,7 @@ export function ProgramEditor({
           )
           setAssignedTrainees(program.assignedTrainees)
           setArchivedAt(program.archivedAt ?? null)
+          setGoogleSheetConflict(program.googleSheetConflict ?? null)
           setRoutineLibrary(mapped.routines)
           setSchedule(mapped.schedule)
 
@@ -937,6 +942,21 @@ export function ProgramEditor({
       setError(restoreError instanceof Error ? restoreError.message : messages.coach.programSaveError)
     } finally {
       setIsRestoring(false)
+    }
+  }
+
+  const handleUnlinkGoogleSheet = async () => {
+    if (!programId || isUnlinkingGoogleSheet) return
+    setIsUnlinkingGoogleSheet(true)
+    setError(null)
+    try {
+      const updated = await unlinkGoogleSheet.mutateAsync([programId])
+      setGoogleSheetConflict(updated.googleSheetConflict ?? null)
+      setNotice(messages.coach.googleSheetUnlinked)
+    } catch (unlinkError) {
+      setError(unlinkError instanceof Error ? unlinkError.message : messages.coach.unlinkGoogleSheetError)
+    } finally {
+      setIsUnlinkingGoogleSheet(false)
     }
   }
 
@@ -1267,6 +1287,28 @@ export function ProgramEditor({
           {isArchived ? (
             <div className="mb-4 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               Program này đã archive (chỉ đọc). Restore để chỉnh sửa.
+            </div>
+          ) : null}
+          {googleSheetConflict ? (
+            <div className="mb-4 flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                {messages.coach.googleSheetConflictBanner(
+                  googleSheetConflict.conflictingNames.length > 0
+                    ? googleSheetConflict.conflictingNames.join(", ")
+                    : messages.coach.genericConflictingTrainee,
+                )}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0 rounded-xl border-destructive/30 bg-background/70 text-destructive-text hover:bg-destructive-soft"
+                disabled={isUnlinkingGoogleSheet}
+                onClick={() => void handleUnlinkGoogleSheet()}
+              >
+                {isUnlinkingGoogleSheet ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {isUnlinkingGoogleSheet ? messages.coach.unlinkingGoogleSheet : messages.coach.unlinkGoogleSheet}
+              </Button>
             </div>
           ) : null}
           {error ? (

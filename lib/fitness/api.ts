@@ -323,6 +323,7 @@ type SerializedCoachProgram = Omit<Program, "archivedAt" | "createdAt" | "workou
   archivedAt?: string | null
   assignedTrainees: SerializedAssignedTrainee[]
   createdAt: string
+  googleSheetConflict?: { conflictingCount: number; conflictingNames: string[] } | null
   workouts: SerializedWorkout[]
 }
 
@@ -823,6 +824,7 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
     forkedFromProgramId: program.forkedFromProgramId,
     googleSpreadsheetId: program.googleSpreadsheetId,
     googleSheetName: program.googleSheetName,
+    googleSheetConflict: program.googleSheetConflict,
     id: program.id,
     name: program.name,
     startDate: program.startDate,
@@ -1830,6 +1832,15 @@ async function restoreCoachProgram(accessToken: string, programId: string): Prom
   return mapCoachProgram(response.program)
 }
 
+async function unlinkGoogleSheetFromCoachProgram(accessToken: string, programId: string): Promise<CoachProgram> {
+  const response = await request<{ program: SerializedCoachProgram }>(
+    `/api/coach/programs/${programId}/unlink-google-sheet`,
+    accessToken,
+    { method: "POST" },
+  )
+  return mapCoachProgram(response.program)
+}
+
 async function fetchCoachTrainees(accessToken: string, options?: { phone?: string }): Promise<CoachTrainee[]> {
   const searchParams = new URLSearchParams()
 
@@ -2744,6 +2755,7 @@ export {
   restoreCoachProgram,
   swapWorkoutExercise,
   unassignCoachProgram,
+  unlinkGoogleSheetFromCoachProgram,
   updateCoachExerciseRequest,
   updateCoachProgram,
   updateCoachRequestStatus,

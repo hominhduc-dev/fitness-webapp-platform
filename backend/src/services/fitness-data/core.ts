@@ -33,7 +33,7 @@ import {
 } from "../../lib/library-cache"
 import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-export.service"
 import { logger } from "../../lib/logger"
-import { exportGoogleProgramLogs } from "../google-program-export.service"
+import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "../google-program-export.service"
 import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
@@ -5351,7 +5351,9 @@ async function getCoachProgramDetail(profile: SerializedProfile, programId: stri
     throw new AuthServiceError("Không tìm thấy chương trình.", 404)
   }
 
-  return serializeProgram(program as ProgramRecord)
+  const googleSheetConflict = await describeGoogleSpreadsheetConflict(db, profile.id, program as ProgramRecord)
+
+  return { ...serializeProgram(program as ProgramRecord), googleSheetConflict }
 }
 
 async function getTraineeProgramDetail(profile: SerializedProfile, programId: string) {
@@ -6652,6 +6654,23 @@ async function restoreCoachProgram(profile: SerializedProfile, programId: string
 
   const updated = await db.program.update({
     data: { archivedAt: null },
+    include: PROGRAM_INCLUDE,
+    where: { id: program.id },
+  })
+
+  return serializeProgram(updated as ProgramRecord)
+}
+
+async function unlinkGoogleSpreadsheetFromCoachProgram(profile: SerializedProfile, programId: string) {
+  const db = ensurePrisma()
+  const program = await assertCoachOwnsProgram(profile.id, programId)
+
+  if (!program.googleSpreadsheetId) {
+    return serializeProgram(program as ProgramRecord)
+  }
+
+  const updated = await db.program.update({
+    data: { googleSpreadsheetId: null, googleSheetName: null },
     include: PROGRAM_INCLUDE,
     where: { id: program.id },
   })
@@ -8575,6 +8594,7 @@ export {
   submitCoachExerciseImportRequest,
   swapExerciseForTraineeFromWorkout,
   unassignCoachProgramFromTrainee,
+  unlinkGoogleSpreadsheetFromCoachProgram,
   updateCoachExercise,
   updateCoachProgram,
   updateCoachRequestStatus,

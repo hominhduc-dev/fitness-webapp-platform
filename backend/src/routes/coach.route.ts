@@ -35,6 +35,7 @@ import {
   restoreCoachProgram,
   submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
+  unlinkGoogleSpreadsheetFromCoachProgram,
   updateCoachExercise,
   updateCoachProgram,
   updateWorkoutLogCommentForCoach,
@@ -395,6 +396,17 @@ coachRouter.post("/programs/:programId/restore", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
     const program = await restoreCoachProgram(profile.profile, String(req.params.programId))
+
+    res.json({ program })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/programs/:programId/unlink-google-sheet", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const program = await unlinkGoogleSpreadsheetFromCoachProgram(profile.profile, String(req.params.programId))
 
     res.json({ program })
   } catch (error) {
