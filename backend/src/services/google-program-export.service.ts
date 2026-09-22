@@ -6,6 +6,8 @@ import { assertCoach, assertCoachOwnsTrainee, ensurePrisma } from "./fitness-dat
 import { BadRequestError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 
+type ExportDb = ReturnType<typeof ensurePrisma>
+
 export type ExportExercise = { order?: number; originalVariationId?: string; variation?: { id?: string; name?: string }; exercise?: { name?: string; muscleGroup?: string }; sets: Array<{ setNumber: number; completed: boolean; actualReps?: number; weight?: number }> }
 type ExportSession = { day: number; week: number; exercises: ExportExercise[] }
 
@@ -59,6 +61,40 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
   return { requests, rowCount: updates.length }
 }
 
+/**
+ * Export writes results straight into the sheet's cells, so a spreadsheet two
+ * trainees share would have one's numbers overwrite the other's. "Used by
+ * another trainee" left the coach nowhere to start — this names who, across
+ * every program that was ever built from this spreadsheet: a current
+ * assignment, or a past one whose logs are still on it.
+ */
+async function assertSpreadsheetNotSharedWithAnotherTrainee(db: ExportDb, spreadsheetId: string, traineeId: string) {
+  const relatedPrograms = await db.program.findMany({
+    where: { googleSpreadsheetId: spreadsheetId },
+    select: { assignments: { select: { userId: true } }, id: true },
+  })
+  const relatedProgramIds = relatedPrograms.map((program) => program.id)
+  const loggedByOthers = await db.workoutLog.findMany({
+    distinct: ["userId"],
+    select: { userId: true },
+    where: { programId: { in: relatedProgramIds }, userId: { not: traineeId } },
+  })
+  const conflictingUserIds = new Set([
+    ...relatedPrograms.flatMap((program) => program.assignments.map((assignment) => assignment.userId)),
+    ...loggedByOthers.map((log) => log.userId),
+  ])
+  conflictingUserIds.delete(traineeId)
+  if (conflictingUserIds.size === 0) return
+
+  const conflictingUsers = await db.user.findMany({ select: { name: true }, where: { id: { in: [...conflictingUserIds] } } })
+  const names = conflictingUsers.map((user) => user.name).sort((a, b) => a.localeCompare(b))
+  const who = names.length > 0 ? names.join(", ") : "một học viên khác"
+
+  throw new BadRequestError(
+    `Spreadsheet này đang dùng chung với ${who}. Mỗi học viên cần một spreadsheet riêng — hãy nhân bản sheet này trên Google Drive rồi import lại cho học viên đang xem.`,
+  )
+}
+
 export async function exportGoogleProgramLogs(profile: SerializedProfile, traineeId: string, logIds: string[]) {
   assertCoach(profile)
   await assertCoachOwnsTrainee(profile.id, traineeId)
@@ -71,10 +107,7 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   const spreadsheetIds = [...new Set(programs.map((program) => program.googleSpreadsheetId))]
   if (spreadsheetIds.length !== 1 || !spreadsheetIds[0] || programs.some((program) => !program.googleSheetName)) throw new BadRequestError("Chọn log của một spreadsheet đã import.")
   const spreadsheetId = spreadsheetIds[0]
-  const relatedPrograms = await db.program.findMany({ where: { googleSpreadsheetId: spreadsheetId }, select: { id: true, assignments: { select: { userId: true } } } })
-  if (relatedPrograms.some((program) => program.assignments.some((assignment) => assignment.userId !== traineeId)) || await db.workoutLog.count({ where: { programId: { in: relatedPrograms.map((program) => program.id) }, userId: { not: traineeId } } })) {
-    throw new BadRequestError("Spreadsheet này đang hoặc đã được dùng bởi học viên khác. Mỗi học viên cần một spreadsheet riêng.")
-  }
+  await assertSpreadsheetNotSharedWithAnotherTrainee(db, spreadsheetId, traineeId)
   const sessions = new Map<number, ExportSession[]>()
   for (const log of logs) {
     const snapshot = log.workoutSnapshot as { scheduledDay?: number; weekIndex?: number } | null
