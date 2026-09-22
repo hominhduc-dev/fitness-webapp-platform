@@ -5389,33 +5389,39 @@ function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>)
 }
 
 /**
- * A coach pasting another coach's live Sheets link — borrowed, shared, or just
- * public — must not be able to create a program that points at it. Export
- * writes straight into the sheet's cells using whichever coach's own Google
- * token is calling, so a program built this way would silently write into a
- * spreadsheet, and a trainee roster, that isn't theirs.
- * `assertSpreadsheetNotSharedWithAnotherTrainee` (google-program-export.service.ts)
- * only catches this once someone tries to export; this stops the program from
- * being created at all.
+ * One spreadsheet backs one program, which the `Program_googleSpreadsheetId_key`
+ * index enforces. This is the same rule stated in the language of the app, so a
+ * coach gets told what to do instead of a unique-violation error.
+ *
+ * Two ways in. A coach pasting another coach's live Sheets link — borrowed,
+ * shared, or just public — would build a program that writes into a spreadsheet,
+ * and a trainee roster, that isn't theirs, using their own Google token. And a
+ * coach importing the same sheet twice would leave two programs writing over
+ * each other's cells, which is the conflict `describeGoogleSpreadsheetConflict`
+ * exists to report after the fact. Both are refused here instead.
  */
-async function assertGoogleSpreadsheetNotOwnedByAnotherCoach(
+async function assertGoogleSpreadsheetNotInUse(
   db: ReturnType<typeof ensurePrisma>,
   coachId: string,
   googleSpreadsheetId: string | undefined,
 ) {
   if (!googleSpreadsheetId) return
 
-  const usedByAnotherCoach = await db.program.findFirst({
-    select: { id: true },
-    where: { createdById: { not: coachId }, googleSpreadsheetId },
+  const inUse = await db.program.findFirst({
+    select: { createdById: true, name: true },
+    where: { googleSpreadsheetId },
   })
 
-  if (usedByAnotherCoach) {
-    throw new AuthServiceError(
-      "Spreadsheet này đã được coach khác dùng để import chương trình. Hãy nhân bản (Make a copy) sheet này trên Google Drive của bạn rồi import bản sao.",
-      409,
-    )
-  }
+  if (!inUse) return
+
+  // Their own program can be named and unlinked; another coach's is theirs to
+  // see, so it stays unnamed and the only way forward is a copy of the sheet.
+  throw new AuthServiceError(
+    inUse.createdById === coachId
+      ? `Spreadsheet này đang gắn với chương trình "${inUse.name}". Hãy gỡ liên kết ở chương trình đó trước, hoặc nhân bản (Make a copy) sheet trên Google Drive rồi import bản sao.`
+      : "Spreadsheet này đã được coach khác dùng để import chương trình. Hãy nhân bản (Make a copy) sheet này trên Google Drive của bạn rồi import bản sao.",
+    409,
+  )
 }
 
 async function createCoachProgram(
@@ -5498,7 +5504,7 @@ async function createCoachProgram(
 
   const googleSpreadsheetId = input.googleSpreadsheetId?.trim() || undefined
   const googleSheetName = input.googleSheetName?.trim() || undefined
-  await assertGoogleSpreadsheetNotOwnedByAnotherCoach(db, profile.id, googleSpreadsheetId)
+  await assertGoogleSpreadsheetNotInUse(db, profile.id, googleSpreadsheetId)
 
   const { notifications, program } = await retryTransaction(() => db.$transaction(async (tx) => {
     const programId = randomUUID()
@@ -5958,6 +5964,18 @@ async function adjustCoachProgramForTrainee(
         })
       : 0
     const keepsSpreadsheetLink = canForkKeepSpreadsheetLink(existingProgram.googleSpreadsheetId != null, otherAssigneeCount)
+
+    if (keepsSpreadsheetLink) {
+      // The sheet follows the trainee onto the adjusted program, so the original
+      // has to let go of it first. Leaving it on both would put two programs on
+      // one spreadsheet — the state `Program_googleSpreadsheetId_key` refuses,
+      // and one the export could not tell apart anyway. The original is left
+      // with no assignees by the delete below, so it has nothing left to export.
+      await transaction.program.update({
+        data: { googleSheetName: null, googleSpreadsheetId: null },
+        where: { id: existingProgram.id },
+      })
+    }
 
     await transaction.program.create({
       data: {
@@ -8602,7 +8620,7 @@ export {
   updateWorkoutLogCommentForCoach,
   archiveTraineeProgram,
   assertCoachOwnsProgram,
-  assertGoogleSpreadsheetNotOwnedByAnotherCoach,
+  assertGoogleSpreadsheetNotInUse,
   canForkKeepSpreadsheetLink,
   deleteTraineeProgram,
   restoreTraineeProgram,
