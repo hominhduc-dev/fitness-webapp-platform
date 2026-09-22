@@ -17,6 +17,8 @@ type ExportProgramLogsDialogProps = {
   programDuration: number
   programId: string
   programName: string
+  /** `YYYY-MM-DD`; anchors week 1 for every trainee when set. */
+  programStartDate?: string
 }
 
 export function ExportProgramLogsDialog({
@@ -24,6 +26,7 @@ export function ExportProgramLogsDialog({
   programDuration,
   programId,
   programName,
+  programStartDate,
 }: ExportProgramLogsDialogProps) {
   const queries = useExportQueries()
   const sheetsExport = useCoachSheetsExport()
@@ -37,8 +40,9 @@ export function ExportProgramLogsDialog({
       return { error: messages.workoutPage.exportSelectProgramError }
     }
 
-    // Program window is anchored to the selected trainee's assignment date.
-    const startDate = getProgramStartDate(trainee.assignedAt, programDuration)
+    // Program window opens on week 1: the program's start date when the coach
+    // set one, otherwise the selected trainee's assignment date.
+    const startDate = getProgramStartDate(trainee.assignedAt, programDuration, programStartDate)
     const from = formatDateToISO(startDate)
     const endDate = new Date(startDate)
     endDate.setDate(endDate.getDate() + programDuration * 7)
@@ -83,7 +87,7 @@ export function ExportProgramLogsDialog({
 
     const program = await queries.coachProgram(programId)
 
-    const start = formatDateToISO(getProgramStartDate(trainee.assignedAt, programDuration))
+    const start = formatDateToISO(getProgramStartDate(trainee.assignedAt, programDuration, programStartDate))
     return buildPlannedSessions(program.workouts, start)
   }
 

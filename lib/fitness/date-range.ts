@@ -61,7 +61,24 @@ export function startOfUtcWeek(date: Date): Date {
 }
 
 /**
- * Resolve a program's start date, snapped to the Monday of the assignment week.
+ * Read a coach-set `YYYY-MM-DD` start date as that calendar day in local time.
+ * `new Date("2026-09-21")` is UTC midnight, which west of UTC is still Sunday
+ * locally — and `startOfIsoWeek` would then snap it back a whole week.
+ */
+function parseCalendarDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!match) return null
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+/**
+ * Resolve a program's start date, snapped to the Monday of its first week.
+ *
+ * A coach-set `startDate` is the week-1 anchor when present, as it is on the
+ * backend (`resolveProgramAnchorDate`); otherwise the assignment date is. Using
+ * the assignment date for a program that starts later would open the export
+ * window on sessions trained before week 1, which the program never counted.
  *
  * Program weeks are Monday-aligned everywhere in the app (schedule, weekly
  * report sheets). If assignment happens mid-week (e.g. Tuesday), we still want
@@ -71,7 +88,12 @@ export function startOfUtcWeek(date: Date): Date {
  * Falls back to `durationWeeks` weeks ago (also Monday-snapped) when
  * `assignedAt` is missing or invalid.
  */
-export function getProgramStartDate(assignedAt: unknown, durationWeeks: number): Date {
+export function getProgramStartDate(assignedAt: unknown, durationWeeks: number, startDate?: string | null): Date {
+  const parsedStartDate = startDate ? parseCalendarDate(startDate) : null
+  if (parsedStartDate) {
+    return startOfIsoWeek(parsedStartDate)
+  }
+
   const parsedAssignedAt = parseValidDate(assignedAt)
 
   if (parsedAssignedAt) {

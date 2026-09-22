@@ -1132,6 +1132,7 @@ export function ProgramEditor({
                       programDuration={Number(duration) || 8}
                       programId={programId}
                       programName={programName || messages.coach.program}
+                      programStartDate={startDate || undefined}
                     />
                   )}
                   <Button
