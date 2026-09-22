@@ -1,6 +1,6 @@
 import { batchUpdateSpreadsheet } from "../lib/google"
 import { formatSetIntensityMethodCell, type SetIntensityAssignment } from "../domain/set-intensity-tag"
-import { WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
+import { buildReferenceRows, WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
 import { BadRequestError } from "./errors"
 import { assertCoachOwnsProgram } from "./fitness-data/core"
 import { assertCoach, ensurePrisma } from "./fitness-data/shared/guards"
@@ -158,6 +158,77 @@ export function buildProgramSheetRequests(
 }
 
 /**
+ * Turns a freshly created template into the program: one `Week N` tab per week,
+ * each carrying that week's plan.
+ *
+ * Week 1 comes with the template and the rest are duplicates of it, so every
+ * tab keeps the same formatting, dropdown and lookup formulas before its own
+ * plan is written over the top.
+ *
+ * Takes the token rather than a profile because the same file is built in two
+ * different Drives: the coach's, from their program page, and the trainee's,
+ * the first time they export.
+ */
+export async function fillProgramWeeks(
+  accessToken: string,
+  created: { spreadsheetId: string; weekSheetId: number; weekSheetIndex: number },
+  workouts: readonly SourceWorkout[],
+  weeks: number,
+) {
+  const sheetIdByWeek = new Map<number, number>([[0, created.weekSheetId]])
+  const duplicates = Array.from({ length: weeks - 1 }, (_, index) => ({
+    duplicateSheet: {
+      insertSheetIndex: created.weekSheetIndex + index + 1,
+      newSheetName: `Week ${index + 2}`,
+      sourceSheetId: created.weekSheetId,
+    },
+  }))
+
+  if (duplicates.length > 0) {
+    const response = await batchUpdateSpreadsheet(accessToken, created.spreadsheetId, duplicates)
+    const replies = (response as { replies?: Array<{ duplicateSheet?: { properties?: { sheetId?: number } } }> })?.replies ?? []
+
+    replies.forEach((reply, index) => {
+      const sheetId = reply?.duplicateSheet?.properties?.sheetId
+      if (sheetId != null) sheetIdByWeek.set(index + 1, sheetId)
+    })
+  }
+
+  await batchUpdateSpreadsheet(
+    accessToken,
+    created.spreadsheetId,
+    buildProgramSheetRequests(workouts, weeks, sheetIdByWeek),
+  )
+}
+
+/**
+ * The `Exercise Table` rows a program needs to stand on its own: every variation
+ * it actually prescribes, and nothing else.
+ *
+ * A coach's template lists their whole library, because they author in it. A
+ * trainee's copy only has to resolve the rows already written into it — and
+ * listing the coach's full library there would hand one trainee the catalogue
+ * their coach built for everyone.
+ */
+export function programReferenceRows(workouts: readonly SourceWorkout[]) {
+  const byVariationId = new Map<string, Parameters<typeof buildReferenceRows>[0][number]>()
+
+  for (const workout of workouts) {
+    for (const exercise of workout.exercises) {
+      byVariationId.set(exercise.variation.id, {
+        exerciseName: exercise.variation.exercise.name,
+        id: exercise.variation.id,
+        muscleGroup: exercise.variation.exercise.muscleGroup,
+        name: variationDisplayName(exercise.variation),
+        variationName: exercise.variation.name,
+      })
+    }
+  }
+
+  return buildReferenceRows([...byVariationId.values()])
+}
+
+/**
  * Gives a program built in the app the Google Sheet an imported one already has,
  * so its logs have somewhere to be exported to.
  *
@@ -193,33 +264,7 @@ export async function generateProgramSpreadsheet(profile: SerializedProfile, pro
   const created = await createGoogleProgramTemplate(profile, { title: program.name })
   const token = await getGoogleAccessToken(profile)
 
-  // Week 1 comes with the template; the rest are copies of it, so every week
-  // carries the same formatting, dropdown and lookup formulas before its own
-  // plan is written over the top.
-  const sheetIdByWeek = new Map<number, number>([[0, created.weekSheetId]])
-  const duplicates = Array.from({ length: weeks - 1 }, (_, index) => ({
-    duplicateSheet: {
-      insertSheetIndex: created.weekSheetIndex + index + 1,
-      newSheetName: `Week ${index + 2}`,
-      sourceSheetId: created.weekSheetId,
-    },
-  }))
-
-  if (duplicates.length > 0) {
-    const response = await batchUpdateSpreadsheet(token, created.spreadsheetId, duplicates)
-    const replies = (response as { replies?: Array<{ duplicateSheet?: { properties?: { sheetId?: number } } }> })?.replies ?? []
-
-    replies.forEach((reply, index) => {
-      const sheetId = reply?.duplicateSheet?.properties?.sheetId
-      if (sheetId != null) sheetIdByWeek.set(index + 1, sheetId)
-    })
-  }
-
-  await batchUpdateSpreadsheet(
-    token,
-    created.spreadsheetId,
-    buildProgramSheetRequests(program.workouts, weeks, sheetIdByWeek),
-  )
+  await fillProgramWeeks(token, created, program.workouts, weeks)
 
   const claimed = await db.program.updateMany({
     data: { googleSheetName: WEEK_SHEET_TITLE, googleSpreadsheetId: created.spreadsheetId },

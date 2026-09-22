@@ -13,6 +13,7 @@ import { listExerciseLibrary } from "./fitness-data/core"
 import { SET_INTENSITY_METHOD_CHOICES } from "../domain/set-intensity-tag"
 import {
   BANNER_ROW,
+  buildReferenceRows,
   DAYS,
   FIRST_DATA_ROW,
   HEADER_ROW,
@@ -98,36 +99,6 @@ function buildWeekRows() {
   }
 
   return rows
-}
-
-function buildReferenceRows(
-  variations: Array<{
-    equipment?: string
-    exerciseName: string
-    id: string
-    muscleGroup: string
-    name: string
-    variationName: string
-  }>,
-) {
-  const sorted = [...variations].sort(
-    (left, right) =>
-      left.muscleGroup.localeCompare(right.muscleGroup, undefined, { sensitivity: "base" }) ||
-      left.exerciseName.localeCompare(right.exerciseName, undefined, { sensitivity: "base" }) ||
-      left.variationName.localeCompare(right.variationName, undefined, { sensitivity: "base" }),
-  )
-
-  return [
-    ["variation_id", "exercise_name", "variation_name", "display_name", "muscle_group", "equipment"],
-    ...sorted.map((variation) => [
-      variation.id,
-      variation.exerciseName,
-      variation.variationName,
-      variation.name,
-      variation.muscleGroup,
-      variation.equipment ?? "",
-    ]),
-  ]
 }
 
 function buildFormattingRequests(sheetIds: Map<string, number>) {
@@ -412,8 +383,40 @@ async function createGoogleProgramTemplate(
       variationName: variation.name,
     })),
   )
-  const referenceRows = buildReferenceRows(variations)
-  const spreadsheetTitle = title?.trim() || `Program template — ${profile.name}`
+  return createProgramTemplateSpreadsheet(accessToken, {
+    folder: options?.folder,
+    referenceRows: buildReferenceRows(variations),
+    title: title?.trim() || `Program template — ${profile.name}`,
+    trainees,
+  })
+}
+
+/**
+ * Builds the template in whichever Drive the token belongs to.
+ *
+ * Split from `createGoogleProgramTemplate` because the trainee export creates
+ * the same file under the trainee's own account: `drive.file` reaches files
+ * this app created for the account asking, so a sheet the trainee is to own has
+ * to be created with their token, not copied into place with someone else's.
+ *
+ * The caller supplies the reference rows and the trainee list rather than the
+ * service reading them, since those are the two things that differ. A coach's
+ * template lists their whole library and roster; a trainee's file lists only
+ * the exercises their own program uses, and only themselves — the rest of the
+ * roster is not theirs to see.
+ */
+export async function createProgramTemplateSpreadsheet(
+  accessToken: string,
+  input: {
+    folder?: string
+    referenceRows: Array<Array<string | number>>
+    title: string
+    trainees: Array<{ email: string; name: string }>
+  },
+) {
+  const { referenceRows, trainees } = input
+  const options = { folder: input.folder }
+  const spreadsheetTitle = input.title
 
   const created = await createSpreadsheet(accessToken, spreadsheetTitle, [
     { properties: { gridProperties: { columnCount: 4, rowCount: 20 }, index: 0, title: PROGRAM_SHEET_TITLE } },
@@ -485,7 +488,7 @@ async function createGoogleProgramTemplate(
   }
 
   return {
-    exerciseCount: variations.length,
+    exerciseCount: Math.max(0, referenceRows.length - 1),
     folderId,
     folderName: options?.folder?.trim() ? undefined : DEFAULT_FOLDER_NAME,
     sheetName: WEEK_SHEET_TITLE,

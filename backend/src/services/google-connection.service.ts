@@ -13,23 +13,6 @@ import { ensurePrisma } from "./fitness-data/shared/guards"
  */
 const CONNECTABLE_ROLES = ["coach", "trainee"] as const
 
-/**
- * Whether this user's grant reaches files the app did not create, which is what
- * copying a coach-authored sheet needs.
- *
- * Read from the scopes Google actually returned rather than the ones requested:
- * a coach connected before full Drive was asked for, or one whose org blocks the
- * restricted scope, has a perfectly good connection that simply cannot copy.
- */
-export async function hasFullDriveScope(userId: string) {
-  const connection = await ensurePrisma().googleConnection.findUnique({
-    select: { scope: true },
-    where: { userId },
-  })
-
-  return connection?.scope.split(" ").includes(google.DRIVE_FULL_SCOPE) ?? false
-}
-
 export const GOOGLE_STATE_MAX_AGE = 10 * 60 * 1000
 export function isGoogleConfigured() {
   return google.isGoogleOAuthConfigured() && isTokenCryptoConfigured()

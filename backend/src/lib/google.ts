@@ -20,33 +20,21 @@ const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files"
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
 /**
- * `spreadsheets` covers reading and writing every sheet the coach can open, and
+ * `spreadsheets` covers reading and writing every sheet the user can open, and
  * is what the import and the result writes run on.
  *
- * Drive is asked for twice on purpose. `files.copy` — how a trainee gets their
- * own copy of the program sheet — will only copy a file the caller's scope
- * actually reaches, and `drive.file` reaches only files this app created for
- * that coach. A sheet the coach made themselves and pasted a link to is not one
- * of those, which is why full `drive` is requested as well.
- *
- * Google may grant a subset, and `GoogleConnection.scope` records what was
- * actually given. Keeping `drive.file` in the list means a coach who declines
- * full Drive — or whose org blocks the restricted scope — still gets a working
- * connection, just one that cannot copy sheets it did not create.
- *
- * `drive` is a restricted scope: using it in production needs Google's OAuth
- * verification, and until that is granted the app is capped at a small number
- * of users behind an "unverified app" screen.
+ * `drive.file` rather than full `drive`, deliberately: it reaches only the files
+ * this app created for that account, which is every file the app needs to touch
+ * through Drive. A coach's template and a trainee's program sheet are both
+ * created by the app, in their own Drive, so nothing has to be copied out of
+ * someone else's — which is what would have forced the restricted full-Drive
+ * scope and the Google verification that comes with it.
  */
 const SCOPES = [
   "https://www.googleapis.com/auth/spreadsheets",
   "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/userinfo.email",
 ]
-
-/** Granting this is what lets `files.copy` reach a sheet the app did not create. */
-const DRIVE_FULL_SCOPE = "https://www.googleapis.com/auth/drive"
 
 const REQUEST_TIMEOUT_MS = 15000
 
@@ -491,54 +479,6 @@ async function moveFileToFolder(accessToken: string, fileId: string, folderId: s
 }
 
 /**
- * Copies a spreadsheet the app created, tabs, formatting and formulas included.
- *
- * Under `drive.file` the caller can only copy files this app created for *them*,
- * so a program sheet has to be copied with its own coach's token — a trainee's
- * token cannot see it, however the file is shared.
- */
-async function copyDriveFile(accessToken: string, fileId: string, name: string) {
-  const response = await googleFetch(
-    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}/copy?fields=id`,
-    {
-      body: JSON.stringify({ name }),
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      method: "POST",
-    },
-    "drive_file_copy",
-  )
-
-  const copyId = ((await response.json()) as { id?: string }).id
-
-  if (!copyId) {
-    throw new ExternalServiceError("Google không trả về bản sao vừa tạo.", { code: "GOOGLE_COPY_MISSING" })
-  }
-
-  return copyId
-}
-
-/**
- * Grants one person access to a file the app created.
- *
- * `sendNotificationEmail=false` keeps Google from mailing them on every export;
- * the app tells them itself. An address with no Google account behind it still
- * records the grant, and takes effect if they ever sign up with it.
- */
-async function shareDriveFile(accessToken: string, fileId: string, emailAddress: string, role: "reader" | "writer") {
-  const response = await googleFetch(
-    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=false&fields=id`,
-    {
-      body: JSON.stringify({ emailAddress, role, type: "user" }),
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      method: "POST",
-    },
-    "drive_permission_create",
-  )
-
-  return response.json()
-}
-
-/**
  * Pulls a folder id out of a pasted Drive link, or accepts a bare id.
  *
  * Deliberately separate from `extractSpreadsheetId`, which rejects folder links
@@ -618,11 +558,8 @@ export {
   EXPIRY_SKEW_MS,
   exchangeCodeForTokens,
   extractSpreadsheetId,
-  copyDriveFile,
   createSpreadsheet,
-  DRIVE_FULL_SCOPE,
   extractDriveFolderId,
-  shareDriveFile,
   fetchGoogleEmail,
   findOrCreateDriveFolder,
   moveFileToFolder,

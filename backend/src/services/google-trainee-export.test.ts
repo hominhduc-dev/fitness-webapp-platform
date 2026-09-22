@@ -2,21 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   assignments: vi.fn(),
-  copy: vi.fn(),
-  driveScope: vi.fn(),
+  createTemplate: vi.fn(),
+  fillWeeks: vi.fn(),
   findAssignment: vi.fn(),
   logs: vi.fn(),
-  share: vi.fn(),
   token: vi.fn(),
   updateAssignment: vi.fn(),
   write: vi.fn(),
 }))
 
-vi.mock("../lib/google", () => ({ copyDriveFile: mocks.copy, shareDriveFile: mocks.share }))
-vi.mock("./google-connection.service", () => ({
-  getGoogleAccessToken: mocks.token,
-  hasFullDriveScope: mocks.driveScope,
-}))
+vi.mock("./google-connection.service", () => ({ getGoogleAccessToken: mocks.token }))
+vi.mock("./google-program-template.service", () => ({ createProgramTemplateSpreadsheet: mocks.createTemplate }))
 vi.mock("./fitness-data/shared/guards", () => ({
   assertTrainee: vi.fn(),
   ensurePrisma: () => ({
@@ -27,6 +23,12 @@ vi.mock("./fitness-data/shared/guards", () => ({
     },
     workoutLog: { findMany: mocks.logs },
   }),
+}))
+// `programReferenceRows` stays real — it is what keeps one trainee from being
+// handed the exercise catalogue their coach built for everybody.
+vi.mock("./google-program-generate.service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./google-program-generate.service")>()),
+  fillProgramWeeks: mocks.fillWeeks,
 }))
 // The week grouping is the real one — it is what decides which tab a log lands
 // on, and a stub would hide the snapshot rules it enforces.
@@ -49,15 +51,29 @@ const log = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+const workout = () => ({
+  exercises: [
+    {
+      notes: null,
+      order: 1,
+      restTime: null,
+      sets: [{ intensityTag: null, rir: null, setNumber: 1, targetReps: 10, targetRepsMin: null, weight: null }],
+      variation: {
+        exercise: { muscleGroup: "Chest", name: "Bench Press" },
+        id: "var-1",
+        isDefault: true,
+        name: "Barbell",
+      },
+    },
+  ],
+  scheduledDate: null,
+  scheduledDay: 1,
+  weekIndex: 0,
+})
+
 const assignment = (overrides: Record<string, unknown> = {}) => ({
   id: "a1",
-  program: {
-    createdById: "coach",
-    googleSheetName: "Week 1",
-    googleSpreadsheetId: "master-sheet",
-    id: "p1",
-    name: "Push Pull Legs",
-  },
+  program: { duration: 4, id: "p1", name: "Push Pull Legs", workouts: [workout()] },
   traineeGoogleSpreadsheetId: null,
   ...overrides,
 })
@@ -67,90 +83,81 @@ describe("exportTraineeLogsToGoogleDrive", () => {
     vi.clearAllMocks()
     mocks.logs.mockResolvedValue([log()])
     mocks.assignments.mockResolvedValue([assignment()])
-    mocks.token.mockResolvedValue("coach-token")
-    mocks.copy.mockResolvedValue("copy-1")
-    mocks.driveScope.mockResolvedValue(true)
-    mocks.share.mockResolvedValue({})
+    mocks.token.mockResolvedValue("trainee-token")
+    mocks.createTemplate.mockResolvedValue({
+      sheetName: "Week 1",
+      spreadsheetId: "trainee-sheet",
+      spreadsheetUrl: "https://docs.google.com/spreadsheets/d/trainee-sheet/edit",
+      weekSheetId: 10,
+      weekSheetIndex: 1,
+    })
+    mocks.fillWeeks.mockResolvedValue(undefined)
     mocks.updateAssignment.mockResolvedValue({ count: 1 })
-    mocks.write.mockResolvedValue({ rowCount: 3, spreadsheetUrl: "https://docs.google.com/spreadsheets/d/copy-1/edit" })
+    mocks.write.mockResolvedValue({
+      rowCount: 3,
+      spreadsheetUrl: "https://docs.google.com/spreadsheets/d/trainee-sheet/edit",
+    })
   })
 
-  it("copies the coach's sheet for the trainee and writes the results into the copy", async () => {
+  it("builds the program sheet in the trainee's own Drive and writes results into it", async () => {
     const result = await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    expect(mocks.copy).toHaveBeenCalledWith("coach-token", "master-sheet", "Push Pull Legs — An")
-    expect(mocks.share).toHaveBeenCalledWith("coach-token", "copy-1", "an@example.com", "reader")
-    expect(mocks.write).toHaveBeenCalledWith("coach-token", "copy-1", "Week 1", expect.any(Map))
+    expect(mocks.createTemplate).toHaveBeenCalledWith(
+      "trainee-token",
+      expect.objectContaining({ title: "Push Pull Legs — An" }),
+    )
+    expect(mocks.fillWeeks).toHaveBeenCalledWith("trainee-token", expect.anything(), expect.anything(), 4)
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "trainee-sheet", "Week 1", expect.any(Map))
     expect(result).toMatchObject({ exported: true, logCount: 1, rowCount: 3 })
-    expect(result.files[0]).toMatchObject({ name: "Push Pull Legs", weeks: [1] })
   })
 
-  it("acts on the coach's token, never the trainee's", async () => {
+  it("runs on the trainee's own token, never the coach's", async () => {
+    // The whole point of building rather than copying: `drive.file` reaches the
+    // files the app made for whoever is asking, so the trainee has to be asking.
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    // `drive.file` only reaches files the app made for the account asking, and
-    // the program sheet was made for the coach.
-    expect(mocks.token).toHaveBeenCalledWith({ id: "coach", role: "coach" })
-    expect(mocks.token).not.toHaveBeenCalledWith(expect.objectContaining({ id: "trainee" }))
+    expect(mocks.token).toHaveBeenCalledWith(trainee)
+    expect(mocks.token).not.toHaveBeenCalledWith(expect.objectContaining({ role: "coach" }))
   })
 
-  it("never writes into the coach's own sheet", async () => {
+  it("lists only the trainee themselves, not the coach's whole roster", async () => {
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    const written = mocks.write.mock.calls.map((call) => call[1])
-    expect(written).not.toContain("master-sheet")
+    expect(mocks.createTemplate.mock.calls[0][1].trainees).toEqual([{ email: "an@example.com", name: "An" }])
   })
 
-  it("reuses the copy it already made rather than making another", async () => {
-    mocks.assignments.mockResolvedValue([assignment({ traineeGoogleSpreadsheetId: "copy-old" })])
+  it("puts only the program's own exercises in the reference tab", async () => {
+    await exportTraineeLogsToGoogleDrive(trainee, range)
+
+    const referenceRows = mocks.createTemplate.mock.calls[0][1].referenceRows as string[][]
+    expect(referenceRows[0]).toContain("variation_id")
+    expect(referenceRows).toHaveLength(2)
+    expect(referenceRows[1]).toContain("var-1")
+  })
+
+  it("reuses the sheet it already built rather than building another", async () => {
+    mocks.assignments.mockResolvedValue([assignment({ traineeGoogleSpreadsheetId: "sheet-old" })])
 
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    expect(mocks.copy).not.toHaveBeenCalled()
-    expect(mocks.write).toHaveBeenCalledWith("coach-token", "copy-old", "Week 1", expect.any(Map))
+    expect(mocks.createTemplate).not.toHaveBeenCalled()
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-old", "Week 1", expect.any(Map))
   })
 
-  it("adopts the winner's copy when another export claimed the assignment first", async () => {
+  it("adopts the winner's sheet when another export claimed the assignment first", async () => {
     mocks.updateAssignment.mockResolvedValue({ count: 0 })
-    mocks.findAssignment.mockResolvedValue({ traineeGoogleSpreadsheetId: "copy-winner" })
+    mocks.findAssignment.mockResolvedValue({ traineeGoogleSpreadsheetId: "sheet-winner" })
 
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    expect(mocks.write).toHaveBeenCalledWith("coach-token", "copy-winner", "Week 1", expect.any(Map))
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-winner", "Week 1", expect.any(Map))
   })
 
-  it("still exports when the copy cannot be shared", async () => {
-    // The file is correct either way; the coach can share it by hand. Losing a
-    // finished export over a failed grant would be the worse outcome.
-    mocks.share.mockRejectedValue(new Error("permission denied"))
+  it("refuses a program with no sessions to build a sheet from", async () => {
+    mocks.assignments.mockResolvedValue([assignment({ program: { ...assignment().program, workouts: [] } })])
 
-    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).resolves.toMatchObject({ exported: true })
-  })
-
-  it("says what to do when the program has no sheet yet", async () => {
-    mocks.assignments.mockResolvedValue([
-      assignment({ program: { ...assignment().program, googleSheetName: null, googleSpreadsheetId: null } }),
-    ])
-
-    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/chưa có Google Sheet/)
-    expect(mocks.copy).not.toHaveBeenCalled()
-    expect(mocks.write).not.toHaveBeenCalled()
-  })
-
-  it("counts logs of a program with no sheet as skipped rather than failing the rest", async () => {
-    mocks.logs.mockResolvedValue([log(), log({ id: "log-2", programId: "p2" })])
-    mocks.assignments.mockResolvedValue([
-      assignment(),
-      assignment({
-        id: "a2",
-        program: { ...assignment().program, googleSheetName: null, googleSpreadsheetId: null, id: "p2" },
-      }),
-    ])
-
-    const result = await exportTraineeLogsToGoogleDrive(trainee, range)
-
-    expect(result).toMatchObject({ logCount: 1, skippedLogCount: 1 })
-    expect(result.files).toHaveLength(1)
+    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/chưa có buổi tập/)
+    expect(mocks.createTemplate).not.toHaveBeenCalled()
   })
 
   it("refuses a log whose snapshot cannot say which week it belongs to", async () => {
@@ -158,33 +165,6 @@ describe("exportTraineeLogsToGoogleDrive", () => {
 
     await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/snapshot tuần/)
     expect(mocks.write).not.toHaveBeenCalled()
-  })
-
-  it("blames the missing Drive grant when the copy fails and the coach never gave one", async () => {
-    // Google answers 404 both for a file the grant cannot see and for one that
-    // is really gone. The grant is what separates them, and it is the only one
-    // of the two anybody can do something about.
-    mocks.copy.mockRejectedValue(new Error("Google trả về lỗi 404."))
-    mocks.driveScope.mockResolvedValue(false)
-
-    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/cấp lại quyền/)
-  })
-
-  it("lets the real error through when the coach did grant Drive access", async () => {
-    // Dressing an unrelated Google failure up as a permissions problem would
-    // send the coach off to re-grant a permission they already gave.
-    mocks.copy.mockRejectedValue(new Error("Google trả về lỗi 500."))
-    mocks.driveScope.mockResolvedValue(true)
-
-    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/500/)
-  })
-
-  it("does not ask about Drive access when the copy already exists", async () => {
-    mocks.assignments.mockResolvedValue([assignment({ traineeGoogleSpreadsheetId: "copy-old" })])
-
-    await exportTraineeLogsToGoogleDrive(trainee, range)
-
-    expect(mocks.driveScope).not.toHaveBeenCalled()
   })
 
   it("refuses when nothing was completed in the range", async () => {

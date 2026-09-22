@@ -1,9 +1,14 @@
-import { copyDriveFile, shareDriveFile } from "../lib/google"
-import { logger } from "../lib/logger"
 import type { SerializedProfile } from "./auth.service"
 import { BadRequestError } from "./errors"
-import { getGoogleAccessToken, hasFullDriveScope } from "./google-connection.service"
+import { getGoogleAccessToken } from "./google-connection.service"
 import { groupLogsIntoSessions, writeSessionsToSpreadsheet } from "./google-program-export.service"
+import {
+  fillProgramWeeks,
+  programReferenceRows,
+  type SourceWorkout,
+} from "./google-program-generate.service"
+import { createProgramTemplateSpreadsheet } from "./google-program-template.service"
+import { WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
 import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 
 /**
@@ -27,24 +32,30 @@ import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 type AssignmentWithProgram = {
   id: string
   program: {
-    createdById: string
-    googleSheetName: string | null
-    googleSpreadsheetId: string | null
+    duration: number
     id: string
     name: string
+    workouts: SourceWorkout[]
   }
   traineeGoogleSpreadsheetId: string | null
 }
 
 /**
- * The trainee's own copy of the program sheet, made once and reused after.
+ * The trainee's own program sheet, built once in their Drive and reused after.
+ *
+ * Built rather than copied from the coach's file. `drive.file` reaches files
+ * this app created for the account asking, so a sheet the trainee is to own has
+ * to be created with the trainee's token — and copying the coach's would need
+ * the restricted full-Drive scope on both sides to reach a file neither
+ * account's grant covers. The template and the plan come from the same builders
+ * the coach's sheet is made with, so the layout is identical either way.
  *
  * The id is claimed with a conditional write so two exports racing settle on
- * one copy. The loser's file is left in Drive — worth deleting once
- * `lib/google` can, but harmless until then.
+ * one file. The loser's is left in Drive — worth deleting once `lib/google`
+ * can, but harmless until then.
  */
-export async function ensureTraineeProgramCopy(
-  coachToken: string,
+export async function ensureTraineeProgramSheet(
+  traineeToken: string,
   assignment: AssignmentWithProgram,
   trainee: { email: string; name: string },
 ) {
@@ -52,39 +63,18 @@ export async function ensureTraineeProgramCopy(
     return assignment.traineeGoogleSpreadsheetId
   }
 
-  let copyId: string
+  const weeks = Math.max(1, Math.round(assignment.program.duration))
+  const created = await createProgramTemplateSpreadsheet(traineeToken, {
+    referenceRows: programReferenceRows(assignment.program.workouts),
+    title: `${assignment.program.name} — ${trainee.name}`,
+    // Only themselves: the rest of the coach's roster is not theirs to see.
+    trainees: [{ email: trainee.email, name: trainee.name }],
+  })
 
-  try {
-    copyId = await copyDriveFile(
-      coachToken,
-      assignment.program.googleSpreadsheetId!,
-      `${assignment.program.name} — ${trainee.name}`,
-    )
-  } catch (error) {
-    // Google answers 404 for a file the grant cannot see, which is the same
-    // reply as one that is genuinely gone — so the grant is what tells them
-    // apart, and it is the only one of the two the coach can act on.
-    if (!(await hasFullDriveScope(assignment.program.createdById))) {
-      throw new BadRequestError(
-        "Coach chưa cấp cho app quyền sao chép file trên Google Drive, nên chưa tạo được bản sheet riêng cho bạn. Hãy nhờ coach vào phần kết nối Google và cấp lại quyền.",
-        { cause: error, code: "GOOGLE_DRIVE_SCOPE_MISSING" },
-      )
-    }
-
-    throw error
-  }
-
-  // Sharing is what makes the copy worth having, but a grant that fails still
-  // leaves a correct file the coach can share by hand, so it must not lose the
-  // export that already succeeded.
-  try {
-    await shareDriveFile(coachToken, copyId, trainee.email, "reader")
-  } catch (error) {
-    logger.warn("trainee sheet share failed", { copyId, error })
-  }
+  await fillProgramWeeks(traineeToken, created, assignment.program.workouts, weeks)
 
   const saved = await ensurePrisma().programAssignment.updateMany({
-    data: { traineeGoogleSpreadsheetId: copyId },
+    data: { traineeGoogleSpreadsheetId: created.spreadsheetId },
     where: { id: assignment.id, traineeGoogleSpreadsheetId: null },
   })
 
@@ -94,10 +84,10 @@ export async function ensureTraineeProgramCopy(
       where: { id: assignment.id },
     })
 
-    return current?.traineeGoogleSpreadsheetId ?? copyId
+    return current?.traineeGoogleSpreadsheetId ?? created.spreadsheetId
   }
 
-  return copyId
+  return created.spreadsheetId
 }
 
 async function exportTraineeLogsToGoogleDrive(
@@ -129,7 +119,46 @@ async function exportTraineeLogsToGoogleDrive(
         select: {
           id: true,
           program: {
-            select: { createdById: true, googleSheetName: true, googleSpreadsheetId: true, id: true, name: true },
+            select: {
+              duration: true,
+              id: true,
+              name: true,
+              workouts: {
+                orderBy: [{ weekIndex: "asc" }, { scheduledDay: "asc" }],
+                select: {
+                  exercises: {
+                    orderBy: { order: "asc" },
+                    select: {
+                      notes: true,
+                      order: true,
+                      restTime: true,
+                      sets: {
+                        orderBy: { setNumber: "asc" },
+                        select: {
+                          intensityTag: true,
+                          rir: true,
+                          setNumber: true,
+                          targetReps: true,
+                          targetRepsMin: true,
+                          weight: true,
+                        },
+                      },
+                      variation: {
+                        select: {
+                          exercise: { select: { muscleGroup: true, name: true } },
+                          id: true,
+                          isDefault: true,
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                  scheduledDate: true,
+                  scheduledDay: true,
+                  weekIndex: true,
+                },
+              },
+            },
           },
           traineeGoogleSpreadsheetId: true,
         },
@@ -141,35 +170,29 @@ async function exportTraineeLogsToGoogleDrive(
     throw new BadRequestError("Các buổi tập trong khoảng này không thuộc chương trình nào đang được giao, nên chưa có sheet để ghi.")
   }
 
-  const withSheets = assignments.filter(
-    (assignment) => assignment.program.googleSpreadsheetId && assignment.program.googleSheetName,
-  )
+  const exportable = assignments.filter((assignment) => assignment.program.workouts.length > 0)
 
-  if (withSheets.length === 0) {
-    throw new BadRequestError(
-      "Chương trình của bạn chưa có Google Sheet. Hãy nhờ coach bấm \"Tạo Google Sheet\" trên chương trình đó rồi export lại.",
-    )
+  if (exportable.length === 0) {
+    throw new BadRequestError("Chương trình của bạn chưa có buổi tập nào để dựng sheet.")
   }
 
+  const traineeToken = await getGoogleAccessToken(profile)
   const files: Array<{ name: string; programId: string; url: string; weeks: number[] }> = []
   let exportedLogCount = 0
   let rowCount = 0
 
   // Sequential: each file is its own set of Google writes, and a failure should
   // stop before touching the next program's file.
-  for (const assignment of withSheets) {
+  for (const assignment of exportable) {
     const logs = rangeLogs.filter((log) => log.programId === assignment.program.id)
     if (logs.length === 0) continue
 
-    const coachToken = await getGoogleAccessToken({ id: assignment.program.createdById, role: "coach" })
     const sessions = groupLogsIntoSessions(logs)
-    const copyId = await ensureTraineeProgramCopy(coachToken, assignment, { email: profile.email, name: profile.name })
-    const written = await writeSessionsToSpreadsheet(
-      coachToken,
-      copyId,
-      assignment.program.googleSheetName!,
-      sessions,
-    )
+    const spreadsheetId = await ensureTraineeProgramSheet(traineeToken, assignment, {
+      email: profile.email,
+      name: profile.name,
+    })
+    const written = await writeSessionsToSpreadsheet(traineeToken, spreadsheetId, WEEK_SHEET_TITLE, sessions)
 
     files.push({
       name: assignment.program.name,
