@@ -21,7 +21,6 @@ function option(overrides: Partial<ExerciseVariationOption> & { id: string }): E
     exerciseId: `exercise-${overrides.id}`,
     exerciseName: "Bench Press",
     isDefault: true,
-    metadata: undefined,
     muscleGroup: "chest",
     name: "Bench Press",
     primaryMuscles: [],
