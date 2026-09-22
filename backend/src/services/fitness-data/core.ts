@@ -5386,6 +5386,36 @@ function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>)
   return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
 }
 
+/**
+ * A coach pasting another coach's live Sheets link — borrowed, shared, or just
+ * public — must not be able to create a program that points at it. Export
+ * writes straight into the sheet's cells using whichever coach's own Google
+ * token is calling, so a program built this way would silently write into a
+ * spreadsheet, and a trainee roster, that isn't theirs.
+ * `assertSpreadsheetNotSharedWithAnotherTrainee` (google-program-export.service.ts)
+ * only catches this once someone tries to export; this stops the program from
+ * being created at all.
+ */
+async function assertGoogleSpreadsheetNotOwnedByAnotherCoach(
+  db: ReturnType<typeof ensurePrisma>,
+  coachId: string,
+  googleSpreadsheetId: string | undefined,
+) {
+  if (!googleSpreadsheetId) return
+
+  const usedByAnotherCoach = await db.program.findFirst({
+    select: { id: true },
+    where: { createdById: { not: coachId }, googleSpreadsheetId },
+  })
+
+  if (usedByAnotherCoach) {
+    throw new AuthServiceError(
+      "Spreadsheet này đã được coach khác dùng để import chương trình. Hãy nhân bản (Make a copy) sheet này trên Google Drive của bạn rồi import bản sao.",
+      409,
+    )
+  }
+}
+
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
@@ -5464,6 +5494,10 @@ async function createCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
+  const googleSpreadsheetId = input.googleSpreadsheetId?.trim() || undefined
+  const googleSheetName = input.googleSheetName?.trim() || undefined
+  await assertGoogleSpreadsheetNotOwnedByAnotherCoach(db, profile.id, googleSpreadsheetId)
+
   const { notifications, program } = await retryTransaction(() => db.$transaction(async (tx) => {
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
@@ -5477,8 +5511,8 @@ async function createCoachProgram(
         id: programId,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
-        googleSpreadsheetId: input.googleSpreadsheetId?.trim() || undefined,
-        googleSheetName: input.googleSheetName?.trim() || undefined,
+        googleSpreadsheetId,
+        googleSheetName,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
     })
@@ -8550,6 +8584,7 @@ export {
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
   archiveTraineeProgram,
+  assertGoogleSpreadsheetNotOwnedByAnotherCoach,
   canForkKeepSpreadsheetLink,
   deleteTraineeProgram,
   restoreTraineeProgram,
