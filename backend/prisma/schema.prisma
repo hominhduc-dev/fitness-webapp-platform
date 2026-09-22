@@ -518,6 +518,11 @@ model Program {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
+  /// Export writes results straight into the sheet's cells, so two programs
+  /// sharing one spreadsheet would overwrite each other. Postgres treats NULLs
+  /// as distinct, so programs with no sheet are unaffected. A coach reusing a
+  /// sheet has to unlink it from the old program first.
+  @@unique([googleSpreadsheetId])
   @@index([createdById, googleSpreadsheetId, googleSheetName])
   @@index([createdById])
   @@index([createdById, archivedAt])
