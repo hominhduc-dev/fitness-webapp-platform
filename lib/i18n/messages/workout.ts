@@ -93,7 +93,9 @@ export const workoutMessages = {
       exportSheetsFailed: "Unable to export workout logs to Google Sheets.",
       exportSheetsDone: (logCount: number, rowCount: number) =>
         `Exported ${logCount} workout logs (${rowCount} exercise rows) to Google Sheets.`,
-      exportSheetsSkipped: (count: number) => `${count} logs were skipped (unfinished or outside a program).`,
+      exportSheetsSkipped: (count: number) => `${count} logs were skipped (unfinished, outside a program, pinned to a date, or trained before the program started).`,
+      exportSheetsSkippedExercises: (count: number) =>
+        `${count} exercises were left out because the program no longer has a matching row.`,
       exportSheetsOpen: (name: string) => `Open ${name}`,
       googleDriveConnect: "Connect Google",
       googleDriveConnectHelp: "Connect Google to export into your own Drive: one sheet per program, one tab per week.",
@@ -314,7 +316,9 @@ export const workoutMessages = {
       exportSheetsFailed: "Không thể export workout logs sang Google Sheets.",
       exportSheetsDone: (logCount: number, rowCount: number) =>
         `Đã export ${logCount} buổi tập (${rowCount} dòng bài tập) sang Google Sheets.`,
-      exportSheetsSkipped: (count: number) => `Bỏ qua ${count} buổi (chưa hoàn thành hoặc không thuộc chương trình).`,
+      exportSheetsSkipped: (count: number) => `Bỏ qua ${count} buổi (chưa hoàn thành, không thuộc chương trình, gắn ngày cố định hoặc tập trước khi chương trình bắt đầu).`,
+      exportSheetsSkippedExercises: (count: number) =>
+        `Bỏ qua ${count} bài vì chương trình hiện không còn dòng tương ứng.`,
       exportSheetsOpen: (name: string) => `Mở ${name}`,
       googleDriveConnect: "Kết nối Google",
       googleDriveConnectHelp: "Kết nối Google để export vào Drive của bạn: mỗi chương trình một file, mỗi tuần một tab.",

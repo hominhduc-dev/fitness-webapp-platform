@@ -22,7 +22,16 @@ export function formatSubstitute(exercise: ExportExercise) {
     ? [exercise.exercise?.name, exercise.variation?.name].filter(Boolean).join(" / ")
     : ""
 }
-export function buildGoogleResultRequests(values: string[][], sessions: ExportSession[], sheetId: number, rowCount: number, clearCopiedResults = false) {
+/**
+ * `lenient` is for a sheet the app built itself from the program's current plan
+ * (the trainee's own file). A log trained against an older version of the plan
+ * then has rows the sheet no longer carries, and refusing the whole export over
+ * them would leave the trainee unable to export at all. So a row that misses on
+ * position falls back to the same variation elsewhere on that day, and one that
+ * still has no unique home is counted and left out. A coach-authored sheet keeps
+ * the strict match: there the mismatch may be the coach's layout, not the log.
+ */
+export function buildGoogleResultRequests(values: string[][], sessions: ExportSession[], sheetId: number, rowCount: number, clearCopiedResults = false, lenient = false) {
   const rows = parseGoogleProgramRows(values)
   const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
   const oldRirColumn = values[headerIndex].indexOf("RIR")
@@ -30,10 +39,19 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
   let setCount = oldSetCount
   const updates: Array<{ row: number; exercise: ExportExercise }> = []
   const seen = new Set<number>()
+  let skippedExerciseCount = 0
   for (const session of sessions) for (const exercise of session.exercises) {
     const variationId = exercise.originalVariationId ?? exercise.variation?.id
-    if (!variationId || !Number.isInteger(exercise.order)) throw new BadRequestError("Log cũ thiếu ID bài gốc hoặc thứ tự bài; không thể ghi an toàn vào sheet.")
-    const matches = rows.filter((row) => row.scheduledDay === session.day && row.order === exercise.order! && row.variationId === variationId)
+    if (!variationId || !Number.isInteger(exercise.order)) {
+      if (lenient) { skippedExerciseCount += 1; continue }
+      throw new BadRequestError("Log cũ thiếu ID bài gốc hoặc thứ tự bài; không thể ghi an toàn vào sheet.")
+    }
+    let matches = rows.filter((row) => row.scheduledDay === session.day && row.order === exercise.order! && row.variationId === variationId)
+    if (lenient && matches.length !== 1) {
+      const candidates = new Set([variationId, exercise.variation?.id].filter(Boolean))
+      matches = rows.filter((row) => row.scheduledDay === session.day && candidates.has(row.variationId) && !seen.has(row.sourceRow))
+      if (matches.length !== 1) { skippedExerciseCount += 1; continue }
+    }
     if (matches.length !== 1) throw new BadRequestError(`Không khớp duy nhất Day ${session.day}, bài ${exercise.order!}, variation ${variationId}. Chưa ghi dữ liệu.`)
     if (seen.has(matches[0].sourceRow)) throw new BadRequestError("Có nhiều log cho cùng một buổi/tuần. Hãy chọn khoảng ngày chỉ chứa một kết quả mỗi buổi.")
     seen.add(matches[0].sourceRow)
@@ -58,7 +76,7 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
     for (const set of exercise.sets) if (set.completed) cells[set.setNumber] = formatSetResult(set)
     requests.push({ updateCells: { start: { sheetId, rowIndex: row, columnIndex: 8 }, rows: [{ values: cells.map((value) => value ? { userEnteredValue: { stringValue: value } } : {}) }], fields: "userEnteredValue" } })
   }
-  return { requests, rowCount: updates.length }
+  return { requests, rowCount: updates.length, skippedExerciseCount }
 }
 
 /**
@@ -163,21 +181,31 @@ export async function describeGoogleSpreadsheetConflict(
  * snapshot records which program week the trainee was working through, so a
  * session trained late still lands on the week it was prescribed for.
  */
+/**
+ * Whether a log says which program week and day it was trained as. A workout
+ * pinned to a calendar date carries neither, and neither does a log from before
+ * snapshots recorded them — the sheet has no row for either.
+ */
+export function hasSheetPlacement(log: { exerciseSnapshot: unknown; workoutSnapshot: unknown }) {
+  const snapshot = log.workoutSnapshot as { scheduledDay?: number; weekIndex?: number } | null
+  // `weekIndex` counts from 0, so week 0 is the coach's "Week 1" sheet. Logs
+  // recorded before the importer was corrected carry a 1-based index and land
+  // one sheet late; they are the reason this only checks for a negative.
+  return Boolean(snapshot && Number.isInteger(snapshot.weekIndex) && snapshot.weekIndex! >= 0 && Number.isInteger(snapshot.scheduledDay) && Array.isArray(log.exerciseSnapshot))
+}
+
 export function groupLogsIntoSessions(
   logs: ReadonlyArray<{ exerciseSnapshot: unknown; workoutSnapshot: unknown }>,
 ) {
   const sessions = new Map<number, ExportSession[]>()
 
   for (const log of logs) {
-    const snapshot = log.workoutSnapshot as { scheduledDay?: number; weekIndex?: number } | null
-    // `weekIndex` counts from 0, so week 0 is the coach's "Week 1" sheet. Logs
-    // recorded before the importer was corrected carry a 1-based index and land
-    // one sheet late; they are the reason this only checks for a negative.
-    if (!snapshot || !Number.isInteger(snapshot.weekIndex) || snapshot.weekIndex! < 0 || !Number.isInteger(snapshot.scheduledDay) || !Array.isArray(log.exerciseSnapshot)) throw new BadRequestError("Log cũ thiếu snapshot tuần/ngày. Không thể xác định sheet đích an toàn.")
-    const week = snapshot.weekIndex!
+    if (!hasSheetPlacement(log)) throw new BadRequestError("Log cũ thiếu snapshot tuần/ngày. Không thể xác định sheet đích an toàn.")
+    const snapshot = log.workoutSnapshot as { scheduledDay: number; weekIndex: number }
+    const week = snapshot.weekIndex
     const exercises = log.exerciseSnapshot as unknown as ExportExercise[]
     if (exercises.some((exercise) => !exercise || !Array.isArray(exercise.sets))) throw new BadRequestError("Snapshot bài tập không hợp lệ.")
-    sessions.set(week, [...(sessions.get(week) ?? []), { week, day: snapshot.scheduledDay!, exercises }])
+    sessions.set(week, [...(sessions.get(week) ?? []), { week, day: snapshot.scheduledDay, exercises }])
   }
 
   return sessions
@@ -195,6 +223,7 @@ export async function writeSessionsToSpreadsheet(
   spreadsheetId: string,
   sourceSheetName: string,
   sessions: ReadonlyMap<number, ExportSession[]>,
+  options: { lenient?: boolean } = {},
 ) {
   const meta = await fetchSpreadsheetMeta(token, spreadsheetId)
   const source = meta.sheetProperties.find((sheet) => sheet.title === sourceSheetName)
@@ -207,6 +236,7 @@ export async function writeSessionsToSpreadsheet(
   const duplicateRequests: unknown[] = []
   const requests: unknown[] = []
   let rowCount = 0
+  let skippedExerciseCount = 0
   const ids = new Set(meta.sheetProperties.map((sheet) => sheet.sheetId))
   for (const [week, group] of sessions) {
     const title = week === 0 ? source.title : `Week ${week + 1}`
@@ -218,8 +248,8 @@ export async function writeSessionsToSpreadsheet(
       duplicateRequests.push({ duplicateSheet: { sourceSheetId: source.sheetId, newSheetId: sheetId, newSheetName: title } })
     }
     const values = existing ? (existing.title === source.title ? sourceValues : await fetchSheetValues(token, spreadsheetId, title)) : sourceValues
-    const built = buildGoogleResultRequests(values, group, sheetId, (existing ?? source).gridProperties?.rowCount ?? values.length, !existing)
-    requests.push(...built.requests); rowCount += built.rowCount
+    const built = buildGoogleResultRequests(values, group, sheetId, (existing ?? source).gridProperties?.rowCount ?? values.length, !existing, options.lenient)
+    requests.push(...built.requests); rowCount += built.rowCount; skippedExerciseCount += built.skippedExerciseCount
     const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
     requests.push({ setDataValidation: {
       range: { sheetId, startRowIndex: headerIndex + 1, endRowIndex: (existing ?? source).gridProperties?.rowCount ?? values.length, startColumnIndex: 2, endColumnIndex: 3 },
@@ -227,7 +257,7 @@ export async function writeSessionsToSpreadsheet(
     } })
   }
   await batchUpdateSpreadsheet(token, spreadsheetId, [...duplicateRequests, ...requests])
-  return { rowCount, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` }
+  return { rowCount, skippedExerciseCount, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` }
 }
 
 export async function exportGoogleProgramLogs(profile: SerializedProfile, traineeId: string, logIds: string[]) {

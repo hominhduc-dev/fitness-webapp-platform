@@ -47,6 +47,7 @@ const log = (overrides: Record<string, unknown> = {}) => ({
   exerciseSnapshot: [],
   id: "log-1",
   programId: "p1",
+  startedAt: new Date("2026-09-22T08:00:00Z"),
   workoutSnapshot: { scheduledDay: 1, weekIndex: 0 },
   ...overrides,
 })
@@ -107,7 +108,7 @@ describe("exportTraineeLogsToGoogleDrive", () => {
       expect.objectContaining({ title: "Push Pull Legs — An" }),
     )
     expect(mocks.fillWeeks).toHaveBeenCalledWith("trainee-token", expect.anything(), expect.anything(), 4)
-    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "trainee-sheet", "Week 1", expect.any(Map))
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "trainee-sheet", "Week 1", expect.any(Map), { lenient: true })
     expect(result).toMatchObject({ exported: true, logCount: 1, rowCount: 3 })
   })
 
@@ -141,7 +142,7 @@ describe("exportTraineeLogsToGoogleDrive", () => {
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
     expect(mocks.createTemplate).not.toHaveBeenCalled()
-    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-old", "Week 1", expect.any(Map))
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-old", "Week 1", expect.any(Map), { lenient: true })
   })
 
   it("adopts the winner's sheet when another export claimed the assignment first", async () => {
@@ -150,20 +151,68 @@ describe("exportTraineeLogsToGoogleDrive", () => {
 
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-winner", "Week 1", expect.any(Map))
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-winner", "Week 1", expect.any(Map), { lenient: true })
   })
 
   it("refuses a program with no sessions to build a sheet from", async () => {
     mocks.assignments.mockResolvedValue([assignment({ program: { ...assignment().program, workouts: [] } })])
 
-    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/chưa có buổi tập/)
+    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/chưa dựng được Google Sheet/)
     expect(mocks.createTemplate).not.toHaveBeenCalled()
   })
 
-  it("refuses a log whose snapshot cannot say which week it belongs to", async () => {
+  it("refuses a program made only of date-pinned sessions, before building a sheet", async () => {
+    const pinned = { ...workout(), scheduledDate: new Date("2026-09-18"), scheduledDay: null, weekIndex: null }
+    mocks.assignments.mockResolvedValue([assignment({ program: { ...assignment().program, workouts: [pinned] } })])
+
+    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/gắn ngày cố định/)
+    expect(mocks.createTemplate).not.toHaveBeenCalled()
+  })
+
+  it("skips a log with no week or day and still exports the rest", async () => {
+    mocks.logs.mockResolvedValue([
+      log(),
+      log({ id: "log-pinned", workoutSnapshot: { name: "Day 4", scheduledDate: "2026-09-18" } }),
+    ])
+
+    const result = await exportTraineeLogsToGoogleDrive(trainee, range)
+
+    expect(result).toMatchObject({ logCount: 1, skippedLogCount: 1 })
+  })
+
+  it("skips a session trained before the program's first week", async () => {
+    // Tried on the Thursday before a Monday start: it records itself as week 1,
+    // so writing it would claim the rows the real week 1 fills.
+    mocks.assignments.mockResolvedValue([
+      assignment({ program: { ...assignment().program, startDate: new Date("2026-09-21") } }),
+    ])
+    mocks.logs.mockResolvedValue([
+      log({ id: "log-early", startedAt: new Date("2026-09-17T09:00:00Z"), workoutSnapshot: { scheduledDay: 3, weekIndex: 0 } }),
+      log({ startedAt: new Date("2026-09-21T08:00:00Z") }),
+    ])
+
+    const result = await exportTraineeLogsToGoogleDrive(trainee, { ...range, from: new Date("2026-09-14") })
+
+    const sessions = mocks.write.mock.calls[0][3] as Map<number, Array<{ day: number }>>
+    expect(sessions.get(0)?.map((session) => session.day)).toEqual([1])
+    expect(result).toMatchObject({ logCount: 1, skippedLogCount: 1 })
+  })
+
+  it("keeps logs a coach adjustment carried over, even though their snapshot names the old program", async () => {
+    mocks.logs.mockResolvedValue([
+      log({ startedAt: new Date("2026-09-22T08:00:00Z"), workoutSnapshot: { programId: "p0", scheduledDay: 1, weekIndex: 0 } }),
+    ])
+
+    const result = await exportTraineeLogsToGoogleDrive(trainee, range)
+
+    expect(result).toMatchObject({ logCount: 1, skippedLogCount: 0 })
+  })
+
+  it("refuses when no log in the range has a week or day to land on", async () => {
     mocks.logs.mockResolvedValue([log({ workoutSnapshot: { scheduledDay: 1 } })])
 
-    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/snapshot tuần/)
+    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/Không có buổi tập nào ghi được/)
+    expect(mocks.createTemplate).not.toHaveBeenCalled()
     expect(mocks.write).not.toHaveBeenCalled()
   })
 
