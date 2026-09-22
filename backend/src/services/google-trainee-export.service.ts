@@ -2,7 +2,7 @@ import { copyDriveFile, shareDriveFile } from "../lib/google"
 import { logger } from "../lib/logger"
 import type { SerializedProfile } from "./auth.service"
 import { BadRequestError } from "./errors"
-import { getGoogleAccessToken } from "./google-connection.service"
+import { getGoogleAccessToken, hasFullDriveScope } from "./google-connection.service"
 import { groupLogsIntoSessions, writeSessionsToSpreadsheet } from "./google-program-export.service"
 import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 
@@ -52,11 +52,27 @@ export async function ensureTraineeProgramCopy(
     return assignment.traineeGoogleSpreadsheetId
   }
 
-  const copyId = await copyDriveFile(
-    coachToken,
-    assignment.program.googleSpreadsheetId!,
-    `${assignment.program.name} — ${trainee.name}`,
-  )
+  let copyId: string
+
+  try {
+    copyId = await copyDriveFile(
+      coachToken,
+      assignment.program.googleSpreadsheetId!,
+      `${assignment.program.name} — ${trainee.name}`,
+    )
+  } catch (error) {
+    // Google answers 404 for a file the grant cannot see, which is the same
+    // reply as one that is genuinely gone — so the grant is what tells them
+    // apart, and it is the only one of the two the coach can act on.
+    if (!(await hasFullDriveScope(assignment.program.createdById))) {
+      throw new BadRequestError(
+        "Coach chưa cấp cho app quyền sao chép file trên Google Drive, nên chưa tạo được bản sheet riêng cho bạn. Hãy nhờ coach vào phần kết nối Google và cấp lại quyền.",
+        { cause: error, code: "GOOGLE_DRIVE_SCOPE_MISSING" },
+      )
+    }
+
+    throw error
+  }
 
   // Sharing is what makes the copy worth having, but a grant that fails still
   // leaves a correct file the coach can share by hand, so it must not lose the

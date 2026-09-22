@@ -20,18 +20,33 @@ const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files"
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
 /**
- * Read/write Sheets access. The spreadsheets scope covers all spreadsheets;
- * drive.file does not narrow that scope and is retained for Picker/Drive operations.
+ * `spreadsheets` covers reading and writing every sheet the coach can open, and
+ * is what the import and the result writes run on.
  *
- * `drive.file` rather than `drive.readonly`: it grants access to files chosen
- * through the Google Picker rather than the coach's entire Drive. Sheets access
- * above is broader and requires its own consent/review.
+ * Drive is asked for twice on purpose. `files.copy` — how a trainee gets their
+ * own copy of the program sheet — will only copy a file the caller's scope
+ * actually reaches, and `drive.file` reaches only files this app created for
+ * that coach. A sheet the coach made themselves and pasted a link to is not one
+ * of those, which is why full `drive` is requested as well.
+ *
+ * Google may grant a subset, and `GoogleConnection.scope` records what was
+ * actually given. Keeping `drive.file` in the list means a coach who declines
+ * full Drive — or whose org blocks the restricted scope — still gets a working
+ * connection, just one that cannot copy sheets it did not create.
+ *
+ * `drive` is a restricted scope: using it in production needs Google's OAuth
+ * verification, and until that is granted the app is capped at a small number
+ * of users behind an "unverified app" screen.
  */
 const SCOPES = [
   "https://www.googleapis.com/auth/spreadsheets",
   "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/userinfo.email",
 ]
+
+/** Granting this is what lets `files.copy` reach a sheet the app did not create. */
+const DRIVE_FULL_SCOPE = "https://www.googleapis.com/auth/drive"
 
 const REQUEST_TIMEOUT_MS = 15000
 
@@ -605,6 +620,7 @@ export {
   extractSpreadsheetId,
   copyDriveFile,
   createSpreadsheet,
+  DRIVE_FULL_SCOPE,
   extractDriveFolderId,
   shareDriveFile,
   fetchGoogleEmail,
