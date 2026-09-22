@@ -476,6 +476,54 @@ async function moveFileToFolder(accessToken: string, fileId: string, folderId: s
 }
 
 /**
+ * Copies a spreadsheet the app created, tabs, formatting and formulas included.
+ *
+ * Under `drive.file` the caller can only copy files this app created for *them*,
+ * so a program sheet has to be copied with its own coach's token — a trainee's
+ * token cannot see it, however the file is shared.
+ */
+async function copyDriveFile(accessToken: string, fileId: string, name: string) {
+  const response = await googleFetch(
+    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}/copy?fields=id`,
+    {
+      body: JSON.stringify({ name }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      method: "POST",
+    },
+    "drive_file_copy",
+  )
+
+  const copyId = ((await response.json()) as { id?: string }).id
+
+  if (!copyId) {
+    throw new ExternalServiceError("Google không trả về bản sao vừa tạo.", { code: "GOOGLE_COPY_MISSING" })
+  }
+
+  return copyId
+}
+
+/**
+ * Grants one person access to a file the app created.
+ *
+ * `sendNotificationEmail=false` keeps Google from mailing them on every export;
+ * the app tells them itself. An address with no Google account behind it still
+ * records the grant, and takes effect if they ever sign up with it.
+ */
+async function shareDriveFile(accessToken: string, fileId: string, emailAddress: string, role: "reader" | "writer") {
+  const response = await googleFetch(
+    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=false&fields=id`,
+    {
+      body: JSON.stringify({ emailAddress, role, type: "user" }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      method: "POST",
+    },
+    "drive_permission_create",
+  )
+
+  return response.json()
+}
+
+/**
  * Pulls a folder id out of a pasted Drive link, or accepts a bare id.
  *
  * Deliberately separate from `extractSpreadsheetId`, which rejects folder links
@@ -555,8 +603,10 @@ export {
   EXPIRY_SKEW_MS,
   exchangeCodeForTokens,
   extractSpreadsheetId,
+  copyDriveFile,
   createSpreadsheet,
   extractDriveFolderId,
+  shareDriveFile,
   fetchGoogleEmail,
   findOrCreateDriveFolder,
   moveFileToFolder,

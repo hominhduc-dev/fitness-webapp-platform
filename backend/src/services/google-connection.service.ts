@@ -86,7 +86,12 @@ export async function disconnectGoogle(profile: SerializedProfile) {
   }
   return { connected: false }
 }
-export async function getGoogleAccessToken(profile: SerializedProfile) {
+/**
+ * `id` and `role` are all this needs, so a caller acting on someone else's
+ * behalf — the trainee export writing into their coach's sheet — can name that
+ * person without loading their whole profile.
+ */
+export async function getGoogleAccessToken(profile: Pick<SerializedProfile, "id" | "role">) {
   assertConnectableRole(profile)
   requireConfigured()
   const db = ensurePrisma()
