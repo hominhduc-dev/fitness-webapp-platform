@@ -5386,6 +5386,36 @@ function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>)
   return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
 }
 
+/**
+ * A coach pasting another coach's live Sheets link — borrowed, shared, or just
+ * public — must not be able to create a program that points at it. Export
+ * writes straight into the sheet's cells using whichever coach's own Google
+ * token is calling, so a program built this way would silently write into a
+ * spreadsheet, and a trainee roster, that isn't theirs.
+ * `assertSpreadsheetNotSharedWithAnotherTrainee` (google-program-export.service.ts)
+ * only catches this once someone tries to export; this stops the program from
+ * being created at all.
+ */
+async function assertGoogleSpreadsheetNotOwnedByAnotherCoach(
+  db: ReturnType<typeof ensurePrisma>,
+  coachId: string,
+  googleSpreadsheetId: string | undefined,
+) {
+  if (!googleSpreadsheetId) return
+
+  const usedByAnotherCoach = await db.program.findFirst({
+    select: { id: true },
+    where: { createdById: { not: coachId }, googleSpreadsheetId },
+  })
+
+  if (usedByAnotherCoach) {
+    throw new AuthServiceError(
+      "Spreadsheet này đã được coach khác dùng để import chương trình. Hãy nhân bản (Make a copy) sheet này trên Google Drive của bạn rồi import bản sao.",
+      409,
+    )
+  }
+}
+
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
@@ -5464,6 +5494,10 @@ async function createCoachProgram(
     throw new AuthServiceError("Có variation không hợp lệ trong hệ thống.", 400)
   }
 
+  const googleSpreadsheetId = input.googleSpreadsheetId?.trim() || undefined
+  const googleSheetName = input.googleSheetName?.trim() || undefined
+  await assertGoogleSpreadsheetNotOwnedByAnotherCoach(db, profile.id, googleSpreadsheetId)
+
   const { notifications, program } = await retryTransaction(() => db.$transaction(async (tx) => {
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
@@ -5477,8 +5511,8 @@ async function createCoachProgram(
         id: programId,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
-        googleSpreadsheetId: input.googleSpreadsheetId?.trim() || undefined,
-        googleSheetName: input.googleSheetName?.trim() || undefined,
+        googleSpreadsheetId,
+        googleSheetName,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
       },
     })
@@ -5809,6 +5843,23 @@ async function updateCoachProgram(
   return serializeProgram(program as ProgramRecord)
 }
 
+/**
+ * Whether a program fork made by adjusting one trainee's copy may keep the
+ * original's spreadsheet link.
+ *
+ * Safe exactly when this trainee was the only one assigned to the original
+ * program — nobody else is left holding a program that still points at the
+ * same sheet. Otherwise the fork and the original would both write into it:
+ * the "Spreadsheet này đang dùng chung với..." export conflict, discovered
+ * only later, by whichever trainee happens to export first, rather than
+ * caught here. Left unset, the fork needs a fresh import before Sheets
+ * export works again — a one-time inconvenience against a bug that corrupts
+ * another trainee's data.
+ */
+function canForkKeepSpreadsheetLink(hasSpreadsheetLink: boolean, otherAssigneeCount: number) {
+  return hasSpreadsheetLink && otherAssigneeCount === 0
+}
+
 async function adjustCoachProgramForTrainee(
   profile: SerializedProfile,
   programId: string,
@@ -5899,6 +5950,13 @@ async function adjustCoachProgramForTrainee(
       exerciseRows,
     )
 
+    const otherAssigneeCount = existingProgram.googleSpreadsheetId
+      ? await transaction.programAssignment.count({
+          where: { programId: existingProgram.id, userId: { not: traineeId } },
+        })
+      : 0
+    const keepsSpreadsheetLink = canForkKeepSpreadsheetLink(existingProgram.googleSpreadsheetId != null, otherAssigneeCount)
+
     await transaction.program.create({
       data: {
         createdById: profile.id,
@@ -5906,8 +5964,8 @@ async function adjustCoachProgramForTrainee(
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
         id: programId,
-        googleSpreadsheetId: existingProgram.googleSpreadsheetId,
-        googleSheetName: existingProgram.googleSheetName,
+        googleSpreadsheetId: keepsSpreadsheetLink ? existingProgram.googleSpreadsheetId : undefined,
+        googleSheetName: keepsSpreadsheetLink ? existingProgram.googleSheetName : undefined,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? existingProgram.startDate,
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
@@ -8526,6 +8584,8 @@ export {
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
   archiveTraineeProgram,
+  assertGoogleSpreadsheetNotOwnedByAnotherCoach,
+  canForkKeepSpreadsheetLink,
   deleteTraineeProgram,
   restoreTraineeProgram,
 }
