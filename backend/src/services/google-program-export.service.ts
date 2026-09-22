@@ -156,20 +156,18 @@ export async function describeGoogleSpreadsheetConflict(
   return nameSpreadsheetConflict(db, coachId, conflictingUserIds)
 }
 
-export async function exportGoogleProgramLogs(profile: SerializedProfile, traineeId: string, logIds: string[]) {
-  assertCoach(profile)
-  await assertCoachOwnsTrainee(profile.id, traineeId)
-  const db = ensurePrisma()
-  const logs = await db.workoutLog.findMany({ where: { id: { in: logIds }, userId: traineeId, completedAt: { not: null } }, orderBy: { startedAt: "asc" } })
-  if (!logs.length) throw new BadRequestError("Không có buổi tập đã hoàn thành.")
-  const programIds = [...new Set(logs.flatMap((log) => log.programId ? [log.programId] : []))]
-  const programs = await db.program.findMany({ where: { id: { in: programIds }, createdById: profile.id } })
-  if (programs.length !== programIds.length || logs.some((log) => !log.programId)) throw new BadRequestError("Log không thuộc chương trình của coach.")
-  const spreadsheetIds = [...new Set(programs.map((program) => program.googleSpreadsheetId))]
-  if (spreadsheetIds.length !== 1 || !spreadsheetIds[0] || programs.some((program) => !program.googleSheetName)) throw new BadRequestError("Chọn log của một spreadsheet đã import.")
-  const spreadsheetId = spreadsheetIds[0]
-  await assertSpreadsheetNotSharedWithAnotherTrainee(db, spreadsheetId, traineeId, profile.id)
+/**
+ * Sorts completed logs into the week tab each belongs on.
+ *
+ * The week comes from the log's own snapshot rather than from its date: the
+ * snapshot records which program week the trainee was working through, so a
+ * session trained late still lands on the week it was prescribed for.
+ */
+export function groupLogsIntoSessions(
+  logs: ReadonlyArray<{ exerciseSnapshot: unknown; workoutSnapshot: unknown }>,
+) {
   const sessions = new Map<number, ExportSession[]>()
+
   for (const log of logs) {
     const snapshot = log.workoutSnapshot as { scheduledDay?: number; weekIndex?: number } | null
     // `weekIndex` counts from 0, so week 0 is the coach's "Week 1" sheet. Logs
@@ -181,11 +179,25 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
     if (exercises.some((exercise) => !exercise || !Array.isArray(exercise.sets))) throw new BadRequestError("Snapshot bài tập không hợp lệ.")
     sessions.set(week, [...(sessions.get(week) ?? []), { week, day: snapshot.scheduledDay!, exercises }])
   }
-  const sourceNames = [...new Set(programs.map((program) => program.googleSheetName!))]
-  if (sourceNames.length !== 1) throw new BadRequestError("Các chương trình dùng sheet tuần mẫu khác nhau.")
-  const token = await getGoogleAccessToken(profile)
+
+  return sessions
+}
+
+/**
+ * Writes results into a program sheet, adding whatever `Week N` tabs are missing.
+ *
+ * Takes the spreadsheet as an argument rather than reading it off the program,
+ * because the trainee's own copy of a program sheet has the same layout and the
+ * same writes applied to it, just in a different file.
+ */
+export async function writeSessionsToSpreadsheet(
+  token: string,
+  spreadsheetId: string,
+  sourceSheetName: string,
+  sessions: ReadonlyMap<number, ExportSession[]>,
+) {
   const meta = await fetchSpreadsheetMeta(token, spreadsheetId)
-  const source = meta.sheetProperties.find((sheet) => sheet.title === sourceNames[0])
+  const source = meta.sheetProperties.find((sheet) => sheet.title === sourceSheetName)
   if (!source) throw new BadRequestError("Sheet tuần mẫu không còn tồn tại.")
   if (!meta.sheetProperties.some((sheet) => sheet.title === "Exercise Table")) throw new BadRequestError("Thiếu sheet Exercise Table để khôi phục dropdown bài tập.")
   const sourceValues = await fetchSheetValues(token, spreadsheetId, source.title)
@@ -215,5 +227,26 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
     } })
   }
   await batchUpdateSpreadsheet(token, spreadsheetId, [...duplicateRequests, ...requests])
-  return { exported: true, logCount: logs.length, rowCount, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` }
+  return { rowCount, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` }
+}
+
+export async function exportGoogleProgramLogs(profile: SerializedProfile, traineeId: string, logIds: string[]) {
+  assertCoach(profile)
+  await assertCoachOwnsTrainee(profile.id, traineeId)
+  const db = ensurePrisma()
+  const logs = await db.workoutLog.findMany({ where: { id: { in: logIds }, userId: traineeId, completedAt: { not: null } }, orderBy: { startedAt: "asc" } })
+  if (!logs.length) throw new BadRequestError("Không có buổi tập đã hoàn thành.")
+  const programIds = [...new Set(logs.flatMap((log) => log.programId ? [log.programId] : []))]
+  const programs = await db.program.findMany({ where: { id: { in: programIds }, createdById: profile.id } })
+  if (programs.length !== programIds.length || logs.some((log) => !log.programId)) throw new BadRequestError("Log không thuộc chương trình của coach.")
+  const spreadsheetIds = [...new Set(programs.map((program) => program.googleSpreadsheetId))]
+  if (spreadsheetIds.length !== 1 || !spreadsheetIds[0] || programs.some((program) => !program.googleSheetName)) throw new BadRequestError("Chọn log của một spreadsheet đã import.")
+  const spreadsheetId = spreadsheetIds[0]
+  await assertSpreadsheetNotSharedWithAnotherTrainee(db, spreadsheetId, traineeId, profile.id)
+  const sessions = groupLogsIntoSessions(logs)
+  const sourceNames = [...new Set(programs.map((program) => program.googleSheetName!))]
+  if (sourceNames.length !== 1) throw new BadRequestError("Các chương trình dùng sheet tuần mẫu khác nhau.")
+  const token = await getGoogleAccessToken(profile)
+  const { rowCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, spreadsheetId, sourceNames[0], sessions)
+  return { exported: true, logCount: logs.length, rowCount, spreadsheetUrl }
 }
