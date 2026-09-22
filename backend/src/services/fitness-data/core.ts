@@ -8604,6 +8604,7 @@ export {
   updateTraineeProgramDetails,
   updateWorkoutLogCommentForCoach,
   archiveTraineeProgram,
+  assertCoachOwnsProgram,
   assertGoogleSpreadsheetNotOwnedByAnotherCoach,
   canForkKeepSpreadsheetLink,
   deleteTraineeProgram,

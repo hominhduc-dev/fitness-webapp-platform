@@ -94,6 +94,24 @@ function tailRowCells(exercise: PlanExercise) {
 }
 
 /**
+ * The template's grid is fixed at `DAYS` day blocks, so a program that trains
+ * more days than that has nowhere to put the rest.
+ *
+ * Exposed separately from `buildProgramPlanRequests` so a caller that is about
+ * to create a spreadsheet can find out first, rather than leaving a half-built
+ * file behind when the write is refused.
+ */
+export function assertPlanDaysFitTemplate(days: readonly PlanDay[]) {
+  for (const { day } of days) {
+    if (!Number.isInteger(day) || day < 1 || day > DAYS) {
+      throw new BadRequestError(
+        `Template Google Sheets chỉ có ${DAYS} buổi mỗi tuần nên không đưa được buổi ${day} lên sheet. Hãy giảm còn tối đa ${DAYS} buổi/tuần.`,
+      )
+    }
+  }
+}
+
+/**
  * Writes one week of a program into a freshly created template tab.
  *
  * The template lays out a fixed grid of `DAYS` blocks of `ROWS_PER_DAY` rows. A
@@ -109,13 +127,7 @@ export function buildProgramPlanRequests(
   days: readonly PlanDay[],
   options?: { ambiguousDisplayNames?: ReadonlySet<string>; weekTitle?: string },
 ) {
-  for (const { day } of days) {
-    if (!Number.isInteger(day) || day < 1 || day > DAYS) {
-      throw new BadRequestError(
-        `Template Google Sheets chỉ có ${DAYS} buổi mỗi tuần nên không đưa được buổi ${day} lên sheet. Hãy giảm còn tối đa ${DAYS} buổi/tuần.`,
-      )
-    }
-  }
+  assertPlanDaysFitTemplate(days)
 
   const ambiguous = options?.ambiguousDisplayNames ?? new Set<string>()
   const byDay = new Map(days.map((entry) => [entry.day, entry.exercises]))

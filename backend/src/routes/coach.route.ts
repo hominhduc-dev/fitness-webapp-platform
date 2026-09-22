@@ -41,6 +41,7 @@ import {
   updateWorkoutLogCommentForCoach,
   updateCoachRequestStatus,
 } from "../services/fitness-data.service"
+import { generateProgramSpreadsheet } from "../services/google-program-generate.service"
 import { getAccessToken, sendError } from "./route.utils"
 import { googleRouter } from "./google.route"
 import { assertCoach, ensurePrisma } from "../services/fitness-data/shared/guards"
@@ -409,6 +410,17 @@ coachRouter.post("/programs/:programId/unlink-google-sheet", async (req, res) =>
     const program = await unlinkGoogleSpreadsheetFromCoachProgram(profile.profile, String(req.params.programId))
 
     res.json({ program })
+  } catch (error) {
+    sendError(res, error)
+  }
+})
+
+coachRouter.post("/programs/:programId/google-sheet", async (req, res) => {
+  try {
+    const profile = await requireCurrentProfile(getAccessToken(req))
+    const result = await generateProgramSpreadsheet(profile.profile, String(req.params.programId))
+
+    res.json(result)
   } catch (error) {
     sendError(res, error)
   }
