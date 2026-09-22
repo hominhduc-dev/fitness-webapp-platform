@@ -81,6 +81,12 @@ export type WorkoutExportDialogConfig = {
   subjects?: ExportSubject[]
   title: string
   triggerLabel: string
+  /**
+   * Controlled open state. When set, the dialog renders no trigger of its own:
+   * whoever owns `open` (e.g. a card's action menu) is the way in.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 // Local YYYY-MM-DD (not UTC) so week boundaries match the user's timezone.
@@ -107,7 +113,13 @@ function addDays(isoDate: string, days: number) {
 
 export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
   const { messages } = useLocale()
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const isControlled = config.open !== undefined
+  const open = config.open ?? uncontrolledOpen
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next)
+    config.onOpenChange?.(next)
+  }
   const [mode, setMode] = useState<ExportMode>(config.defaultMode ?? "week")
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [subjectId, setSubjectId] = useState<string>("")
@@ -256,12 +268,14 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Download className="h-4 w-4" />
-          {config.triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {isControlled ? null : (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <Download className="h-4 w-4" />
+            {config.triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent
         overlayClassName={config.dialogOverlayClassName}

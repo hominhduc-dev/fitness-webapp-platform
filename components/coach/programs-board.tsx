@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 
 import { ProgramEditorLazy } from "@/components/coach/program-editor-lazy"
-import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { COACH_DATA_STALE_TIME_MS, useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
 import { useExercises, useExerciseLibrary } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { useQueryClient } from "@tanstack/react-query"
@@ -11,6 +11,7 @@ import { userQueryKey } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
+import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
 import { ProgramViewerDialog } from "@/components/coach/program-viewer-dialog"
@@ -34,7 +35,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
-import { ChevronDown, ChevronRight, Eye, Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Plus, Upload } from "lucide-react"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -79,6 +80,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const client = useQueryClient()
   const [assignTarget, setAssignTarget] = useState<CoachProgram | null>(null)
   const [viewTarget, setViewTarget] = useState<CoachProgram | null>(null)
+  const [exportTarget, setExportTarget] = useState<CoachProgram | null>(null)
   const [editorTarget, setEditorTarget] = useState<"new" | string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -127,12 +129,28 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     }))
     .filter((group) => group.programs.length > 0)
 
+  // The editor's own query, so a detail fetched ahead of time is the one it reads.
+  const programDetailQuery = (programId: string) => ({
+    queryKey: userQueryKey(queryKeys.coach.program(programId), profile?.id),
+    queryFn: async () => fetchCoachProgram(await requireAccessToken(), programId),
+    staleTime: COACH_DATA_STALE_TIME_MS,
+  })
+
+  // Opening the editor waits on its code and on the program's full detail, one
+  // after the other. Starting both when the pointer reaches the card moves that
+  // wait into the time it takes to reach the menu. The query is a no-op while
+  // cached, and the import resolves once.
+  const prefetchEditor = (programId: string) => {
+    void import("@/components/coach/program-editor")
+    void client.prefetchQuery(programDetailQuery(programId))
+  }
+
   const handleDuplicate = async (program: CoachProgram) => {
     setBusyId(program.id)
     setError(null)
     try {
       // Re-fetch to make sure the full workout/exercise tree is loaded.
-      const full = await client.fetchQuery({ queryKey: userQueryKey(queryKeys.coach.program(program.id), profile?.id), queryFn: async () => fetchCoachProgram(await requireAccessToken(), program.id), staleTime: 300_000 })
+      const full = await client.fetchQuery(programDetailQuery(program.id))
       const created = await createProgram.mutateAsync([toCreateInput(full, `${program.name} (copy)`)])
       setPrograms((prev) => {
         const index = prev.findIndex((item) => item.id === program.id)
@@ -238,6 +256,25 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       return next
     })
   }
+
+  // One card for both views, so a client's program offers exactly the actions
+  // the library does.
+  const renderProgramCard = (program: CoachProgram) => (
+    <ProgramCard
+      key={program.id}
+      program={program}
+      busy={busyId === program.id}
+      onEdit={() => setEditorTarget(program.id)}
+      onView={() => setViewTarget(program)}
+      onAssign={() => setAssignTarget(program)}
+      onDuplicate={() => void handleDuplicate(program)}
+      onArchive={() => void handleArchive(program)}
+      onRestore={() => void handleRestore(program)}
+      onDelete={() => void handleDelete(program)}
+      onExportLogs={() => setExportTarget(program)}
+      onIntent={() => prefetchEditor(program.id)}
+    />
+  )
 
   const editor =
     editorTarget === null ? null : (
@@ -374,20 +411,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
           data-tour="coach-program-library"
           style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}
         >
-          {visiblePrograms.map((program) => (
-            <ProgramCard
-              key={program.id}
-              program={program}
-              busy={busyId === program.id}
-              onEdit={() => setEditorTarget(program.id)}
-              onView={() => setViewTarget(program)}
-              onAssign={() => setAssignTarget(program)}
-              onDuplicate={() => void handleDuplicate(program)}
-              onArchive={() => void handleArchive(program)}
-              onRestore={() => void handleRestore(program)}
-              onDelete={() => void handleDelete(program)}
-            />
-          ))}
+          {visiblePrograms.map(renderProgramCard)}
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -432,55 +456,8 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
                     className={isExpanded ? "border-t border-border px-4 py-3" : "hidden"}
                     aria-hidden={!isExpanded}
                   >
-                    <div className="space-y-2">
-                      {traineePrograms.map((program) => (
-                        <div
-                          key={program.id}
-                          className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-sm font-semibold text-foreground">{program.name}</p>
-                              {program.forkedFromProgramId ? (
-                                <Badge variant="micro" className="border-primary/20 bg-primary-soft text-primary">
-                                  Personalized copy
-                                </Badge>
-                              ) : null}
-                              {program.archivedAt ? (
-                                <Badge variant="micro" className="bg-muted text-muted-foreground">
-                                  Archived
-                                </Badge>
-                              ) : null}
-                            </div>
-                            <p className="mt-1 font-mono text-micro text-muted-foreground">
-                              {program.workoutsPerWeek} days/week · {program.duration} weeks · {program.difficulty}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 gap-2">
-                            <Button type="button" variant="outline" size="sm" className="gap-1.5 bg-transparent" onClick={() => setViewTarget(program)}>
-                              <Eye className="h-3.5 w-3.5" />
-                              View
-                            </Button>
-                            <Button type="button" size="sm" className="gap-1.5" onClick={() => setEditorTarget(program.id)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                              Adjust
-                            </Button>
-                            {program.forkedFromProgramId ? (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon-sm"
-                                className="shrink-0 text-destructive-text hover:bg-destructive-soft hover:text-destructive-text"
-                                aria-label={`Delete personalized copy ${program.name}`}
-                                title="Delete personalized copy"
-                                onClick={() => void handleDelete(program)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+                      {traineePrograms.map(renderProgramCard)}
                     </div>
                   </div>
                 </section>
@@ -492,6 +469,21 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       )}
 
       <ProgramViewerDialog program={viewTarget} onClose={() => setViewTarget(null)} />
+
+      {exportTarget ? (
+        <ExportProgramLogsDialog
+          key={exportTarget.id}
+          assignedTrainees={exportTarget.assignedTrainees}
+          programDuration={exportTarget.duration}
+          programId={exportTarget.id}
+          programName={exportTarget.name}
+          programStartDate={exportTarget.startDate}
+          open
+          onOpenChange={(next) => {
+            if (!next) setExportTarget(null)
+          }}
+        />
+      ) : null}
 
       <AssignClientsDialog
         program={assignTarget}
