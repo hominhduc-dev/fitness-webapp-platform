@@ -34,7 +34,7 @@ import {
 import { isN8nLogExportEnabled, sendWebhookPayloadToN8n } from "../n8n-log-export.service"
 import { logger } from "../../lib/logger"
 import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "../google-program-export.service"
-import { isGoogleConfigured } from "../google-connection.service"
+import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
 import { buildNotificationData, queuePushForNotifications } from "../notifications/notification-dispatch.service"
@@ -7457,10 +7457,11 @@ async function exportWorkoutLogsToGoogleSheetsForTrainee(
 ) {
   assertTrainee(profile)
 
-  // The export writes into a copy of the coach's sheet, made and shared on the
-  // coach's token, so the trainee needs no Google account of their own. The n8n
-  // webhook only remains for deployments without Google OAuth at all.
-  if (isGoogleConfigured()) {
+  // The sheet is built in the trainee's own Drive under their own grant, which
+  // is what keeps the app on `drive.file` instead of the restricted full-Drive
+  // scope — so their connection is required, not optional. The n8n webhook only
+  // remains for deployments without Google OAuth at all.
+  if (await hasGoogleConnection(profile.id)) {
     const from = parseLocalDateInput(options.from)
     const to = parseLocalDateInput(options.to)
 
@@ -7469,6 +7470,10 @@ async function exportWorkoutLogsToGoogleSheetsForTrainee(
     }
 
     return exportTraineeLogsToGoogleDrive(profile, { from, programId: options.programId, to })
+  }
+
+  if (isGoogleConfigured()) {
+    throw new AuthServiceError("Hãy kết nối tài khoản Google để export sang Google Sheets.", 400)
   }
 
   const logs = await listWorkoutLogsForExportTrainee(profile, options)

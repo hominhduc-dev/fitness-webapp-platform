@@ -50,3 +50,40 @@ export const LAST_DATA_ROW = FIRST_DATA_ROW + DAYS * ROWS_PER_DAY
 export function lookupFormula(row: number, referenceColumn: string) {
   return `=IFERROR(INDEX('${REFERENCE_SHEET_TITLE}'!$${referenceColumn}$2:$${referenceColumn},MATCH(C${row},'${REFERENCE_SHEET_TITLE}'!$D$2:$D,0)),"")`
 }
+
+/**
+ * The reference tab every week grid resolves its rows against. Column D holds
+ * the display name the lookups match on, so its order here is load-bearing.
+ *
+ * Sorted by muscle group, then exercise, then variation: it doubles as the
+ * dropdown a coach picks from, and an unsorted one is unusable at library size.
+ */
+export function buildReferenceRows(
+  variations: Array<{
+    equipment?: string | null
+    exerciseName: string
+    id: string
+    muscleGroup: string
+    name: string
+    variationName: string
+  }>,
+) {
+  const sorted = [...variations].sort(
+    (left, right) =>
+      left.muscleGroup.localeCompare(right.muscleGroup, undefined, { sensitivity: "base" }) ||
+      left.exerciseName.localeCompare(right.exerciseName, undefined, { sensitivity: "base" }) ||
+      left.variationName.localeCompare(right.variationName, undefined, { sensitivity: "base" }),
+  )
+
+  return [
+    ["variation_id", "exercise_name", "variation_name", "display_name", "muscle_group", "equipment"],
+    ...sorted.map((variation) => [
+      variation.id,
+      variation.exerciseName,
+      variation.variationName,
+      variation.name,
+      variation.muscleGroup,
+      variation.equipment ?? "",
+    ]),
+  ]
+}
