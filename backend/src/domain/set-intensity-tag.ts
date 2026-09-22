@@ -141,6 +141,34 @@ function buildSetIntensityTagMap(
   return new Map(normalizeSetIntensityAssignments(assignments, setCount).map(({ setNumber, tag }) => [setNumber, tag]))
 }
 
+/**
+ * Writes assignments back into a `Method` cell, the inverse of
+ * `parseSetIntensityMethodCell`.
+ *
+ * Always emits an explicit form — `all:drop` when every set carries the same
+ * tag, otherwise `1:warmup,3:mrm`. The bare-token spellings a coach may type
+ * are deliberately not produced: `mrm` alone means "the last set", which reads
+ * as a guess rather than as the record of what was prescribed.
+ */
+function formatSetIntensityMethodCell(
+  assignments: readonly SetIntensityAssignment[] | undefined,
+  setCount: number,
+): string {
+  const normalized = normalizeSetIntensityAssignments(assignments, setCount)
+
+  if (normalized.length === 0) return ""
+
+  const [{ tag: firstTag }] = normalized
+
+  if (normalized.length === setCount && normalized.every((assignment) => assignment.tag === firstTag)) {
+    return `all:${SET_INTENSITY_METHOD_SHEET_TOKENS[firstTag]}`
+  }
+
+  return normalized
+    .map(({ setNumber, tag }) => `${setNumber}:${SET_INTENSITY_METHOD_SHEET_TOKENS[tag]}`)
+    .join(",")
+}
+
 type ParsedSetIntensityMethod =
   | { assignments: SetIntensityAssignment[]; error?: undefined }
   | { assignments?: undefined; error: string }
@@ -244,6 +272,7 @@ export {
   SET_INTENSITY_TAGS,
   SET_INTENSITY_TAG_BADGES,
   buildSetIntensityTagMap,
+  formatSetIntensityMethodCell,
   isSetIntensityTag,
   normalizeSetIntensityAssignments,
   parseSetIntensityMethodCell,

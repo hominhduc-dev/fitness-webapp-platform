@@ -45,6 +45,9 @@ const PROGRAM_SHEET_TITLE = "Program"
 const INSTRUCTIONS_SHEET_TITLE = "Instructions"
 const TRAINEES_SHEET_TITLE = "Trainees"
 
+/** Week 1 sits second, so later weeks duplicated from it land right after. */
+const WEEK_SHEET_INDEX = 1
+
 /** Excel character widths from the .xlsx template, converted to pixels below. */
 const WEEK_COLUMN_WIDTHS = [7, 20, 44, 22, 38, 8, 12, 12, 44, 16, 16, 16, 16, 16, 8, 18, 12, 30]
 
@@ -417,7 +420,7 @@ async function createGoogleProgramTemplate(
     {
       properties: {
         gridProperties: { columnCount: 26, frozenColumnCount: 3, frozenRowCount: 2, rowCount: 200 },
-        index: 1,
+        index: WEEK_SHEET_INDEX,
         title: WEEK_SHEET_TITLE,
       },
     },
@@ -489,6 +492,9 @@ async function createGoogleProgramTemplate(
     spreadsheetId: created.spreadsheetId,
     spreadsheetUrl: created.spreadsheetUrl,
     title: spreadsheetTitle,
+    /** Where a caller duplicating this tab for later weeks copies from, and inserts after. */
+    weekSheetId: created.sheetIdsByTitle.get(WEEK_SHEET_TITLE)!,
+    weekSheetIndex: WEEK_SHEET_INDEX,
   }
 }
 
