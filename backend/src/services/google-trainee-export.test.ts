@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   assignments: vi.fn(),
   copy: vi.fn(),
+  driveScope: vi.fn(),
   findAssignment: vi.fn(),
   logs: vi.fn(),
   share: vi.fn(),
@@ -12,7 +13,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("../lib/google", () => ({ copyDriveFile: mocks.copy, shareDriveFile: mocks.share }))
-vi.mock("./google-connection.service", () => ({ getGoogleAccessToken: mocks.token }))
+vi.mock("./google-connection.service", () => ({
+  getGoogleAccessToken: mocks.token,
+  hasFullDriveScope: mocks.driveScope,
+}))
 vi.mock("./fitness-data/shared/guards", () => ({
   assertTrainee: vi.fn(),
   ensurePrisma: () => ({
@@ -65,6 +69,7 @@ describe("exportTraineeLogsToGoogleDrive", () => {
     mocks.assignments.mockResolvedValue([assignment()])
     mocks.token.mockResolvedValue("coach-token")
     mocks.copy.mockResolvedValue("copy-1")
+    mocks.driveScope.mockResolvedValue(true)
     mocks.share.mockResolvedValue({})
     mocks.updateAssignment.mockResolvedValue({ count: 1 })
     mocks.write.mockResolvedValue({ rowCount: 3, spreadsheetUrl: "https://docs.google.com/spreadsheets/d/copy-1/edit" })
@@ -153,6 +158,33 @@ describe("exportTraineeLogsToGoogleDrive", () => {
 
     await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/snapshot tuần/)
     expect(mocks.write).not.toHaveBeenCalled()
+  })
+
+  it("blames the missing Drive grant when the copy fails and the coach never gave one", async () => {
+    // Google answers 404 both for a file the grant cannot see and for one that
+    // is really gone. The grant is what separates them, and it is the only one
+    // of the two anybody can do something about.
+    mocks.copy.mockRejectedValue(new Error("Google trả về lỗi 404."))
+    mocks.driveScope.mockResolvedValue(false)
+
+    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/cấp lại quyền/)
+  })
+
+  it("lets the real error through when the coach did grant Drive access", async () => {
+    // Dressing an unrelated Google failure up as a permissions problem would
+    // send the coach off to re-grant a permission they already gave.
+    mocks.copy.mockRejectedValue(new Error("Google trả về lỗi 500."))
+    mocks.driveScope.mockResolvedValue(true)
+
+    await expect(exportTraineeLogsToGoogleDrive(trainee, range)).rejects.toThrow(/500/)
+  })
+
+  it("does not ask about Drive access when the copy already exists", async () => {
+    mocks.assignments.mockResolvedValue([assignment({ traineeGoogleSpreadsheetId: "copy-old" })])
+
+    await exportTraineeLogsToGoogleDrive(trainee, range)
+
+    expect(mocks.driveScope).not.toHaveBeenCalled()
   })
 
   it("refuses when nothing was completed in the range", async () => {
