@@ -62,13 +62,18 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
 }
 
 /**
- * Export writes results straight into the sheet's cells, so a spreadsheet two
- * trainees share would have one's numbers overwrite the other's. "Used by
- * another trainee" left the coach nowhere to start — this names who, across
- * every program that was ever built from this spreadsheet: a current
- * assignment, or a past one whose logs are still on it.
+ * Trainees whose assignment or logs already tie `spreadsheetId` to a program
+ * other than the ones behind `excludeUserIds` — a current assignment on any
+ * program built from this spreadsheet, or a past one whose logs are still on
+ * it. Excluding a set rather than one id lets the same query answer both "is
+ * this trainee's export blocked" (exclude just them) and "is this program's
+ * sheet shared with anything outside its own roster" (exclude its assignees).
  */
-async function assertSpreadsheetNotSharedWithAnotherTrainee(db: ExportDb, spreadsheetId: string, traineeId: string) {
+async function spreadsheetConflictUserIds(
+  db: ExportDb,
+  spreadsheetId: string,
+  excludeUserIds: readonly string[],
+): Promise<Set<string>> {
   const relatedPrograms = await db.program.findMany({
     where: { googleSpreadsheetId: spreadsheetId },
     select: { assignments: { select: { userId: true } }, id: true },
@@ -77,22 +82,78 @@ async function assertSpreadsheetNotSharedWithAnotherTrainee(db: ExportDb, spread
   const loggedByOthers = await db.workoutLog.findMany({
     distinct: ["userId"],
     select: { userId: true },
-    where: { programId: { in: relatedProgramIds }, userId: { not: traineeId } },
+    where: { programId: { in: relatedProgramIds }, userId: { notIn: [...excludeUserIds] } },
   })
-  const conflictingUserIds = new Set([
+  const conflicting = new Set([
     ...relatedPrograms.flatMap((program) => program.assignments.map((assignment) => assignment.userId)),
     ...loggedByOthers.map((log) => log.userId),
   ])
-  conflictingUserIds.delete(traineeId)
-  if (conflictingUserIds.size === 0) return
+  for (const userId of excludeUserIds) conflicting.delete(userId)
+  return conflicting
+}
 
-  const conflictingUsers = await db.user.findMany({ select: { name: true }, where: { id: { in: [...conflictingUserIds] } } })
-  const names = conflictingUsers.map((user) => user.name).sort((a, b) => a.localeCompare(b))
-  const who = names.length > 0 ? names.join(", ") : "một học viên khác"
+/**
+ * Names a conflict only with trainees on the calling coach's own roster. A
+ * trainee under a different coach is still a real conflict — the export stays
+ * blocked either way — but their name is that coach's roster to see, not
+ * this one's; naming them across coaches would leak one coach's trainee to
+ * another. `conflictingNames` can come back empty while `conflictingCount` is
+ * not, and callers should read that as "blocked, but not by anyone on your
+ * own roster".
+ */
+async function nameSpreadsheetConflict(db: ExportDb, coachId: string, conflictingUserIds: Set<string>) {
+  if (conflictingUserIds.size === 0) return null
+
+  const users = await db.user.findMany({
+    select: { coachId: true, name: true },
+    where: { id: { in: [...conflictingUserIds] } },
+  })
+  const conflictingNames = users
+    .filter((user) => user.coachId === coachId)
+    .map((user) => user.name)
+    .sort((a, b) => a.localeCompare(b))
+
+  return { conflictingCount: conflictingUserIds.size, conflictingNames }
+}
+
+/**
+ * Export writes results straight into the sheet's cells, so a spreadsheet two
+ * trainees share would have one's numbers overwrite the other's.
+ */
+async function assertSpreadsheetNotSharedWithAnotherTrainee(
+  db: ExportDb,
+  spreadsheetId: string,
+  traineeId: string,
+  coachId: string,
+) {
+  const conflictingUserIds = await spreadsheetConflictUserIds(db, spreadsheetId, [traineeId])
+  const conflict = await nameSpreadsheetConflict(db, coachId, conflictingUserIds)
+  if (!conflict) return
+
+  const who = conflict.conflictingNames.length > 0 ? conflict.conflictingNames.join(", ") : "một học viên khác"
 
   throw new BadRequestError(
     `Spreadsheet này đang dùng chung với ${who}. Mỗi học viên cần một spreadsheet riêng — hãy nhân bản sheet này trên Google Drive rồi import lại cho học viên đang xem.`,
   )
+}
+
+/**
+ * Read-only counterpart for the program page: is this program's own
+ * spreadsheet shared with anything outside its own roster? Same risk model as
+ * the export-time guard, checked ahead of time instead of on export failure,
+ * so a coach can find and fix it — via `unlinkGoogleSpreadsheetFromCoachProgram`
+ * — before a trainee ever hits the blocked export.
+ */
+export async function describeGoogleSpreadsheetConflict(
+  db: ExportDb,
+  coachId: string,
+  program: { assignments: Array<{ userId: string }>; googleSpreadsheetId: string | null; id: string },
+) {
+  if (!program.googleSpreadsheetId) return null
+
+  const ownAssigneeIds = program.assignments.map((assignment) => assignment.userId)
+  const conflictingUserIds = await spreadsheetConflictUserIds(db, program.googleSpreadsheetId, ownAssigneeIds)
+  return nameSpreadsheetConflict(db, coachId, conflictingUserIds)
 }
 
 export async function exportGoogleProgramLogs(profile: SerializedProfile, traineeId: string, logIds: string[]) {
@@ -107,7 +168,7 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   const spreadsheetIds = [...new Set(programs.map((program) => program.googleSpreadsheetId))]
   if (spreadsheetIds.length !== 1 || !spreadsheetIds[0] || programs.some((program) => !program.googleSheetName)) throw new BadRequestError("Chọn log của một spreadsheet đã import.")
   const spreadsheetId = spreadsheetIds[0]
-  await assertSpreadsheetNotSharedWithAnotherTrainee(db, spreadsheetId, traineeId)
+  await assertSpreadsheetNotSharedWithAnotherTrainee(db, spreadsheetId, traineeId, profile.id)
   const sessions = new Map<number, ExportSession[]>()
   for (const log of logs) {
     const snapshot = log.workoutSnapshot as { scheduledDay?: number; weekIndex?: number } | null

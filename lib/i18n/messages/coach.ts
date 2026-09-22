@@ -166,6 +166,13 @@ export const coachMessages = {
       programNormalizeError: "Unable to normalize program data.",
       programNamePlaceholder: "e.g. Strength block - 12w",
       programSaveError: "Unable to save program.",
+      genericConflictingTrainee: "another trainee",
+      googleSheetConflictBanner: (who: string) =>
+        `This program's Google Sheet is also shared with ${who}. Exports will be blocked until you unlink it.`,
+      unlinkGoogleSheet: "Unlink spreadsheet",
+      unlinkingGoogleSheet: "Unlinking...",
+      unlinkGoogleSheetError: "Unable to unlink the spreadsheet.",
+      googleSheetUnlinked: "Spreadsheet unlinked.",
       programStartedPreview: (name: string, program: string, weeks: number, date: string) =>
         `${name} will start ${program} (${weeks}-week program) on ${date}.`,
       progressOverview: "Progress overview",
@@ -489,6 +496,13 @@ export const coachMessages = {
       programNormalizeError: "Không thể chuẩn hóa dữ liệu program.",
       programNamePlaceholder: "vd: Strength block - 12w",
       programSaveError: "Không thể lưu program.",
+      genericConflictingTrainee: "một học viên khác",
+      googleSheetConflictBanner: (who: string) =>
+        `Google Sheet của program này đang dùng chung với ${who}. Export sẽ bị chặn cho đến khi bạn gỡ liên kết.`,
+      unlinkGoogleSheet: "Gỡ liên kết spreadsheet",
+      unlinkingGoogleSheet: "Đang gỡ liên kết...",
+      unlinkGoogleSheetError: "Không thể gỡ liên kết spreadsheet.",
+      googleSheetUnlinked: "Đã gỡ liên kết spreadsheet.",
       programStartedPreview: (name: string, program: string, weeks: number, date: string) =>
         `${name} sẽ bắt đầu ${program} (program ${weeks} tuần) vào ${date}.`,
       progressOverview: "Tổng quan tiến độ",

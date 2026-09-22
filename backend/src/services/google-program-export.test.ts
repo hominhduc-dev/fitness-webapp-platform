@@ -22,7 +22,8 @@ vi.mock("../lib/google", () => ({
   fetchSheetValues: mocks.values,
   fetchSpreadsheetMeta: vi.fn().mockResolvedValue({ sheetProperties: [{ sheetId: 1, title: "Week 1", gridProperties: { rowCount: 50 } }, { sheetId: 2, title: "Exercise Table" }] }),
 }))
-import { exportGoogleProgramLogs } from "./google-program-export.service"
+import { ensurePrisma } from "./fitness-data/shared/guards"
+import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "./google-program-export.service"
 
 const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
 type BatchRequest = {
@@ -55,13 +56,13 @@ describe("Google export batch across weeks", () => {
   it("names the trainee a spreadsheet is currently assigned to", async () => {
     mocks.programs.mockReset()
     mocks.programs.mockResolvedValueOnce([{ id: "program", googleSpreadsheetId: "spreadsheet", googleSheetName: "Week 1" }]).mockResolvedValueOnce([{ id: "program", assignments: [{ userId: "another-trainee" }] }])
-    mocks.users.mockResolvedValue([{ name: "Nguyễn Văn A" }])
+    mocks.users.mockResolvedValue([{ coachId: "coach", name: "Nguyễn Văn A" }])
     await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/Nguyễn Văn A/)
     expect(mocks.batch).not.toHaveBeenCalled()
   })
   it("names the trainee whose logs are still on the spreadsheet, even after unassignment", async () => {
     mocks.conflictLogs.mockResolvedValue([{ userId: "ghost-trainee" }])
-    mocks.users.mockResolvedValue([{ name: "Trần Thị B" }])
+    mocks.users.mockResolvedValue([{ coachId: "coach", name: "Trần Thị B" }])
     await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/Trần Thị B/)
     expect(mocks.batch).not.toHaveBeenCalled()
   })
@@ -71,9 +72,67 @@ describe("Google export batch across weeks", () => {
     await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/một học viên khác/)
     expect(mocks.batch).not.toHaveBeenCalled()
   })
+  it("redacts the name of a conflicting trainee who belongs to a different coach", async () => {
+    // The spreadsheet really is shared — the export still has to refuse — but a
+    // trainee's name is their own coach's roster to see, not this one's.
+    mocks.conflictLogs.mockResolvedValue([{ userId: "someone-elses-trainee" }])
+    mocks.users.mockResolvedValue([{ coachId: "a-different-coach", name: "Lê Văn C" }])
+    let error: unknown
+    try {
+      await exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toMatch(/một học viên khác/)
+    expect((error as Error).message).not.toMatch(/Lê Văn C/)
+    expect(mocks.batch).not.toHaveBeenCalled()
+  })
   it("rejects old logs without a week snapshot", async () => {
     mocks.logs.mockResolvedValue([{ programId: "program", workoutSnapshot: { scheduledDay: 1 }, exerciseSnapshot: [] }])
     await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/snapshot tuần/)
     expect(mocks.batch).not.toHaveBeenCalled()
+  })
+})
+
+describe("describeGoogleSpreadsheetConflict", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("returns null without querying when the program has no spreadsheet linked", async () => {
+    const db = ensurePrisma()
+    const result = await describeGoogleSpreadsheetConflict(db, "coach", {
+      assignments: [],
+      googleSpreadsheetId: null,
+      id: "program",
+    })
+    expect(result).toBeNull()
+    expect(mocks.programs).not.toHaveBeenCalled()
+  })
+
+  it("returns null when the spreadsheet is only used by the program's own roster", async () => {
+    mocks.programs.mockResolvedValue([{ id: "program", assignments: [{ userId: "trainee-a" }, { userId: "trainee-b" }] }])
+    mocks.conflictLogs.mockResolvedValue([])
+    const db = ensurePrisma()
+    const result = await describeGoogleSpreadsheetConflict(db, "coach", {
+      assignments: [{ userId: "trainee-a" }, { userId: "trainee-b" }],
+      googleSpreadsheetId: "spreadsheet",
+      id: "program",
+    })
+    expect(result).toBeNull()
+  })
+
+  it("finds and names a conflict from a trainee outside the program's own roster", async () => {
+    mocks.programs.mockResolvedValue([{ id: "program", assignments: [{ userId: "trainee-a" }, { userId: "borrower-trainee" }] }])
+    mocks.conflictLogs.mockResolvedValue([])
+    mocks.users.mockResolvedValue([{ coachId: "coach", name: "Người mượn" }])
+    const db = ensurePrisma()
+    const result = await describeGoogleSpreadsheetConflict(db, "coach", {
+      assignments: [{ userId: "trainee-a" }],
+      googleSpreadsheetId: "spreadsheet",
+      id: "program",
+    })
+    expect(result).toEqual({ conflictingCount: 1, conflictingNames: ["Người mượn"] })
   })
 })

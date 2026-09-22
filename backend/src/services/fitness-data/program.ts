@@ -11,5 +11,6 @@ export {
   listCoachPrograms,
   restoreCoachProgram,
   unassignCoachProgramFromTrainee,
+  unlinkGoogleSpreadsheetFromCoachProgram,
   updateCoachProgram,
 } from "./core"

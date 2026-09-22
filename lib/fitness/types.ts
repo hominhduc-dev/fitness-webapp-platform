@@ -28,6 +28,14 @@ type AssignedTrainee = {
 type CoachProgram = Program & {
   assignedTrainees: AssignedTrainee[]
   createdAt: Date
+  /**
+   * Only set on `getCoachProgramDetail`'s response: whether this program's
+   * Google Sheet is also tied to a program outside its own roster. `null`
+   * means no conflict; `conflictingNames` can be empty even when
+   * `conflictingCount` isn't, when the conflicting trainee belongs to
+   * another coach and their name isn't this coach's to see.
+   */
+  googleSheetConflict?: { conflictingCount: number; conflictingNames: string[] } | null
 }
 
 type TraineeProgram = {
