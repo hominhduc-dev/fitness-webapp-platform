@@ -11,6 +11,19 @@ import { getGoogleAccessToken } from "./google-connection.service"
 import { assertCoach, ensurePrisma } from "./fitness-data/shared/guards"
 import { listExerciseLibrary } from "./fitness-data/core"
 import { SET_INTENSITY_METHOD_CHOICES } from "../domain/set-intensity-tag"
+import {
+  BANNER_ROW,
+  DAYS,
+  FIRST_DATA_ROW,
+  HEADER_ROW,
+  LAST_DATA_ROW,
+  lookupFormula,
+  METHOD_COLUMN_INDEX,
+  REFERENCE_SHEET_TITLE,
+  ROWS_PER_DAY,
+  WEEK_HEADERS,
+  WEEK_SHEET_TITLE,
+} from "../domain/google-program-sheet"
 import type { SerializedProfile } from "./auth.service"
 
 /**
@@ -21,54 +34,19 @@ import type { SerializedProfile } from "./auth.service"
  * mistyping a name the importer then cannot resolve. Building the sheet through
  * the API sets that validation explicitly, so it survives.
  *
- * The grid must stay byte-compatible with `parseGoogleProgramRows`: the header
- * row is located by `Day` in column A and `Exercise` in column C, and the parser
- * then asserts `Sets`, `Rep Range` and `Substitute Exercise` sit at fixed offsets
- * with `RIR` no earlier than column O. Reorder these headers and every existing
- * sheet stops importing.
+ * The grid itself is described in `domain/google-program-sheet`, which every
+ * other reader and writer of these sheets shares.
  */
 
 /** Where templates go when the coach does not nominate a folder. */
 const DEFAULT_FOLDER_NAME = "YeahBuddy program templates"
 
-const WEEK_SHEET_TITLE = "Week 1"
 const PROGRAM_SHEET_TITLE = "Program"
 const INSTRUCTIONS_SHEET_TITLE = "Instructions"
-const REFERENCE_SHEET_TITLE = "Exercise Table"
 const TRAINEES_SHEET_TITLE = "Trainees"
-
-const WEEK_HEADERS = [
-  "Day",
-  "Muscle Group",
-  "Exercise",
-  "Variation",
-  "",
-  "Sets",
-  "Rep Range",
-  "Weight (kg)",
-  "Substitute Exercise",
-  "Actual rep per weight",
-  "",
-  "",
-  "",
-  "",
-  "RIR",
-  "Method",
-  "Rest (s)",
-  "Note",
-]
 
 /** Excel character widths from the .xlsx template, converted to pixels below. */
 const WEEK_COLUMN_WIDTHS = [7, 20, 44, 22, 38, 8, 12, 12, 44, 16, 16, 16, 16, 16, 8, 18, 12, 30]
-
-const METHOD_COLUMN_INDEX = WEEK_HEADERS.indexOf("Method")
-
-const DAYS = 6
-const ROWS_PER_DAY = 8
-const BANNER_ROW = 0
-const HEADER_ROW = 1
-const FIRST_DATA_ROW = 2
-const LAST_DATA_ROW = FIRST_DATA_ROW + DAYS * ROWS_PER_DAY
 
 const BANNER_COLOR = { blue: 0.9412, green: 0.6902, red: 0 }
 const DAY_COLORS = [
@@ -93,11 +71,6 @@ const INSTRUCTIONS = [
 
 function toPixels(characterWidth: number) {
   return characterWidth * 7 + 5
-}
-
-/** `'Exercise Table'!$D$2:$D` style lookup against the reference sheet. */
-function lookupFormula(row: number, referenceColumn: string) {
-  return `=IFERROR(INDEX('${REFERENCE_SHEET_TITLE}'!$${referenceColumn}$2:$${referenceColumn},MATCH(C${row},'${REFERENCE_SHEET_TITLE}'!$D$2:$D,0)),"")`
 }
 
 function buildWeekRows() {
