@@ -58,7 +58,7 @@ UI copy is localized for Vietnamese and English.
 - Monitor trainee compliance and weekly activity
 - Review trainee logs, body metrics, check-ins, and recent PRs
 - Comment on workout logs
-- Import programs from Google Sheets or Notion when configured
+- Import programs from Google Sheets when configured
 - Manage a coach-owned exercise library
 
 ### For Admins
@@ -76,6 +76,7 @@ UI copy is localized for Vietnamese and English.
 - Consistent API error envelope
 - Structured backend logging
 - Rate limits for authenticated and AI-heavy routes
+- Web push notifications for reminders and coach/trainee activity
 - Excel-style export helpers and optional n8n webhook export
 
 ---
@@ -121,7 +122,8 @@ Public users land on `/` and can open the auth modal. After login, the app redir
 
 - Anthropic or OpenAI for AI workout and meal-plan generation
 - Google OAuth, Google Sheets, and Drive APIs for program imports
-- Notion API for program imports
+- Web Push (VAPID) for reminder and activity notifications
+- Cloudinary for exercise media hosting
 - n8n webhook for workout-log export
 
 ---
@@ -313,18 +315,21 @@ AI_JSON_MODE=true
 # n8n workout-log export
 N8N_LOGS_WEBHOOK_URL=
 
-# Notion program import
-NOTION_TOKEN=
-NOTION_PROGRAM_DB_ID=
-NOTION_PROGRAM_ROWS_DB_ID=
-NOTION_API_VERSION=2022-06-28
-NOTION_TIMEOUT_MS=15000
-
 # Google Sheets program import
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/backend/api/coach/google/callback
 GOOGLE_TOKEN_ENCRYPTION_KEY=
+
+# Web push notifications (VAPID)
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:notifications@yeahbuddy.fit
+
+# Cloudinary (exercise media hosting and sync scripts)
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 ```
 
 Never expose or commit `SUPABASE_SERVICE_ROLE_KEY`, database URLs, OAuth secrets, or AI API keys.
@@ -451,6 +456,7 @@ Coach areas:
 - `/api/coach/exercises`
 - `/api/coach/requests`
 - `/api/coach/workout-logs/:id/comments`
+- `/api/coach/google` (Google Sheets connect and import)
 
 Admin areas:
 
