@@ -37,7 +37,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
       return { error: messages.workoutPage.exportSelectProgramError }
     }
 
-    const startDate = getProgramStartDate(program.assignedAt, program.duration)
+    const startDate = getProgramStartDate(program.assignedAt, program.duration, program.startDate)
     const from = formatDateToISO(startDate)
     const endDate = new Date(startDate)
     endDate.setDate(endDate.getDate() + program.duration * 7)
@@ -84,7 +84,7 @@ export function ExportWorkoutDialog({ programs = [] }: ExportWorkoutDialogProps)
 
     const detail = await queries.traineeProgram(program.id)
 
-    const start = formatDateToISO(getProgramStartDate(program.assignedAt, program.duration))
+    const start = formatDateToISO(getProgramStartDate(program.assignedAt, program.duration, program.startDate))
     return buildPlannedSessions(detail.workouts, start)
   }
 

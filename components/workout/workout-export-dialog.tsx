@@ -59,7 +59,7 @@ export type WorkoutExportDialogConfig = {
   description?: string
   dialogContentClassName?: string
   dialogOverlayClassName?: string
-  exportToSheets: (context: ExportContext) => Promise<Pick<SheetsExportResult, "files" | "logCount" | "rowCount" | "skippedLogCount">>
+  exportToSheets: (context: ExportContext) => Promise<Pick<SheetsExportResult, "files" | "logCount" | "rowCount" | "skippedExerciseCount" | "skippedLogCount">>
   loadBodyMetrics?: (context: ExportContext) => Promise<BodyMetricEntry[]>
   loadLogs: (context: ExportContext) => Promise<WorkoutLog[]>
   /** Programs offered in the Program-mode picker. Omit when the program is fixed. */
@@ -228,8 +228,11 @@ export function WorkoutExportDialog(config: WorkoutExportDialogConfig) {
     setIsExportingToSheets(true)
     try {
       const result = await config.exportToSheets({ ...selection, range })
-      const skipped = result.skippedLogCount ? ` ${messages.workoutPage.exportSheetsSkipped(result.skippedLogCount)}` : ""
-      setNotice(`${messages.workoutPage.exportSheetsDone(result.logCount, result.rowCount)}${skipped}`)
+      const skipped = [
+        result.skippedLogCount ? messages.workoutPage.exportSheetsSkipped(result.skippedLogCount) : "",
+        result.skippedExerciseCount ? messages.workoutPage.exportSheetsSkippedExercises(result.skippedExerciseCount) : "",
+      ].filter(Boolean)
+      setNotice([messages.workoutPage.exportSheetsDone(result.logCount, result.rowCount), ...skipped].join(" "))
       setExportedFiles(result.files ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : messages.workoutPage.exportSheetsFailed)

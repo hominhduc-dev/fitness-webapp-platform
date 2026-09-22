@@ -261,6 +261,7 @@ export type SheetsExportResult = {
   files?: SheetsExportFile[]
   logCount: number
   rowCount: number
+  skippedExerciseCount?: number
   skippedLogCount?: number
   spreadsheetUrl?: string
   webhookStatusCode?: number

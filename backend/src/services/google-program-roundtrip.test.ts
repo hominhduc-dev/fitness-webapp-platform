@@ -43,6 +43,18 @@ describe("Google sheet export planning", () => {
     expect(() => buildGoogleResultRequests(values, [{ day: 1, week: 1, exercises: [exercise] }], 5, 50)).toThrow(/Không khớp/)
     expect(() => buildGoogleResultRequests(grid(), [{ day: 1, week: 1, exercises: [exercise, exercise] }], 5, 50)).toThrow(/nhiều log/)
   })
+  it("lenient: finds a moved exercise by variation and skips rows the plan no longer has", () => {
+    // Logged against an older plan: Fly was 3rd (now 2nd), Bench was swapped
+    // from a variation the plan dropped, and Curl is not in the plan at all.
+    const moved = { order: 3, variation: { id: "v2", name: "Default" }, exercise: { name: "Fly" }, sets: [{ setNumber: 1, completed: true, actualReps: 12, weight: 10 }] }
+    const swapped = { ...exercise, originalVariationId: "v-old", variation: { id: "v1", name: "Default" } }
+    const extra = { order: 4, variation: { id: "v9", name: "Default" }, exercise: { name: "Curl" }, sets: [] }
+    const session = [{ day: 1, week: 1, exercises: [swapped, moved, extra] }]
+    expect(() => buildGoogleResultRequests(grid(), session, 5, 50)).toThrow(/Không khớp/)
+    const result = buildGoogleResultRequests(grid(), session, 5, 50, false, true)
+    expect(result).toMatchObject({ rowCount: 2, skippedExerciseCount: 1 })
+    expect(result.requests.map((request) => (request as { updateCells: { start: { rowIndex: number } } }).updateCells.start.rowIndex)).toEqual([2, 3])
+  })
 })
 describe("Google OAuth boundary", () => {
   it("binds signed state to browser nonce and expires it", () => {
