@@ -19,6 +19,9 @@ type ExportProgramLogsDialogProps = {
   programName: string
   /** `YYYY-MM-DD`; anchors week 1 for every trainee when set. */
   programStartDate?: string
+  /** Controlled open state, for opening it from elsewhere (e.g. a card menu). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function ExportProgramLogsDialog({
@@ -27,6 +30,8 @@ export function ExportProgramLogsDialog({
   programId,
   programName,
   programStartDate,
+  open,
+  onOpenChange,
 }: ExportProgramLogsDialogProps) {
   const queries = useExportQueries()
   const sheetsExport = useCoachSheetsExport()
@@ -111,6 +116,8 @@ export function ExportProgramLogsDialog({
       }))}
       title={`${messages.workoutPage.exportLogs} - ${programName}`}
       triggerLabel={messages.workoutPage.exportLogs}
+      open={open}
+      onOpenChange={onOpenChange}
     />
   )
 }

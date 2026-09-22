@@ -457,10 +457,10 @@ function serializeVariation(
     equipment: variation.equipment ?? undefined,
     id: variation.id,
     isDefault: variation.isDefault,
-    metadata:
-      variation.metadata && typeof variation.metadata === "object" && !Array.isArray(variation.metadata)
-        ? (variation.metadata as Record<string, unknown>)
-        : undefined,
+    // `metadata` itself stays server-side. It is the raw import record (CDN
+    // paths, external source) at ~10 KB a variation, it is 95% of every
+    // catalogue and program payload, and nothing on the client reads it: the
+    // media and display name derived from it are sent instead.
     media: serializeExerciseMedia(variation.metadata),
     name: variation.name,
     sortOrder: variation.sortOrder,
@@ -609,10 +609,10 @@ function serializeVariationOption(
     displayName,
     id: variation.id,
     isDefault: variation.isDefault,
-    metadata:
-      variation.metadata && typeof variation.metadata === "object" && !Array.isArray(variation.metadata)
-        ? (variation.metadata as Record<string, unknown>)
-        : undefined,
+    // `metadata` itself stays server-side. It is the raw import record (CDN
+    // paths, external source) at ~10 KB a variation, it is 95% of every
+    // catalogue and program payload, and nothing on the client reads it: the
+    // media and display name derived from it are sent instead.
     media: serializeExerciseMedia(variation.metadata),
     muscleGroup: variation.exercise.muscleGroup,
     name: displayName,

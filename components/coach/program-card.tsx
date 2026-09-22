@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Archive, ArchiveRestore, Copy, ExternalLink, Eye, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
+import { Archive, ArchiveRestore, Copy, Download, ExternalLink, Eye, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -36,6 +36,10 @@ interface ProgramCardProps {
   onArchive: () => void
   onRestore: () => void
   onDelete: () => void
+  /** Opens the log export. The item is only offered while someone is assigned. */
+  onExportLogs?: () => void
+  /** The pointer or focus reached the card: a chance to warm up what Edit opens. */
+  onIntent?: () => void
 }
 
 function formatEditedAt(value: Date, messages: ReturnType<typeof useLocale>["messages"]) {
@@ -55,6 +59,10 @@ function formatEditedAt(value: Date, messages: ReturnType<typeof useLocale>["mes
  * Kebab (top-right) opens Edit / Assign / Duplicate / Archive / Delete.
  * Archived programs are dimmed, edit/assign/duplicate are hidden; the menu
  * exposes Restore + Delete (Delete only when no assignments — proxy for draft).
+ *
+ * A trainee's personalized copy is badged, and stays deletable while assigned:
+ * the copy is that trainee's alone, and the backend still refuses once it
+ * holds logs.
  */
 export function ProgramCard({
   program,
@@ -66,12 +74,15 @@ export function ProgramCard({
   onArchive,
   onRestore,
   onDelete,
+  onExportLogs,
+  onIntent,
 }: ProgramCardProps) {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const [menuOpen, setMenuOpen] = useState(false)
   const assigned = program.assignedTrainees ?? []
   const isArchived = Boolean(program.archivedAt)
-  const canHardDelete = assigned.length === 0
+  const isPersonalizedCopy = Boolean(program.forkedFromProgramId)
+  const canHardDelete = assigned.length === 0 || isPersonalizedCopy
   const spreadsheetId = program.googleSpreadsheetId
   const sheetUrl = spreadsheetId && /^[a-zA-Z0-9_-]{20,}$/.test(spreadsheetId)
     ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
@@ -84,12 +95,19 @@ export function ProgramCard({
         busy && "pointer-events-none opacity-60",
         isArchived && "opacity-70",
       )}
+      onPointerEnter={onIntent}
+      onFocus={onIntent}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-lg font-semibold leading-snug tracking-[-0.01em]">{program.name}</h3>
+            {isPersonalizedCopy ? (
+              <Badge variant="micro" className="shrink-0 border-primary/20 bg-primary-soft text-primary">
+                {locale === "en" ? "Personalized copy" : "Bản cá nhân hoá"}
+              </Badge>
+            ) : null}
             {isArchived ? (
               <Badge variant="micro" className="shrink-0 bg-muted text-muted-foreground">
                 Archived
@@ -127,6 +145,12 @@ export function ProgramCard({
                   <Copy className="h-4 w-4" />
                   {messages.coach.duplicate}
                 </DropdownMenuItem>
+                {onExportLogs && assigned.length > 0 ? (
+                  <DropdownMenuItem onSelect={onExportLogs}>
+                    <Download className="h-4 w-4" />
+                    {messages.workoutPage.exportLogs}
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onArchive}>
                   <Archive className="h-4 w-4" />

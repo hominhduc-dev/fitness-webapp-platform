@@ -1015,6 +1015,43 @@ export function ProgramEditor({
     return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">{messages.coach.loadingProgram}</div>
   }
 
+  const weekPicker = (
+    <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {Array.from({ length: totalWeeks }).map((_, index) => {
+        const week = schedule[index] ?? []
+        const weekTotal = week.filter((slot) => slot !== null).length
+        const weekFilled = week.filter((slot) => Boolean(slot?.routine?.exercises.length)).length
+        const isActive = activeWeek === index
+        const isComplete = weekTotal > 0 && weekFilled === weekTotal
+        const isCurrentWeek = currentWeekIndex === index
+
+        return (
+          <button
+            key={index}
+            type="button"
+            onClick={() => setActiveWeek(index)}
+            title={isCurrentWeek ? messages.coach.currentlyOnWeek(index + 1, totalWeeks) : undefined}
+            className={cn(
+              "relative flex h-10 min-w-[60px] items-center justify-center rounded-xl border px-4 font-mono text-sm font-semibold transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
+              isActive
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-input bg-background/70 text-foreground hover:bg-muted",
+              isCurrentWeek && "ring-1 ring-primary ring-offset-1 ring-offset-muted",
+            )}
+          >
+            {isCurrentWeek ? (
+              <span className="absolute -top-1.5 right-1 rounded-sm bg-primary px-1 py-px text-micro font-semibold tracking-[0.08em] text-primary-foreground">
+                {messages.coach.currentWeekBadge}
+              </span>
+            ) : null}
+            {index + 1}
+            {isComplete ? <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-success" /> : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div
       className={cn(
@@ -1041,8 +1078,8 @@ export function ProgramEditor({
           isModal && "h-[calc(100svh-1rem)] max-h-[980px] sm:h-auto sm:max-h-[calc(100svh-3rem)]",
         )}
       >
-        <div className="shrink-0 bg-background/25 px-4 pb-3 pt-4 sm:px-6 md:px-8">
-          <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="shrink-0 bg-background/25 px-4 pb-3 pt-4 sm:px-6 md:px-8 md:pb-2.5 md:pt-3.5">
+          <div className="mb-4 flex items-start justify-between gap-4 md:mb-3 md:items-center">
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary-soft text-primary">
@@ -1051,14 +1088,12 @@ export function ProgramEditor({
                 <span className="h-5 w-px bg-border" aria-hidden="true" />
                 {isAdjustMode ? messages.coach.adjustProgram : programId ? messages.coach.editProgram : messages.coach.newProgram}
               </p>
-              <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-3xl">
+              <div className="md:flex md:items-baseline md:gap-3">
+              <h1 className="mt-2 truncate text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-3xl md:mt-1 md:text-2xl">
                 {programId ? programName.trim() || messages.coach.untitledProgram : "Create Workout Program"}
               </h1>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                Build a structured training program and assign it to your clients.
-              </p>
               {currentWeekProgress ? (
-                <p className="mt-1 font-mono text-xs text-primary tnum">
+                <p className="mt-1 shrink-0 font-mono text-xs text-primary tnum md:mt-0">
                   {currentWeekProgress.kind === "active"
                     ? messages.coach.currentlyOnWeek(currentWeekProgress.weekIndex + 1, totalWeeks)
                     : currentWeekProgress.kind === "not-started"
@@ -1066,6 +1101,37 @@ export function ProgramEditor({
                       : messages.coach.currentWeekCompleted}
                 </p>
               ) : null}
+              </div>
+              <p className="mt-1.5 text-sm text-muted-foreground md:hidden">
+                Build a structured training program and assign it to your clients.
+              </p>
+            </div>
+            <div className="hidden shrink-0 flex-wrap items-center gap-2 md:flex">
+              {programId && assignedTrainees.length > 0 && (
+                <ExportProgramLogsDialog
+                  assignedTrainees={assignedTrainees}
+                  programDuration={Number(duration) || 8}
+                  programId={programId}
+                  programName={programName || messages.coach.program}
+                  programStartDate={startDate || undefined}
+                />
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl border-primary/15 bg-primary-soft/50 text-foreground hover:bg-primary-soft"
+                disabled={isArchived}
+                onClick={() => setIsAssignDialogOpen(true)}
+              >
+                <UserPlus className="h-4 w-4" />
+                {messages.coach.assignClients}
+                {selectedTraineeIds.length > 0 ? (
+                  <Badge variant="micro" className="ml-1 bg-background">
+                    {selectedTraineeIds.length}
+                  </Badge>
+                ) : null}
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
             {onClose ? (
               <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close editor">
@@ -1083,7 +1149,7 @@ export function ProgramEditor({
           {/* One surface for the details: on mobile its header is the collapse
               toggle (with a one-line summary), so the title is not repeated
               inside; from md up the fields are always shown. */}
-          <div className="rounded-2xl border border-border bg-card/80 p-3 shadow-sm sm:p-4">
+          <div className="rounded-2xl border border-border bg-card/80 p-3 shadow-sm sm:p-4 md:px-4 md:py-3">
             <button
               type="button"
               className="flex w-full items-center justify-between gap-2 rounded-xl text-left md:hidden"
@@ -1115,45 +1181,7 @@ export function ProgramEditor({
                 isArchived && "pointer-events-none opacity-60",
               )}
             >
-              <div className="mb-5 hidden items-start justify-between gap-4 md:flex">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                    <CalendarDays className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-base font-semibold text-foreground">{messages.coach.programDetails}</span>
-                    <span className="mt-0.5 block text-sm text-muted-foreground">Set up the basics for your program.</span>
-                  </span>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {programId && assignedTrainees.length > 0 && (
-                    <ExportProgramLogsDialog
-                      assignedTrainees={assignedTrainees}
-                      programDuration={Number(duration) || 8}
-                      programId={programId}
-                      programName={programName || messages.coach.program}
-                      programStartDate={startDate || undefined}
-                    />
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-xl border-primary/15 bg-primary-soft/50 text-foreground hover:bg-primary-soft"
-                    disabled={isArchived}
-                    onClick={() => setIsAssignDialogOpen(true)}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    {messages.coach.assignClients}
-                    {selectedTraineeIds.length > 0 ? (
-                      <Badge variant="micro" className="ml-1 bg-background">
-                        {selectedTraineeIds.length}
-                      </Badge>
-                    ) : null}
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-[1.35fr_0.95fr_1.05fr_1.05fr_1.1fr] md:gap-x-5 md:gap-y-3">
+              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-3 md:gap-x-4 md:gap-y-2.5 xl:grid-cols-[1.35fr_0.8fr_1fr_1fr_1.05fr_1.6fr]">
                 <label className="col-span-2 space-y-0.5 md:col-span-1 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programName} <span className="text-destructive-text">*</span></span>
                   <span className="relative block">
@@ -1223,7 +1251,12 @@ export function ProgramEditor({
                   </Select>
                 </label>
                 <label className="space-y-0.5 md:space-y-1">
-                  <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programStartDate} <span className="text-destructive-text">*</span></span>
+                  <span className="flex items-center gap-1 text-micro font-medium text-muted-foreground md:text-xs">
+                    {messages.coach.programStartDate} <span className="text-destructive-text">*</span>
+                    <span className="hidden md:inline-flex" title={messages.coach.programStartDateHint}>
+                      <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    </span>
+                  </span>
                   <Input
                     type="date"
                     value={startDate}
@@ -1231,12 +1264,11 @@ export function ProgramEditor({
                     aria-describedby="program-start-date-hint"
                     className="h-9 bg-background/65 tnum md:h-10"
                   />
-                  <span id="program-start-date-hint" className="hidden gap-1.5 text-micro leading-tight text-muted-foreground md:flex">
-                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span id="program-start-date-hint" className="sr-only">
                     {messages.coach.programStartDateHint}
                   </span>
                 </label>
-                <label className="col-span-2 space-y-0.5 md:col-span-5 md:space-y-1">
+                <label className="col-span-2 space-y-0.5 md:col-span-1 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programFocus}</span>
                   <span className="relative block">
                     <Target className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1269,6 +1301,7 @@ export function ProgramEditor({
                   programDuration={Number(duration) || 8}
                   programId={programId}
                   programName={programName || messages.coach.program}
+                  programStartDate={startDate || undefined}
                 />
               )}
               <Button type="button" variant="outline" className="bg-transparent" disabled={isArchived} onClick={() => setIsAssignDialogOpen(true)}>
@@ -1284,7 +1317,7 @@ export function ProgramEditor({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-background/10 px-4 pb-3 sm:px-6 md:px-8">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-background/10 px-4 pb-3 sm:px-6 md:px-8 xl:flex xl:flex-col">
           {isArchived ? (
             <div className="mb-4 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               Program này đã archive (chỉ đọc). Restore để chỉnh sửa.
@@ -1323,20 +1356,31 @@ export function ProgramEditor({
             </div>
           ) : null}
 
-          <section className="rounded-2xl border border-border bg-card/80 p-3.5 shadow-sm sm:p-4" data-tour="coach-workout-exercises">
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+          <section className="rounded-2xl border border-border bg-card/80 p-3.5 shadow-sm sm:p-4 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:py-3" data-tour="coach-workout-exercises">
+            {/* One row from lg up (title, week picker, actions) so the day grid
+                below gets the height instead of the chrome around it. */}
+            <div className="mb-4 flex flex-col gap-3 lg:mb-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+              <div className="flex min-w-0 shrink-0 items-start gap-3 lg:items-center">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary lg:h-8 lg:w-8">
                   <CalendarDays className="h-4 w-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-base font-semibold text-foreground">Weekly Structure</span>
-                  <span className="mt-0.5 block text-sm text-muted-foreground">
+                  <span
+                    className="block text-base font-semibold text-foreground"
+                    title={`Drag and drop to rearrange workouts. You can copy week ${activeWeek + 1} to other weeks.`}
+                  >
+                    Weekly Structure
+                  </span>
+                  <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">
                     Drag and drop to rearrange workouts. You can copy week {activeWeek + 1} to other weeks.
                   </span>
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 items-center gap-3 lg:flex-1">
+                <p className="shrink-0 text-sm font-semibold text-muted-foreground">{messages.coach.week}</p>
+                {weekPicker}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled={isArchived} onClick={copyActiveWeekToAll}>
                   <Copy className="h-4 w-4" />
                   Copy week {activeWeek + 1} to all
@@ -1348,46 +1392,8 @@ export function ProgramEditor({
               </div>
             </div>
 
-            <div className="mb-4 flex items-center gap-3">
-              <p className="shrink-0 text-sm font-semibold text-muted-foreground">{messages.coach.week}</p>
-              <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {Array.from({ length: totalWeeks }).map((_, index) => {
-                  const week = schedule[index] ?? []
-                  const weekTotal = week.filter((slot) => slot !== null).length
-                  const weekFilled = week.filter((slot) => Boolean(slot?.routine?.exercises.length)).length
-                  const isActive = activeWeek === index
-                  const isComplete = weekTotal > 0 && weekFilled === weekTotal
-                  const isCurrentWeek = currentWeekIndex === index
-
-                  return (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => setActiveWeek(index)}
-                      title={isCurrentWeek ? messages.coach.currentlyOnWeek(index + 1, totalWeeks) : undefined}
-                      className={cn(
-                        "relative flex h-10 min-w-[60px] items-center justify-center rounded-xl border px-4 font-mono text-sm font-semibold transition-all duration-150 ease-[cubic-bezier(.2,.7,.2,1)]",
-                        isActive
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-input bg-background/70 text-foreground hover:bg-muted",
-                        isCurrentWeek && "ring-1 ring-primary ring-offset-1 ring-offset-muted",
-                      )}
-                    >
-                      {isCurrentWeek ? (
-                        <span className="absolute -top-1.5 right-1 rounded-sm bg-primary px-1 py-px text-micro font-semibold tracking-[0.08em] text-primary-foreground">
-                          {messages.coach.currentWeekBadge}
-                        </span>
-                      ) : null}
-                      {index + 1}
-                      {isComplete ? <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-success" /> : null}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
             <SessionSlotGrid
-              className={cn(isArchived && "pointer-events-none opacity-70")}
+              className={cn("xl:min-h-0 xl:flex-1", isArchived && "pointer-events-none opacity-70")}
               dayLabels={dayLabels}
               disabled={isArchived}
               onEdit={editSlot}

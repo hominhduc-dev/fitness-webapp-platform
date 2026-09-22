@@ -70,7 +70,6 @@ export interface ExerciseVariation extends ExerciseMuscleProfile {
   name: string
   equipment?: string
   isDefault: boolean
-  metadata?: Record<string, unknown>
   media?: ExerciseMedia
   sortOrder: number
   canManage?: boolean
@@ -89,7 +88,6 @@ export interface ExerciseVariationOption extends ExerciseMuscleProfile {
   equipment?: string
   isDefault: boolean
   media?: ExerciseMedia
-  metadata?: Record<string, unknown>
   sortOrder: number
   canManage?: boolean
   createdById?: string
