@@ -1205,6 +1205,18 @@ select {
   background-color: var(--glass-scrim);
 }
 
+/* A native <select>'s option list is drawn by the OS, which inherits the
+   select's background — and the translucent scrim above composites over the
+   popup's white canvas, leaving dark-theme's light text on a near-white list.
+   Options need an opaque surface of their own. The theme tokens won't do —
+   --popover and even --ink-50 are translucent under .dark — so use the system
+   Canvas pair, which is always opaque and follows each theme's color-scheme. */
+select option,
+select optgroup {
+  background-color: Canvas;
+  color: CanvasText;
+}
+
 [data-slot="skeleton"] {
   background-image: linear-gradient(
     110deg,
