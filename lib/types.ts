@@ -268,6 +268,8 @@ export interface NutritionFood {
   /** English display name; absent for most trainee-created foods. */
   nameEn?: string
   protein: number
+  /** Why an admin sent the trainee's own food back; absent otherwise. */
+  reviewNote?: string
   reviewStatus: "pending" | "approved" | "rejected"
   servingAmount: number
   /** What one serving weighs. Absent when the food's portion has no recorded weight. */
