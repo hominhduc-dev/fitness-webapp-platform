@@ -192,6 +192,15 @@ const PROGRAM_INCLUDE = {
   },
 } satisfies Prisma.ProgramInclude
 
+/**
+ * Load strategy for reads of the full PROGRAM_INCLUDE tree. The default issues
+ * one query per relation level (program, assignments, users, workouts,
+ * exercises, sets, variations, exercises, muscle targets), each a round trip to
+ * the database. "join" fetches the tree in a single query with lateral joins.
+ * Needs the `relationJoins` preview feature (schema.prisma).
+ */
+const PROGRAM_TREE_LOAD_STRATEGY = "join" as const
+
 type WorkoutExerciseRecord = Prisma.WorkoutExerciseGetPayload<{
   include: typeof WORKOUT_EXERCISE_INCLUDE
 }>
@@ -2882,6 +2891,7 @@ async function assertCoachOwnsProgram(coachId: string, programId: string) {
   const db = ensurePrisma()
   const program = await db.program.findFirst({
     include: PROGRAM_INCLUDE,
+    relationLoadStrategy: PROGRAM_TREE_LOAD_STRATEGY,
     where: {
       createdById: coachId,
       id: programId,
@@ -5299,6 +5309,7 @@ async function listCoachPrograms(
   const db = ensurePrisma()
   const programs = await db.program.findMany({
     include: PROGRAM_INCLUDE,
+    relationLoadStrategy: PROGRAM_TREE_LOAD_STRATEGY,
     orderBy: {
       createdAt: "desc",
     },
@@ -5341,6 +5352,7 @@ async function getCoachProgramDetail(profile: SerializedProfile, programId: stri
   const db = ensurePrisma()
   const program = await db.program.findFirst({
     include: PROGRAM_INCLUDE,
+    relationLoadStrategy: PROGRAM_TREE_LOAD_STRATEGY,
     where: {
       createdById: profile.id,
       id: programId,
@@ -5360,6 +5372,7 @@ async function getTraineeProgramDetail(profile: SerializedProfile, programId: st
   const db = ensurePrisma()
   const program = await db.program.findFirst({
     include: PROGRAM_INCLUDE,
+    relationLoadStrategy: PROGRAM_TREE_LOAD_STRATEGY,
     where: {
       id: programId,
       OR: [
