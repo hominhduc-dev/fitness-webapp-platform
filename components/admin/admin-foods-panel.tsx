@@ -1,21 +1,151 @@
 "use client"
 
 import { useState } from "react"
-import { AlertCircle, Check, Loader2, Search, Utensils, X } from "lucide-react"
+import { AlertCircle, Check, Loader2, Pencil, Search, Utensils, X } from "lucide-react"
 
 import { useToast } from "@/components/providers/toast-provider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FilterChip } from "@/components/ui/filter-chip"
+import { Input } from "@/components/ui/input"
 import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Textarea } from "@/components/ui/textarea"
 import type { AdminCustomFoodItem } from "@/lib/admin/types"
-import { useAdminCustomFoods, useReviewAdminCustomFoodRequest } from "@/lib/queries/admin"
+import { useAdminCustomFoods, useReviewAdminCustomFoodRequest, useUpdateAdminCustomFoodRequest } from "@/lib/queries/admin"
 
 type StatusFilter = AdminCustomFoodItem["reviewStatus"] | "all"
 
 const STATUS_FILTERS: StatusFilter[] = ["pending", "approved", "rejected", "all"]
+
+const FOOD_CATEGORIES = ["staple", "protein", "veg", "fruit", "dish", "drink", "other"] as const
+
+const CATEGORY_LABELS: Record<(typeof FOOD_CATEGORIES)[number], { en: string; vi: string }> = {
+  dish: { en: "Dishes", vi: "Món ăn" },
+  drink: { en: "Drinks", vi: "Đồ uống" },
+  fruit: { en: "Fruit", vi: "Trái cây" },
+  other: { en: "Other", vi: "Khác" },
+  protein: { en: "Protein", vi: "Đạm" },
+  staple: { en: "Staples", vi: "Tinh bột" },
+  veg: { en: "Vegetables", vi: "Rau củ" },
+}
+
+type FoodEdit = {
+  calories: string
+  carbs: string
+  category: string
+  fat: string
+  name: string
+  nameEn: string
+  protein: string
+  servingLabel: string
+}
+
+function editFrom(food: AdminCustomFoodItem): FoodEdit {
+  return {
+    calories: String(food.calories),
+    carbs: String(food.carbs),
+    category: food.category,
+    fat: String(food.fat),
+    name: food.name,
+    nameEn: food.nameEn ?? "",
+    protein: String(food.protein),
+    servingLabel: food.servingLabel,
+  }
+}
+
+/**
+ * Correcting a submitted food in place before deciding on it. Saving does not
+ * approve — the decision buttons below stay a separate step.
+ */
+function FoodEditor({
+  food,
+  locale,
+  onCancel,
+  onSaved,
+}: {
+  food: AdminCustomFoodItem
+  locale: "en" | "vi"
+  onCancel: () => void
+  onSaved: () => void
+}) {
+  const { toast } = useToast()
+  const updateFood = useUpdateAdminCustomFoodRequest()
+  const [edit, setEdit] = useState<FoodEdit>(() => editFrom(food))
+  const en = locale === "en"
+  const set = (key: keyof FoodEdit) => (event: { target: { value: string } }) => setEdit((current) => ({ ...current, [key]: event.target.value }))
+  const canSave = edit.name.trim() && edit.servingLabel.trim() && Number(edit.calories) > 0
+
+  async function save() {
+    try {
+      await updateFood.mutateAsync([
+        food.id,
+        {
+          calories: Number(edit.calories),
+          carbs: edit.carbs ? Number(edit.carbs) : undefined,
+          category: edit.category,
+          fat: edit.fat ? Number(edit.fat) : undefined,
+          name: edit.name.trim(),
+          nameEn: edit.nameEn.trim() || undefined,
+          protein: edit.protein ? Number(edit.protein) : undefined,
+          servingLabel: edit.servingLabel.trim(),
+        },
+      ])
+      toast({ title: en ? "Food updated. It still needs a decision." : "Đã lưu món. Món vẫn chờ bạn duyệt.", tone: "success" })
+      onSaved()
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : en ? "Unable to save the food." : "Không thể lưu món.", tone: "error" })
+    }
+  }
+
+  const field = (label: string, key: keyof FoodEdit, props: { inputMode?: "decimal"; placeholder?: string; type?: string } = {}) => (
+    <label className="block min-w-0">
+      <span className="label-micro mb-1 block">{label}</span>
+      <Input className="h-9" value={edit[key]} onChange={set(key)} {...props} />
+    </label>
+  )
+
+  return (
+    <div className="mt-3 space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {field(en ? "Name" : "Tên món", "name")}
+        {field(en ? "English name" : "Tên tiếng Anh", "nameEn")}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block min-w-0">
+          <span className="label-micro mb-1 block">{en ? "Group" : "Nhóm"}</span>
+          <select
+            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+            value={edit.category}
+            onChange={set("category")}
+          >
+            {FOOD_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {CATEGORY_LABELS[category][locale]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {field(en ? "Serving" : "Khẩu phần", "servingLabel", { placeholder: en ? "e.g. 1 bowl (500 g)" : "VD: 1 tô (500 g)" })}
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {field("kcal", "calories", { inputMode: "decimal", type: "number" })}
+        {field("P", "protein", { inputMode: "decimal", type: "number" })}
+        {field("C", "carbs", { inputMode: "decimal", type: "number" })}
+        {field("F", "fat", { inputMode: "decimal", type: "number" })}
+      </div>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="sm" type="button" variant="ghost" onClick={onCancel}>
+          {en ? "Cancel" : "Huỷ"}
+        </Button>
+        <Button disabled={!canSave || updateFood.isPending} size="sm" type="button" onClick={() => void save()}>
+          {updateFood.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          {en ? "Save changes" : "Lưu thay đổi"}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 function statusVariant(status: AdminCustomFoodItem["reviewStatus"]) {
   return status === "approved" ? ("default" as const) : status === "rejected" ? ("destructive" as const) : ("secondary" as const)
@@ -27,6 +157,7 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
   const [search, setSearch] = useState("")
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [reviewingId, setReviewingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const foodsQuery = useAdminCustomFoods({ search, status })
   const reviewFood = useReviewAdminCustomFoodRequest()
   const foods = foodsQuery.data ?? []
@@ -117,9 +248,22 @@ export function AdminFoodsPanel({ locale }: { locale: "en" | "vi" }) {
                 </div>
                 <Badge variant={statusVariant(food.reviewStatus)}>{statusLabel(food.reviewStatus)}</Badge>
               </div>
-              <p className="mt-3 font-mono text-xs text-muted-foreground">
-                {food.servingLabel} · {Math.round(food.calories)} kcal · P{Math.round(food.protein)} C{Math.round(food.carbs)} F{Math.round(food.fat)}
-              </p>
+              {food.nameEn ? <p className="mt-1 text-xs text-muted-foreground">{food.nameEn}</p> : null}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className="min-w-0 font-mono text-xs text-muted-foreground">
+                  {food.servingLabel} · {Math.round(food.calories)} kcal · P{Math.round(food.protein)} C{Math.round(food.carbs)} F{Math.round(food.fat)}
+                </p>
+                {/* Approved foods live in the shared library; this queue only corrects submissions. */}
+                {food.source === "user" && editingId !== food.id ? (
+                  <Button className="shrink-0" size="sm" type="button" variant="ghost" onClick={() => setEditingId(food.id)}>
+                    <Pencil className="size-3.5" />
+                    {locale === "en" ? "Edit" : "Sửa"}
+                  </Button>
+                ) : null}
+              </div>
+              {editingId === food.id ? (
+                <FoodEditor food={food} locale={locale} onCancel={() => setEditingId(null)} onSaved={() => setEditingId(null)} />
+              ) : null}
               <Textarea
                 className="mt-3 min-h-20"
                 placeholder={locale === "en" ? "Review note (optional)" : "Ghi chú duyệt (không bắt buộc)"}
