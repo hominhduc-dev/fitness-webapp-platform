@@ -1005,8 +1005,6 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
   ], [extraRoutineLibrary, visibleWorkouts])
 
   const closeReviewLabel = locale === "vi" ? "Đóng" : "Close"
-  const plannedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.workout && !entry.isRolledOver).length, [displayWeekEntries])
-  const completedCount = useMemo(() => displayWeekEntries.filter((entry) => entry.isCompleted).length, [displayWeekEntries])
   const filteredDisplayWeek = useMemo(
     () => displayWeekEntries.filter((entry) => showSource === "all" || !entry.workout || entry.source === showSource),
     [showSource, displayWeekEntries],
@@ -1182,7 +1180,7 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
 
   if (collectionQuery.isError && !collection) {
     return (
-      <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+      <section className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6">
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
           <p className="text-sm text-destructive-text">{messages.schedule.loadScheduleError}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => void collectionQuery.refetch()}>
@@ -1194,10 +1192,10 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
   }
 
   return (
-    <section className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+    <section className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between" data-tour="trainee-schedule-calendar">
         <div>
-          <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center rounded-full border border-border bg-background">
               <button
                 type="button"
@@ -1229,10 +1227,6 @@ export function WeeklyCalendar({ initialData }: WeeklyCalendarProps = {}) {
               </button>
             ) : null}
           </div>
-          <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] sm:text-4xl">{messages.schedule.plannedSessions(plannedCount)}</h1>
-          <p className="mt-2 font-mono text-sm text-muted-foreground tnum">
-            {messages.schedule.doneToGo(completedCount, plannedCount, Math.max(0, plannedCount - completedCount))}
-          </p>
         </div>
         <div data-tour="trainee-schedule-actions">
           <SourceFilters showSource={showSource} onChange={setShowSource} />

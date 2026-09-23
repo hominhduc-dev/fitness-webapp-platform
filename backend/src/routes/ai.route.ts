@@ -7,21 +7,27 @@ import {
   acceptAIMealPlan,
   acceptAIProgram,
   chatWithAI,
+  createNutritionInsight,
   discardMealPlanDraft,
   generateDailyWorkout,
   generateMealPlan,
   generateWorkoutProgram,
   getMealPlanDraft,
+  getNutritionInsight,
+  lookupFoodNutrition,
   regenerateAIMealPlanMeal,
 } from "../services/ai.service"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   acceptMealPlanSchema,
   chatSchema,
+  foodNutritionLookupSchema,
   generateDailyWorkoutSchema,
   generateMealPlanSchema,
   generateProgramSchema,
   generationIdSchema,
+  nutritionInsightQuerySchema,
+  nutritionInsightSchema,
   regenerateMealPlanMealSchema,
 } from "./ai.schemas"
 import { getAccessToken, sendData } from "./route.utils"
@@ -44,6 +50,14 @@ aiRouter.post(
   validated({ body: generationIdSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await discardMealPlanDraft(profile, req.body.generationId))
+  }),
+)
+
+aiRouter.get(
+  "/nutrition-insight",
+  validated({ query: nutritionInsightQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getNutritionInsight(profile, req.query.date as string))
   }),
 )
 
@@ -104,6 +118,22 @@ aiRouter.post(
   validated({ body: regenerateMealPlanMealSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await regenerateAIMealPlanMeal(profile, req.body))
+  }),
+)
+
+aiRouter.post(
+  "/nutrition-insight",
+  validated({ body: nutritionInsightSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await createNutritionInsight(profile, req.body), { status: 201 })
+  }),
+)
+
+aiRouter.post(
+  "/food-nutrition",
+  validated({ body: foodNutritionLookupSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await lookupFoodNutrition(profile, req.body))
   }),
 )
 

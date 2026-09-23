@@ -70,12 +70,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold md:text-3xl">{messages.coach.findCoachTitle}</h1>
-        <p className="mt-1 text-muted-foreground">{messages.coach.findCoachSubtitle}</p>
-      </div>
-
+    <div className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6">
             <div className="mb-6 relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

@@ -6,7 +6,7 @@ import { useUserQuery as useQuery, userQueryKey } from "./scoped"
 import { useAuth } from "@/components/providers/auth-provider"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
-import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay, updateMealItemAmount } from "@/lib/fitness/api"
+import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay, lookupFoodNutrition, updateMealItemAmount, fetchNutritionInsight, fetchNutritionWeek, createNutritionInsight } from "@/lib/fitness/api"
 import type { NutritionFood } from "@/lib/types"
 type NutritionDay = Awaited<ReturnType<typeof fetchNutritionDay>>
 
@@ -77,6 +77,9 @@ function useMealDayWriteback() {
     revalidate: (dateKey: string) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.meals.nutritionDay(dateKey) })
       void queryClient.invalidateQueries({ queryKey: ["workouts", "dashboard"] })
+      // Re-reads the cached insight so its "data changed" flag follows the edit.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.meals.nutritionInsight(dateKey) })
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.meals.all, "nutrition-week"] })
     },
   }
 }
@@ -143,6 +146,41 @@ export function useCreateCustomFood() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...queryKeys.meals.all, "foods"] })
     },
+  })
+}
+
+export function useNutritionWeek(weekStartKey: string) {
+  return useQuery({
+    queryFn: async () => fetchNutritionWeek(await requireAccessToken(), weekStartKey),
+    queryKey: queryKeys.meals.nutritionWeek(weekStartKey),
+    staleTime: NUTRITION_STALE_TIME_MS,
+  })
+}
+
+/** The cached insight for a day; reading it never calls the AI. */
+export function useNutritionInsight(dateKey: string, enabled = true) {
+  return useQuery({
+    enabled,
+    queryFn: async () => fetchNutritionInsight(await requireAccessToken(), dateKey),
+    queryKey: queryKeys.meals.nutritionInsight(dateKey),
+  })
+}
+
+export function useCreateNutritionInsight(dateKey: string) {
+  const queryClient = useQueryClient()
+  const { profile } = useAuth()
+  return useMutation({
+    mutationFn: async (locale: "vi" | "en") => createNutritionInsight(await requireAccessToken(), { date: dateKey, locale }),
+    onSuccess: (insight) => {
+      queryClient.setQueryData(userQueryKey(queryKeys.meals.nutritionInsight(dateKey), profile?.id), insight)
+    },
+  })
+}
+
+export function useFoodNutritionLookup() {
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof lookupFoodNutrition>[1]) =>
+      lookupFoodNutrition(await requireAccessToken(), input),
   })
 }
 

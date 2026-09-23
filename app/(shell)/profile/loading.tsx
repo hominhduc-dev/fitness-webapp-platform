@@ -22,7 +22,7 @@ function SettingsRowSkeleton({ expanded = false }: { expanded?: boolean }) {
 
 export default function Loading() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-5 md:px-6 md:pt-7" aria-busy="true">
+    <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-page md:px-6" aria-busy="true">
       <div className="mb-5 flex flex-col items-center gap-2">
         <Skeleton className="h-8 w-36 md:h-9" />
         <Skeleton className="h-4 w-64 max-w-full" />

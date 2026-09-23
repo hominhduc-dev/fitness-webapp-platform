@@ -771,7 +771,7 @@ function YearView({
 
 function ProgressPageSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6">
       <div className="mb-5 space-y-2">
         <Skeleton className="h-8 w-40 rounded" />
         <Skeleton className="h-4 w-56 rounded" />
@@ -910,12 +910,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
   return (
     <>
-      <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
-        <header className="mb-4 md:mb-5" data-tour="trainee-progress-overview">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground">{copy.analytics.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{copy.analytics.description}</p>
-        </header>
-
+      <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6" data-tour="trainee-progress-overview">
         <div
           role="tablist"
           aria-label={copy.analytics.title}

@@ -1077,13 +1077,24 @@ body {
   backdrop-filter: blur(22px) saturate(145%);
 }
 
-/* Meal picker: a warmer glass than the default modal. The warm tint is an
-   overlay rather than a fill, so it reads the same over either theme's
-   base — and the local token overrides the dark version needed are gone,
-   because the sheet now inherits whichever palette is active. */
+/* Space between the shell's page title and a page's first content. Every
+   page inside the app shell starts with this instead of its own top padding,
+   so the title sits the same distance from the body everywhere. */
+@utility pt-page {
+  padding-top: 0.5rem;
+
+  @media (width >= 48rem) {
+    padding-top: 1rem;
+  }
+}
+
+/* Meal picker: a tinted glass rather than the default modal. The tint is the
+   active palette's accent, laid over the glass as an overlay, so every theme
+   gets its own glow — a fixed warm red read as muddy brown under volt and
+   clashed with the blue and orange palettes. */
 .glass-surface.meal-food-sheet {
   background:
-    radial-gradient(circle at 12% 0%, rgb(178 72 62 / 22%), transparent 44%),
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 44%),
     linear-gradient(145deg, var(--glass-tint-1), var(--glass-tint-2)),
     var(--glass-bg-strong);
   border-color: var(--glass-border);

@@ -70,7 +70,7 @@ export default async function TraineeProgramDetailPage({ params }: { params: Pro
   const { id } = await params
 
   return (
-    <main className="mx-auto w-full max-w-5xl min-w-0 overflow-x-hidden px-4 py-6 md:px-6">
+    <main className="mx-auto w-full max-w-5xl min-w-0 overflow-x-hidden px-4 pb-6 pt-page md:px-6">
       <Suspense fallback={<ProgramDetailSkeleton />}>
         <ProgramDetailContent programId={id} />
       </Suspense>

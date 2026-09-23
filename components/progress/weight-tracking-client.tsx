@@ -349,7 +349,7 @@ function buildCsv(entries: BodyMetricEntry[], unit: "kg" | "lbs") {
 
 function WeightTrackingSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6">
       <div className="mb-4 space-y-2 md:mb-7">
         <Skeleton className="h-4 w-20 rounded" />
         <Skeleton className="h-10 w-44 rounded md:h-16 md:w-48" />
@@ -544,18 +544,11 @@ export function WeightTrackingClient() {
   const hasChartData = chartPoints.some((p) => p.value !== null)
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-6">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6">
       <div className="flex flex-col gap-4 md:gap-8">
 
         {/* ---- Header ---- */}
-        <section className="flex items-end justify-between gap-3">
-          <div>
-            <span className="label-micro mb-1 block">{messages.progressPage.logIntro}</span>
-            <h1 className="text-3xl font-semibold leading-none text-foreground md:text-4xl">
-              {messages.progressPage.title}
-            </h1>
-          </div>
-
+        <section className="flex items-end justify-end gap-3">
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"

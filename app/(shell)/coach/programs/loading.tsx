@@ -27,7 +27,7 @@ function ProgramCardSkeleton() {
 
 export default function Loading() {
   return (
-    <div className="px-4 py-6 md:px-9 md:py-10">
+    <div className="px-4 pb-6 pt-page md:px-9 md:pb-10">
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <Skeleton className="h-3 w-20" />

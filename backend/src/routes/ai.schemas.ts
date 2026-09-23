@@ -81,6 +81,18 @@ const regenerateMealPlanMealSchema = generationIdSchema.extend({
   mealType,
 })
 
+const nutritionInsightSchema = z.object({
+  date: isoDate,
+  locale: z.enum(["vi", "en"]).optional(),
+})
+
+const nutritionInsightQuerySchema = z.object({ date: isoDate })
+
+const foodNutritionLookupSchema = z.object({
+  locale: z.enum(["vi", "en"]).optional(),
+  query: z.string().trim().min(2, "Nhập tên món cần tra cứu.").max(120, "Tên món quá dài (tối đa 120 ký tự)."),
+})
+
 const chatSchema = z.object({
   // Mirrors the service-side guard so oversized input is rejected before any
   // context building or token spend happens.
@@ -99,9 +111,12 @@ const chatSchema = z.object({
 export {
   acceptMealPlanSchema,
   chatSchema,
+  foodNutritionLookupSchema,
   generateDailyWorkoutSchema,
   generateMealPlanSchema,
   generateProgramSchema,
   generationIdSchema,
+  nutritionInsightQuerySchema,
+  nutritionInsightSchema,
   regenerateMealPlanMealSchema,
 }

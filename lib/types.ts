@@ -265,6 +265,8 @@ export interface NutritionFood {
   fiber?: number
   id: string
   name: string
+  /** English display name; absent for most trainee-created foods. */
+  nameEn?: string
   protein: number
   reviewStatus: "pending" | "approved" | "rejected"
   servingAmount: number

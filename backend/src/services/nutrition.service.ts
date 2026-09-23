@@ -6,16 +6,18 @@ import {
   MealType,
   NotificationStatus,
   NotificationType,
+  Prisma,
   UserRole,
-  type Prisma,
 } from "@prisma/client"
 
 import { CACHE_KEYS, FOOD_CATALOG_TTL_MS, libraryCache } from "../lib/library-cache"
-import { buildFoodSlug, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
+import { buildFoodSlug, normalizeFoodSearch, parseServingLabel, roundNutrition } from "../lib/nutrition/food-utils"
+import { isNutrientCode, scaleNutrients, type NutrientAmounts } from "../lib/nutrition/nutrients"
 import { prisma } from "../lib/prisma"
 import { toZonedDateKey } from "../lib/time-zone"
 import { AuthServiceError, type SerializedProfile } from "./auth.service"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord, type MealWithFoodRecord } from "./meal-log.service"
+import { buildDayMicronutrients } from "./nutrition-intake.service"
 
 const DEFAULT_CALORIE_TARGET = 2500
 
@@ -168,6 +170,7 @@ function serializeFood(food: {
   fiber?: number | null
   id: string
   name: string
+  nameEn?: string | null
   protein: number | null
   servingAmount: number
   servingGrams?: number | null
@@ -187,6 +190,7 @@ function serializeFood(food: {
     fiber: food.fiber ?? undefined,
     id: food.id,
     name: food.name,
+    nameEn: food.nameEn ?? undefined,
     protein: food.protein ?? 0,
     servingAmount: food.servingAmount,
     servingGrams: food.servingGrams ?? undefined,
@@ -231,7 +235,8 @@ function serializeMealSection(meal: MealWithFoodRecord) {
 }
 
 /** Nutrition reads only need identity and goals, so a coach can load a trainee's day too. */
-type NutritionOwner = Pick<SerializedProfile, "id" | "dailyCalorieGoal" | "dailyCarbsGoal" | "dailyFatGoal" | "dailyProteinGoal">
+type NutritionOwner = Pick<SerializedProfile, "id" | "dailyCalorieGoal" | "dailyCarbsGoal" | "dailyFatGoal" | "dailyProteinGoal"> &
+  Partial<Pick<SerializedProfile, "sex" | "birthDate">>
 
 function buildTargets(profile: NutritionOwner) {
   return {
@@ -280,10 +285,36 @@ async function listRecentFoodsForUser(profile: Pick<NutritionOwner, "id">) {
   return foods
 }
 
+type LastPortion = { amountUnit: string; amountValue: number }
+
+/**
+ * The amount each food was last logged at, so picking it again starts from
+ * what the trainee actually eats rather than one default serving. Covers the
+ * last few hundred logged items — plenty for anything eaten regularly.
+ */
+async function listLastPortionsForUser(profile: Pick<NutritionOwner, "id">) {
+  const db = ensurePrisma()
+  const items = await db.mealFoodItem.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { amountUnit: true, amountValue: true, foodId: true },
+    take: 300,
+    where: { meal: { status: { not: MealStatus.planned }, userId: profile.id } },
+  })
+  const portions: Record<string, LastPortion> = {}
+
+  for (const item of items) {
+    if (!portions[item.foodId] && item.amountValue > 0) {
+      portions[item.foodId] = { amountUnit: item.amountUnit, amountValue: item.amountValue }
+    }
+  }
+
+  return portions
+}
+
 async function listNutritionDayForUser(profile: NutritionOwner, rawDate?: unknown) {
   const db = ensurePrisma()
   const loggedDate = parseDateKey(rawDate)
-  const [meals, recentFoods] = await Promise.all([
+  const [meals, recentFoods, lastPortions] = await Promise.all([
     db.meal.findMany({
       include: MEAL_WITH_FOOD_INCLUDE,
       orderBy: {
@@ -295,6 +326,7 @@ async function listNutritionDayForUser(profile: NutritionOwner, rawDate?: unknow
       },
     }),
     listRecentFoodsForUser(profile),
+    listLastPortionsForUser(profile),
   ])
   const consumedMeals = meals.filter((meal) => meal.status === MealStatus.consumed)
   const plannedMeals = meals.filter((meal) => meal.status === MealStatus.planned)
@@ -304,18 +336,27 @@ async function listNutritionDayForUser(profile: NutritionOwner, rawDate?: unknow
     return meal ? serializeMealSection(meal as MealWithFoodRecord) : emptyMealSection(type)
   })
   const totals = sumItems(sections)
+  const { fiber, micronutrients, nutrientCoverage } = await buildDayMicronutrients(
+    db,
+    profile,
+    consumedMeals.flatMap((meal) => meal.items),
+  )
 
   return {
     date: formatDateKey(loggedDate),
+    lastPortions,
     meals: sections,
+    micronutrients,
+    nutrientCoverage,
     plannedMeals: plannedMeals.map((meal) => serializeMealSection(meal as MealWithFoodRecord)),
     recentFoods,
-    targets: buildTargets(profile),
+    targets: { ...buildTargets(profile), fiber: fiber.target },
     totals: {
       calories: roundNutrition(totals.calories, 0),
       carbs: roundNutrition(totals.carbs),
       fat: roundNutrition(totals.fat),
-      fiber: roundNutrition(totals.fiber),
+      // Fiber now comes from the nutrient snapshots; the old column was never filled.
+      fiber: fiber.amount,
       protein: roundNutrition(totals.protein),
       sodium: roundNutrition(totals.sodium, 0),
       sugar: roundNutrition(totals.sugar),
@@ -323,9 +364,35 @@ async function listNutritionDayForUser(profile: NutritionOwner, rawDate?: unknow
   }
 }
 
+/**
+ * Calories eaten on each day of the Monday–Sunday week containing `rawDate`,
+ * for the week strip above the day view. One grouped query, not seven day loads.
+ */
+async function listNutritionWeekForUser(profile: Pick<NutritionOwner, "id" | "dailyCalorieGoal">, rawDate?: unknown) {
+  const db = ensurePrisma()
+  const date = parseDateKey(rawDate)
+  const mondayOffset = (date.getUTCDay() + 6) % 7
+  const start = new Date(date.getTime() - mondayOffset * 86_400_000)
+  const end = new Date(start.getTime() + 6 * 86_400_000)
+  const totals = await db.meal.groupBy({
+    _sum: { calories: true },
+    by: ["loggedDate"],
+    where: { loggedDate: { gte: start, lte: end }, status: MealStatus.consumed, userId: profile.id },
+  })
+  const byDate = new Map(totals.map((row) => [formatDateKey(row.loggedDate), row._sum.calories ?? 0]))
+
+  return {
+    days: Array.from({ length: 7 }, (_, index) => {
+      const key = formatDateKey(new Date(start.getTime() + index * 86_400_000))
+      return { calories: roundNutrition(byDate.get(key) ?? 0, 0), date: key }
+    }),
+    targetCalories: profile.dailyCalorieGoal ?? DEFAULT_CALORIE_TARGET,
+  }
+}
+
 async function listFoodsForUser(profile: SerializedProfile, options?: { category?: unknown; query?: unknown }) {
   const db = ensurePrisma()
-  const query = typeof options?.query === "string" ? options.query.trim().toLowerCase() : ""
+  const query = typeof options?.query === "string" ? normalizeFoodSearch(options.query) : ""
   const category = parseFoodCategory(options?.category)
 
   // Admin-approved custom foods are promoted to system foods; that write
@@ -346,8 +413,9 @@ async function listFoodsForUser(profile: SerializedProfile, options?: { category
     },
   })
 
-  const matches = (food: { category: FoodCategory; name: string }) =>
-    (!category || food.category === category) && (!query || food.name.toLowerCase().includes(query))
+  const matches = (food: { category: FoodCategory; name: string; nameEn: string | null }) =>
+    (!category || food.category === category) &&
+    (!query || normalizeFoodSearch(food.name).includes(query) || (food.nameEn != null && normalizeFoodSearch(food.nameEn).includes(query)))
 
   // Mirror the original ordering exactly: source asc (system before user), then
   // name asc, capped at 80. Both source lists are already name-sorted, so a plain
@@ -360,6 +428,7 @@ async function listFoodsForUser(profile: SerializedProfile, options?: { category
 async function createFoodForUser(profile: SerializedProfile, input: Record<string, unknown>) {
   const db = ensurePrisma()
   const name = sanitizeText(input.name, "Tên món")
+  const nameEn = typeof input.nameEn === "string" && input.nameEn.trim() ? input.nameEn.trim().slice(0, 120) : null
   const category = parseFoodCategory(input.category) ?? FoodCategory.dish
   const servingLabel = sanitizeText(input.servingLabel, "Khẩu phần")
   const serving = parseServingLabel(servingLabel)
@@ -379,6 +448,7 @@ async function createFoodForUser(profile: SerializedProfile, input: Record<strin
       createdById: profile.id,
       fat,
       name,
+      nameEn,
       protein,
       servingAmount: serving.servingAmount,
       servingLabel,
@@ -393,6 +463,7 @@ async function createFoodForUser(profile: SerializedProfile, input: Record<strin
       category,
       fat,
       name,
+      nameEn,
       protein,
       servingAmount: serving.servingAmount,
       servingLabel,
@@ -467,6 +538,8 @@ function calculateItemNutrition(
     servingUnit: string
     sodium: number | null
     sugar: number | null
+    /** Per-serving micronutrients; absent or empty means the food has none recorded. */
+    nutrients?: Array<{ amount: number; nutrientCode: string }>
   },
   input: {
     amountUnit: string
@@ -489,6 +562,7 @@ function calculateItemNutrition(
     amountLabel,
     amountUnit,
     calories: roundNutrition(food.calories * multiplier),
+    nutrients: scaleFoodNutrients(food.nutrients, multiplier),
     carbs: roundNutrition((food.carbs ?? 0) * multiplier),
     fat: roundNutrition((food.fat ?? 0) * multiplier),
     fiber: food.fiber == null ? undefined : roundNutrition(food.fiber * multiplier),
@@ -506,6 +580,18 @@ function calculateItemNutrition(
           : undefined,
   }
 }
+
+/** Snapshot for `MealFoodItem.nutrients`, or undefined when the food has no nutrient data. */
+function scaleFoodNutrients(rows: Array<{ amount: number; nutrientCode: string }> | undefined, multiplier: number) {
+  if (!rows || rows.length === 0) return undefined
+  const perServing: NutrientAmounts = {}
+  for (const row of rows) {
+    if (isNutrientCode(row.nutrientCode)) perServing[row.nutrientCode] = row.amount
+  }
+  return scaleNutrients(perServing, multiplier)
+}
+
+const FOOD_NUTRIENTS_INCLUDE = { nutrients: { select: { amount: true, nutrientCode: true } } } satisfies Prisma.FoodInclude
 
 async function recalculateMeal(mealId: string) {
   const db = ensurePrisma()
@@ -551,6 +637,7 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
   const amountValue = parsePositiveNumber(input.amountValue, "amountValue", 5000)
   const amountUnit = normalizeAmountUnit(input.amountUnit)
   const food = await db.food.findFirst({
+    include: FOOD_NUTRIENTS_INCLUDE,
     where: {
       id: foodId,
       OR: [
@@ -578,6 +665,7 @@ async function addMealItemForUser(profile: SerializedProfile, input: Record<stri
     fiber: calculated.fiber,
     foodId: food.id,
     foodNameSnapshot: food.name,
+    nutrients: calculated.nutrients,
     protein: calculated.protein,
     quantity: calculated.quantity,
     sodium: calculated.sodium,
@@ -717,7 +805,7 @@ async function findOwnedMealItem(ownerId: string, itemId: string, access: MealIt
   const db = ensurePrisma()
   const item = await db.mealFoodItem.findFirst({
     include: {
-      food: true,
+      food: { include: FOOD_NUTRIENTS_INCLUDE },
     },
     where: {
       id: itemId,
@@ -766,6 +854,7 @@ async function updateMealItemAmountForOwner(ownerId: string, itemId: string, amo
       carbs: calculated.carbs,
       fat: calculated.fat,
       fiber: calculated.fiber ?? null,
+      nutrients: calculated.nutrients ?? Prisma.DbNull,
       protein: calculated.protein,
       quantity: calculated.quantity,
       sodium: calculated.sodium ?? null,
@@ -789,6 +878,7 @@ export {
   deleteMealItemForUser,
   listFoodsForUser,
   listNutritionDayForUser,
+  listNutritionWeekForUser,
   normalizeAmountUnit,
   updateMealItemAmountForOwner,
   type AmountUnit,

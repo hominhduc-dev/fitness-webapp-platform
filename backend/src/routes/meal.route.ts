@@ -7,9 +7,10 @@ import {
   consumePlannedMealsForUser,
   deleteMealItemForUser,
   listNutritionDayForUser,
+  listNutritionWeekForUser,
   updateMealItemAmountForOwner,
 } from "../services/nutrition.service"
-import { mealItemAmountSchema, mealItemParamsSchema } from "./meal.schemas"
+import { mealItemAmountSchema, mealItemParamsSchema, mealPlanDateQuerySchema } from "./meal.schemas"
 import { getAccessToken, sendApiError, sendData } from "./route.utils"
 
 const mealRouter = Router()
@@ -24,6 +25,14 @@ mealRouter.get("/", async (req, res) => {
     sendApiError(res, error)
   }
 })
+
+mealRouter.get(
+  "/week",
+  validated({ query: mealPlanDateQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await listNutritionWeekForUser(profile, req.query.date))
+  }),
+)
 
 mealRouter.post("/items", async (req, res) => {
   try {

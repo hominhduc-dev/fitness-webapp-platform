@@ -61,6 +61,24 @@ describe("calculateItemNutrition", () => {
     expect(result.quantity).toBe(1.5)
   })
 
+  it("snapshots micronutrients scaled to the logged portion", () => {
+    const withNutrients = {
+      ...perBowl,
+      nutrients: [
+        { amount: 1200, nutrientCode: "sodium" },
+        { amount: 2.5, nutrientCode: "fiber" },
+        { amount: 1, nutrientCode: "not_a_nutrient" },
+      ],
+    }
+    // 350 g of a 700 g bowl is half a serving.
+    expect(calculateItemNutrition(withNutrients, { amountUnit: "g", amountValue: 350 }).nutrients).toEqual({ fiber: 1.3, sodium: 600 })
+  })
+
+  it("leaves the snapshot empty when the food has no nutrient data", () => {
+    expect(calculateItemNutrition(perBowl, { amountUnit: "serving", amountValue: 1 }).nutrients).toBeUndefined()
+    expect(calculateItemNutrition({ ...perBowl, nutrients: [] }, { amountUnit: "serving", amountValue: 1 }).nutrients).toBeUndefined()
+  })
+
   it("records the gram weight so the UI can show it", () => {
     expect(calculateItemNutrition(per100g, { amountUnit: "g", amountValue: 150 }).weightGrams).toBe(150)
     expect(calculateItemNutrition(perServing, { amountUnit: "serving", amountValue: 2 }).weightGrams).toBeUndefined()

@@ -143,13 +143,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
 
   return (
     <>
-      <div className="mb-5 flex flex-col items-start justify-between gap-3.5 sm:mb-7 sm:flex-row sm:items-end" data-tour="trainee-workout-today">
-        <div>
-          <span className="label-micro mb-2 block">{messages.workoutPage.routines}</span>
-          <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground sm:text-4xl">
-            {messages.workoutPage.savedRoutines(cardCount)}
-          </h1>
-        </div>
+      <div className="mb-5 flex flex-col items-start justify-end gap-3.5 sm:mb-7 sm:flex-row sm:items-end" data-tour="trainee-workout-today">
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row" data-tour="trainee-workout-actions">
           <Link href="/workout/ai-generate" className="min-w-0 sm:w-auto">
             <Button variant="outline" className="h-10 w-full justify-center gap-2 rounded-lg px-4 text-sm font-semibold sm:w-auto">

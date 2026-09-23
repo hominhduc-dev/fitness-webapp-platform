@@ -13,6 +13,7 @@ import type {
   ExerciseSet,
   ExerciseVariation,
   ExerciseVariationOption,
+  FoodCategory,
   MuscleSlug,
   Meal,
   NutritionFood,
@@ -281,7 +282,33 @@ type NutritionTargets = {
   calories: number
   carbs: number
   fat: number
+  /** Derived from the calorie goal (14 g per 1000 kcal). */
+  fiber?: number
   protein: number
+}
+
+/** One line of the Nutrition Details panel. `amount` is null when no logged food reports it. */
+export type MicronutrientLine = {
+  code: string
+  nameVi: string
+  nameEn: string
+  unit: string
+  kind: "macro_detail" | "mineral" | "vitamin"
+  isLimit: boolean
+  amount: number | null
+  target: { amount: number; kind: "reach" | "limit" } | null
+}
+
+/** How many of the day's logged items carry nutrient data, and whether any of it is an AI estimate. */
+export type NutrientCoverage = { items: number; itemsWithData: number; aiEstimated: boolean }
+
+export type NutritionInsight = {
+  date: string
+  generatedAt: string
+  stale: boolean
+  summary: string
+  points: Array<{ tone: "good" | "warn" | "info"; text: string }>
+  suggestedFoods: Array<{ id: string; name: string; nameEn?: string }>
 }
 
 type NutritionTotals = {
@@ -294,9 +321,15 @@ type NutritionTotals = {
   sugar?: number
 }
 
+/** How much of a food the trainee logged last time, keyed by food id. */
+export type LastFoodPortions = Record<string, { amountUnit: string; amountValue: number }>
+
 type NutritionDay = {
   date: Date
+  lastPortions?: LastFoodPortions
   meals: Meal[]
+  micronutrients?: MicronutrientLine[]
+  nutrientCoverage?: NutrientCoverage
   plannedMeals?: Meal[]
   recentFoods: NutritionFood[]
   targets: NutritionTargets
@@ -1095,7 +1128,10 @@ function mapDailyNutrition(nutrition: SerializedDailyNutrition): DailyNutrition 
 
 function mapNutritionDay(day: {
   date: string
+  lastPortions?: LastFoodPortions
   meals: SerializedMeal[]
+  micronutrients?: MicronutrientLine[]
+  nutrientCoverage?: NutrientCoverage
   plannedMeals?: SerializedMeal[]
   recentFoods?: SerializedNutritionFood[]
   targets: NutritionTargets
@@ -1103,7 +1139,10 @@ function mapNutritionDay(day: {
 }): NutritionDay {
   return {
     date: new Date(`${day.date}T00:00:00`),
+    lastPortions: day.lastPortions ?? {},
     meals: day.meals.map(mapMeal),
+    micronutrients: day.micronutrients ?? [],
+    nutrientCoverage: day.nutrientCoverage,
     plannedMeals: (day.plannedMeals ?? []).map(mapMeal),
     recentFoods: day.recentFoods ?? [],
     targets: day.targets,
@@ -1115,7 +1154,10 @@ async function fetchNutritionDay(accessToken: string, date?: string): Promise<Nu
   const query = date ? `?date=${encodeURIComponent(date)}` : ""
   const response = await request<ApiEnvelope<{
     date: string
+    lastPortions?: LastFoodPortions
     meals: SerializedMeal[]
+    micronutrients?: MicronutrientLine[]
+    nutrientCoverage?: NutrientCoverage
     plannedMeals?: SerializedMeal[]
     recentFoods?: SerializedNutritionFood[]
     targets: NutritionTargets
@@ -1187,6 +1229,7 @@ async function createCustomFood(
     category: string
     fat?: number
     name: string
+    nameEn?: string
     protein?: number
     servingLabel: string
   },
@@ -1197,6 +1240,57 @@ async function createCustomFood(
   })
 
   return response.data.food
+}
+
+/** AI nutrition estimate used to pre-fill the create-food form; nothing is saved. */
+export type FoodNutritionLookup =
+  | {
+      found: true
+      name: string
+      nameEn: string
+      category: FoodCategory
+      servingLabel: string
+      servingGrams: number
+      calories: number
+      protein: number
+      carbs: number
+      fat: number
+      confidence: "high" | "medium" | "low"
+      note: string
+    }
+  | { found: false; note: string }
+
+async function lookupFoodNutrition(accessToken: string, input: { query: string; locale?: "vi" | "en" }): Promise<FoodNutritionLookup> {
+  const response = await request<ApiEnvelope<FoodNutritionLookup>>("/api/ai/food-nutrition", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+
+  return response.data
+}
+
+export type NutritionWeek = { days: Array<{ date: string; calories: number }>; targetCalories: number }
+
+/** Calories per day for the Monday–Sunday week containing `date`. */
+async function fetchNutritionWeek(accessToken: string, date: string): Promise<NutritionWeek> {
+  const response = await request<ApiEnvelope<NutritionWeek>>(`/api/meals/week?date=${encodeURIComponent(date)}`, accessToken, { cache: "no-store" })
+  return response.data
+}
+
+/** The insight already written for `date`, or null. Free — no AI call. */
+async function fetchNutritionInsight(accessToken: string, date: string): Promise<NutritionInsight | null> {
+  const response = await request<ApiEnvelope<NutritionInsight | null>>(`/api/ai/nutrition-insight?date=${encodeURIComponent(date)}`, accessToken, {
+    cache: "no-store",
+  })
+  return response.data
+}
+
+async function createNutritionInsight(accessToken: string, input: { date: string; locale?: "vi" | "en" }): Promise<NutritionInsight> {
+  const response = await request<ApiEnvelope<NutritionInsight>>("/api/ai/nutrition-insight", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+  return response.data
 }
 
 async function addMealItem(
@@ -2690,6 +2784,10 @@ export {
   exportCoachWorkoutLogsToGoogleSheets,
   exportWorkoutLogsToGoogleSheets,
   fetchFoods,
+  fetchNutritionInsight,
+  fetchNutritionWeek,
+  createNutritionInsight,
+  lookupFoodNutrition,
   fetchCoachExercises,
   fetchDashboardAnalytics,
   fetchProgressAnalytics,

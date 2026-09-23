@@ -5,12 +5,15 @@ import { enUS, vi } from "date-fns/locale"
 import {
   Bot,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Cookie,
+  Loader2,
   Minus,
   Plus,
   Search,
+  Sparkles,
   Sun,
   Sunrise,
   Sunset,
@@ -19,10 +22,13 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { MealPlanGenerator } from "@/components/ai/meal-plan-generator"
 import { MealsLoadingState } from "@/components/meals/meals-loading-state"
+import { NutritionDetails } from "@/components/meals/nutrition-details"
+import { NutritionInsightButton } from "@/components/meals/nutrition-insight"
+import { WeeklyCalendarStrip } from "@/components/meals/weekly-calendar-strip"
 import { PlannedMealsList } from "@/components/meals/planned-meals-list"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -30,36 +36,15 @@ import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } fr
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import type { createCustomFood } from "@/lib/fitness/api"
-import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoods, useNutritionDay, useUpdateMealItemAmount } from "@/lib/queries/meals"
+import type { createCustomFood, fetchNutritionDay, FoodNutritionLookup, LastFoodPortions } from "@/lib/fitness/api"
+import { foodDisplayName, foodMatchesSearch, servingLabelFor, type FoodNameLanguage } from "@/lib/nutrition/food-names"
+import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoodNutritionLookup, useFoods, useNutritionDay, useUpdateMealItemAmount } from "@/lib/queries/meals"
 import { cn } from "@/lib/utils"
 import type { FoodCategory, Meal, MealType, NutritionFood } from "@/lib/types"
 
-type NutritionTargets = {
-  calories: number
-  carbs: number
-  fat: number
-  protein: number
-}
-
-type NutritionTotals = {
-  calories: number
-  carbs: number
-  fat: number
-  fiber?: number
-  protein: number
-  sodium?: number
-  sugar?: number
-}
-
-type NutritionDay = {
-  date: Date
-  meals: Meal[]
-  plannedMeals?: Meal[]
-  recentFoods: NutritionFood[]
-  targets: NutritionTargets
-  totals: NutritionTotals
-}
+type NutritionDay = Awaited<ReturnType<typeof fetchNutritionDay>>
+type NutritionTargets = NutritionDay["targets"]
+type NutritionTotals = NutritionDay["totals"]
 
 export type MealsClientInitialData = {
   foods: NutritionFood[]
@@ -105,6 +90,15 @@ function formatDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
 
+/** The meal a food picked right now most likely belongs to. */
+function mealTypeForNow(now = new Date()): MealType {
+  const hour = now.getHours()
+  if (hour < 10) return "breakfast"
+  if (hour < 15) return "lunch"
+  if (hour < 21) return "dinner"
+  return "snack"
+}
+
 function formatMetric(value?: number, digits = 1) {
   const safeValue = value ?? 0
   return Number.isInteger(safeValue) ? String(safeValue) : safeValue.toFixed(digits)
@@ -127,8 +121,8 @@ function CalorieRing({ consumed, target, totals }: { consumed: number; target: n
   let offset = 0
 
   return (
-    <div className="relative h-32 w-32 shrink-0">
-      <svg className="h-32 w-32 -rotate-90">
+    <div className="relative size-24 shrink-0 md:size-32">
+      <svg className="size-full -rotate-90" viewBox="0 0 128 128">
         <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted" />
         {macroSegments.map((segment) => {
           const segmentLength = target > 0 ? circumference * Math.min(segment.value / target, 1) : 0
@@ -153,10 +147,10 @@ function CalorieRing({ consumed, target, totals }: { consumed: number; target: n
         })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-3xl font-semibold leading-none text-foreground tnum">
+        <span className="font-mono text-2xl font-semibold leading-none text-foreground tnum md:text-3xl">
           {Math.round(consumed).toLocaleString()}
         </span>
-        <span className="mt-1 font-mono text-micro text-muted-foreground tnum">
+        <span className="mt-0.5 font-mono text-micro text-muted-foreground tnum md:mt-1">
           / {Math.round(target).toLocaleString()}
         </span>
       </div>
@@ -169,19 +163,22 @@ function MacroBar({
   consumed,
   label,
   target,
+  warnOverTarget = true,
 }: {
   colorClassName?: string
   consumed: number
   label: string
   target: number
+  /** Off for nutrients where more is fine (fiber). */
+  warnOverTarget?: boolean
 }) {
   const pct = target > 0 ? Math.min((consumed / target) * 100, 100) : 0
-  const overTarget = consumed > target
+  const overTarget = warnOverTarget && consumed > target
 
   return (
     <div className="min-w-0">
       <div className="mb-1.5 min-w-0">
-        <span className="block truncate text-sm text-muted-foreground">{label}</span>
+        <span className="block truncate text-xs text-muted-foreground md:text-sm">{label}</span>
         <span className="block truncate font-mono text-[0.6875rem] text-muted-foreground tnum">
           <span className="font-semibold text-foreground">{formatMetric(consumed)}</span>/{target}g
         </span>
@@ -340,15 +337,33 @@ function CategoryChips({
   )
 }
 
+type CreateFoodDraft = {
+  name: string
+  nameEn?: string
+  category?: FoodCategory
+  servingLabel?: string
+  calories?: number
+  protein?: number
+  carbs?: number
+  fat?: number
+  /** Set when the numbers came from an AI lookup rather than the trainee. */
+  aiEstimate?: { confidence: "high" | "medium" | "low"; note: string }
+}
+
 function CreateFoodForm({
+  draft,
   getCategoryLabel,
   labels,
   onCancel,
   onSave,
   saving,
 }: {
+  draft?: CreateFoodDraft | null
   getCategoryLabel: (category: FoodCategory | "all") => string
   labels: {
+    aiConfidence: Record<"high" | "medium" | "low", string>
+    aiEstimateReview: string
+    aiEstimateTitle: string
     calories: string
     cancel: string
     createFoodTitle: string
@@ -356,6 +371,8 @@ function CreateFoodForm({
     foodGroup: string
     foodLibrary: string
     foodName: string
+    foodNameEn: string
+    foodNameEnPlaceholder: string
     foodNamePlaceholder: string
     protein: string
     saveFood: string
@@ -371,18 +388,21 @@ function CreateFoodForm({
     category: FoodCategory
     fat?: number
     name: string
+    nameEn?: string
     protein?: number
     servingLabel: string
   }) => Promise<void> | void
   saving: boolean
 }) {
-  const [name, setName] = useState("")
-  const [category, setCategory] = useState<FoodCategory>("dish")
-  const [servingLabel, setServingLabel] = useState("100 g")
-  const [calories, setCalories] = useState("")
-  const [protein, setProtein] = useState("")
-  const [carbs, setCarbs] = useState("")
-  const [fat, setFat] = useState("")
+  const [name, setName] = useState(draft?.name ?? "")
+  const [nameEn, setNameEn] = useState(draft?.nameEn ?? "")
+  const [category, setCategory] = useState<FoodCategory>(draft?.category ?? "dish")
+  const [servingLabel, setServingLabel] = useState(draft?.servingLabel ?? "100 g")
+  const [calories, setCalories] = useState(draft?.calories != null ? String(draft.calories) : "")
+  const [protein, setProtein] = useState(draft?.protein != null ? String(draft.protein) : "")
+  const [carbs, setCarbs] = useState(draft?.carbs != null ? String(draft.carbs) : "")
+  const [fat, setFat] = useState(draft?.fat != null ? String(draft.fat) : "")
+  const aiEstimate = draft?.aiEstimate
   const canSave = name.trim() && servingLabel.trim() && Number(calories) > 0
 
   return (
@@ -398,9 +418,26 @@ function CreateFoodForm({
       </BottomSheetHeader>
 
       <BottomSheetBody className="space-y-4">
+        {aiEstimate ? (
+          <div className="rounded-xl border border-primary/25 bg-primary-soft/40 px-3.5 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Sparkles className="size-3.5 text-primary" />
+              <p className="text-sm font-semibold text-foreground">{labels.aiEstimateTitle}</p>
+              <Badge variant={aiEstimate.confidence === "low" ? "destructive" : "secondary"} className="text-micro">
+                {labels.aiConfidence[aiEstimate.confidence]}
+              </Badge>
+            </div>
+            {aiEstimate.note ? <p className="mt-1.5 text-xs text-muted-foreground">{aiEstimate.note}</p> : null}
+            <p className="mt-1 text-xs text-muted-foreground">{labels.aiEstimateReview}</p>
+          </div>
+        ) : null}
         <div>
           <p className="label-micro mb-1.5">{labels.foodName}</p>
           <Input value={name} placeholder={labels.foodNamePlaceholder} onChange={(event) => setName(event.target.value)} />
+        </div>
+        <div>
+          <p className="label-micro mb-1.5">{labels.foodNameEn}</p>
+          <Input value={nameEn} placeholder={labels.foodNameEnPlaceholder} onChange={(event) => setNameEn(event.target.value)} />
         </div>
         <div>
           <p className="label-micro mb-2">{labels.foodGroup}</p>
@@ -408,11 +445,12 @@ function CreateFoodForm({
             {FOOD_CATEGORIES.filter((categoryOption) => categoryOption.id !== "all").map((categoryOption) => (
               <button
                 key={categoryOption.id}
+                data-active={category === categoryOption.id}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-sm font-medium",
+                  "meal-food-sheet__category rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
                   category === categoryOption.id
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-card text-foreground",
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_6px_18px_-10px_var(--primary)]"
+                    : "border-border/80 bg-background/55 text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground",
                 )}
                 type="button"
                 onClick={() => setCategory(categoryOption.id as FoodCategory)}
@@ -465,6 +503,7 @@ function CreateFoodForm({
               category,
               fat: fat ? Number(fat) : undefined,
               name: name.trim(),
+              nameEn: nameEn.trim() || undefined,
               protein: protein ? Number(protein) : undefined,
               servingLabel: servingLabel.trim(),
             })
@@ -478,6 +517,37 @@ function CreateFoodForm({
   )
 }
 
+const FOOD_NAME_LANGUAGE_KEY = "meals.foodNameLanguage"
+
+/** The sheet's name language is a per-device preference; storage can be unavailable. */
+function readFoodNameLanguage(): FoodNameLanguage | null {
+  try {
+    const value = window.localStorage.getItem(FOOD_NAME_LANGUAGE_KEY)
+    return value === "vi" || value === "en" ? value : null
+  } catch {
+    return null
+  }
+}
+
+function writeFoodNameLanguage(language: FoodNameLanguage) {
+  try {
+    window.localStorage.setItem(FOOD_NAME_LANGUAGE_KEY, language)
+  } catch {
+    // Private mode or blocked storage: the choice just lasts for this sheet.
+  }
+}
+
+/** A remembered portion only counts if this food can still be logged in that unit. */
+function usablePortion(food: NutritionFood, portion: LastFoodPortions[string] | undefined) {
+  if (!portion || portion.amountValue <= 0) return null
+  const unit = portion.amountUnit
+  const fits =
+    unit === "serving" ||
+    (unit === "g" && (food.servingUnit === "g" || (food.servingGrams ?? 0) > 0)) ||
+    (unit === "ml" && food.servingUnit === "ml")
+  return fits ? { amountUnit: unit as "g" | "ml" | "serving", amountValue: portion.amountValue } : null
+}
+
 function AddFoodModal({
   foods,
   getCategoryLabel,
@@ -487,15 +557,30 @@ function AddFoodModal({
   onAdd,
   onClose,
   onCreateFood,
+  onLookupFood,
+  defaultNameLanguage,
+  initialFoodId,
+  lastPortions,
   recentFoods,
   submitting,
 }: {
+  defaultNameLanguage: FoodNameLanguage
   foods: NutritionFood[]
+  /** Opens with this food already picked, e.g. from an insight suggestion. */
+  initialFoodId?: string | null
   getCategoryLabel: (category: FoodCategory | "all") => string
   getMealLabel: (mealType: MealType) => string
   labels: {
     addFoodItem: string
     addToMeal: (meal: string) => string
+    aiConfidence: Record<"high" | "medium" | "low", string>
+    aiEstimateReview: string
+    aiEstimateTitle: string
+    aiLookupError: string
+    aiLookupFood: (query: string) => string
+    aiLookupHint: string
+    aiLookupLoading: string
+    aiLookupNotFound: string
     calories: string
     cancel: string
     carbs: string
@@ -505,7 +590,11 @@ function AddFoodModal({
     foodGroup: string
     foodLibrary: string
     foodName: string
+    foodNameEn: string
+    foodNameEnPlaceholder: string
+    foodNameLanguage: string
     foodNamePlaceholder: string
+    lastPortion: (amount: string) => string
     logFood: string
     noFoodsFound: string
     pendingReview: string
@@ -523,6 +612,8 @@ function AddFoodModal({
   onAdd: (input: { amountUnit: "g" | "ml" | "serving"; amountValue: number; food: NutritionFood }) => void
   onClose: () => void
   onCreateFood: (input: Parameters<typeof createCustomFood>[1]) => Promise<NutritionFood | null>
+  onLookupFood: (query: string) => Promise<FoodNutritionLookup>
+  lastPortions: LastFoodPortions
   recentFoods: NutritionFood[]
   submitting: boolean
 }) {
@@ -532,15 +623,77 @@ function AddFoodModal({
   const [amountValue, setAmountValue] = useState(1)
   const [amountUnit, setAmountUnit] = useState<"g" | "ml" | "serving">("serving")
   const [creating, setCreating] = useState(false)
+  const [draft, setDraft] = useState<CreateFoodDraft | null>(null)
+  const [lookingUp, setLookingUp] = useState(false)
+  const [lookupMessage, setLookupMessage] = useState<string | null>(null)
+  const [nameLanguage, setNameLanguage] = useState<FoodNameLanguage>(() => readFoodNameLanguage() ?? defaultNameLanguage)
   const mealLabel = labels.addToMeal(getMealLabel(mealType))
-  const filteredFoods = foods.filter((food) => {
-    const matchesCategory = category === "all" || food.category === category
-    const matchesQuery = !query.trim() || food.name.toLowerCase().includes(query.trim().toLowerCase())
-    return matchesCategory && matchesQuery
-  })
+  const filteredFoods = foods.filter((food) => (category === "all" || food.category === category) && foodMatchesSearch(food, query))
+  const nameOf = (food: NutritionFood) => foodDisplayName(food, nameLanguage)
+  const servingOf = (food: NutritionFood) => servingLabelFor(food.servingLabel, nameLanguage)
+  const lastPortion = selectedFood ? usablePortion(selectedFood, lastPortions[selectedFood.id]) : null
+
+  const openedWith = useRef<string | null>(null)
+  useEffect(() => {
+    if (!initialFoodId || openedWith.current === initialFoodId) return
+    const food = foods.find((candidate) => candidate.id === initialFoodId)
+    if (!food) return
+    openedWith.current = initialFoodId
+    pickFood(food)
+    // pickFood only reads props that are stable while the sheet is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foods, initialFoodId])
+
+  function changeNameLanguage(language: FoodNameLanguage) {
+    setNameLanguage(language)
+    writeFoodNameLanguage(language)
+  }
   const showRecentFoods = !query.trim() && category === "all" && recentFoods.length > 0
+  const trimmedQuery = query.trim()
+  const canLookup = filteredFoods.length === 0 && trimmedQuery.length >= 2
+
+  function startCreating(nextDraft: CreateFoodDraft | null) {
+    setDraft(nextDraft)
+    setCreating(true)
+  }
+
+  async function lookupFood() {
+    setLookingUp(true)
+    setLookupMessage(null)
+    try {
+      const result = await onLookupFood(trimmedQuery)
+      if (!result.found) {
+        setLookupMessage(result.note || labels.aiLookupNotFound)
+        return
+      }
+      startCreating({
+        aiEstimate: { confidence: result.confidence, note: result.note },
+        calories: result.calories,
+        carbs: result.carbs,
+        category: result.category,
+        fat: result.fat,
+        name: result.name,
+        nameEn: result.nameEn,
+        protein: result.protein,
+        servingLabel: result.servingLabel,
+      })
+    } catch (lookupError) {
+      setLookupMessage(lookupError instanceof Error ? lookupError.message : labels.aiLookupError)
+    } finally {
+      setLookingUp(false)
+    }
+  }
 
   function pickFood(food: NutritionFood) {
+    // What the trainee ate last time is the best guess for this time.
+    const previous = usablePortion(food, lastPortions[food.id])
+    if (previous) {
+      setSelectedFood(food)
+      setAmountUnit(previous.amountUnit)
+      setAmountValue(previous.amountValue)
+      return
+    }
+
     // Anything with a known serving weight is logged in grams, so a dish sold
     // by the bowl is still something the trainee can weigh. Drinks keep ml.
     const unit =
@@ -584,6 +737,7 @@ function AddFoodModal({
     >
       {creating ? (
         <CreateFoodForm
+          draft={draft}
           getCategoryLabel={getCategoryLabel}
           labels={labels}
           saving={submitting}
@@ -603,14 +757,36 @@ function AddFoodModal({
                   <h2 className="text-lg font-semibold leading-none text-foreground">{labels.logFood}</h2>
                 </div>
               </div>
-              <button
-                aria-label={labels.cancel}
-                className="meal-food-sheet__control flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                type="button"
-                onClick={onClose}
-              >
-                <X className="size-4" />
-              </button>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <div
+                  aria-label={labels.foodNameLanguage}
+                  className="meal-food-sheet__control flex h-9 items-center rounded-full border border-border/70 bg-muted/70 p-0.5"
+                  role="group"
+                >
+                  {(["vi", "en"] as const).map((language) => (
+                    <button
+                      key={language}
+                      aria-pressed={nameLanguage === language}
+                      className={cn(
+                        "h-full rounded-full px-2.5 font-mono text-xs font-semibold uppercase transition-colors",
+                        nameLanguage === language ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      type="button"
+                      onClick={() => changeNameLanguage(language)}
+                    >
+                      {language}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  aria-label={labels.cancel}
+                  className="meal-food-sheet__control flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  type="button"
+                  onClick={onClose}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -618,7 +794,10 @@ function AddFoodModal({
                 className="meal-food-sheet__control h-11 rounded-full border-border/80 bg-muted/55 pl-10 pr-4 shadow-none focus-visible:ring-primary/25"
                 value={query}
                 placeholder={labels.searchFoodPlaceholder}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setLookupMessage(null)
+                }}
               />
             </div>
             <div className="-mr-4 mt-3 overflow-hidden pr-4 sm:-mr-5 sm:pr-5">
@@ -648,7 +827,7 @@ function AddFoodModal({
                         type="button"
                         onClick={() => pickFood(food)}
                       >
-                        <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{nameOf(food)}</p>
                         <p className="mt-0.5 truncate font-mono text-micro text-muted-foreground tnum">
                           {Math.round(food.calories)} kcal · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F
                           {formatMetric(food.fat, 0)}
@@ -682,7 +861,7 @@ function AddFoodModal({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-foreground">{food.name}</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{nameOf(food)}</p>
                         {food.source === "user" ? (
                           <Badge variant={food.reviewStatus === "rejected" ? "destructive" : "secondary"} className="shrink-0 text-micro">
                             {food.reviewStatus === "rejected" ? labels.rejectedReview : labels.pendingReview}
@@ -690,7 +869,7 @@ function AddFoodModal({
                         ) : null}
                       </div>
                       <p className="mt-1 truncate font-mono text-micro text-muted-foreground tnum">
-                        {food.servingLabel} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
+                        {servingOf(food)} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-muted/80 px-2.5 py-1 font-mono text-xs font-medium text-foreground tnum">
@@ -700,7 +879,24 @@ function AddFoodModal({
                 )
               })}
             </div>
-            {filteredFoods.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted-foreground">{labels.noFoodsFound}</div> : null}
+            {filteredFoods.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 px-5 py-8 text-center">
+                <p className="text-sm text-muted-foreground">{labels.noFoodsFound}</p>
+                {canLookup ? (
+                  <>
+                    <Button className="max-w-full rounded-full" disabled={lookingUp} type="button" onClick={() => void lookupFood()}>
+                      {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      <span className="truncate">{lookingUp ? labels.aiLookupLoading : labels.aiLookupFood(trimmedQuery)}</span>
+                    </Button>
+                    {lookupMessage ? (
+                      <p className="max-w-xs text-xs text-destructive-text">{lookupMessage}</p>
+                    ) : (
+                      <p className="max-w-xs text-xs text-muted-foreground">{labels.aiLookupHint}</p>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {!selectedFood ? (
@@ -708,7 +904,7 @@ function AddFoodModal({
               <button
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft"
                 type="button"
-                onClick={() => setCreating(true)}
+                onClick={() => startCreating(canLookup ? { name: trimmedQuery } : null)}
               >
                 <Plus className="h-3.5 w-3.5" />
                 {labels.createNewFood}
@@ -719,11 +915,16 @@ function AddFoodModal({
           {selectedFood ? (
             <BottomSheetFooter className="meal-food-sheet__chrome flex-wrap gap-3 border-border/70 bg-card/95 backdrop-blur-xl">
               <div className="w-full sm:w-auto sm:min-w-[130px] sm:flex-1">
-                <p className="text-sm font-semibold text-foreground">{selectedFood.name}</p>
+                <p className="text-sm font-semibold text-foreground">{nameOf(selectedFood)}</p>
                 <p className="mt-0.5 font-mono text-xs text-muted-foreground tnum">
                   {Math.round(selectedFood.calories * multiplier)} kcal · P{Math.round(selectedFood.protein * multiplier)} C
                   {Math.round(selectedFood.carbs * multiplier)} F{Math.round(selectedFood.fat * multiplier)}
                 </p>
+                {lastPortion ? (
+                  <p className="mt-0.5 text-micro text-muted-foreground">
+                    {labels.lastPortion(`${formatMetric(lastPortion.amountValue, 1)} ${lastPortion.amountUnit === "serving" ? "×" : lastPortion.amountUnit}`)}
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-1.5">
                 <Button
@@ -780,6 +981,8 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAIMealPlan, setShowAIMealPlan] = useState(false)
+  const [showNutritionDetails, setShowNutritionDetails] = useState(false)
+  const [initialFoodId, setInitialFoodId] = useState<string | null>(null)
   const selectedDateKey = formatDateKey(selectedDate)
   const requestedMeal = searchParams.get("meal")
   const highlightedMeal = MEAL_META.some((meta) => meta.type === requestedMeal) ? requestedMeal as MealType : null
@@ -793,6 +996,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const consumePlan = useConsumePlannedMeals(selectedDateKey)
   const updateItemAmount = useUpdateMealItemAmount(selectedDateKey)
   const createFood = useCreateCustomFood()
+  const lookupFood = useFoodNutritionLookup()
   const canUseClientData = Boolean(initialData) || hasHydrated
   const nutritionDay = (canUseClientData ? dayQuery.data : undefined) ?? {
     date: selectedDate,
@@ -849,6 +1053,14 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const modalLabels = {
     addFoodItem: messages.meals.addFoodItem,
     addToMeal: messages.meals.addToMeal,
+    aiConfidence: messages.meals.aiConfidence,
+    aiEstimateReview: messages.meals.aiEstimateReview,
+    aiEstimateTitle: messages.meals.aiEstimateTitle,
+    aiLookupError: messages.meals.aiLookupError,
+    aiLookupFood: messages.meals.aiLookupFood,
+    aiLookupHint: messages.meals.aiLookupHint,
+    aiLookupLoading: messages.meals.aiLookupLoading,
+    aiLookupNotFound: messages.meals.aiLookupNotFound,
     calories: messages.meals.calories,
     cancel: messages.common.cancel,
     carbs: messages.meals.carbs,
@@ -858,7 +1070,11 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
     foodGroup: messages.meals.foodGroup,
     foodLibrary: messages.meals.foodLibrary,
     foodName: messages.meals.foodName,
+    foodNameEn: messages.meals.foodNameEn,
+    foodNameEnPlaceholder: messages.meals.foodNameEnPlaceholder,
+    foodNameLanguage: messages.meals.foodNameLanguage,
     foodNamePlaceholder: messages.meals.foodNameNewPlaceholder,
+    lastPortion: messages.meals.lastPortion,
     logFood: messages.meals.logFood,
     noFoodsFound: messages.meals.noFoodsFound,
     pendingReview: messages.meals.pendingReview,
@@ -955,7 +1171,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
 
   if (dayQuery.isError && !dayQuery.data) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6">
         <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive-soft px-4 text-center">
           <p className="text-sm text-destructive-text">{messages.meals.loadNutritionError}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => void dayQuery.refetch()}>
@@ -967,18 +1183,11 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
-      <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-between" data-tour="trainee-nutrition-actions">
-        <div>
-          <p className="label-micro mb-2">
-            {selectedDateKey === todayKey ? messages.meals.nutritionToday : messages.meals.nutritionOnDate(format(selectedDate, "dd/MM/yyyy"))}
-          </p>
-          <h1 className="text-3xl font-semibold leading-tight tracking-[-0.02em] text-foreground md:text-4xl">
-            {remaining >= 0
-              ? messages.meals.caloriesLeftHeadline(Math.round(remaining))
-              : messages.meals.caloriesOverHeadline(Math.abs(Math.round(remaining)))}
-          </h1>
-        </div>
+    <div className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6">
+      <div className="mb-5">
+        <WeeklyCalendarStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+      </div>
+      <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-end" data-tour="trainee-nutrition-actions">
         <div className="flex gap-2 self-start">
           <Button variant="outline" className="gap-1.5" type="button" onClick={() => setShowAIMealPlan(true)}>
             <Bot className="h-4 w-4" />
@@ -1006,14 +1215,23 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
 
       {displayError ? <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">{displayError}</div> : null}
 
-      <section className="mb-5 rounded-lg border border-border bg-card p-[18px] md:mb-6 md:p-6" data-tour="trainee-nutrition-summary">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-9">
-          <div className="flex items-center justify-center gap-4 md:justify-start">
+      <section className="relative mb-5 rounded-lg border border-border bg-card p-4 md:mb-6 md:p-6" data-tour="trainee-nutrition-summary">
+        <NutritionInsightButton
+          className="absolute right-3 top-3 md:right-4 md:top-4"
+          dateKey={selectedDateKey}
+          hasIntake={totals.calories > 0}
+          onPickFood={(foodId) => {
+            setInitialFoodId(foodId)
+            setAddTo(mealTypeForNow())
+          }}
+        />
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-9">
+          <div className="flex items-center gap-4 pr-10 md:pr-0">
             <CalorieRing consumed={totals.calories} target={targets.calories} totals={totals} />
             <div>
               <p className="label-micro">{messages.meals.calories}</p>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className={cn("text-3xl font-semibold tracking-[-0.03em] tnum", remaining < 0 ? "text-warning-text" : "text-foreground")}>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className={cn("text-2xl font-semibold tracking-[-0.03em] tnum md:text-3xl", remaining < 0 ? "text-warning-text" : "text-foreground")}>
                   {Math.abs(Math.round(remaining)).toLocaleString()}
                 </span>
                 <span className="text-sm text-muted-foreground">{remaining < 0 ? messages.meals.kcalOver : messages.meals.kcalLeft}</span>
@@ -1023,13 +1241,38 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
               </p>
             </div>
           </div>
-          <div className="grid min-w-0 flex-1 grid-cols-3 gap-3">
-            <MacroBar colorClassName="bg-primary" label="Protein" consumed={totals.protein} target={targets.protein} />
-            <MacroBar colorClassName="bg-success" label="Carbs" consumed={totals.carbs} target={targets.carbs} />
-            <MacroBar colorClassName="bg-warning" label="Fat" consumed={totals.fat} target={targets.fat} />
+          <div className="grid min-w-0 flex-1 grid-cols-4 gap-2.5 md:gap-3">
+            <MacroBar colorClassName="bg-primary" label={messages.meals.protein} consumed={totals.protein} target={targets.protein} />
+            <MacroBar colorClassName="bg-success" label={messages.meals.carbs} consumed={totals.carbs} target={targets.carbs} />
+            <MacroBar colorClassName="bg-warning" label={messages.meals.fat} consumed={totals.fat} target={targets.fat} />
+            <MacroBar
+              colorClassName="bg-info"
+              label={messages.meals.fiber}
+              consumed={totals.fiber ?? 0}
+              target={targets.fiber ?? 0}
+              warnOverTarget={false}
+            />
           </div>
         </div>
+
+        <div className="mt-3 border-t border-border pt-2.5">
+          <button
+            aria-expanded={showNutritionDetails}
+            className="flex w-full items-center justify-between gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            type="button"
+            onClick={() => setShowNutritionDetails((open) => !open)}
+          >
+            {showNutritionDetails ? messages.meals.hideNutritionDetails : messages.meals.nutritionDetails}
+            <ChevronDown className={cn("size-4 transition-transform", showNutritionDetails && "rotate-180")} />
+          </button>
+          {showNutritionDetails ? (
+            <div className="mt-4">
+              <NutritionDetails coverage={nutritionDay.nutrientCoverage} lines={nutritionDay.micronutrients ?? []} />
+            </div>
+          ) : null}
+        </div>
       </section>
+
 
       <div className="grid items-start gap-5 lg:grid-cols-[1.55fr_1fr]">
         <div data-tour="trainee-nutrition-log">
@@ -1096,7 +1339,10 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
 
       {addTo ? (
         <AddFoodModal
+          defaultNameLanguage={locale === "en" ? "en" : "vi"}
           foods={foods}
+          initialFoodId={initialFoodId}
+          lastPortions={nutritionDay.lastPortions ?? {}}
           getCategoryLabel={getCategoryLabel}
           getMealLabel={getMealLabel}
           labels={modalLabels}
@@ -1104,8 +1350,12 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
           recentFoods={nutritionDay.recentFoods}
           submitting={isSubmitting}
           onAdd={(input) => void handleAddFood(input)}
-          onClose={() => setAddTo(null)}
+          onClose={() => {
+            setAddTo(null)
+            setInitialFoodId(null)
+          }}
           onCreateFood={handleCreateFood}
+          onLookupFood={(query) => lookupFood.mutateAsync({ locale: locale === "en" ? "en" : "vi", query })}
         />
       ) : null}
 

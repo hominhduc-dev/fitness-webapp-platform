@@ -34,7 +34,7 @@ function CoachCardSkeleton() {
 
 export default function Loading() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6">
       <div className="mb-6 space-y-2">
         <Skeleton className="h-8 w-52 md:h-9 md:w-64" />
         <Skeleton className="h-4 w-full max-w-xl" />

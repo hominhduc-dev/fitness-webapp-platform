@@ -22,6 +22,8 @@
     "cloudinary:relocate": "tsx src/scripts/relocate-cloudinary-exercise-media.ts",
     "cloudinary:folders": "tsx src/scripts/organize-cloudinary-media-folders.ts",
     "seed:foods": "tsx src/scripts/seed-vietnamese-foods.ts",
+    "import:usda-nutrients": "tsx src/scripts/import-usda-nutrients.ts",
+    "estimate:dish-nutrients": "tsx src/scripts/estimate-dish-nutrients.ts",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",

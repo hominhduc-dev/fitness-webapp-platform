@@ -195,11 +195,10 @@ export function TraineesClientView({ initialTrainees }: Props) {
   }))
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-3 py-4 md:px-6 md:py-6">
+    <div className="mx-auto w-full max-w-6xl px-3 pb-4 pt-page md:px-6 md:pb-6">
       {/* Header */}
       <div className="border-b border-border px-2 pb-3 pt-2 sm:px-6 sm:pb-4 sm:pt-5">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{messages.coach.clients}</h1>
+        <div className="mb-3 flex items-baseline justify-end">
           <div className="flex items-center gap-3">
             <span className="label-micro text-muted-foreground tnum">
               {messages.coach.clientTotal(trainees.length)}

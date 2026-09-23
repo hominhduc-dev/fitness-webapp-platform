@@ -19,7 +19,7 @@ function MealCardSkeleton() {
 
 export function MealsLoadingState() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6" aria-busy="true">
+    <div className="mx-auto w-full max-w-5xl px-4 pb-6 pt-page md:px-6" aria-busy="true">
       <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <Skeleton className="h-3 w-32" />
