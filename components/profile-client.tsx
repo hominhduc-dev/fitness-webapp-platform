@@ -567,12 +567,7 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-5 md:px-6 md:pt-7">
-      <div className="mb-5 text-left">
-        <h1 className="text-2xl font-semibold tracking-[-0.025em] md:text-3xl">{messages.profile.title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{messages.profile.subtitle}</p>
-      </div>
-
+    <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-page md:px-6">
       <div className="space-y-3">
           <SettingsSection
             collapsible

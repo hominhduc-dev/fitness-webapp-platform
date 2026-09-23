@@ -117,8 +117,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const deleteProgram = useCoachMutation(deleteCoachProgram)
 
   const visiblePrograms = showArchived ? programs : programs.filter((p) => !p.archivedAt)
-  const totalAssignments = visiblePrograms.reduce((sum, program) => sum + program.assignedTrainees.length, 0)
-  const unassigned = visiblePrograms.filter((program) => program.assignedTrainees.length === 0).length
   const clientProgramGroups = trainees
     .map((trainee) => ({
       trainee,
@@ -288,18 +286,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     )
 
   const header = (
-    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <p className="label-micro">Programs</p>
-        <h1 className="mt-2 text-3xl font-semibold leading-none tracking-[-0.02em] sm:text-4xl">
-          {viewMode === "clients" ? `${clientProgramGroups.length} clients.` : `${visiblePrograms.length} authored.`}
-        </h1>
-        <p className="mt-1.5 font-mono text-sm tnum text-muted-foreground">
-          {viewMode === "clients"
-            ? `${totalAssignments} assigned program records`
-            : `${totalAssignments} clients training on a program · ${unassigned} unassigned`}
-        </p>
-      </div>
+    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-end">
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center" data-tour="coach-program-actions">
         <div className="grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1 shadow-sm" data-tour="coach-program-tabs">
           <Button

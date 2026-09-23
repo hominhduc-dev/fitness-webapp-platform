@@ -62,7 +62,6 @@ import { cn } from "@/lib/utils"
 import * as queries from "@/lib/queries/admin"
 import type {
   AdminCoachRequest,
-  AdminDashboardData,
   AdminExerciseItem,
   AdminExerciseMediaFiles,
   AdminExerciseImportRow,
@@ -585,14 +584,11 @@ const WIDE_USER_DETAIL_QUERY = "(min-width: 80rem)"
  * none of which Overview renders. Sections now fetch only their own data, and
  * a disabled query reports `isLoading: false`, so the gate below narrows to
  * whatever is on screen without any extra bookkeeping.
- *
- * A section's entry has to cover what its header copy reads too, not just its
- * body: `users` shows coach/admin totals that come from the dashboard stats,
- * and `connections` counts pending coach requests.
  */
 const SECTION_DATA = {
   audit: ["auditLogs"],
-  "coach-signups": ["coachSignups"],
+  // The signup review panel loads its own list.
+  "coach-signups": [],
   connections: ["connections", "coachRequests"],
   dashboard: ["dashboard", "coachRequests"],
   exercises: ["exercises"],
@@ -687,128 +683,6 @@ type AdminSectionId =
   | "foods"
   | "audit"
 
-function AdminShellHeader({
-  activeSection,
-  auditCount,
-  connectionCount,
-  exerciseCount,
-  locale,
-  pendingCoachSignupCount,
-  pendingRequestCount,
-  programCount,
-  stats,
-  userCount,
-}: {
-  activeSection: AdminSectionId
-  auditCount: number
-  connectionCount: number
-  exerciseCount: number
-  locale: "en" | "vi"
-  pendingCoachSignupCount: number
-  pendingRequestCount: number
-  programCount: number
-  stats?: AdminDashboardData["stats"]
-  userCount: number
-}) {
-  const totalUsers = stats?.totalUsers ?? userCount
-
-  const copy: Record<AdminSectionId, { label: string; title: string; sub: string }> = {
-    audit: {
-      label: locale === "en" ? "Audit" : "Audit",
-      title: locale === "en" ? "Activity log." : "Nhật ký hoạt động.",
-      sub:
-        locale === "en"
-          ? `${formatNumber(auditCount, locale)} recent admin actions`
-          : `${formatNumber(auditCount, locale)} thao tác admin gần đây`,
-    },
-    "coach-signups": {
-      label: locale === "en" ? "Coach signups" : "Đăng ký coach",
-      title:
-        locale === "en"
-          ? `${formatNumber(pendingCoachSignupCount, locale)} waiting.`
-          : `${formatNumber(pendingCoachSignupCount, locale)} chờ duyệt.`,
-      sub:
-        locale === "en"
-          ? "Review coach accounts created from /coach-signup"
-          : "Duyệt tài khoản coach đăng ký từ /coach-signup",
-    },
-    connections: {
-      label: locale === "en" ? "Connections" : "Kết nối",
-      title:
-        locale === "en"
-          ? `${formatNumber(connectionCount, locale)} active.`
-          : `${formatNumber(connectionCount, locale)} kết nối.`,
-      sub:
-        locale === "en"
-          ? `${formatNumber(pendingRequestCount, locale)} pending coach requests`
-          : `${formatNumber(pendingRequestCount, locale)} yêu cầu coach chờ duyệt`,
-    },
-    dashboard: {
-      label: locale === "en" ? "Overview" : "Tổng quan",
-      title: locale === "en" ? "System health." : "Sức khoẻ hệ thống.",
-      sub:
-        locale === "en"
-          ? `${formatNumber(totalUsers, locale)} users · ${formatNumber(stats?.totalCoaches ?? 0, locale)} coaches · ${formatNumber(stats?.activeUsersLast7Days ?? 0, locale)} active this week`
-          : `${formatNumber(totalUsers, locale)} user · ${formatNumber(stats?.totalCoaches ?? 0, locale)} coach · ${formatNumber(stats?.activeUsersLast7Days ?? 0, locale)} hoạt động tuần này`,
-    },
-    exercises: {
-      label: locale === "en" ? "Exercises" : "Bài tập",
-      title: locale === "en" ? "Exercise Library" : "Thư viện bài tập",
-      sub:
-        locale === "en"
-          ? `${formatNumber(exerciseCount, locale)} exercises · Grouped by muscle group`
-          : `${formatNumber(exerciseCount, locale)} bài tập · Nhóm theo nhóm cơ`,
-    },
-    foods: {
-      label: locale === "en" ? "Custom foods" : "Món tuỳ chỉnh",
-      title: locale === "en" ? "Food review queue." : "Hàng chờ duyệt món ăn.",
-      sub: locale === "en" ? "Approve trainee foods for the shared catalog" : "Duyệt món trainee để đưa vào thư viện chung",
-    },
-    programs: {
-      label: locale === "en" ? "Programs" : "Giáo án",
-      title:
-        locale === "en"
-          ? `${formatNumber(programCount, locale)} authored.`
-          : `${formatNumber(programCount, locale)} giáo án.`,
-      sub: locale === "en" ? "System-wide program oversight" : "Theo dõi giáo án toàn hệ thống",
-    },
-    requests: {
-      label: locale === "en" ? "Coach requests" : "Yêu cầu coach",
-      title:
-        locale === "en"
-          ? `${formatNumber(pendingRequestCount, locale)} pending.`
-          : `${formatNumber(pendingRequestCount, locale)} chờ duyệt.`,
-      sub: locale === "en" ? "Review trainee-to-coach requests" : "Duyệt yêu cầu kết nối trainee với coach",
-    },
-    users: {
-      label: locale === "en" ? "Users" : "Người dùng",
-      title:
-        locale === "en"
-          ? `${formatNumber(userCount, locale)} accounts.`
-          : `${formatNumber(userCount, locale)} tài khoản.`,
-      sub:
-        locale === "en"
-          ? `${formatNumber(stats?.totalCoaches ?? 0, locale)} coaches · ${formatNumber(stats?.totalAdmins ?? 0, locale)} admins`
-          : `${formatNumber(stats?.totalCoaches ?? 0, locale)} coach · ${formatNumber(stats?.totalAdmins ?? 0, locale)} admin`,
-    },
-  }
-
-  const activeCopy = copy[activeSection]
-
-  return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-      <div>
-        <p className="label-micro mb-2">{activeCopy.label}</p>
-        <h1 className="text-3xl font-semibold leading-none tracking-[-0.02em] text-foreground md:text-4xl">
-          {activeCopy.title}
-        </h1>
-        <p className="mt-2 font-mono text-sm text-muted-foreground tnum">{activeCopy.sub}</p>
-      </div>
-    </div>
-  )
-}
-
-
 function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
   return (
     <div className="space-y-6">
@@ -868,7 +742,6 @@ export function AdminConsole() {
   const usersQuery = queries.useAdminUsers(undefined, undefined, needs("users"))
   const coachRequestsQuery = queries.useAdminCoachRequests(undefined, undefined, needs("coachRequests"))
   // Only for the header count; the queue itself lives in <CoachSignupsPanel>.
-  const coachSignupsQuery = queries.useAdminCoachSignups({ status: "pending" }, undefined, needs("coachSignups"))
   const connectionsQuery = queries.useAdminConnections(undefined, undefined, needs("connections"))
   const programsQuery = queries.useAdminPrograms(undefined, undefined, needs("programs"))
   const exercisesQuery = queries.useAdminExercises(undefined, undefined, needs("exercises"))
@@ -880,7 +753,6 @@ export function AdminConsole() {
   const userDetailQuery = queries.useAdminUserDetail(selectedUserId ?? "")
   const userDetail = userDetailQuery.data
   const coachRequests = coachRequestsQuery.data ?? []
-  const pendingCoachSignups = coachSignupsQuery.data ?? []
   const connections = connectionsQuery.data
   const programs = programsQuery.data ?? []
   const exercises = exercisesQuery.data ?? []
@@ -2086,20 +1958,8 @@ export function AdminConsole() {
 
           A plain div, not <main>: the shell already owns the document's one
           <main>, and nesting a second is invalid. */}
-      <div className="space-y-5 px-4 py-4 md:px-9 md:py-6">
+      <div className="space-y-5 px-4 pb-4 pt-page md:px-9 md:pb-6">
           <div className="space-y-3">
-            <AdminShellHeader
-              activeSection={activeSection}
-              auditCount={auditLogs.length}
-              connectionCount={connections?.connections.length ?? 0}
-              exerciseCount={exercises.length}
-              locale={locale}
-              pendingRequestCount={pendingRequestCount}
-              programCount={programs.length}
-              pendingCoachSignupCount={pendingCoachSignups.length}
-              stats={dashboard?.stats}
-              userCount={users.length}
-            />
 
             {error ? (
               <Alert variant="destructive">

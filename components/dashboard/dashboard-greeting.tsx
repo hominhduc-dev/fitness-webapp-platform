@@ -124,9 +124,12 @@ export function DashboardGreeting({
             />
           </div>
         </div>
-        <div aria-hidden="true" className="h-[calc(4.7rem+env(safe-area-inset-top))]" />
+        {/* Exactly the fixed bar's height (0.45rem top + 2.75rem avatar + 0.5rem
+            bottom), so the strip below sits the same `pt-page` gap under the
+            greeting as every other page's content sits under its title. */}
+        <div aria-hidden="true" className="h-[calc(3.7rem+env(safe-area-inset-top))]" />
 
-        <nav aria-label={copy.thisWeekDays} className="mt-4 grid grid-cols-7 gap-1.5">
+        <nav aria-label={copy.thisWeekDays} className="grid grid-cols-7 gap-1.5">
           {(currentWeek ?? Array.from({ length: 7 }, () => null)).map((day, index) => (
             (() => {
               const entry = day

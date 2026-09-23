@@ -72,7 +72,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
     : null
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6" data-tour="coach-client-overview">
+    <div className="mx-auto max-w-6xl px-4 pb-6 pt-page md:px-6" data-tour="coach-client-overview">
       {/* Back nav */}
       <div className="mb-5 flex items-center gap-2">
         <Link href="/coach/trainees">

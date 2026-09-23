@@ -32,7 +32,7 @@ function ExerciseGroupSkeleton({ open = false }: { open?: boolean }) {
 
 export default function Loading() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+    <div className="mx-auto max-w-6xl px-4 pb-6 pt-page md:px-6">
       <div className="mb-6 space-y-2">
         <Skeleton className="h-8 w-64 md:h-9 md:w-72" />
         <Skeleton className="h-4 w-full max-w-2xl" />

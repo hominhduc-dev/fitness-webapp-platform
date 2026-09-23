@@ -160,7 +160,7 @@ async function CoachDashboardContent() {
     : 0
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto max-w-7xl px-4 pb-6 pt-page md:px-6 md:pb-8">
       <div className="space-y-6">
         <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <CoachStatCard

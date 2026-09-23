@@ -11,6 +11,7 @@ import { LanguageToggle } from "@/components/layout/language-toggle"
 import { SyncStatusBadge } from "@/components/offline/sync-status-badge"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { NotificationBell } from "@/components/layout/notification-bell"
+import { ActiveShellPageTitle, ShellPageTitle } from "@/components/layout/shell-page-title"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import {
@@ -117,40 +118,6 @@ function MobileNavLinks(props: { items: ShellNavItem[]; onSelect: () => void; op
   return <MobileNavLinkList {...props} section={searchParams.get("s")} />
 }
 
-function MobileHeaderTitle({
-  badge,
-  items,
-  pathname,
-  subtitle,
-}: {
-  badge?: string
-  items: ShellNavItem[]
-  pathname: string
-  subtitle: string
-}) {
-  const searchParams = useSearchParams()
-  const section = searchParams.get("s")
-  const activeItem = items.find((item) => isNavItemActive(pathname, item, section))
-
-  return (
-    <div className="min-w-0 pt-1">
-      <div className="flex min-w-0 items-center gap-2">
-        <h1 className="truncate text-base font-semibold leading-tight text-foreground">
-          {activeItem?.label ?? "YeahBuddy"}
-        </h1>
-        {badge ? (
-          <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] text-primary">
-            {badge}
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">
-        {subtitle}
-      </p>
-    </div>
-  )
-}
-
 function initials(name: string | null | undefined) {
   return (name ?? "")
     .split(" ")
@@ -194,6 +161,12 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         : getTraineeNavItems(messages)
 
   const badge = ROLE_BADGE[role]
+  // Pages opened from menus rather than the nav still get a title.
+  const titleItems = [
+    ...navItems,
+    { href: "/profile", label: messages.profile.title },
+    { href: "/trackweight", label: messages.progressPage.title },
+  ]
   const profileName = profile?.name ?? profile?.email ?? "YeahBuddy"
   // The trainee nav keeps Weekly Schedule in the center under the shorter
   // product label "Routine" so the five mobile destinations stay stable.
@@ -232,15 +205,32 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
     }
   }
 
+  // The trainee dashboard opens with its own greeting, so neither title bar shows there.
+  const hideTitle = role === "trainee" && pathname === "/dashboard"
+
   return (
     <Fragment>
+      {/* Desktop: the sidebar already carries navigation and the bell, so this
+          is only the page title above the content. */}
+      <header className={cn("hidden px-6 pb-1 pt-6 md:block lg:px-9", hideTitle && "md:hidden")}>
+        <Suspense fallback={<ShellPageTitle size="large" subtitle={messages.dashboard.welcomeBack} title="YeahBuddy" />}>
+          <ActiveShellPageTitle
+            badge={badge}
+            items={titleItems}
+            pathname={pathname}
+            size="large"
+            subtitle={messages.dashboard.welcomeBack}
+          />
+        </Suspense>
+      </header>
+
       {/* Pinned: the page scrolls under it, so the account menu and the
           notification bell stay reachable without scrolling back up. */}
       <header className={cn(
         "sticky top-0 z-40 bg-background px-3 pb-2 pt-[calc(0.45rem+env(safe-area-inset-top))] md:hidden",
-        role === "trainee" && pathname === "/dashboard" && "hidden",
+        hideTitle && "hidden",
       )}>
-        <div className="mx-auto flex min-h-[3.75rem] w-full max-w-[96rem] items-start justify-between gap-2">
+        <div className="mx-auto flex w-full max-w-[96rem] items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2">
             <button
               type="button"
@@ -257,17 +247,11 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
                 </AvatarFallback>
               </Avatar>
             </button>
-            <Suspense
-              fallback={(
-                <div className="min-w-0">
-                  <h1 className="truncate text-base font-semibold leading-tight text-foreground">YeahBuddy</h1>
-                  <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{messages.dashboard.welcomeBack}</p>
-                </div>
-              )}
-            >
-              <MobileHeaderTitle
+            <Suspense fallback={<ShellPageTitle className="pt-1" subtitle={messages.dashboard.welcomeBack} title="YeahBuddy" />}>
+              <ActiveShellPageTitle
                 badge={badge}
-                items={navItems}
+                className="pt-1"
+                items={titleItems}
                 pathname={pathname}
                 subtitle={messages.dashboard.welcomeBack}
               />

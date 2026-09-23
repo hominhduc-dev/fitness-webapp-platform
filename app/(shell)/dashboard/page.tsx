@@ -45,7 +45,7 @@ export default async function DashboardPage() {
   ])
 
   return (
-    <div className="mx-auto w-full max-w-[96rem] px-4 py-4 md:px-6 md:py-6">
+    <div className="mx-auto w-full max-w-[96rem] px-4 pb-4 pt-page md:px-6 md:pb-6">
       <div className="space-y-4">
         <DashboardGreeting
           avatar={profile.avatar}

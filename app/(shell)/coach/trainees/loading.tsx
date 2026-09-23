@@ -15,7 +15,7 @@ function TraineeRowSkeleton() {
 
 export default function Loading() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
+    <div className="mx-auto w-full max-w-6xl px-4 pb-6 pt-page md:px-6">
       <div className="border-b border-border px-6 pb-3 pt-5">
         <div className="mb-3.5 flex items-baseline justify-between">
           <Skeleton className="h-7 w-32" />
