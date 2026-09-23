@@ -41,6 +41,7 @@ import {
   saveAdminExerciseMedia,
   transferAdminExerciseMetadata,
   updateAdminCoachRequest,
+  updateAdminCustomFood,
   updateAdminExercise,
   updateAdminUser,
 } from "../services/admin.service"
@@ -195,6 +196,17 @@ adminRouter.get(
     const foods = await listAdminCustomFoods(profile, req.query)
 
     res.json({ foods })
+  }),
+)
+
+// The body is validated by `parseFoodDetails`, the same rules a trainee's food goes through.
+adminRouter.patch(
+  "/foods/:foodId",
+  validated({ params: customFoodParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const food = await updateAdminCustomFood(profile, req.params.foodId, (req.body ?? {}) as Record<string, unknown>)
+
+    res.json({ food })
   }),
 )
 

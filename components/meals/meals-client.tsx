@@ -12,6 +12,7 @@ import {
   Cookie,
   Loader2,
   Minus,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -39,7 +40,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenu
 import { Input } from "@/components/ui/input"
 import type { createCustomFood, fetchNutritionDay, FoodNutritionLookup, LastFoodPortions } from "@/lib/fitness/api"
 import { foodDisplayName, foodMatchesSearch, servingLabelFor, type FoodNameLanguage } from "@/lib/nutrition/food-names"
-import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoodNutritionLookup, useFoods, useNutritionDay, useUpdateMealItemAmount } from "@/lib/queries/meals"
+import { useAddMealItem, useConsumePlannedMeals, useCreateCustomFood, useDeleteMealItem, useFoodNutritionLookup, useFoods, useNutritionDay, useUpdateCustomFood, useUpdateMealItemAmount } from "@/lib/queries/meals"
 import { cn } from "@/lib/utils"
 import type { FoodCategory, Meal, MealType, NutritionFood } from "@/lib/types"
 
@@ -318,10 +319,13 @@ type CreateFoodDraft = {
   fat?: number
   /** Set when the numbers came from an AI lookup rather than the trainee. */
   aiEstimate?: { confidence: "high" | "medium" | "low"; note: string }
+  /** An admin's reason for sending the food back, shown while editing it. */
+  reviewNote?: string
 }
 
 function CreateFoodForm({
   draft,
+  editing = false,
   getCategoryLabel,
   labels,
   onCancel,
@@ -329,8 +333,14 @@ function CreateFoodForm({
   saving,
 }: {
   draft?: CreateFoodDraft | null
+  /** Correcting an existing food rather than creating one. */
+  editing?: boolean
   getCategoryLabel: (category: FoodCategory | "all") => string
   labels: {
+    editFoodResubmit: string
+    editFoodTitle: string
+    reviewNoteFromAdmin: string
+    saveChanges: string
     aiConfidence: Record<"high" | "medium" | "low", string>
     aiEstimateReview: string
     aiEstimateTitle: string
@@ -380,7 +390,7 @@ function CreateFoodForm({
       <BottomSheetHeader>
         <div>
           <p className="label-micro mb-1.5">{labels.foodLibrary}</p>
-          <h2 className="text-lg font-semibold text-foreground">{labels.createFoodTitle}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{editing ? labels.editFoodTitle : labels.createFoodTitle}</h2>
         </div>
         <button className="rounded p-1 text-muted-foreground hover:bg-muted" type="button" onClick={onCancel}>
           <X className="h-4 w-4" />
@@ -388,6 +398,13 @@ function CreateFoodForm({
       </BottomSheetHeader>
 
       <BottomSheetBody className="space-y-4">
+        {editing && draft?.reviewNote ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-3.5 py-3">
+            <p className="label-micro mb-1 text-destructive-text">{labels.reviewNoteFromAdmin}</p>
+            <p className="text-sm text-foreground">{draft.reviewNote}</p>
+          </div>
+        ) : null}
+        {editing ? <p className="text-xs text-muted-foreground">{labels.editFoodResubmit}</p> : null}
         {aiEstimate ? (
           <div className="rounded-xl border border-primary/25 bg-primary-soft/40 px-3.5 py-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -480,7 +497,7 @@ function CreateFoodForm({
           }}
         >
           <Check className="h-4 w-4" />
-          {labels.saveFood}
+          {editing ? labels.saveChanges : labels.saveFood}
         </Button>
       </BottomSheetFooter>
     </>
@@ -532,6 +549,7 @@ function AddFoodModal({
   onCreateFood,
   onLookupFood,
   onMealTypeChange,
+  onUpdateFood,
   defaultNameLanguage,
   initialFoodId,
   lastPortions,
@@ -580,6 +598,11 @@ function AddFoodModal({
     logFoodCreate: string
     logFoodVerified: string
     logFoodEmptyTab: string
+    editFood: (name: string) => string
+    editFoodResubmit: string
+    editFoodTitle: string
+    reviewNoteFromAdmin: string
+    saveChanges: string
     noFoodsFound: string
     pendingReview: string
     protein: string
@@ -598,6 +621,7 @@ function AddFoodModal({
   onCreateFood: (input: Parameters<typeof createCustomFood>[1]) => Promise<NutritionFood | null>
   onLookupFood: (query: string) => Promise<FoodNutritionLookup>
   onMealTypeChange: (mealType: MealType) => void
+  onUpdateFood: (foodId: string, input: Parameters<typeof createCustomFood>[1]) => Promise<NutritionFood | null>
   lastPortions: LastFoodPortions
   recentFoods: NutritionFood[]
   submitting: boolean
@@ -610,6 +634,7 @@ function AddFoodModal({
   const [amountUnit, setAmountUnit] = useState<"g" | "ml" | "serving">("serving")
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState<CreateFoodDraft | null>(null)
+  const [editingFoodId, setEditingFoodId] = useState<string | null>(null)
   const [lookingUp, setLookingUp] = useState(false)
   const [lookupMessage, setLookupMessage] = useState<string | null>(null)
   const [nameLanguage, setNameLanguage] = useState<FoodNameLanguage>(() => readFoodNameLanguage() ?? defaultNameLanguage)
@@ -638,8 +663,33 @@ function AddFoodModal({
   const canLookup = filteredFoods.length === 0 && trimmedQuery.length >= 2
 
   function startCreating(nextDraft: CreateFoodDraft | null) {
+    setEditingFoodId(null)
     setDraft(nextDraft)
     setCreating(true)
+  }
+
+  function startEditing(food: NutritionFood) {
+    setEditingFoodId(food.id)
+    setDraft({
+      calories: food.calories,
+      carbs: food.carbs,
+      category: food.category,
+      fat: food.fat,
+      name: food.name,
+      nameEn: food.nameEn,
+      protein: food.protein,
+      reviewNote: food.reviewStatus === "rejected" ? food.reviewNote : undefined,
+      servingLabel: food.servingLabel,
+    })
+    setCreating(true)
+  }
+
+  async function handleUpdateFood(input: Parameters<typeof createCustomFood>[1]) {
+    if (!editingFoodId) return
+    setCreating(false)
+    const food = await onUpdateFood(editingFoodId, input)
+    setEditingFoodId(null)
+    if (food) pickFood(food)
   }
 
   async function lookupFood() {
@@ -740,11 +790,15 @@ function AddFoodModal({
       {creating ? (
         <CreateFoodForm
           draft={draft}
+          editing={editingFoodId != null}
           getCategoryLabel={getCategoryLabel}
           labels={labels}
           saving={submitting}
-          onCancel={() => setCreating(false)}
-          onSave={handleCreateFood}
+          onCancel={() => {
+            setCreating(false)
+            setEditingFoodId(null)
+          }}
+          onSave={editingFoodId ? handleUpdateFood : handleCreateFood}
         />
       ) : (
         <>
@@ -888,6 +942,16 @@ function AddFoodModal({
                         {Math.round(food.calories)} kcal, {servingOf(food)}
                       </span>
                     </button>
+                    {food.source === "user" ? (
+                      <button
+                        aria-label={labels.editFood(nameOf(food))}
+                        className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        type="button"
+                        onClick={() => startEditing(food)}
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                    ) : null}
                     <button
                       aria-label={labels.logFoodQuickAdd(nameOf(food))}
                       className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
@@ -1002,6 +1066,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
   const consumePlan = useConsumePlannedMeals(selectedDateKey)
   const updateItemAmount = useUpdateMealItemAmount(selectedDateKey)
   const createFood = useCreateCustomFood()
+  const updateFood = useUpdateCustomFood()
   const lookupFood = useFoodNutritionLookup()
   const canUseClientData = Boolean(initialData) || hasHydrated
   const nutritionDay = (canUseClientData ? dayQuery.data : undefined) ?? {
@@ -1091,6 +1156,11 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
     logFoodResults: messages.meals.logFoodResults,
     logFoodTabs: messages.meals.logFoodTabs,
     logFoodVerified: messages.meals.logFoodVerified,
+    editFood: messages.meals.editFood,
+    editFoodResubmit: messages.meals.editFoodResubmit,
+    editFoodTitle: messages.meals.editFoodTitle,
+    reviewNoteFromAdmin: messages.meals.reviewNoteFromAdmin,
+    saveChanges: messages.meals.saveChanges,
     logFood: messages.meals.logFood,
     noFoodsFound: messages.meals.noFoodsFound,
     pendingReview: messages.meals.pendingReview,
@@ -1153,6 +1223,19 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
     try {
       const food = await createFood.mutateAsync(input)
       return food
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : messages.meals.createFoodError)
+      return null
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleUpdateFood(foodId: string, input: Parameters<typeof createCustomFood>[1]) {
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      return await updateFood.mutateAsync({ foodId, input })
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : messages.meals.createFoodError)
       return null
@@ -1372,6 +1455,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
           onCreateFood={handleCreateFood}
           onLookupFood={(query) => lookupFood.mutateAsync({ locale: locale === "en" ? "en" : "vi", query })}
           onMealTypeChange={setAddTo}
+          onUpdateFood={handleUpdateFood}
         />
       ) : null}
 

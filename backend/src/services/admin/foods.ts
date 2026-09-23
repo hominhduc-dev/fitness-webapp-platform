@@ -9,8 +9,9 @@ import {
 
 import { invalidateSystemFoodCatalog } from "../../lib/library-cache"
 import type { SerializedProfile } from "../auth.service"
-import { ForbiddenError, NotFoundError } from "../errors"
+import { ConflictError, ForbiddenError, NotFoundError } from "../errors"
 import { ensurePrisma } from "../fitness-data/shared/guards"
+import { parseFoodDetails } from "../nutrition.service"
 
 type CustomFoodReviewStatus = FoodReviewStatus | "all"
 
@@ -23,6 +24,7 @@ function assertAdmin(profile: SerializedProfile) {
 function serializeCustomFood(food: {
   id: string
   name: string
+  nameEn?: string | null
   category: string
   servingAmount: number
   servingUnit: string
@@ -156,4 +158,54 @@ async function reviewAdminCustomFood(
   return serializeCustomFood(result)
 }
 
-export { listAdminCustomFoods, reviewAdminCustomFood }
+/**
+ * An admin correcting a submitted food before deciding on it — a typo in the
+ * name, a serving without grams, macros that do not add up. Only foods still
+ * waiting on a decision (pending or rejected) can change here; the review
+ * status is left alone so approval stays a separate, deliberate step.
+ */
+async function updateAdminCustomFood(profile: SerializedProfile, foodId: string, input: Record<string, unknown>) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const details = parseFoodDetails(input)
+
+  const food = await db.$transaction(async (tx) => {
+    const current = await tx.food.findFirst({ where: { createdById: { not: null }, id: foodId } })
+    if (!current) {
+      throw new NotFoundError("Không tìm thấy món ăn tuỳ chỉnh.")
+    }
+    if (current.source !== FoodSource.user) {
+      throw new ConflictError("Món đã được duyệt vào thư viện chung, không sửa ở hàng chờ duyệt được nữa.")
+    }
+
+    const saved = await tx.food.update({
+      data: details,
+      include: {
+        createdBy: { select: { email: true, id: true, name: true } },
+        reviewedBy: { select: { email: true, id: true, name: true } },
+      },
+      where: { id: foodId },
+    })
+
+    const changed = (Object.keys(details) as Array<keyof typeof details>).filter((key) => current[key] !== saved[key])
+    await tx.adminAuditLog.create({
+      data: {
+        action: "food.edited",
+        adminId: profile.id,
+        entityId: saved.id,
+        entityLabel: saved.name,
+        entityType: "food",
+        metadata: {
+          changed,
+          before: Object.fromEntries(changed.map((key) => [key, current[key]])),
+        } as Prisma.InputJsonObject,
+      },
+    })
+
+    return saved
+  })
+
+  return serializeCustomFood(food)
+}
+
+export { listAdminCustomFoods, reviewAdminCustomFood, updateAdminCustomFood }

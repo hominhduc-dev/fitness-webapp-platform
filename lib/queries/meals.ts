@@ -6,7 +6,7 @@ import { useUserQuery as useQuery, userQueryKey } from "./scoped"
 import { useAuth } from "@/components/providers/auth-provider"
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
-import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay, lookupFoodNutrition, updateMealItemAmount, fetchNutritionInsight, fetchNutritionWeek, createNutritionInsight } from "@/lib/fitness/api"
+import { addMealItem, consumePlannedMeals, createCustomFood, deleteMealItem, fetchFoods, fetchNutritionDay, lookupFoodNutrition, updateMealItemAmount, fetchNutritionInsight, fetchNutritionWeek, createNutritionInsight, updateCustomFood } from "@/lib/fitness/api"
 import type { NutritionFood } from "@/lib/types"
 type NutritionDay = Awaited<ReturnType<typeof fetchNutritionDay>>
 
@@ -154,6 +154,18 @@ export function useNutritionWeek(weekStartKey: string) {
     queryFn: async () => fetchNutritionWeek(await requireAccessToken(), weekStartKey),
     queryKey: queryKeys.meals.nutritionWeek(weekStartKey),
     staleTime: NUTRITION_STALE_TIME_MS,
+  })
+}
+
+export function useUpdateCustomFood() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ foodId, input }: { foodId: string; input: Parameters<typeof updateCustomFood>[2] }) =>
+      updateCustomFood(await requireAccessToken(), foodId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.meals.all, "foods"] })
+    },
   })
 }
 

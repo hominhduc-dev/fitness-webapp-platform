@@ -218,6 +218,10 @@ export function useReviewAdminCoachSignupRequest() {
   ])
 }
 
+export function useUpdateAdminCustomFoodRequest() {
+  return useAdminMutation(api.updateAdminCustomFoodRequest, [queryKeys.admin.all, queryKeys.meals.all])
+}
+
 export function useReviewAdminCustomFoodRequest() {
   return useAdminMutation(api.reviewAdminCustomFoodRequest, [queryKeys.admin.all, queryKeys.meals.all, queryKeys.notifications.all])
 }

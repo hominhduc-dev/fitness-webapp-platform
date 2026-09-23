@@ -1293,6 +1293,16 @@ async function createNutritionInsight(accessToken: string, input: { date: string
   return response.data
 }
 
+/** The owner correcting a food they created; it goes back into review. */
+async function updateCustomFood(accessToken: string, foodId: string, input: Parameters<typeof createCustomFood>[1]): Promise<NutritionFood> {
+  const response = await request<ApiEnvelope<{ food: SerializedNutritionFood }>>(`/api/foods/${foodId}`, accessToken, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+
+  return response.data.food
+}
+
 async function addMealItem(
   accessToken: string,
   input: {
@@ -2770,6 +2780,7 @@ export {
   createCoachProgram,
   createCoachWorkoutLogComment,
   createCustomFood,
+  updateCustomFood,
   createWeightEntry,
   createWorkout,
   createWorkoutLog,

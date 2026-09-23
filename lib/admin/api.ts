@@ -678,6 +678,28 @@ async function reviewAdminCustomFoodRequest(
   return mapAdminCustomFoodItem(response.food)
 }
 
+/** Correct a submitted food before approving or rejecting it; the decision is separate. */
+async function updateAdminCustomFoodRequest(
+  accessToken: string,
+  foodId: string,
+  input: {
+    calories: number
+    carbs?: number
+    category: string
+    fat?: number
+    name: string
+    nameEn?: string
+    protein?: number
+    servingLabel: string
+  },
+) {
+  const response = await request<{ food: SerializedAdminCustomFoodItem }>(`/api/admin/foods/${foodId}`, accessToken, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  })
+  return mapAdminCustomFoodItem(response.food)
+}
+
 export {
   applyExerciseSyncRequest,
   assignAdminCoachConnection,
@@ -692,6 +714,7 @@ export {
   fetchAdminAuditLogs,
   fetchAdminCoachRequests,
   fetchAdminCustomFoods,
+  updateAdminCustomFoodRequest,
   fetchAdminConnections,
   fetchAdminDashboard,
   fetchAdminExercises,

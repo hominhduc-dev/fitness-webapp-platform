@@ -181,6 +181,7 @@ type AdminCustomFoodItem = {
   fat: number
   id: string
   name: string
+  nameEn?: string | null
   protein: number
   reviewNote: string | null
   reviewedAt: Date | null

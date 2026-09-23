@@ -172,6 +172,7 @@ function serializeFood(food: {
   name: string
   nameEn?: string | null
   protein: number | null
+  reviewNote?: string | null
   servingAmount: number
   servingGrams?: number | null
   servingLabel: string
@@ -192,6 +193,8 @@ function serializeFood(food: {
     name: food.name,
     nameEn: food.nameEn ?? undefined,
     protein: food.protein ?? 0,
+    // Why an admin sent a custom food back; only its owner ever sees their own foods.
+    reviewNote: food.source === FoodSource.user ? (food.reviewNote ?? undefined) : undefined,
     servingAmount: food.servingAmount,
     servingGrams: food.servingGrams ?? undefined,
     servingLabel: food.servingLabel,
@@ -425,89 +428,130 @@ async function listFoodsForUser(profile: SerializedProfile, options?: { category
   return merged.map(serializeFood)
 }
 
-async function createFoodForUser(profile: SerializedProfile, input: Record<string, unknown>) {
-  const db = ensurePrisma()
+/**
+ * The editable fields of a custom food, validated. Creating a food, its owner
+ * correcting it and an admin correcting it before approval all go through
+ * here, so the three can never accept different shapes of data.
+ */
+function parseFoodDetails(input: Record<string, unknown>) {
   const name = sanitizeText(input.name, "Tên món")
-  const nameEn = typeof input.nameEn === "string" && input.nameEn.trim() ? input.nameEn.trim().slice(0, 120) : null
-  const category = parseFoodCategory(input.category) ?? FoodCategory.dish
   const servingLabel = sanitizeText(input.servingLabel, "Khẩu phần")
   const serving = parseServingLabel(servingLabel)
-  const calories = parsePositiveNumber(input.calories, "Calo", 10000)
-  const protein = parseOptionalMacro(input.protein) ?? 0
-  const carbs = parseOptionalMacro(input.carbs) ?? 0
-  const fat = parseOptionalMacro(input.fat) ?? 0
-  const slug = buildFoodSlug(name, { userId: profile.id })
+  return {
+    calories: roundNutrition(parsePositiveNumber(input.calories, "Calo", 10000)),
+    carbs: parseOptionalMacro(input.carbs) ?? 0,
+    category: parseFoodCategory(input.category) ?? FoodCategory.dish,
+    fat: parseOptionalMacro(input.fat) ?? 0,
+    name,
+    nameEn: typeof input.nameEn === "string" && input.nameEn.trim() ? input.nameEn.trim().slice(0, 120) : null,
+    protein: parseOptionalMacro(input.protein) ?? 0,
+    servingAmount: serving.servingAmount,
+    servingLabel,
+    servingUnit: serving.servingUnit,
+  }
+}
+
+/** Puts a submitted (or resubmitted) custom food in front of every active admin. */
+async function notifyAdminsOfFoodSubmission(
+  tx: Prisma.TransactionClient,
+  profile: Pick<SerializedProfile, "id" | "name">,
+  food: { id: string; name: string },
+  submittedAt: Date,
+) {
+  const admins = await tx.user.findMany({
+    select: { id: true },
+    where: { isActive: true, role: UserRole.admin },
+  })
+
+  if (admins.length === 0) return
+
+  await tx.notification.createMany({
+    data: admins.map((admin) => ({
+      channel: "in_app" as const,
+      message: `${profile.name} đã gửi món “${food.name}” để xét duyệt.`,
+      metadata: {
+        creatorId: profile.id,
+        foodId: food.id,
+        kind: "custom_food_review",
+        url: "/admin?s=foods",
+      },
+      relatedEntityId: food.id,
+      relatedEntityType: "food_review",
+      scheduledFor: submittedAt,
+      sentAt: submittedAt,
+      status: NotificationStatus.sent,
+      title: "Có món ăn tuỳ chỉnh chờ duyệt",
+      type: NotificationType.general,
+      userId: admin.id,
+    })),
+  })
+}
+
+/** Back in the review queue as if newly submitted: a changed food needs a fresh look. */
+const RESUBMITTED_FOOD_REVIEW = {
+  isVerified: false,
+  reviewNote: null,
+  reviewedAt: null,
+  reviewedById: null,
+  reviewStatus: FoodReviewStatus.pending,
+  source: FoodSource.user,
+} satisfies Prisma.FoodUncheckedUpdateInput
+
+async function createFoodForUser(profile: SerializedProfile, input: Record<string, unknown>) {
+  const db = ensurePrisma()
+  const details = parseFoodDetails(input)
+  const slug = buildFoodSlug(details.name, { userId: profile.id })
 
   const submittedAt = new Date()
   const food = await db.$transaction(async (tx) => {
     const savedFood = await tx.food.upsert({
       create: {
-      calories: roundNutrition(calories),
-      carbs,
-      category,
-      createdById: profile.id,
-      fat,
-      name,
-      nameEn,
-      protein,
-      servingAmount: serving.servingAmount,
-      servingLabel,
-      servingUnit: serving.servingUnit,
-      slug,
+        ...details,
+        createdById: profile.id,
         reviewStatus: FoodReviewStatus.pending,
+        slug,
         source: FoodSource.user,
       },
-      update: {
-      calories: roundNutrition(calories),
-      carbs,
-      category,
-      fat,
-      name,
-      nameEn,
-      protein,
-      servingAmount: serving.servingAmount,
-      servingLabel,
-      servingUnit: serving.servingUnit,
-        isVerified: false,
-        reviewNote: null,
-        reviewedAt: null,
-        reviewedById: null,
-        reviewStatus: FoodReviewStatus.pending,
-        source: FoodSource.user,
-      },
+      update: { ...details, ...RESUBMITTED_FOOD_REVIEW },
       where: {
         slug,
       },
     })
 
-    const admins = await tx.user.findMany({
-      select: { id: true },
-      where: { isActive: true, role: UserRole.admin },
+    await notifyAdminsOfFoodSubmission(tx, profile, savedFood, submittedAt)
+    return savedFood
+  })
+
+  return serializeFood(food)
+}
+
+/**
+ * The owner correcting a custom food they created. Only foods still private to
+ * them can change here — once approved a food belongs to the shared library
+ * and only an admin edits it. Any edit sends it back for review; logged meals
+ * keep the numbers they were logged with.
+ */
+async function updateFoodForUser(profile: SerializedProfile, foodId: string, input: Record<string, unknown>) {
+  const db = ensurePrisma()
+  const details = parseFoodDetails(input)
+  const existing = await db.food.findFirst({
+    select: { reviewStatus: true },
+    where: { createdById: profile.id, id: foodId, source: FoodSource.user },
+  })
+
+  if (!existing) {
+    throw new AuthServiceError("Không tìm thấy món của bạn, hoặc món đã được duyệt vào thư viện chung.", 404)
+  }
+
+  const food = await db.$transaction(async (tx) => {
+    const savedFood = await tx.food.update({
+      data: { ...details, ...RESUBMITTED_FOOD_REVIEW },
+      where: { id: foodId },
     })
-
-    if (admins.length > 0) {
-      await tx.notification.createMany({
-        data: admins.map((admin) => ({
-          channel: "in_app" as const,
-          message: `${profile.name} đã gửi món “${name}” để xét duyệt.`,
-          metadata: {
-            creatorId: profile.id,
-            foodId: savedFood.id,
-            kind: "custom_food_review",
-            url: "/admin?s=foods",
-          },
-          relatedEntityId: savedFood.id,
-          relatedEntityType: "food_review",
-          scheduledFor: submittedAt,
-          sentAt: submittedAt,
-          status: NotificationStatus.sent,
-          title: "Có món ăn tuỳ chỉnh chờ duyệt",
-          type: NotificationType.general,
-          userId: admin.id,
-        })),
-      })
+    // A rejected food coming back is a new submission; a pending one is already queued.
+    if (existing.reviewStatus === FoodReviewStatus.rejected) {
+      await notifyAdminsOfFoodSubmission(tx, profile, savedFood, new Date())
     }
-
     return savedFood
   })
 
@@ -875,6 +919,8 @@ export {
   calculateItemNutrition,
   createFoodForUser,
   deleteMealItemForOwner,
+  parseFoodDetails,
+  updateFoodForUser,
   deleteMealItemForUser,
   listFoodsForUser,
   listNutritionDayForUser,
