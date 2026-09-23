@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -29,9 +29,31 @@ import styles from "./landing-page.module.css"
 
 type DemoKey = "workout" | "nutrition" | "progress"
 
+function useInView<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.15 }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  return { ref, inView }
+}
+
 export function LandingPage(_props: { locale: AppLocale }) {
   const { messages } = useLocale()
   const c = messages.landing
+  const { ref: finalCtaRef, inView: finalCtaInView } = useInView<HTMLElement>()
   return (
     <div
       className={cn(styles.shell, "min-h-screen bg-background text-foreground")}
@@ -52,7 +74,14 @@ export function LandingPage(_props: { locale: AppLocale }) {
         <Specs />
         <FeaturesSection />
         <TrainerSection />
-        <section className={styles.finalCta}>
+        <section
+          ref={finalCtaRef}
+          className={cn(
+            styles.finalCta,
+            styles.reveal,
+            finalCtaInView && styles.revealVisible
+          )}
+        >
           <p className={styles.eyebrow}>{c.finalEyebrow}</p>
           <h2 className={styles.sectionTitle}>
             {c.finalHeading}
@@ -62,7 +91,11 @@ export function LandingPage(_props: { locale: AppLocale }) {
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
             {c.finalCopy}
           </p>
-          <Button asChild size="lg" className="mt-7 rounded-full">
+          <Button
+            asChild
+            size="lg"
+            className="mt-7 rounded-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+          >
             <Link href="/?auth=register" scroll={false}>
               {c.primaryCta}
               <ArrowRight />
@@ -193,18 +226,27 @@ function Hero() {
   return (
     <section className={styles.hero}>
       <div className={styles.heroIntro}>
-        <p className={styles.eyebrow}>
+        <p className={cn(styles.eyebrow, styles.heroStep1)}>
           YEAHBUDDY <span className="text-muted-foreground">/</span>{" "}
           {c.heroEyebrow}
         </p>
-        <h1 className={styles.heroTitle}>
+        <h1 className={cn(styles.heroTitle, styles.heroStep2)}>
           {c.heroTitle}
           <br />
           <span>{c.heroMutedTitle}</span>
         </h1>
-        <p className={styles.heroCopy}>{c.heroCopy}</p>
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Button asChild size="lg" className="rounded-full px-6">
+        <p className={cn(styles.heroCopy, styles.heroStep3)}>{c.heroCopy}</p>
+        <div
+          className={cn(
+            "mt-7 flex flex-wrap items-center gap-3",
+            styles.heroStep4
+          )}
+        >
+          <Button
+            asChild
+            size="lg"
+            className="rounded-full px-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+          >
             <Link href="/?auth=register" scroll={false}>
               {c.startLogging}
               <ArrowRight size={17} />
@@ -214,7 +256,7 @@ function Hero() {
             asChild
             size="lg"
             variant="outline"
-            className="rounded-full bg-transparent px-6"
+            className="rounded-full bg-transparent px-6 transition-all hover:-translate-y-0.5"
           >
             <Link href="#demo">
               {c.watchDemo}
@@ -222,7 +264,12 @@ function Hero() {
             </Link>
           </Button>
         </div>
-        <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
+        <p
+          className={cn(
+            "mt-5 text-xs leading-relaxed text-muted-foreground",
+            styles.heroStep5
+          )}
+        >
           {c.trustLine}
         </p>
       </div>
@@ -248,7 +295,7 @@ function ProductPreview() {
     { Icon: BarChart3, label: c.progress, active: activeDemo === "progress" },
   ]
   return (
-    <figure id="demo" className={styles.previewFigure}>
+    <figure id="demo" className={cn(styles.previewFigure, styles.heroStep6)}>
       <div className={styles.preview}>
         <div className={styles.windowBar}>
           <div
@@ -603,31 +650,43 @@ function MockChart() {
 function Specs() {
   const { messages } = useLocale()
   const c = messages.landing
+  const { ref, inView } = useInView<HTMLDListElement>()
+  const specs = [
+    {
+      Icon: Dumbbell,
+      label: c.specTraining,
+      value: c.specTrainingValue,
+      detail: c.specTrainingDetail,
+    },
+    {
+      Icon: Flame,
+      label: c.specNutrition,
+      value: c.specNutritionValue,
+      detail: c.specNutritionDetail,
+    },
+    {
+      Icon: BarChart3,
+      label: c.specProgress,
+      value: c.specProgressValue,
+      detail: c.specProgressDetail,
+    },
+    {
+      Icon: Users,
+      label: c.specCoaching,
+      value: c.specCoachingValue,
+      detail: c.specCoachingDetail,
+    },
+  ]
   return (
-    <dl className={styles.specs}>
-      {[
-        {
-          label: c.specTraining,
-          value: c.specTrainingValue,
-          detail: c.specTrainingDetail,
-        },
-        {
-          label: c.specNutrition,
-          value: c.specNutritionValue,
-          detail: c.specNutritionDetail,
-        },
-        {
-          label: c.specProgress,
-          value: c.specProgressValue,
-          detail: c.specProgressDetail,
-        },
-        {
-          label: c.specCoaching,
-          value: c.specCoachingValue,
-          detail: c.specCoachingDetail,
-        },
-      ].map((spec) => (
+    <dl
+      ref={ref}
+      className={cn(styles.specs, styles.reveal, inView && styles.revealVisible)}
+    >
+      {specs.map((spec) => (
         <div key={spec.label}>
+          <span className={styles.specIconWrap} aria-hidden="true">
+            <spec.Icon size={16} strokeWidth={1.75} />
+          </span>
           <dt className={styles.eyebrow}>{spec.label}</dt>
           <dd className="mt-3 text-xl font-medium tracking-tight">
             {spec.value}
@@ -644,6 +703,7 @@ function Specs() {
 function FeaturesSection() {
   const { messages } = useLocale()
   const c = messages.landing
+  const { ref, inView } = useInView<HTMLElement>()
   const features = [
     { Icon: Dumbbell, title: c.featureLogTitle, body: c.featureLogCopy },
     {
@@ -661,7 +721,11 @@ function FeaturesSection() {
     { Icon: Users, title: c.featureCoachTitle, body: c.featureCoachCopy },
   ]
   return (
-    <section id="features" className={styles.section}>
+    <section
+      id="features"
+      ref={ref}
+      className={cn(styles.section, styles.reveal, inView && styles.revealVisible)}
+    >
       <div className={styles.sectionIntro}>
         <p className={styles.eyebrow}>{c.featuresEyebrow}</p>
         <h2 className={styles.sectionTitle}>
@@ -677,7 +741,9 @@ function FeaturesSection() {
         {features.map(({ Icon, title, body }, index) => (
           <article key={title} className={styles.feature}>
             <div className="flex items-center justify-between">
-              <Icon size={21} strokeWidth={1.5} className="text-primary" />
+              <span className={styles.featureIconWrap} aria-hidden="true">
+                <Icon size={20} strokeWidth={1.75} />
+              </span>
               <span className="font-mono text-[10px] text-muted-foreground">
                 0{index + 1}
               </span>
@@ -705,6 +771,7 @@ function FeaturesSection() {
 function TrainerSection() {
   const { messages } = useLocale()
   const c = messages.landing
+  const { ref, inView } = useInView<HTMLElement>()
   const rows = [
     {
       name: "Maya R.",
@@ -729,7 +796,11 @@ function TrainerSection() {
     },
   ]
   return (
-    <section id="trainers" className={styles.trainers}>
+    <section
+      id="trainers"
+      ref={ref}
+      className={cn(styles.trainers, styles.reveal, inView && styles.revealVisible)}
+    >
       <div>
         <p className={styles.eyebrow}>{c.trainerEyebrow}</p>
         <h2 className={styles.sectionTitle}>

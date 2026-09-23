@@ -22,6 +22,17 @@
 .skipLink:focus {
   top: 12px;
 }
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.revealVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
 .announcement {
   display: flex;
   justify-content: center;
@@ -74,7 +85,22 @@
   border-inline: 1px solid var(--border);
 }
 .hero {
+  position: relative;
+  overflow: hidden;
   padding-top: 84px;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  top: -160px;
+  left: 50%;
+  z-index: -1;
+  width: min(900px, 130vw);
+  height: 480px;
+  background: radial-gradient(circle, var(--primary-soft), transparent 68%);
+  opacity: 0.9;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 .heroIntro {
   padding: 0 40px 48px;
@@ -118,6 +144,42 @@
   line-height: 1.75;
   color: var(--muted-foreground);
 }
+@keyframes heroIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.heroStep1,
+.heroStep2,
+.heroStep3,
+.heroStep4,
+.heroStep5,
+.heroStep6 {
+  animation: heroIn 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.heroStep1 {
+  animation-delay: 0ms;
+}
+.heroStep2 {
+  animation-delay: 90ms;
+}
+.heroStep3 {
+  animation-delay: 180ms;
+}
+.heroStep4 {
+  animation-delay: 270ms;
+}
+.heroStep5 {
+  animation-delay: 360ms;
+}
+.heroStep6 {
+  animation-delay: 450ms;
+}
 .previewFigure {
   margin: 0;
   padding: 24px 24px 25px;
@@ -129,7 +191,9 @@
   border: 1px solid var(--input);
   border-radius: 10px;
   background: var(--card);
-  box-shadow: 0 20px 60px var(--overlay-soft);
+  box-shadow:
+    0 30px 80px -24px color-mix(in srgb, var(--primary) 30%, transparent),
+    0 20px 60px var(--overlay-soft);
 }
 .windowBar {
   display: flex;
@@ -299,6 +363,10 @@
 }
 .specs > div {
   padding: 28px;
+  transition: background 160ms ease;
+}
+.specs > div:hover {
+  background: var(--card);
 }
 .specs > div + div {
   border-left: 1px solid var(--border);
@@ -306,6 +374,17 @@
 .specs .eyebrow {
   color: var(--muted-foreground);
   font-size: 9px;
+}
+.specIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 14px;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 .section {
   padding-top: 90px;
@@ -329,12 +408,29 @@
   border-block: 1px solid var(--border);
 }
 .feature {
+  position: relative;
   padding: 30px;
   background: var(--background);
-  transition: background 160ms ease;
+  transition:
+    background 160ms ease,
+    transform 200ms ease,
+    box-shadow 200ms ease;
 }
 .feature:hover {
+  z-index: 1;
   background: var(--card);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px var(--overlay-soft);
+}
+.featureIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 .sectionFoot {
   padding: 20px 30px;
@@ -365,14 +461,40 @@
   scroll-margin-top: 70px;
 }
 .coachPreview {
+  position: relative;
   min-width: 0;
+  overflow: hidden;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+.coachPreview::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), transparent);
+}
 .finalCta {
+  position: relative;
   padding: 70px 40px 80px;
+  overflow: hidden;
   background: linear-gradient(110deg, var(--primary-soft), transparent 70%);
+}
+.finalCta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(circle at 25% 35%, black, transparent 65%);
+  mask-image: radial-gradient(circle at 25% 35%, black, transparent 65%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.finalCta > * {
+  position: relative;
+  z-index: 1;
 }
 .footer {
   display: flex;
@@ -518,5 +640,18 @@
   .shell a,
   .feature {
     transition: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .heroStep1,
+  .heroStep2,
+  .heroStep3,
+  .heroStep4,
+  .heroStep5,
+  .heroStep6 {
+    animation: none;
   }
 }
