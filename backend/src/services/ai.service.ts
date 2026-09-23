@@ -32,7 +32,19 @@ import type { SerializedProfile } from "./auth.service"
 import { addMealItemForUser, calculateItemNutrition } from "./nutrition.service"
 import type { Nutrients } from "../lib/nutrition/portion-scaler"
 import { isUnsafeDailyCalorieGoal, UNSAFE_CALORIE_GOAL_CODE, UNSAFE_CALORIE_GOAL_MESSAGE } from "../lib/nutrition/safety"
-import { selectFoodsForPrompt } from "./ai/food-catalog"
+import { isFoodAllowed, selectFoodsForPrompt } from "./ai/food-catalog"
+import {
+  buildInsightFindings,
+  generateNutritionInsight,
+  intakeFingerprint,
+  pickSuggestionFoods,
+  type InsightInput,
+  type InsightOutput,
+} from "./ai/nutrition-insight"
+import { getIntakeSummary, loadNutrientCatalog } from "./nutrition-intake.service"
+import { buildNutrientTargets } from "../lib/nutrition/nutrient-targets"
+import { parseNutrientAmounts, type NutrientCode } from "../lib/nutrition/nutrients"
+import { estimateFoodNutrition, type FoodLookupLocale } from "./ai/food-nutrition"
 import {
   applyMealPlanOverrides,
   buildDayPlanPrompt,
@@ -64,6 +76,7 @@ import {
 const DAILY_LIMITS: Record<AIGenerationType, number> = {
   workout_program: 5,
   meal_plan: 10,
+  nutrition_insight: 10,
 }
 
 async function checkRateLimit(userId: string, type: AIGenerationType) {
@@ -1496,17 +1509,197 @@ async function chatWithAI(
   return action ? { reply, action } : { reply }
 }
 
+// ---------------------------------------------------------------------------
+// Nutrition insight
+// ---------------------------------------------------------------------------
+
+type InsightLocale = "vi" | "en"
+
+type NutritionInsightResponse = {
+  date: string
+  generatedAt: string
+  /** What was logged has changed since this insight was written. */
+  stale: boolean
+  summary: string
+  points: InsightOutput["points"]
+  suggestedFoods: Array<{ id: string; name: string; nameEn?: string }>
+}
+
+/** Today's intake, the 7-day window and the trainee's targets, for `dateKey`. */
+async function loadInsightInput(db: ReturnType<typeof ensurePrisma>, profile: SerializedProfile, dateKey: string, locale: InsightLocale) {
+  const end = dateKeyInstant(dateKey)
+  const [summary, catalog] = await Promise.all([getIntakeSummary(db, profile.id, end, 7), loadNutrientCatalog(db)])
+  const input: InsightInput = {
+    goals: { calories: profile.dailyCalorieGoal, protein: profile.dailyProteinGoal ?? 140 },
+    names: Object.fromEntries(catalog.map((nutrient) => [nutrient.code, { name: locale === "en" ? nutrient.nameEn : nutrient.nameVi, unit: nutrient.unit }])),
+    targets: buildNutrientTargets(profile, end),
+    today: summary.days.find((day) => day.date === dateKey) ?? null,
+    week: summary,
+  }
+  return input
+}
+
+type StoredInsight = InsightOutput & { suggestedFoods: NutritionInsightResponse["suggestedFoods"] }
+
+function toInsightResponse(generation: { createdAt: Date; input: Prisma.JsonValue; output: Prisma.JsonValue }, currentFingerprint: string): NutritionInsightResponse | null {
+  const input = generation.input as { date?: string; fingerprint?: string } | null
+  const output = generation.output as StoredInsight | null
+  if (!input?.date || !output?.summary) return null
+  return {
+    date: input.date,
+    generatedAt: generation.createdAt.toISOString(),
+    points: output.points,
+    stale: input.fingerprint !== currentFingerprint,
+    suggestedFoods: output.suggestedFoods ?? [],
+    summary: output.summary,
+  }
+}
+
+/** The insight already written for `date`, if any. Costs no tokens. */
+async function getNutritionInsight(profile: SerializedProfile, rawDate: string): Promise<NutritionInsightResponse | null> {
+  const db = ensurePrisma()
+  const dateKey = parseAI(dateSchema, rawDate, 400)
+  const generation = await db.aIGeneration.findFirst({
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true, input: true, output: true },
+    where: {
+      input: { equals: dateKey, path: ["date"] },
+      status: AIGenerationStatus.completed,
+      type: AIGenerationType.nutrition_insight,
+      userId: profile.id,
+    },
+  })
+  if (!generation) return null
+  const locale = ((generation.input as { locale?: InsightLocale } | null)?.locale ?? "vi") as InsightLocale
+  return toInsightResponse(generation, intakeFingerprint(await loadInsightInput(db, profile, dateKey, locale)))
+}
+
+async function createNutritionInsight(profile: SerializedProfile, input: { date: string; locale?: InsightLocale }): Promise<NutritionInsightResponse> {
+  const db = ensurePrisma()
+  const dateKey = parseAI(dateSchema, input.date, 400)
+  const locale = input.locale ?? "vi"
+  const insightInput = await loadInsightInput(db, profile, dateKey, locale)
+  if (!insightInput.today && insightInput.week.loggedDays === 0) {
+    throw new AppError("Chưa có bữa ăn nào để phân tích. Hãy ghi ít nhất một bữa trước.", { status: 422, code: "NO_INTAKE" })
+  }
+
+  await checkRateLimit(profile.id, AIGenerationType.nutrition_insight)
+
+  const findings = buildInsightFindings(insightInput)
+  const lowCodes = findings.findings
+    .filter((finding) => finding.status === "low" && finding.code !== "calories" && finding.code !== "protein")
+    .map((finding) => finding.code as NutrientCode)
+  const foods = await db.food.findMany({
+    select: { calories: true, category: true, id: true, name: true, nameEn: true, nutrients: { select: { amount: true, nutrientCode: true } } },
+    where: { source: FoodSource.system },
+  })
+  const filters = { allergies: profile.foodAllergies ?? [], dietType: profile.dietType ?? null }
+  const candidates = pickSuggestionFoods(
+    lowCodes,
+    foods
+      .filter((food) => isFoodAllowed(food, filters))
+      .map((food) => ({
+        calories: food.calories,
+        id: food.id,
+        name: locale === "en" && food.nameEn ? food.nameEn : food.name,
+        nutrients: parseNutrientAmounts(Object.fromEntries(food.nutrients.map((row) => [row.nutrientCode, row.amount]))),
+      })),
+  )
+
+  const fingerprint = intakeFingerprint(insightInput)
+  const generation = await db.aIGeneration.create({
+    data: {
+      id: randomUUID(),
+      input: { date: dateKey, fingerprint, locale } as Prisma.InputJsonValue,
+      status: AIGenerationStatus.pending,
+      type: AIGenerationType.nutrition_insight,
+      userId: profile.id,
+    },
+  })
+
+  try {
+    const result = await generateNutritionInsight(getAIProvider(), { findings, foods: candidates, locale, names: insightInput.names })
+    const byId = new Map(foods.map((food) => [food.id, food]))
+    const stored: StoredInsight = {
+      points: result.points,
+      suggestedFoodIds: result.suggestedFoodIds,
+      suggestedFoods: result.suggestedFoodIds.flatMap((id) => {
+        const food = byId.get(id)
+        return food ? [{ id: food.id, name: food.name, nameEn: food.nameEn ?? undefined }] : []
+      }),
+      summary: result.summary,
+    }
+    const saved = await db.aIGeneration.update({
+      data: {
+        input: { date: dateKey, findings: findings.findings, fingerprint, locale, promptVersion: result.promptVersion } as unknown as Prisma.InputJsonValue,
+        output: stored as unknown as Prisma.InputJsonValue,
+        status: AIGenerationStatus.completed,
+        tokenUsage: result.tokenUsage,
+      },
+      select: { createdAt: true, input: true, output: true },
+      where: { id: generation.id },
+    })
+    const response = toInsightResponse(saved, fingerprint)
+    if (!response) throw new AppError("Không thể lưu phân tích dinh dưỡng.", { status: 500 })
+    return response
+  } catch (error) {
+    // The provider refusing for its own quota is not the trainee's attempt, so
+    // drop the row rather than let it count against their daily limit.
+    const providerRateLimited = !(error instanceof AppError) && error instanceof Error && /\b429\b/.test(error.message)
+    if (providerRateLimited) {
+      await db.aIGeneration.delete({ where: { id: generation.id } })
+      throw new TooManyRequestsError("Dịch vụ AI đang bận. Vui lòng thử lại sau ít phút.")
+    }
+    await db.aIGeneration.update({
+      data: { errorMsg: error instanceof Error ? error.message.slice(0, 500) : "unknown", status: AIGenerationStatus.failed },
+      where: { id: generation.id },
+    })
+    if (error instanceof AppError) throw error
+    throw new AuthServiceError("Không thể phân tích dinh dưỡng. Vui lòng thử lại sau.", 500)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Food nutrition lookup
+// ---------------------------------------------------------------------------
+
+/** One lookup per food a trainee could not find; generous, but not a free nutrition API. */
+const foodLookupCounter = new DailyCounter(30)
+
+async function lookupFoodNutrition(profile: SerializedProfile, input: { query: string; locale?: FoodLookupLocale }) {
+  if (!foodLookupCounter.tryConsume(profile.id)) {
+    throw new TooManyRequestsError(`Bạn đã tra cứu món bằng AI ${foodLookupCounter.max} lần hôm nay. Vui lòng thử lại vào ngày mai.`)
+  }
+
+  try {
+    // Token usage and prompt version stay server-side; the form only needs the numbers.
+    const { tokenUsage: _tokenUsage, promptVersion: _promptVersion, ...result } = await estimateFoodNutrition(getAIProvider(), {
+      query: input.query,
+      locale: input.locale ?? "vi",
+    })
+    return result
+  } catch (error) {
+    // The attempt produced nothing, so it should not count against the budget.
+    foodLookupCounter.release(profile.id)
+    if (error instanceof AppError) throw error
+    throw new AuthServiceError("Không thể tra cứu món bằng AI. Vui lòng thử lại sau.", 500)
+  }
+}
+
 export {
   acceptDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
   acceptCoachTraineeAIProgram,
   chatWithAI,
+  createNutritionInsight,
   discardMealPlanDraft,
   generateCoachTraineeWorkoutProgram,
   generateDailyWorkout,
   generateMealPlan,
   getMealPlanDraft,
+  getNutritionInsight,
   generateWorkoutProgram,
+  lookupFoodNutrition,
   regenerateAIMealPlanMeal,
 }
