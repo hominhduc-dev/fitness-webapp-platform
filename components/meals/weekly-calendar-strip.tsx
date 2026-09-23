@@ -65,7 +65,7 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
               />
               {share > 0 ? (
                 <circle
-                  className={over ? "text-warning" : "text-primary"}
+                  className={over ? "text-warning-text" : "text-primary"}
                   cx="20"
                   cy="20"
                   fill="none"
