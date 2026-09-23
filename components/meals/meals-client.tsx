@@ -149,7 +149,7 @@ function CalorieRing({ consumed, target, totals }: { consumed: number; target: n
         })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-2xl font-semibold leading-none text-foreground tnum md:text-3xl">
+        <span className="font-mono text-xl font-semibold leading-none text-foreground tnum md:text-3xl">
           {Math.round(consumed).toLocaleString()}
         </span>
         <span className="mt-0.5 font-mono text-micro text-muted-foreground tnum md:mt-1">
