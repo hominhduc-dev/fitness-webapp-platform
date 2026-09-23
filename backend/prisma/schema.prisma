@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // Unlocks `relationLoadStrategy: "join"`, which loads a nested include in one
+  // query instead of one per relation level. Opt-in per query; the default
+  // strategy is unchanged everywhere else.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
