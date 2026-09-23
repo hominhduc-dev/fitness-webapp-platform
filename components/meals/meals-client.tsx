@@ -3,6 +3,7 @@
 import { addDays, format } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
 import {
+  BadgeCheck,
   Bot,
   Check,
   ChevronDown,
@@ -17,7 +18,6 @@ import {
   Sun,
   Sunrise,
   Sunset,
-  Utensils,
   X,
   type LucideIcon,
 } from "lucide-react"
@@ -35,6 +35,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import type { createCustomFood, fetchNutritionDay, FoodNutritionLookup, LastFoodPortions } from "@/lib/fitness/api"
 import { foodDisplayName, foodMatchesSearch, servingLabelFor, type FoodNameLanguage } from "@/lib/nutrition/food-names"
@@ -306,37 +307,6 @@ function MealSection({
   )
 }
 
-function CategoryChips({
-  active,
-  getLabel,
-  onChange,
-}: {
-  active: FoodCategory | "all"
-  getLabel: (category: FoodCategory | "all") => string
-  onChange: (category: FoodCategory | "all") => void
-}) {
-  return (
-    <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {FOOD_CATEGORIES.map((category) => (
-        <button
-          key={category.id}
-          data-active={active === category.id}
-          className={cn(
-            "meal-food-sheet__category shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all",
-            active === category.id
-              ? "border-primary bg-primary text-primary-foreground shadow-[0_6px_18px_-10px_var(--primary)]"
-              : "border-border/80 bg-background/55 text-muted-foreground hover:border-primary/30 hover:bg-muted hover:text-foreground",
-          )}
-          type="button"
-          onClick={() => onChange(category.id)}
-        >
-          {getLabel(category.id)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 type CreateFoodDraft = {
   name: string
   nameEn?: string
@@ -517,6 +487,9 @@ function CreateFoodForm({
   )
 }
 
+type FoodTab = "all" | "recent" | "mine"
+const FOOD_TABS: FoodTab[] = ["all", "recent", "mine"]
+
 const FOOD_NAME_LANGUAGE_KEY = "meals.foodNameLanguage"
 
 /** The sheet's name language is a per-device preference; storage can be unavailable. */
@@ -558,6 +531,7 @@ function AddFoodModal({
   onClose,
   onCreateFood,
   onLookupFood,
+  onMealTypeChange,
   defaultNameLanguage,
   initialFoodId,
   lastPortions,
@@ -596,6 +570,16 @@ function AddFoodModal({
     foodNamePlaceholder: string
     lastPortion: (amount: string) => string
     logFood: string
+    logFoodTabs: Record<FoodTab, string>
+    logFoodAllFoods: string
+    logFoodResults: string
+    logFoodQuickAdd: (name: string) => string
+    logFoodChooseMeal: string
+    logFoodAiLookup: string
+    logFoodAiNeedsQuery: string
+    logFoodCreate: string
+    logFoodVerified: string
+    logFoodEmptyTab: string
     noFoodsFound: string
     pendingReview: string
     protein: string
@@ -613,12 +597,14 @@ function AddFoodModal({
   onClose: () => void
   onCreateFood: (input: Parameters<typeof createCustomFood>[1]) => Promise<NutritionFood | null>
   onLookupFood: (query: string) => Promise<FoodNutritionLookup>
+  onMealTypeChange: (mealType: MealType) => void
   lastPortions: LastFoodPortions
   recentFoods: NutritionFood[]
   submitting: boolean
 }) {
   const [query, setQuery] = useState("")
-  const [category, setCategory] = useState<FoodCategory | "all">("all")
+  const [tab, setTab] = useState<FoodTab>("all")
+  const searchRef = useRef<HTMLInputElement>(null)
   const [selectedFood, setSelectedFood] = useState<NutritionFood | null>(null)
   const [amountValue, setAmountValue] = useState(1)
   const [amountUnit, setAmountUnit] = useState<"g" | "ml" | "serving">("serving")
@@ -627,8 +613,8 @@ function AddFoodModal({
   const [lookingUp, setLookingUp] = useState(false)
   const [lookupMessage, setLookupMessage] = useState<string | null>(null)
   const [nameLanguage, setNameLanguage] = useState<FoodNameLanguage>(() => readFoodNameLanguage() ?? defaultNameLanguage)
-  const mealLabel = labels.addToMeal(getMealLabel(mealType))
-  const filteredFoods = foods.filter((food) => (category === "all" || food.category === category) && foodMatchesSearch(food, query))
+  const tabFoods = tab === "recent" ? recentFoods : tab === "mine" ? foods.filter((food) => food.source === "user") : foods
+  const filteredFoods = tabFoods.filter((food) => foodMatchesSearch(food, query))
   const nameOf = (food: NutritionFood) => foodDisplayName(food, nameLanguage)
   const servingOf = (food: NutritionFood) => servingLabelFor(food.servingLabel, nameLanguage)
   const lastPortion = selectedFood ? usablePortion(selectedFood, lastPortions[selectedFood.id]) : null
@@ -648,7 +634,6 @@ function AddFoodModal({
     setNameLanguage(language)
     writeFoodNameLanguage(language)
   }
-  const showRecentFoods = !query.trim() && category === "all" && recentFoods.length > 0
   const trimmedQuery = query.trim()
   const canLookup = filteredFoods.length === 0 && trimmedQuery.length >= 2
 
@@ -684,15 +669,10 @@ function AddFoodModal({
     }
   }
 
-  function pickFood(food: NutritionFood) {
+  function startingPortion(food: NutritionFood): { amountUnit: "g" | "ml" | "serving"; amountValue: number } {
     // What the trainee ate last time is the best guess for this time.
     const previous = usablePortion(food, lastPortions[food.id])
-    if (previous) {
-      setSelectedFood(food)
-      setAmountUnit(previous.amountUnit)
-      setAmountValue(previous.amountValue)
-      return
-    }
+    if (previous) return previous
 
     // Anything with a known serving weight is logged in grams, so a dish sold
     // by the bowl is still something the trainee can weigh. Drinks keep ml.
@@ -702,15 +682,37 @@ function AddFoodModal({
         : food.servingGrams && food.servingGrams > 0
           ? "g"
           : "serving"
+    return {
+      amountUnit: unit,
+      amountValue: unit === "serving" ? 1 : unit === "g" && food.servingUnit !== "g" ? (food.servingGrams ?? 1) : food.servingAmount,
+    }
+  }
+
+  function pickFood(food: NutritionFood) {
+    const portion = startingPortion(food)
     setSelectedFood(food)
-    setAmountUnit(unit)
-    setAmountValue(unit === "serving" ? 1 : unit === "g" && food.servingUnit !== "g" ? (food.servingGrams ?? 1) : food.servingAmount)
+    setAmountUnit(portion.amountUnit)
+    setAmountValue(portion.amountValue)
+  }
+
+  /** The row's + button: log the starting portion straight away. */
+  function quickAdd(food: NutritionFood) {
+    onAdd({ ...startingPortion(food), food })
+  }
+
+  function runAiLookup() {
+    if (trimmedQuery.length >= 2) {
+      void lookupFood()
+      return
+    }
+    setLookupMessage(labels.logFoodAiNeedsQuery)
+    searchRef.current?.focus()
   }
 
   async function handleCreateFood(input: Parameters<typeof createCustomFood>[1]) {
     setCreating(false)
     setQuery("")
-    setCategory("all")
+    setTab("all")
 
     const food = await onCreateFood(input)
 
@@ -746,52 +748,64 @@ function AddFoodModal({
         />
       ) : (
         <>
-          <div className="meal-food-sheet__chrome shrink-0 border-b border-border/70 bg-card/90 px-4 pb-3.5 pt-3 backdrop-blur-xl sm:px-5 sm:pb-4 sm:pt-4">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                  <Utensils className="size-4.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="label-micro mb-1 truncate">{mealLabel}</p>
-                  <h2 className="text-lg font-semibold leading-none text-foreground">{labels.logFood}</h2>
-                </div>
-              </div>
-              <div className="ml-auto flex shrink-0 items-center gap-2">
-                <div
-                  aria-label={labels.foodNameLanguage}
-                  className="meal-food-sheet__control flex h-9 items-center rounded-full border border-border/70 bg-muted/70 p-0.5"
-                  role="group"
-                >
-                  {(["vi", "en"] as const).map((language) => (
-                    <button
-                      key={language}
-                      aria-pressed={nameLanguage === language}
-                      className={cn(
-                        "h-full rounded-full px-2.5 font-mono text-xs font-semibold uppercase transition-colors",
-                        nameLanguage === language ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                      )}
-                      type="button"
-                      onClick={() => changeNameLanguage(language)}
-                    >
-                      {language}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  aria-label={labels.cancel}
-                  className="meal-food-sheet__control flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  type="button"
-                  onClick={onClose}
-                >
-                  <X className="size-4" />
-                </button>
+          <div className="meal-food-sheet__chrome shrink-0 bg-card/90 px-4 pb-2 pt-2 backdrop-blur-xl sm:px-5 sm:pt-4">
+            <div className="mb-3 grid grid-cols-[auto_1fr_auto] items-center gap-2">
+              <button
+                aria-label={labels.cancel}
+                className="meal-food-sheet__control flex size-10 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/70 text-foreground transition-colors hover:bg-muted"
+                type="button"
+                onClick={onClose}
+              >
+                <X className="size-5" />
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label={labels.logFoodChooseMeal}
+                    className="flex min-w-0 items-center justify-center gap-1 justify-self-center rounded-full px-3 py-1.5 text-base font-semibold text-primary transition-colors hover:bg-primary-soft/50"
+                    type="button"
+                  >
+                    <span className="truncate">{getMealLabel(mealType)}</span>
+                    <ChevronDown className="size-4 shrink-0" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="z-[80] min-w-40">
+                  <DropdownMenuRadioGroup value={mealType} onValueChange={(value) => onMealTypeChange(value as MealType)}>
+                    {MEAL_META.map((meta) => (
+                      <DropdownMenuRadioItem key={meta.type} value={meta.type}>
+                        {getMealLabel(meta.type)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div
+                aria-label={labels.foodNameLanguage}
+                className="meal-food-sheet__control flex h-9 items-center rounded-full border border-border/70 bg-muted/70 p-0.5"
+                role="group"
+              >
+                {(["vi", "en"] as const).map((language) => (
+                  <button
+                    key={language}
+                    aria-pressed={nameLanguage === language}
+                    className={cn(
+                      "h-full rounded-full px-2.5 font-mono text-xs font-semibold uppercase transition-colors",
+                      nameLanguage === language ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    type="button"
+                    onClick={() => changeNameLanguage(language)}
+                  >
+                    {language}
+                  </button>
+                ))}
               </div>
             </div>
+
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="meal-food-sheet__control h-11 rounded-full border-border/80 bg-muted/55 pl-10 pr-4 shadow-none focus-visible:ring-primary/25"
+                ref={searchRef}
+                className="meal-food-sheet__control h-12 rounded-full border-border/80 bg-muted/55 pl-11 pr-4 text-base shadow-none focus-visible:ring-primary/25"
                 value={query}
                 placeholder={labels.searchFoodPlaceholder}
                 onChange={(event) => {
@@ -800,117 +814,109 @@ function AddFoodModal({
                 }}
               />
             </div>
-            <div className="-mr-4 mt-3 overflow-hidden pr-4 sm:-mr-5 sm:pr-5">
-              <CategoryChips active={category} getLabel={getCategoryLabel} onChange={setCategory} />
+
+            <div className="mt-3 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist">
+              {FOOD_TABS.map((id) => (
+                <button
+                  key={id}
+                  aria-selected={tab === id}
+                  className={cn(
+                    "relative shrink-0 pb-2 text-base font-medium transition-colors",
+                    tab === id
+                      ? "font-semibold text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  role="tab"
+                  type="button"
+                  onClick={() => setTab(id)}
+                >
+                  {labels.logFoodTabs[id]}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
-            {showRecentFoods ? (
-              <div className="border-b border-border/70 bg-primary-soft/25 px-4 py-3.5 sm:px-5">
-                <div className="mb-2.5 flex items-baseline justify-between gap-3">
-                  <p className="label-micro">{labels.recentFoods}</p>
-                  <p className="hidden text-micro text-muted-foreground sm:block">{labels.recentFoodsHint}</p>
-                </div>
-                <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {recentFoods.map((food) => {
-                    const active = selectedFood?.id === food.id
-                    return (
-                      <button
-                        key={food.id}
-                        className={cn(
-                          "meal-food-sheet__control min-w-[156px] max-w-[200px] shrink-0 rounded-xl border bg-card/75 px-3 py-2.5 text-left transition-all",
-                          active
-                            ? "border-primary bg-primary-soft shadow-[0_8px_24px_-18px_var(--primary)]"
-                            : "border-border/80 hover:border-primary/25 hover:bg-muted",
-                        )}
-                        type="button"
-                        onClick={() => pickFood(food)}
-                      >
-                        <p className="truncate text-sm font-semibold text-foreground">{nameOf(food)}</p>
-                        <p className="mt-0.5 truncate font-mono text-micro text-muted-foreground tnum">
-                          {Math.round(food.calories)} kcal · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F
-                          {formatMetric(food.fat, 0)}
-                        </p>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : null}
-            <div className="space-y-2 px-3 py-3 sm:px-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 [scrollbar-width:thin] sm:px-5">
+            <div className="grid grid-cols-2 gap-2.5 py-3">
+              <button
+                className="meal-food-sheet__control flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border/60 bg-muted/60 px-2 py-3.5 text-sm font-semibold text-primary transition-colors hover:bg-muted disabled:opacity-60"
+                disabled={lookingUp}
+                type="button"
+                onClick={runAiLookup}
+              >
+                {lookingUp ? <Loader2 className="size-6 animate-spin" /> : <Sparkles className="size-6" />}
+                {lookingUp ? labels.aiLookupLoading : labels.logFoodAiLookup}
+              </button>
+              <button
+                className="meal-food-sheet__control flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border/60 bg-muted/60 px-2 py-3.5 text-sm font-semibold text-primary transition-colors hover:bg-muted"
+                type="button"
+                onClick={() => startCreating(trimmedQuery ? { name: trimmedQuery } : null)}
+              >
+                <Plus className="size-6" />
+                {labels.logFoodCreate}
+              </button>
+            </div>
+            {lookupMessage ? <p className="-mt-1 mb-2 text-center text-xs text-destructive-text">{lookupMessage}</p> : null}
+
+            <h3 className="mb-2.5 mt-2 text-xl font-semibold text-foreground">
+              {trimmedQuery ? labels.logFoodResults : tab === "all" ? labels.logFoodAllFoods : labels.logFoodTabs[tab]}
+            </h3>
+
+            <ul className="space-y-2">
               {filteredFoods.map((food) => {
                 const active = selectedFood?.id === food.id
+                const verified = food.source === "system" && food.reviewStatus === "approved"
                 return (
-                  <button
+                  <li
                     key={food.id}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
-                      active
-                        ? "border-primary bg-primary-soft shadow-[0_8px_24px_-20px_var(--primary)]"
-                        : "meal-food-sheet__row border-border/40 bg-card/35 hover:border-border hover:bg-muted/60",
+                      "flex items-center gap-2 rounded-2xl border pl-4 pr-2.5 transition-colors",
+                      active ? "border-primary bg-primary-soft" : "meal-food-sheet__row border-border/40 bg-card/50 hover:bg-muted/60",
                     )}
-                    type="button"
-                    onClick={() => pickFood(food)}
                   >
-                    <div className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-full",
-                      active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                    )}>
-                      {active ? <Check className="size-4" /> : <Utensils className="size-3.5" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-foreground">{nameOf(food)}</p>
+                    <button className="min-w-0 flex-1 py-3 text-left" type="button" onClick={() => pickFood(food)}>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-base font-medium text-foreground">{nameOf(food)}</span>
+                        {verified ? <BadgeCheck aria-label={labels.logFoodVerified} className="size-4 shrink-0 text-success-text" /> : null}
                         {food.source === "user" ? (
                           <Badge variant={food.reviewStatus === "rejected" ? "destructive" : "secondary"} className="shrink-0 text-micro">
                             {food.reviewStatus === "rejected" ? labels.rejectedReview : labels.pendingReview}
                           </Badge>
                         ) : null}
-                      </div>
-                      <p className="mt-1 truncate font-mono text-micro text-muted-foreground tnum">
-                        {servingOf(food)} · P{formatMetric(food.protein, 0)} C{formatMetric(food.carbs, 0)} F{formatMetric(food.fat, 0)}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-muted/80 px-2.5 py-1 font-mono text-xs font-medium text-foreground tnum">
-                      {Math.round(food.calories)} <span className="text-micro font-normal text-muted-foreground">kcal</span>
-                    </span>
-                  </button>
+                      </span>
+                      <span className="mt-0.5 block truncate text-sm text-muted-foreground tnum">
+                        {Math.round(food.calories)} kcal, {servingOf(food)}
+                      </span>
+                    </button>
+                    <button
+                      aria-label={labels.logFoodQuickAdd(nameOf(food))}
+                      className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+                      disabled={submitting}
+                      type="button"
+                      onClick={() => quickAdd(food)}
+                    >
+                      <Plus className="size-5" />
+                    </button>
+                  </li>
                 )
               })}
-            </div>
+            </ul>
+
             {filteredFoods.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-5 py-8 text-center">
-                <p className="text-sm text-muted-foreground">{labels.noFoodsFound}</p>
+                <p className="text-sm text-muted-foreground">{trimmedQuery ? labels.noFoodsFound : labels.logFoodEmptyTab}</p>
                 {canLookup ? (
                   <>
                     <Button className="max-w-full rounded-full" disabled={lookingUp} type="button" onClick={() => void lookupFood()}>
                       {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                       <span className="truncate">{lookingUp ? labels.aiLookupLoading : labels.aiLookupFood(trimmedQuery)}</span>
                     </Button>
-                    {lookupMessage ? (
-                      <p className="max-w-xs text-xs text-destructive-text">{lookupMessage}</p>
-                    ) : (
-                      <p className="max-w-xs text-xs text-muted-foreground">{labels.aiLookupHint}</p>
-                    )}
+                    <p className="max-w-xs text-xs text-muted-foreground">{labels.aiLookupHint}</p>
                   </>
                 ) : null}
               </div>
             ) : null}
           </div>
-
-          {!selectedFood ? (
-            <BottomSheetFooter className="meal-food-sheet__chrome border-border/70 bg-card/90 backdrop-blur-xl">
-              <button
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-primary/35 bg-primary-soft/40 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft"
-                type="button"
-                onClick={() => startCreating(canLookup ? { name: trimmedQuery } : null)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {labels.createNewFood}
-              </button>
-            </BottomSheetFooter>
-          ) : null}
 
           {selectedFood ? (
             <BottomSheetFooter className="meal-food-sheet__chrome flex-wrap gap-3 border-border/70 bg-card/95 backdrop-blur-xl">
@@ -1075,6 +1081,16 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
     foodNameLanguage: messages.meals.foodNameLanguage,
     foodNamePlaceholder: messages.meals.foodNameNewPlaceholder,
     lastPortion: messages.meals.lastPortion,
+    logFoodAiLookup: messages.meals.logFoodAiLookup,
+    logFoodAiNeedsQuery: messages.meals.logFoodAiNeedsQuery,
+    logFoodAllFoods: messages.meals.logFoodAllFoods,
+    logFoodChooseMeal: messages.meals.logFoodChooseMeal,
+    logFoodCreate: messages.meals.logFoodCreate,
+    logFoodEmptyTab: messages.meals.logFoodEmptyTab,
+    logFoodQuickAdd: messages.meals.logFoodQuickAdd,
+    logFoodResults: messages.meals.logFoodResults,
+    logFoodTabs: messages.meals.logFoodTabs,
+    logFoodVerified: messages.meals.logFoodVerified,
     logFood: messages.meals.logFood,
     noFoodsFound: messages.meals.noFoodsFound,
     pendingReview: messages.meals.pendingReview,
@@ -1187,18 +1203,6 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
       <div className="mb-5">
         <WeeklyCalendarStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
       </div>
-      <div className="mb-5 flex flex-col gap-3 md:mb-7 md:flex-row md:items-start md:justify-end" data-tour="trainee-nutrition-actions">
-        <div className="flex gap-2 self-start">
-          <Button variant="outline" className="gap-1.5" type="button" onClick={() => setShowAIMealPlan(true)}>
-            <Bot className="h-4 w-4" />
-            {messages.meals.aiSuggest}
-          </Button>
-          <Button type="button" onClick={() => setAddTo("snack")}>
-            <Plus className="h-4 w-4" />
-            {messages.meals.quickAdd}
-          </Button>
-        </div>
-      </div>
 
       <div className="mb-5 flex items-center justify-center gap-3">
         <Button type="button" variant="ghost" size="icon" onClick={() => setSelectedDate((date) => addDays(date, -1))}>
@@ -1273,6 +1277,17 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
         </div>
       </section>
 
+
+      <div className="mb-5 grid grid-cols-2 gap-2 md:mb-6 md:flex md:justify-end" data-tour="trainee-nutrition-actions">
+        <Button variant="outline" className="gap-1.5" type="button" onClick={() => setShowAIMealPlan(true)}>
+          <Bot className="h-4 w-4" />
+          {messages.meals.aiSuggest}
+        </Button>
+        <Button type="button" onClick={() => setAddTo("snack")}>
+          <Plus className="h-4 w-4" />
+          {messages.meals.quickAdd}
+        </Button>
+      </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[1.55fr_1fr]">
         <div data-tour="trainee-nutrition-log">
@@ -1356,6 +1371,7 @@ export function MealsClient({ initialData }: { initialData?: MealsClientInitialD
           }}
           onCreateFood={handleCreateFood}
           onLookupFood={(query) => lookupFood.mutateAsync({ locale: locale === "en" ? "en" : "vi", query })}
+          onMealTypeChange={setAddTo}
         />
       ) : null}
 
