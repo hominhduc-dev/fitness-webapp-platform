@@ -76,6 +76,9 @@ export const queryKeys = {
   meals: {
     all: ["meals"] as const,
     nutritionDay: (dateKey: string) => ["meals", "nutrition-day", dateKey] as const,
+    nutritionInsight: (dateKey: string) => ["meals", "nutrition-insight", dateKey] as const,
+    /** Keyed by the week's Monday, so every day of a week shares one entry. */
+    nutritionWeek: (weekStartKey: string) => ["meals", "nutrition-week", weekStartKey] as const,
     foods: (options?: { category?: string; query?: string }) =>
       [
         "meals",
