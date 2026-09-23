@@ -136,6 +136,19 @@ enum DietType {
 enum AIGenerationType {
   workout_program
   meal_plan
+  nutrition_insight
+}
+
+enum NutrientKind {
+  macro_detail
+  mineral
+  vitamin
+}
+
+enum NutrientSource {
+  usda
+  ai
+  manual
 }
 
 enum AIGenerationStatus {
@@ -450,6 +463,8 @@ model Food {
   id            String         @id @default(uuid()) @db.Uuid
   slug          String         @unique
   name          String
+  /// English display name. Null falls back to `name`.
+  nameEn        String?
   category      FoodCategory
   brand         String?
   barcode       String?        @unique
@@ -480,6 +495,7 @@ model Food {
   reviewedById  String?        @db.Uuid
   reviewedBy    User?          @relation("FoodReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   mealItems     MealFoodItem[]
+  nutrients     FoodNutrient[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -488,6 +504,35 @@ model Food {
   @@index([reviewedById])
   @@index([category])
   @@index([name])
+}
+
+/// Catalog of tracked non-macro nutrients. Adding one is a row, not a column.
+model Nutrient {
+  code      String         @id
+  nameVi    String
+  nameEn    String
+  unit      String
+  kind      NutrientKind
+  /// "Stay under" nutrients (sodium, sugar, saturated fat) rather than "reach".
+  isLimit   Boolean        @default(false)
+  sortOrder Int
+  foods     FoodNutrient[]
+}
+
+/// Amount of one nutrient in one serving of a food (same basis as `Food.calories`).
+model FoodNutrient {
+  foodId       String         @db.Uuid
+  nutrientCode String
+  amount       Float
+  source       NutrientSource
+  /// Where the number came from, e.g. the USDA FoodData Central id.
+  sourceRef    String?
+  food         Food           @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  nutrient     Nutrient       @relation(fields: [nutrientCode], references: [code])
+  updatedAt    DateTime       @updatedAt
+
+  @@id([foodId, nutrientCode])
+  @@index([nutrientCode])
 }
 
 model Program {
@@ -813,6 +858,9 @@ model MealFoodItem {
   fiber            Float?
   sugar            Float?
   sodium           Float?
+  /// Snapshot of non-macro nutrients at log time, `{ code: amount }`, already
+  /// scaled to the logged portion. Null when the food had no nutrient data.
+  nutrients        Json?
   meal             Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
   food             Food     @relation(fields: [foodId], references: [id], onDelete: Restrict)
   createdAt        DateTime @default(now())

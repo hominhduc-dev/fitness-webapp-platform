@@ -9,6 +9,20 @@ function normalizeSlugPart(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+/**
+ * Lowercased, accent-free text for search, so "banh mi" finds "Bánh mì" —
+ * trainees on an English keyboard rarely type Vietnamese diacritics.
+ */
+function normalizeFoodSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function buildFoodSlug(name: string, scope: "system" | { userId: string }) {
   const normalizedName = normalizeSlugPart(name)
   return typeof scope === "string" ? `system-${normalizedName}` : `user-${scope.userId}-${normalizedName}`
@@ -68,4 +82,4 @@ function formatFoodQuantity(
   return input.amountValue === 1 ? label : `${roundNutrition(input.amountValue, 1)} × ${label}`
 }
 
-export { buildFoodSlug, formatFoodQuantity, parseServingLabel, roundNutrition }
+export { buildFoodSlug, formatFoodQuantity, normalizeFoodSearch, parseServingLabel, roundNutrition }
