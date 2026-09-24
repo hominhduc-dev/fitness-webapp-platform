@@ -359,6 +359,14 @@
   }
 }
 
+/* The mobile nav's glass lens stretching as it slides to another tab. */
+@keyframes nav-liquid-squish {
+  0% { transform: scale(1, 1); }
+  35% { transform: scale(1.16, 0.88); }
+  70% { transform: scale(0.97, 1.04); }
+  100% { transform: scale(1, 1); }
+}
+
 @keyframes skeleton-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -1080,6 +1088,15 @@ body {
 /* Space between the shell's page title and a page's first content. Every
    page inside the app shell starts with this instead of its own top padding,
    so the title sits the same distance from the body everywhere. */
+/* A soft glow on the week strips' day cards, so each day stands off the page.
+   Everything comes from --primary, so it follows the theme's accent; today's
+   card is filled with the accent instead and does not use this. */
+@utility day-card-glow {
+  /* A crisp accent border carries it; the glow is only a faint halo. */
+  border-color: color-mix(in srgb, var(--primary) 65%, var(--border));
+  box-shadow: 0 0 8px -3px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
 @utility pt-page {
   padding-top: 0.5rem;
 

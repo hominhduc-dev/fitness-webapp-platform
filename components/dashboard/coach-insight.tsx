@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles } from "lucide-react"
+import { Sparkles, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -44,42 +44,44 @@ export function CoachInsightCard() {
       { onSuccess: () => setAnswered(true) },
     )
 
+  const message = copy.recommendation(
+    insight.recommendation.action,
+    copy.muscleLabels[insight.muscleSlug as keyof typeof copy.muscleLabels] ?? insight.muscleSlug,
+  )
+
+  // Two rows: the label with a dismiss ✕, then the advice beside Apply — so the
+  // advice keeps nearly the full width and wraps to two lines at most on a phone.
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary-soft p-3 md:flex-row md:items-center md:gap-4 md:px-4 md:py-3">
-      <span className="hidden size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary md:flex">
-        <Sparkles className="size-5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="label-micro text-primary">{copy.coachInsight}</p>
-        <p className="mt-1 text-sm leading-6 text-foreground">
-          {copy.recommendation(
-            insight.recommendation.action,
-            copy.muscleLabels[insight.muscleSlug as keyof typeof copy.muscleLabels] ?? insight.muscleSlug,
-          )}
-        </p>
-        {answerRecommendation.error ? (
-          <p className="mt-2 text-sm text-destructive-text">{answerRecommendation.error.message}</p>
-        ) : null}
+    <section className="rounded-2xl border border-primary/20 bg-primary-soft px-3 py-2.5 md:px-4">
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="size-4 shrink-0 text-primary" aria-hidden="true" />
+        <p className="label-micro min-w-0 flex-1 truncate text-primary">{copy.coachInsight}</p>
+        <button
+          type="button"
+          aria-label={copy.dismiss}
+          title={copy.dismiss}
+          disabled={answerRecommendation.isPending}
+          onClick={() => answer("dismissed")}
+          // A 44px target on touch, pulled back into the row so it stays short.
+          className="-my-1.5 -mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground disabled:opacity-50 pointer-coarse:-my-2.5 pointer-coarse:-mr-2.5 pointer-coarse:size-11"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
       </div>
-      <div className="flex shrink-0 gap-2">
+      <div className="mt-1 flex items-center gap-3">
+        <p className="min-w-0 flex-1 text-sm leading-5 text-foreground">{message}</p>
         <Button
           type="button"
-          size="sm"
           disabled={answerRecommendation.isPending}
           onClick={() => answer("accepted")}
+          className="h-9 shrink-0 rounded-xl px-3.5"
         >
           {copy.accept}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={answerRecommendation.isPending}
-          onClick={() => answer("dismissed")}
-        >
-          {copy.dismiss}
-        </Button>
       </div>
+      {answerRecommendation.error ? (
+        <p className="mt-1.5 text-xs text-destructive-text">{answerRecommendation.error.message}</p>
+      ) : null}
     </section>
   )
 }
