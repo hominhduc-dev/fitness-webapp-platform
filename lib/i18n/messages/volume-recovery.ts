@@ -27,11 +27,11 @@ const checkInOptionsEn = {
     { value: 5, label: "Exhausted", description: "Running on empty" },
   ] satisfies CheckInOption[],
   sleepQuality: [
-    { value: 5, label: "Great", description: "Deep sleep, woke up refreshed" },
-    { value: 4, label: "Good", description: "Solid night, mostly rested" },
-    { value: 3, label: "Okay", description: "Enough sleep but still groggy" },
-    { value: 2, label: "Poor", description: "Restless, kept waking up" },
-    { value: 1, label: "Very poor", description: "Barely slept" },
+    { value: 5, label: "Great", description: "8–9 hours · Deep sleep, woke up refreshed" },
+    { value: 4, label: "Good", description: "7–8 hours · Solid night, mostly rested" },
+    { value: 3, label: "Okay", description: "6–7 hours · Enough sleep but still groggy" },
+    { value: 2, label: "Poor", description: "5–6 hours · Restless, kept waking up" },
+    { value: 1, label: "Very poor", description: "Under 5 hours · Barely slept" },
   ] satisfies CheckInOption[],
   soreness: [
     { value: 0, label: "No soreness", description: "Body feels fresh" },
@@ -58,11 +58,11 @@ const checkInOptionsVi = {
     { value: 5, label: "Kiệt sức", description: "Cạn năng lượng" },
   ] satisfies CheckInOption[],
   sleepQuality: [
-    { value: 5, label: "Rất tốt", description: "Ngủ sâu, dậy thấy khỏe" },
-    { value: 4, label: "Tốt", description: "Ngủ ổn, phần lớn thoải mái" },
-    { value: 3, label: "Tạm", description: "Ngủ đủ nhưng vẫn uể oải" },
-    { value: 2, label: "Kém", description: "Trằn trọc, tỉnh giấc nhiều lần" },
-    { value: 1, label: "Rất kém", description: "Gần như không ngủ được" },
+    { value: 5, label: "Rất tốt", description: "8–9 tiếng · Ngủ sâu, dậy thấy khỏe" },
+    { value: 4, label: "Tốt", description: "7–8 tiếng · Ngủ ổn, phần lớn thoải mái" },
+    { value: 3, label: "Tạm", description: "6–7 tiếng · Ngủ đủ nhưng vẫn uể oải" },
+    { value: 2, label: "Kém", description: "5–6 tiếng · Trằn trọc, tỉnh giấc nhiều lần" },
+    { value: 1, label: "Rất kém", description: "Dưới 5 tiếng · Gần như không ngủ được" },
   ] satisfies CheckInOption[],
   soreness: [
     { value: 0, label: "Không đau", description: "Cơ thể nhẹ nhõm" },
