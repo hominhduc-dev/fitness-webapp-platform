@@ -359,6 +359,14 @@
   }
 }
 
+/* The mobile nav's glass lens stretching as it slides to another tab. */
+@keyframes nav-liquid-squish {
+  0% { transform: scale(1, 1); }
+  35% { transform: scale(1.16, 0.88); }
+  70% { transform: scale(0.97, 1.04); }
+  100% { transform: scale(1, 1); }
+}
+
 @keyframes skeleton-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
