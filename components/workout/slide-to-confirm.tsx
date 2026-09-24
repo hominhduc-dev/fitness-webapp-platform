@@ -113,7 +113,7 @@ function SlideToConfirm({
         // the thumb and the stretch already slid take the theme's accent;
         // disabled, both go muted and the label says what unlocks it, so the
         // bar never reads as broken.
-        "lg-slide-track relative h-11 w-full select-none overflow-hidden rounded-md border",
+        "lg-slide-track relative h-14 w-full select-none overflow-hidden rounded-md border",
         disabled ? "text-muted-foreground" : "text-foreground",
         className,
       )}
@@ -126,7 +126,7 @@ function SlideToConfirm({
             !dragging && "transition-[width] duration-200 ease-out",
           )}
           // Up to the thumb's trailing edge: 4px inset + the thumb itself.
-          style={{ width: `calc(${offset}px + 2.75rem)` }}
+          style={{ width: `calc(${offset}px + 3.5rem)` }}
         />
       ) : null}
       <span
