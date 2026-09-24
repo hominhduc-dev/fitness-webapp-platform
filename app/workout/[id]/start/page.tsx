@@ -1196,6 +1196,7 @@ function WorkoutSession() {
     0,
   )
   const completedExercises = exercises.filter(isExerciseDone).length
+  const allExercisesLogged = exercises.length > 0 && completedExercises === exercises.length
   const volume = exercises.reduce(
     (acc, ex) =>
       acc +
@@ -1687,7 +1688,10 @@ function WorkoutSession() {
   return (
     <div className="min-h-[100dvh] overflow-x-clip bg-background">
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-3 pb-2 sm:px-4 md:px-10 md:pt-8">
+      <main className={cn(
+        "mx-auto w-full max-w-[880px] min-w-0 px-3 pt-3 sm:px-4 md:px-10 md:pt-8",
+        allExercisesLogged ? "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-2" : "pb-2",
+      )}>
         {/* Header: date and title on the left, cancel beside them on mobile
             (desktop cancels from the action bar), so it takes one block. On
             phones it stays pinned while scrolling, full-bleed frosted glass
@@ -1791,11 +1795,15 @@ function WorkoutSession() {
           {messages.workoutPage.addExercise}
         </Button>
 
-        {/* Bottom action bar: stays pinned to the bottom of the screen while
-            scrolling, so finishing never needs a scroll to the end. It has no
-            background of its own, so taps around the buttons reach the cards
-            underneath. */}
-        <div className="pointer-events-none sticky bottom-0 z-30 mt-6 flex gap-2 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:gap-3 md:pb-4">
+        {/* The mobile finish action appears only once every exercise has all
+            its sets logged. Fixed positioning keeps it next to the iPhone's
+            safe area even while scrolling; the transparent wrapper lets taps
+            outside the control reach the workout underneath. */}
+        <div className={cn(
+          "pointer-events-none z-30 gap-2",
+          allExercisesLogged ? "fixed inset-x-0 bottom-0 flex px-3 pb-[calc(0.25rem+env(safe-area-inset-bottom))] sm:px-4" : "hidden",
+          "md:sticky md:inset-auto md:mt-6 md:flex md:gap-3 md:px-0 md:pt-3 md:pb-4",
+        )}>
           {/* Spacer (desktop) */}
           <div className="hidden md:flex flex-1" />
 
@@ -1808,29 +1816,26 @@ function WorkoutSession() {
             {messages.common.cancel}
           </Button>
 
-          {/* Finish workout: slide on phones so a stray tap mid-set cannot end
-              the session; a plain button on desktop. */}
-          <div data-tour="session-finish" className="pointer-events-auto w-full md:w-auto">
-            <SlideToConfirm
-              className="md:hidden"
-              label={messages.workoutPage.slideToFinish}
-              actionLabel={messages.workoutPage.finishWorkout}
-              onConfirm={handleFinishWorkout}
-              disabled={completedSets === 0}
-              disabledLabel={messages.workoutPage.finishNeedsSet}
-              busy={isSaving}
-              busyLabel={messages.workoutPage.saving}
-            />
-            <Button
-              // Opaque even when disabled: with no bar background, the default
-              // half-transparent disabled look would let the cards show through.
-              className="hidden bg-foreground font-semibold text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 md:inline-flex"
-              onClick={handleFinishWorkout}
-              disabled={completedSets === 0 || isSaving}
-            >
-              {isSaving ? messages.workoutPage.saving : messages.workoutPage.finishWorkout}
-            </Button>
-          </div>
+          {/* Finish workout: slide on phones, button on desktop. */}
+          {allExercisesLogged ? (
+            <div data-tour="session-finish" className="pointer-events-auto w-full md:w-auto">
+              <SlideToConfirm
+                className="md:hidden"
+                label={messages.workoutPage.slideToFinish}
+                actionLabel={messages.workoutPage.finishWorkout}
+                onConfirm={handleFinishWorkout}
+                busy={isSaving}
+                busyLabel={messages.workoutPage.saving}
+              />
+              <Button
+                className="hidden bg-foreground font-semibold text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 md:inline-flex"
+                onClick={handleFinishWorkout}
+                disabled={isSaving}
+              >
+                {isSaving ? messages.workoutPage.saving : messages.workoutPage.finishWorkout}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </main>
 
@@ -1839,6 +1844,7 @@ function WorkoutSession() {
         event={restEvent}
         onDismiss={() => setRestEvent(null)}
         defaultDuration={DEFAULT_REST_SECONDS}
+        finishVisible={allExercisesLogged}
       />
 
       {/* ── Finish with exercises left ────────────────────────────────────── */}
