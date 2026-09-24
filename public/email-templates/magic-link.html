@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to YeahBuddy Fitness</title>
+  <title>Your YeahBuddy verification code</title>
 </head>
 
 <!--
-  Supabase Auth "Confirm sign up" email. Self-hosted Auth fetches this file via
-  GOTRUE_MAILER_TEMPLATES_CONFIRMATION; on Supabase Cloud paste it into
-  Authentication → Emails → Confirm sign up. {{ .ConfirmationURL }} is filled
+  Supabase Auth "Magic link or OTP" email. Self-hosted Auth fetches this file via
+  GOTRUE_MAILER_TEMPLATES_MAGIC_LINK; on Supabase Cloud paste it into
+  Authentication → Emails → Magic link or OTP. Template variables are filled
   in by Auth. Images must be absolute public URLs.
 -->
 <body style="
@@ -22,7 +22,7 @@
 
   <!-- Inbox preview text -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-    Confirm your email to activate your YeahBuddy Fitness account.
+    Your YeahBuddy verification code is inside.
   </div>
 
   <table
@@ -84,7 +84,7 @@
                 font-weight:700;
                 color:#111827;
               ">
-                Welcome to YeahBuddy! 💪
+                Your verification code
               </h1>
 
               <p style="
@@ -93,8 +93,8 @@
                 line-height:1.7;
                 color:#4b5563;
               ">
-                You're almost ready to start your fitness journey with
-                YeahBuddy Fitness.
+                Use the code below to verify it's you. You'll need it to
+                set a new password if you don't remember your current one.
               </p>
 
               <p style="
@@ -103,11 +103,10 @@
                 line-height:1.7;
                 color:#4b5563;
               ">
-                Confirm your email address to activate your account and
-                start tracking your workouts, nutrition, and progress.
+                Type the code into YeahBuddy Fitness to continue.
               </p>
 
-              <!-- CONFIRM BUTTON -->
+              <!-- ONE-TIME CODE -->
               <table
                 cellpadding="0"
                 cellspacing="0"
@@ -118,46 +117,32 @@
                 <tr>
                   <td
                     align="center"
-                    bgcolor="#155EEF"
-                    style="border-radius:10px;"
+                    style="
+                      padding:16px 28px;
+                      background-color:#f0f5ff;
+                      border:1px dashed #155EEF;
+                      border-radius:12px;
+                      font-family:'Courier New',Courier,monospace;
+                      font-size:32px;
+                      line-height:40px;
+                      font-weight:700;
+                      letter-spacing:8px;
+                      color:#111827;
+                    "
                   >
-                    <a
-                      href="{{ .ConfirmationURL }}"
-                      target="_blank"
-                      style="
-                        display:inline-block;
-                        padding:14px 30px;
-                        font-size:15px;
-                        font-weight:700;
-                        line-height:20px;
-                        color:#ffffff;
-                        text-decoration:none;
-                        background-color:#155EEF;
-                        border-radius:10px;
-                      "
-                    >
-                      Confirm My Account
-                    </a>
+                    {{ .Token }}
                   </td>
                 </tr>
               </table>
 
-              <!-- FALLBACK LINK -->
               <p style="
-                margin:24px 0 0 0;
+                margin:16px 0 0 0;
                 font-size:13px;
                 line-height:1.6;
                 color:#6b7280;
               ">
-                Button not working? Copy and paste this link into your browser:
-              </p>
-              <p style="
-                margin:6px 0 0 0;
-                font-size:12px;
-                line-height:1.5;
-                word-break:break-all;
-              ">
-                <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#155EEF;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                Enter this code in the app. Never share it with anyone —
+                YeahBuddy will never ask you for it.
               </p>
 
               <!-- SECURITY NOTE -->
@@ -167,8 +152,9 @@
                 line-height:1.6;
                 color:#9ca3af;
               ">
-                This link expires in 15 minutes. If you didn't create a
-                YeahBuddy Fitness account, you can safely ignore this email.
+                This code expires in 15 minutes and can be used once.
+                If you didn't request it, you can safely ignore this email —
+                your password stays the same.
               </p>
 
             </td>

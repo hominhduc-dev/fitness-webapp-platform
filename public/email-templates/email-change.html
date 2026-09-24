@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to YeahBuddy Fitness</title>
+  <title>Confirm your new email address</title>
 </head>
 
 <!--
-  Supabase Auth "Confirm sign up" email. Self-hosted Auth fetches this file via
-  GOTRUE_MAILER_TEMPLATES_CONFIRMATION; on Supabase Cloud paste it into
-  Authentication → Emails → Confirm sign up. {{ .ConfirmationURL }} is filled
+  Supabase Auth "Change email address" email. Self-hosted Auth fetches this file via
+  GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE; on Supabase Cloud paste it into
+  Authentication → Emails → Change email address. Template variables are filled
   in by Auth. Images must be absolute public URLs.
 -->
 <body style="
@@ -22,7 +22,7 @@
 
   <!-- Inbox preview text -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-    Confirm your email to activate your YeahBuddy Fitness account.
+    Confirm the new email address for your YeahBuddy account.
   </div>
 
   <table
@@ -84,7 +84,7 @@
                 font-weight:700;
                 color:#111827;
               ">
-                Welcome to YeahBuddy! 💪
+                Confirm your email change
               </h1>
 
               <p style="
@@ -93,8 +93,9 @@
                 line-height:1.7;
                 color:#4b5563;
               ">
-                You're almost ready to start your fitness journey with
-                YeahBuddy Fitness.
+                We received a request to change the email address of your
+                YeahBuddy Fitness account from <strong>{{ .Email }}</strong>
+                to <strong>{{ .NewEmail }}</strong>.
               </p>
 
               <p style="
@@ -103,11 +104,11 @@
                 line-height:1.7;
                 color:#4b5563;
               ">
-                Confirm your email address to activate your account and
-                start tracking your workouts, nutrition, and progress.
+                Confirm the change to keep signing in with your new
+                address.
               </p>
 
-              <!-- CONFIRM BUTTON -->
+              <!-- CONFIRM EMAIL CHANGE BUTTON -->
               <table
                 cellpadding="0"
                 cellspacing="0"
@@ -136,7 +137,7 @@
                         border-radius:10px;
                       "
                     >
-                      Confirm My Account
+                      Confirm Email Change
                     </a>
                   </td>
                 </tr>
@@ -167,8 +168,9 @@
                 line-height:1.6;
                 color:#9ca3af;
               ">
-                This link expires in 15 minutes. If you didn't create a
-                YeahBuddy Fitness account, you can safely ignore this email.
+                This link expires in 15 minutes. If you didn't request this
+                change, ignore this email and your address stays the same —
+                and consider changing your password.
               </p>
 
             </td>

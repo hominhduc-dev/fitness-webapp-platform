@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to YeahBuddy Fitness</title>
+  <title>You're invited to YeahBuddy Fitness</title>
 </head>
 
 <!--
-  Supabase Auth "Confirm sign up" email. Self-hosted Auth fetches this file via
-  GOTRUE_MAILER_TEMPLATES_CONFIRMATION; on Supabase Cloud paste it into
-  Authentication → Emails → Confirm sign up. {{ .ConfirmationURL }} is filled
+  Supabase Auth "Invite user" email. Self-hosted Auth fetches this file via
+  GOTRUE_MAILER_TEMPLATES_INVITE; on Supabase Cloud paste it into
+  Authentication → Emails → Invite user. Template variables are filled
   in by Auth. Images must be absolute public URLs.
 -->
 <body style="
@@ -22,7 +22,7 @@
 
   <!-- Inbox preview text -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-    Confirm your email to activate your YeahBuddy Fitness account.
+    You've been invited to join YeahBuddy Fitness.
   </div>
 
   <table
@@ -84,7 +84,7 @@
                 font-weight:700;
                 color:#111827;
               ">
-                Welcome to YeahBuddy! 💪
+                You're invited! 🎉
               </h1>
 
               <p style="
@@ -93,8 +93,8 @@
                 line-height:1.7;
                 color:#4b5563;
               ">
-                You're almost ready to start your fitness journey with
-                YeahBuddy Fitness.
+                You've been invited to join YeahBuddy Fitness — the place to
+                track your training, nutrition, and progress.
               </p>
 
               <p style="
@@ -103,11 +103,11 @@
                 line-height:1.7;
                 color:#4b5563;
               ">
-                Confirm your email address to activate your account and
-                start tracking your workouts, nutrition, and progress.
+                Accept the invitation to set up your account and get
+                started.
               </p>
 
-              <!-- CONFIRM BUTTON -->
+              <!-- ACCEPT INVITATION BUTTON -->
               <table
                 cellpadding="0"
                 cellspacing="0"
@@ -136,7 +136,7 @@
                         border-radius:10px;
                       "
                     >
-                      Confirm My Account
+                      Accept Invitation
                     </a>
                   </td>
                 </tr>
@@ -167,8 +167,8 @@
                 line-height:1.6;
                 color:#9ca3af;
               ">
-                This link expires in 15 minutes. If you didn't create a
-                YeahBuddy Fitness account, you can safely ignore this email.
+                This invitation expires in 15 minutes. If you weren't
+                expecting it, you can safely ignore this email.
               </p>
 
             </td>
