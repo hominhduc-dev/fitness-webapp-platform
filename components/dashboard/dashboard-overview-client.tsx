@@ -4,9 +4,9 @@ import { useState, useSyncExternalStore } from "react"
 
 import { AIChatBubble } from "@/components/ai/chat-bubble"
 import { WorkoutCelebration } from "@/components/workout/workout-celebration"
-import { CheckInPrompt } from "./check-in-prompt"
 import { NutritionSummary } from "./nutrition-summary"
 import { QuickActions } from "./quick-actions"
+import { TodayTasks } from "./today-tasks"
 import { ReadinessCard } from "./readiness-card"
 import { RecentActivity } from "./recent-activity"
 import { TodayWorkout } from "./today-workout"
@@ -113,7 +113,7 @@ export function DashboardOverviewClient({
         />
       </div>
 
-      <CheckInPrompt />
+      <TodayTasks />
 
       <div data-tour="dashboard-quick-actions"><QuickActions onOpenAIChat={() => setAIChatOpen(true)} /></div>
 
