@@ -16,6 +16,8 @@ interface SlideToConfirmProps {
   actionLabel: string
   onConfirm: () => void
   disabled?: boolean
+  /** Shown instead of `label` while disabled, saying what unlocks the slide. */
+  disabledLabel?: string
   /** While true the thumb stays at the end and `busyLabel` replaces the label. */
   busy?: boolean
   busyLabel?: string
@@ -28,7 +30,16 @@ interface SlideToConfirmProps {
  * back. The thumb is a real button, so keyboard and screen-reader users
  * confirm by activating it instead of dragging.
  */
-function SlideToConfirm({ label, actionLabel, onConfirm, disabled, busy, busyLabel, className }: SlideToConfirmProps) {
+function SlideToConfirm({
+  label,
+  actionLabel,
+  onConfirm,
+  disabled,
+  disabledLabel,
+  busy,
+  busyLabel,
+  className,
+}: SlideToConfirmProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const thumbRef = useRef<HTMLButtonElement | null>(null)
   const drag = useRef<{ pointerId: number; startX: number; max: number } | null>(null)
@@ -98,11 +109,12 @@ function SlideToConfirm({ label, actionLabel, onConfirm, disabled, busy, busyLab
     <div
       ref={trackRef}
       className={cn(
-        // Enabled, the track is see-through glass (.lg-slide-track in
-        // globals.css) with the theme's accent on the thumb and the stretch
-        // already slid; disabled, a plain muted bar.
-        "relative h-11 w-full select-none overflow-hidden rounded-md border",
-        disabled ? "border-border bg-muted text-muted-foreground" : "lg-slide-track text-foreground",
+        // Always see-through glass (.lg-slide-track in globals.css). Enabled,
+        // the thumb and the stretch already slid take the theme's accent;
+        // disabled, both go muted and the label says what unlocks it, so the
+        // bar never reads as broken.
+        "lg-slide-track relative h-11 w-full select-none overflow-hidden rounded-md border",
+        disabled ? "text-muted-foreground" : "text-foreground",
         className,
       )}
     >
@@ -127,6 +139,8 @@ function SlideToConfirm({ label, actionLabel, onConfirm, disabled, busy, busyLab
             <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             {busyLabel ?? label}
           </>
+        ) : disabled && disabledLabel ? (
+          disabledLabel
         ) : (
           label
         )}
@@ -134,7 +148,8 @@ function SlideToConfirm({ label, actionLabel, onConfirm, disabled, busy, busyLab
       <button
         ref={thumbRef}
         type="button"
-        aria-label={actionLabel}
+        // While locked, say what unlocks it rather than naming an action that will not happen.
+        aria-label={disabled && disabledLabel ? disabledLabel : actionLabel}
         disabled={disabled || busy}
         onClick={(event) => {
           // Only keyboard activation (Enter/Space, reported as detail 0)
@@ -147,7 +162,7 @@ function SlideToConfirm({ label, actionLabel, onConfirm, disabled, busy, busyLab
         onPointerCancel={handlePointerEnd}
         className={cn(
           "absolute top-1 bottom-1 left-1 z-[2] flex aspect-square touch-none items-center justify-center rounded-[calc(var(--radius-md)-2px)]",
-          disabled ? "bg-background text-muted-foreground" : "bg-primary text-primary-foreground",
+          disabled ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground",
           !dragging && "transition-transform duration-200 ease-out",
         )}
         style={{ transform: `translateX(${offset}px)` }}
