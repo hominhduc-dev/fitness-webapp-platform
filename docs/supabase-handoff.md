@@ -107,6 +107,32 @@ Mọi người phải đăng nhập lại một lần.
 - Theo dõi Usage → Egress trên Supabase Dashboard trong vài ngày đầu.
 - Template email nằm trong `public/email-templates/`. Bản tự host đọc chúng qua `MAILER_TEMPLATES_*` trong `~/supabase/.env`, từ bucket công khai `email-templates` trong Storage tự host (`https://supabase.hominhduc.cloud/storage/v1/object/public/email-templates/…`). Mỗi lần sửa file trong repo, phải tải lại lên bucket này (upsert) rồi khởi động lại auth. Trên Cloud, dán nội dung vào Authentication → Emails, và kiểm tra ảnh không trỏ vào Storage của Cloud.
 
+## Dev local
+
+Kể từ ngày 24/09, môi trường dev ở máy local cũng trỏ về Supabase trên VPS.
+- Auth và Storage dùng `https://supabase.hominhduc.cloud`. `ADDITIONAL_REDIRECT_URLS` đã có sẵn `http://localhost:3000/**`.
+- DB đi qua SSH tunnel: cổng `127.0.0.1:55432` ở máy local nối tới pooler trên VPS (`127.0.0.1:5432`). Pooler chỉ nghe ở 127.0.0.1 nên không truy cập được thẳng từ internet.
+
+**Chạy dev:** chạy `npm run dev:backend` như bình thường. `scripts/dev-backend.mjs` sẽ:
+- đọc `DEV_DB_SSH_TUNNEL` trong `backend/.env`, mở tunnel và chờ cổng sẵn sàng rồi mới chạy backend;
+- đóng tunnel khi bạn dừng backend;
+- dùng lại tunnel nếu cổng đã có sẵn một tunnel đang mở;
+- không mở tunnel nếu `backend/.env` không có biến này (ví dụ khi đang trỏ về Cloud).
+
+Tunnel dùng SSH key của máy bạn tới `duc@187.77.133.167`.
+
+**Đổi env local:** chạy trong Git Bash ở thư mục repo.
+```bash
+scripts/supabase-switch/local-env.sh vps     # trỏ về VPS: key và mật khẩu lấy thẳng từ ~/supabase/.env, không in ra
+scripts/supabase-switch/local-env.sh cloud   # trả lại bản Cloud đã lưu
+```
+Lần đầu chạy `vps`, script lưu bản cũ (bản trỏ về Cloud) vào `~/.config/yeahbuddy/local-cloud/`, nằm ngoài repo. **Khi quay về Cloud, nhớ chạy `local-env.sh cloud`.**
+
+**Cẩn thận:** ở chế độ này, local ghi thẳng vào **dữ liệu production**.
+- Không chạy `prisma migrate dev`, `prisma db push`, các script seed (`seed:foods`…) hay các script sync ở local.
+- Migration mới đi đường thường: tạo file migration bằng tay → merge vào `main` → CI chạy `migrate deploy` trên VPS.
+- Nếu muốn tách hẳn, tạo một database dev riêng trong Postgres tự host rồi trỏ `DATABASE_URL` vào đó.
+
 ## Rollback
 
 Nếu Cloud có vấn đề sau khi chuyển:
