@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your YeahBuddy verification code</title>
+</head>
+
+<!--
+  Supabase Auth "Magic link or OTP" email. Self-hosted Auth fetches this file via
+  GOTRUE_MAILER_TEMPLATES_MAGIC_LINK; on Supabase Cloud paste it into
+  Authentication → Emails → Magic link or OTP. Template variables are filled
+  in by Auth. Images must be absolute public URLs.
+-->
+<body style="
+  margin:0;
+  padding:0;
+  background-color:#f5f7fa;
+  font-family:Arial,Helvetica,sans-serif;
+  color:#111827;
+">
+
+  <!-- Inbox preview text -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+    Your YeahBuddy verification code is inside.
+  </div>
+
+  <table
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    role="presentation"
+    style="background-color:#f5f7fa;"
+  >
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <!-- EMAIL CARD -->
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          role="presentation"
+          style="
+            max-width:560px;
+            background-color:#ffffff;
+            border:1px solid #e5e7eb;
+            border-radius:16px;
+          "
+        >
+
+          <!-- LOGO -->
+          <tr>
+            <td align="center" style="padding:36px 36px 18px 36px;">
+              <img
+                src="https://www.hominhduc.me/header-logo.png"
+                alt="YeahBuddy Fitness"
+                width="220"
+                style="
+                  display:block;
+                  width:220px;
+                  max-width:100%;
+                  height:auto;
+                  margin:0 auto;
+                  border:0;
+                "
+              />
+            </td>
+          </tr>
+
+          <!-- CONTENT -->
+          <tr>
+            <td
+              align="center"
+              style="padding:12px 40px 36px 40px;"
+            >
+
+              <h1 style="
+                margin:0 0 14px 0;
+                font-size:26px;
+                line-height:1.3;
+                font-weight:700;
+                color:#111827;
+              ">
+                Your verification code
+              </h1>
+
+              <p style="
+                margin:0 0 10px 0;
+                font-size:15px;
+                line-height:1.7;
+                color:#4b5563;
+              ">
+                Use the code below to verify it's you. You'll need it to
+                set a new password if you don't remember your current one.
+              </p>
+
+              <p style="
+                margin:0 0 28px 0;
+                font-size:15px;
+                line-height:1.7;
+                color:#4b5563;
+              ">
+                Type the code into YeahBuddy Fitness to continue.
+              </p>
+
+              <!-- ONE-TIME CODE -->
+              <table
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                role="presentation"
+                align="center"
+              >
+                <tr>
+                  <td
+                    align="center"
+                    style="
+                      padding:16px 28px;
+                      background-color:#f0f5ff;
+                      border:1px dashed #155EEF;
+                      border-radius:12px;
+                      font-family:'Courier New',Courier,monospace;
+                      font-size:32px;
+                      line-height:40px;
+                      font-weight:700;
+                      letter-spacing:8px;
+                      color:#111827;
+                    "
+                  >
+                    {{ .Token }}
+                  </td>
+                </tr>
+              </table>
+
+              <p style="
+                margin:16px 0 0 0;
+                font-size:13px;
+                line-height:1.6;
+                color:#6b7280;
+              ">
+                Enter this code in the app. Never share it with anyone —
+                YeahBuddy will never ask you for it.
+              </p>
+
+              <!-- SECURITY NOTE -->
+              <p style="
+                margin:28px 0 0 0;
+                font-size:13px;
+                line-height:1.6;
+                color:#9ca3af;
+              ">
+                This code expires in 24 hours and can be used once.
+                If you didn't request it, you can safely ignore this email —
+                your password stays the same.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td
+              align="center"
+              style="
+                border-top:1px solid #f0f0f0;
+                padding:22px 36px;
+              "
+            >
+
+              <p style="
+                margin:0 0 5px 0;
+                font-size:12px;
+                color:#9ca3af;
+              ">
+                © YeahBuddy Fitness
+              </p>
+
+              <p style="
+                margin:0;
+                font-size:12px;
+                font-weight:600;
+                color:#6b7280;
+              ">
+                Train. Track. Progress.
+              </p>
+
+            </td>
+          </tr>
+
+        </table>
+        <!-- /EMAIL CARD -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
