@@ -55,4 +55,20 @@ describe("SlideToConfirm", () => {
     fireEvent.click(thumb, { detail: 0 })
     expect(onConfirm).not.toHaveBeenCalled()
   })
+
+  it("says what unlocks it while disabled", () => {
+    const onConfirm = vi.fn()
+    render(
+      <SlideToConfirm
+        label="Slide to finish"
+        actionLabel="Finish workout"
+        disabledLabel="Log a set to finish"
+        onConfirm={onConfirm}
+        disabled
+      />,
+    )
+    expect(screen.getByText("Log a set to finish")).toBeInTheDocument()
+    expect(screen.queryByText("Slide to finish")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Log a set to finish" })).toBeDisabled()
+  })
 })

@@ -1810,6 +1810,7 @@ function WorkoutSession() {
               actionLabel={messages.workoutPage.finishWorkout}
               onConfirm={handleFinishWorkout}
               disabled={completedSets === 0}
+              disabledLabel={messages.workoutPage.finishNeedsSet}
               busy={isSaving}
               busyLabel={messages.workoutPage.saving}
             />
