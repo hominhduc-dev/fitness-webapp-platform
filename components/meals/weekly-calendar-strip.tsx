@@ -1,11 +1,13 @@
 "use client"
 
 import { addDays, format, isSameDay, startOfWeek } from "date-fns"
+import { Check } from "lucide-react"
 import { enUS, vi } from "date-fns/locale"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useNutritionWeek } from "@/lib/queries/meals"
 import { cn } from "@/lib/utils"
+import { WEEK_STRIP_DAY_CLASS, WEEK_STRIP_GRID_CLASS } from "@/components/layout/week-strip-layout"
 
 const RING_RADIUS = 16
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
@@ -29,7 +31,7 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
   const today = new Date()
 
   return (
-    <div className="grid grid-cols-7 gap-1" role="group" aria-label={format(weekStart, "'Week of' dd/MM", { locale: dateLocale })}>
+    <div className={WEEK_STRIP_GRID_CLASS} role="group" aria-label={format(weekStart, "'Week of' dd/MM", { locale: dateLocale })}>
       {Array.from({ length: 7 }, (_, index) => {
         const day = addDays(weekStart, index)
         const calories = caloriesByDate.get(toDateKey(day)) ?? 0
@@ -37,6 +39,8 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
         const selected = isSameDay(day, selectedDate)
         const isToday = isSameDay(day, today)
         const over = share > 1.1
+        // Goal met without overshooting it: the ring turns green and gets a tick.
+        const reached = share >= 1 && !over
 
         return (
           <button
@@ -44,7 +48,9 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
             aria-current={isToday ? "date" : undefined}
             aria-label={format(day, "EEEE dd/MM", { locale: dateLocale })}
             aria-pressed={selected}
-            className="flex flex-col items-center gap-1.5 rounded-xl py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40"
+            // Same frame as Home's week strip, so the strip does not shift
+            // between the two pages; the ring and letters keep their own styling.
+            className={cn(WEEK_STRIP_DAY_CLASS, "day-card-glow outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40")}
             type="button"
             onClick={() => onSelect(day)}
           >
@@ -52,7 +58,8 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
             <span className={cn("text-sm", selected ? "font-bold text-foreground" : "font-medium text-muted-foreground")}>
               {format(day, "EEEEE", { locale: dateLocale })}
             </span>
-            <svg className="size-9 -rotate-90" viewBox="0 0 40 40" aria-hidden="true">
+            <span className="relative flex size-7 items-center justify-center">
+              <svg className="size-7 -rotate-90" viewBox="0 0 40 40" aria-hidden="true">
               <circle
                 className={selected && calories === 0 ? "text-foreground" : "text-muted-foreground/45"}
                 cx="20"
@@ -65,7 +72,7 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
               />
               {share > 0 ? (
                 <circle
-                  className={over ? "text-warning-text" : "text-primary"}
+                  className={over ? "text-warning-text" : reached ? "text-success-text" : "text-primary"}
                   cx="20"
                   cy="20"
                   fill="none"
@@ -76,7 +83,9 @@ export function WeeklyCalendarStrip({ onSelect, selectedDate }: { onSelect: (dat
                   strokeWidth="3"
                 />
               ) : null}
-            </svg>
+              </svg>
+              {reached ? <Check className="absolute size-3.5 text-success-text" strokeWidth={3} aria-hidden="true" /> : null}
+            </span>
           </button>
         )
       })}

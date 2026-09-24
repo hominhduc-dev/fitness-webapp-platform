@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { shortWeekday } from "@/lib/i18n/weekday"
 
 const subscribeNever = () => () => {}
 
@@ -102,7 +103,7 @@ export function WeekStrip({ getDayPlan }: { getDayPlan: (date: Date) => WeekDayP
                 CIRCLE_CLASS_NAME,
                 isToday
                   ? "border-primary bg-primary text-primary-foreground shadow-[0_10px_28px_-12px_var(--primary)]"
-                  : "border-border bg-card text-foreground hover:border-primary/30 hover:bg-surface-hover",
+                  : "day-card-glow bg-card text-foreground hover:bg-surface-hover",
               )}
             >
               <span
@@ -124,7 +125,7 @@ export function WeekStrip({ getDayPlan }: { getDayPlan: (date: Date) => WeekDayP
                   isToday ? "text-primary-foreground/85" : "text-muted-foreground",
                 )}
               >
-                {date.toLocaleDateString(dateLocale, { weekday: "short" })}
+                {shortWeekday(date, dateLocale)}
               </span>
               <span className="font-mono text-lg font-semibold leading-none tnum md:text-xl">{date.getDate()}</span>
             </Link>

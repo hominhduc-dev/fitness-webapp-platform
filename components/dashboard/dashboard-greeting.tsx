@@ -9,6 +9,8 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { fetchDashboard } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
+import { WEEK_STRIP_DAY_CLASS, WEEK_STRIP_GRID_CLASS } from "@/components/layout/week-strip-layout"
+import { shortWeekday } from "@/lib/i18n/weekday"
 
 type DayPeriod = "morning" | "afternoon" | "evening"
 
@@ -47,7 +49,7 @@ function mobileWeek(today: string | null, locale: string) {
     return {
       date,
       isToday: date.getTime() === current.getTime(),
-      weekday: date.toLocaleDateString(locale, { weekday: "short" }),
+      weekday: shortWeekday(date, locale),
     }
   })
 }
@@ -129,7 +131,7 @@ export function DashboardGreeting({
             greeting as every other page's content sits under its title. */}
         <div aria-hidden="true" className="h-[calc(3.7rem+env(safe-area-inset-top))]" />
 
-        <nav aria-label={copy.thisWeekDays} className="grid grid-cols-7 gap-1.5">
+        <nav aria-label={copy.thisWeekDays} className={WEEK_STRIP_GRID_CLASS}>
           {(currentWeek ?? Array.from({ length: 7 }, () => null)).map((day, index) => (
             (() => {
               const entry = day
@@ -148,10 +150,11 @@ export function DashboardGreeting({
                   href="/schedule"
                   aria-current={day?.isToday ? "date" : undefined}
                   className={cn(
-                    "relative flex min-h-[4.8rem] flex-col items-center justify-center gap-1.5 rounded-[1.15rem] border px-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    WEEK_STRIP_DAY_CLASS,
+                    "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     day?.isToday
                       ? "border-primary bg-primary text-primary-foreground shadow-[0_12px_28px_-14px_var(--primary)]"
-                      : "border-border/70 text-muted-foreground hover:border-primary/40 hover:bg-muted/50 hover:text-foreground",
+                      : "day-card-glow text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                   )}
                   title={entry?.workout?.name ?? copy.rest}
                 >
