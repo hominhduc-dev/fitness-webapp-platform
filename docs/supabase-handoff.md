@@ -105,6 +105,7 @@ Mọi người phải đăng nhập lại một lần.
 - Để stack tự host chạy thêm vài ngày làm dự phòng. Muốn quay lại VPS thì chạy `./cutover.sh cloud vps </dev/null`.
 - Cron `backup.sh` chỉ backup DB tự host. Khi Cloud là nơi chính, backup do Supabase lo (gói Free không có PITR).
 - Theo dõi Usage → Egress trên Supabase Dashboard trong vài ngày đầu.
+- Template email nằm trong `public/email-templates/`. Bản tự host đọc chúng qua `MAILER_TEMPLATES_*` trong `~/supabase/.env`. Trên Cloud, dán nội dung vào Authentication → Emails, và kiểm tra ảnh không trỏ vào Storage của Cloud.
 
 ## Rollback
 
