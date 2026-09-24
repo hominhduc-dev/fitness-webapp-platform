@@ -129,6 +129,13 @@ const IMPORT_REVIEWER_SELECT = {
   role: true,
 } satisfies Prisma.UserSelect
 
+/**
+ * Catalogue and workout queries omit a variation's raw `metadata` (the ~8 KB
+ * import record) and read the generated `displayMetadata` instead — database
+ * egress is billed per byte. Pass it as `omit` in those queries.
+ */
+const LEAN_VARIATION_OMIT = { metadata: true } as const
+
 const WORKOUT_EXERCISE_INCLUDE = {
   sets: {
     orderBy: {
@@ -140,6 +147,7 @@ const WORKOUT_EXERCISE_INCLUDE = {
       exercise: true,
       muscleTargets: true,
     },
+    omit: LEAN_VARIATION_OMIT,
   },
 } satisfies Prisma.WorkoutExerciseInclude
 
@@ -262,6 +270,7 @@ type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
   include: {
     createdBy: { select: { name: true } }
     variations: {
+      omit: typeof LEAN_VARIATION_OMIT
       include: {
         _count: {
           select: {
@@ -426,7 +435,7 @@ function serializeMiniUser(user: Pick<User, "avatar" | "email" | "id" | "name">)
   }
 }
 
-type VariationWithMuscleTargets = Variation & { muscleTargets?: VariationMuscleTarget[] }
+type VariationWithMuscleTargets = Omit<Variation, "metadata"> & { muscleTargets?: VariationMuscleTarget[] }
 
 function readVariationDisplayName(metadata: Prisma.JsonValue | null | undefined) {
   const displayName = readExternalSourceMetadata(metadata)?.displayName
@@ -460,7 +469,7 @@ function serializeVariation(
       exerciseName: exerciseName
         ?? ("exercise" in variation ? (variation as VariationWithMuscleTargets & { exercise?: Exercise }).exercise?.name : undefined),
       isDefault: variation.isDefault,
-      metadata: variation.metadata,
+      metadata: variation.displayMetadata,
       variationName: variation.name,
     }),
     equipment: variation.equipment ?? undefined,
@@ -470,7 +479,7 @@ function serializeVariation(
     // paths, external source) at ~10 KB a variation, it is 95% of every
     // catalogue and program payload, and nothing on the client reads it: the
     // media and display name derived from it are sent instead.
-    media: serializeExerciseMedia(variation.metadata),
+    media: serializeExerciseMedia(variation.displayMetadata),
     name: variation.name,
     sortOrder: variation.sortOrder,
     ...serializePublicMuscleProfile({
@@ -605,7 +614,7 @@ function serializeVariationOption(
   const displayName = buildVariationDisplayName({
     exerciseName: variation.exercise.name,
     isDefault: variation.isDefault,
-    metadata: variation.metadata,
+    metadata: variation.displayMetadata,
     variationName: variation.name,
   })
 
@@ -622,7 +631,7 @@ function serializeVariationOption(
     // paths, external source) at ~10 KB a variation, it is 95% of every
     // catalogue and program payload, and nothing on the client reads it: the
     // media and display name derived from it are sent instead.
-    media: serializeExerciseMedia(variation.metadata),
+    media: serializeExerciseMedia(variation.displayMetadata),
     muscleGroup: variation.exercise.muscleGroup,
     name: displayName,
     source: visibility.source,
@@ -2326,7 +2335,7 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
     equipment: defaultVariation?.equipment ?? undefined,
     id: exercise.id,
     // The library row shows the default variation, so its media stands in for the exercise.
-    media: defaultVariation ? serializeExerciseMedia(defaultVariation.metadata) : undefined,
+    media: defaultVariation ? serializeExerciseMedia(defaultVariation.displayMetadata) : undefined,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
     source: visibility.source,
@@ -2972,6 +2981,7 @@ function normalizeEmailAddress(value?: string | null) {
 
 type VariationWithExercise = Prisma.VariationGetPayload<{
   include: { exercise: true; muscleTargets: true }
+  omit: typeof LEAN_VARIATION_OMIT
 }>
 
 // The default-seed scan only has work to do the very first time a process touches
@@ -2986,6 +2996,7 @@ async function seedDefaultExercisesIfNeeded() {
   const systemExercises = await db.exercise.findMany({
     include: {
       variations: {
+        omit: LEAN_VARIATION_OMIT,
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
     },
@@ -3058,6 +3069,7 @@ async function ensureDefaultExercises(): Promise<VariationWithExercise[]> {
         exercise: true,
         muscleTargets: true,
       },
+      omit: LEAN_VARIATION_OMIT,
       orderBy: [{ exercise: { muscleGroup: "asc" } }, { exercise: { name: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
     }),
   )
@@ -3170,6 +3182,7 @@ async function listExerciseLibrary(
           include: {
             muscleTargets: true,
           },
+          omit: LEAN_VARIATION_OMIT,
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         },
       },
@@ -3228,6 +3241,7 @@ async function listCoachExercises(profile: SerializedProfile, options?: { search
         },
       },
       variations: {
+        omit: LEAN_VARIATION_OMIT,
         include: {
           _count: {
             select: {
@@ -3325,6 +3339,7 @@ async function createCoachExercise(
         },
       },
       variations: {
+        omit: LEAN_VARIATION_OMIT,
         include: {
           _count: {
             select: {
@@ -3366,6 +3381,7 @@ async function updateCoachExercise(
   const existingExercise = await db.exercise.findFirst({
     include: {
       variations: {
+        omit: LEAN_VARIATION_OMIT,
         include: {
           muscleTargets: true,
         },
@@ -3439,6 +3455,7 @@ async function updateCoachExercise(
           },
         },
         variations: {
+          omit: LEAN_VARIATION_OMIT,
           include: {
             _count: {
               select: {
@@ -3467,6 +3484,7 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
   const exercise = await db.exercise.findFirst({
     include: {
       variations: {
+        omit: LEAN_VARIATION_OMIT,
         include: {
           _count: {
             select: {
