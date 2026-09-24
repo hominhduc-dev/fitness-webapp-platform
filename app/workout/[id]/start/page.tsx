@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
 import { ExerciseAnimation } from "@/components/workout/exercise-animation"
+import { SlideToConfirm } from "@/components/workout/slide-to-confirm"
 import { SyncStatusBadge } from "@/components/offline/sync-status-badge"
 import { ApiError } from "@/lib/auth/api"
 import {
@@ -1787,30 +1788,41 @@ function WorkoutSession() {
             scrolling, so finishing never needs a scroll to the end. It has no
             background of its own, so taps around the buttons reach the cards
             underneath. */}
-        <div className="pointer-events-none sticky bottom-0 z-30 mt-6 flex gap-2 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:gap-3 md:pb-4 [&>button]:pointer-events-auto">
+        <div className="pointer-events-none sticky bottom-0 z-30 mt-6 flex gap-2 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:gap-3 md:pb-4">
           {/* Spacer (desktop) */}
           <div className="hidden md:flex flex-1" />
 
           {/* Cancel (desktop only) */}
           <Button
             variant="ghost"
-            className="hidden md:flex"
+            className="pointer-events-auto hidden md:flex"
             onClick={handleCancelWorkout}
           >
             {messages.common.cancel}
           </Button>
 
-          {/* Finish workout */}
-          <Button
-            data-tour="session-finish"
-            // Opaque even when disabled: with no bar background, the default
-            // half-transparent disabled look would let the cards show through.
-            className="w-full md:w-auto bg-foreground text-background hover:bg-foreground/90 font-semibold disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-            onClick={handleFinishWorkout}
-            disabled={completedSets === 0 || isSaving}
-          >
-            {isSaving ? messages.workoutPage.saving : messages.workoutPage.finishWorkout}
-          </Button>
+          {/* Finish workout: slide on phones so a stray tap mid-set cannot end
+              the session; a plain button on desktop. */}
+          <div data-tour="session-finish" className="pointer-events-auto w-full md:w-auto">
+            <SlideToConfirm
+              className="md:hidden"
+              label={messages.workoutPage.slideToFinish}
+              actionLabel={messages.workoutPage.finishWorkout}
+              onConfirm={handleFinishWorkout}
+              disabled={completedSets === 0}
+              busy={isSaving}
+              busyLabel={messages.workoutPage.saving}
+            />
+            <Button
+              // Opaque even when disabled: with no bar background, the default
+              // half-transparent disabled look would let the cards show through.
+              className="hidden bg-foreground font-semibold text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 md:inline-flex"
+              onClick={handleFinishWorkout}
+              disabled={completedSets === 0 || isSaving}
+            >
+              {isSaving ? messages.workoutPage.saving : messages.workoutPage.finishWorkout}
+            </Button>
+          </div>
         </div>
       </main>
 
