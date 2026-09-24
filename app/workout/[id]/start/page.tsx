@@ -77,6 +77,7 @@ import { markWorkoutCelebration } from "@/lib/workout/celebration"
 import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { nextExerciseCollapsed } from "@/lib/workout/exercise-collapse"
+import { isExerciseDone, nextIncompleteExercise, sessionDisplayOrder } from "@/lib/workout/exercise-order"
 
 // ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
 
@@ -654,7 +655,6 @@ interface LiftExerciseBlockProps {
   isCurrent: boolean
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
   onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
-  onCollapse?: () => void
   onAddSet: (exerciseId: string) => void
   onRemoveSet: (exerciseId: string, setId: string) => void
   onRemoveExercise: (exerciseId: string) => void
@@ -671,7 +671,6 @@ function LiftExerciseBlock({
   isCurrent,
   onSetUpdate,
   onSetComplete,
-  onCollapse,
   onAddSet,
   onRemoveSet,
   onRemoveExercise,
@@ -686,8 +685,6 @@ function LiftExerciseBlock({
   const [coachUpdateOpen, setCoachUpdateOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(exercise.notes ?? "")
-  const hasRenderedRef = useRef(false)
-  const onCollapseRef = useRef(onCollapse)
   const coachUpdate = exercise.coachUpdate
   const coachUpdateMeta = coachUpdate ? getCoachUpdateMeta(coachUpdate.type) : null
   const CoachUpdateIcon = coachUpdateMeta?.icon
@@ -708,29 +705,10 @@ function LiftExerciseBlock({
     : null
 
   useEffect(() => {
-    onCollapseRef.current = onCollapse
-  }, [onCollapse])
-
-  useEffect(() => {
     const nextCollapsed = nextExerciseCollapsed(wasCompletedRef.current, allSetsCompleted, isCurrent)
     wasCompletedRef.current = allSetsCompleted
     if (nextCollapsed !== undefined) setCollapsed(nextCollapsed)
   }, [allSetsCompleted, isCurrent])
-
-  useEffect(() => {
-    if (!hasRenderedRef.current) {
-      hasRenderedRef.current = true
-      return
-    }
-
-    if (!collapsed) return
-
-    const frame = window.requestAnimationFrame(() => {
-      onCollapseRef.current?.()
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [collapsed])
 
   return (
     <div
@@ -746,113 +724,116 @@ function LiftExerciseBlock({
           : "border-border bg-card",
       )}
     >
-      {/* Block header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-4 md:px-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="min-w-0 line-clamp-2 text-base font-semibold leading-tight tracking-[0] text-foreground md:text-lg">{exerciseLabel}</p>
-            {coachUpdate && coachUpdateMeta && CoachUpdateIcon ? (
-              <button
-                type="button"
-                onClick={() => setCoachUpdateOpen((value) => !value)}
-                aria-label="Coach update"
-                aria-expanded={coachUpdateOpen}
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1 rounded border-0 px-[7px] py-[3px]",
-                  "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
-                  "transition-colors duration-150",
-                  coachUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
-                  coachUpdateMeta.textClassName,
-                  coachUpdateMeta.hoverClassName,
-                )}
-              >
-                <CoachUpdateIcon className="h-[11px] w-[11px]" />
-                <span>Coach</span>
-                {coachUpdateOpen ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-              </button>
-            ) : null}
-          </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {messages.workoutPage.setCount(exercise.sets.length)}
-            {completedCount > 0 && ` · ${messages.workoutPage.setCompleted(completedCount)}`}
-            {note.trim() && ` · 📝`}
-          </p>
-          {coachUpdate && coachUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
-            <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
-              <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
-              <span className="text-xs leading-[1.4] text-foreground">{coachUpdate.text}</span>
-            </div>
-          ) : null}
-          {/* Volume recommendation the trainee accepted, shown on the exercise
-              that actually drives that muscle's volume. */}
-          {coachHint && coachHintText ? (
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md bg-primary-soft px-2.5 py-[7px]">
-              <Sparkles className="h-[13px] w-[13px] shrink-0 text-primary" aria-hidden="true" />
-              <span className="min-w-0 flex-1 text-xs leading-[1.4] text-foreground">{coachHintText}</span>
-              {coachHint.action === "increase" ? (
+      {/* Block header: title and actions on one row, then any hint across the
+          full card width so it wraps once instead of squeezing beside the icons. */}
+      <div className="border-b border-border px-4 py-3.5 md:px-5">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="min-w-0 line-clamp-2 text-base font-semibold leading-tight tracking-[0] text-foreground md:text-lg">{exerciseLabel}</p>
+              {coachUpdate && coachUpdateMeta && CoachUpdateIcon ? (
                 <button
                   type="button"
-                  onClick={() => onApplyCoachHint(coachHint, exercise.id)}
+                  onClick={() => setCoachUpdateOpen((value) => !value)}
+                  aria-label="Coach update"
+                  aria-expanded={coachUpdateOpen}
                   className={cn(
-                    "shrink-0 rounded border-0 bg-primary px-2 py-1 text-primary-foreground",
+                    "inline-flex shrink-0 items-center gap-1 rounded border-0 px-[7px] py-[3px]",
                     "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
-                    "transition-opacity hover:opacity-90",
+                    "transition-colors duration-150",
+                    coachUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
+                    coachUpdateMeta.textClassName,
+                    coachUpdateMeta.hoverClassName,
                   )}
                 >
-                  {volumeCopy.addTheSet}
+                  <CoachUpdateIcon className="h-[11px] w-[11px]" />
+                  <span>Coach</span>
+                  {coachUpdateOpen ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                 </button>
               ) : null}
             </div>
-          ) : null}
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {messages.workoutPage.setCount(exercise.sets.length)}
+              {completedCount > 0 && ` · ${messages.workoutPage.setCompleted(completedCount)}`}
+              {note.trim() && ` · 📝`}
+            </p>
+          </div>
+          <a
+            href={`https://www.google.com/search?q=${encodeURIComponent(`${exercise.exercise.name} exercise`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={messages.workoutPage.searchExercise}
+            title={messages.workoutPage.searchExercise}
+            className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Search className="h-4 w-4" />
+          </a>
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={collapsed ? messages.workoutPage.expandExercise : messages.workoutPage.collapseExercise}
+            aria-expanded={!collapsed}
+            className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "-rotate-90")} />
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={messages.workoutPage.moreOptions}
+                className="ml-2 flex shrink-0 items-center justify-center rounded-md p-1.5 pointer-coarse:size-11 text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <MoreHorizontal className="h-[18px] w-[18px]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
+                <FileText className="mr-2 h-4 w-4" />
+                {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRequestReplace(exercise)}>
+                <Repeat className="mr-2 h-4 w-4" />
+                {messages.workoutPage.swapExercise}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive-text focus:text-destructive-text"
+                onClick={() => onRemoveExercise(exercise.id)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {messages.workoutPage.removeExercise}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <a
-          href={`https://www.google.com/search?q=${encodeURIComponent(`${exercise.exercise.name} exercise`)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={messages.workoutPage.searchExercise}
-          title={messages.workoutPage.searchExercise}
-          className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Search className="h-4 w-4" />
-        </a>
-        <button
-          type="button"
-          onClick={() => setCollapsed((value) => !value)}
-          aria-label={collapsed ? messages.workoutPage.expandExercise : messages.workoutPage.collapseExercise}
-          aria-expanded={!collapsed}
-          className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "-rotate-90")} />
-        </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={messages.workoutPage.moreOptions}
-              className="ml-2 flex shrink-0 items-center justify-center rounded-md p-1.5 pointer-coarse:size-11 text-muted-foreground hover:bg-muted transition-colors"
-            >
-              <MoreHorizontal className="h-[18px] w-[18px]" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
-              <FileText className="mr-2 h-4 w-4" />
-              {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onRequestReplace(exercise)}>
-              <Repeat className="mr-2 h-4 w-4" />
-              {messages.workoutPage.swapExercise}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive-text focus:text-destructive-text"
-              onClick={() => onRemoveExercise(exercise.id)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {messages.workoutPage.removeExercise}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {coachUpdate && coachUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
+          <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
+            <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
+            <span className="text-xs leading-[1.4] text-foreground">{coachUpdate.text}</span>
+          </div>
+        ) : null}
+        {/* Volume recommendation the trainee accepted, shown on the exercise
+            that actually drives that muscle's volume. */}
+        {coachHint && coachHintText ? (
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md bg-primary-soft px-2.5 py-[7px]">
+            <Sparkles className="h-[13px] w-[13px] shrink-0 text-primary" aria-hidden="true" />
+            <span className="min-w-0 flex-1 text-xs leading-[1.4] text-foreground">{coachHintText}</span>
+            {coachHint.action === "increase" ? (
+              <button
+                type="button"
+                onClick={() => onApplyCoachHint(coachHint, exercise.id)}
+                className={cn(
+                  "shrink-0 rounded border-0 bg-primary px-2 py-1 text-primary-foreground",
+                  "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
+                  "transition-opacity hover:opacity-90",
+                )}
+              >
+                {volumeCopy.addTheSet}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {/* Exercise note */}
@@ -1007,6 +988,7 @@ function WorkoutSession() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDateDialog, setShowDateDialog] = useState(false)
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -1205,10 +1187,13 @@ function WorkoutSession() {
     if (!shouldAutoScrollExerciseRef.current) return
     shouldAutoScrollExerciseRef.current = false
 
+    // "nearest" only scrolls if the next exercise is off screen. With finished
+    // exercises sinking to the bottom, the next one usually slides up into the
+    // card the trainee was just looking at, so most of the time nothing moves.
     const frameId = requestAnimationFrame(() => {
       exerciseRefs.current[currentExerciseIndex]?.scrollIntoView({
         behavior: "smooth",
-        block: "start",
+        block: "nearest",
       })
     })
 
@@ -1221,6 +1206,7 @@ function WorkoutSession() {
     (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
     0,
   )
+  const completedExercises = exercises.filter(isExerciseDone).length
   const volume = exercises.reduce(
     (acc, ex) =>
       acc +
@@ -1448,13 +1434,17 @@ function WorkoutSession() {
         },
       })
 
-      // Advance current exercise index if all sets on this exercise are done
+      // Finishing an exercise moves on to the next one still to do. Done
+      // exercises sink to the bottom of the list, so "next" is never one the
+      // trainee already finished out of order.
       const updatedSets = exercise.sets.map((s) => (s.id === set.id ? { ...s, ...data } : s))
       if (updatedSets.every((s) => s.completed)) {
         const exIdx = exercises.findIndex((e) => e.id === exercise.id)
-        if (exIdx >= 0 && exIdx < exercises.length - 1) {
+        const afterThisSet = exercises.map((e) => (e.id === exercise.id ? { ...e, sets: updatedSets } : e))
+        const nextIndex = exIdx >= 0 ? nextIncompleteExercise(afterThisSet, exIdx) : null
+        if (nextIndex != null) {
           shouldAutoScrollExerciseRef.current = true
-          setCurrentExerciseIndex(exIdx + 1)
+          setCurrentExerciseIndex(nextIndex)
         }
       }
     }
@@ -1582,7 +1572,17 @@ function WorkoutSession() {
     }
   }
 
+  // Finishing with exercises left is easy to do by accident from the pinned
+  // bar, so it asks first; a fully done session finishes straight away.
   const handleFinishWorkout = () => {
+    if (completedExercises < exercises.length) {
+      setShowFinishConfirm(true)
+      return
+    }
+    finishWorkout()
+  }
+
+  const finishWorkout = () => {
     if (!workout) return
     if (presetLogDate) {
       void performSave(presetLogDate)
@@ -1696,9 +1696,9 @@ function WorkoutSession() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-background">
+    <div className="min-h-[100dvh] overflow-x-clip bg-background">
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-10 md:pt-8">
+      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-5 pb-2 sm:px-4 md:px-10 md:pt-8">
         {/* Header */}
         <div className="mb-7">
           {/* Mobile back button */}
@@ -1741,14 +1741,14 @@ function WorkoutSession() {
           />
           <StatCell
             label={messages.workoutPage.volume}
-            value={volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : String(Math.round(volume))}
+            value={Math.round(volume).toLocaleString("en-US")}
             sub={messages.workoutPage.kgLifted}
             lastRow
           />
           <StatCell
             label={messages.workoutPage.exercises}
-            value={exercises.length}
-            sub={messages.workoutPage.planned}
+            value={`${completedExercises} / ${exercises.length}`}
+            sub={messages.workoutPage.completed}
             last
             lastRow
           />
@@ -1759,8 +1759,11 @@ function WorkoutSession() {
           <p className="mb-4 text-sm text-destructive-text">{error}</p>
         )}
 
-        {/* Exercise blocks */}
-        {exercises.map((exercise, index) => (
+        {/* Exercise blocks: still to do first, finished ones at the bottom.
+            `index` stays the planned position, which refs and "current" use. */}
+        {sessionDisplayOrder(exercises).map((index) => {
+          const exercise = exercises[index]
+          return (
           <div
             key={exercise.id}
             ref={(el) => {
@@ -1780,12 +1783,6 @@ function WorkoutSession() {
               isCurrent={index === currentExerciseIndex}
               onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
               onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
-              onCollapse={() => {
-                exerciseRefs.current[index + 1]?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                })
-              }}
               onAddSet={handleAddSet}
               onRemoveSet={handleRemoveSet}
               onRemoveExercise={handleRemoveExercise}
@@ -1793,10 +1790,13 @@ function WorkoutSession() {
               onExerciseNoteChange={handleExerciseNoteChange}
             />
           </div>
-        ))}
+          )
+        })}
 
-        {/* Bottom action bar */}
-        <div className="mt-6 flex flex-col gap-2 md:flex-row md:gap-3">
+        {/* Bottom action bar: stays pinned to the bottom of the screen while
+            scrolling, so finishing never needs a scroll to the end. It bleeds
+            to main's edges so its frosted background spans the full width. */}
+        <div className="sticky bottom-0 z-30 -mx-3 mt-6 grid grid-cols-2 gap-2 border-t border-border bg-background/85 px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:-mx-4 sm:px-4 md:-mx-10 md:flex md:gap-3 md:px-10 md:pb-4">
           {/* Add exercise */}
           <Button
             variant="outline"
@@ -1837,6 +1837,32 @@ function WorkoutSession() {
         onDismiss={() => setRestEvent(null)}
         defaultDuration={DEFAULT_REST_SECONDS}
       />
+
+      {/* ── Finish with exercises left ────────────────────────────────────── */}
+      <Dialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{messages.workoutPage.finishUnfinishedTitle}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {messages.workoutPage.finishUnfinishedBody(completedExercises, exercises.length)}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFinishConfirm(false)}>
+              {messages.workoutPage.keepTraining}
+            </Button>
+            <Button
+              onClick={() => {
+                setShowFinishConfirm(false)
+                finishWorkout()
+              }}
+              disabled={isSaving}
+            >
+              {messages.workoutPage.finishAnyway}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Date selection dialog ─────────────────────────────────────────── */}
       <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
