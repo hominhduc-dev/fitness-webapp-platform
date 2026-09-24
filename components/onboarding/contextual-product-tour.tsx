@@ -17,7 +17,18 @@ const DASHBOARD_TOUR_KEY = "trainee-dashboard"
 /** /workout/{id}/start — the live logging screen, not the workout list. */
 const SESSION_PATH = /^\/workout\/[^/]+\/start\/?$/
 const TOUR_START_RETRY_MS = 80
-const TOUR_START_MAX_ATTEMPTS = 8
+// About 3s: long enough for a page's streamed content to hydrate on a slow phone.
+const TOUR_START_MAX_ATTEMPTS = 40
+
+/**
+ * React marks a DOM node it has hydrated with an internal `__reactFiber$…` key.
+ * The tour lives in the shell layout, which hydrates before a page's streamed
+ * content; decorating server HTML React has not claimed yet (driver.js adds a
+ * class and aria attributes to the target) makes hydration report a mismatch.
+ */
+function isHydrated(element: Element) {
+  return Object.keys(element).some((key) => key.startsWith("__reactFiber$"))
+}
 
 export function buildTours(copy: TourMessages) {
   const dashboardSteps: TourStep[] = [
@@ -216,7 +227,11 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
           : null
       if (!selected || selected.steps.length === 0) return
       const availableSteps = selected.steps.filter((step) => !step.target || document.querySelector(step.target))
-      if (availableSteps.length === 0) {
+      const targetsHydrated = availableSteps.every((step) => {
+        const target = step.target ? document.querySelector(step.target) : null
+        return !target || isHydrated(target)
+      })
+      if (availableSteps.length === 0 || !targetsHydrated) {
         if (attempt < TOUR_START_MAX_ATTEMPTS) {
           retryTimer = window.setTimeout(() => startTour(attempt + 1), TOUR_START_RETRY_MS)
         }
