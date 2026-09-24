@@ -92,8 +92,7 @@ while IFS='|' read -r schema table; do
   cols=${cols%,}
   qualified="$(quote_ident "$schema").$(quote_ident "$table")"
 
-  # </dev/null: `docker exec -i` would otherwise eat the table list this loop reads.
-  psql_on "$SRC" -c "copy (select $cols from $qualified) to stdout" </dev/null >"$WORK/data"
+  psql_on "$SRC" -c "copy (select $cols from $qualified) to stdout" >"$WORK/data"
   # Text-format COPY escapes newlines, so each line is one row.
   rows=$(wc -l <"$WORK/data")
   printf '%s|%s\n' "$qualified" "$rows" >>"$WORK/counts"
@@ -143,6 +142,6 @@ if [ "$MODE" = "--apply" ]; then
 fi
 
 log "loading into $DST ($([ "$MODE" = "--apply" ] && echo "apply" || echo "rehearsal, rolled back"))"
-psql_on "$DST" -v ON_ERROR_STOP=1 <"$BUNDLE" >/dev/null
+psql_stdin "$DST" <"$BUNDLE" >/dev/null
 total=$(awk -F'|' '{ s += $2 } END { print s }' "$WORK/counts")
 log "ok: $(wc -l <"$WORK/counts") tables, $total rows$([ "$MODE" = "--apply" ] && echo ", committed" || echo "; nothing was changed")"

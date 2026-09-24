@@ -81,8 +81,18 @@ check_side() {
   esac
 }
 
-# psql / pg_dump against a side. Extra arguments go to the tool.
+# psql / pg_dump against a side. Extra arguments go to the tool. Only
+# psql_stdin attaches stdin: with `docker exec -i` a command would otherwise
+# swallow whatever the caller is reading, such as a loop's input or the rest
+# of a script piped into bash.
 psql_on() {
+  local side=$1
+  shift
+  PGCONN="$(conninfo "$side")" docker exec -e PGCONN "$DB_CONTAINER" \
+    sh -c 'exec psql "$PGCONN" -X -q -v ON_ERROR_STOP=1 "$@"' psql "$@"
+}
+
+psql_stdin() {
   local side=$1
   shift
   PGCONN="$(conninfo "$side")" docker exec -i -e PGCONN "$DB_CONTAINER" \
@@ -92,7 +102,7 @@ psql_on() {
 pg_dump_on() {
   local side=$1
   shift
-  PGCONN="$(conninfo "$side")" docker exec -i -e PGCONN "$DB_CONTAINER" \
+  PGCONN="$(conninfo "$side")" docker exec -e PGCONN "$DB_CONTAINER" \
     sh -c 'exec pg_dump "$PGCONN" "$@"' pg_dump "$@"
 }
 
