@@ -1273,6 +1273,7 @@ aside.glass-surface {
 .lg-bevel::after,
 .glass-card::after,
 .mobile-floating-nav::after,
+.lg-slide-track::after,
 aside.glass-surface::after {
   position: absolute;
   inset: 0;
@@ -1354,6 +1355,20 @@ aside.glass-surface::after {
     -webkit-backdrop-filter: url("#lg-pill") blur(14px) saturate(165%) brightness(94%);
     backdrop-filter: url("#lg-pill") blur(14px) saturate(165%) brightness(94%);
   }
+}
+
+/* Slide-to-finish track: frosted glass. It floats over the exercise cards and
+   the point is to see them through it, so the backdrop is blurred hard enough
+   to read as colour and shape only — never as competing text under the label —
+   with a faint diagonal sheen and a bright rim (the shared ::after below),
+   and no refraction. */
+.lg-slide-track {
+  isolation: isolate;
+  border-color: var(--glass-border);
+  background: linear-gradient(135deg, var(--glass-tint-2), transparent 70%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
 }
 
 /* Dome — a glass ball for small round controls. Put `lg-dome` on any circular
@@ -1445,8 +1460,18 @@ aside.glass-surface::after {
 :root:not(.dark) .glass-card::after,
 :root:not(.dark) .glass-surface::after,
 :root:not(.dark) .mobile-floating-nav::after,
+:root:not(.dark) .lg-slide-track::after,
 :root:not(.dark) aside.glass-surface::after {
   display: none;
+}
+
+:root:not(.dark) .lg-slide-track,
+:root:not(.dark)[data-liquid-glass="on"] .lg-slide-track {
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: 0 12px 28px rgb(15 23 42 / 14%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 :root:not(.dark) .glass-card:hover {
@@ -1559,6 +1584,7 @@ aside.glass-surface::after {
   .glass-card,
   .bg-card,
   .mobile-floating-nav,
+  .lg-slide-track,
   aside.glass-surface,
   .lg-dome,
   .ai-bubble-trigger {
@@ -1570,6 +1596,7 @@ aside.glass-surface::after {
   .lg-bevel::after,
   .glass-card::after,
   .mobile-floating-nav::after,
+  .lg-slide-track::after,
   aside.glass-surface::after {
     display: none;
   }
