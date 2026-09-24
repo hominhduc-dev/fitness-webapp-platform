@@ -118,16 +118,7 @@ Sau đó trả env Vercel về giá trị VPS rồi redeploy. Dữ liệu ghi v�
 
 ## Vercel: biến do tích hợp quản lý
 
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_*` và `POSTGRES_*` do **tích hợp Supabase trên Vercel** tạo ra và quản lý. Sửa tay các biến này không có tác dụng, và tích hợp sẽ ghi đè lại. Muốn trỏ frontend về VPS thì phải:
-1. Vào Vercel → Project → Settings → Integrations (hoặc trang Integrations của team) → Supabase, rồi ngắt kết nối project này. Việc này xoá các biến do tích hợp tạo.
-2. Tự thêm lại, môi trường Production:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-
-   Frontend chỉ đọc hai biến này; `NEXT_PUBLIC_SUPABASE_ANON_KEY` chỉ là dự phòng.
-3. Khi quay về Cloud, có hai cách:
-   - sửa hai biến tự tạo đó về giá trị Cloud;
-   - hoặc xoá chúng rồi kết nối lại tích hợp Supabase.
+Các biến `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_*` và `POSTGRES_*` do **tích hợp Supabase trên Vercel** tạo ra. Frontend chỉ đọc hai biến `NEXT_PUBLIC_SUPABASE_URL` và `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; `NEXT_PUBLIC_SUPABASE_ANON_KEY` chỉ là dự phòng. Ngày 24/09, hai biến này đã được sửa bằng CLI mà không cần ngắt tích hợp. Nếu sau này tích hợp tự ghi đè lại giá trị Cloud (ví dụ khi đổi cấu hình phía Supabase), hãy chạy lại lệnh CLI bên dưới, hoặc ngắt tích hợp rồi tự tạo lại hai biến đó.
 
 **Đổi env bằng CLI** (repo đã `vercel link`, chạy trong PowerShell ở thư mục repo). CLI sửa được cả biến do tích hợp quản lý. Key phải dùng `--type config`: anon/publishable key được phép công khai.
 ```powershell
@@ -137,9 +128,7 @@ Sau đó trả env Vercel về giá trị VPS rồi redeploy. Dữ liệu ghi v�
 
 **Phải build mới từ git, không được "Redeploy" một bản cũ:** redeploy sẽ kế thừa env của bản gốc, nên bundle vẫn giữ URL cũ. Hãy tạo deployment mới từ một commit trên `main` có sửa frontend, hoặc push một commit có sửa frontend. Sau khi build xong, kiểm tra lại bundle bằng lệnh ở bước 5.
 
-**Redeploy bị bỏ qua:** `vercel.json` có `ignoreCommand`, bỏ qua build khi commit mới nhất chỉ sửa `backend/`, `.github` hoặc `docker-compose.yml`. Nếu redeploy báo CANCELED, có hai cách:
-- redeploy bản Production READY gần nhất mà commit có sửa frontend;
-- hoặc push một commit có sửa frontend.
+**Redeploy bị bỏ qua:** `vercel.json` có `ignoreCommand`, bỏ qua build khi commit mới nhất chỉ sửa `backend/`, `.github` hoặc `docker-compose.yml`. Nếu build báo CANCELED, hãy tạo deployment mới từ git với một commit trên `main` có sửa frontend. Có thể dùng Vercel connector (`create_deployment` với `gitSource`, target production), cách đã dùng ngày 24/09 với commit `e29d55b`. Hoặc push một commit có sửa frontend.
 
 `NEXT_PUBLIC_*` được nhúng lúc build, nên chỉ đổi env mà không build lại thì không có tác dụng.
 
