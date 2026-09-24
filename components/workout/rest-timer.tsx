@@ -80,9 +80,10 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
     <div
       className={cn(
         "workout-floating-chip fixed z-50 pointer-events-auto",
-        // Desktop: offset left by sidebar width (280px)
-        "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
-        "md:left-[280px] md:right-10 md:w-auto md:max-w-none md:translate-x-0 md:bottom-6",
+        // Desktop: offset left by sidebar width (280px). Both breakpoints sit
+        // just above the session's pinned Add exercise / Finish bar.
+        "bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
+        "md:left-[280px] md:right-10 md:w-auto md:max-w-none md:translate-x-0 md:bottom-[5.5rem]",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",
       )}
