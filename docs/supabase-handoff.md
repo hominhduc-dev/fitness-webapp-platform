@@ -8,7 +8,7 @@ Viết ngày 24/09/2026. Tài liệu này dành cho lúc project Cloud `bljmubat
 |---|---|---|
 | Backend `yeahbuddy-backend` | **VPS** (`supabase-db:5432`, `https://supabase.hominhduc.cloud`) | Chuyển lúc 12:31 ngày 24/09, downtime khoảng 16 giây |
 | Dữ liệu | **VPS** là nơi nhận ghi | Dữ liệu trên Cloud đứng yên ở thời điểm 12:31 ngày 24/09 |
-| Frontend Vercel (`www.hominhduc.me`) | Kiểm tra lại: xem mục [Vercel](#vercel-bien-do-tich-hop-quan-ly) | Env Supabase do tích hợp Vercel ↔ Supabase quản lý |
+| Frontend Vercel (`www.hominhduc.me`) | **VPS** | Đổi `NEXT_PUBLIC_SUPABASE_URL` / `_PUBLISHABLE_KEY` bằng Vercel CLI, build lại từ git lúc 13:5x ngày 24/09 |
 | Google OAuth, email quên mật khẩu (bản tự host) | Chưa cấu hình | Cần `GOOGLE_*` và `SMTP_*` trong `~/supabase/.env` |
 
 Lý do chuyển: Cloud bị chặn vì `exceed_egress_quota` (gói Free có 5 GB egress). Nguồn tốn egress chính là việc đọc `Variation.metadata`, đã được giảm ở PR #228 (từ 11 MB xuống 504 KB mỗi lần tải thư viện bài tập).
@@ -128,6 +128,14 @@ Sau đó trả env Vercel về giá trị VPS rồi redeploy. Dữ liệu ghi v�
 3. Khi quay về Cloud, có hai cách:
    - sửa hai biến tự tạo đó về giá trị Cloud;
    - hoặc xoá chúng rồi kết nối lại tích hợp Supabase.
+
+**Đổi env bằng CLI** (repo đã `vercel link`, chạy trong PowerShell ở thư mục repo). CLI sửa được cả biến do tích hợp quản lý. Key phải dùng `--type config`: anon/publishable key được phép công khai.
+```powershell
+"https://bljmubatdtvuomucqmoj.supabase.co" | vercel env update NEXT_PUBLIC_SUPABASE_URL production --yes
+"<anon key của Cloud>" | vercel env update NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY production --yes --type config
+```
+
+**Phải build mới từ git, không được "Redeploy" một bản cũ:** redeploy sẽ kế thừa env của bản gốc, nên bundle vẫn giữ URL cũ. Hãy tạo deployment mới từ một commit trên `main` có sửa frontend, hoặc push một commit có sửa frontend. Sau khi build xong, kiểm tra lại bundle bằng lệnh ở bước 5.
 
 **Redeploy bị bỏ qua:** `vercel.json` có `ignoreCommand`, bỏ qua build khi commit mới nhất chỉ sửa `backend/`, `.github` hoặc `docker-compose.yml`. Nếu redeploy báo CANCELED, có hai cách:
 - redeploy bản Production READY gần nhất mà commit có sửa frontend;

@@ -24,3 +24,4 @@ pnpm-debug.log*
 
 # Generated ESLint report output
 eslint-results.json
+.vercel
