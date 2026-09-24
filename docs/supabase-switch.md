@@ -58,13 +58,17 @@ cd ~/yeahbuddy-ops/supabase-switch
 ./sync-db.sh cloud vps           # tập dượt: chép hết, kiểm tra số dòng, rollback
 ./copy-avatars.sh cloud vps      # xem bao nhiêu avatar tải được
 
-# bắt đầu bảo trì
-docker stop yeahbuddy-backend
-./sync-db.sh cloud vps --apply   # backup phía đích vào ~/backups rồi mới ghi
-./verify.sh cloud vps            # các dòng khác nhau được đánh dấu "!"
-./copy-avatars.sh cloud vps --apply
-./switch-backend.sh vps          # chờ /api/health báo đã kết nối DB
+./cutover.sh cloud vps </dev/null
 ```
+
+`cutover.sh` gom các bước còn lại vào một lệnh:
+1. dừng backend;
+2. `sync-db.sh --apply` (backup phía đích vào `~/backups` rồi mới ghi);
+3. `verify.sh` (các dòng khác nhau được đánh dấu `!`);
+4. `copy-avatars.sh --apply`;
+5. `switch-backend.sh`, rồi chờ `/api/health` báo đã kết nối DB.
+
+Bước nào lỗi thì backend tự quay về phía cũ. Lần chuyển ngày 24/09 mất khoảng 16 giây downtime.
 
 Sau đó đổi env trên Vercel rồi **redeploy**. Biến `NEXT_PUBLIC_*` được nhúng lúc build, nên chỉ đổi env mà không build lại thì không có tác dụng.
 - `NEXT_PUBLIC_SUPABASE_URL=https://supabase.hominhduc.cloud`
@@ -77,11 +81,7 @@ Làm được khi Cloud đã hết bị restrict (sang chu kỳ billing mới ho
 ```bash
 ./migrate.sh cloud status
 ./sync-db.sh vps cloud           # tập dượt trên Cloud, không thay đổi gì
-docker stop yeahbuddy-backend
-./sync-db.sh vps cloud --apply
-./verify.sh vps cloud
-./copy-avatars.sh vps cloud --apply
-./switch-backend.sh cloud
+./cutover.sh vps cloud </dev/null
 ```
 
 Sau đó trả env Vercel về giá trị Cloud (lấy trong `cloud.env`) rồi redeploy.
