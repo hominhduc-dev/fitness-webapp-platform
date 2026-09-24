@@ -1687,10 +1687,12 @@ function WorkoutSession() {
   return (
     <div className="min-h-[100dvh] overflow-x-clip bg-background">
       {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-5 pb-2 sm:px-4 md:px-10 md:pt-8">
+      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-3 pb-2 sm:px-4 md:px-10 md:pt-8">
         {/* Header: date and title on the left, cancel beside them on mobile
-            (desktop cancels from the action bar), so it takes one block. */}
-        <div className="mb-4 flex items-start justify-between gap-3 md:mb-7">
+            (desktop cancels from the action bar), so it takes one block. On
+            phones it stays pinned while scrolling, full-bleed frosted glass
+            that matches the page until content slides under it. */}
+        <div className="sticky top-0 z-30 -mx-3 mb-2 flex items-start justify-between gap-3 bg-background/85 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 backdrop-blur-xl sm:-mx-4 sm:px-4 md:static md:mx-0 md:mb-7 md:bg-transparent md:p-0 md:backdrop-blur-none">
           <div className="min-w-0">
             <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
               <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
@@ -1702,13 +1704,17 @@ function WorkoutSession() {
               {workout.name}
             </h1>
           </div>
+          {/* A destructive pill so ending the session is easy to find. The
+              button is a 44px touch target; the pill inside stays compact. */}
           <button
             type="button"
             onClick={handleCancelWorkout}
-            className="-mr-1.5 flex shrink-0 items-center gap-1 rounded-full px-1.5 pointer-coarse:min-h-11 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
+            className="group flex shrink-0 items-center pointer-coarse:min-h-11 md:hidden"
           >
-            <X className="h-4 w-4" />
-            {messages.workoutPage.cancelWorkout}
+            <span className="flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive-soft px-3 py-1.5 text-sm font-medium text-destructive-text transition-colors group-hover:border-destructive/50 group-active:border-destructive/60">
+              <X className="h-4 w-4" aria-hidden="true" />
+              {messages.workoutPage.cancelWorkout}
+            </span>
           </button>
         </div>
 
@@ -1750,7 +1756,8 @@ function WorkoutSession() {
             ref={(el) => {
               exerciseRefs.current[index] = el
             }}
-            style={{ scrollMarginTop: "1rem" }}
+            // Clears the pinned header on phones when an exercise scrolls into view.
+            className="scroll-mt-24 md:scroll-mt-4"
           >
             <LiftExerciseBlock
               exercise={exercise}
