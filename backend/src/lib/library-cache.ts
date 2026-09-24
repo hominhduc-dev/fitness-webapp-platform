@@ -6,16 +6,22 @@
  * DB link yet very cache-friendly.
  *
  * Consistency model:
- *  - Exercise library: invalidated explicitly on the frequent coach write paths
- *    (create/update/delete). Rare admin edits are NOT explicitly invalidated and
- *    instead fall off via the short TTL — so staleness is bounded to EXERCISE_LIBRARY_TTL_MS.
+ *  - Exercise library: invalidated explicitly on coach write paths, and after
+ *    every successful admin write (a middleware on the admin router). Scripts run
+ *    in their own process and cannot reach this cache, so a dataset sync shows
+ *    up within EXERCISE_LIBRARY_TTL_MS.
  *  - System food catalog: invalidated when an admin promotes a custom food.
  */
 import { TtlCache } from "./cache"
 
 export const libraryCache = new TtlCache()
 
-export const EXERCISE_LIBRARY_TTL_MS = 60_000
+/**
+ * Every reload reads the whole variation catalogue from the database, and
+ * database egress is billed, so this is minutes rather than seconds. Writes
+ * invalidate it (see above), so the length only bounds script-driven changes.
+ */
+export const EXERCISE_LIBRARY_TTL_MS = 15 * 60_000
 export const FOOD_CATALOG_TTL_MS = 5 * 60_000
 
 export const CACHE_KEYS = {

@@ -237,6 +237,8 @@ async function generateWorkoutProgramForSubject(
   const exercises = await db.exercise.findMany({
     include: {
       variations: {
+        // The raw import record is ~8 KB a variation and the prompt never reads it.
+        omit: { metadata: true },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
     },
@@ -534,6 +536,7 @@ async function acceptAIProgramForAssignee(
                 include: {
                   variation: {
                     include: { exercise: true },
+                    omit: { metadata: true },
                   },
                   sets: { orderBy: { setNumber: "asc" } },
                 },

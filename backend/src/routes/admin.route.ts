@@ -45,6 +45,7 @@ import {
   updateAdminExercise,
   updateAdminUser,
 } from "../services/admin.service"
+import { invalidateExerciseLibrary } from "../lib/library-cache"
 import { validated } from "../middleware/validate"
 import {
   coachSignupParams,
@@ -61,6 +62,19 @@ import {
 import { getAccessToken, sendError } from "./route.utils"
 
 const adminRouter = Router()
+
+// The exercise library is cached for minutes, not seconds, so every admin
+// write clears it rather than each of the many admin exercise paths having to
+// remember to. Reloading costs one query on the next read; a missed
+// invalidation would show stale exercises until the TTL ran out.
+adminRouter.use((req, res, next) => {
+  if (req.method !== "GET") {
+    res.on("finish", () => {
+      if (res.statusCode < 400) invalidateExerciseLibrary()
+    })
+  }
+  next()
+})
 
 function getOptionalString(value: unknown) {
   return typeof value === "string" ? value : undefined

@@ -230,3 +230,66 @@ describe("custom exercise media", () => {
     })).toBeUndefined()
   })
 })
+
+/**
+ * Mirrors the generated `Variation.displayMetadata` column (migration
+ * 20261001_variation_display_metadata): `media`, `cdn` and the external
+ * display name, nulls stripped. Queries read that column instead of the raw
+ * `metadata`, so the two must resolve to the same media.
+ */
+function toDisplayMetadata(metadata: Record<string, unknown>) {
+  const externalSource = metadata.externalSource as { displayName?: unknown } | undefined
+  const stripped = Object.fromEntries(
+    Object.entries({
+      cdn: metadata.cdn,
+      externalSource: Object.fromEntries(
+        Object.entries({ displayName: externalSource?.displayName }).filter(([, value]) => value != null),
+      ),
+      media: metadata.media,
+    }).filter(([, value]) => value != null),
+  )
+  return JSON.parse(JSON.stringify(stripped)) as Record<string, unknown>
+}
+
+describe("displayMetadata", () => {
+  const cdn = {
+    animationPublicId: "exercise-media/dataset/0001",
+    thumbnailPublicId: "exercise-media/dataset/0001-thumb",
+    version: 1712345678,
+  }
+  const full = {
+    cdn,
+    exerciseDataset: { instructions: "x".repeat(6_000), media: { animationObjectPath: "abc/videos/0001.gif" } },
+    externalSource: { displayName: "Barbell Bench Press", rawRow: { a: 1, b: 2 } },
+    supabaseCustomMedia: { path: "old.mp4" },
+  }
+
+  it("resolves the same CDN media as the full metadata while dropping the import record", () => {
+    const lean = toDisplayMetadata(full)
+    expect(resolveExerciseMedia(lean, "demo-cloud")).toEqual(resolveExerciseMedia(full, "demo-cloud"))
+    expect(resolveExerciseMedia(lean, "demo-cloud")?.source).toBe("cdn")
+    expect(lean).not.toHaveProperty("exerciseDataset")
+    expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length / 20)
+  })
+
+  it("keeps an admin's custom media ahead of the CDN media", () => {
+    const upload = (kind: "video" | "image", id: string) => ({
+      cloudName: "demo-cloud",
+      contentType: kind === "video" ? "video/mp4" : "image/jpeg",
+      publicId: `exercise-media/admin/variation/${id}`,
+      resourceType: kind,
+      secureUrl: `https://res.cloudinary.com/demo-cloud/${kind}/upload/v2/exercise-media/admin/variation/${id}.${kind === "video" ? "mp4" : "jpg"}`,
+      version: 2,
+    })
+    const media = buildCustomExerciseMedia({
+      animation: upload("video", "animation-id"),
+      thumbnail: upload("image", "thumbnail-id"),
+      updatedAt: new Date("2026-09-24T00:00:00Z"),
+      updatedById: "admin",
+    })
+    const withCustom = { ...full, media }
+    const lean = toDisplayMetadata(withCustom as Record<string, unknown>)
+    expect(resolveExerciseMedia(lean, "demo-cloud")).toEqual(resolveExerciseMedia(withCustom, "demo-cloud"))
+    expect(resolveExerciseMedia(lean, "demo-cloud")?.source).toBe("custom")
+  })
+})
