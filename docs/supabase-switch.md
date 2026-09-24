@@ -11,22 +11,29 @@
 
 1. Chép script lên VPS vào `~/yeahbuddy-ops/supabase-switch/`, rồi `chmod 700 *.sh`.
 2. Lúc backend còn trên Cloud, chạy `./capture-env.sh`. Script ghi `~/.config/yeahbuddy/cloud.env` và `vps.env` (mode 600), mỗi file có 5 biến: `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-3. Sửa compose của backend (`/home/yeahbuddy/htdocs/backend.hominhduc.me/docker-compose.yml`) để nó đọc `supabase.env` sau `.env` và vào chung network với Supabase:
+3. Cho `duc` quyền vào thư mục backend:
+
+   ```bash
+   sudo apt-get install -y acl
+   sudo setfacl -m u:duc:x /home/yeahbuddy /home/yeahbuddy/htdocs
+   sudo setfacl -R -m u:duc:rwX -m d:u:duc:rwX /home/yeahbuddy/htdocs/backend.hominhduc.me
+   ```
+
+   Sau đó tạo file `docker-compose.override.yml` nằm cạnh `docker-compose.yml`. File này chỉ có trên server; thêm nó và `supabase.env` vào `.git/info/exclude`. Nó làm hai việc: đọc `supabase.env` sau `backend/.env`, và đưa backend vào chung network với Supabase:
 
    ```yaml
    services:
      backend:
        env_file:
-         - .env
-         - supabase.env
+         - path: ./backend/.env
+         - path: ./supabase.env
+           required: false
        networks: [default, supabase]
    networks:
      supabase:
        name: supabase_default
        external: true
    ```
-
-   Nếu mục `environment:` đang khai báo trực tiếp 5 biến trên thì phải xoá đi, vì `environment:` sẽ ghi đè `env_file`. Sau đó cấp cho `duc` quyền ghi thư mục này, để chạy được `switch-backend.sh`.
 4. Cấu hình Auth trong `~/supabase/.env`, xong thì chạy `docker compose up -d auth`:
    - `SITE_URL=<domain frontend>`.
    - `ADDITIONAL_REDIRECT_URLS=<domain>/**,http://localhost:3000/**`.
