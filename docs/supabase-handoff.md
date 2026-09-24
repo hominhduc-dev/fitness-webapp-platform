@@ -1,0 +1,147 @@
+# Handoff: quay lại Supabase Cloud
+
+Viết ngày 24/09/2026. Tài liệu này dành cho lúc project Cloud `bljmubatdtvuomucqmoj` hết bị restrict và bạn muốn chuyển app từ Supabase tự host trên VPS về lại Cloud. Cách chạy chi tiết từng script nằm ở [supabase-switch.md](supabase-switch.md).
+
+## Tình trạng khi bàn giao
+
+| Thành phần | Đang trỏ về | Ghi chú |
+|---|---|---|
+| Backend `yeahbuddy-backend` | **VPS** (`supabase-db:5432`, `https://supabase.hominhduc.cloud`) | Chuyển lúc 12:31 ngày 24/09, downtime khoảng 16 giây |
+| Dữ liệu | **VPS** là nơi nhận ghi | Dữ liệu trên Cloud đứng yên ở thời điểm 12:31 ngày 24/09 |
+| Frontend Vercel (`www.hominhduc.me`) | Kiểm tra lại: xem mục [Vercel](#vercel-bien-do-tich-hop-quan-ly) | Env Supabase do tích hợp Vercel ↔ Supabase quản lý |
+| Google OAuth, email quên mật khẩu (bản tự host) | Chưa cấu hình | Cần `GOOGLE_*` và `SMTP_*` trong `~/supabase/.env` |
+
+Lý do chuyển: Cloud bị chặn vì `exceed_egress_quota` (gói Free có 5 GB egress). Nguồn tốn egress chính là việc đọc `Variation.metadata`, đã được giảm ở PR #228 (từ 11 MB xuống 504 KB mỗi lần tải thư viện bài tập).
+
+## Mọi thứ nằm ở đâu (VPS `duc@187.77.133.167`)
+
+| Thứ | Vị trí |
+|---|---|
+| Script | `~/yeahbuddy-ops/supabase-switch/` (bản gốc trong repo: `scripts/supabase-switch/`) |
+| Profile env của backend | `~/.config/yeahbuddy/cloud.env`, `vps.env` (mode 600, mỗi file 5 biến) |
+| Profile đang dùng | `/home/yeahbuddy/htdocs/backend.hominhduc.me/supabase.env` |
+| Compose override (chỉ có trên server, không nằm trong git) | `/home/yeahbuddy/htdocs/backend.hominhduc.me/docker-compose.override.yml` |
+| Supabase tự host | `~/supabase` (`.env`, `docker-compose.yml`, bản sao `.env.bak-*`) |
+| Backup | `~/backups/`: dump chạy mỗi đêm `vps-*.dump` (giữ 7 bản), dump trước mỗi lần đồng bộ `*-before-sync-*.dump`, và bản ngày 12/09 |
+| Cron | Chạy `crontab -l` để xem; `backup.sh` chạy lúc 03:15 mỗi ngày |
+
+## Khi nào quay lại được
+
+Cả hai điều kiện sau phải đúng:
+1. Supabase Dashboard không còn báo restrict (đã sang chu kỳ billing mới hoặc đã nâng gói).
+2. Auth của Cloud trả `401` chứ không còn `402`:
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" https://bljmubatdtvuomucqmoj.supabase.co/auth/v1/health
+   ```
+
+Nên xem Usage trên Supabase trước: gói Free chỉ có 5 GB/tháng. Nếu lượng dùng thực tế vẫn vượt mức đó, nên nâng Pro (250 GB) trước khi quay về.
+
+## Các bước quay về
+
+Tất cả chạy trên VPS, trong `~/yeahbuddy-ops/supabase-switch`.
+
+### 1. Đưa hai phía về cùng migration
+
+Trong thời gian chạy trên VPS, nếu có deploy migration mới thì chúng chỉ được áp dụng lên VPS.
+
+```bash
+./migrate.sh vps status
+./migrate.sh cloud status
+./migrate.sh cloud deploy      # chỉ khi Cloud đang thiếu migration
+```
+
+`migrate.sh` dùng image `yeahbuddy-backend:latest`, nên hãy build/deploy backend mới nhất trước. Nếu một migration kiểu "backfill" báo lỗi `already exists`, đọc chú thích ở đầu file migration đó. Thường chỉ cần chạy `./migrate.sh <phía> resolve --applied <tên>`, giống cách đã xử lý `20260629_add_ai_generation` trên VPS.
+
+### 2. Tập dượt (không thay đổi gì)
+
+```bash
+./sync-db.sh vps cloud          # chép hết vào Cloud trong một transaction, đếm số dòng, rồi ROLLBACK
+./copy-avatars.sh vps cloud     # đếm số avatar sẽ chép
+```
+
+Lần tập dượt này chưa từng chạy với Cloud làm phía nhận, vì lúc đó Cloud đang bị chặn. Nếu lỗi quyền, ví dụ `permission denied` khi `truncate auth.users` hoặc khi `set session_replication_role`, xem mục [Sự cố hay gặp](#su-co-hay-gap).
+
+### 3. Chuyển thật
+
+```bash
+./cutover.sh vps cloud </dev/null
+```
+
+Script tự làm lần lượt: dừng backend → backup Cloud vào `~/backups/cloud-before-sync-*.dump` → đồng bộ → so số dòng → chép avatar → đưa backend về Cloud và chờ `/api/health`. Nếu lỗi ở bất kỳ bước nào, backend tự quay lại VPS.
+
+Luôn chạy với `</dev/null` hoặc từ terminal. Đừng pipe script vào `bash -s`.
+
+### 4. Đổi frontend trên Vercel
+
+Project `v0-fitness-app-design`, môi trường Production:
+- `NEXT_PUBLIC_SUPABASE_URL=https://bljmubatdtvuomucqmoj.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = anon/publishable key của Cloud. Lấy trong Supabase Dashboard → Project Settings → API Keys, hoặc biến `SUPABASE_ANON_KEY` trong `~/.config/yeahbuddy/cloud.env`.
+
+Sau đó **redeploy** (xem các lưu ý ở mục Vercel bên dưới).
+
+### 5. Kiểm tra
+
+```bash
+./verify.sh vps cloud                                   # không còn dòng nào đánh dấu "!"
+curl -s https://www.hominhduc.me/backend/api/health     # "connected":true
+```
+
+Kiểm tra bundle frontend đã đổi URL: lệnh dưới phải in ra `bljmubatdtvuomucqmoj.supabase.co` và không còn `supabase.hominhduc.cloud`.
+
+```bash
+for js in $(curl -s https://www.hominhduc.me/ | grep -oE '/_next/static/[^"]+\.js' | sort -u); do curl -s "https://www.hominhduc.me$js" | grep -oE 'https://[a-z0-9.-]*(supabase\.co|supabase\.hominhduc\.cloud)'; done | sort -u
+```
+
+Trên trình duyệt:
+- đăng nhập bằng email/mật khẩu và bằng Google;
+- thử quên mật khẩu;
+- mở Dashboard, Meals, Workout, và log thử một món ăn;
+- xem avatar.
+
+Mọi người phải đăng nhập lại một lần.
+
+### 6. Sau khi về Cloud
+
+- Để stack tự host chạy thêm vài ngày làm dự phòng. Muốn quay lại VPS thì chạy `./cutover.sh cloud vps </dev/null`.
+- Cron `backup.sh` chỉ backup DB tự host. Khi Cloud là nơi chính, backup do Supabase lo (gói Free không có PITR).
+- Theo dõi Usage → Egress trên Supabase Dashboard trong vài ngày đầu.
+
+## Rollback
+
+Nếu Cloud có vấn đề sau khi chuyển:
+
+```bash
+./switch-backend.sh vps
+```
+
+Sau đó trả env Vercel về giá trị VPS rồi redeploy. Dữ liệu ghi vào Cloud trong khoảng thời gian đó sẽ không có trên VPS. Nếu cần giữ lại, chạy `./cutover.sh cloud vps </dev/null` thay cho lệnh trên.
+
+## Vercel: biến do tích hợp quản lý
+
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_*` và `POSTGRES_*` do **tích hợp Supabase trên Vercel** tạo ra và quản lý. Sửa tay các biến này không có tác dụng, và tích hợp sẽ ghi đè lại. Muốn trỏ frontend về VPS thì phải:
+1. Vào Vercel → Project → Settings → Integrations (hoặc trang Integrations của team) → Supabase, rồi ngắt kết nối project này. Việc này xoá các biến do tích hợp tạo.
+2. Tự thêm lại, môi trường Production:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+   Frontend chỉ đọc hai biến này; `NEXT_PUBLIC_SUPABASE_ANON_KEY` chỉ là dự phòng.
+3. Khi quay về Cloud, có hai cách:
+   - sửa hai biến tự tạo đó về giá trị Cloud;
+   - hoặc xoá chúng rồi kết nối lại tích hợp Supabase.
+
+**Redeploy bị bỏ qua:** `vercel.json` có `ignoreCommand`, bỏ qua build khi commit mới nhất chỉ sửa `backend/`, `.github` hoặc `docker-compose.yml`. Nếu redeploy báo CANCELED, có hai cách:
+- redeploy bản Production READY gần nhất mà commit có sửa frontend;
+- hoặc push một commit có sửa frontend.
+
+`NEXT_PUBLIC_*` được nhúng lúc build, nên chỉ đổi env mà không build lại thì không có tác dụng.
+
+## Sự cố hay gặp
+
+- **`migrations differ`:** chạy `./migrate.sh <phía thiếu> deploy`.
+- **`the two sides have different tables`:** lệch migration hoặc có bảng tạo tay. Đưa hai phía về cùng migration trước.
+- **Lỗi quyền trên Cloud** (`permission denied for table users`, `session_replication_role`): role `postgres` trên Cloud không phải superuser.
+  - Thử lấy URL kết nối trực tiếp (`db.<ref>.supabase.co:5432`) trong Dashboard → Connect và đặt vào `DIRECT_URL` của `cloud.env`.
+  - Nếu vẫn bị chặn, chỉ đồng bộ `public` bằng Supabase CLI (`supabase db dump --data-only`), còn tài khoản đăng nhập thì giữ nguyên như trên Cloud. Chỉ tài khoản đăng ký trong thời gian chạy trên VPS là cần tạo lại.
+- **Script dừng giữa chừng mà không báo lỗi:** do chạy qua stdin. Chạy lại với `</dev/null`.
+- **Backend không lên sau khi chuyển:** xem `docker logs yeahbuddy-backend`. `switch-backend.sh` so `SUPABASE_URL` và kiểm tra `/api/health` có `"connected":true`.
+- **Không có quyền sửa thư mục backend:** `duc` đang được cấp quyền bằng ACL (`setfacl`). Nếu bị mất quyền, chạy lại lệnh ở bước 3 trong phần Chuẩn bị của runbook.
