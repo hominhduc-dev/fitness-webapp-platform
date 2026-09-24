@@ -21,6 +21,10 @@ grep -q 'supabase.env' "$BACKEND_DIR/docker-compose.override.yml" 2>/dev/null ||
   die "$BACKEND_DIR/docker-compose.override.yml does not load supabase.env yet (see docs/supabase-switch.md)"
 
 install -m 600 "$profile" "$BACKEND_DIR/supabase.env"
+# CI deploys run `docker compose` as the directory's owner, which must still
+# read the profile and the override this user created.
+deploy_user=$(stat -c %U "$BACKEND_DIR")
+setfacl -m "u:$deploy_user:r,m::r" "$BACKEND_DIR/supabase.env" "$BACKEND_DIR/docker-compose.override.yml"
 (cd "$BACKEND_DIR" && docker compose up -d --force-recreate)
 
 log "waiting for the backend"
