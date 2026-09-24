@@ -80,57 +80,44 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
     <div
       className={cn(
         "workout-floating-chip fixed z-50 pointer-events-auto",
-        // Desktop: offset left by sidebar width (280px). Both breakpoints sit
-        // just above the session's pinned Add exercise / Finish bar.
-        "bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
-        "md:left-[280px] md:right-10 md:w-auto md:max-w-none md:translate-x-0 md:bottom-[5.5rem]",
+        // Sits just above the session's pinned Finish button and matches its
+        // width. Desktop: offset left by sidebar width (280px).
+        "bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 w-[calc(100%-1.5rem)] max-w-[420px] -translate-x-1/2",
+        "md:left-[280px] md:right-10 md:w-auto md:max-w-none md:translate-x-0 md:bottom-[4rem]",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",
       )}
     >
       <div
         className={cn(
-          "flex items-center gap-3 md:gap-5",
+          "flex items-center gap-2.5 md:gap-4",
           "rounded-xl border border-border",
           "bg-background/90 backdrop-blur-xl",
-          "px-3 py-3 md:px-5 md:py-[14px]",
+          "px-3 py-2 md:px-4 md:py-2.5",
           "shadow-[var(--glass-shadow)]",
-          "flex-wrap md:flex-nowrap",
         )}
       >
-        {/* Left: label + countdown */}
-        <div className="min-w-[90px] md:min-w-[110px] shrink-0">
-          <div className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground mb-[2px]">
+        {/* Countdown */}
+        <div className="shrink-0">
+          <div className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
             {messages.workoutPage.rest}
           </div>
-          <div
-            className="font-mono text-3xl md:text-4xl font-semibold text-primary leading-none"
-          >
+          <div className="font-mono text-2xl font-semibold leading-none text-primary tnum md:text-3xl">
             {String(mins)}:{String(secs).padStart(2, "0")}
           </div>
         </div>
 
-        {/* Middle: progress bar + caption */}
-        <div
-          className={cn(
-            "flex-1 min-w-0",
-            // On mobile, force to its own row after left+right sections
-            "order-3 md:order-none w-full md:w-auto",
-          )}
-        >
-          {/* Progress track */}
-          <div className="h-1 rounded-full bg-border overflow-hidden">
+        {/* Progress bar + what was just logged */}
+        <div className="min-w-0 flex-1">
+          <div className="h-1 overflow-hidden rounded-full bg-border">
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-100 ease-linear"
               style={{ width: `${pct}%` }}
             />
           </div>
-          {/* Caption */}
-          <p className="mt-2 text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
+          <p className="mt-1.5 truncate text-xs text-muted-foreground">
             {messages.workoutPage.after}{" "}
-            <span className="text-foreground">
-              {event.exercise}
-            </span>
+            <span className="text-foreground">{event.exercise}</span>
             {event.set && (
               <>
                 {" · "}
@@ -142,31 +129,31 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerP
           </p>
         </div>
 
-        {/* Right: action buttons */}
-        <div className="flex items-center gap-2 ml-auto shrink-0">
+        {/* Actions */}
+        <div className="flex shrink-0 items-center gap-1">
           <button
             onClick={handleAddTime}
             aria-label={messages.workoutPage.add30Seconds}
             className={cn(
-              "flex items-center gap-1 rounded-md border border-border",
-              "px-3 py-1.5 text-sm font-medium text-foreground",
-              "bg-transparent hover:bg-muted transition-colors duration-150",
+              "flex h-9 items-center gap-0.5 rounded-md border border-border px-2 text-xs font-medium text-foreground",
+              "bg-transparent transition-colors duration-150 hover:bg-muted",
             )}
           >
             <Plus className="h-3.5 w-3.5" />
-            30 s
+            30s
           </button>
+          {/* Icon-only on phones; the label comes back where there is room. */}
           <button
             onClick={handleSkip}
             aria-label={messages.workoutPage.skipRest}
+            title={messages.workoutPage.skipRest}
             className={cn(
-              "flex items-center gap-1 rounded-md",
-              "px-3 py-1.5 text-sm font-medium",
-              "bg-transparent text-destructive-text hover:bg-destructive-soft transition-colors duration-150",
+              "flex h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium",
+              "bg-transparent text-destructive-text transition-colors duration-150 hover:bg-destructive-soft",
             )}
           >
-            <SkipForward className="h-3.5 w-3.5" />
-            {messages.workoutPage.skip}
+            <SkipForward className="h-4 w-4" />
+            <span className="hidden md:inline">{messages.workoutPage.skip}</span>
           </button>
         </div>
       </div>

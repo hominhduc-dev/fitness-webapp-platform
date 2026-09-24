@@ -915,30 +915,18 @@ interface StatCellProps {
   label: string
   value: string | number
   sub: string
-  /** Hide right border on last cell */
-  last?: boolean
-  /** In mobile 2×2, bottom row cells don't need bottom border */
-  lastRow?: boolean
 }
 
-function StatCell({ label, value, sub, last, lastRow }: StatCellProps) {
+function StatCell({ label, value, sub }: StatCellProps) {
   return (
-    <div
-      className={cn(
-        "min-w-0 p-4",
-        !last && "border-r border-border",
-        !lastRow && "border-b border-border md:border-b-0",
-      )}
-    >
-      <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground mb-1.5">
+    <div className="min-w-0 px-2.5 py-2.5 md:p-4">
+      <p className="truncate font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
-      <p
-        className="truncate font-mono text-2xl font-medium leading-none text-foreground"
-      >
+      <p className="mt-1 truncate font-mono text-base font-medium leading-none text-foreground md:mt-1.5 md:text-2xl">
         {value}
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
+      <p className="mt-1 truncate text-micro text-muted-foreground md:text-xs">{sub}</p>
     </div>
   )
 }
@@ -1699,58 +1687,50 @@ function WorkoutSession() {
     <div className="min-h-[100dvh] overflow-x-clip bg-background">
       {/* ── Main content ─────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pt-5 pb-2 sm:px-4 md:px-10 md:pt-8">
-        {/* Header */}
-        <div className="mb-7">
-          {/* Mobile back button */}
+        {/* Header: date and title on the left, cancel beside them on mobile
+            (desktop cancels from the action bar), so it takes one block. */}
+        <div className="mb-4 flex items-start justify-between gap-3 md:mb-7">
+          <div className="min-w-0">
+            <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                {dateLabel}
+              </p>
+              <SyncStatusBadge />
+            </div>
+            <h1 className="m-0 mt-1 break-words text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground md:mt-2 md:text-5xl">
+              {workout.name}
+            </h1>
+          </div>
           <button
             type="button"
             onClick={handleCancelWorkout}
-            className="mb-3 flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
+            className="-mr-1.5 flex shrink-0 items-center gap-1 rounded-full px-1.5 pointer-coarse:min-h-11 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
           >
             <X className="h-4 w-4" />
             {messages.workoutPage.cancelWorkout}
           </button>
-          <div className="mb-2 flex min-h-7 items-center justify-between gap-3">
-            <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {dateLabel}
-            </p>
-            <SyncStatusBadge />
-          </div>
-          <h1 className="text-3xl md:text-5xl font-semibold tracking-[-0.02em] text-foreground m-0 leading-tight">
-            {workout.name}
-          </h1>
         </div>
 
         {/* Session stats */}
         <div
           data-tour="session-stats"
-          className="grid grid-cols-2 md:grid-cols-4 border border-border rounded-lg bg-card overflow-hidden mb-7"
+          className="mb-5 grid grid-cols-4 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card md:mb-7"
         >
-          <StatCell
-            label={messages.workoutPage.started}
-            value={startedLabel}
-            sub={elapsedLabel}
-            lastRow={false}
-          />
+          <StatCell label={messages.workoutPage.started} value={startedLabel} sub={elapsedLabel} />
           <StatCell
             label={messages.workoutPage.set}
-            value={`${completedSets} / ${totalSets}`}
+            value={`${completedSets}/${totalSets}`}
             sub={messages.workoutPage.completed}
-            last
-            lastRow={false}
           />
           <StatCell
             label={messages.workoutPage.volume}
             value={Math.round(volume).toLocaleString("en-US")}
             sub={messages.workoutPage.kgLifted}
-            lastRow
           />
           <StatCell
             label={messages.workoutPage.exercises}
-            value={`${completedExercises} / ${exercises.length}`}
+            value={`${completedExercises}/${exercises.length}`}
             sub={messages.workoutPage.completed}
-            last
-            lastRow
           />
         </div>
 
@@ -1793,20 +1773,21 @@ function WorkoutSession() {
           )
         })}
 
-        {/* Bottom action bar: stays pinned to the bottom of the screen while
-            scrolling, so finishing never needs a scroll to the end. It bleeds
-            to main's edges so its frosted background spans the full width. */}
-        <div className="sticky bottom-0 z-30 -mx-3 mt-6 grid grid-cols-2 gap-2 border-t border-border bg-background/85 px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:-mx-4 sm:px-4 md:-mx-10 md:flex md:gap-3 md:px-10 md:pb-4">
-          {/* Add exercise */}
-          <Button
-            variant="outline"
-            className="w-full md:w-auto gap-1.5"
-            onClick={() => void handleOpenAddExercise()}
-          >
-            <Plus className="h-4 w-4" />
-            {messages.workoutPage.addExercise}
-          </Button>
+        {/* Add exercise: after the last card, where the list grows. */}
+        <Button
+          variant="outline"
+          className="w-full gap-1.5 border-dashed text-muted-foreground hover:text-foreground"
+          onClick={() => void handleOpenAddExercise()}
+        >
+          <Plus className="h-4 w-4" />
+          {messages.workoutPage.addExercise}
+        </Button>
 
+        {/* Bottom action bar: stays pinned to the bottom of the screen while
+            scrolling, so finishing never needs a scroll to the end. It has no
+            background of its own, so taps around the buttons reach the cards
+            underneath. */}
+        <div className="pointer-events-none sticky bottom-0 z-30 mt-6 flex gap-2 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:gap-3 md:pb-4 [&>button]:pointer-events-auto">
           {/* Spacer (desktop) */}
           <div className="hidden md:flex flex-1" />
 
@@ -1822,7 +1803,9 @@ function WorkoutSession() {
           {/* Finish workout */}
           <Button
             data-tour="session-finish"
-            className="w-full md:w-auto bg-foreground text-background hover:bg-foreground/90 font-semibold"
+            // Opaque even when disabled: with no bar background, the default
+            // half-transparent disabled look would let the cards show through.
+            className="w-full md:w-auto bg-foreground text-background hover:bg-foreground/90 font-semibold disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
             onClick={handleFinishWorkout}
             disabled={completedSets === 0 || isSaving}
           >
