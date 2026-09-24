@@ -105,6 +105,7 @@ Mọi người phải đăng nhập lại một lần.
 - Để stack tự host chạy thêm vài ngày làm dự phòng. Muốn quay lại VPS thì chạy `./cutover.sh cloud vps </dev/null`.
 - Cron `backup.sh` chỉ backup DB tự host. Khi Cloud là nơi chính, backup do Supabase lo (gói Free không có PITR).
 - Theo dõi Usage → Egress trên Supabase Dashboard trong vài ngày đầu.
+- Template email nằm trong `public/email-templates/`. Bản tự host đọc chúng qua `MAILER_TEMPLATES_*` trong `~/supabase/.env`, từ bucket công khai `email-templates` trong Storage tự host (`https://supabase.hominhduc.cloud/storage/v1/object/public/email-templates/…`). Mỗi lần sửa file trong repo, phải tải lại lên bucket này (upsert) rồi khởi động lại auth. Trên Cloud, dán nội dung vào Authentication → Emails, và kiểm tra ảnh không trỏ vào Storage của Cloud.
 
 ## Rollback
 
@@ -141,4 +142,5 @@ Các biến `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_*` và `POSTGRES_*` do **tích h
   - Nếu vẫn bị chặn, chỉ đồng bộ `public` bằng Supabase CLI (`supabase db dump --data-only`), còn tài khoản đăng nhập thì giữ nguyên như trên Cloud. Chỉ tài khoản đăng ký trong thời gian chạy trên VPS là cần tạo lại.
 - **Script dừng giữa chừng mà không báo lỗi:** do chạy qua stdin. Chạy lại với `</dev/null`.
 - **Backend không lên sau khi chuyển:** xem `docker logs yeahbuddy-backend`. `switch-backend.sh` so `SUPABASE_URL` và kiểm tra `/api/health` có `"connected":true`.
+- **CI "Deploy to VPS" báo `.git/index: Permission denied`:** một file trong thư mục backend bị đổi chủ sang `duc`, thường do chạy `git status`/`git pull` bằng `duc` trong thư mục đó. Đừng chạy git ở đó bằng `duc`. Nếu đã lỡ, cấp lại quyền cho user deploy: `find /home/yeahbuddy/htdocs/backend.hominhduc.me -user duc -exec setfacl -m u:yeahbuddy:rw,m::rw {} +`, rồi chạy lại job deploy.
 - **Không có quyền sửa thư mục backend:** `duc` đang được cấp quyền bằng ACL (`setfacl`). Nếu bị mất quyền, chạy lại lệnh ở bước 3 trong phần Chuẩn bị của runbook.
