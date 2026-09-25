@@ -103,7 +103,7 @@ function MeasureField({
         aria-label={label}
         onChange={(event) => onChange(event.target.value)}
         className={cn(
-          "h-auto border-0 bg-transparent p-0 text-5xl font-bold tracking-tight shadow-none",
+          "onboarding-measure-input h-auto border-0 bg-transparent p-0 text-5xl font-bold tracking-tight shadow-none",
           "focus-visible:border-0 focus-visible:ring-0",
           "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
         )}
