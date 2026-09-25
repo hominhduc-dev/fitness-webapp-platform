@@ -2,7 +2,7 @@
 
 import { useGenerateAIProgram, useAcceptAIProgram, useGenerateAIDailyWorkout, useAcceptAIDailyWorkout, useAIExerciseLibrary } from "@/lib/queries/ai"
 
-import { ArrowLeft, Bot, ShieldCheck, Sparkles } from "lucide-react"
+import { ArrowLeft, Bot } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useMemo, useState } from "react"
@@ -12,6 +12,7 @@ import { ProgramPreview } from "@/components/ai/program-preview"
 import { DailyWorkoutGeneratorForm, type DailyWorkoutFormValues } from "@/components/ai/daily-workout-generator-form"
 import { DailyWorkoutPreview } from "@/components/ai/daily-workout-preview"
 import { useLocale } from "@/components/providers/locale-provider"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import type { AIDailyWorkout } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
 
@@ -46,6 +47,8 @@ type DailyGenerateResult = {
   generationId: string
   workout: AIDailyWorkout
 }
+
+const MODES = ["daily", "program"] as const
 
 function formatLocalDate(date: Date) {
   const year = date.getFullYear()
@@ -154,36 +157,58 @@ function AIGenerateView() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-28 md:px-6 md:pb-28">
-      <div className="mb-6 sm:mb-8">
-        <Link href="/workout" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
+    <main className="mx-auto w-full max-w-5xl px-4 pt-4 pb-28 md:px-6 md:pt-6 md:pb-28">
+      {/* One compact block: back, then the title beside its icon. The builder's
+          promise lives in the subtitle; the form below is the page. */}
+      <div className="mb-4">
+        <Link href="/workout" className="mb-3 inline-flex min-h-9 items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
           <ArrowLeft className="size-4" />
           {isVi ? "Quay lại" : "Back"}
         </Link>
-        <div className="glass-card flex items-start gap-3 rounded-3xl border bg-gradient-to-br from-primary-soft/70 via-card to-card p-4 sm:p-5">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-            <Bot className="size-5" />
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <Bot className="size-5" aria-hidden="true" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold sm:text-2xl">AI Workout Builder</h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-micro font-semibold uppercase tracking-[0.06em] text-primary"><Sparkles className="size-3" />{isVi ? "Cá nhân hoá" : "Personalized"}</span>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {isVi ? "Tạo một buổi tập hôm nay hoặc chương trình nhiều tuần" : "Build today's workout or a multi-week program"}
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight sm:text-2xl">AI Workout Builder</h1>
+            <p className="truncate text-sm text-muted-foreground">
+              {isVi ? "Buổi tập hôm nay hoặc chương trình nhiều tuần" : "Today's workout or a multi-week program"}
             </p>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-success-text" />{isVi ? "Có kiểm tra thiết bị và giới hạn vận động" : "Accounts for equipment and movement limitations"}</p>
           </div>
         </div>
       </div>
 
-      <div className="auth-theme-tabs mb-6 grid grid-cols-2 rounded-full border bg-muted/50 p-1">
-        <button type="button" onClick={() => changeMode("daily")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "daily" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>{isVi ? "Buổi tập hôm nay" : "Today's workout"}</button>
-        <button type="button" onClick={() => changeMode("program")} className={cn("rounded-full px-3 py-2.5 text-sm font-semibold transition-all", mode === "program" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground")}>{isVi ? "Chương trình nhiều tuần" : "Multi-week program"}</button>
-      </div>
+      <GlassSegmented
+        role="tablist"
+        aria-label="AI Workout Builder"
+        activeIndex={MODES.indexOf(mode)}
+        columns={{ count: MODES.length, gapPx: 4 }}
+        lensClassName="rounded-xl"
+        onSlide={(index) => changeMode(MODES[index])}
+        className="mb-4 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-1"
+      >
+        {(shownIndex) =>
+          MODES.map((item, index) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              data-segment
+              aria-selected={mode === item}
+              onClick={() => changeMode(item)}
+              className={cn(
+                "min-w-0 truncate rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {item === "daily" ? (isVi ? "Buổi tập hôm nay" : "Today's workout") : isVi ? "Chương trình nhiều tuần" : "Multi-week program"}
+            </button>
+          ))
+        }
+      </GlassSegmented>
 
       {error && (
-        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-text">
+        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-text">
           {error}
         </div>
       )}

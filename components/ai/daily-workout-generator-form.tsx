@@ -1,13 +1,11 @@
 "use client"
 
-import { BatteryLow, BatteryMedium, BatteryFull, Check, Dumbbell, Flame, Heart, Loader2, Shield, Sparkles, Zap } from "lucide-react"
+import { Loader2, Sparkles } from "lucide-react"
 import { useState } from "react"
 
+import { ChoiceCard, ChoiceRow, MoreOptions, SingleChoice } from "@/components/ai/choice-controls"
 import { Button } from "@/components/ui/button"
-import { FilterChip } from "@/components/ui/filter-chip"
-import { Label } from "@/components/ui/label"
 import { useLocale } from "@/components/providers/locale-provider"
-import { cn } from "@/lib/utils"
 
 type DailyWorkoutFormValues = {
   goal: string
@@ -20,27 +18,22 @@ type DailyWorkoutFormValues = {
 }
 
 const GOALS = [
-  { value: "build_muscle", en: "Build muscle", vi: "Tăng cơ", icon: Dumbbell },
-  { value: "lose_weight", en: "Burn fat", vi: "Đốt mỡ", icon: Flame },
-  { value: "strength", en: "Strength", vi: "Sức mạnh", icon: Shield },
-  { value: "endurance", en: "Endurance", vi: "Sức bền", icon: Heart },
-  { value: "general_fitness", en: "General", vi: "Tổng hợp", icon: Zap },
-] as const
-const MUSCLES = [
-  { value: "Chest", vi: "Ngực" }, { value: "Back", vi: "Lưng" }, { value: "Shoulders", vi: "Vai" },
-  { value: "Biceps", vi: "Tay trước" }, { value: "Triceps", vi: "Tay sau" }, { value: "Legs", vi: "Chân" },
-  { value: "Abs", vi: "Bụng" }, { value: "Glutes", vi: "Mông" },
+  { value: "build_muscle", en: "Build muscle", vi: "Tăng cơ" },
+  { value: "lose_weight", en: "Burn fat", vi: "Đốt mỡ" },
+  { value: "strength", en: "Strength", vi: "Sức mạnh" },
+  { value: "endurance", en: "Endurance", vi: "Sức bền" },
+  { value: "general_fitness", en: "General", vi: "Tổng hợp" },
 ] as const
 const DURATIONS = [30, 45, 60, 75, 90] as const
 const ENERGY = [
-  { value: "low", en: "Tired", vi: "Hơi mệt", hintEn: "Lower volume", hintVi: "Giảm volume", icon: BatteryLow },
-  { value: "normal", en: "Normal", vi: "Bình thường", hintEn: "Standard volume", hintVi: "Volume chuẩn", icon: BatteryMedium },
-  { value: "high", en: "Energized", vi: "Sung sức", hintEn: "Push harder", hintVi: "Có thể đẩy mạnh", icon: BatteryFull },
+  { value: "low", en: "Tired", vi: "Hơi mệt", hintEn: "Lower volume", hintVi: "Giảm volume" },
+  { value: "normal", en: "Normal", vi: "Bình thường", hintEn: "Standard volume", hintVi: "Volume chuẩn" },
+  { value: "high", en: "Energized", vi: "Sung sức", hintEn: "Push harder", hintVi: "Có thể đẩy mạnh" },
 ] as const
 const EQUIPMENT = [
   { value: "full_gym", en: "Full gym", vi: "Gym đầy đủ" },
   { value: "home_dumbbells", en: "Dumbbells", vi: "Tạ đôi" },
-  { value: "bodyweight", en: "No equipment", vi: "Không thiết bị" },
+  { value: "bodyweight", en: "Bodyweight", vi: "Tay không" },
 ] as const
 
 function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values: DailyWorkoutFormValues) => void; isLoading: boolean }) {
@@ -55,6 +48,8 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
     injuries: "",
     energyLevel: "normal",
   })
+  const set = <K extends keyof DailyWorkoutFormValues>(key: K, value: DailyWorkoutFormValues[K]) =>
+    setValues((current) => ({ ...current, [key]: value }))
 
   function toggleMuscle(muscle: string) {
     setValues((current) => ({
@@ -65,54 +60,68 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
     }))
   }
 
+  const label = (item: { en: string; vi: string }) => (isVi ? item.vi : item.en)
+  const goal = GOALS.find((item) => item.value === values.goal) ?? GOALS[0]
+  const energy = ENERGY.find((item) => item.value === values.energyLevel) ?? ENERGY[1]
+  const equipment = EQUIPMENT.find((item) => item.value === values.availableEquipment) ?? EQUIPMENT[0]
+  const minutes = isVi ? "phút" : "min"
+
   return (
-    <div className="space-y-5">
-      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
-        <Label className="mb-1 block text-base font-semibold">{isVi ? "Hôm nay bạn muốn đạt điều gì?" : "What do you want to achieve today?"}</Label>
-        <p className="mb-4 text-xs text-muted-foreground">{isVi ? "AI sẽ ưu tiên bài tập và rep range theo mục tiêu này." : "AI will prioritize exercises and rep ranges for this goal."}</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {GOALS.map(({ value, en, vi, icon: Icon }) => {
-            const selected = values.goal === value
-            return <button key={value} type="button" aria-pressed={selected} onClick={() => setValues((current) => ({ ...current, goal: value }))} className={cn("relative flex min-h-[82px] flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-sm font-medium transition-all last:col-span-2 sm:last:col-span-1", selected ? "border-primary bg-primary-soft text-primary" : "border-border hover:border-primary/40")}>{selected && <Check className="absolute right-2 top-2 size-3.5" />}<Icon className="size-5" />{isVi ? vi : en}</button>
-          })}
-        </div>
-      </section>
+    <div className="space-y-4">
+      <ChoiceCard>
+        <ChoiceRow label={isVi ? "Mục tiêu hôm nay" : "Today's goal"}>
+          <SingleChoice
+            variant="chips"
+            ariaLabel={isVi ? "Mục tiêu hôm nay" : "Today's goal"}
+            options={GOALS.map((item) => ({ label: label(item), value: item.value }))}
+            value={values.goal}
+            onChange={(value) => set("goal", value)}
+          />
+        </ChoiceRow>
+        <ChoiceRow label={isVi ? "Năng lượng" : "Energy"} hint={isVi ? energy.hintVi : energy.hintEn}>
+          <SingleChoice
+            ariaLabel={isVi ? "Năng lượng" : "Energy"}
+            options={ENERGY.map((item) => ({ label: label(item), value: item.value }))}
+            value={values.energyLevel}
+            onChange={(value) => set("energyLevel", value)}
+          />
+        </ChoiceRow>
+        <ChoiceRow label={isVi ? "Thời gian" : "Time"} hint={`${values.sessionDuration} ${minutes}`}>
+          <SingleChoice
+            mono
+            ariaLabel={isVi ? "Thời gian" : "Time"}
+            options={DURATIONS.map((duration) => ({ ariaLabel: `${duration} ${minutes}`, label: String(duration), value: duration }))}
+            value={values.sessionDuration}
+            onChange={(value) => set("sessionDuration", value)}
+          />
+        </ChoiceRow>
+        <ChoiceRow label={isVi ? "Thiết bị" : "Equipment"}>
+          <SingleChoice
+            ariaLabel={isVi ? "Thiết bị" : "Equipment"}
+            options={EQUIPMENT.map((item) => ({ label: label(item), value: item.value }))}
+            value={values.availableEquipment}
+            onChange={(value) => set("availableEquipment", value)}
+          />
+        </ChoiceRow>
+      </ChoiceCard>
 
-      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
-        <Label className="mb-1 block text-base font-semibold">{isVi ? "Bạn cảm thấy thế nào?" : "How are you feeling?"}</Label>
-        <p className="mb-4 text-xs text-muted-foreground">{isVi ? "AI dùng mức năng lượng để điều chỉnh số set và độ khó." : "AI uses your energy level to adjust volume and difficulty."}</p>
-        <div className="grid grid-cols-3 gap-2">
-          {ENERGY.map(({ value, en, vi, hintEn, hintVi, icon: Icon }) => <button key={value} type="button" aria-pressed={values.energyLevel === value} onClick={() => setValues((current) => ({ ...current, energyLevel: value }))} className={cn("rounded-2xl border px-2 py-3 text-center transition-all", values.energyLevel === value ? "border-primary bg-primary-soft" : "border-border hover:border-primary/40")}><Icon className={cn("mx-auto size-5", values.energyLevel === value ? "text-primary" : "text-muted-foreground")} /><span className="mt-2 block text-xs font-semibold sm:text-sm">{isVi ? vi : en}</span><span className="mt-0.5 hidden text-micro text-muted-foreground sm:block">{isVi ? hintVi : hintEn}</span></button>)}
-        </div>
-      </section>
-
-      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <Label className="mb-2.5 block text-sm font-semibold">{isVi ? "Thời gian có thể tập" : "Available training time"}</Label>
-            <div className="grid grid-cols-5 gap-1.5">{DURATIONS.map((duration) => <button key={duration} type="button" onClick={() => setValues((current) => ({ ...current, sessionDuration: duration }))} className={cn("rounded-xl border py-2.5 text-xs font-semibold transition-all", values.sessionDuration === duration ? "border-primary bg-primary-soft text-primary" : "border-border")}>{duration}</button>)}</div>
-            <p className="mt-2 text-xs text-muted-foreground">{values.sessionDuration} {isVi ? "phút" : "minutes"}</p>
-          </div>
-          <div>
-            <Label className="mb-2.5 block text-sm font-semibold">{isVi ? "Thiết bị hiện có" : "Available equipment"}</Label>
-            <div className="grid grid-cols-3 gap-1.5">{EQUIPMENT.map((equipment) => <button key={equipment.value} type="button" onClick={() => setValues((current) => ({ ...current, availableEquipment: equipment.value }))} className={cn("rounded-xl border px-1 py-2.5 text-micro font-medium transition-all sm:text-xs", values.availableEquipment === equipment.value ? "border-primary bg-primary-soft text-primary" : "border-border")}>{isVi ? equipment.vi : equipment.en}</button>)}</div>
-          </div>
-        </div>
-      </section>
-
-      <section className="glass-card rounded-3xl border bg-card p-4 sm:p-5">
-        <Label className="mb-1 block text-base font-semibold">{isVi ? "Nhóm cơ muốn tập hôm nay" : "Muscles to train today"}</Label>
-        <p className="mb-4 text-xs text-muted-foreground">{isVi ? "Có thể chọn nhiều nhóm hoặc để trống để AI tự cân đối." : "Select multiple groups or leave blank for AI to balance the session."}</p>
-        <div className="flex flex-wrap gap-2">{MUSCLES.map((muscle) => { const selected = values.focusAreas.includes(muscle.value); return <FilterChip key={muscle.value} active={selected} onClick={() => toggleMuscle(muscle.value)} className="px-3.5 py-2 text-sm">{selected && <Check className="mr-1.5 inline size-3.5" />}{isVi ? muscle.vi : muscle.value}</FilterChip> })}</div>
-      </section>
-
-      <section className="glass-card rounded-3xl border border-warning/20 bg-card p-4 sm:p-5">
-        <Label htmlFor="daily-injuries" className="mb-1 block text-base font-semibold">{isVi ? "Đau mỏi hoặc bài cần tránh?" : "Any soreness or exercises to avoid?"}</Label>
-        <p className="mb-3 text-xs text-muted-foreground">{isVi ? "Bao gồm cả cảm giác bất thường chỉ xuất hiện hôm nay." : "Include any discomfort that appeared today."}</p>
-        <textarea id="daily-injuries" rows={3} value={values.injuries} onChange={(event) => setValues((current) => ({ ...current, injuries: event.target.value }))} placeholder={isVi ? "Ví dụ: cổ tay hơi đau, tránh chống đẩy..." : "e.g. sore wrist, avoid push-ups..."} className="w-full resize-none rounded-xl border border-border bg-background/50 px-3.5 py-3 text-sm outline-none focus:border-primary" />
-      </section>
+      <MoreOptions
+        isVi={isVi}
+        focusAreas={values.focusAreas}
+        onToggleMuscle={toggleMuscle}
+        musclesLabel={isVi ? "Nhóm cơ muốn tập" : "Muscles to train"}
+        injuries={values.injuries}
+        onInjuriesChange={(value) => set("injuries", value)}
+        injuriesId="daily-injuries"
+        injuriesLabel={isVi ? "Đau mỏi hoặc bài cần tránh" : "Soreness or exercises to avoid"}
+        injuriesPlaceholder={isVi ? "Ví dụ: cổ tay hơi đau, tránh chống đẩy..." : "e.g. sore wrist, avoid push-ups..."}
+      />
 
       <div className="glass-frost sticky bottom-3 z-20 rounded-3xl border p-3">
+        {/* The answers at a glance, so a trainee can check them without scrolling back up. */}
+        <p className="mb-2 truncate text-center text-xs text-muted-foreground">
+          {label(goal)} · {values.sessionDuration} {minutes} · {label(equipment)}
+        </p>
         <Button size="lg" className="w-full gap-2 rounded-xl" disabled={isLoading} onClick={() => onSubmit(values)}>{isLoading ? <><Loader2 className="size-4 animate-spin" />{isVi ? "AI đang thiết kế buổi tập..." : "AI is building your workout..."}</> : <><Sparkles className="size-4" />{isVi ? "Tạo buổi tập hôm nay" : "Generate today's workout"}</>}</Button>
       </div>
     </div>
