@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { User } from "lucide-react"
+import { CircleCheck, User } from "lucide-react"
 import { useSyncExternalStore } from "react"
 
 import { NotificationBell } from "@/components/layout/notification-bell"
@@ -9,7 +9,9 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { fetchDashboard } from "@/lib/fitness/api"
 import { cn } from "@/lib/utils"
-import { WEEK_STRIP_DAY_CLASS, WEEK_STRIP_GRID_CLASS } from "@/components/layout/week-strip-layout"
+import { WeekDayCellContent, weekDayCellClass } from "@/components/layout/week-day-cell"
+import { WEEK_STRIP_GRID_CLASS } from "@/components/layout/week-strip-layout"
+import { inferRoutineTag, TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { shortWeekday } from "@/lib/i18n/weekday"
 
 type DayPeriod = "morning" | "afternoon" | "evening"
@@ -48,10 +50,42 @@ function mobileWeek(today: string | null, locale: string) {
     date.setDate(monday.getDate() + index)
     return {
       date,
+      isFuture: date.getTime() > current.getTime(),
       isToday: date.getTime() === current.getTime(),
       weekday: shortWeekday(date, locale),
     }
   })
+}
+
+type ScheduleEntry = Awaited<ReturnType<typeof fetchDashboard>>["scheduleEntries"][number]
+type DayStatus = "done" | "missed" | "planned" | "rest"
+
+/**
+ * What a day of the week strip says: trained, planned but missed (a past day
+ * whose session never got logged), planned, or rest.
+ */
+function dayStatus(entry: ScheduleEntry | undefined, day: { isFuture: boolean; isToday: boolean }): DayStatus {
+  if (entry?.isCompleted) return "done"
+  if (!entry?.workout) return "rest"
+  if (entry.isMissed || (!day.isToday && !day.isFuture)) return "missed"
+  return "planned"
+}
+
+/** ✓ trained, a dash for missed, a dot in the session's split colour for planned. */
+function WorkoutDayIndicator({ entry, isToday, status }: { entry: ScheduleEntry | undefined; isToday: boolean; status: DayStatus | null }) {
+  if (status === "done") {
+    return <CircleCheck className={cn("size-4", isToday ? "text-primary-foreground" : "text-success-text")} strokeWidth={2.25} />
+  }
+  if (status === "missed") return <span className="h-0.5 w-3 rounded-full bg-muted-foreground/60" />
+  if (status === "planned" && entry?.workout) {
+    return (
+      <span
+        className="size-2 rounded-full"
+        style={{ background: isToday ? "var(--primary-foreground)" : TAG_DOT_COLOR[inferRoutineTag(entry.workout)] }}
+      />
+    )
+  }
+  return null
 }
 
 function initials(name: string) {
@@ -85,6 +119,11 @@ export function DashboardGreeting({
   const copy = messages.dashboard
   const period = useDayPeriod()
   const currentWeek = mobileWeek(useTodayKey(), locale === "vi" ? "vi-VN" : "en-US")
+  const entryFor = (date: Date) =>
+    scheduleEntries.find(
+      (item) =>
+        item.date.getFullYear() === date.getFullYear() && item.date.getMonth() === date.getMonth() && item.date.getDate() === date.getDate(),
+    )
 
   return (
     <section className="min-w-0">
@@ -132,51 +171,30 @@ export function DashboardGreeting({
         <div aria-hidden="true" className="h-[calc(3.7rem+env(safe-area-inset-top))]" />
 
         <nav aria-label={copy.thisWeekDays} className={WEEK_STRIP_GRID_CLASS}>
-          {(currentWeek ?? Array.from({ length: 7 }, () => null)).map((day, index) => (
-            (() => {
-              const entry = day
-                ? scheduleEntries.find((item) =>
-                    item.date.getFullYear() === day.date.getFullYear() &&
-                    item.date.getMonth() === day.date.getMonth() &&
-                    item.date.getDate() === day.date.getDate(),
-                  )
-                : undefined
-              const hasPlan = Boolean(entry?.workout)
-              const completed = Boolean(entry?.isCompleted)
+          {(currentWeek ?? Array.from({ length: 7 }, () => null)).map((day, index) => {
+            const entry = day ? entryFor(day.date) : undefined
+            const status = day ? dayStatus(entry, day) : null
+            const statusLabel =
+              status === "done" ? copy.dayDone : status === "missed" ? copy.dayMissed : status === "planned" ? copy.dayPlanned : copy.rest
 
-              return (
-                <Link
-                  key={day ? day.date.toISOString() : index}
-                  href="/schedule"
-                  aria-current={day?.isToday ? "date" : undefined}
-                  className={cn(
-                    WEEK_STRIP_DAY_CLASS,
-                    "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    day?.isToday
-                      ? "border-primary bg-primary text-primary-foreground shadow-[0_12px_28px_-14px_var(--primary)]"
-                      : "day-card-glow text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                  )}
-                  title={entry?.workout?.name ?? copy.rest}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "absolute left-1/2 top-2 size-1.5 -translate-x-1/2 rounded-full",
-                      day?.isToday
-                        ? "bg-primary-foreground"
-                        : completed
-                          ? "bg-success"
-                          : hasPlan
-                            ? "bg-primary"
-                            : "bg-muted-foreground/35",
-                    )}
-                  />
-                  <span className="text-sm font-medium leading-none">{day?.weekday ?? "\u00a0"}</span>
-                  <span className="font-mono text-lg leading-none tnum">{day?.date.getDate() ?? "\u00a0"}</span>
-                </Link>
-              )
-            })()
-          ))}
+            return (
+              <Link
+                key={day ? day.date.toISOString() : index}
+                href="/schedule"
+                aria-current={day?.isToday ? "date" : undefined}
+                aria-label={day ? `${day.weekday} ${day.date.getDate()}, ${statusLabel}${entry?.workout ? `: ${entry.workout.name}` : ""}` : undefined}
+                title={entry?.workout?.name ?? copy.rest}
+                className={weekDayCellClass({ future: Boolean(day?.isFuture), isToday: Boolean(day?.isToday) })}
+              >
+                <WeekDayCellContent
+                  weekday={day?.weekday ?? null}
+                  date={day?.date.getDate() ?? null}
+                  isToday={Boolean(day?.isToday)}
+                  indicator={<WorkoutDayIndicator entry={entry} isToday={Boolean(day?.isToday)} status={status} />}
+                />
+              </Link>
+            )
+          })}
         </nav>
       </div>
 
