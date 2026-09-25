@@ -14,7 +14,7 @@ import { useState } from "react"
 import { AIMessage } from "@/components/ai/ai-message"
 import { buildMealPlanOverrides, MealPlanDraft, omitMealEdits, type MealPlanEdits } from "@/components/ai/meal-plan-draft"
 import { useAuth } from "@/components/providers/auth-provider"
-import { BottomSheet, BottomSheetBody, BottomSheetHeader } from "@/components/ui/bottom-sheet"
+import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -182,6 +182,10 @@ function MealPlanGenerator({
     }
   }
 
+  // Waiting on the stored draft first, so a restored plan does not appear
+  // after a flash of the empty form.
+  const draftLoading = draftQuery.isPending && !localPlan
+
   return (
     <BottomSheet ariaLabel="AI Gợi Ý Thực Đơn" variant="flush" onClose={onClose}>
       <BottomSheetHeader className="items-center">
@@ -194,16 +198,15 @@ function MealPlanGenerator({
         </button>
       </BottomSheetHeader>
 
-      <BottomSheetBody>
+      {/* The footer carries the home-indicator inset whenever it is shown. */}
+      <BottomSheetBody className={draftLoading ? undefined : "pb-4"}>
         {error && (
           <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive-text">
             {error}
           </div>
         )}
 
-        {/* Waiting on the stored draft first, so a restored plan does not
-            appear after a flash of the empty form. */}
-        {draftQuery.isPending && !localPlan ? (
+        {draftLoading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
             Đang tải thực đơn...
@@ -225,30 +228,6 @@ function MealPlanGenerator({
               Thực đơn được lưu dưới dạng dự kiến, chưa tính là đã ăn. Bấm &quot;Đã ăn&quot; ở trang Meals sau mỗi bữa.
             </p>
 
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1 gap-2"
-                onClick={() => void handleDiscard()}
-                disabled={isAccepting || swappingKey !== null}
-              >
-                <RefreshCw className="size-4" />
-                Tạo lại
-              </Button>
-              <Button className="flex-1 gap-2" onClick={() => void handleAccept()} disabled={isAccepting || swappingKey !== null}>
-                {isAccepting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Đang lưu...
-                  </>
-                ) : (
-                  <>
-                    <Check className="size-4" />
-                    Lưu thực đơn
-                  </>
-                )}
-              </Button>
-            </div>
           </div>
         ) : (
           <div className="space-y-5">
@@ -286,22 +265,54 @@ function MealPlanGenerator({
             <OptionGroup label="Ngân sách" options={BUDGET_OPTIONS} value={budget} onChange={setBudget} />
             <OptionGroup label="Thời gian nấu" options={COOKING_OPTIONS} value={cookingTime} onChange={setCookingTime} />
 
-            <Button className="w-full gap-2" size="lg" disabled={isGenerating} onClick={() => void handleGenerate()}>
-              {isGenerating ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  AI đang tạo thực đơn...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-4" />
-                  Tạo thực đơn AI
-                </>
-              )}
-            </Button>
           </div>
         )}
       </BottomSheetBody>
+
+      {/* The sheet's actions stay pinned under the scrolling body, so a long
+          plan never pushes Save (or Generate) out of reach. */}
+      {draftLoading ? null : plan ? (
+        <BottomSheetFooter className="gap-3">
+          <Button
+            variant="outline"
+            className="flex-1 gap-2"
+            onClick={() => void handleDiscard()}
+            disabled={isAccepting || swappingKey !== null}
+          >
+            <RefreshCw className="size-4" />
+            Tạo lại
+          </Button>
+          <Button className="flex-1 gap-2" onClick={() => void handleAccept()} disabled={isAccepting || swappingKey !== null}>
+            {isAccepting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Đang lưu...
+              </>
+            ) : (
+              <>
+                <Check className="size-4" />
+                Lưu thực đơn
+              </>
+            )}
+          </Button>
+        </BottomSheetFooter>
+      ) : (
+        <BottomSheetFooter>
+          <Button className="w-full gap-2" size="lg" disabled={isGenerating} onClick={() => void handleGenerate()}>
+            {isGenerating ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                AI đang tạo thực đơn...
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4" />
+                Tạo thực đơn AI
+              </>
+            )}
+          </Button>
+        </BottomSheetFooter>
+      )}
     </BottomSheet>
   )
 }
