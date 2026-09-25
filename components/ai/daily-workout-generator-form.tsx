@@ -112,7 +112,7 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
         <textarea id="daily-injuries" rows={3} value={values.injuries} onChange={(event) => setValues((current) => ({ ...current, injuries: event.target.value }))} placeholder={isVi ? "Ví dụ: cổ tay hơi đau, tránh chống đẩy..." : "e.g. sore wrist, avoid push-ups..."} className="w-full resize-none rounded-xl border border-border bg-background/50 px-3.5 py-3 text-sm outline-none focus:border-primary" />
       </section>
 
-      <div className="glass-surface sticky bottom-3 z-20 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl">
+      <div className="glass-frost sticky bottom-3 z-20 rounded-3xl border p-3">
         <Button size="lg" className="w-full gap-2 rounded-xl" disabled={isLoading} onClick={() => onSubmit(values)}>{isLoading ? <><Loader2 className="size-4 animate-spin" />{isVi ? "AI đang thiết kế buổi tập..." : "AI is building your workout..."}</> : <><Sparkles className="size-4" />{isVi ? "Tạo buổi tập hôm nay" : "Generate today's workout"}</>}</Button>
       </div>
     </div>

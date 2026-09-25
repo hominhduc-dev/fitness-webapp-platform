@@ -121,7 +121,7 @@ function ProgramPreview({
       </div>
 
       {/* Actions */}
-      <div className="glass-surface sticky bottom-3 z-20 flex gap-2 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl sm:gap-3">
+      <div className="glass-frost sticky bottom-3 z-20 flex gap-2 rounded-3xl border p-3 sm:gap-3">
         <Button
           variant="outline"
           className="flex-1 gap-2 rounded-xl"

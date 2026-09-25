@@ -1692,7 +1692,7 @@ function WorkoutSession() {
             (desktop cancels from the action bar), so it takes one block. On
             phones it stays pinned while scrolling, full-bleed frosted glass
             that matches the page until content slides under it. */}
-        <div className="sticky top-0 z-30 -mx-3 mb-2 flex items-start justify-between gap-3 bg-background/85 px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 backdrop-blur-xl sm:-mx-4 sm:px-4 md:static md:mx-0 md:mb-7 md:bg-transparent md:p-0 md:backdrop-blur-none">
+        <div className="sticky top-0 z-30 -mx-3 mb-2 flex items-start justify-between gap-3 glass-veil px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 sm:-mx-4 sm:px-4 md:static md:mx-0 md:mb-7 md:bg-transparent md:p-0 md:backdrop-filter-none">
           <div className="min-w-0">
             <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
               <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">

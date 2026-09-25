@@ -112,8 +112,7 @@ export function PushPermissionPrompt() {
     >
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-3xl border border-border md:rounded-xl",
-          "bg-background/95 px-4 py-3.5 backdrop-blur-xl shadow-[var(--glass-shadow)]",
+          "glass-frost flex flex-col gap-3 rounded-3xl border px-4 py-3.5 md:rounded-xl",
         )}
       >
         <div className="flex items-start gap-3">

@@ -240,7 +240,7 @@ function ProgramGeneratorForm({
         </div>
       )}
 
-      <div className="glass-surface sticky bottom-3 z-20 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl">
+      <div className="glass-frost sticky bottom-3 z-20 rounded-3xl border p-3">
         {isLoading ? (
           <div className="flex min-h-12 items-center gap-3 px-2">
             <div className="relative grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft"><Loader2 className="size-5 animate-spin text-primary" /></div>

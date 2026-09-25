@@ -290,9 +290,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
       <div className="mobile-liquid-glass-root fixed bottom-[var(--mobile-nav-offset)] left-1/2 z-50 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2 md:hidden">
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
         <nav
-          className={cn(
-            "mobile-floating-nav glass-surface relative w-full rounded-[1.75rem] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl",
-          )}
+          className="mobile-floating-nav glass-surface relative w-full rounded-[1.75rem] border px-1.5 py-1.5"
         >
           <Suspense
             fallback={<MobileNavLinkList items={primaryItems} onSelect={() => setOpen(false)} open={open} pathname={pathname} section={null} />}
