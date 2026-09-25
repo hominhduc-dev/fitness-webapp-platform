@@ -1405,7 +1405,7 @@ export function ProgramEditor({
           </section>
         </div>
 
-        <div className="grid shrink-0 grid-cols-1 gap-3 border-t border-border/70 bg-background/55 px-4 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur-xl sm:grid-cols-[1fr_auto] sm:items-center sm:px-6 md:px-8">
+        <div className="grid shrink-0 grid-cols-1 gap-3 glass-veil border-t border-border/70 px-4 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-4 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="shrink-0 text-sm text-muted-foreground tnum">{messages.coach.filledSessionsCount(filledSessions, totalProgramSlots)}</span>

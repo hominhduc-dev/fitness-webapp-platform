@@ -95,10 +95,8 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90, finishVisibl
       <div
         className={cn(
           "flex items-center gap-2.5 md:gap-4",
-          "rounded-xl border border-border",
-          "bg-background/90 backdrop-blur-xl",
+          "glass-frost rounded-xl border",
           "px-3 py-2 md:px-4 md:py-2.5",
-          "shadow-[var(--glass-shadow)]",
         )}
       >
         {/* Countdown */}

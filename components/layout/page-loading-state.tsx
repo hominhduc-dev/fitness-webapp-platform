@@ -112,7 +112,7 @@ export function PageLoadingState({
 export function WorkoutSessionLoadingState() {
   return (
     <div className="min-h-[100dvh] bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur-lg">
+      <header className="glass-veil sticky top-0 z-40 border-b border-border">
         <div className="flex h-16 items-center justify-between px-4">
           <Skeleton className="h-10 w-10 rounded-xl" />
           <div className="space-y-2 text-center">
@@ -157,7 +157,7 @@ export function WorkoutSessionLoadingState() {
         ))}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-lg">
+      <div className="fixed bottom-0 left-0 right-0 glass-veil border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-2xl">
           <Skeleton className="h-12 w-full rounded-2xl" />
         </div>

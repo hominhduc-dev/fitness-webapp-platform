@@ -26,7 +26,7 @@ function DailyWorkoutPreview({ workout, exerciseNames, onAccept, onRegenerate, i
         })}
       </section>
 
-      <div className="glass-surface sticky bottom-3 z-20 grid grid-cols-[0.8fr_1.2fr] gap-2 rounded-3xl border p-3 shadow-2xl backdrop-blur-xl">
+      <div className="glass-frost sticky bottom-3 z-20 grid grid-cols-[0.8fr_1.2fr] gap-2 rounded-3xl border p-3">
         <Button variant="outline" size="lg" className="gap-2 rounded-xl" onClick={onRegenerate} disabled={isAccepting}><RefreshCw className="size-4" />{isVi ? "Chỉnh lại" : "Adjust"}</Button>
         <Button size="lg" className="gap-2 rounded-xl" onClick={onAccept} disabled={isAccepting}>{isAccepting ? <><Loader2 className="size-4 animate-spin" />{isVi ? "Đang lưu..." : "Saving..."}</> : <><Play className="size-4" />{isVi ? "Lưu & bắt đầu tập" : "Save & start workout"}</>}</Button>
       </div>

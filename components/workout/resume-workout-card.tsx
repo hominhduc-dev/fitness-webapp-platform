@@ -108,10 +108,8 @@ export function ResumeWorkoutCard() {
       <div
         className={cn(
           "flex items-center gap-2 md:gap-5",
-          "rounded-3xl border border-border md:rounded-xl",
-          "bg-background/90 backdrop-blur-xl",
+          "glass-frost rounded-3xl border md:rounded-xl",
           "px-2.5 py-2 md:px-5 md:py-[14px]",
-          "shadow-[var(--glass-shadow)]",
         )}
       >
         {/* Left: label + workout name */}
