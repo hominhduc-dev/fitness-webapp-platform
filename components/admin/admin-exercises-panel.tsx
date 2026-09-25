@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Undo2,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -27,13 +28,14 @@ import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
 import { MuscleProfileSummary, canApproveMuscleProfile } from "@/components/admin/muscle-profile-summary"
 import { Badge } from "@/components/ui/badge"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
-import { MuscleMap, TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
+import { MuscleMap, preferredBodySide, TRAINABLE_MUSCLE_SLUGS, type MuscleSlug as MapMuscleSlug } from "@/components/body/muscle-map"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { InputWithIcon } from "@/components/ui/input-with-icon"
 import { Label } from "@/components/ui/label"
 import {
   compileExerciseSearch,
@@ -149,6 +151,10 @@ function getExercisePanelCopy(locale: "en" | "vi") {
     transferMetadata: locale === "en" ? "Transfer metadata" : "Chuyển metadata",
     transferTitle: locale === "en" ? "Transfer exercise metadata" : "Chuyển metadata bài tập",
     transferDescription: locale === "en" ? "Choose a source variation. Its metadata will overwrite the target." : "Chọn variation nguồn. Metadata nguồn sẽ ghi đè metadata đích.",
+    transferWarning: locale === "en"
+      ? "This overwrites the target's media, instructions and source data (body part, target muscle). Its approved primary and secondary muscles stay as they are. You can undo it right after."
+      : "Thao tác này ghi đè media, hướng dẫn tập và dữ liệu gốc (vùng cơ, cơ mục tiêu) của bài đích. Cơ chính và cơ phụ đã duyệt giữ nguyên. Có thể hoàn tác ngay sau khi chuyển.",
+    undoTransfer: locale === "en" ? "Undo metadata transfer" : "Hoàn tác chuyển metadata",
     source: locale === "en" ? "Source" : "Nguồn",
     target: locale === "en" ? "Target" : "Đích",
     transfer: locale === "en" ? "Transfer" : "Chuyển",
@@ -234,7 +240,7 @@ function GroupMuscleIcon({ group }: { group: string }) {
   return (
     <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/50">
       <MuscleMap
-        side="front"
+        side={preferredBodySide(slugs)}
         highlights={highlights}
         defaultFill="color-mix(in oklab, var(--body-fill) 86%, white)"
         outline="var(--body-line)"
@@ -806,10 +812,103 @@ type GroupBlockProps = {
   deletingId: string | null
   locale: "en" | "vi"
   onTransferMetadata?: (e: AdminExerciseItem) => void
+  /** Offered on a row whose newest metadata change is a transfer that can be undone. */
+  onUndoMetadataTransfer?: (e: AdminExerciseItem) => void
   transferringId?: string | null
 }
 
-function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, transferringId }: GroupBlockProps) {
+/** How many matches the source picker renders; the query narrows the rest. */
+const TRANSFER_PICKER_LIMIT = 50
+
+/**
+ * A search box over the variations that have media, instead of a native select
+ * with hundreds of options. Each match shows its thumbnail, so two exercises
+ * with the same name (e.g. two "machine shoulder press") can be told apart.
+ */
+function TransferSourcePicker({
+  candidates,
+  label,
+  locale,
+  onChange,
+  value,
+}: {
+  candidates: AdminExerciseItem[]
+  label: string
+  locale: "en" | "vi"
+  onChange: (id: string) => void
+  value: string
+}) {
+  const [query, setQuery] = useState("")
+  const deferredQuery = useDeferredValue(query)
+  const selected = candidates.find((item) => item.id === value) ?? null
+  const matches = useMemo(() => {
+    const terms = deferredQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    return candidates
+      .filter((item) => {
+        const haystack = `${item.name} ${item.variationName} ${item.equipment ?? ""} ${item.muscleGroup}`.toLowerCase()
+        return terms.every((term) => haystack.includes(term))
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [candidates, deferredQuery])
+  const shown = matches.slice(0, TRANSFER_PICKER_LIMIT)
+
+  // min-w-0 all the way down: the dialog is a grid, and a truncated row's
+  // nowrap text would otherwise widen it past a phone screen.
+  return (
+    <div className="min-w-0 space-y-2">
+      <Label htmlFor="transfer-source-search">{label}</Label>
+      <InputWithIcon
+        id="transfer-source-search"
+        type="search"
+        autoComplete="off"
+        icon={<Search />}
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={locale === "en" ? "Search exercise, variation or equipment" : "Tìm bài, variation hoặc dụng cụ"}
+      />
+      <div role="listbox" aria-label={label} className="min-w-0 max-h-64 overflow-y-auto overscroll-contain rounded-md border border-border">
+        {shown.length === 0 ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">{locale === "en" ? "No variation with media matches." : "Không có variation có media nào khớp."}</p>
+        ) : (
+          shown.map((item) => {
+            const active = item.id === value
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => onChange(item.id)}
+                className={cn(
+                  "flex w-full items-center gap-3 border-b border-border/50 px-3 py-2 text-left transition-colors last:border-0 hover:bg-surface-hover",
+                  active && "bg-primary-soft",
+                )}
+              >
+                <ExerciseThumbnail media={item.media} name={item.name} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-foreground">{item.name} · {item.variationName}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {[item.equipment, item.muscleGroup].filter(Boolean).join(" · ")} · {locale === "en" ? `${item.usageCount} uses` : `${item.usageCount} lượt dùng`}
+                  </span>
+                </span>
+                {active ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : null}
+              </button>
+            )
+          })
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {selected
+          ? `${locale === "en" ? "Source" : "Nguồn"}: ${selected.name} · ${selected.variationName}`
+          : matches.length > TRANSFER_PICKER_LIMIT
+            ? locale === "en" ? `Showing ${TRANSFER_PICKER_LIMIT} of ${matches.length}. Type to narrow down.` : `Đang hiện ${TRANSFER_PICKER_LIMIT}/${matches.length}. Gõ để lọc thêm.`
+            : locale === "en" ? `${matches.length} variations with media` : `${matches.length} variation có media`}
+      </p>
+    </div>
+  )
+}
+
+function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, onUndoMetadataTransfer, transferringId }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
   const [openSectionKeys, setOpenSectionKeys] = useState<Set<string>>(() => new Set())
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
@@ -893,6 +992,7 @@ function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               {onTransferMetadata ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onTransferMetadata(e)}><ArrowDownUp />{copy.transferMetadata}</DropdownMenuItem> : null}
+              {onUndoMetadataTransfer && e.undoableMetadataTransferId ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onUndoMetadataTransfer(e)}><Undo2 />{copy.undoTransfer}</DropdownMenuItem> : null}
               <DropdownMenuItem disabled={!canManage} onSelect={() => onEdit(e)}><Pencil />{copy.edit}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" disabled={!canManage || e.usageCount > 0 || deletingId === e.id} onSelect={() => onDelete(e)} title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}><Trash2 />{copy.delete}</DropdownMenuItem>
@@ -1031,6 +1131,7 @@ type ExerciseLibraryPanelProps = {
   onExportAll?: () => void
   onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
   onTransferMetadata?: (sourceVariationId: string, targetVariationId: string) => Promise<void>
+  onUndoMetadataTransfer?: (transferId: string, variationId: string) => Promise<void>
   capabilities?: { canExport?: boolean; canBulkApprove?: boolean }
 }
 
@@ -1050,6 +1151,7 @@ export function ExerciseLibraryPanel({
   onExportAll,
   onReviewImportRequest,
   onTransferMetadata,
+  onUndoMetadataTransfer,
   capabilities = {},
 }: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
@@ -1476,6 +1578,7 @@ export function ExerciseLibraryPanel({
             approvingProfiles={actionKey === "exercise-bulk-approve"}
             deletingId={deletingId}
             onTransferMetadata={onTransferMetadata ? (e) => { setTransferTarget(e); setTransferSourceId("") } : undefined}
+            onUndoMetadataTransfer={onUndoMetadataTransfer ? (e) => { if (e.undoableMetadataTransferId) void onUndoMetadataTransfer(e.undoableMetadataTransferId, e.id).catch(() => undefined) } : undefined}
             transferringId={transferBusyId}
             locale={locale}
           />
@@ -1530,13 +1633,16 @@ export function ExerciseLibraryPanel({
       <Dialog open={transferTarget !== null} onOpenChange={(open) => { if (!open && !transferBusyId) setTransferTarget(null) }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>{copy.transferTitle}</DialogTitle><DialogDescription>{copy.transferDescription}</DialogDescription></DialogHeader>
-          {transferTarget ? <div className="space-y-4">
+          {transferTarget ? <div className="min-w-0 space-y-4">
+            <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-xs leading-5 text-warning-text">{copy.transferWarning}</p>
             <div className="rounded-md border border-border bg-muted/20 p-3 text-sm"><p className="label-micro text-muted-foreground">{copy.target}</p><p className="mt-1 font-medium">{transferTarget.name} · {transferTarget.variationName}</p><p className="text-xs text-muted-foreground">{transferTarget.media ? "Media ✓" : "Media —"} · {copy.usageCount(transferTarget.usageCount)}</p></div>
-            <Label>{copy.source}</Label>
-            <select value={transferSourceId} onChange={(e) => setTransferSourceId(e.target.value)} className={NATIVE_SELECT_CLASS}>
-              <option value="">{locale === "en" ? "Select source variation" : "Chọn variation nguồn"}</option>
-              {exercises.filter((e) => e.id !== transferTarget.id && e.media).sort((a,b) => a.name.localeCompare(b.name)).map((e) => <option key={e.id} value={e.id}>{e.name} · {e.variationName}</option>)}
-            </select>
+            <TransferSourcePicker
+              candidates={exercises.filter((e) => e.id !== transferTarget.id && e.media)}
+              label={copy.source}
+              locale={locale}
+              value={transferSourceId}
+              onChange={setTransferSourceId}
+            />
           </div> : null}
           <DialogFooter><Button variant="outline" onClick={() => setTransferTarget(null)} disabled={Boolean(transferBusyId)}>{copy.cancel}</Button><Button disabled={!transferSourceId || Boolean(transferBusyId)} onClick={() => transferTarget && onTransferMetadata?.(transferSourceId, transferTarget.id).then(() => setTransferTarget(null))}>{transferBusyId ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ArrowDownUp className="mr-1.5 h-4 w-4" />}{copy.transfer}</Button></DialogFooter>
         </DialogContent>

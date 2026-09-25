@@ -40,6 +40,7 @@ import {
   reviewExerciseImportRequest,
   saveAdminExerciseMedia,
   transferAdminExerciseMetadata,
+  undoAdminExerciseMetadataTransfer,
   updateAdminCoachRequest,
   updateAdminCustomFood,
   updateAdminExercise,
@@ -54,6 +55,7 @@ import {
   customFoodQuery,
   exerciseIdParams,
   exerciseMediaUploadSchema,
+  metadataTransferParams,
   reviewCoachSignupSchema,
   reviewCustomFoodSchema,
   saveExerciseMediaSchema,
@@ -395,7 +397,16 @@ adminRouter.post(
   "/exercises/metadata-transfer",
   validated({ body: transferExerciseMetadataSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const exercise = await transferAdminExerciseMetadata(profile, req.body)
+    const { exercise, transferId } = await transferAdminExerciseMetadata(profile, req.body)
+    res.json({ exercise, transferId })
+  }),
+)
+
+adminRouter.post(
+  "/exercises/metadata-transfer/:transferId/undo",
+  validated({ params: metadataTransferParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    const exercise = await undoAdminExerciseMetadataTransfer(profile, req.params.transferId)
     res.json({ exercise })
   }),
 )

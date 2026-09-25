@@ -1,7 +1,9 @@
 import { fireEvent, render } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
-import { MuscleMap } from "./muscle-map"
+import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
+
+import { MuscleMap, preferredBodySide } from "./muscle-map"
 
 describe("MuscleMap interactions", () => {
   it("paints primary and secondary regions with their supplied colors", () => {
@@ -25,5 +27,29 @@ describe("MuscleMap interactions", () => {
     fireEvent.click(head)
     expect(onClick).not.toHaveBeenCalled()
     expect(head).not.toHaveClass("cursor-pointer")
+  })
+})
+
+describe("preferredBodySide", () => {
+  const sideFor = (group: string) => preferredBodySide(muscleGroupToSlugs(group))
+
+  it("turns the figure round for muscles drawn mostly on the back", () => {
+    expect(sideFor("Back")).toBe("back")
+    expect(sideFor("Legs")).toBe("back")
+    expect(sideFor("Glutes")).toBe("back")
+  })
+
+  it("keeps the front for arms, chest and core", () => {
+    expect(sideFor("Arms")).toBe("front")
+    expect(sideFor("Chest")).toBe("front")
+    expect(sideFor("Core")).toBe("front")
+  })
+
+  it("shows calves from behind, where both sides draw them", () => {
+    expect(sideFor("Calves")).toBe("back")
+  })
+
+  it("defaults to the front with nothing to show", () => {
+    expect(preferredBodySide([])).toBe("front")
   })
 })

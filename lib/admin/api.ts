@@ -542,10 +542,20 @@ async function transferAdminExerciseMetadataRequest(
   accessToken: string,
   input: { sourceVariationId: string; targetVariationId: string },
 ) {
-  const response = await request<{ exercise: SerializedAdminExerciseItem }>(
+  const response = await request<{ exercise: SerializedAdminExerciseItem; transferId: string }>(
     "/api/admin/exercises/metadata-transfer",
     accessToken,
     { body: JSON.stringify(input), method: "POST" },
+  )
+  return { exercise: mapAdminExerciseItem(response.exercise), transferId: response.transferId }
+}
+
+/** Puts back the target's metadata from before a transfer. */
+async function undoAdminExerciseMetadataTransferRequest(accessToken: string, transferId: string) {
+  const response = await request<{ exercise: SerializedAdminExerciseItem }>(
+    `/api/admin/exercises/metadata-transfer/${transferId}/undo`,
+    accessToken,
+    { method: "POST" },
   )
   return mapAdminExerciseItem(response.exercise)
 }
@@ -733,6 +743,7 @@ export {
   reviewAdminExerciseImportRequest,
   saveAdminExerciseMediaRequest,
   transferAdminExerciseMetadataRequest,
+  undoAdminExerciseMetadataTransferRequest,
   updateAdminCoachRequestStatus,
   updateAdminExerciseRequest,
   updateAdminUserRequest,

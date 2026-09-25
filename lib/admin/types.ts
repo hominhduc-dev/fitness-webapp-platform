@@ -103,6 +103,12 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   muscleProfileSource?: MuscleProfileSource
   muscleProfileStatus?: MuscleProfileStatus
   name: string
+  /**
+   * The metadata transfer onto this variation that can still be undone: the
+   * newest change to its metadata, with the previous metadata kept. Only set
+   * by the exercise list.
+   */
+  undoableMetadataTransferId?: string | null
   updatedAt: Date
   usageCount: number
   variationName: string

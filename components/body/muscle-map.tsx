@@ -24,6 +24,27 @@ const SIDE_CONFIG = {
   front: { parts: FRONT_BODY_PARTS, viewBox: FRONT_VIEW_BOX },
 } as const
 
+const SIDE_SLUGS: Record<BodySide, ReadonlySet<string>> = {
+  back: new Set(BACK_BODY_PARTS.map((part) => part.slug)),
+  front: new Set(FRONT_BODY_PARTS.map((part) => part.slug)),
+}
+
+// Drawn on both sides, but read best from behind: a calf raise shows the
+// gastrocnemius, not the shin.
+const BACK_ON_TIE: ReadonlySet<string> = new Set(["calves"])
+
+/**
+ * The side of a single-view figure that shows the most of `slugs`: the back
+ * for back and leg work, the front for arms and chest. On a tie it stays on the
+ * front unless every muscle reads better from behind (calves).
+ */
+export function preferredBodySide(slugs: readonly string[]): BodySide {
+  const front = slugs.filter((slug) => SIDE_SLUGS.front.has(slug)).length
+  const back = slugs.filter((slug) => SIDE_SLUGS.back.has(slug)).length
+  if (back !== front) return back > front ? "back" : "front"
+  return slugs.length > 0 && slugs.every((slug) => BACK_ON_TIE.has(slug)) ? "back" : "front"
+}
+
 interface MuscleMapProps {
   side: BodySide
   /**

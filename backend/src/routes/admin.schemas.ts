@@ -22,6 +22,10 @@ const exerciseIdParams = z.object({
   exerciseId: z.uuid("exerciseId không hợp lệ."),
 })
 
+const metadataTransferParams = z.object({
+  transferId: z.uuid("transferId không hợp lệ."),
+})
+
 const exerciseMediaUploadSchema = z.object({
   contentType: z.string().trim().min(1).max(100),
   kind: z.enum(["thumbnail", "animation"]),
@@ -81,6 +85,7 @@ export {
   customFoodQuery,
   exerciseIdParams,
   exerciseMediaUploadSchema,
+  metadataTransferParams,
   reviewCoachSignupSchema,
   reviewCustomFoodSchema,
   saveExerciseMediaSchema,

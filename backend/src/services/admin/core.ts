@@ -48,7 +48,13 @@ import { prisma } from "../../lib/prisma"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatClientDateKey, formatUtcDateOnly } from "../fitness-data/shared/dates"
 import { supabaseAdmin } from "../../lib/supabase"
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
-import { NotFoundError, ValidationError } from "../errors"
+import { ConflictError, NotFoundError, ValidationError } from "../errors"
+import {
+  hasPreviousMetadata,
+  METADATA_TRANSFER_ACTION,
+  METADATA_WRITING_ACTIONS,
+  undoableTransfers,
+} from "../../domain/metadata-transfer-undo"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -548,7 +554,7 @@ async function logAdminAudit(
     metadata?: Prisma.JsonObject
   },
 ) {
-  await db.adminAuditLog.create({
+  return db.adminAuditLog.create({
     data: {
       action: input.action,
       adminId,
@@ -557,6 +563,7 @@ async function logAdminAudit(
       entityType: input.entityType,
       metadata: input.metadata,
     },
+    select: { id: true },
   })
 }
 
@@ -1697,6 +1704,7 @@ async function listAdminExercises(
   const search = normalizeSearch(options?.search)
   const equipment = options?.equipment?.trim().toLowerCase()
   const muscle = options?.muscle
+  const undoable = undoableTransfers(await findMetadataAuditEntries(db))
 
   return exercises
     .filter((exercise) => {
@@ -1713,7 +1721,10 @@ async function listAdminExercises(
           : legacyMuscleGroupsForSlug(muscle).includes(exercise.exercise.muscleGroup.trim().toLowerCase()))
       return matchesText && matchesActivity && matchesEquipment && matchesStatus && matchesGroup && matchesMuscle
     })
-    .map((exercise) => serializeExerciseSummary(exercise as ExerciseSummaryRecord))
+    .map((exercise) => ({
+      ...serializeExerciseSummary(exercise as ExerciseSummaryRecord),
+      undoableMetadataTransferId: undoable.get(exercise.id) ?? null,
+    }))
 }
 
 async function createAdminExercise(
@@ -2583,17 +2594,72 @@ async function transferAdminExerciseMetadata(
     findAdminExerciseVariation(db, input.targetVariationId),
   ])
   if (source.metadata === null) throw new ValidationError("Bài tập nguồn chưa có metadata để chuyển.")
-  await db.$transaction(async (tx) => {
+  const transferId = await db.$transaction(async (tx) => {
     const updated = await tx.variation.update({
       data: { metadata: source.metadata as Prisma.InputJsonValue }, where: { id: target.id },
     })
+    const audit = await logAdminAudit(tx, profile.id, {
+      action: METADATA_TRANSFER_ACTION, entityId: updated.id, entityLabel: target.exercise.name, entityType: "exercise",
+      metadata: {
+        // The target's metadata from before the transfer, so it can be undone.
+        previousMetadata: target.metadata as Prisma.JsonValue,
+        sourceExerciseId: source.exerciseId, sourceExerciseName: source.exercise.name, sourceVariationId: source.id, sourceVariationName: source.name, targetHadMedia: Boolean(serializeExerciseMedia(target.metadata)), targetVariationName: target.name,
+      },
+    })
+    return audit.id
+  })
+  invalidateExerciseLibrary()
+  return {
+    exercise: serializeExerciseSummary(await findAdminExerciseVariation(db, target.id) as ExerciseSummaryRecord),
+    transferId,
+  }
+}
+
+/** Metadata-writing audit entries, for deciding which transfers can be undone. */
+async function findMetadataAuditEntries(db: DbClient, variationIds?: string[]) {
+  return db.adminAuditLog.findMany({
+    select: { action: true, createdAt: true, entityId: true, id: true, metadata: true },
+    where: {
+      action: { in: [...METADATA_WRITING_ACTIONS] },
+      entityType: "exercise",
+      entityId: variationIds ? { in: variationIds } : { not: null },
+    },
+  })
+}
+
+/**
+ * Puts back the target's metadata from before a transfer. Refused once anything
+ * else has written that variation's metadata since, so later work is never lost.
+ */
+async function undoAdminExerciseMetadataTransfer(profile: SerializedProfile, transferId: string) {
+  assertAdmin(profile)
+  const db = ensurePrisma()
+  const transfer = await db.adminAuditLog.findUnique({ where: { id: transferId } })
+  if (!transfer || transfer.action !== METADATA_TRANSFER_ACTION || !transfer.entityId) {
+    throw new NotFoundError("Không tìm thấy lần chuyển metadata này.")
+  }
+  if (!hasPreviousMetadata(transfer.metadata)) {
+    throw new ValidationError("Lần chuyển này được thực hiện trước khi có lưu bản cũ, nên không hoàn tác được.")
+  }
+  const variationId = transfer.entityId
+  if (undoableTransfers(await findMetadataAuditEntries(db, [variationId])).get(variationId) !== transfer.id) {
+    throw new ConflictError("Bài tập đã được chỉnh sửa hoặc hoàn tác sau lần chuyển này, nên không thể hoàn tác nữa.")
+  }
+
+  const previous = transfer.metadata.previousMetadata
+  const target = await findAdminExerciseVariation(db, variationId)
+  await db.$transaction(async (tx) => {
+    await tx.variation.update({
+      data: { metadata: previous === null ? Prisma.DbNull : (previous as Prisma.InputJsonValue) },
+      where: { id: variationId },
+    })
     await logAdminAudit(tx, profile.id, {
-      action: "exercise.metadata_transferred", entityId: updated.id, entityLabel: target.exercise.name, entityType: "exercise",
-      metadata: { sourceExerciseId: source.exerciseId, sourceExerciseName: source.exercise.name, sourceVariationId: source.id, sourceVariationName: source.name, targetHadMedia: Boolean(serializeExerciseMedia(target.metadata)), targetVariationName: target.name },
+      action: "exercise.metadata_transfer_undone", entityId: variationId, entityLabel: target.exercise.name, entityType: "exercise",
+      metadata: { targetVariationName: target.name, transferId: transfer.id },
     })
   })
   invalidateExerciseLibrary()
-  return serializeExerciseSummary(await findAdminExerciseVariation(db, target.id) as ExerciseSummaryRecord)
+  return serializeExerciseSummary(await findAdminExerciseVariation(db, variationId) as ExerciseSummaryRecord)
 }
 
 /** Drops uploaded media; the variation falls back to its synced media, if any. */
@@ -3421,5 +3487,6 @@ export {
   removeAdminExerciseMedia,
   saveAdminExerciseMedia,
   transferAdminExerciseMetadata,
+  undoAdminExerciseMetadataTransfer,
   updateAdminUser,
 }
