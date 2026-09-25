@@ -4,6 +4,7 @@ import { Dumbbell, Flame, Leaf, Monitor, Moon, Sun, Trophy, Zap, type LucideIcon
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useTheme, type ThemeMode } from "@/components/providers/theme-provider"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
@@ -57,32 +58,36 @@ export function ThemeToggle({ compact = false, className, variant = "toggle" }: 
       )}
       role="group"
     >
-      <div className="grid w-full grid-cols-2 gap-0.5 sm:grid-cols-3">
-        {options.map((option) => {
-          const Icon = option.icon
-          const active = theme === option.value
-
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-label={option.label}
-              aria-pressed={active}
-              title={option.label}
-              className={cn(
-                "inline-flex h-7 items-center justify-center gap-1 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
-                active
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setTheme(option.value)}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span>{option.label}</span>
-            </button>
-          )
-        })}
-      </div>
+      {/* No slide: the options wrap onto rows, and a drag reads one axis only. */}
+      <GlassSegmented
+        activeIndex={options.findIndex((option) => option.value === theme)}
+        lensClassName="rounded-md"
+        className="grid w-full grid-cols-2 gap-0.5 sm:grid-cols-3"
+      >
+        {(shownIndex) =>
+          options.map((option, index) => {
+            const Icon = option.icon
+            return (
+              <button
+                key={option.value}
+                type="button"
+                data-segment
+                aria-label={option.label}
+                aria-pressed={theme === option.value}
+                title={option.label}
+                className={cn(
+                  "inline-flex h-7 items-center justify-center gap-1 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
+                  index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setTheme(option.value)}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{option.label}</span>
+              </button>
+            )
+          })
+        }
+      </GlassSegmented>
     </div>
   )
 }

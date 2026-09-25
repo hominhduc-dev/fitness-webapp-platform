@@ -1,6 +1,7 @@
 "use client"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { AppLocale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
@@ -49,24 +50,30 @@ export function LanguageToggle({ compact = false, className, variant = "toggle" 
       )}
       role="group"
     >
-      <div className={cn("gap-0.5", compact ? "grid w-full grid-cols-2" : "inline-flex")}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={locale === option.value}
-            className={cn(
-              "h-7 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
-              locale === option.value
-                ? "bg-background text-foreground shadow-sm ring-1 ring-border/60"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => setLocale(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <GlassSegmented
+        activeIndex={options.findIndex((option) => option.value === locale)}
+        lensClassName="rounded-md"
+        onSlide={(index) => setLocale(options[index].value)}
+        className={cn("gap-0.5", compact ? "grid w-full grid-cols-2" : "inline-flex")}
+      >
+        {(shownIndex) =>
+          options.map((option, index) => (
+            <button
+              key={option.value}
+              type="button"
+              data-segment
+              aria-pressed={locale === option.value}
+              className={cn(
+                "h-7 rounded-md px-2.5 font-mono text-micro font-semibold uppercase tracking-[0.08em] transition-colors",
+                index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setLocale(option.value)}
+            >
+              {option.label}
+            </button>
+          ))
+        }
+      </GlassSegmented>
     </div>
   )
 }

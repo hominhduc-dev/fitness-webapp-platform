@@ -359,8 +359,18 @@
   }
 }
 
-/* The mobile nav's glass lens stretching as it slides to another tab. */
-@keyframes nav-liquid-squish {
+/* The liquid-glass lens of a segmented control (components/ui/glass-segmented)
+   under the active segment: an accent-tinted glass drop with a lit rim. */
+.glass-lens {
+  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
+  background: var(--primary-soft);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim-soft),
+    0 6px 16px -8px var(--primary);
+}
+
+/* The lens stretching as it slides to another segment. */
+@keyframes glass-lens-squish {
   0% { transform: scale(1, 1); }
   35% { transform: scale(1.16, 0.88); }
   70% { transform: scale(0.97, 1.04); }
