@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { LogOut, Settings, User, X } from "lucide-react"
-import { Fragment, Suspense, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { Fragment, Suspense, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { AppRole } from "@/lib/auth/types"
 import { BrandLogo } from "@/components/ui/brand-logo"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LanguageToggle } from "@/components/layout/language-toggle"
 import { SyncStatusBadge } from "@/components/offline/sync-status-badge"
@@ -80,13 +81,8 @@ function NavItems({
 /* Bottom nav links — split out because useSearchParams needs its own   */
 /* Suspense boundary; the query decides which admin tab is current.     */
 /* ------------------------------------------------------------------ */
-// The floating nav's padding (`px-1.5 py-1.5`) and column gap (`gap-0.5`), in px.
-const NAV_PAD_PX = 6
+/** The floating nav's column gap (`gap-0.5`), in px. */
 const NAV_GAP_PX = 2
-/** Horizontal travel before a press on the nav becomes a slide. */
-const NAV_DRAG_START_PX = 6
-/** How long after a slide the click it ends with is ignored. */
-const NAV_SUPPRESS_CLICK_MS = 400
 
 function MobileNavLinkList({
   items,
@@ -102,123 +98,38 @@ function MobileNavLinkList({
   section: string | null
 }) {
   const router = useRouter()
-  const count = items.length
   const activeIndex = open ? -1 : items.findIndex((item) => isNavItemActive(pathname, item, section))
-  // While a finger slides along the nav: where the glass is, and the tab under it.
-  const [drag, setDrag] = useState<{ left: number; width: number; index: number } | null>(null)
-  const gesture = useRef<{ pointerId: number; startX: number; dragging: boolean; navLeft: number; navWidth: number } | null>(null)
-  const suppressClickUntil = useRef(0)
-  // Replays the liquid squish each time the glass moves to another tab (not on load).
-  const [lastIndex, setLastIndex] = useState(activeIndex)
-  const [moves, setMoves] = useState(0)
-  if (activeIndex !== lastIndex) {
-    setLastIndex(activeIndex)
-    if (lastIndex >= 0 && activeIndex >= 0) setMoves((value) => value + 1)
-  }
-
-  const measure = (x: number, navWidth: number) => {
-    const width = (navWidth - 2 * NAV_PAD_PX - (count - 1) * NAV_GAP_PX) / count
-    const index = Math.min(count - 1, Math.max(0, Math.floor((x - NAV_PAD_PX) / (width + NAV_GAP_PX))))
-    const left = Math.min(navWidth - NAV_PAD_PX - width, Math.max(NAV_PAD_PX, x - width / 2))
-    return { left, width, index }
-  }
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!event.isPrimary || event.button !== 0) return
-    const nav = event.currentTarget.closest("nav")
-    if (!nav) return
-    const rect = nav.getBoundingClientRect()
-    gesture.current = { pointerId: event.pointerId, startX: event.clientX, dragging: false, navLeft: rect.left, navWidth: rect.width }
-  }
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const current = gesture.current
-    if (!current || current.pointerId !== event.pointerId) return
-    if (!current.dragging) {
-      if (Math.abs(event.clientX - current.startX) < NAV_DRAG_START_PX) return
-      current.dragging = true
-      try {
-        ;(event.target as Element).setPointerCapture(event.pointerId)
-      } catch {
-        // Pointer already gone: the slide still ends on pointerup/cancel.
-      }
-    }
-    setDrag(measure(event.clientX - current.navLeft, current.navWidth))
-  }
-
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const current = gesture.current
-    gesture.current = null
-    if (!current || current.pointerId !== event.pointerId || !current.dragging) return
-    const { index } = measure(event.clientX - current.navLeft, current.navWidth)
-    setDrag(null)
-    // The press ends in a click on the tab it started on; that one is not the choice.
-    suppressClickUntil.current = performance.now() + NAV_SUPPRESS_CLICK_MS
-    onSelect()
-    if (index !== activeIndex) router.push(items[index].href)
-  }
-
-  const handlePointerCancel = () => {
-    gesture.current = null
-    setDrag(null)
-  }
-
-  const shownIndex = drag ? drag.index : activeIndex
-  // At rest the glass is placed by column in CSS, so it is right from the first
-  // server paint; while sliding it follows the finger in px.
-  const columnWidth = `((100% - ${2 * NAV_PAD_PX}px - ${(count - 1) * NAV_GAP_PX}px) / ${count})`
-  const indicatorStyle = drag
-    ? { left: `${drag.left}px`, width: `${drag.width}px` }
-    : { left: `calc(${NAV_PAD_PX}px + ${Math.max(activeIndex, 0)} * (${columnWidth} + ${NAV_GAP_PX}px))`, width: `calc(${columnWidth})` }
 
   return (
-    <div
-      className="contents"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-      onClickCapture={(event) => {
-        if (performance.now() < suppressClickUntil.current) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
+    <GlassSegmented
+      activeIndex={activeIndex}
+      columns={{ count: items.length, gapPx: NAV_GAP_PX }}
+      lensClassName="rounded-[1.25rem]"
+      onSlide={(index) => {
+        onSelect()
+        if (index !== activeIndex) router.push(items[index].href)
       }}
+      className="grid gap-0.5"
+      // One column per destination, so a role with four keeps its tabs full width.
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
-      {/* The liquid-glass lens behind the active tab. It slides between tabs with
-          a slight overshoot and a squish, and follows the finger on a slide. */}
-      <span
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute inset-y-1.5 z-0",
-          !drag && "transition-[left,width,opacity] duration-[420ms] ease-[cubic-bezier(0.34,1.4,0.5,1)] motion-reduce:transition-none",
-          shownIndex < 0 ? "opacity-0" : "opacity-100",
-        )}
-        style={indicatorStyle}
-      >
-        <span
-          key={moves}
-          className={cn(
-            "block size-full rounded-[1.25rem] border border-primary/15 bg-primary-soft shadow-[inset_0_1px_0_var(--glass-rim-soft),0_6px_16px_-8px_var(--primary)] transition-transform duration-200",
-            drag ? "scale-[1.06]" : moves > 0 && "animate-[nav-liquid-squish_460ms_ease-out] motion-reduce:animate-none",
-          )}
-        />
-      </span>
-      {items.map((item, index) => {
-        const active = index === activeIndex
-        const visuallyActive = index === shownIndex
-        return (
-          // Close the More sheet on tap rather than waiting for the route
-          // change: tapping the current page's icon never changes the
-          // pathname, so the sheet used to stay open until "More" was
-          // tapped again.
-          <Link key={item.href} href={item.href} prefetch onClick={onSelect} aria-current={active ? "page" : undefined} title={item.label} className={cn("relative z-10 flex min-w-0 touch-none flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-[color,transform] duration-200 ease-out active:scale-[0.96]", visuallyActive ? "text-primary" : "text-muted-foreground hover:text-foreground")}>
-            <item.icon className="h-5 w-5" strokeWidth={visuallyActive ? 2 : 1.7} aria-hidden="true" />
-            <span className={cn("max-w-full truncate text-[0.6875rem] leading-4", visuallyActive && "font-semibold")}>{item.label}</span>
-          </Link>
-        )
-      })}
-    </div>
+      {(shownIndex) =>
+        items.map((item, index) => {
+          const active = index === activeIndex
+          const visuallyActive = index === shownIndex
+          return (
+            // Close the More sheet on tap rather than waiting for the route
+            // change: tapping the current page's icon never changes the
+            // pathname, so the sheet used to stay open until "More" was
+            // tapped again.
+            <Link key={item.href} href={item.href} prefetch data-segment onClick={onSelect} aria-current={active ? "page" : undefined} title={item.label} className={cn("flex min-w-0 touch-none flex-col items-center justify-center gap-0.5 rounded-[1.25rem] px-0.5 py-1.5 transition-[color,transform] duration-200 ease-out active:scale-[0.96]", visuallyActive ? "text-primary" : "text-muted-foreground hover:text-foreground")}>
+              <item.icon className="h-5 w-5" strokeWidth={visuallyActive ? 2 : 1.7} aria-hidden="true" />
+              <span className={cn("max-w-full truncate text-[0.6875rem] leading-4", visuallyActive && "font-semibold")}>{item.label}</span>
+            </Link>
+          )
+        })
+      }
+    </GlassSegmented>
   )
 }
 
@@ -380,8 +291,7 @@ export function ShellHeader({ role = "trainee" }: { role?: AppRole }) {
         <div aria-hidden="true" className="mobile-liquid-glass-scene pointer-events-none absolute inset-0 rounded-full" />
         <nav
           className={cn(
-            "mobile-floating-nav glass-surface relative grid w-full gap-0.5 rounded-[1.75rem] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl",
-            role === "coach" ? "grid-cols-4" : "grid-cols-5",
+            "mobile-floating-nav glass-surface relative w-full rounded-[1.75rem] border border-border bg-background/45 px-1.5 py-1.5 shadow-2xl backdrop-blur-xl",
           )}
         >
           <Suspense

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
 import { formatReadinessScore, READINESS_SCALE_MAX, toReadinessScale } from "@/lib/fitness/readiness"
@@ -40,22 +41,32 @@ export function ReadinessTrend() {
     <section className="rounded-lg border border-border bg-card p-5" data-tour="progress-recovery-trend">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-foreground">{copy.trend}</h2>
-        <div className="flex gap-1" role="group" aria-label={copy.trend}>
-          {RANGES.map((range) => (
-            <button
-              key={range}
-              type="button"
-              onClick={() => setDays(range)}
-              aria-pressed={days === range}
-              className={cn(
-                "rounded-md px-2.5 py-1 font-mono text-micro transition-colors",
-                days === range ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {range === 7 ? copy.last7 : copy.last30}
-            </button>
-          ))}
-        </div>
+        <GlassSegmented
+          role="group"
+          aria-label={copy.trend}
+          activeIndex={RANGES.indexOf(days)}
+          lensClassName="rounded-md"
+          onSlide={(index) => setDays(RANGES[index])}
+          className="flex gap-1"
+        >
+          {(shownIndex) =>
+            RANGES.map((range, index) => (
+              <button
+                key={range}
+                type="button"
+                data-segment
+                onClick={() => setDays(range)}
+                aria-pressed={days === range}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-mono text-micro transition-colors",
+                  index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {range === 7 ? copy.last7 : copy.last30}
+              </button>
+            ))
+          }
+        </GlassSegmented>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">

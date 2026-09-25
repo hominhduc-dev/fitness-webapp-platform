@@ -12,6 +12,7 @@ import { ProgressOverview } from "@/components/progress/progress-overview"
 import { TrainedAreasCard } from "@/components/progress/trained-areas-card"
 import { VolumeRecoveryPanel } from "@/components/progress/volume-recovery/volume-recovery-panel"
 import { BottomSheet, BottomSheetBody, BottomSheetHeader } from "@/components/ui/bottom-sheet"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import type {
   fetchDashboardAnalytics,
@@ -49,6 +50,7 @@ import { cn } from "@/lib/utils"
 
 type WorkoutKind = "all" | "push" | "pull" | "legs"
 type SplitKind = Exclude<WorkoutKind, "all">
+const WORKOUT_FILTERS: WorkoutKind[] = ["all", "push", "pull", "legs"]
 type Tab = "overview" | "history" | "volume"
 type HistoryMode = "month" | "year"
 const PROGRESS_TABS: Tab[] = ["overview", "history", "volume"]
@@ -125,12 +127,13 @@ function Chip({
   return (
     <button
       type="button"
+      data-segment
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
         "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors pointer-coarse:min-h-10",
-        active
-          ? "border-primary bg-primary-soft text-primary"
-          : "border-border bg-background text-muted-foreground hover:bg-muted",
+        // The glass lens behind the chip row paints the active fill.
+        active ? "border-transparent text-primary" : "border-border text-muted-foreground hover:bg-muted",
       )}
     >
       {children}
@@ -150,23 +153,33 @@ function SegmentedControl<T extends string>({
   value: T
 }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-full border border-border bg-card p-0.5">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors pointer-coarse:min-h-10",
-            value === option.value ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
+    <GlassSegmented
+      role="radiogroup"
+      aria-label={ariaLabel}
+      activeIndex={options.findIndex((option) => option.value === value)}
+      lensClassName="rounded-full"
+      onSlide={(index) => onChange(options[index].value)}
+      className="inline-flex rounded-full border border-border bg-card p-0.5"
+    >
+      {(shownIndex) =>
+        options.map((option, index) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            data-segment
+            aria-checked={value === option.value}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-full px-4 py-1.5 text-sm font-medium transition-colors pointer-coarse:min-h-10",
+              index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        ))
+      }
+    </GlassSegmented>
   )
 }
 
@@ -928,28 +941,36 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
   return (
     <>
       <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6">
-        <div
-          role="tablist"
-          aria-label={copy.analytics.title}
-          data-tour="progress-tabs"
-          className="mb-4 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1 md:mb-6 md:w-[26rem]"
-        >
-          {PROGRESS_TABS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              data-tour-tab={t}
-              aria-selected={tab === t}
-              onClick={() => selectTab(t)}
-              className={cn(
-                "min-w-0 truncate rounded-xl px-2 py-2.5 text-sm font-medium transition-colors",
-                tab === t ? "bg-primary-soft text-primary" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tabLabels[t]}
-            </button>
-          ))}
+        <div data-tour="progress-tabs" className="mb-4 rounded-2xl border border-border bg-card p-1 md:mb-6 md:w-[26rem]">
+          <GlassSegmented
+            role="tablist"
+            aria-label={copy.analytics.title}
+            activeIndex={PROGRESS_TABS.indexOf(tab)}
+            columns={{ count: PROGRESS_TABS.length, gapPx: 4 }}
+            lensClassName="rounded-xl"
+            onSlide={(index) => selectTab(PROGRESS_TABS[index])}
+            className="grid grid-cols-3 gap-1"
+          >
+            {(shownIndex) =>
+              PROGRESS_TABS.map((t, index) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  data-segment
+                  data-tour-tab={t}
+                  aria-selected={tab === t}
+                  onClick={() => selectTab(t)}
+                  className={cn(
+                    "min-w-0 truncate rounded-xl px-2 py-2.5 text-sm font-medium transition-colors",
+                    index === shownIndex ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {tabLabels[t]}
+                </button>
+              ))
+            }
+          </GlassSegmented>
         </div>
 
         {tab === "overview" ? (
@@ -992,17 +1013,29 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
             </div>
 
             <div className="flex min-h-10 flex-wrap items-center gap-2" data-tour="progress-history-filters">
-              {isYearMode ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
-                <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
-                  {k === "all"
-                    ? messages.workoutPage.all
-                    : k === "push"
-                      ? messages.workoutPage.tagPush
-                      : k === "pull"
-                        ? messages.workoutPage.tagPull
-                        : messages.workoutPage.tagLegs}
-                </Chip>
-              ))}
+              {isYearMode ? null : (
+                <GlassSegmented
+                  role="group"
+                  activeIndex={WORKOUT_FILTERS.indexOf(filter)}
+                  lensClassName="rounded-full"
+                  onSlide={(index) => setFilter(WORKOUT_FILTERS[index])}
+                  className="flex flex-wrap gap-2"
+                >
+                  {(shownIndex) =>
+                    WORKOUT_FILTERS.map((k, index) => (
+                      <Chip key={k} active={index === shownIndex} onClick={() => setFilter(k)}>
+                        {k === "all"
+                          ? messages.workoutPage.all
+                          : k === "push"
+                            ? messages.workoutPage.tagPush
+                            : k === "pull"
+                              ? messages.workoutPage.tagPull
+                              : messages.workoutPage.tagLegs}
+                      </Chip>
+                    ))
+                  }
+                </GlassSegmented>
+              )}
               <div className="ml-auto">
                 <ExportWorkoutDialog programs={workoutsQuery.data?.programs ?? initialData.programs ?? []} />
               </div>

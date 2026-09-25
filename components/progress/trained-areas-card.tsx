@@ -6,6 +6,7 @@ import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useLocale } from "@/components/providers/locale-provider"
 import { startOfUtcWeek } from "@/lib/fitness/date-range"
 import { buildMuscleProfileHighlights, muscleProfilesFromLogs } from "@/lib/fitness/muscle-map"
+import { GlassSegmented } from "@/components/ui/glass-segmented"
 import type { WorkoutLog } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -62,23 +63,32 @@ export function TrainedAreasCard({ weekLogs, historyLogs }: TrainedAreasCardProp
     <div className="rounded-2xl border border-border bg-card p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-foreground">{messages.progressPage.trainedAreas}</h2>
-        <div className="flex gap-1.5">
-          {periods.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setPeriod(key)}
-              className={cn(
-                "inline-flex h-7 pointer-coarse:h-9 items-center rounded-full border px-2.5 text-xs font-medium transition-colors",
-                period === key
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border bg-background text-muted-foreground hover:border-foreground/30",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <GlassSegmented
+          activeIndex={periods.findIndex(({ key }) => key === period)}
+          lensClassName="rounded-full"
+          onSlide={(index) => setPeriod(periods[index].key)}
+          className="flex gap-1.5"
+        >
+          {(shownIndex) =>
+            periods.map(({ key, label }, index) => (
+              <button
+                key={key}
+                type="button"
+                data-segment
+                aria-pressed={period === key}
+                onClick={() => setPeriod(key)}
+                className={cn(
+                  "inline-flex h-7 pointer-coarse:h-9 items-center rounded-full border px-2.5 text-xs font-medium transition-colors",
+                  index === shownIndex
+                    ? "border-transparent text-primary"
+                    : "border-border text-muted-foreground hover:border-foreground/30",
+                )}
+              >
+                {label}
+              </button>
+            ))
+          }
+        </GlassSegmented>
       </div>
 
       {logs.length > 0 ? (
