@@ -147,17 +147,77 @@ export const onboardingMessages = {
           },
         },
         traineeProgress: {
-          overview: {
-            title: "See the trend",
-            body: "Progress brings training, strength, body weight and consistency into one view.",
+          tabs: {
+            title: "Three views of your progress",
+            body: "Overview sums up the trend, History keeps every session and Recovery shows how ready your body is. This tour walks through each one, top to bottom.",
           },
-          metrics: {
-            title: "Read the signals",
-            body: "Use volume and recovery metrics to understand whether your current workload is sustainable.",
+          thisWeek: {
+            title: "This week",
+            body: "Workouts, volume lifted, hard sets and average sleep since Monday: a quick read on whether the week is on track.",
           },
-          actions: {
-            title: "Make the next decision",
-            body: "Look for trends over time before changing your plan after a single session.",
+          body: {
+            title: "Body weight",
+            body: "Your latest weigh-in, the change and the trend line. Add a body fat reading to see lean mass too. Log weight opens the weigh-in.",
+          },
+          period: {
+            title: "The last 90 days",
+            body: "Everything below covers the last 90 days. Share turns this summary into an image you can post.",
+          },
+          periodSummary: {
+            title: "Compared with before",
+            body: "Each number sits next to the previous 90 days, so you can see whether you are training more or less.",
+          },
+          frequency: {
+            title: "Workout frequency",
+            body: "Completed sessions against planned ones, week by week. Gaps show where consistency slipped.",
+          },
+          volume: {
+            title: "Training volume",
+            body: "Kilograms lifted each week. A steady climb means progressive overload is working.",
+          },
+          muscles: {
+            title: "Muscle distribution",
+            body: "How your sets split across muscle groups. Spot a group that is getting too little work.",
+          },
+          records: {
+            title: "Recent records",
+            body: "Your newest personal bests, so every step forward is easy to see.",
+          },
+          historyPeriod: {
+            title: "Month or year",
+            body: "Switch between a month calendar and a full-year view, and use the arrows to go back in time.",
+          },
+          historyFilters: {
+            title: "Filter and export",
+            body: "Show only push, pull or legs days. Export downloads your workout log.",
+          },
+          historyStats: {
+            title: "Month at a glance",
+            body: "Sessions, volume and average duration this month, compared with the month before.",
+          },
+          historyCalendar: {
+            title: "Training calendar",
+            body: "Each dot is a session, coloured by split: push, pull, legs or other. Tap a day to open its full log.",
+          },
+          historyRecent: {
+            title: "Recent sessions",
+            body: "This month's sessions, newest first. Tap one to see every exercise and set.",
+          },
+          historyTrainedAreas: {
+            title: "Trained areas",
+            body: "The muscles you worked this week or last week, so you can see what still needs attention.",
+          },
+          recoveryReadiness: {
+            title: "Readiness today",
+            body: "A score from your check-in: sleep, fatigue, stress and soreness. Check in each morning to keep it current.",
+          },
+          recoveryTrend: {
+            title: "Readiness trend",
+            body: "How readiness and sleep moved over recent days. Look for a run of low days before pushing hard.",
+          },
+          recoveryVolume: {
+            title: "Weekly muscle volume",
+            body: "Hard sets for each muscle against its recovery landmarks (MEV, MAV, MRV). Use Edit landmarks to set your own targets for a muscle.",
           },
         },
         traineeSchedule: {
@@ -342,17 +402,77 @@ export const onboardingMessages = {
           },
         },
         traineeProgress: {
-          overview: {
-            title: "Xem xu hướng",
-            body: "Progress gom tập luyện, sức mạnh, cân nặng và độ đều vào một màn hình.",
+          tabs: {
+            title: "Ba góc nhìn về tiến độ",
+            body: "Tổng quan tóm tắt xu hướng, Lịch sử lưu mọi buổi tập, còn Phục hồi cho biết cơ thể bạn sẵn sàng tới đâu. Tour sẽ đi qua từng phần, từ trên xuống.",
           },
-          metrics: {
-            title: "Đọc tín hiệu",
-            body: "Dùng volume và phục hồi để hiểu workload hiện tại có bền vững không.",
+          thisWeek: {
+            title: "Tuần này",
+            body: "Số buổi tập, khối lượng, hard set và giấc ngủ trung bình từ thứ Hai: xem nhanh tuần này có đúng nhịp không.",
           },
-          actions: {
-            title: "Ra quyết định kế tiếp",
-            body: "Nhìn xu hướng theo thời gian trước khi đổi kế hoạch chỉ vì một buổi tập.",
+          body: {
+            title: "Cân nặng",
+            body: "Lần cân gần nhất, mức thay đổi và đường xu hướng. Thêm chỉ số mỡ để xem cả khối nạc. Bấm Ghi cân nặng để cân nhanh.",
+          },
+          period: {
+            title: "90 ngày gần nhất",
+            body: "Mọi thứ bên dưới tính trong 90 ngày gần nhất. Nút Chia sẻ biến phần tóm tắt này thành ảnh để đăng.",
+          },
+          periodSummary: {
+            title: "So với kỳ trước",
+            body: "Mỗi con số được đặt cạnh 90 ngày trước đó, để bạn biết mình đang tập nhiều hơn hay ít đi.",
+          },
+          frequency: {
+            title: "Tần suất tập",
+            body: "Số buổi đã hoàn thành so với kế hoạch theo từng tuần. Chỗ trống cho thấy lúc bạn mất nhịp.",
+          },
+          volume: {
+            title: "Khối lượng tập",
+            body: "Tổng kg nâng mỗi tuần. Đường đi lên đều nghĩa là tăng tải đang có hiệu quả.",
+          },
+          muscles: {
+            title: "Phân bố nhóm cơ",
+            body: "Số set chia theo từng nhóm cơ. Dễ thấy nhóm nào đang được tập quá ít.",
+          },
+          records: {
+            title: "Kỷ lục gần đây",
+            body: "Các kỷ lục cá nhân mới nhất, để mỗi bước tiến đều được ghi nhận.",
+          },
+          historyPeriod: {
+            title: "Tháng hoặc năm",
+            body: "Chuyển giữa lịch tháng và toàn cảnh cả năm, dùng mũi tên để xem lại thời gian trước.",
+          },
+          historyFilters: {
+            title: "Lọc và xuất file",
+            body: "Chỉ hiện các ngày push, pull hoặc legs. Nút Export tải nhật ký tập về máy.",
+          },
+          historyStats: {
+            title: "Tóm tắt tháng",
+            body: "Số buổi, khối lượng và thời lượng trung bình trong tháng, so với tháng trước.",
+          },
+          historyCalendar: {
+            title: "Lịch tập",
+            body: "Mỗi chấm là một buổi, tô màu theo loại: push, pull, legs hoặc khác. Chạm vào một ngày để mở log đầy đủ.",
+          },
+          historyRecent: {
+            title: "Buổi tập gần đây",
+            body: "Các buổi trong tháng, mới nhất ở trên. Chạm vào một buổi để xem từng bài và từng set.",
+          },
+          historyTrainedAreas: {
+            title: "Vùng cơ đã tập",
+            body: "Các nhóm cơ bạn đã tập tuần này hoặc tuần trước, để biết nhóm nào còn cần chú ý.",
+          },
+          recoveryReadiness: {
+            title: "Mức sẵn sàng hôm nay",
+            body: "Điểm tính từ check-in: giấc ngủ, mệt mỏi, căng thẳng và đau nhức. Check-in mỗi sáng để điểm luôn cập nhật.",
+          },
+          recoveryTrend: {
+            title: "Xu hướng sẵn sàng",
+            body: "Mức sẵn sàng và giấc ngủ thay đổi thế nào qua các ngày gần đây. Để ý chuỗi ngày thấp trước khi tập nặng.",
+          },
+          recoveryVolume: {
+            title: "Volume nhóm cơ trong tuần",
+            body: "Hard set của mỗi nhóm cơ so với các ngưỡng phục hồi (MEV, MAV, MRV). Bấm Chỉnh ngưỡng để đặt mục tiêu riêng cho từng nhóm cơ.",
           },
         },
         traineeSchedule: {

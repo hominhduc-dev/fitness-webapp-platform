@@ -461,7 +461,7 @@ export function VolumeRecoveryPanel() {
   return (
     <div className="space-y-4">
       {/* Today's score and the check-in answers behind it, in one card. */}
-      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" data-tour="progress-recovery-readiness">
         <div className="flex items-center gap-4 sm:gap-5">
           <ReadinessRing score={data.readiness.score} size="size-24 sm:size-28" />
           <div className="min-w-0 flex-1">
@@ -489,7 +489,7 @@ export function VolumeRecoveryPanel() {
 
       <ReadinessTrend />
 
-      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" data-tour="progress-recovery-volume">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="text-base font-semibold text-foreground">{copy.weeklyVolume}</h2>
           <p className="font-mono text-xs tnum text-muted-foreground">

@@ -927,11 +927,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
   return (
     <>
-      <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6" data-tour="trainee-progress-overview">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6">
         <div
           role="tablist"
           aria-label={copy.analytics.title}
-          data-tour="trainee-progress-actions"
+          data-tour="progress-tabs"
           className="mb-4 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1 md:mb-6 md:w-[26rem]"
         >
           {PROGRESS_TABS.map((t) => (
@@ -939,6 +939,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               key={t}
               type="button"
               role="tab"
+              data-tour-tab={t}
               aria-selected={tab === t}
               onClick={() => selectTab(t)}
               className={cn(
@@ -952,14 +953,12 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
         </div>
 
         {tab === "overview" ? (
-          <div data-tour="trainee-progress-metrics">
-            <ProgressOverview analyticsRange={initialData.analyticsRange} />
-          </div>
+          <ProgressOverview analyticsRange={initialData.analyticsRange} />
         ) : null}
 
         {tab === "history" ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3" data-tour="progress-history-period">
               <SegmentedControl
                 ariaLabel={copy.historyTab}
                 value={historyMode}
@@ -992,7 +991,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               )}
             </div>
 
-            <div className="flex min-h-10 flex-wrap items-center gap-2">
+            <div className="flex min-h-10 flex-wrap items-center gap-2" data-tour="progress-history-filters">
               {isYearMode ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
                 <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
                   {k === "all"
@@ -1015,7 +1014,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               </div>
             ) : null}
 
-            {isYearMode ? null : <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />}
+            {isYearMode ? null : (
+              <div data-tour="progress-history-stats">
+                <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />
+              </div>
+            )}
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6">
               {isYearMode ? (
@@ -1026,18 +1029,20 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   onDayClick={handleYearDayClick}
                 />
               ) : (
-                <CalendarSection
-                  year={viewYear}
-                  month={viewMonth}
-                  filter={filter}
-                  calendar={calendar}
-                  calendarLoading={calendarLoading}
-                  onDayClick={handleDayClick}
-                />
+                <div className="min-w-0" data-tour="progress-history-calendar">
+                  <CalendarSection
+                    year={viewYear}
+                    month={viewMonth}
+                    filter={filter}
+                    calendar={calendar}
+                    calendarLoading={calendarLoading}
+                    onDayClick={handleDayClick}
+                  />
+                </div>
               )}
 
               <div className="min-w-0 space-y-4">
-                <section className="rounded-2xl border border-border bg-card p-4">
+                <section className="rounded-2xl border border-border bg-card p-4" data-tour="progress-history-recent">
                   <h2 className="mb-3 text-base font-semibold text-foreground">{copy.recent}</h2>
                   <RecentSessions
                     calendar={calendar}
@@ -1045,10 +1050,12 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                     onLogClick={setSelectedLogId}
                   />
                 </section>
-                <TrainedAreasCard
-                  weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
-                  historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
-                />
+                <div data-tour="progress-history-trained-areas">
+                  <TrainedAreasCard
+                    weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
+                    historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
+                  />
+                </div>
               </div>
             </div>
           </div>

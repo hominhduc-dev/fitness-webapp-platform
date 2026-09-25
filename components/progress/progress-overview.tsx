@@ -37,14 +37,17 @@ function Card({
   children,
   className,
   title,
+  tour,
 }: {
   action?: React.ReactNode
   children: React.ReactNode
   className?: string
   title: string
+  /** The product tour's anchor for this card. */
+  tour?: string
 }) {
   return (
-    <section className={cn("min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5", className)}>
+    <section className={cn("min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5", className)} data-tour={tour}>
       <div className="flex min-h-7 items-center justify-between gap-3">
         <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
         {action}
@@ -163,7 +166,7 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-        <Card title={copy.thisWeek}>
+        <Card title={copy.thisWeek} tour="progress-this-week">
           {analyticsQuery.isPending || volumeQuery.isPending ? (
             <Skeleton className="h-40 rounded-xl" />
           ) : (
@@ -184,6 +187,7 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
 
         <Card
           title={copy.body}
+          tour="progress-body"
           action={
             <Link href="/trackweight" className="inline-flex min-h-9 items-center gap-1 text-sm font-medium text-primary hover:underline">
               {copy.logWeight}
@@ -279,7 +283,7 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
       </div>
 
       <section aria-labelledby="progress-period" className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3" data-tour="progress-period">
           <h2 id="progress-period" className="text-lg font-semibold tracking-tight text-foreground">{periodCopy.period}</h2>
           {shareCard ? (
             <button
@@ -303,10 +307,13 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
           </div>
         ) : period ? (
           <>
-            <SummaryCards summary={period.summary} />
+            <div data-tour="progress-period-summary">
+              <SummaryCards summary={period.summary} />
+            </div>
             <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
               <Card
                 title={periodCopy.frequency}
+                tour="progress-frequency"
                 action={
                   <div className="flex gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-primary" />{periodCopy.completedLegend}</span>
@@ -316,13 +323,13 @@ export function ProgressOverview({ analyticsRange }: { analyticsRange: { end: Da
               >
                 <WorkoutFrequencyChart data={period.workoutFrequency} />
               </Card>
-              <Card title={periodCopy.volume} action={<span className="text-xs text-muted-foreground">kg</span>}>
+              <Card title={periodCopy.volume} tour="progress-volume" action={<span className="text-xs text-muted-foreground">kg</span>}>
                 <TrainingVolumeChart data={period.trainingVolume} />
               </Card>
-              <Card title={periodCopy.muscles}>
+              <Card title={periodCopy.muscles} tour="progress-muscles">
                 <MuscleDistributionChart data={period.muscleGroupDistribution} />
               </Card>
-              <Card title={periodCopy.recent}>
+              <Card title={periodCopy.recent} tour="progress-records">
                 <PrFeed prs={period.recentPRs.slice(0, RECENT_RECORDS)} />
               </Card>
             </div>
