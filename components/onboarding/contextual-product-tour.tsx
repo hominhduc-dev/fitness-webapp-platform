@@ -9,7 +9,11 @@ import { useLocale } from "@/components/providers/locale-provider"
 import type { AppRole } from "@/lib/auth/types"
 import type { AppMessages } from "@/lib/i18n/messages"
 
-type TourStep = { body: string; target?: string; title: string }
+/**
+ * `activate` is a control to click before the step when its target is not on
+ * screen — a tab, so one tour can walk through every tab of a page.
+ */
+type TourStep = { activate?: string; body: string; target?: string; title: string }
 type TourMessages = AppMessages["onboarding"]["productTour"]
 const WELCOME_KEY = "yb_product_tour_welcome_v1"
 const CONTEXT_KEY_PREFIX = "yb_product_tour_context_v1:"
@@ -19,6 +23,8 @@ const SESSION_PATH = /^\/workout\/[^/]+\/start\/?$/
 const TOUR_START_RETRY_MS = 80
 // About 3s: long enough for a page's streamed content to hydrate on a slow phone.
 const TOUR_START_MAX_ATTEMPTS = 40
+// How long a step waits for its card after a tab switch before it is skipped.
+const STEP_WAIT_MS = 3000
 
 /**
  * React marks a DOM node it has hydrated with an internal `__reactFiber$…` key.
@@ -28,6 +34,39 @@ const TOUR_START_MAX_ATTEMPTS = 40
  */
 function isHydrated(element: Element) {
   return Object.keys(element).some((key) => key.startsWith("__reactFiber$"))
+}
+
+/** Top to bottom through Overview, History and Recovery, one card per step. */
+function progressSteps(copy: TourMessages["traineeProgress"]): TourStep[] {
+  const onTab = (tab: string, steps: Array<[keyof typeof copy, string]>) =>
+    steps.map(([key, anchor]) => ({ ...copy[key], activate: `[data-tour-tab='${tab}']`, target: `[data-tour='${anchor}']` }))
+
+  return [
+    { ...copy.tabs, target: "[data-tour='progress-tabs']" },
+    ...onTab("overview", [
+      ["thisWeek", "progress-this-week"],
+      ["body", "progress-body"],
+      ["period", "progress-period"],
+      ["periodSummary", "progress-period-summary"],
+      ["frequency", "progress-frequency"],
+      ["volume", "progress-volume"],
+      ["muscles", "progress-muscles"],
+      ["records", "progress-records"],
+    ]),
+    ...onTab("history", [
+      ["historyPeriod", "progress-history-period"],
+      ["historyFilters", "progress-history-filters"],
+      ["historyStats", "progress-history-stats"],
+      ["historyCalendar", "progress-history-calendar"],
+      ["historyRecent", "progress-history-recent"],
+      ["historyTrainedAreas", "progress-history-trained-areas"],
+    ]),
+    ...onTab("volume", [
+      ["recoveryReadiness", "progress-recovery-readiness"],
+      ["recoveryTrend", "progress-recovery-trend"],
+      ["recoveryVolume", "progress-recovery-volume"],
+    ]),
+  ]
 }
 
 export function buildTours(copy: TourMessages) {
@@ -79,11 +118,9 @@ export function buildTours(copy: TourMessages) {
       { ...copy.traineeNutrition.log, target: "[data-tour='trainee-nutrition-log']" },
       { ...copy.traineeNutrition.actions, target: "[data-tour='trainee-nutrition-actions']" },
     ] },
-    { key: "trainee-progress", roles: ["trainee"], match: (p) => p === "/progress" || p.startsWith("/progress/"), steps: [
-      { ...copy.traineeProgress.overview, target: "[data-tour='trainee-progress-overview']" },
-      { ...copy.traineeProgress.metrics, target: "[data-tour='trainee-progress-metrics']" },
-      { ...copy.traineeProgress.actions, target: "[data-tour='trainee-progress-actions']" },
-    ] },
+    // v2: the card-by-card walk through all three tabs replaced a three-step
+    // intro, so trainees who finished the old one see the new one once.
+    { key: "trainee-progress-v2", roles: ["trainee"], match: (p) => p === "/progress" || p.startsWith("/progress/"), steps: progressSteps(copy.traineeProgress) },
     { key: "trainee-schedule", roles: ["trainee"], match: (p) => p === "/schedule" || p.startsWith("/schedule/"), steps: [
       { ...copy.traineeSchedule.calendar, target: "[data-tour='trainee-schedule-calendar']" },
       { ...copy.traineeSchedule.week, target: "[data-tour='trainee-schedule-week']" },
@@ -110,10 +147,12 @@ function scrollTargetIntoView(target: HTMLElement) {
   const targetCenter = targetRect.top + targetRect.height / 2
   const desiredCenter = safeTop + (viewportHeight - safeTop - safeBottom) / 2
   const isComfortablyVisible = targetRect.top >= safeTop && targetRect.bottom <= viewportHeight - safeBottom
+  // A card taller than the free space is read from its top, not its middle.
+  const isTall = targetRect.height > viewportHeight - safeTop - safeBottom
 
   if (!isComfortablyVisible) {
     window.scrollBy({
-      top: targetCenter - desiredCenter,
+      top: isTall ? targetRect.top - safeTop : targetCenter - desiredCenter,
       behavior: "smooth",
     })
   }
@@ -226,20 +265,42 @@ export function ContextualProductTour({ role }: { role: AppRole }) {
           ? { key: `${CONTEXT_KEY_PREFIX}${contextTour.key}`, steps: contextTour.steps }
           : null
       if (!selected || selected.steps.length === 0) return
-      const availableSteps = selected.steps.filter((step) => !step.target || document.querySelector(step.target))
+      // A step behind a tab is kept: its target only renders once the tab opens.
+      const availableSteps = selected.steps.filter((step) => !step.target || step.activate || document.querySelector(step.target))
       const targetsHydrated = availableSteps.every((step) => {
         const target = step.target ? document.querySelector(step.target) : null
         return !target || isHydrated(target)
       })
-      if (availableSteps.length === 0 || !targetsHydrated) {
+      if (!availableSteps.some((step) => !step.target || document.querySelector(step.target)) || !targetsHydrated) {
         if (attempt < TOUR_START_MAX_ATTEMPTS) {
           retryTimer = window.setTimeout(() => startTour(attempt + 1), TOUR_START_RETRY_MS)
         }
         return
       }
 
+      // Opens the step's tab when its card is not on screen, then lets driver.js
+      // wait for the card (or skip it, when the tab has nothing to show).
+      const goTo = (index: number) => {
+        const step = availableSteps[index]
+        if (!step) {
+          activeTour?.destroy()
+          return
+        }
+        if (step.activate && step.target && !document.querySelector(step.target)) {
+          document.querySelector<HTMLElement>(step.activate)?.click()
+          // A new tab starts at its top; the old scroll offset would leave its
+          // first card above the screen.
+          window.scrollTo({ top: 0 })
+        }
+        activeTour?.moveTo(index)
+      }
+
       activeTour = driver({
         animate: true,
+        waitForElement: STEP_WAIT_MS,
+        skipMissingElement: true,
+        onNextClick: (_element, _step, { driver: tour }) => goTo((tour.getActiveIndex() ?? 0) + 1),
+        onPrevClick: (_element, _step, { driver: tour }) => goTo((tour.getActiveIndex() ?? 0) - 1),
         allowClose: true,
         overlayOpacity: 0.76,
         smoothScroll: true,

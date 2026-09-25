@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils"
 // ---------------------------------------------------------------------------
 
 type WorkoutKind = "all" | "push" | "pull" | "legs"
+type SplitKind = Exclude<WorkoutKind, "all">
 type Tab = "overview" | "history" | "volume"
 type HistoryMode = "month" | "year"
 const PROGRESS_TABS: Tab[] = ["overview", "history", "volume"]
@@ -63,19 +64,24 @@ function resolveTab(value: string | null): { historyMode?: HistoryMode; tab: Tab
   return { tab: "overview" }
 }
 
-function kindColor(k: string) {
-  return (TAG_DOT_COLOR as Record<string, string>)[k] ?? "var(--muted-foreground)"
+function kindColor(k: string | null) {
+  return (k && (TAG_DOT_COLOR as Record<string, string>)[k]) || "var(--muted-foreground)"
 }
 
-/** Derive workout "kind" — uses explicit field, falls back to name heuristic */
-function inferKind(kindField: string | undefined | null, name: string): WorkoutKind {
+/**
+ * Derive the workout split — the explicit field first (the backend fills it from
+ * exercise muscle groups when the workout has none), then a name heuristic for
+ * names like "Back / Biceps". Null when neither tells: shown as a neutral dot
+ * rather than guessing "push" for every unlabelled day.
+ */
+function inferKind(kindField: string | undefined | null, name: string): SplitKind | null {
   if (kindField === "push" || kindField === "pull" || kindField === "legs") return kindField
-  if (kindField === "full_body" || kindField === "cardio" || kindField === "other") return "push" // neutral color fallback
+  if (kindField === "full_body" || kindField === "cardio" || kindField === "other") return null
   const lower = name.toLowerCase()
   if (/push|chest|shoulder|tricep/.test(lower)) return "push"
   if (/pull|back|bicep|row|deadlift/.test(lower)) return "pull"
   if (/leg|squat|quad|hamstring|glute|calf/.test(lower)) return "legs"
-  return "push"
+  return null
 }
 
 function monthLabel(year: number, month: number, locale: string) {
@@ -430,6 +436,11 @@ function CalendarSection({
     }
     return map
   }, [calendar])
+  // The neutral "Other" entry only when this month has a day it applies to.
+  const hasUnsplitDay = useMemo(
+    () => calendar?.days.some((d) => d.logs.some((l) => inferKind(l.workoutKind, l.workoutName) === null)) ?? false,
+    [calendar],
+  )
 
   const cells: Array<number | null> = Array.from({ length: firstDayOfWeek }, () => null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
@@ -498,7 +509,7 @@ function CalendarSection({
                   >
                     {day}
                   </span>
-                  {dotKind && !dim && (
+                  {hasWorkout && !dim && (
                     <span
                       className="self-end rounded-full"
                       style={{ width: 6, height: 6, background: kindColor(dotKind) }}
@@ -519,6 +530,12 @@ function CalendarSection({
             {k === "push" ? messages.workoutPage.tagPush : k === "pull" ? messages.workoutPage.tagPull : messages.workoutPage.tagLegs}
           </div>
         ))}
+        {hasUnsplitDay && (
+          <div className="label-micro inline-flex items-center gap-1.5">
+            <span className="rounded-full" style={{ width: 6, height: 6, background: kindColor(null), display: "inline-block" }} />
+            {messages.workoutPage.tagOther}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -910,11 +927,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
 
   return (
     <>
-      <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6" data-tour="trainee-progress-overview">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-4 pt-page md:px-6 md:pb-6">
         <div
           role="tablist"
           aria-label={copy.analytics.title}
-          data-tour="trainee-progress-actions"
+          data-tour="progress-tabs"
           className="mb-4 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1 md:mb-6 md:w-[26rem]"
         >
           {PROGRESS_TABS.map((t) => (
@@ -922,6 +939,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               key={t}
               type="button"
               role="tab"
+              data-tour-tab={t}
               aria-selected={tab === t}
               onClick={() => selectTab(t)}
               className={cn(
@@ -935,14 +953,12 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
         </div>
 
         {tab === "overview" ? (
-          <div data-tour="trainee-progress-metrics">
-            <ProgressOverview analyticsRange={initialData.analyticsRange} />
-          </div>
+          <ProgressOverview analyticsRange={initialData.analyticsRange} />
         ) : null}
 
         {tab === "history" ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3" data-tour="progress-history-period">
               <SegmentedControl
                 ariaLabel={copy.historyTab}
                 value={historyMode}
@@ -975,7 +991,7 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               )}
             </div>
 
-            <div className="flex min-h-10 flex-wrap items-center gap-2">
+            <div className="flex min-h-10 flex-wrap items-center gap-2" data-tour="progress-history-filters">
               {isYearMode ? null : (["all", "push", "pull", "legs"] as WorkoutKind[]).map((k) => (
                 <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
                   {k === "all"
@@ -998,7 +1014,11 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
               </div>
             ) : null}
 
-            {isYearMode ? null : <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />}
+            {isYearMode ? null : (
+              <div data-tour="progress-history-stats">
+                <StatsSummary calendar={calendar} prevCalendar={prevCalendar} />
+              </div>
+            )}
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6">
               {isYearMode ? (
@@ -1009,18 +1029,20 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                   onDayClick={handleYearDayClick}
                 />
               ) : (
-                <CalendarSection
-                  year={viewYear}
-                  month={viewMonth}
-                  filter={filter}
-                  calendar={calendar}
-                  calendarLoading={calendarLoading}
-                  onDayClick={handleDayClick}
-                />
+                <div className="min-w-0" data-tour="progress-history-calendar">
+                  <CalendarSection
+                    year={viewYear}
+                    month={viewMonth}
+                    filter={filter}
+                    calendar={calendar}
+                    calendarLoading={calendarLoading}
+                    onDayClick={handleDayClick}
+                  />
+                </div>
               )}
 
               <div className="min-w-0 space-y-4">
-                <section className="rounded-2xl border border-border bg-card p-4">
+                <section className="rounded-2xl border border-border bg-card p-4" data-tour="progress-history-recent">
                   <h2 className="mb-3 text-base font-semibold text-foreground">{copy.recent}</h2>
                   <RecentSessions
                     calendar={calendar}
@@ -1028,10 +1050,12 @@ export function ProgressClient({ initialData }: { initialData: ProgressClientIni
                     onLogClick={setSelectedLogId}
                   />
                 </section>
-                <TrainedAreasCard
-                  weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
-                  historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
-                />
+                <div data-tour="progress-history-trained-areas">
+                  <TrainedAreasCard
+                    weekLogs={workoutsQuery.data?.weekLogs ?? initialData.weekLogs ?? []}
+                    historyLogs={workoutsQuery.data?.historyLogs ?? initialData.historyLogs ?? []}
+                  />
+                </div>
               </div>
             </div>
           </div>

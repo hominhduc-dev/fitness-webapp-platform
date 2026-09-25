@@ -57,4 +57,26 @@ describe("contextual tour routing", () => {
     expect(select("/dashboard")).toBe("trainee-dashboard")
     expect(select("/admin")).toBeNull()
   })
+
+  it("walks the progress page card by card, opening each tab before its cards", () => {
+    const progress = contextualTours.find((tour) => tour.key === "trainee-progress-v2")
+    const steps = progress?.steps ?? []
+
+    expect(select("/progress")).toBe("trainee-progress-v2")
+    expect(steps[0]).toMatchObject({ target: "[data-tour='progress-tabs']" })
+    expect(steps[0].activate).toBeUndefined()
+    // Overview, then History, then Recovery — never back to an earlier tab.
+    const tabs = steps.slice(1).map((step) => step.activate)
+    expect([...new Set(tabs)]).toEqual([
+      "[data-tour-tab='overview']",
+      "[data-tour-tab='history']",
+      "[data-tour-tab='volume']",
+    ])
+    expect(tabs).toEqual([...tabs].sort((left, right) => tabs.indexOf(left!) - tabs.indexOf(right!)))
+    expect(new Set(steps.map((step) => step.target)).size).toBe(steps.length)
+    for (const step of steps) {
+      expect(step.title.length).toBeGreaterThan(0)
+      expect(step.body.length).toBeGreaterThan(0)
+    }
+  })
 })

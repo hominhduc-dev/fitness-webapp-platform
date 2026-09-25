@@ -37,7 +37,7 @@ export function ReadinessTrend() {
   const averageSleepMinutes = query.data?.averages.sleepMinutes ?? null
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5">
+    <section className="rounded-lg border border-border bg-card p-5" data-tour="progress-recovery-trend">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-foreground">{copy.trend}</h2>
         <div className="flex gap-1" role="group" aria-label={copy.trend}>

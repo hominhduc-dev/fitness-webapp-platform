@@ -103,6 +103,7 @@ import {
   toFiniteNumber,
   type WorkoutLogSnapshotExercise,
 } from "./shared/workout-snapshot"
+import { inferWorkoutKind } from "../../lib/workout-kind"
 
 // Narrow projections of the User relation so list queries don't drag the full
 // ~20-column row (email/phone/avatar/goal arrays/timestamps) per joined record.
@@ -7234,7 +7235,15 @@ async function getCalendarForTrainee(
           id: true,
           startedAt: true,
           totalVolume: true,
-          workout: { select: { id: true, kind: true, name: true } },
+          workout: {
+            select: {
+              id: true,
+              kind: true,
+              name: true,
+              // Only for workouts without a `kind`: the split is read off their exercises.
+              exercises: { select: { variation: { select: { exercise: { select: { muscleGroup: true } } } } } },
+            },
+          },
         },
     where: {
       startedAt: { gte: start, lt: end },
@@ -7268,7 +7277,12 @@ async function getCalendarForTrainee(
     id: string
     startedAt: Date
     totalVolume: number | null
-    workout: { id: string; kind: string | null; name: string } | null
+    workout: {
+      exercises: Array<{ variation: { exercise: { muscleGroup: string | null } } }>
+      id: string
+      kind: string | null
+      name: string
+    } | null
   }>
   const dayMap = new Map<string, typeof detailedLogs>()
   for (const log of detailedLogs) {
@@ -7286,7 +7300,9 @@ async function getCalendarForTrainee(
         startedAt: log.startedAt.toISOString(),
         totalVolume: log.totalVolume ?? 0,
         workoutId: log.workout?.id ?? "",
-        workoutKind: log.workout?.kind ?? null,
+        workoutKind:
+          log.workout?.kind ??
+          (log.workout ? inferWorkoutKind(log.workout.exercises.map((item) => item.variation.exercise.muscleGroup)) : null),
         workoutName: log.workout?.name ?? "Workout",
       })),
     })),
