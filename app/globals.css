@@ -1227,7 +1227,8 @@ body {
   }
 }
 
-input,
+/* Underlined onboarding measurements sit directly on the page canvas. */
+input:not(.onboarding-measure-input),
 textarea,
 select {
   background-color: var(--glass-scrim);
@@ -1556,7 +1557,7 @@ aside.glass-surface::after {
   backdrop-filter: none;
 }
 
-:root:not(.dark) input,
+:root:not(.dark) input:not(.onboarding-measure-input),
 :root:not(.dark) textarea,
 :root:not(.dark) select {
   background-color: var(--card);
