@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils"
 // ---------------------------------------------------------------------------
 
 type WorkoutKind = "all" | "push" | "pull" | "legs"
+type SplitKind = Exclude<WorkoutKind, "all">
 type Tab = "overview" | "history" | "volume"
 type HistoryMode = "month" | "year"
 const PROGRESS_TABS: Tab[] = ["overview", "history", "volume"]
@@ -63,19 +64,24 @@ function resolveTab(value: string | null): { historyMode?: HistoryMode; tab: Tab
   return { tab: "overview" }
 }
 
-function kindColor(k: string) {
-  return (TAG_DOT_COLOR as Record<string, string>)[k] ?? "var(--muted-foreground)"
+function kindColor(k: string | null) {
+  return (k && (TAG_DOT_COLOR as Record<string, string>)[k]) || "var(--muted-foreground)"
 }
 
-/** Derive workout "kind" — uses explicit field, falls back to name heuristic */
-function inferKind(kindField: string | undefined | null, name: string): WorkoutKind {
+/**
+ * Derive the workout split — the explicit field first (the backend fills it from
+ * exercise muscle groups when the workout has none), then a name heuristic for
+ * names like "Back / Biceps". Null when neither tells: shown as a neutral dot
+ * rather than guessing "push" for every unlabelled day.
+ */
+function inferKind(kindField: string | undefined | null, name: string): SplitKind | null {
   if (kindField === "push" || kindField === "pull" || kindField === "legs") return kindField
-  if (kindField === "full_body" || kindField === "cardio" || kindField === "other") return "push" // neutral color fallback
+  if (kindField === "full_body" || kindField === "cardio" || kindField === "other") return null
   const lower = name.toLowerCase()
   if (/push|chest|shoulder|tricep/.test(lower)) return "push"
   if (/pull|back|bicep|row|deadlift/.test(lower)) return "pull"
   if (/leg|squat|quad|hamstring|glute|calf/.test(lower)) return "legs"
-  return "push"
+  return null
 }
 
 function monthLabel(year: number, month: number, locale: string) {
@@ -430,6 +436,11 @@ function CalendarSection({
     }
     return map
   }, [calendar])
+  // The neutral "Other" entry only when this month has a day it applies to.
+  const hasUnsplitDay = useMemo(
+    () => calendar?.days.some((d) => d.logs.some((l) => inferKind(l.workoutKind, l.workoutName) === null)) ?? false,
+    [calendar],
+  )
 
   const cells: Array<number | null> = Array.from({ length: firstDayOfWeek }, () => null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
@@ -498,7 +509,7 @@ function CalendarSection({
                   >
                     {day}
                   </span>
-                  {dotKind && !dim && (
+                  {hasWorkout && !dim && (
                     <span
                       className="self-end rounded-full"
                       style={{ width: 6, height: 6, background: kindColor(dotKind) }}
@@ -519,6 +530,12 @@ function CalendarSection({
             {k === "push" ? messages.workoutPage.tagPush : k === "pull" ? messages.workoutPage.tagPull : messages.workoutPage.tagLegs}
           </div>
         ))}
+        {hasUnsplitDay && (
+          <div className="label-micro inline-flex items-center gap-1.5">
+            <span className="rounded-full" style={{ width: 6, height: 6, background: kindColor(null), display: "inline-block" }} />
+            {messages.workoutPage.tagOther}
+          </div>
+        )}
       </div>
     </div>
   )
