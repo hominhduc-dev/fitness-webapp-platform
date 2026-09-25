@@ -173,6 +173,10 @@
   --glass-filter-soft: blur(14px) saturate(130%);
   --glass-filter-panel: blur(22px) saturate(145%);
   --glass-filter-frost: blur(28px) saturate(160%);
+  /* The fill of a reading surface (chat, long lists) floating over content:
+     near-opaque, so body text never sits on top of the page behind it. Light
+     themes use their opaque card; dark themes redefine it below. */
+  --glass-sheet-fill: var(--card);
   --glass-opacity: 0.72;
   --glass-bg: rgb(255 255 255 / var(--glass-opacity));
   --glass-bg-strong: rgb(255 255 255 / clamp(0.5, calc(var(--glass-opacity) + 0.16), 0.97));
@@ -785,6 +789,9 @@ input[type="button"] {
 
   --popover: rgb(27 29 35 / 82%);
   --popover-foreground: var(--ink-800);
+  /* --card is see-through here, so a reading sheet builds on the theme's
+     solid surface instead (black-volt and the other dark palettes set it). */
+  --glass-sheet-fill: color-mix(in srgb, var(--glass-solid) 94%, transparent);
 
   --muted: rgb(255 255 255 / 8%);
   --muted-foreground: var(--ink-400);
@@ -1126,6 +1133,19 @@ body {
   background:
     linear-gradient(180deg, var(--glass-tint-1), var(--glass-tint-2)),
     var(--glass-bg-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-filter-frost);
+  backdrop-filter: var(--glass-filter-frost);
+}
+
+/* A reading surface floating over the page — the AI chat, long pickers.
+   Where glass-frost lets colour through, this is near-opaque in every theme
+   (see --glass-sheet-fill), keeping the frost only as a soft edge of depth. */
+@utility glass-sheet {
+  border-color: var(--glass-border);
+  background:
+    linear-gradient(180deg, var(--glass-tint-1), transparent 40%),
+    var(--glass-sheet-fill);
   box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow);
   -webkit-backdrop-filter: var(--glass-filter-frost);
   backdrop-filter: var(--glass-filter-frost);
@@ -1640,6 +1660,7 @@ aside.glass-surface::after {
 
 @media (prefers-reduced-transparency: reduce) {
   .glass-frost,
+  .glass-sheet,
   .glass-surface,
   .glass-card,
   .bg-card,

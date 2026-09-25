@@ -111,9 +111,13 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
   if (!profile || !open) return null
 
   return (
-    <div ref={panelRef} className="glass-surface fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border bg-background shadow-2xl md:bottom-5 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-40px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
+    <>
+    {/* Phones: the page dims behind the chat so the panel reads as its own
+        layer; a tap on it closes the chat like any tap outside the panel. */}
+    <div aria-hidden="true" className="fixed inset-0 z-[58] bg-overlay-soft backdrop-blur-[2px] md:hidden" />
+    <div ref={panelRef} role="dialog" aria-label="AI Coach" className="glass-sheet fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border md:bottom-5 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-40px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
           {/* Header */}
-          <div className="flex items-center gap-2.5 border-b bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-2.5 border-b border-border bg-primary/5 px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
               <Bot className="size-4 text-primary" />
             </div>
@@ -143,7 +147,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                       key={action.href}
                       href={action.href}
                       onClick={() => onOpenChange(false)}
-                      className="flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted"
+                      className="flex items-center gap-3 rounded-xl border border-border bg-surface-subtle p-3 transition-colors hover:bg-surface-hover"
                     >
                       <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
                         <action.icon className="size-4 text-primary" />
@@ -167,7 +171,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                         key={s}
                         type="button"
                         onClick={() => void handleSend(s)}
-                        className="rounded-full border px-3 py-1.5 text-xs transition-colors hover:bg-muted"
+                        className="rounded-full border border-border bg-surface-subtle px-3 py-1.5 text-xs transition-colors hover:bg-surface-hover pointer-coarse:py-2"
                       >
                         {s}
                       </button>
@@ -211,7 +215,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
           </div>
 
           {/* Input */}
-          <div className="border-t p-3">
+          <div className="border-t border-border p-3">
             <div className="flex items-center gap-2">
               <input
                 ref={inputRef}
@@ -225,7 +229,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                   }
                 }}
                 placeholder={copy.placeholder}
-                className="flex-1 rounded-xl border bg-transparent px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+                className="flex-1 rounded-xl border border-border bg-surface-subtle px-3.5 py-2.5 text-sm outline-none focus:border-primary"
                 disabled={isLoading}
               />
               <Button
@@ -239,6 +243,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
             </div>
           </div>
     </div>
+    </>
   )
 }
 
