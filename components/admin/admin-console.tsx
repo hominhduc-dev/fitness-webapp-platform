@@ -18,6 +18,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  Undo2,
   Upload,
   UserRoundCheck,
   Users,
@@ -779,6 +780,7 @@ export function AdminConsole() {
   const { mutateAsync: updateAdminExerciseRequest } = queries.useUpdateAdminExerciseRequest()
   const { mutateAsync: saveAdminExerciseMedia } = queries.useSaveAdminExerciseMedia()
   const { mutateAsync: transferAdminExerciseMetadataRequest } = queries.useTransferAdminExerciseMetadataRequest()
+  const { mutateAsync: undoAdminExerciseMetadataTransferRequest } = queries.useUndoAdminExerciseMetadataTransferRequest()
   const { mutateAsync: removeAdminExerciseMediaRequest } = queries.useRemoveAdminExerciseMediaRequest()
   const { mutateAsync: updateAdminUserRequest } = queries.useUpdateAdminUserRequest()
   const [selectedRole, setSelectedRole] = useState<UserRole>("trainee")
@@ -1346,11 +1348,37 @@ export function AdminConsole() {
     setActionKey(`exercise-metadata-transfer-${targetVariationId}`)
     setError(null)
     try {
-      await transferAdminExerciseMetadataRequest([{ sourceVariationId, targetVariationId }])
+      const { transferId } = await transferAdminExerciseMetadataRequest([{ sourceVariationId, targetVariationId }])
       await exercisesQuery.refetch()
-      showSuccess(locale === "en" ? "Metadata transferred." : "Đã chuyển metadata.")
+      // Longer than a plain success, so there is time to reach Undo.
+      toast({
+        action: (
+          <Button type="button" size="sm" variant="outline" onClick={() => void handleUndoMetadataTransfer(transferId, targetVariationId).catch(() => undefined)}>
+            <Undo2 className="mr-1.5 size-4" aria-hidden="true" />
+            {locale === "en" ? "Undo" : "Hoàn tác"}
+          </Button>
+        ),
+        duration: 12000,
+        title: locale === "en" ? "Metadata transferred." : "Đã chuyển metadata.",
+        tone: "success",
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể chuyển metadata.")
+      throw err
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  async function handleUndoMetadataTransfer(transferId: string, variationId: string) {
+    setActionKey(`exercise-metadata-transfer-${variationId}`)
+    setError(null)
+    try {
+      await undoAdminExerciseMetadataTransferRequest([transferId])
+      await exercisesQuery.refetch()
+      showSuccess(locale === "en" ? "Metadata transfer undone." : "Đã hoàn tác chuyển metadata.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể hoàn tác chuyển metadata.")
       throw err
     } finally {
       setActionKey(null)
@@ -2409,6 +2437,7 @@ export function AdminConsole() {
               onExportAll={() => void handleExportAllExercises()}
               onReviewImportRequest={handleReviewExerciseImportRequest}
               onTransferMetadata={handleTransferExerciseMetadata}
+              onUndoMetadataTransfer={handleUndoMetadataTransfer}
             />
 
             <ExerciseSyncReviewModal

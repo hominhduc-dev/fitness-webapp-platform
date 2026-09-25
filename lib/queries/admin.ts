@@ -206,6 +206,10 @@ export function useTransferAdminExerciseMetadataRequest() {
   return useAdminMutation(api.transferAdminExerciseMetadataRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
 }
 
+export function useUndoAdminExerciseMetadataTransferRequest() {
+  return useAdminMutation(api.undoAdminExerciseMetadataTransferRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
+}
+
 export function useRemoveAdminExerciseMediaRequest() {
   return useAdminMutation(api.removeAdminExerciseMediaRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
 }
