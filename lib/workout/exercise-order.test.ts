@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { isExerciseDone, nextIncompleteExercise, sessionDisplayOrder } from "./exercise-order"
+import { isExerciseDone, nextIncompleteExercise } from "./exercise-order"
 
 const done = { sets: [{ completed: true }, { completed: true }] }
 const partial = { sets: [{ completed: true }, { completed: false }] }
@@ -12,11 +12,6 @@ describe("exercise order in a session", () => {
     expect(isExerciseDone(done)).toBe(true)
     expect(isExerciseDone(partial)).toBe(false)
     expect(isExerciseDone(empty)).toBe(false)
-  })
-
-  it("moves finished exercises to the bottom and keeps planned order within each group", () => {
-    expect(sessionDisplayOrder([done, fresh, partial, done, empty])).toEqual([1, 2, 4, 0, 3])
-    expect(sessionDisplayOrder([fresh, partial])).toEqual([0, 1])
   })
 
   it("moves on to the next unfinished exercise, wrapping to one skipped earlier", () => {

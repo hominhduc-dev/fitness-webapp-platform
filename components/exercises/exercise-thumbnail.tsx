@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 const SIZES = {
   sm: { className: "size-10 rounded-md", pixels: 40 },
   md: { className: "size-12 rounded-lg", pixels: 48 },
+  lg: { className: "size-[72px] rounded-2xl", pixels: 72 },
 } as const
 
 const FRAME_CLASS_NAME =

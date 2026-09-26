@@ -1,22 +1,6 @@
 "use client"
 
-import {
-  ArrowDownNarrowWide,
-  CalendarClock,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Edit3,
-  FileText,
-  MoreHorizontal,
-  Plus,
-  Repeat,
-  Search,
-  Sparkles,
-  Trash2,
-  TrendingUp,
-  X,
-} from "lucide-react"
+import { CalendarClock, Plus } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
@@ -24,17 +8,13 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { RestTimer, type RestEvent } from "@/components/workout/rest-timer"
-import { ExerciseAnimation } from "@/components/workout/exercise-animation"
-import { SlideToConfirm } from "@/components/workout/slide-to-confirm"
-import { SyncStatusBadge } from "@/components/offline/sync-status-badge"
+import { SessionExerciseView } from "@/components/workout/session/session-exercise-view"
+import { SessionHeader } from "@/components/workout/session/session-header"
+import { SessionNavBar } from "@/components/workout/session/session-nav-bar"
+import { SessionOptionsSheet } from "@/components/workout/session/session-options-sheet"
+import { SessionProgress } from "@/components/workout/session/session-progress"
+import type { ProgramSetTarget } from "@/components/workout/session/session-set-row"
 import { ApiError } from "@/lib/auth/api"
 import {
   createClientLogId,
@@ -60,12 +40,10 @@ import { useExercises } from "@/lib/queries/exercises"
 import { useSetVolumeRecommendationStatus, useVolumeRecovery } from "@/lib/queries/progress"
 import { acceptedCoachHints, coachHintForExercise, type CoachHint } from "@/lib/fitness/coach-hints"
 import { cn } from "@/lib/utils"
-import type { CoachUpdate, ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
-import { IntensityTagBadge, getIntensityTagLabel } from "@/components/workout/set-intensity-tag"
+import type { ExerciseSet, ExerciseVariationOption, WorkoutExercise, Workout } from "@/lib/types"
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
 import type { AppMessages } from "@/lib/i18n/messages"
-import { formatRepTarget } from "@/lib/workout-reps"
 import {
   WORKOUT_SESSION_STORAGE_SCHEMA_VERSION,
   clearStoredWorkoutSession,
@@ -77,27 +55,11 @@ import {
 import { markWorkoutCelebration } from "@/lib/workout/celebration"
 import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
-import { nextExerciseCollapsed } from "@/lib/workout/exercise-collapse"
-import { isExerciseDone, nextIncompleteExercise, sessionDisplayOrder } from "@/lib/workout/exercise-order"
+import { isExerciseDone, nextIncompleteExercise } from "@/lib/workout/exercise-order"
+import { primaryNavAction } from "@/lib/workout/session-navigation"
+import { useDefaultRest } from "@/lib/workout/use-default-rest"
 
 // ─── Session storage helpers (see @/lib/workout/session-storage) ──────────────
-
-/** Fallback rest duration (seconds) when an exercise has no `restTime` set. */
-const DEFAULT_REST_SECONDS = 90
-// The trailing column holds the complete-set tick and the row menu; both keep
-// their 22px footprint and grow only in height on touch.
-// Prev carries the longest string in the row ("82.5×8-10") while kg, Reps and
-// RIR never hold more than a few digits, so on phones the width is weighted
-// towards Prev rather than split evenly — otherwise the target rep range is the
-// part that gets truncated away.
-const SET_ROW_GRID_CLASS =
-  "grid-cols-[26px_minmax(0,1.35fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_46px] gap-1 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_54px] sm:gap-2 sm:px-4 md:px-5"
-
-type ProgramSetTarget = {
-  reps: number
-  repsMin?: number
-  weight?: number
-}
 
 function buildProgramSetTargetMap(exercises: Workout["exercises"]) {
   const targets = new Map<string, ProgramSetTarget>()
@@ -107,6 +69,7 @@ function buildProgramSetTargetMap(exercises: Workout["exercises"]) {
       targets.set(set.id, {
         reps: set.targetReps,
         repsMin: set.targetRepsMin,
+        rir: set.rir,
         weight: set.weight,
       })
     })
@@ -304,634 +267,6 @@ function getDayLabel(date: Date, messages: AppMessages, locale: string): { prima
   }
 }
 
-// ─── Set row (Lift spec) ───────────────────────────────────────────────────────
-
-interface LiftSetRowProps {
-  programTarget?: ProgramSetTarget
-  set: ExerciseSet
-  setIndex: number
-  weightUnit: "kg" | "lbs"
-  canRemove: boolean
-  onToggle: (data: Partial<ExerciseSet>) => void
-  onChange: (patch: Partial<ExerciseSet>) => void
-  onRemove: () => void
-}
-
-function LiftSetRow({ programTarget, set, setIndex, weightUnit, canRemove, onToggle, onChange, onRemove }: LiftSetRowProps) {
-  const { messages } = useLocale()
-  const [weight, setWeight] = useState(set.weight?.toString() ?? "")
-  const [reps, setReps] = useState((set.actualReps ?? set.targetReps).toString())
-  const [rir, setRir] = useState(set.rir?.toString() ?? "")
-  const [completed, setCompleted] = useState(set.completed)
-  const [noteOpen, setNoteOpen] = useState(false)
-  const [note, setNote] = useState(set.notes ?? "")
-  const previousSetIdRef = useRef(set.id)
-
-  useEffect(() => {
-    setWeight(set.weight?.toString() ?? "")
-  }, [set.id, set.weight])
-
-  useEffect(() => {
-    if (previousSetIdRef.current !== set.id) {
-      previousSetIdRef.current = set.id
-      setReps((set.actualReps ?? set.targetReps).toString())
-      return
-    }
-
-    if (set.actualReps != null) {
-      setReps(set.actualReps.toString())
-    }
-  }, [set.actualReps, set.id, set.targetReps])
-
-  useEffect(() => {
-    setRir(set.rir?.toString() ?? "")
-  }, [set.id, set.rir])
-
-  const handleToggle = () => {
-    const next = !completed
-    setCompleted(next)
-    onToggle({
-      completed: next,
-      weight: Number.parseFloat(weight) || undefined,
-      actualReps: Number.parseInt(reps) || set.targetReps,
-      rir: rir.trim() ? Number.parseInt(rir) : undefined,
-    })
-  }
-
-  // Prev column mixes two sources: weight from the trainee's last logged set of
-  // this exercise in the same program, and reps from the coach's programmed rep
-  // range for this program. Weight shows progression; the range shows today's
-  // target. Each side falls back to the other source when one is missing.
-  const prevWeight = set.previousPerformance?.weight ?? programTarget?.weight
-  const repsPart = programTarget
-    ? formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })
-    : set.previousPerformance?.reps != null
-      ? String(set.previousPerformance.reps)
-      : null
-  const weightPart = prevWeight != null ? String(prevWeight) : null
-  // No spaces around the "×": at 375px the two of them are the difference
-  // between showing the target rep range and truncating it away.
-  const prevLabel =
-    weightPart || repsPart ? `${weightPart ?? "—"}×${repsPart ?? "—"}` : "— · —"
-  // Passive progression hint: if last session's reps exceeded the coach's upper
-  // bound, tint the cell green and append a ↗ so trainee sees they've earned a
-  // weight bump. No auto-adjustment — trainee decides.
-  const exceededRange =
-    set.previousPerformance?.reps != null &&
-    programTarget?.reps != null &&
-    set.previousPerformance.reps > programTarget.reps
-  // All screens: Set | Previous | kg | Reps | RIR | actions  (6 cols)
-  return (
-    <div data-tour="session-set" className={cn(completed ? "bg-muted" : "bg-transparent")}>
-      <div
-        className={cn(
-          "grid min-w-0 items-center",
-          SET_ROW_GRID_CLASS,
-          // The fields carry their own height on touch, so the row padding backs
-          // off to keep the list from stretching out.
-          "py-[10px] pointer-coarse:py-1",
-          "transition-colors duration-[180ms]",
-        )}
-      >
-        {/* Set number, with the method the coach prescribed for this set */}
-        {set.intensityTag ? (
-          <span
-            className="flex min-w-0 flex-col items-center justify-center gap-0.5 text-center"
-            title={getIntensityTagLabel(set.intensityTag, messages)}
-            aria-label={messages.workoutPage.intensitySetMethodLabel(
-              setIndex + 1,
-              getIntensityTagLabel(set.intensityTag, messages),
-            )}
-          >
-            <span
-              className={cn(
-                "font-mono text-base font-semibold leading-none",
-                completed ? "text-muted-foreground" : "text-foreground",
-              )}
-            >
-              {setIndex + 1}
-            </span>
-            <IntensityTagBadge tag={set.intensityTag} />
-          </span>
-        ) : (
-          <span
-            className={cn(
-              "min-w-0 text-center font-mono text-base font-semibold",
-              completed ? "text-muted-foreground" : "text-foreground",
-            )}
-          >
-            {setIndex + 1}
-          </span>
-        )}
-
-        {/* Previous */}
-        <span
-          className={cn(
-            "min-w-0 font-mono text-micro leading-tight",
-            exceededRange
-              ? "inline-flex items-center justify-center gap-1 text-success-text"
-              : "block truncate text-center text-muted-foreground",
-          )}
-          title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
-          aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
-        >
-          {exceededRange ? (
-            <>
-              <span className="truncate">{prevLabel}</span>
-              <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
-            </>
-          ) : (
-            prevLabel
-          )}
-        </span>
-
-      {/* Weight input */}
-      <input
-        type="number"
-        inputMode="decimal"
-        value={weight}
-        disabled={completed}
-        onChange={(e) => {
-          setWeight(e.target.value)
-          onChange({ weight: Number.parseFloat(e.target.value) || undefined })
-        }}
-        placeholder="—"
-        aria-label={messages.workoutPage.weightInUnit(weightUnit)}
-        className={cn(
-          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-sm",
-          "border transition-colors duration-[180ms]",
-          "focus:outline-none focus:ring-1 focus:ring-primary",
-          "h-8 pointer-coarse:h-11 px-1",
-          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-          "disabled:cursor-not-allowed",
-          completed
-            ? "border-transparent bg-transparent text-muted-foreground"
-            // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
-            // dense grid. Drop the border there and let a soft fill carry the
-            // field instead — same target, much lighter on the eye.
-            : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
-        )}
-      />
-
-      {/* Reps input */}
-      <input
-        type="number"
-        inputMode="numeric"
-        value={reps}
-        disabled={completed}
-        onChange={(e) => {
-          setReps(e.target.value)
-          onChange({ actualReps: Number.parseInt(e.target.value) || undefined })
-        }}
-        placeholder="—"
-        aria-label={messages.workoutPage.reps}
-        className={cn(
-          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-sm",
-          "border transition-colors duration-[180ms]",
-          "focus:outline-none focus:ring-1 focus:ring-primary",
-          "h-8 pointer-coarse:h-11 px-1",
-          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-          "disabled:cursor-not-allowed",
-          completed
-            ? "border-transparent bg-transparent text-muted-foreground"
-            // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
-            // dense grid. Drop the border there and let a soft fill carry the
-            // field instead — same target, much lighter on the eye.
-            : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
-        )}
-      />
-
-      {/* RIR input */}
-      <input
-        type="number"
-        inputMode="numeric"
-        value={rir}
-        disabled={completed}
-        onChange={(e) => {
-          setRir(e.target.value)
-          onChange({ rir: e.target.value.trim() ? Number.parseInt(e.target.value) : undefined })
-        }}
-        placeholder={set.rir != null ? String(set.rir) : "—"}
-        aria-label="RIR"
-        min={0}
-        max={10}
-        className={cn(
-          "min-w-0 w-full rounded-md pointer-coarse:rounded-lg text-center font-mono text-sm",
-          "border transition-colors duration-[180ms]",
-          "focus:outline-none focus:ring-1 focus:ring-primary",
-          "h-8 pointer-coarse:h-11 px-1",
-          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-          "disabled:cursor-not-allowed",
-          completed
-            ? "border-transparent bg-transparent text-muted-foreground"
-            // Touch needs a 44px box, but a 44px *outlined* box reads heavy in a
-            // dense grid. Drop the border there and let a soft fill carry the
-            // field instead — same target, much lighter on the eye.
-            : "border-border bg-background text-foreground pointer-coarse:border-transparent pointer-coarse:bg-muted",
-        )}
-      />
-
-        {/* Row actions: tick + more options */}
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={handleToggle}
-            aria-label={completed ? messages.workoutPage.markIncomplete : messages.workoutPage.completeSet}
-            // Completing a set is the most-tapped control in the app, and a 22px
-            // square is half the platform minimum. Rather than inflate the box,
-            // the button is just an invisible 44px-tall target and the inner
-            // span keeps the original 22px tick — big to hit, small to look at.
-            className="flex h-[22px] w-[22px] items-center justify-center pointer-coarse:h-11"
-          >
-            <span
-              className={cn(
-                "flex h-[22px] w-[22px] items-center justify-center rounded",
-                "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
-                completed
-                  ? "border-0 bg-primary"
-                  : "border-[1.5px] border-border bg-transparent",
-              )}
-            >
-              {/* The tick has to move with the fill: --success-foreground is a
-                  near-black green, which is not a contrast pair for the brand
-                  colour underneath it. */}
-              {completed && <Check className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />}
-            </span>
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={messages.workoutPage.setOptions}
-                className="flex h-[22px] w-[22px] items-center justify-center pointer-coarse:h-11 text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {/* Same split as the tick: tall invisible target, small visual. */}
-                <span className="flex h-[22px] w-[22px] items-center justify-center rounded transition-colors hover:bg-muted">
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
-                <FileText className="mr-2 h-4 w-4" />
-                {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
-                {note.trim() && !noteOpen && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
-              </DropdownMenuItem>
-              {canRemove && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive-text focus:text-destructive-text"
-                    onClick={onRemove}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {messages.workoutPage.removeSet}
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* Set note (inline, collapsible) */}
-      {noteOpen && (
-        <div className="px-4 pb-2 md:px-5">
-          <textarea
-            rows={2}
-            value={note}
-            onChange={(e) => {
-              setNote(e.target.value)
-              onChange({ notes: e.target.value || undefined })
-            }}
-            placeholder={messages.workoutPage.noteForSet}
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function getCoachUpdateMeta(type: CoachUpdate["type"]) {
-  switch (type) {
-    case "weight_up":
-      return {
-        buttonBgClassName: "bg-[color-mix(in_srgb,var(--success)_12%,transparent)]",
-        hoverClassName: "hover:bg-[color-mix(in_srgb,var(--success)_12%,transparent)]",
-        icon: TrendingUp,
-        panelBgClassName: "bg-[color-mix(in_srgb,var(--success)_8%,transparent)]",
-        textClassName: "text-success-text",
-      }
-    case "rir_down":
-    case "weight_down":
-      return {
-        buttonBgClassName: "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]",
-        hoverClassName: "hover:bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]",
-        icon: ArrowDownNarrowWide,
-        panelBgClassName: "bg-[color-mix(in_srgb,var(--warning)_8%,transparent)]",
-        textClassName: "text-warning-text",
-      }
-    case "rir_up":
-    case "edit":
-    default:
-      return {
-        buttonBgClassName: "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
-        hoverClassName: "hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
-        icon: Edit3,
-        panelBgClassName: "bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]",
-        textClassName: "text-primary",
-      }
-  }
-}
-
-// ─── Exercise block (Lift spec) ────────────────────────────────────────────────
-
-interface LiftExerciseBlockProps {
-  exercise: WorkoutExercise
-  coachHint: CoachHint | null
-  onApplyCoachHint: (hint: CoachHint, exerciseId: string) => void
-  programSetTargets: Map<string, ProgramSetTarget>
-  weightUnit: "kg" | "lbs"
-  isCurrent: boolean
-  onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
-  onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
-  onAddSet: (exerciseId: string) => void
-  onRemoveSet: (exerciseId: string, setId: string) => void
-  onRemoveExercise: (exerciseId: string) => void
-  onRequestReplace: (exercise: WorkoutExercise) => void
-  onExerciseNoteChange: (exerciseId: string, note: string) => void
-}
-
-function LiftExerciseBlock({
-  exercise,
-  coachHint,
-  onApplyCoachHint,
-  programSetTargets,
-  weightUnit,
-  isCurrent,
-  onSetUpdate,
-  onSetComplete,
-  onAddSet,
-  onRemoveSet,
-  onRemoveExercise,
-  onRequestReplace,
-  onExerciseNoteChange,
-}: LiftExerciseBlockProps) {
-  const { messages } = useLocale()
-  const completedCount = exercise.sets.filter((s) => s.completed).length
-  const allSetsCompleted = exercise.sets.length > 0 && completedCount === exercise.sets.length
-  const [collapsed, setCollapsed] = useState(allSetsCompleted || !isCurrent)
-  const wasCompletedRef = useRef(allSetsCompleted)
-  const [coachUpdateOpen, setCoachUpdateOpen] = useState(false)
-  const [noteOpen, setNoteOpen] = useState(false)
-  const [note, setNote] = useState(exercise.notes ?? "")
-  const coachUpdate = exercise.coachUpdate
-  const coachUpdateMeta = coachUpdate ? getCoachUpdateMeta(coachUpdate.type) : null
-  const CoachUpdateIcon = coachUpdateMeta?.icon
-  const exerciseLabel = formatExerciseVariationLabel({
-    displayName: exercise.variation.displayName,
-    exerciseName: exercise.exercise.name,
-    isDefault: exercise.variation.isDefault,
-    variationName: exercise.variation.name,
-  })
-  const volumeCopy = messages.volumeRecovery
-  const coachHintText = coachHint
-    ? volumeCopy.sessionHint(
-        coachHint.action,
-        volumeCopy.muscleLabels[coachHint.muscleSlug as keyof typeof volumeCopy.muscleLabels] ?? coachHint.muscleSlug,
-        coachHint.currentSets,
-        coachHint.recommendedSets,
-      )
-    : null
-
-  useEffect(() => {
-    const nextCollapsed = nextExerciseCollapsed(wasCompletedRef.current, allSetsCompleted, isCurrent)
-    wasCompletedRef.current = allSetsCompleted
-    if (nextCollapsed !== undefined) setCollapsed(nextCollapsed)
-  }, [allSetsCompleted, isCurrent])
-
-  return (
-    <div
-      data-tour="session-exercise"
-      className={cn(
-        "mb-4 min-w-0 overflow-hidden rounded-lg border transition-colors duration-[180ms]",
-        // Done follows the active palette rather than a fixed green: a finished
-        // block is progress through this workout, not a system "success", and
-        // the screen already spends green on the coach-update chips, where it
-        // does mean something specific.
-        allSetsCompleted
-          ? "border-[color-mix(in_srgb,var(--primary)_45%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
-          : "border-border bg-card",
-      )}
-    >
-      {/* Block header: title and actions on one row, then any hint across the
-          full card width so it wraps once instead of squeezing beside the icons. */}
-      <div className="border-b border-border px-4 py-3.5 md:px-5">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <p className="min-w-0 line-clamp-2 text-base font-semibold leading-tight tracking-[0] text-foreground md:text-lg">{exerciseLabel}</p>
-              {coachUpdate && coachUpdateMeta && CoachUpdateIcon ? (
-                <button
-                  type="button"
-                  onClick={() => setCoachUpdateOpen((value) => !value)}
-                  aria-label="Coach update"
-                  aria-expanded={coachUpdateOpen}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1 rounded border-0 px-[7px] py-[3px]",
-                    "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
-                    "transition-colors duration-150",
-                    coachUpdateOpen ? coachUpdateMeta.buttonBgClassName : "bg-muted/60",
-                    coachUpdateMeta.textClassName,
-                    coachUpdateMeta.hoverClassName,
-                  )}
-                >
-                  <CoachUpdateIcon className="h-[11px] w-[11px]" />
-                  <span>Coach</span>
-                  {coachUpdateOpen ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-                </button>
-              ) : null}
-            </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {messages.workoutPage.setCount(exercise.sets.length)}
-              {completedCount > 0 && ` · ${messages.workoutPage.setCompleted(completedCount)}`}
-              {note.trim() && ` · 📝`}
-            </p>
-          </div>
-          <a
-            href={`https://www.google.com/search?q=${encodeURIComponent(`${exercise.exercise.name} exercise`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={messages.workoutPage.searchExercise}
-            title={messages.workoutPage.searchExercise}
-            className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <Search className="h-4 w-4" />
-          </a>
-          <button
-            type="button"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label={collapsed ? messages.workoutPage.expandExercise : messages.workoutPage.collapseExercise}
-            aria-expanded={!collapsed}
-            className="ml-2 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "-rotate-90")} />
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={messages.workoutPage.moreOptions}
-                className="ml-2 flex shrink-0 items-center justify-center rounded-md p-1.5 pointer-coarse:size-11 text-muted-foreground hover:bg-muted transition-colors"
-              >
-                <MoreHorizontal className="h-[18px] w-[18px]" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => setNoteOpen((v) => !v)}>
-                <FileText className="mr-2 h-4 w-4" />
-                {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRequestReplace(exercise)}>
-                <Repeat className="mr-2 h-4 w-4" />
-                {messages.workoutPage.swapExercise}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive-text focus:text-destructive-text"
-                onClick={() => onRemoveExercise(exercise.id)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {messages.workoutPage.removeExercise}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        {coachUpdate && coachUpdateOpen && coachUpdateMeta && CoachUpdateIcon ? (
-          <div className={cn("mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-[7px]", coachUpdateMeta.panelBgClassName)}>
-            <CoachUpdateIcon className={cn("mt-px h-[13px] w-[13px] shrink-0", coachUpdateMeta.textClassName)} />
-            <span className="text-xs leading-[1.4] text-foreground">{coachUpdate.text}</span>
-          </div>
-        ) : null}
-        {/* Volume recommendation the trainee accepted, shown on the exercise
-            that actually drives that muscle's volume. */}
-        {coachHint && coachHintText ? (
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md bg-primary-soft px-2.5 py-[7px]">
-            <Sparkles className="h-[13px] w-[13px] shrink-0 text-primary" aria-hidden="true" />
-            <span className="min-w-0 flex-1 text-xs leading-[1.4] text-foreground">{coachHintText}</span>
-            {coachHint.action === "increase" ? (
-              <button
-                type="button"
-                onClick={() => onApplyCoachHint(coachHint, exercise.id)}
-                className={cn(
-                  "shrink-0 rounded border-0 bg-primary px-2 py-1 text-primary-foreground",
-                  "font-mono text-micro font-semibold uppercase tracking-[0.07em]",
-                  "transition-opacity hover:opacity-90",
-                )}
-              >
-                {volumeCopy.addTheSet}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {/* Exercise note */}
-      {noteOpen && (
-        <div className="border-b border-border px-4 py-3 md:px-5">
-          <textarea
-            rows={2}
-            value={note}
-            onChange={(e) => {
-              setNote(e.target.value)
-              onExerciseNoteChange(exercise.id, e.target.value)
-            }}
-            placeholder={messages.workoutPage.noteForExercise}
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-      )}
-
-      {!collapsed && (
-        <>
-          {exercise.variation.media ? (
-            <ExerciseAnimation exerciseName={exerciseLabel} media={exercise.variation.media} />
-          ) : null}
-          {/* Column headers */}
-          <div
-            className={cn(
-              "grid min-w-0 items-center border-b border-border",
-              SET_ROW_GRID_CLASS,
-              "py-2",
-              "font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground",
-            )}
-          >
-            <span className="min-w-0 text-center">{messages.workoutPage.set}</span>
-            <span className="min-w-0 truncate text-center">{messages.workoutPage.previous}</span>
-            <span className="min-w-0 text-center">{weightUnit}</span>
-            <span className="min-w-0 text-center">{messages.workoutPage.reps}</span>
-            <span className="min-w-0 text-center">RIR</span>
-            <span />
-          </div>
-
-          {/* Set rows */}
-          {exercise.sets.map((set, idx) => (
-            <LiftSetRow
-              key={set.id}
-              programTarget={programSetTargets.get(set.id)}
-              set={set}
-              setIndex={idx}
-              weightUnit={weightUnit}
-              canRemove={exercise.sets.length > 1}
-              onToggle={(data) => {
-                onSetUpdate(set.id, data)
-                if (data.completed) {
-                  onSetComplete(exercise, set, data)
-                }
-              }}
-              onChange={(patch) => onSetUpdate(set.id, patch)}
-              onRemove={() => onRemoveSet(exercise.id, set.id)}
-            />
-          ))}
-
-          {/* Add set */}
-          <button
-            type="button"
-            onClick={() => onAddSet(exercise.id)}
-            className="flex w-full items-center gap-1.5 px-4 py-[10px] text-sm font-medium text-primary hover:bg-muted/60 transition-colors border-t border-border"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {messages.workoutPage.addSet}
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Session stats card (Lift spec) ───────────────────────────────────────────
-
-interface StatCellProps {
-  label: string
-  value: string | number
-  sub: string
-}
-
-function StatCell({ label, value, sub }: StatCellProps) {
-  return (
-    <div className="min-w-0 px-2.5 py-2.5 md:p-4">
-      <p className="truncate font-mono text-micro uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 truncate font-mono text-base font-medium leading-none text-foreground md:mt-1.5 md:text-2xl">
-        {value}
-      </p>
-      <p className="mt-1 truncate text-micro text-muted-foreground md:text-xs">{sub}</p>
-    </div>
-  )
-}
-
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 type SessionSeed = Workout & {
@@ -964,10 +299,10 @@ function WorkoutSession() {
   const [workout, setWorkout] = useState<Workout | null>(null)
   const [exercises, setExercises] = useState<Workout["exercises"]>([])
   const [startTime, setStartTime] = useState(new Date())
-  const [now, setNow] = useState(new Date())
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0)
-  const exerciseRefs = useRef<(HTMLDivElement | null)[]>([])
-  const shouldAutoScrollExerciseRef = useRef(false)
+  const [showOptions, setShowOptions] = useState(false)
+  // The exercise whose note field is open; closes by itself on another exercise.
+  const [noteOpenForId, setNoteOpenForId] = useState<string | null>(null)
   const scrollResetWorkoutIdRef = useRef<string | null>(null)
   // Set once the session is finished, cancelled or moved to a forked workout.
   const sessionRetiredRef = useRef(false)
@@ -1055,6 +390,7 @@ function WorkoutSession() {
   const duplicateToRoutineMutation = useDuplicateWorkoutToRoutine()
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
+  const [defaultRest, setDefaultRest] = useDefaultRest(userId)
 
   useEffect(() => {
     if (!userId || !workoutId) return
@@ -1132,12 +468,6 @@ function WorkoutSession() {
     setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
   }, [draftQuery.data, isDraftResolved, isRefreshingSeed, unsyncedDraft, workout, workoutSeed])
 
-  // ── Timer: update elapsed every 30s ────────────────────────────────────────
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 30_000)
-    return () => clearInterval(interval)
-  }, [])
-
   // ── Read `?logDate=` once on mount (back-logging a past session) ────────────
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("logDate")
@@ -1171,24 +501,6 @@ function WorkoutSession() {
     void queueWorkoutSessionDraft(userId, workoutId, storedSession).catch(() => undefined)
   }, [currentExerciseIndex, exercises, startTime, userId, workout, workoutId])
 
-  // ── Auto-advance: scroll the active exercise into view ─────────────────────
-  useEffect(() => {
-    if (!shouldAutoScrollExerciseRef.current) return
-    shouldAutoScrollExerciseRef.current = false
-
-    // "nearest" only scrolls if the next exercise is off screen. With finished
-    // exercises sinking to the bottom, the next one usually slides up into the
-    // card the trainee was just looking at, so most of the time nothing moves.
-    const frameId = requestAnimationFrame(() => {
-      exerciseRefs.current[currentExerciseIndex]?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      })
-    })
-
-    return () => cancelAnimationFrame(frameId)
-  }, [currentExerciseIndex])
-
   // ── Derived stats ───────────────────────────────────────────────────────────
   const totalSets = exercises.reduce((acc, ex) => acc + ex.sets.length, 0)
   const completedSets = exercises.reduce(
@@ -1196,7 +508,6 @@ function WorkoutSession() {
     0,
   )
   const completedExercises = exercises.filter(isExerciseDone).length
-  const allExercisesLogged = exercises.length > 0 && completedExercises === exercises.length
   const volume = exercises.reduce(
     (acc, ex) =>
       acc +
@@ -1205,26 +516,34 @@ function WorkoutSession() {
         .reduce((a, s) => a + (s.weight ?? 0) * (s.actualReps ?? s.targetReps), 0),
     0,
   )
-  const elapsedMinutes = Math.max(1, Math.round((now.getTime() - startTime.getTime()) / 60000))
-  const elapsedLabel = elapsedMinutes < 60
-    ? `${elapsedMinutes} ${messages.dashboard.min}`
-    : `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m`
+  const dateLabel = new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    weekday: "long",
+  }).format(presetLogDate ?? startTime)
 
-  const startedLabel = (() => {
-    const h = startTime.getHours()
-    const m = startTime.getMinutes()
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-  })()
-
-  const dateLabel = (() => {
-    return new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
-      day: "numeric",
-      month: "long",
-      weekday: "long",
-    }).format(presetLogDate ?? now)
-  })()
+  const exerciseLabels = exercises.map((exercise) =>
+    formatExerciseVariationLabel({
+      displayName: exercise.variation.displayName,
+      exerciseName: exercise.exercise.name,
+      isDefault: exercise.variation.isDefault,
+      variationName: exercise.variation.name,
+    }),
+  )
+  // The index is kept in range where it changes, but a restored session can
+  // still hold one past the end for a render.
+  const shownIndex = Math.min(currentExerciseIndex, Math.max(0, exercises.length - 1))
+  const currentExercise = exercises[shownIndex] ?? null
+  const navAction = primaryNavAction(exercises, shownIndex)
+  const skipTarget = currentExercise ? nextIncompleteExercise(exercises, shownIndex) : null
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+  /** Shows another exercise, from its top: each one is a page of its own. */
+  const goToExercise = (index: number) => {
+    setCurrentExerciseIndex(index)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const handleSetUpdate = (exerciseId: string, setId: string, patch: Partial<ExerciseSet>) => {
     setExercises((prev) =>
       prev.map((ex) => {
@@ -1257,7 +576,15 @@ function WorkoutSession() {
   }
 
   const handleRemoveExercise = (exerciseId: string) => {
+    const removedIndex = exercises.findIndex((ex) => ex.id === exerciseId)
+    if (removedIndex < 0) return
+    const remaining = exercises.length - 1
     setExercises((prev) => prev.filter((ex) => ex.id !== exerciseId))
+    // Stay on the exercise that slid into the removed one's place, or step
+    // back one when the last was removed; earlier removals shift the index.
+    setCurrentExerciseIndex((index) =>
+      Math.max(0, Math.min(removedIndex < index ? index - 1 : index, remaining - 1)))
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   const handleExerciseNoteChange = (exerciseId: string, note: string) => {
@@ -1297,6 +624,7 @@ function WorkoutSession() {
     }
     setExercises((prev) => [...prev, newExercise])
     setShowAddExercise(false)
+    goToExercise(exercises.length)
   }
 
   const handleOpenReplace = (exercise: WorkoutExercise) => {
@@ -1415,7 +743,8 @@ function WorkoutSession() {
         variationName: exercise.variation.name,
       })
       setRestEvent({
-        duration: exercise.restTime ?? undefined,
+        // The coach's rest for this exercise wins; the trainee's default fills in.
+        duration: exercise.restTime ?? defaultRest,
         exercise: exerciseLabel,
         set: {
           id: set.id,
@@ -1423,21 +752,24 @@ function WorkoutSession() {
           reps: data.actualReps ?? set.actualReps ?? null,
         },
       })
-
-      // Finishing an exercise moves on to the next one still to do. Done
-      // exercises sink to the bottom of the list, so "next" is never one the
-      // trainee already finished out of order.
-      const updatedSets = exercise.sets.map((s) => (s.id === set.id ? { ...s, ...data } : s))
-      if (updatedSets.every((s) => s.completed)) {
-        const exIdx = exercises.findIndex((e) => e.id === exercise.id)
-        const afterThisSet = exercises.map((e) => (e.id === exercise.id ? { ...e, sets: updatedSets } : e))
-        const nextIndex = exIdx >= 0 ? nextIncompleteExercise(afterThisSet, exIdx) : null
-        if (nextIndex != null) {
-          shouldAutoScrollExerciseRef.current = true
-          setCurrentExerciseIndex(nextIndex)
-        }
-      }
+      // No auto-advance: a finished exercise stays on screen so the trainee
+      // sees it done, and the bar's "Next" button moves on.
     }
+  }
+
+  /** The bar's "Complete set N": logs the active set with what its row holds. */
+  const handleCompleteActiveSet = () => {
+    if (!currentExercise) return
+    const set = currentExercise.sets.find((s) => !s.completed)
+    if (!set) return
+    const data: Partial<ExerciseSet> = {
+      actualReps: set.actualReps ?? set.targetReps,
+      completed: true,
+      rir: set.rir,
+      weight: set.weight,
+    }
+    handleSetUpdate(currentExercise.id, set.id, data)
+    handleSetComplete(currentExercise, set, data)
   }
 
   const handleAddSet = (exerciseId: string) => {
@@ -1615,6 +947,12 @@ function WorkoutSession() {
     router.back()
   }
 
+  // Leaving keeps everything: the session is already saved, and the dashboard
+  // offers to resume it.
+  const handleLeaveSession = () => {
+    router.back()
+  }
+
   // ── Loading / error states ──────────────────────────────────────────────────
   if (isLoading) {
     return (
@@ -1685,166 +1023,123 @@ function WorkoutSession() {
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const currentCoachHint = currentExercise
+    ? coachHintForExercise(coachHints, {
+        ...currentExercise.variation,
+        muscleGroup: currentExercise.exercise.muscleGroup,
+      })
+    : null
+  const volumeCopy = messages.volumeRecovery
+  const currentCoachHintText = currentCoachHint
+    ? volumeCopy.sessionHint(
+        currentCoachHint.action,
+        volumeCopy.muscleLabels[currentCoachHint.muscleSlug as keyof typeof volumeCopy.muscleLabels] ??
+          currentCoachHint.muscleSlug,
+        currentCoachHint.currentSets,
+        currentCoachHint.recommendedSets,
+      )
+    : null
+
   return (
     <div className="min-h-[100dvh] overflow-x-clip bg-background">
-      {/* ── Main content ─────────────────────────────────────────────────── */}
-      <main className={cn(
-        "mx-auto w-full max-w-[880px] min-w-0 px-3 pt-3 sm:px-4 md:px-10 md:pt-8",
-        allExercisesLogged ? "pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-2" : "pb-2",
-      )}>
-        {/* Header: date and title on the left, cancel beside them on mobile
-            (desktop cancels from the action bar), so it takes one block. On
-            phones it stays pinned while scrolling, full-bleed frosted glass
-            that matches the page until content slides under it. */}
-        <div className="sticky top-0 z-30 -mx-3 mb-2 flex items-start justify-between gap-3 glass-veil px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 sm:-mx-4 sm:px-4 md:static md:mx-0 md:mb-7 md:bg-transparent md:p-0 md:backdrop-filter-none">
-          <div className="min-w-0">
-            <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                {dateLabel}
-              </p>
-              <SyncStatusBadge />
-            </div>
-            <h1 className="m-0 mt-1 break-words text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground md:mt-2 md:text-5xl">
-              {workout.name}
-            </h1>
-          </div>
-          {/* A destructive pill so ending the session is easy to find. The
-              button is a 44px touch target; the pill inside stays compact. */}
-          <button
-            type="button"
-            onClick={handleCancelWorkout}
-            className="group flex shrink-0 items-center pointer-coarse:min-h-11 md:hidden"
-          >
-            <span className="flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive-soft px-3 py-1.5 text-sm font-medium text-destructive-text transition-colors group-hover:border-destructive/50 group-active:border-destructive/60">
-              <X className="h-4 w-4" aria-hidden="true" />
-              {messages.workoutPage.cancelWorkout}
-            </span>
-          </button>
-        </div>
-
-        {/* Session stats */}
-        <div
-          data-tour="session-stats"
-          className="mb-5 grid grid-cols-4 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card md:mb-7"
+      {/* One exercise at a time. The bottom padding clears the pinned bar. */}
+      <main className="mx-auto w-full max-w-[880px] min-w-0 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:px-10">
+        <SessionHeader
+          dateLabel={dateLabel}
+          title={workout.name}
+          onLeave={handleLeaveSession}
+          onOpenOptions={() => setShowOptions(true)}
         >
-          <StatCell label={messages.workoutPage.started} value={startedLabel} sub={elapsedLabel} />
-          <StatCell
-            label={messages.workoutPage.set}
-            value={`${completedSets}/${totalSets}`}
-            sub={messages.workoutPage.completed}
+          <SessionProgress
+            exercises={exercises}
+            exerciseLabels={exerciseLabels}
+            currentIndex={shownIndex}
+            onSelect={goToExercise}
+            completedSets={completedSets}
+            totalSets={totalSets}
+            volume={volume}
+            weightUnit={weightUnit}
+            startTime={startTime}
           />
-          <StatCell
-            label={messages.workoutPage.volume}
-            value={Math.round(volume).toLocaleString("en-US")}
-            sub={messages.workoutPage.kgLifted}
-          />
-          <StatCell
-            label={messages.workoutPage.exercises}
-            value={`${completedExercises}/${exercises.length}`}
-            sub={messages.workoutPage.completed}
-          />
-        </div>
+        </SessionHeader>
 
-        {/* Error */}
         {error && (
           <p className="mb-4 text-sm text-destructive-text">{error}</p>
         )}
 
-        {/* Exercise blocks: still to do first, finished ones at the bottom.
-            `index` stays the planned position, which refs and "current" use. */}
-        {sessionDisplayOrder(exercises).map((index) => {
-          const exercise = exercises[index]
-          return (
-          <div
-            key={exercise.id}
-            ref={(el) => {
-              exerciseRefs.current[index] = el
-            }}
-            // Clears the pinned header on phones when an exercise scrolls into view.
-            className="scroll-mt-24 md:scroll-mt-4"
-          >
-            <LiftExerciseBlock
-              exercise={exercise}
-              coachHint={coachHintForExercise(coachHints, {
-                ...exercise.variation,
-                muscleGroup: exercise.exercise.muscleGroup,
-              })}
-              onApplyCoachHint={handleApplyCoachHint}
-              programSetTargets={programSetTargetsRef.current}
-              weightUnit={weightUnit}
-              isCurrent={index === currentExerciseIndex}
-              onSetUpdate={(setId, patch) => handleSetUpdate(exercise.id, setId, patch)}
-              onSetComplete={(ex, set, data) => handleSetComplete(ex, set, data)}
-              onAddSet={handleAddSet}
-              onRemoveSet={handleRemoveSet}
-              onRemoveExercise={handleRemoveExercise}
-              onRequestReplace={handleOpenReplace}
-              onExerciseNoteChange={handleExerciseNoteChange}
-            />
+        {currentExercise ? (
+          <SessionExerciseView
+            key={currentExercise.id}
+            exercise={currentExercise}
+            exerciseLabel={exerciseLabels[shownIndex]}
+            coachHint={currentCoachHint}
+            coachHintText={currentCoachHintText}
+            onApplyCoachHint={handleApplyCoachHint}
+            programSetTargets={programSetTargetsRef.current}
+            weightUnit={weightUnit}
+            noteOpen={noteOpenForId === currentExercise.id}
+            onSetUpdate={(setId, patch) => handleSetUpdate(currentExercise.id, setId, patch)}
+            onSetComplete={handleSetComplete}
+            onAddSet={handleAddSet}
+            onRemoveSet={handleRemoveSet}
+            onExerciseNoteChange={handleExerciseNoteChange}
+          />
+        ) : (
+          // Every exercise removed: nothing to page through, only a way back in.
+          <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center">
+            <p className="text-sm text-muted-foreground">{messages.workoutPage.noExercisesYet}</p>
+            <Button className="mt-4 gap-1.5" onClick={handleOpenAddExercise}>
+              <Plus className="h-4 w-4" />
+              {messages.workoutPage.addExercise}
+            </Button>
           </div>
-          )
-        })}
+        )}
 
-        {/* Add exercise: after the last card, where the list grows. */}
-        <Button
-          variant="outline"
-          className="w-full gap-1.5 border-dashed text-muted-foreground hover:text-foreground"
-          onClick={() => void handleOpenAddExercise()}
-        >
-          <Plus className="h-4 w-4" />
-          {messages.workoutPage.addExercise}
-        </Button>
-
-        {/* The mobile finish action appears only once every exercise has all
-            its sets logged. Fixed positioning keeps it next to the iPhone's
-            safe area even while scrolling; the transparent wrapper lets taps
-            outside the control reach the workout underneath. */}
-        <div className={cn(
-          "pointer-events-none z-30 gap-2",
-          allExercisesLogged ? "fixed inset-x-0 bottom-0 flex px-3 pb-[calc(0.25rem+env(safe-area-inset-bottom))] sm:px-4" : "hidden",
-          "md:sticky md:inset-auto md:mt-6 md:flex md:gap-3 md:px-0 md:pt-3 md:pb-4",
-        )}>
-          {/* Spacer (desktop) */}
-          <div className="hidden md:flex flex-1" />
-
-          {/* Cancel (desktop only) */}
-          <Button
-            variant="ghost"
-            className="pointer-events-auto hidden md:flex"
-            onClick={handleCancelWorkout}
-          >
-            {messages.common.cancel}
-          </Button>
-
-          {/* Finish workout: slide on phones, button on desktop. */}
-          {allExercisesLogged ? (
-            <div data-tour="session-finish" className="pointer-events-auto w-full md:w-auto">
-              <SlideToConfirm
-                className="md:hidden"
-                label={messages.workoutPage.slideToFinish}
-                actionLabel={messages.workoutPage.finishWorkout}
-                onConfirm={handleFinishWorkout}
-                busy={isSaving}
-                busyLabel={messages.workoutPage.saving}
-              />
-              <Button
-                className="hidden bg-foreground font-semibold text-background hover:bg-foreground/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 md:inline-flex"
-                onClick={handleFinishWorkout}
-                disabled={isSaving}
-              >
-                {isSaving ? messages.workoutPage.saving : messages.workoutPage.finishWorkout}
-              </Button>
-            </div>
-          ) : null}
-        </div>
+        <SessionNavBar
+          action={navAction}
+          targetLabel={navAction.kind === "next" || navAction.kind === "unfinished" ? exerciseLabels[navAction.index] : null}
+          canGoBack={shownIndex > 0}
+          onBack={() => goToExercise(shownIndex - 1)}
+          onGoTo={goToExercise}
+          onCompleteSet={handleCompleteActiveSet}
+          onFinish={handleFinishWorkout}
+          isSaving={isSaving}
+        />
       </main>
+
+      {showOptions ? (
+        <SessionOptionsSheet
+          onClose={() => setShowOptions(false)}
+          hasExercise={Boolean(currentExercise)}
+          hasNote={Boolean(currentExercise?.notes?.trim())}
+          canSkip={skipTarget != null}
+          completedSets={completedSets}
+          totalSets={totalSets}
+          defaultRest={defaultRest}
+          onDefaultRestChange={setDefaultRest}
+          onSwap={() => {
+            if (currentExercise) handleOpenReplace(currentExercise)
+          }}
+          onNote={() => {
+            if (currentExercise) setNoteOpenForId(currentExercise.id)
+          }}
+          onSkip={() => {
+            if (skipTarget != null) goToExercise(skipTarget)
+          }}
+          onRemoveExercise={() => {
+            if (currentExercise) handleRemoveExercise(currentExercise.id)
+          }}
+          onAddExercise={handleOpenAddExercise}
+          onFinishEarly={handleFinishWorkout}
+          onCancelWorkout={handleCancelWorkout}
+        />
+      ) : null}
 
       {/* ── Rest Timer overlay ────────────────────────────────────────────── */}
       <RestTimer
         event={restEvent}
         onDismiss={() => setRestEvent(null)}
-        defaultDuration={DEFAULT_REST_SECONDS}
-        finishVisible={allExercisesLogged}
+        defaultDuration={defaultRest}
       />
 
       {/* ── Finish with exercises left ────────────────────────────────────── */}
