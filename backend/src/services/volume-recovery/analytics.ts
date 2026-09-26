@@ -12,9 +12,10 @@ import {
   type WorkoutLogSnapshotExercise,
 } from "../fitness-data/shared/workout-snapshot"
 
-// v2 folds sleep duration into the readiness score; check-ins keep the version
-// they were scored with, so older rows stay explainable.
-const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v2"
+// v2 folds sleep duration into the readiness score; v3 scores soreness by the
+// sorest muscle rather than the average. Check-ins keep the version they were
+// scored with, so older rows stay explainable.
+const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v3"
 
 type VolumeLogRecord = {
   exerciseSnapshot: Prisma.JsonValue | null
@@ -234,6 +235,15 @@ function scoreSleepDuration(sleepMinutes: number) {
 }
 
 /**
+ * The soreness readiness scores: the sorest muscle's. Check-ins rate every
+ * muscle, most at 0, so an average would let one badly sore muscle vanish
+ * among the fresh ones. Null when soreness was not answered at all.
+ */
+function readinessSoreness(muscles: ReadonlyArray<{ soreness: number }>) {
+  return muscles.length > 0 ? Math.max(...muscles.map((muscle) => muscle.soreness)) : null
+}
+
+/**
  * Weights are whole numbers adding up to 100 when every answer is present: as
  * fractions they sum to 1.0000000000000002 and a score landing exactly on .5
  * then rounds the wrong way. A skipped answer drops out and the rest are
@@ -394,6 +404,7 @@ export {
   calculateReadiness,
   classifyVolumeZone,
   DEFAULT_VOLUME_LANDMARKS,
+  readinessSoreness,
   VOLUME_RECOVERY_ALGORITHM_VERSION,
 }
 export type {
