@@ -10,6 +10,7 @@ import {
   calculateReadiness,
   classifyVolumeZone,
   DEFAULT_VOLUME_LANDMARKS,
+  readinessSoreness,
   VOLUME_RECOVERY_ALGORITHM_VERSION,
   type VolumeLandmarks,
   type VolumeLogRecord,
@@ -85,7 +86,7 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
     fatigue: input.fatigue,
     sleepMinutes: input.sleepMinutes,
     sleepQuality: input.sleepQuality,
-    soreness: average(input.muscles.map((muscle) => muscle.soreness)),
+    soreness: readinessSoreness(input.muscles),
     stress: input.stress,
   })
   const muscleRows = input.muscles.map((muscle) => ({

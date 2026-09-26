@@ -11,12 +11,17 @@ import type { ExerciseMedia } from "@/lib/types"
 interface ExerciseAnimationProps {
   exerciseName: string
   media: ExerciseMedia
+  /**
+   * Plays straight away even under reduced motion. For media the trainee
+   * opened on purpose, where the tap itself is the request to play.
+   */
+  playOnMount?: boolean
 }
 
-function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
+function ExerciseAnimation({ exerciseName, media, playOnMount = false }: ExerciseAnimationProps) {
   const { messages } = useLocale()
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null)
-  const [manualPlayback, setManualPlayback] = useState(false)
+  const [manualPlayback, setManualPlayback] = useState(playOnMount)
   const [unavailable, setUnavailable] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
@@ -24,13 +29,13 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)")
     const updatePreference = () => {
       setReducedMotion(query.matches)
-      if (!query.matches) setManualPlayback(false)
+      if (!query.matches && !playOnMount) setManualPlayback(false)
     }
 
     updatePreference()
     query.addEventListener("change", updatePreference)
     return () => query.removeEventListener("change", updatePreference)
-  }, [])
+  }, [playOnMount])
 
   if (unavailable) {
     return <p className="sr-only" role="status">{messages.workoutPage.exerciseMediaUnavailable}</p>
@@ -47,6 +52,8 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
     })
   }
 
+  const mediaClassName = "h-[180px] w-[180px] object-cover"
+
   return (
     <figure className="border-b border-border px-4 py-3 md:px-5">
       <div className="flex flex-col items-center">
@@ -56,7 +63,7 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
               ref={videoRef}
               aria-label={messages.workoutPage.exerciseAnimationAlt(exerciseName)}
               autoPlay={showAnimation}
-              className="h-[180px] w-[180px] object-cover"
+              className={mediaClassName}
               loop
               muted
               onError={() => setUnavailable(true)}
@@ -67,7 +74,7 @@ function ExerciseAnimation({ exerciseName, media }: ExerciseAnimationProps) {
           ) : (
             <Image
               alt={messages.workoutPage.exerciseAnimationAlt(exerciseName)}
-              className="h-[180px] w-[180px] object-cover"
+              className={mediaClassName}
               height={media.height}
               loading="eager"
               onError={() => setUnavailable(true)}

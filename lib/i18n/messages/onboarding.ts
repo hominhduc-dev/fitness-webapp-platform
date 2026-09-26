@@ -117,11 +117,11 @@ export const onboardingMessages = {
         traineeWorkoutSession: {
           stats: {
             title: "Your session so far",
-            body: "Elapsed time, sets completed, volume lifted and how many exercises are planned — all live as you log.",
+            body: "One segment per exercise — tap one to jump to it. Below it: sets done, volume lifted and the session clock, all live as you log.",
           },
           exercise: {
-            title: "One block per exercise",
-            body: "A block turns your theme colour once every set inside it is ticked, so you can see what is left at a glance.",
+            title: "One exercise at a time",
+            body: "Tap the picture to watch the movement. Once every set is ticked you move on to the next exercise by yourself; the … menu swaps, skips or removes it.",
           },
           set: {
             title: "Log a set",
@@ -372,11 +372,11 @@ export const onboardingMessages = {
         traineeWorkoutSession: {
           stats: {
             title: "Buổi tập đang diễn ra",
-            body: "Thời gian, số set đã xong, tổng khối lượng và số bài đã lên kế hoạch — cập nhật ngay khi bạn ghi.",
+            body: "Mỗi bài là một đoạn — chạm để nhảy tới bài đó. Bên dưới là số set đã xong, tổng khối lượng và thời gian tập, cập nhật ngay khi bạn ghi.",
           },
           exercise: {
-            title: "Mỗi bài một khối",
-            body: "Khối sẽ đổi sang màu theme khi mọi set bên trong được tick, nên bạn nhìn là biết còn bài nào.",
+            title: "Tập từng bài một",
+            body: "Chạm vào ảnh để xem động tác. Tick xong mọi set là tự chuyển sang bài tiếp; menu … để đổi, bỏ qua hoặc xóa bài.",
           },
           set: {
             title: "Ghi một set",
