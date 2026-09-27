@@ -85,6 +85,13 @@ const raw = {
   OPENAI_API_KEY: clean(process.env.OPENAI_API_KEY),
   PORT: clean(process.env.PORT),
   PRISMA_SLOW_QUERY_MS: clean(process.env.PRISMA_SLOW_QUERY_MS),
+  EMAIL_REPLY_TO: clean(process.env.EMAIL_REPLY_TO),
+  SMTP_ADMIN_EMAIL: clean(process.env.SMTP_ADMIN_EMAIL),
+  SMTP_HOST: clean(process.env.SMTP_HOST),
+  SMTP_PASS: clean(process.env.SMTP_PASS),
+  SMTP_PORT: clean(process.env.SMTP_PORT),
+  SMTP_SENDER_NAME: clean(process.env.SMTP_SENDER_NAME),
+  SMTP_USER: clean(process.env.SMTP_USER),
   SUPABASE_ANON_KEY: clean(process.env.SUPABASE_ANON_KEY),
   SUPABASE_SERVICE_ROLE_KEY: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   SUPABASE_URL: clean(process.env.SUPABASE_URL),
@@ -137,6 +144,13 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   PORT: numberFromString(4000).pipe(z.int().positive("PORT must be a positive integer")),
   PRISMA_SLOW_QUERY_MS: numberFromString(0).pipe(z.number().min(0, "PRISMA_SLOW_QUERY_MS must be >= 0")),
+  EMAIL_REPLY_TO: z.email("EMAIL_REPLY_TO must be an email address").optional(),
+  SMTP_ADMIN_EMAIL: z.email("SMTP_ADMIN_EMAIL must be an email address").optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_PORT: numberFromString(465).pipe(z.int().positive("SMTP_PORT must be a positive integer")),
+  SMTP_SENDER_NAME: z.string().optional(),
+  SMTP_USER: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_URL: z.url().optional(),
@@ -230,6 +244,18 @@ function loadEnv() {
     // When > 0, Prisma logs every query whose DB execution time meets/exceeds this
     // many milliseconds (set to 1 to log everything). 0 disables instrumentation.
     prismaSlowQueryMs: parsed.PRISMA_SLOW_QUERY_MS,
+    // Outgoing mail (coach signup decisions). The same SMTP account and
+    // variable names as the self-hosted Supabase Auth in ~/supabase/.env, so
+    // app mail and auth mail leave from one sender. Unset means "don't send".
+    smtp: {
+      adminEmail: parsed.SMTP_ADMIN_EMAIL,
+      host: parsed.SMTP_HOST,
+      pass: parsed.SMTP_PASS,
+      port: parsed.SMTP_PORT,
+      replyTo: parsed.EMAIL_REPLY_TO,
+      senderName: parsed.SMTP_SENDER_NAME ?? "YeahBuddy Fitness",
+      user: parsed.SMTP_USER,
+    },
     // Google Sheets import is optional and per-coach: without a client id the
     // connect button stays hidden rather than failing at boot.
     googleOauthClientId: parsed.GOOGLE_OAUTH_CLIENT_ID,

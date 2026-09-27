@@ -24,6 +24,7 @@ import type {
   AdminBroadcast,
   AdminBroadcastAudience,
   AdminBroadcastTarget,
+  CoachSignupEmailStatus,
   ExerciseSyncPreview,
   ExerciseSyncResult,
   ExerciseSyncRow,
@@ -311,7 +312,7 @@ async function reviewAdminCoachSignupRequest(
   userId: string,
   decision: "approved" | "rejected",
 ) {
-  const response = await request<{ user: SerializedAdminUserListItem }>(
+  const response = await request<{ emailNotification: CoachSignupEmailStatus; user: SerializedAdminUserListItem }>(
     `/api/admin/coach-signups/${userId}`,
     accessToken,
     {
@@ -320,7 +321,7 @@ async function reviewAdminCoachSignupRequest(
     },
   )
 
-  return mapAdminUserListItem(response.user)
+  return { emailNotification: response.emailNotification, user: mapAdminUserListItem(response.user) }
 }
 
 type Envelope<T> = { data: T }

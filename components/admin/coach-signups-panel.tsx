@@ -74,8 +74,22 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
     setDecidingUserId(signup.id)
 
     try {
-      await reviewSignup.mutateAsync([signup.id, decision])
+      const { emailNotification } = await reviewSignup.mutateAsync([signup.id, decision])
+      // The decision itself succeeded, so the toast stays a success; the email
+      // outcome is a note under it, and only when it did not go out.
+      const emailNote =
+        emailNotification === "failed"
+          ? locale === "en"
+            ? `The email to ${signup.email} could not be sent. Let them know another way; the backend log has the reason.`
+            : `Không gửi được email tới ${signup.email}. Hãy báo cho họ bằng cách khác; lý do có trong log backend.`
+          : emailNotification === "skipped"
+            ? locale === "en"
+              ? "No email was sent: the backend has no SMTP configured."
+              : "Chưa gửi email: backend chưa cấu hình SMTP."
+            : undefined
       toast({
+        description: emailNote,
+        duration: emailNote ? null : undefined,
         title:
           decision === "approved"
             ? locale === "en"
