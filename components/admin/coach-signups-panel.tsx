@@ -74,17 +74,20 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
     setDecidingUserId(signup.id)
 
     try {
-      await reviewSignup.mutateAsync([signup.id, decision])
+      const { emailNotificationSent } = await reviewSignup.mutateAsync([signup.id, decision])
       toast({
-        title:
-          decision === "approved"
+        title: !emailNotificationSent
+          ? locale === "en"
+            ? "Decision saved, but the email could not be sent. Check backend logs."
+            : "Đã lưu kết quả, nhưng không gửi được email. Hãy kiểm tra log backend."
+          : decision === "approved"
             ? locale === "en"
               ? `${signup.name} can now sign in as a coach.`
               : `${signup.name} đã có thể đăng nhập với vai trò coach.`
             : locale === "en"
               ? `${signup.name}'s coach application was rejected.`
               : `Đã từ chối hồ sơ coach của ${signup.name}.`,
-        tone: "success",
+        tone: emailNotificationSent ? "success" : "error",
       })
     } catch (error) {
       toast({

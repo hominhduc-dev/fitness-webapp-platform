@@ -85,6 +85,8 @@ const raw = {
   OPENAI_API_KEY: clean(process.env.OPENAI_API_KEY),
   PORT: clean(process.env.PORT),
   PRISMA_SLOW_QUERY_MS: clean(process.env.PRISMA_SLOW_QUERY_MS),
+  RESEND_API_KEY: clean(process.env.RESEND_API_KEY),
+  EMAIL_FROM: clean(process.env.EMAIL_FROM),
   SUPABASE_ANON_KEY: clean(process.env.SUPABASE_ANON_KEY),
   SUPABASE_SERVICE_ROLE_KEY: clean(process.env.SUPABASE_SERVICE_ROLE_KEY),
   SUPABASE_URL: clean(process.env.SUPABASE_URL),
@@ -137,6 +139,8 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   PORT: numberFromString(4000).pipe(z.int().positive("PORT must be a positive integer")),
   PRISMA_SLOW_QUERY_MS: numberFromString(0).pipe(z.number().min(0, "PRISMA_SLOW_QUERY_MS must be >= 0")),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_URL: z.url().optional(),
@@ -230,6 +234,8 @@ function loadEnv() {
     // When > 0, Prisma logs every query whose DB execution time meets/exceeds this
     // many milliseconds (set to 1 to log everything). 0 disables instrumentation.
     prismaSlowQueryMs: parsed.PRISMA_SLOW_QUERY_MS,
+    resendApiKey: parsed.RESEND_API_KEY,
+    emailFrom: parsed.EMAIL_FROM,
     // Google Sheets import is optional and per-coach: without a client id the
     // connect button stays hidden rather than failing at boot.
     googleOauthClientId: parsed.GOOGLE_OAUTH_CLIENT_ID,

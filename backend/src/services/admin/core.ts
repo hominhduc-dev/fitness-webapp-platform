@@ -43,6 +43,7 @@ import {
   createCloudinaryUploadGrant,
 } from "../../lib/exercise-media-upload"
 import { logger } from "../../lib/logger"
+import { sendCoachSignupDecisionEmail } from "../../lib/coach-signup-email"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import { prisma } from "../../lib/prisma"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatClientDateKey, formatUtcDateOnly } from "../fitness-data/shared/dates"
@@ -1161,10 +1162,11 @@ async function reviewAdminCoachSignup(
 
   const approved = decision === "approved"
 
+  const decidedAt = new Date()
   const updatedUser = await db.$transaction(async (transaction) => {
     const updated = await transaction.user.update({
       data: {
-        coachApprovalDecidedAt: new Date(),
+        coachApprovalDecidedAt: decidedAt,
         coachApprovalStatus: approved ? CoachApprovalStatus.approved : CoachApprovalStatus.rejected,
         isActive: approved,
       },
@@ -1205,7 +1207,22 @@ async function reviewAdminCoachSignup(
   // auth context expires.
   invalidateProfileContextCache()
 
-  return serializeUserListItem(updatedUser as UserSummaryRecord)
+  let emailNotificationSent = false
+
+  try {
+    await sendCoachSignupDecisionEmail({
+      decision,
+      decidedAt,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      userId: updatedUser.id,
+    })
+    emailNotificationSent = true
+  } catch (error) {
+    logger.warn("unable to send coach signup decision email", { error, userId: updatedUser.id })
+  }
+
+  return { user: serializeUserListItem(updatedUser as UserSummaryRecord), emailNotificationSent }
 }
 
 async function resetAdminUserPassword(profile: SerializedProfile, userId: string, password: string) {

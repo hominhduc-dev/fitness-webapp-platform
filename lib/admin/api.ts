@@ -311,7 +311,7 @@ async function reviewAdminCoachSignupRequest(
   userId: string,
   decision: "approved" | "rejected",
 ) {
-  const response = await request<{ user: SerializedAdminUserListItem }>(
+  const response = await request<{ user: SerializedAdminUserListItem; emailNotificationSent: boolean }>(
     `/api/admin/coach-signups/${userId}`,
     accessToken,
     {
@@ -320,7 +320,7 @@ async function reviewAdminCoachSignupRequest(
     },
   )
 
-  return mapAdminUserListItem(response.user)
+  return { user: mapAdminUserListItem(response.user), emailNotificationSent: response.emailNotificationSent }
 }
 
 type Envelope<T> = { data: T }
