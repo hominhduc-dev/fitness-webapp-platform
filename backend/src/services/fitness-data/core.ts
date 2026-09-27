@@ -2,6 +2,8 @@ import {
   $Enums,
   Prisma,
   type BodyMetricEntry,
+  CoachApprovalStatus,
+  CoachRequestInitiator,
   CoachRequestStatus,
   type CoachCheckIn,
   MealStatus,
@@ -22,7 +24,7 @@ import {
 } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
-import { AuthServiceError, type SerializedProfile } from "../auth.service"
+import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
 import { ConflictError } from "../errors"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
 import {
@@ -37,7 +39,17 @@ import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "../g
 import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
-import { buildNotificationData, queuePushForNotifications } from "../notifications/notification-dispatch.service"
+import {
+  buildCoachConnectionAcceptedDraft,
+  buildCoachInviteReceivedDraft,
+  buildCoachRequestReceivedDraft,
+} from "../notifications/coach-connection-notifications"
+import {
+  buildNotificationData,
+  createAndPushNotification,
+  queuePushForNotifications,
+  type NotificationDraft,
+} from "../notifications/notification-dispatch.service"
 import { buildProgramAssignedDraft, buildProgramUpdatedDraft } from "../notifications/program-notifications"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
 import { buildExerciseDisplayName, type ExerciseDisplayNameInput } from "../../domain/exercise-display"
@@ -1641,6 +1653,7 @@ function serializeCoachRequest(request: {
   coachId: string
   createdAt: Date
   id: string
+  initiatedBy: CoachRequestInitiator
   status: CoachRequestStatus
   trainee: Pick<User, "avatar" | "email" | "fitnessGoals" | "id" | "name">
   traineeId: string
@@ -1649,6 +1662,7 @@ function serializeCoachRequest(request: {
     coachId: request.coachId,
     createdAt: request.createdAt,
     id: request.id,
+    initiatedBy: request.initiatedBy,
     status: request.status,
     trainee: {
       avatar: request.trainee.avatar,
@@ -5145,7 +5159,10 @@ async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
       orderBy: {
         createdAt: "desc",
       },
+      // Only coaches an admin approved and who are active can take trainees.
       where: {
+        coachApprovalStatus: CoachApprovalStatus.approved,
+        isActive: true,
         role: UserRole.coach,
       },
     }),
@@ -5171,9 +5188,63 @@ async function listAvailableCoachesForTrainee(profile: SerializedProfile) {
       id: coach.id,
       name: coach.name,
       requestId: request?.id,
+      /** Who opened the request: a pending "coach" one is an invite waiting on this trainee. */
+      requestInitiatedBy: request?.initiatedBy,
       requestStatus,
     }
   })
+}
+
+/**
+ * Links a trainee to a coach from an accepted request, inside a transaction: the
+ * request is approved, the trainee gets the coach, and the trainee's other
+ * pending requests close.
+ */
+async function connectFromRequest(tx: Prisma.TransactionClient, request: { coachId: string; id: string; traineeId: string }) {
+  const trainee = await tx.user.findUniqueOrThrow({ select: { coachId: true }, where: { id: request.traineeId } })
+  if (trainee.coachId && trainee.coachId !== request.coachId) {
+    throw new AuthServiceError("Trainee này đang kết nối với coach khác.", 409)
+  }
+  const approved = await tx.coachRequest.update({
+    data: { status: CoachRequestStatus.approved },
+    include: { trainee: { select: TRAINEE_SUMMARY_SELECT } },
+    where: { id: request.id },
+  })
+  await tx.user.update({ data: { coachId: request.coachId }, where: { id: request.traineeId } })
+  await tx.coachRequest.updateMany({
+    data: { status: CoachRequestStatus.rejected },
+    where: { id: { not: request.id }, status: CoachRequestStatus.pending, traineeId: request.traineeId },
+  })
+  return approved
+}
+
+/** Accepts a pending request for the side that did not open it, then tells the opener. */
+async function acceptCoachRequest(
+  request: { coachId: string; id: string; initiatedBy: CoachRequestInitiator; traineeId: string },
+  accepterName: string,
+) {
+  const db = ensurePrisma()
+  const approved = await db.$transaction((tx) => connectFromRequest(tx, request))
+  // The trainee's profile carries coachId; it must change on their next request.
+  invalidateProfileContextCache()
+  const opener = request.initiatedBy === CoachRequestInitiator.coach ? "coach" : "trainee"
+  await notifySafely(buildCoachConnectionAcceptedDraft({
+    accepterName,
+    opener,
+    openerId: opener === "coach" ? request.coachId : request.traineeId,
+    requestId: request.id,
+    traineeId: request.traineeId,
+  }))
+  return approved
+}
+
+/** A notification must never undo or fail the action it reports. */
+async function notifySafely(draft: NotificationDraft) {
+  try {
+    await createAndPushNotification(draft)
+  } catch (error) {
+    logger.warn("unable to send coach connection notification", { error, type: draft.type, userId: draft.userId })
+  }
 }
 
 async function createCoachRequestForTrainee(profile: SerializedProfile, coachId: string) {
@@ -5186,7 +5257,9 @@ async function createCoachRequestForTrainee(profile: SerializedProfile, coachId:
 
   const coach = await db.user.findFirst({
     where: {
+      coachApprovalStatus: CoachApprovalStatus.approved,
       id: coachId,
+      isActive: true,
       role: UserRole.coach,
     },
   })
@@ -5204,6 +5277,16 @@ async function createCoachRequestForTrainee(profile: SerializedProfile, coachId:
     },
   })
 
+  if (existingRequest?.status === CoachRequestStatus.approved) {
+    throw new AuthServiceError("Coach request này đã được phê duyệt.", 400)
+  }
+
+  // The coach already invited this trainee: asking back is consent from both.
+  if (existingRequest?.status === CoachRequestStatus.pending && existingRequest.initiatedBy === CoachRequestInitiator.coach) {
+    const approved = await acceptCoachRequest(existingRequest, profile.name)
+    return { request: { coachId, createdAt: approved.createdAt, id: approved.id, requestStatus: approved.status, traineeId: profile.id } }
+  }
+
   if (existingRequest?.status === CoachRequestStatus.pending) {
     return {
       request: {
@@ -5216,26 +5299,17 @@ async function createCoachRequestForTrainee(profile: SerializedProfile, coachId:
     }
   }
 
-  if (existingRequest?.status === CoachRequestStatus.approved) {
-    throw new AuthServiceError("Coach request này đã được phê duyệt.", 400)
-  }
-
   const request =
     existingRequest != null
       ? await db.coachRequest.update({
-          data: {
-            status: CoachRequestStatus.pending,
-          },
-          where: {
-            id: existingRequest.id,
-          },
+          data: { initiatedBy: CoachRequestInitiator.trainee, status: CoachRequestStatus.pending },
+          where: { id: existingRequest.id },
         })
       : await db.coachRequest.create({
-          data: {
-            coachId,
-            traineeId: profile.id,
-          },
+          data: { coachId, initiatedBy: CoachRequestInitiator.trainee, traineeId: profile.id },
         })
+
+  await notifySafely(buildCoachRequestReceivedDraft({ coachId, requestId: request.id, traineeName: profile.name }))
 
   return {
     request: {
@@ -5300,20 +5374,32 @@ async function inviteTraineeForCoach(profile: SerializedProfile, identifier: str
     },
   })
 
+  // The trainee already asked this coach: inviting back is consent from both.
+  if (existingRequest?.status === CoachRequestStatus.pending && existingRequest.initiatedBy === CoachRequestInitiator.trainee) {
+    return { request: serializeCoachRequest(await acceptCoachRequest(existingRequest, profile.name)) }
+  }
+
+  if (existingRequest?.status === CoachRequestStatus.pending) {
+    throw new AuthServiceError("Bạn đã gửi lời mời cho trainee này. Hãy chờ trainee trả lời.", 409)
+  }
+
   const request =
     existingRequest != null
       ? await db.coachRequest.update({
-          data: { status: CoachRequestStatus.pending },
+          data: { initiatedBy: CoachRequestInitiator.coach, status: CoachRequestStatus.pending },
           include: { trainee: { select: TRAINEE_SUMMARY_SELECT } },
           where: { id: existingRequest.id },
         })
       : await db.coachRequest.create({
           data: {
             coachId: profile.id,
+            initiatedBy: CoachRequestInitiator.coach,
             traineeId: trainee.id,
           },
           include: { trainee: { select: TRAINEE_SUMMARY_SELECT } },
         })
+
+  await notifySafely(buildCoachInviteReceivedDraft({ coachName: profile.name, requestId: request.id, traineeId: trainee.id }))
 
   return {
     request: serializeCoachRequest(request),
@@ -8539,53 +8625,105 @@ async function updateCoachRequestStatus(
     throw new AuthServiceError("Không tìm thấy coach request.", 404)
   }
 
+  // A coach answers requests from trainees, never their own invitations.
+  if (existingRequest.initiatedBy === CoachRequestInitiator.coach) {
+    throw new AuthServiceError("Đây là lời mời bạn đã gửi; trainee sẽ là người trả lời.", 403)
+  }
+
   if (existingRequest.status !== CoachRequestStatus.pending) {
     throw new AuthServiceError("Coach request này đã được xử lý.", 400)
   }
 
-  const updatedRequest = await db.$transaction(async (transaction) => {
-    const request = await transaction.coachRequest.update({
-      data: {
-        status,
-      },
-      include: {
-        trainee: {
-          select: TRAINEE_SUMMARY_SELECT,
-        },
-      },
-      where: {
-        id: requestId,
-      },
-    })
-
-    if (status === CoachRequestStatus.approved) {
-      await transaction.user.update({
-        data: {
-          coachId: profile.id,
-        },
-        where: {
-          id: existingRequest.traineeId,
-        },
-      })
-
-      await transaction.coachRequest.updateMany({
-        data: {
-          status: CoachRequestStatus.rejected,
-        },
-        where: {
-          id: {
-            not: requestId,
-          },
-          status: CoachRequestStatus.pending,
-          traineeId: existingRequest.traineeId,
-        },
-      })
-    }
-
-    return request
-  })
+  const updatedRequest =
+    status === CoachRequestStatus.approved
+      ? await acceptCoachRequest(existingRequest, profile.name)
+      : await db.coachRequest.update({
+          data: { status },
+          include: { trainee: { select: TRAINEE_SUMMARY_SELECT } },
+          where: { id: requestId },
+        })
 
   return serializeCoachRequest(updatedRequest)
+}
+
+/** A trainee answers a coach's invitation. */
+async function respondToCoachInvite(profile: SerializedProfile, requestId: string, status: CoachRequestStatus) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  if (status === CoachRequestStatus.pending) {
+    throw new AuthServiceError("Trạng thái cập nhật không hợp lệ.", 400)
+  }
+
+  const invite = await db.coachRequest.findFirst({
+    where: { id: requestId, initiatedBy: CoachRequestInitiator.coach, traineeId: profile.id },
+  })
+
+  if (!invite) {
+    throw new AuthServiceError("Không tìm thấy lời mời.", 404)
+  }
+
+  if (invite.status !== CoachRequestStatus.pending) {
+    throw new AuthServiceError("Lời mời này đã được xử lý.", 400)
+  }
+
+  if (status === CoachRequestStatus.approved) {
+    if (profile.coachId && profile.coachId !== invite.coachId) {
+      throw new AuthServiceError("Bạn đang kết nối với coach khác. Hãy ngắt kết nối trước khi chấp nhận lời mời mới.", 409)
+    }
+    await acceptCoachRequest(invite, profile.name)
+  } else {
+    await db.coachRequest.update({ data: { status }, where: { id: invite.id } })
+  }
+
+  return { coachId: invite.coachId, id: invite.id, status }
+}
+
+/** The side that opened a pending request withdraws it. */
+async function cancelCoachRequest(profile: SerializedProfile, requestId: string) {
+  const db = ensurePrisma()
+  const opener =
+    profile.role === UserRole.coach
+      ? { coachId: profile.id, initiatedBy: CoachRequestInitiator.coach }
+      : { initiatedBy: CoachRequestInitiator.trainee, traineeId: profile.id }
+
+  const { count } = await db.coachRequest.deleteMany({
+    where: { id: requestId, status: CoachRequestStatus.pending, ...opener },
+  })
+
+  if (count === 0) {
+    throw new AuthServiceError("Không tìm thấy yêu cầu đang chờ để huỷ.", 404)
+  }
+
+  return { cancelled: true, id: requestId }
+}
+
+/** Coaches' invitations still waiting on this trainee, newest first. */
+async function listCoachInvitesForTrainee(profile: SerializedProfile) {
+  const db = ensurePrisma()
+  assertTrainee(profile)
+
+  const invites = await db.coachRequest.findMany({
+    include: {
+      coach: {
+        select: { _count: { select: { trainees: true } }, avatar: true, fitnessGoals: true, id: true, name: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    where: { initiatedBy: CoachRequestInitiator.coach, status: CoachRequestStatus.pending, traineeId: profile.id },
+  })
+
+  return invites.map((invite) => ({
+    coach: {
+      activeTrainees: invite.coach._count.trainees,
+      avatar: invite.coach.avatar,
+      fitnessGoals: invite.coach.fitnessGoals,
+      id: invite.coach.id,
+      name: invite.coach.name,
+    },
+    createdAt: invite.createdAt,
+    id: invite.id,
+  }))
 }
 
 export {
@@ -8604,6 +8742,7 @@ export {
   createBodyMetricForCurrentTrainee,
   createCoachCheckInForTrainee,
   createCoachExercise,
+  cancelCoachRequest,
   createCoachRequestForTrainee,
   inviteTraineeForCoach,
   createCoachProgram,
@@ -8664,6 +8803,8 @@ export {
   unlinkGoogleSpreadsheetFromCoachProgram,
   updateCoachExercise,
   updateCoachProgram,
+  listCoachInvitesForTrainee,
+  respondToCoachInvite,
   updateCoachRequestStatus,
   updateMealForUser,
   updatePersonalWorkoutForTrainee,

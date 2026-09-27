@@ -73,10 +73,14 @@ type CoachTrainee = {
   totalWorkoutLogs: number
 }
 
+/** Who opened a coach request; only the other side may accept it. */
+type CoachRequestInitiator = "coach" | "trainee"
+
 type CoachRequestSummary = {
   coachId: string
   createdAt: Date
   id: string
+  initiatedBy: CoachRequestInitiator
   status: "pending" | "approved" | "rejected"
   trainee: AssignedTrainee
   traineeId: string
@@ -364,7 +368,16 @@ type DiscoverableCoach = {
   id: string
   name: string
   requestId?: string
+  /** A pending request the coach opened is an invitation waiting on this trainee. */
+  requestInitiatedBy?: CoachRequestInitiator
   requestStatus: "none" | "pending" | "approved" | "rejected" | "connected"
+}
+
+/** A coach's invitation waiting on the signed-in trainee. */
+type CoachInvite = {
+  coach: { activeTrainees: number; avatar?: string | null; fitnessGoals: string[]; id: string; name: string }
+  createdAt: Date
+  id: string
 }
 
 type CoachNutritionDailyLog = {
@@ -755,6 +768,8 @@ type VolumeRecoveryData = {
 }
 
 export type {
+  CoachInvite,
+  CoachRequestInitiator,
   AppNotification,
   AppNotificationStatus,
   AppNotificationType,

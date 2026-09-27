@@ -109,6 +109,8 @@ export const queryKeys = {
   coach: {
     all: ["coach"] as const,
     dashboard: () => ["coach", "dashboard"] as const,
+    // Under "coach" so accepting one refreshes everything coach-related.
+    invites: () => ["coach", "invites"] as const,
     navCounts: () => ["coach", "nav-counts"] as const,
     trainees: (options?: { phone?: string }) =>
       ["coach", "trainees", { phone: options?.phone ?? null }] as const,
