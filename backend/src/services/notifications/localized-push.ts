@@ -120,6 +120,20 @@ function localizedNotificationCopy(
         title: "Weekly trainee review",
       }
     }
+    case NotificationType.general: {
+      const applicant = text(metadata, "applicantName")
+      const pending = Number(metadata.pendingCount ?? 1)
+      if (text(metadata, "kind") === "coach_signup_pending" && applicant) {
+        const others = Math.max(pending - 1, 0)
+        return {
+          body: isVi
+            ? `${applicant} vừa đăng ký làm coach.${others > 0 ? ` Còn ${others} hồ sơ khác đang chờ.` : " Chạm để duyệt."}`
+            : `${applicant} applied to be a coach.${others > 0 ? ` ${others} more ${others === 1 ? "is" : "are"} waiting.` : " Tap to review."}`,
+          title: isVi ? "Hồ sơ coach mới cần duyệt" : "New coach application",
+        }
+      }
+      return fallback
+    }
     case NotificationType.workout_logged: {
       const trainee = text(metadata, "traineeName")
       const workout = text(metadata, "workoutName")

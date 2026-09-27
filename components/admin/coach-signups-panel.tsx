@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Check, Loader2, Search, ShieldCheck, X } from "lucide-react"
 
 import { useToast } from "@/components/providers/toast-provider"
@@ -13,6 +14,7 @@ import { InputWithIcon } from "@/components/ui/input-with-icon"
 import type { AdminUserListItem } from "@/lib/admin/types"
 import type { CoachApprovalStatus } from "@/lib/auth/types"
 import { useAdminCoachSignups, useReviewAdminCoachSignupRequest } from "@/lib/queries/admin"
+import { cn } from "@/lib/utils"
 
 type StatusFilter = CoachApprovalStatus | "all"
 
@@ -38,6 +40,13 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
   const reviewSignup = useReviewAdminCoachSignupRequest()
   const [decidingUserId, setDecidingUserId] = useState<string | null>(null)
   const signups = signupsQuery.data ?? []
+  // Opened from a "new coach application" notice: that row stands out and
+  // scrolls into view once the list has loaded.
+  const highlightedUserId = useSearchParams().get("user")
+  useEffect(() => {
+    if (!highlightedUserId || signupsQuery.isPending) return
+    document.getElementById(`coach-signup-${highlightedUserId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [highlightedUserId, signupsQuery.isPending])
   const normalizedSearch = search.trim().toLowerCase()
   const visibleSignups = normalizedSearch
     ? signups.filter((signup) =>
@@ -143,7 +152,12 @@ export function CoachSignupsPanel({ locale }: { locale: "en" | "vi" }) {
             return (
               <div
                 key={signup.id}
-                className="flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0"
+                id={`coach-signup-${signup.id}`}
+                aria-current={signup.id === highlightedUserId ? "true" : undefined}
+                className={cn(
+                  "flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0",
+                  signup.id === highlightedUserId && "bg-primary-soft",
+                )}
               >
                 <Avatar className="size-9 shrink-0">
                   <AvatarFallback className="font-mono text-xs font-semibold uppercase text-muted-foreground">

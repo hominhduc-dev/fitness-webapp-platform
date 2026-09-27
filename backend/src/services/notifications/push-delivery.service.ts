@@ -4,6 +4,7 @@ import { logger } from "../../lib/logger"
 import { ensurePrisma } from "../fitness-data/shared/guards"
 import { sendPushToSubscription } from "../push-notification.service"
 import { localizedNotificationCopy, type PushLocale } from "./localized-push"
+import { COACH_SIGNUP_PENDING_KIND, COACH_SIGNUP_PUSH_TAG } from "./admin-notification-kinds"
 
 const MAX_ATTEMPTS = 5
 const DELIVERY_BATCH_SIZE = 50
@@ -39,6 +40,11 @@ function notificationPushTag(notification: Pick<Notification, "id" | "metadata" 
       return "workout-reminder"
     case NotificationType.coach_weekly_review:
       return "coach-weekly-review"
+    case NotificationType.general:
+      // New coach applications replace each other: the latest carries the count.
+      return metadataText(notification.metadata, "kind") === COACH_SIGNUP_PENDING_KIND
+        ? COACH_SIGNUP_PUSH_TAG
+        : `notification:${notification.id}`
     default:
       return `notification:${notification.id}`
   }

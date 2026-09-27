@@ -104,4 +104,17 @@ describe("presentNotification", () => {
       title: "You're connected",
     })
   })
+
+  it("tells admins about a new coach application and opens the review queue", () => {
+    const pending = notification({
+      metadata: { applicantName: "Khoa", kind: "coach_signup_pending", pendingCount: 3, url: "/admin?s=coach-signups&user=u1" },
+      type: "general",
+    })
+
+    expect(presentNotification(pending, getMessages("vi"), "vi")).toEqual({
+      href: "/admin?s=coach-signups&user=u1",
+      message: "Khoa vừa đăng ký làm coach. Còn 2 hồ sơ khác đang chờ.",
+      title: "Hồ sơ coach mới cần duyệt",
+    })
+  })
 })

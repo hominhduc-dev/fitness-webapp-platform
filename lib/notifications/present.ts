@@ -58,6 +58,7 @@ function resolveNotificationHref(notification: AppNotification) {
     case "coach_request":
       return "/coach/trainees"
     case "general":
+      if (kind === "coach_signup_pending") return "/admin?s=coach-signups"
       if (kind === "trainee_swapped_exercise" && traineeId) return `/coach/trainees/${traineeId}`
       if (kind === "meal_plan_reviewed") return "/meals"
       return null
@@ -144,6 +145,14 @@ function localizeCopy(
       if (kind === "coach_invite_received" && requester) return { message: connection.inviteReceived.message(requester), title: connection.inviteReceived.title }
       if (kind === "coach_connection_accepted" && accepter) {
         return { message: connection.accepted.message(accepter, readString(notification, "opener") === "coach"), title: connection.accepted.title }
+      }
+      return null
+    }
+    case "general": {
+      const applicant = readString(notification, "applicantName")
+      if (readString(notification, "kind") === "coach_signup_pending" && applicant) {
+        const pending = Number(notification.metadata?.pendingCount ?? 1)
+        return { message: copy.coachSignupPending.message(applicant, Math.max(pending - 1, 0)), title: copy.coachSignupPending.title }
       }
       return null
     }
