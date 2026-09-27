@@ -45,6 +45,9 @@ import {
   updateAdminCustomFood,
   updateAdminExercise,
   updateAdminUser,
+  getAdminBroadcastAudience,
+  listAdminBroadcasts,
+  sendAdminBroadcast,
 } from "../services/admin.service"
 import { invalidateExerciseLibrary } from "../lib/library-cache"
 import { validated } from "../middleware/validate"
@@ -60,8 +63,9 @@ import {
   reviewCustomFoodSchema,
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
+  adminBroadcastSchema,
 } from "./admin.schemas"
-import { getAccessToken, sendError } from "./route.utils"
+import { getAccessToken, sendData, sendError } from "./route.utils"
 
 const adminRouter = Router()
 
@@ -392,6 +396,32 @@ adminRouter.post("/exercises", async (req, res) => {
     sendError(res, error)
   }
 })
+
+// Notices to every active trainee and coach: who they would reach, sending one,
+// and the history with read and push counts.
+adminRouter.get(
+  "/broadcasts/audience",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getAdminBroadcastAudience(profile))
+  }),
+)
+
+adminRouter.get(
+  "/broadcasts",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { broadcasts: await listAdminBroadcasts(profile) })
+  }),
+)
+
+adminRouter.post(
+  "/broadcasts",
+  validated({ body: adminBroadcastSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await sendAdminBroadcast(profile, req.body), { status: 201 })
+  }),
+)
 
 adminRouter.post(
   "/exercises/metadata-transfer",

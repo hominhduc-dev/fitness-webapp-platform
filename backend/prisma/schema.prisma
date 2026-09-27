@@ -282,6 +282,7 @@ model User {
   coachRequestsAsCoach   CoachRequest[]            @relation("CoachRequestCoach")
   coachRequestsAsTrainee CoachRequest[]            @relation("CoachRequestTrainee")
   adminAuditLogs         AdminAuditLog[]           @relation("AdminAuditActor")
+  adminBroadcasts        AdminBroadcast[]          @relation("AdminBroadcastSender")
   aiGenerations          AIGeneration[]
   recoveryCheckIns       RecoveryCheckIn[]
   muscleVolumeProfiles   UserMuscleVolumeProfile[]
@@ -1000,6 +1001,23 @@ model PushDelivery {
   @@unique([notificationId, subscriptionId])
   @@index([status, nextAttemptAt])
   @@index([subscriptionId, status])
+}
+
+/// A notice an admin sent to every active trainee and coach. Each recipient's
+/// copy is a Notification with relatedEntityType "admin_broadcast" and
+/// relatedEntityId = this id, which is where read and push stats come from.
+model AdminBroadcast {
+  id             String   @id @default(uuid()) @db.Uuid
+  adminId        String   @db.Uuid
+  title          String
+  message        String
+  /// In-app path a tap opens, or null to open the notification list.
+  url            String?
+  recipientCount Int
+  admin          User     @relation("AdminBroadcastSender", fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model AdminAuditLog {

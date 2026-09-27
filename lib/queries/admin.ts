@@ -233,3 +233,28 @@ export function useReviewAdminCustomFoodRequest() {
 export function useUpdateAdminUserRequest() {
   return useAdminMutation(api.updateAdminUserRequest, [queryKeys.admin.all, queryKeys.coach.all, queryKeys.workouts.all, queryKeys.profile.all])
 }
+
+export function useAdminBroadcastAudience(enabled = true) {
+  return useUserQuery<Result<typeof api.fetchAdminBroadcastAudience>>({
+    enabled,
+    queryFn: async () => api.fetchAdminBroadcastAudience(await requireAccessToken()),
+    queryKey: queryKeys.admin.broadcastAudience(),
+    staleTime: 60_000,
+  })
+}
+
+export function useAdminBroadcasts(enabled = true) {
+  return useUserQuery<Result<typeof api.fetchAdminBroadcasts>>({
+    enabled,
+    queryFn: async () => api.fetchAdminBroadcasts(await requireAccessToken()),
+    queryKey: queryKeys.admin.broadcasts(),
+    // Push outcomes and reads keep arriving after a send.
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+  })
+}
+
+export function useSendAdminBroadcast() {
+  return useAdminMutation(api.sendAdminBroadcastRequest, [queryKeys.admin.broadcasts(), queryKeys.notifications.all])
+}
+

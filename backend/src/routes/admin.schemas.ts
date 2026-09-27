@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { EXERCISE_MEDIA_FILE_RULES } from "../lib/exercise-media"
+import { ADMIN_BROADCAST_TARGETS } from "../services/admin/broadcasts"
 
 /**
  * Request schemas for the admin exercise media endpoints. Content type and size
@@ -40,6 +41,13 @@ const saveExerciseMediaSchema = z
   .refine((value) => Boolean(value.animationUpload || value.thumbnailUpload), {
     message: "Chọn ít nhất một file media.",
   })
+
+/** A notice to every active trainee and coach. Lengths fit a lock-screen push. */
+const adminBroadcastSchema = z.object({
+  message: z.string().trim().min(1, "Nhập nội dung thông báo.").max(180, "Nội dung tối đa 180 ký tự."),
+  target: z.enum(ADMIN_BROADCAST_TARGETS, "Trang mở khi chạm không hợp lệ.").nullish(),
+  title: z.string().trim().min(1, "Nhập tiêu đề thông báo.").max(60, "Tiêu đề tối đa 60 ký tự."),
+})
 
 const transferExerciseMetadataSchema = z
   .object({
@@ -90,4 +98,5 @@ export {
   reviewCustomFoodSchema,
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
+  adminBroadcastSchema,
 }
