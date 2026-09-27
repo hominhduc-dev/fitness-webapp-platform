@@ -43,7 +43,7 @@ import {
   createCloudinaryUploadGrant,
 } from "../../lib/exercise-media-upload"
 import { logger } from "../../lib/logger"
-import { sendCoachSignupDecisionEmail } from "../../lib/coach-signup-email"
+import { sendCoachSignupDecisionEmail, type CoachSignupEmailStatus } from "../../lib/coach-signup-email"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
 import { prisma } from "../../lib/prisma"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatClientDateKey, formatUtcDateOnly } from "../fitness-data/shared/dates"
@@ -1207,22 +1207,21 @@ async function reviewAdminCoachSignup(
   // auth context expires.
   invalidateProfileContextCache()
 
-  let emailNotificationSent = false
-
+  // The decision is saved whatever happens to the email; a failed send is
+  // reported to the admin and logged, never rolled back into the decision.
+  let emailNotification: CoachSignupEmailStatus
   try {
-    await sendCoachSignupDecisionEmail({
+    emailNotification = await sendCoachSignupDecisionEmail({
       decision,
-      decidedAt,
       email: updatedUser.email,
       name: updatedUser.name,
-      userId: updatedUser.id,
     })
-    emailNotificationSent = true
   } catch (error) {
+    emailNotification = "failed"
     logger.warn("unable to send coach signup decision email", { error, userId: updatedUser.id })
   }
 
-  return { user: serializeUserListItem(updatedUser as UserSummaryRecord), emailNotificationSent }
+  return { emailNotification, user: serializeUserListItem(updatedUser as UserSummaryRecord) }
 }
 
 async function resetAdminUserPassword(profile: SerializedProfile, userId: string, password: string) {

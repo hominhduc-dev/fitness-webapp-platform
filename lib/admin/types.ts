@@ -366,10 +366,17 @@ type AdminBroadcast = {
   url: string | null
 }
 
+/**
+ * What happened to the coach signup decision email: sent, skipped because the
+ * backend has no SMTP configured, or failed (the decision is saved either way).
+ */
+type CoachSignupEmailStatus = "failed" | "sent" | "skipped"
+
 export type {
   AdminBroadcast,
   AdminBroadcastAudience,
   AdminBroadcastTarget,
+  CoachSignupEmailStatus,
   AdminAuditLogItem,
   AdminCustomFoodItem,
   AdminCoachOverview,

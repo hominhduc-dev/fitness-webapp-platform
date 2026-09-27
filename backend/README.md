@@ -63,10 +63,13 @@ npm run prisma:studio
 
 - Signup confirmation and forgot-password emails are sent by Supabase.
 - If you need custom SMTP, configure it in your Supabase project instead of this backend.
-- Coach application decisions are sent through Resend. Verify your sending domain,
-  then set `RESEND_API_KEY` and `EMAIL_FROM` in the backend environment (on the
-  VPS, `backend/.env`). If delivery fails, the decision remains saved and the
-  admin sees a warning; check backend logs for the failure.
+- Coach application decisions are emailed by this backend over the same SMTP
+  account as Supabase Auth: copy `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASS`, `SMTP_ADMIN_EMAIL` and `SMTP_SENDER_NAME` from `~/supabase/.env`
+  into the backend environment, plus an optional `EMAIL_REPLY_TO`. Without
+  `SMTP_HOST` nothing is sent. If delivery fails the decision stays saved, the
+  admin sees a note, and the backend logs the failure. The emails reuse the
+  layout of `public/email-templates/` (see `src/lib/email/branded-email.ts`).
 
 ## Export Workout Logs to Google Sheets via n8n
 

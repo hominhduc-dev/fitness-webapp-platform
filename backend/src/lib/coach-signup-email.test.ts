@@ -1,62 +1,78 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const configuration = vi.hoisted(() => ({
-  emailFrom: "YeahBuddy Fitness <hello@yeahbuddy.fit>" as string | undefined,
   frontendUrl: "https://yeahbuddy.fit",
-  resendApiKey: "test-key" as string | undefined,
+  smtp: {
+    adminEmail: "no-reply@hominhduc.me" as string | undefined,
+    host: "smtp.hostinger.com" as string | undefined,
+    pass: "secret" as string | undefined,
+    port: 465,
+    replyTo: "admin@hominhduc.me" as string | undefined,
+    senderName: "YeahBuddy Fitness",
+    user: "admin@hominhduc.me" as string | undefined,
+  },
 }))
+const sendMail = vi.hoisted(() => vi.fn())
 
 vi.mock("../config/env", () => ({ env: configuration }))
+vi.mock("nodemailer", () => ({ default: { createTransport: vi.fn(() => ({ sendMail })) } }))
 
-import { sendCoachSignupDecisionEmail } from "./coach-signup-email"
+import { buildCoachSignupDecisionEmail, sendCoachSignupDecisionEmail } from "./coach-signup-email"
 
-const applicant = {
-  decidedAt: new Date("2026-09-27T01:00:00.000Z"),
-  email: "coach@example.com",
-  name: "Minh <Coach>",
-  userId: "coach-123",
-}
+const applicant = { email: "coach@example.com", name: "Minh <Coach>" }
 
 describe("coach signup decision email", () => {
   beforeEach(() => {
-    configuration.resendApiKey = "test-key"
-    configuration.emailFrom = "YeahBuddy Fitness <hello@yeahbuddy.fit>"
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200 }))
+    sendMail.mockReset().mockResolvedValue({ messageId: "1" })
+    configuration.smtp.host = "smtp.hostinger.com"
+    configuration.smtp.replyTo = "admin@hominhduc.me"
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  it("sends the approval from the shared SMTP sender with a sign-in button", async () => {
+    await expect(sendCoachSignupDecisionEmail({ ...applicant, decision: "approved" })).resolves.toBe("sent")
 
-  it("sends approval with a login link and escapes the coach name", async () => {
-    await sendCoachSignupDecisionEmail({ ...applicant, decision: "approved" })
-
-    const [url, init] = vi.mocked(fetch).mock.calls[0]
-    const body = JSON.parse(String(init?.body))
-    expect(url).toBe("https://api.resend.com/emails")
-    expect(init?.headers).toMatchObject({
-      Authorization: "Bearer test-key",
-      "Idempotency-Key": `coach-signup-coach-123-approved-${applicant.decidedAt.getTime()}`,
-    })
-    expect(body.to).toEqual(["coach@example.com"])
-    expect(body.html).toContain("Minh &lt;Coach&gt;")
-    expect(body.html).toContain("https://yeahbuddy.fit/?auth=login")
-    expect(body.text).toContain("đã được duyệt")
+    const message = sendMail.mock.calls[0][0]
+    expect(message.from).toEqual({ address: "no-reply@hominhduc.me", name: "YeahBuddy Fitness" })
+    expect(message.to).toBe("coach@example.com")
+    expect(message.subject).toBe("Hồ sơ coach của bạn đã được duyệt")
+    expect(message.replyTo).toBeUndefined()
+    expect(message.html).toContain("Minh &lt;Coach&gt;")
+    expect(message.html).toContain('href="https://yeahbuddy.fit/?auth=login"')
+    expect(message.text).toContain("đã được duyệt")
   })
 
-  it("sends rejection without a sign-in link", async () => {
+  it("keeps the layout of the Auth email templates", () => {
+    const { html } = buildCoachSignupDecisionEmail({ ...applicant, decision: "approved" })
+
+    expect(html).toContain('lang="vi"')
+    expect(html).toContain("background-color:#f5f7fa")
+    expect(html).toContain("max-width:560px")
+    expect(html).toContain("https://www.hominhduc.me/header-logo.png")
+    expect(html).toContain('bgcolor="#155EEF"')
+    expect(html).toContain("Train. Track. Progress.")
+  })
+
+  it("sends the rejection without a button, inviting a reply to a read mailbox", async () => {
     await sendCoachSignupDecisionEmail({ ...applicant, decision: "rejected" })
 
-    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
-    expect(body.text).toContain("chưa được duyệt")
-    expect(body.html).not.toContain("Đăng nhập YeahBuddy")
+    const message = sendMail.mock.calls[0][0]
+    expect(message.subject).toBe("Kết quả đăng ký coach YeahBuddy")
+    expect(message.replyTo).toBe("admin@hominhduc.me")
+    expect(message.html).not.toContain("#155EEF")
+    expect(message.text).toContain("chưa được duyệt")
+    expect(message.text).toContain("trả lời email này")
   })
 
-  it("reports missing configuration and provider failures", async () => {
-    configuration.resendApiKey = undefined
-    await expect(sendCoachSignupDecisionEmail({ ...applicant, decision: "approved" })).rejects.toThrow("not configured")
-    expect(fetch).not.toHaveBeenCalled()
+  it("skips sending when no SMTP is configured", async () => {
+    configuration.smtp.host = undefined
 
-    configuration.resendApiKey = "test-key"
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }))
-    await expect(sendCoachSignupDecisionEmail({ ...applicant, decision: "approved" })).rejects.toThrow("HTTP 403")
+    await expect(sendCoachSignupDecisionEmail({ ...applicant, decision: "approved" })).resolves.toBe("skipped")
+    expect(sendMail).not.toHaveBeenCalled()
+  })
+
+  it("throws when the SMTP server refuses the message", async () => {
+    sendMail.mockRejectedValue(new Error("535 Authentication failed"))
+
+    await expect(sendCoachSignupDecisionEmail({ ...applicant, decision: "approved" })).rejects.toThrow("did not accept")
   })
 })

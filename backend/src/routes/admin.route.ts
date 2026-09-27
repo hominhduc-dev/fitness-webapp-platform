@@ -203,9 +203,9 @@ adminRouter.patch(
   "/coach-signups/:userId",
   validated({ body: reviewCoachSignupSchema, params: coachSignupParams }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    const { user, emailNotificationSent } = await reviewAdminCoachSignup(profile, req.params.userId, req.body.decision)
+    const { user, emailNotification } = await reviewAdminCoachSignup(profile, req.params.userId, req.body.decision)
 
-    res.json({ user, emailNotificationSent })
+    res.json({ emailNotification, user })
   }),
 )
 
