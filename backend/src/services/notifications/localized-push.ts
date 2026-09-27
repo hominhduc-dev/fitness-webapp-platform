@@ -120,6 +120,20 @@ function localizedNotificationCopy(
         title: "Weekly trainee review",
       }
     }
+    case NotificationType.general: {
+      const applicant = text(metadata, "applicantName")
+      const pending = Number(metadata.pendingCount ?? 1)
+      if (text(metadata, "kind") === "coach_signup_pending" && applicant) {
+        const others = Math.max(pending - 1, 0)
+        return {
+          body: isVi
+            ? `${applicant} vừa đăng ký làm coach.${others > 0 ? ` Còn ${others} hồ sơ khác đang chờ.` : " Chạm để duyệt."}`
+            : `${applicant} applied to be a coach.${others > 0 ? ` ${others} more ${others === 1 ? "is" : "are"} waiting.` : " Tap to review."}`,
+          title: isVi ? "Hồ sơ coach mới cần duyệt" : "New coach application",
+        }
+      }
+      return fallback
+    }
     case NotificationType.workout_logged: {
       const trainee = text(metadata, "traineeName")
       const workout = text(metadata, "workoutName")
@@ -127,6 +141,33 @@ function localizedNotificationCopy(
         body: isVi ? `${trainee} đã hoàn thành ${workout}.` : `${trainee} completed ${workout}.`,
         title: isVi ? `${trainee} vừa ghi buổi tập` : `${trainee} logged a workout`,
       } : fallback
+    }
+    case NotificationType.coach_request: {
+      const kind = text(metadata, "kind")
+      const requester = text(metadata, "requesterName")
+      const accepter = text(metadata, "accepterName")
+      if (kind === "coach_request_received" && requester) {
+        return {
+          body: isVi ? `${requester} muốn bạn làm coach. Chạm để trả lời.` : `${requester} wants you as their coach. Tap to answer.`,
+          title: isVi ? "Yêu cầu học viên mới" : "New trainee request",
+        }
+      }
+      if (kind === "coach_invite_received" && requester) {
+        return {
+          body: isVi ? `${requester} muốn làm coach của bạn. Chạm để trả lời.` : `${requester} wants to be your coach. Tap to answer.`,
+          title: isVi ? "Lời mời kết nối từ coach" : "Coach invitation",
+        }
+      }
+      if (kind === "coach_connection_accepted" && accepter) {
+        const invitation = text(metadata, "opener") === "coach"
+        return {
+          body: isVi
+            ? `${accepter} đã chấp nhận ${invitation ? "lời mời" : "yêu cầu"} của bạn.`
+            : `${accepter} accepted your ${invitation ? "invitation" : "request"}.`,
+          title: isVi ? "Đã kết nối" : "You're connected",
+        }
+      }
+      return fallback
     }
     default:
       return fallback

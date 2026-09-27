@@ -6,6 +6,7 @@ import { prisma } from "../../lib/prisma"
 import { isUnsafeDailyCalorieGoal, UNSAFE_CALORIE_GOAL_CODE, UNSAFE_CALORIE_GOAL_MESSAGE } from "../../lib/nutrition/safety"
 import { supabaseAdmin, supabasePublic } from "../../lib/supabase"
 import { AuthServiceError } from "../errors"
+import { notifyAdminsOfCoachSignup } from "../notifications/admin-notifications"
 
 type SerializableSession = {
   accessToken: string
@@ -694,7 +695,7 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
   // admin works through the queue.
   const isCoachSignup = nextRole === UserRole.coach
 
-  return prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       avatar,
       coachApprovalStatus: isCoachSignup ? CoachApprovalStatus.pending : null,
@@ -710,6 +711,12 @@ async function syncProfile(authUser: SupabaseUser, overrides?: {
       username,
     },
   })
+
+  // Admins hear about a new application straight away; the notice runs in the
+  // background so it never slows or fails the sign-up itself.
+  if (isCoachSignup) void notifyAdminsOfCoachSignup(created)
+
+  return created
 }
 
 async function findUserByIdentifier(identifier: string) {

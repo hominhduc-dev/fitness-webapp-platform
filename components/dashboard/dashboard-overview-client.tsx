@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react"
 
 import { AIChatBubble } from "@/components/ai/chat-bubble"
 import { WorkoutCelebration } from "@/components/workout/workout-celebration"
+import { CoachInviteCard } from "./coach-invite-card"
 import { NutritionSummary } from "./nutrition-summary"
 import { QuickActions } from "./quick-actions"
 import { TodayTasks } from "./today-tasks"
@@ -112,6 +113,9 @@ export function DashboardOverviewClient({
           }}
         />
       </div>
+
+      {/* A coach's invitation waits here, above everything, until it is answered. */}
+      <CoachInviteCard />
 
       <TodayTasks />
 

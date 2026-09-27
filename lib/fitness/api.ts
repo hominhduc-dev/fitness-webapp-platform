@@ -44,6 +44,8 @@ import type {
   CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
+  CoachInvite,
+  CoachRequestInitiator,
   DiscoverableCoach,
   DashboardAnalytics,
   NotificationList,
@@ -383,6 +385,7 @@ type SerializedCoachRequest = {
   coachId: string
   createdAt: string
   id: string
+  initiatedBy: CoachRequestInitiator
   status: "pending" | "approved" | "rejected"
   trainee: SerializedAssignedTrainee
   traineeId: string
@@ -397,8 +400,11 @@ type SerializedDiscoverableCoach = {
   id: string
   name: string
   requestId?: string
+  requestInitiatedBy?: CoachRequestInitiator
   requestStatus: DiscoverableCoach["requestStatus"]
 }
+
+type SerializedCoachInvite = Omit<CoachInvite, "createdAt"> & { createdAt: string }
 
 type SerializedCoachRequestCreate = {
   request: {
@@ -982,6 +988,7 @@ function mapDiscoverableCoach(coach: SerializedDiscoverableCoach): DiscoverableC
     id: coach.id,
     name: coach.name,
     requestId: coach.requestId,
+    requestInitiatedBy: coach.requestInitiatedBy,
     requestStatus: coach.requestStatus,
   }
 }
@@ -1997,6 +2004,7 @@ async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardD
       coachId: requestItem.coachId,
       createdAt: new Date(requestItem.createdAt),
       id: requestItem.id,
+      initiatedBy: requestItem.initiatedBy ?? "trainee",
       status: requestItem.status,
       trainee: mapAssignedTrainee(requestItem.trainee),
       traineeId: requestItem.traineeId,
@@ -2065,6 +2073,30 @@ async function updateCoachRequestStatus(
     trainee: response.request.trainee,
     traineeId: response.request.traineeId,
   }
+}
+
+/** Coaches' invitations waiting on the signed-in trainee. */
+async function fetchCoachInvites(accessToken: string): Promise<CoachInvite[]> {
+  const response = await request<ApiEnvelope<{ invites: SerializedCoachInvite[] }>>("/api/coach/invites", accessToken)
+  return response.data.invites.map((invite) => ({ ...invite, createdAt: new Date(invite.createdAt) }))
+}
+
+/** The trainee accepts or declines a coach's invitation. */
+async function respondToCoachInvite(accessToken: string, requestId: string, status: "approved" | "rejected") {
+  const response = await request<ApiEnvelope<{ invite: { coachId: string; id: string; status: "approved" | "rejected" } }>>(
+    `/api/coach/invites/${requestId}`,
+    accessToken,
+    { body: JSON.stringify({ status }), method: "PATCH" },
+  )
+  return response.data.invite
+}
+
+/** Whoever opened a pending request (a trainee's request or a coach's invitation) withdraws it. */
+async function cancelCoachRequest(accessToken: string, requestId: string) {
+  const response = await request<ApiEnvelope<{ cancelled: boolean; id: string }>>(`/api/coach/requests/${requestId}`, accessToken, {
+    method: "DELETE",
+  })
+  return response.data
 }
 
 async function assignCoachProgram(accessToken: string, programId: string, traineeId: string) {
@@ -2866,6 +2898,9 @@ export {
   updateCoachExerciseRequest,
   updateCoachProgram,
   updateCoachRequestStatus,
+  cancelCoachRequest,
+  fetchCoachInvites,
+  respondToCoachInvite,
   updateCoachWorkoutLogComment,
   updateWorkout,
   upsertWorkoutSessionDraft,

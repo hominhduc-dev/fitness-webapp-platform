@@ -36,6 +36,16 @@ export const notificationsMessages = {
           title: "Coach updated your program",
         },
         weightReminder: { message: "A quick check-in keeps your trend accurate.", title: "Time to log your weight" },
+        coachConnection: {
+          accepted: { message: (name: string, invitation: boolean) => `${name} accepted your ${invitation ? "invitation" : "request"}.`, title: "You're connected" },
+          inviteReceived: { message: (name: string) => `${name} wants to be your coach. Tap to answer.`, title: "Coach invitation" },
+          requestReceived: { message: (name: string) => `${name} wants you as their coach. Tap to answer.`, title: "New trainee request" },
+        },
+        coachSignupPending: {
+          message: (name: string, others: number) =>
+            `${name} applied to be a coach.${others > 0 ? ` ${others} more ${others === 1 ? "is" : "are"} waiting.` : " Tap to review."}`,
+          title: "New coach application",
+        },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} completed ${workout}.`,
           title: (trainee: string) => `${trainee} logged a workout`,
@@ -94,6 +104,16 @@ export const notificationsMessages = {
           title: "Coach đã cập nhật chương trình",
         },
         weightReminder: { message: "Ghi nhanh cân nặng để biểu đồ luôn chính xác.", title: "Đến giờ ghi cân nặng" },
+        coachConnection: {
+          accepted: { message: (name: string, invitation: boolean) => `${name} đã chấp nhận ${invitation ? "lời mời" : "yêu cầu"} của bạn.`, title: "Đã kết nối" },
+          inviteReceived: { message: (name: string) => `${name} muốn làm coach của bạn. Chạm để trả lời.`, title: "Lời mời kết nối từ coach" },
+          requestReceived: { message: (name: string) => `${name} muốn bạn làm coach. Chạm để trả lời.`, title: "Yêu cầu học viên mới" },
+        },
+        coachSignupPending: {
+          message: (name: string, others: number) =>
+            `${name} vừa đăng ký làm coach.${others > 0 ? ` Còn ${others} hồ sơ khác đang chờ.` : " Chạm để duyệt."}`,
+          title: "Hồ sơ coach mới cần duyệt",
+        },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} đã hoàn thành ${workout}.`,
           title: (trainee: string) => `${trainee} vừa ghi buổi tập`,

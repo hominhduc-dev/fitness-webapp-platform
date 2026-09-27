@@ -10,7 +10,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCreateCoachRequest } from "@/lib/queries/coach"
+import { useCreateCoachRequest, useRespondToCoachInvite } from "@/lib/queries/coach"
 import type { DiscoverableCoach } from "@/lib/fitness/types"
 
 function getInitials(name: string) {
@@ -24,6 +24,7 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
   const { locale, messages } = useLocale()
   const [search, setSearch] = useState("")
   const createCoachRequest = useCreateCoachRequest()
+  const respondToInvite = useRespondToCoachInvite()
   const { data: coaches = initialCoaches, setData: setCoaches } = useCoachData(queryKeys.coach.discover(), fetchDiscoverableCoaches, initialCoaches)
   const [pendingCoachId, setPendingCoachId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -51,19 +52,40 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
 
     try {
       const request = await createCoachRequest.mutateAsync(coachId)
+      // Asking a coach who already invited you connects straight away.
+      const connected = request.status === "approved"
       setCoaches((current) =>
         current.map((coach) =>
           coach.id === coachId
             ? {
                 ...coach,
                 requestId: request.id,
-                requestStatus: "pending",
+                requestInitiatedBy: connected ? coach.requestInitiatedBy : "trainee",
+                requestStatus: connected ? "connected" : "pending",
               }
             : coach,
         ),
       )
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : locale === "en" ? "Unable to send the coach request." : "Không thể gửi coach request.")
+    } finally {
+      setPendingCoachId(null)
+    }
+  }
+
+  const handleAnswerInvite = async (coachId: string, requestId: string, status: "approved" | "rejected") => {
+    setPendingCoachId(coachId)
+    setError(null)
+
+    try {
+      await respondToInvite.mutateAsync({ requestId, status })
+      setCoaches((current) =>
+        current.map((coach) =>
+          coach.id === coachId ? { ...coach, requestStatus: status === "approved" ? "connected" : "rejected" } : coach,
+        ),
+      )
+    } catch (answerError) {
+      setError(answerError instanceof Error ? answerError.message : locale === "en" ? "Unable to answer the invitation." : "Không thể trả lời lời mời.")
     } finally {
       setPendingCoachId(null)
     }
@@ -200,6 +222,23 @@ export function FindCoachClient({ initialCoaches }: { initialCoaches: Discoverab
                               <Check className="h-4 w-4" />
                               {messages.coach.currentCoachButton}
                             </Button>
+                          ) : isRequestPending && coach.requestInitiatedBy === "coach" && coach.requestId ? (
+                            <div className="flex flex-col gap-2">
+                              <p className="text-center text-xs font-medium text-primary">{messages.coach.connection.coachInvitedYou}</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  variant="outline"
+                                  className="bg-transparent"
+                                  disabled={isPending}
+                                  onClick={() => void handleAnswerInvite(coach.id, coach.requestId as string, "rejected")}
+                                >
+                                  {messages.coach.connection.declineInvite}
+                                </Button>
+                                <Button disabled={isPending} onClick={() => void handleAnswerInvite(coach.id, coach.requestId as string, "approved")}>
+                                  {isPending ? messages.coach.saving : messages.coach.connection.acceptInvite}
+                                </Button>
+                              </div>
+                            </div>
                           ) : isRequestPending ? (
                             <Button disabled className="w-full gap-2 bg-transparent" variant="outline">
                               <Clock className="h-4 w-4" />

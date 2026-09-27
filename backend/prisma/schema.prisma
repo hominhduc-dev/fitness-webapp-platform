@@ -67,6 +67,13 @@ enum CoachRequestStatus {
   rejected
 }
 
+/// Who opened a coach request: a trainee asking a coach, or a coach inviting a
+/// trainee. Only the other side may accept it.
+enum CoachRequestInitiator {
+  trainee
+  coach
+}
+
 enum ExerciseImportRequestStatus {
   pending
   approved
@@ -881,6 +888,8 @@ model CoachRequest {
   traineeId String             @db.Uuid
   coachId   String             @db.Uuid
   status    CoachRequestStatus @default(pending)
+  /// Rows from before this column were trainee requests: coach invites could not be accepted then.
+  initiatedBy CoachRequestInitiator @default(trainee)
   trainee   User               @relation("CoachRequestTrainee", fields: [traineeId], references: [id], onDelete: Cascade)
   coach     User               @relation("CoachRequestCoach", fields: [coachId], references: [id], onDelete: Cascade)
   createdAt DateTime           @default(now())

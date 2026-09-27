@@ -82,4 +82,39 @@ describe("presentNotification", () => {
     const external = notification({ metadata: { url: "//evil.example" }, type: "general" })
     expect(presentNotification(external, getMessages("en"), "en").href).toBeNull()
   })
+
+  it("words coach connection notices for each side in the viewer's language", () => {
+    const invite = notification({
+      metadata: { kind: "coach_invite_received", requesterName: "Coach Khoa", url: "/dashboard" },
+      type: "coach_request",
+    })
+    const accepted = notification({
+      metadata: { accepterName: "Minh", kind: "coach_connection_accepted", opener: "coach", url: "/coach/trainees/t1" },
+      type: "coach_request",
+    })
+
+    expect(presentNotification(invite, getMessages("vi"), "vi")).toEqual({
+      href: "/dashboard",
+      message: "Coach Khoa muốn làm coach của bạn. Chạm để trả lời.",
+      title: "Lời mời kết nối từ coach",
+    })
+    expect(presentNotification(accepted, getMessages("en"), "en")).toEqual({
+      href: "/coach/trainees/t1",
+      message: "Minh accepted your invitation.",
+      title: "You're connected",
+    })
+  })
+
+  it("tells admins about a new coach application and opens the review queue", () => {
+    const pending = notification({
+      metadata: { applicantName: "Khoa", kind: "coach_signup_pending", pendingCount: 3, url: "/admin?s=coach-signups&user=u1" },
+      type: "general",
+    })
+
+    expect(presentNotification(pending, getMessages("vi"), "vi")).toEqual({
+      href: "/admin?s=coach-signups&user=u1",
+      message: "Khoa vừa đăng ký làm coach. Còn 2 hồ sơ khác đang chờ.",
+      title: "Hồ sơ coach mới cần duyệt",
+    })
+  })
 })

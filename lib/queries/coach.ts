@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { queryKeys } from "@/lib/queries/keys"
 import { requireAccessToken } from "@/lib/queries/token"
@@ -14,6 +14,9 @@ import {
   inviteTrainee,
   unassignCoachProgram,
   updateCoachRequestStatus,
+  cancelCoachRequest,
+  fetchCoachInvites,
+  respondToCoachInvite,
 } from "@/lib/fitness/api"
 
 export function useApproveTraineeExerciseSwap() {
@@ -139,6 +142,40 @@ export function useUpdateCoachRequestStatus() {
     onSuccess: () => {
       // Approving a request changes the roster, so the sidebar badge and the
       // trainee list both move. Today the badge never updates after mount.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
+    },
+  })
+}
+
+/** Coaches' invitations waiting on the signed-in trainee; only fetched for trainees. */
+export function useCoachInvites(enabled: boolean) {
+  return useQuery({
+    enabled,
+    queryFn: async () => fetchCoachInvites(await requireAccessToken()),
+    queryKey: queryKeys.coach.invites(),
+    staleTime: 60_000,
+  })
+}
+
+export function useRespondToCoachInvite() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ requestId, status }: { requestId: string; status: "approved" | "rejected" }) =>
+      respondToCoachInvite(await requireAccessToken(), requestId, status),
+    onSuccess: () => {
+      // Accepting gives the trainee a coach, which the dashboard and find-coach page both show.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
+    },
+  })
+}
+
+export function useCancelCoachRequest() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (requestId: string) => cancelCoachRequest(await requireAccessToken(), requestId),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
     },
   })
