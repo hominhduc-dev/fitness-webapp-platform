@@ -16,10 +16,9 @@ interface RestTimerProps {
   event: RestEvent
   onDismiss: () => void
   defaultDuration?: number
-  finishVisible?: boolean
 }
 
-export function RestTimer({ event, onDismiss, defaultDuration = 90, finishVisible = false }: RestTimerProps) {
+export function RestTimer({ event, onDismiss, defaultDuration = 90 }: RestTimerProps) {
   const { messages } = useLocale()
   const [remaining, setRemaining] = useState(defaultDuration)
   const [visible, setVisible] = useState(true)
@@ -81,13 +80,11 @@ export function RestTimer({ event, onDismiss, defaultDuration = 90, finishVisibl
     <div
       className={cn(
         "workout-floating-chip fixed z-50 pointer-events-auto",
-        // When Finish appears, sit above it; otherwise stay by the safe area.
-        // Desktop: offset left by sidebar width (280px).
-        finishVisible
-          ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
-          : "bottom-[calc(0.75rem+env(safe-area-inset-bottom))]",
+        // Just above the session's pinned bottom bar, centred on the page
+        // column (the session page has no sidebar).
+        "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:bottom-[5.75rem]",
         "left-1/2 w-[calc(100%-1.5rem)] max-w-[420px] -translate-x-1/2",
-        "md:left-[280px] md:right-10 md:w-auto md:max-w-none md:translate-x-0 md:bottom-[4rem]",
+        "md:w-[calc(100%-5rem)] md:max-w-[800px]",
         "transition-opacity duration-[400ms]",
         visible ? "opacity-100" : "opacity-0",
       )}

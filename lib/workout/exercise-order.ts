@@ -6,17 +6,6 @@ export function isExerciseDone(exercise: SessionExercise) {
 }
 
 /**
- * The order the session shows exercises in: what is left to do first, what is
- * done at the bottom, each group keeping its planned order. Returns indices
- * into `exercises`, which itself stays in planned order — that order is what
- * gets saved and exported.
- */
-export function sessionDisplayOrder(exercises: ReadonlyArray<SessionExercise>) {
-  const indices = exercises.map((_, index) => index)
-  return [...indices.filter((index) => !isExerciseDone(exercises[index])), ...indices.filter((index) => isExerciseDone(exercises[index]))]
-}
-
-/**
  * The exercise to move on to after `fromIndex` is finished: the next unfinished
  * one in planned order, wrapping to any unfinished one skipped earlier. Null
  * when everything is done.

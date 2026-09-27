@@ -1,11 +1,13 @@
-import { fireEvent, render } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { muscleGroupToSlugs } from "@/lib/fitness/muscle-map"
 
 import { MuscleMap, preferredBodySide } from "./muscle-map"
 
 describe("MuscleMap interactions", () => {
+  afterEach(cleanup)
+
   it("paints primary and secondary regions with their supplied colors", () => {
     const { container } = render(<MuscleMap side="front" highlights={{ chest: "primary", tibialis: "secondary" }} />)
     expect(container.querySelector('[data-muscle="chest"]')).toHaveAttribute("fill", "primary")
@@ -18,6 +20,33 @@ describe("MuscleMap interactions", () => {
     fireEvent.click(container.querySelector('[data-muscle="tibialis"]')!)
     expect(onClick).toHaveBeenCalledWith("tibialis")
     expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it("makes each muscle one keyboard-reachable button with its own name and state", () => {
+    const onClick = vi.fn()
+    const { getByRole, queryByRole } = render(
+      <MuscleMap
+        side="front"
+        onMuscleClick={onClick}
+        selectedSlugs={new Set(["chest"])}
+        getMuscleLabel={(slug) => `Muscle ${slug}`}
+      />,
+    )
+    const chest = getByRole("button", { name: "Muscle chest" })
+    expect(chest).toHaveAttribute("aria-pressed", "true")
+    expect(chest).toHaveAttribute("tabindex", "0")
+    expect(getByRole("button", { name: "Muscle biceps" })).toHaveAttribute("aria-pressed", "false")
+    fireEvent.keyDown(chest, { key: "Enter" })
+    fireEvent.keyDown(getByRole("button", { name: "Muscle biceps" }), { key: " " })
+    expect(onClick).toHaveBeenNthCalledWith(1, "chest")
+    expect(onClick).toHaveBeenNthCalledWith(2, "biceps")
+    expect(queryByRole("button", { name: "Muscle head" })).not.toBeInTheDocument()
+  })
+
+  it("stays a plain picture without a click handler", () => {
+    const { getByRole, queryAllByRole } = render(<MuscleMap side="front" label="Map" />)
+    expect(getByRole("img", { name: "Map" })).toBeInTheDocument()
+    expect(queryAllByRole("button")).toHaveLength(0)
   })
 
   it("does not make decorative regions interactive", () => {

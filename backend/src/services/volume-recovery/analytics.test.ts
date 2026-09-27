@@ -9,6 +9,7 @@ import {
   calculateReadiness,
   classifyVolumeZone,
   DEFAULT_VOLUME_LANDMARKS,
+  readinessSoreness,
 } from "./analytics"
 
 function log(exercises: unknown[], day = "2026-09-14") {
@@ -32,6 +33,20 @@ function exercise(options?: { muscles?: string[]; secondary?: string[]; sets?: u
     ],
   }
 }
+
+describe("readiness soreness", () => {
+  it("is the sorest muscle's, so one sore muscle is not averaged away", () => {
+    expect(readinessSoreness([{ soreness: 0 }, { soreness: 4 }, { soreness: 2 }])).toBe(4)
+  })
+
+  it("is 0 when every muscle was rated not sore", () => {
+    expect(readinessSoreness([{ soreness: 0 }, { soreness: 0 }])).toBe(0)
+  })
+
+  it("is null when soreness was not answered", () => {
+    expect(readinessSoreness([])).toBeNull()
+  })
+})
 
 describe("volume recovery analytics", () => {
   it("counts only completed hard sets and weights secondary muscles", () => {

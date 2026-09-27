@@ -58,6 +58,10 @@ interface MuscleMapProps {
   /** Stroke for the body silhouette. Pass `null` to drop it (thumbnails). */
   outline?: string | null
   onMuscleClick?: (slug: MuscleSlug) => void
+  /** With `onMuscleClick`: muscles shown as chosen, reported as `aria-pressed`. */
+  selectedSlugs?: ReadonlySet<string>
+  /** With `onMuscleClick`: the accessible name of each muscle button. */
+  getMuscleLabel?: (slug: MuscleSlug) => string
   /** Accessible name for the figure as a whole. */
   label?: string
   className?: string
@@ -79,22 +83,22 @@ export function MuscleMap({
   defaultFill = "var(--body-fill)",
   outline = "var(--body-line)",
   onMuscleClick,
+  selectedSlugs,
+  getMuscleLabel,
   label,
   className,
 }: MuscleMapProps) {
   const { parts, viewBox } = SIDE_CONFIG[side]
+  const interactive = Boolean(onMuscleClick)
 
-  // Each muscle contributes up to three path groups (common / left / right).
-  // Flattening once per render keeps the JSX below a single map.
-  const shapes = useMemo(
+  // Each muscle contributes up to three path groups (common / left / right),
+  // flattened once per render into the paths drawn for it.
+  const muscles = useMemo(
     () =>
-      parts.flatMap(({ path, slug }) =>
-        [...(path.common ?? []), ...(path.left ?? []), ...(path.right ?? [])].map((d, index) => ({
-          d,
-          key: `${slug}-${index}`,
-          slug,
-        })),
-      ),
+      parts.map(({ path, slug }) => ({
+        paths: [...(path.common ?? []), ...(path.left ?? []), ...(path.right ?? [])],
+        slug,
+      })),
     [parts],
   )
 
@@ -102,7 +106,8 @@ export function MuscleMap({
     <svg
       viewBox={viewBox}
       className={cn("h-auto w-full", className)}
-      role="img"
+      // A picture to look at, or — clickable — a group of muscle buttons.
+      role={interactive ? "group" : "img"}
       aria-label={label ?? `Body map, ${side} view`}
     >
       {outline !== null && (
@@ -116,24 +121,45 @@ export function MuscleMap({
         />
       )}
 
-      {shapes.map(({ d, key, slug }) => {
-        const isInteractive = Boolean(onMuscleClick) && !DECORATIVE_SLUGS.has(slug)
-
-        return (
+      {muscles.map(({ paths, slug }) => {
+        const shapes = paths.map((d, index) => (
           <path
-            key={key}
+            key={`${slug}-${index}`}
             d={d}
             // Names the region in the DOM. The artwork is 750-odd anonymous
             // paths otherwise, which makes both end-to-end selection and
             // eyeballing the tree in devtools guesswork.
             data-muscle={slug}
             fill={highlights?.[slug] ?? defaultFill}
-            onClick={isInteractive ? () => onMuscleClick?.(slug) : undefined}
+          />
+        ))
+
+        if (!interactive || DECORATIVE_SLUGS.has(slug)) {
+          return <g key={slug}>{shapes}</g>
+        }
+
+        // One button per muscle, however many paths draw it, so it is a single
+        // stop for Tab and a single name for a screen reader.
+        return (
+          <g
+            key={slug}
+            role="button"
+            tabIndex={0}
+            aria-label={getMuscleLabel?.(slug) ?? slug}
+            aria-pressed={selectedSlugs ? selectedSlugs.has(slug) : undefined}
+            onClick={() => onMuscleClick?.(slug)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return
+              event.preventDefault()
+              onMuscleClick?.(slug)
+            }}
             // Fading rather than recolouring on hover keeps the affordance
             // independent of `highlights` — the caller owns the palette, and a
             // fixed hover colour would fight whichever scale it picked.
-            className={isInteractive ? "cursor-pointer transition-opacity hover:opacity-70" : undefined}
-          />
+            className="cursor-pointer outline-none transition-opacity hover:opacity-70 focus-visible:opacity-70 focus-visible:[&>path]:stroke-foreground focus-visible:[&>path]:[stroke-width:3px]"
+          >
+            {shapes}
+          </g>
         )
       })}
     </svg>

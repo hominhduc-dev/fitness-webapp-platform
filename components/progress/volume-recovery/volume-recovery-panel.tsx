@@ -15,6 +15,7 @@ import { formatDateKey } from "@/lib/time-zone"
 import { cn } from "@/lib/utils"
 import { LandmarkEditor } from "./landmark-editor"
 import { ReadinessTrend } from "./readiness-trend"
+import { SorenessBodyPicker, buildSorenessPayload, sorestMuscle, type SorenessByMuscle } from "./soreness-body-picker"
 import { VolumeLandmarkBar, volumeZoneClass } from "./volume-landmark-bar"
 
 type CheckInOption = { description: string; label: string; value: number }
@@ -182,7 +183,7 @@ export function CheckInSheet({
   const [sleepMinutePart, setSleepMinutePart] = useState("")
   const [fatigue, setFatigue] = useState<number | null>(null)
   const [stress, setStress] = useState<number | null>(null)
-  const [soreness, setSoreness] = useState<number | null>(null)
+  const [sorenessByMuscle, setSorenessByMuscle] = useState<SorenessByMuscle>({})
 
   const hasSleepDuration = sleepHours !== "" || sleepMinutePart !== ""
   const parsedSleepHours = sleepHours === "" ? 0 : Number(sleepHours)
@@ -212,7 +213,8 @@ export function CheckInSheet({
       ? fatigue != null
       : true
 
-  async function submit() {
+  /** `sorenessAnswered` is false when the last step was skipped rather than saved. */
+  async function submit(sorenessAnswered: boolean) {
     if (fatigue == null || sleepDurationInvalid) return
 
     try {
@@ -220,9 +222,9 @@ export function CheckInSheet({
         // Today in the user's own time zone.
         checkInDate: formatDateKey(new Date()),
         fatigue,
-        // One whole-body answer, recorded against every muscle trained this
-        // week — that is the granularity the volume engine reads.
-        muscles: soreness == null ? [] : muscles.map((muscle) => ({ muscleSlug: muscle.muscleSlug, soreness })),
+        // Rated per muscle, as the volume engine reads it: tapped muscles at
+        // their level, every other one at 0. Skipped, nothing is sent.
+        muscles: buildSorenessPayload(sorenessByMuscle, sorenessAnswered),
         sleepMinutes: hasSleepDuration ? parsedSleepHours * 60 + parsedSleepMinutePart : undefined,
         sleepQuality: sleepQuality ?? undefined,
         stress: stress ?? undefined,
@@ -234,13 +236,19 @@ export function CheckInSheet({
 
   function goNext() {
     if (isLastStep) {
-      void submit()
+      void submit(true)
       return
     }
     setStepIndex((index) => Math.min(index + 1, CHECK_IN_STEPS.length - 1))
   }
 
   if (saved) {
+    const sorest = sorestMuscle(saved.muscles)
+    const sorenessSummary = saved.muscles.length === 0
+      ? "—"
+      : sorest
+        ? `${sorest.soreness}/5 · ${copy.muscleLabels[sorest.muscleSlug as keyof typeof copy.muscleLabels] ?? sorest.muscleSlug}`
+        : "0/5"
     return (
       <BottomSheet ariaLabel={copy.resultTitle} onClose={onClose} variant="flush" className="sm:max-h-[88svh]">
         <BottomSheetBody className="flex flex-col items-center gap-4 py-8 text-center">
@@ -254,7 +262,7 @@ export function CheckInSheet({
               { icon: Moon, label: copy.sleep, value: saved.sleepMinutes == null ? "—" : `${Math.floor(saved.sleepMinutes / 60)}h ${saved.sleepMinutes % 60}m` },
               { icon: Activity, label: copy.fatigue, value: `${saved.fatigue}/5` },
               { icon: Brain, label: copy.stress, value: saved.stress == null ? "—" : `${saved.stress}/5` },
-              { icon: Dumbbell, label: copy.soreness, value: saved.muscles.length === 0 ? "—" : `${Math.max(...saved.muscles.map((muscle) => muscle.soreness))}/5` },
+              { icon: Dumbbell, label: copy.soreness, value: sorenessSummary },
             ].map((item) => (
               <div key={item.label} className="rounded-md bg-surface-subtle p-3 text-left">
                 <item.icon className="size-4 text-primary" aria-hidden="true" />
@@ -272,7 +280,14 @@ export function CheckInSheet({
   }
 
   return (
-    <BottomSheet ariaLabel={copy.formTitle} onClose={onClose} variant="flush" className="sm:max-h-[88svh]">
+    <BottomSheet
+      ariaLabel={copy.formTitle}
+      onClose={onClose}
+      variant="flush"
+      // On the body map the sheet opens at full height, so marking a muscle
+      // (which adds a row) never pushes the figure up under the finger.
+      className={cn("sm:max-h-[88svh]", step === "soreness" && "max-sm:h-full")}
+    >
       <BottomSheetHeader>
         <div className="flex w-full items-center gap-3">
           {stepIndex > 0 ? (
@@ -289,7 +304,9 @@ export function CheckInSheet({
           {canSkip ? (
             <button
               type="button"
-              onClick={goNext}
+              // Skipping the last step saves without a soreness answer, which
+              // is not the same as saving "nothing is sore".
+              onClick={isLastStep ? () => void submit(false) : goNext}
               className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:text-foreground"
             >
               {copy.skip}
@@ -393,17 +410,11 @@ export function CheckInSheet({
         ) : null}
 
         {step === "soreness" ? (
-          <>
-            <OptionList
-              ariaLabel={copy.sorenessStepTitle}
-              options={copy.checkInOptions.soreness}
-              value={soreness}
-              onChange={setSoreness}
-            />
-            {muscles.length > 0 ? (
-              <p className="text-xs text-muted-foreground">{copy.sorenessScope(muscles.length)}</p>
-            ) : null}
-          </>
+          <SorenessBodyPicker
+            value={sorenessByMuscle}
+            onChange={setSorenessByMuscle}
+            trainedSlugs={muscles.map((muscle) => muscle.muscleSlug)}
+          />
         ) : null}
 
         {mutation.error ? <p className="text-sm text-destructive-text">{mutation.error.message || copy.saveError}</p> : null}

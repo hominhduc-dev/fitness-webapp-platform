@@ -59,6 +59,13 @@ describe("ExerciseAnimation", () => {
     expect(screen.getByRole("img")).toHaveAttribute("src", media.animationUrl)
   })
 
+  it("plays straight away under reduced motion when opened on purpose", () => {
+    mockReducedMotion(true)
+    render(<ExerciseAnimation exerciseName="Row" media={media} playOnMount />)
+    expect(screen.getByRole("img")).toHaveAttribute("src", media.animationUrl)
+    expect(screen.queryByRole("button", { name: "Play animation" })).not.toBeInTheDocument()
+  })
+
   it("hides broken media while preserving an accessible unavailable status", () => {
     mockReducedMotion(false)
     render(<ExerciseAnimation exerciseName="Row" media={media} />)
