@@ -30,6 +30,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { AdminBroadcastPanel } from "@/components/admin/admin-broadcast-panel"
 import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
 import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
 import { ExerciseSyncReviewModal } from "@/components/admin/exercise-sync-review-modal"
@@ -594,6 +595,8 @@ const SECTION_DATA = {
   dashboard: ["dashboard", "coachRequests"],
   exercises: ["exercises"],
   foods: [],
+  // The notices panel loads its own audience and history.
+  notifications: [],
   programs: ["programs"],
   requests: ["coachRequests"],
   users: ["users", "dashboard"],
@@ -670,6 +673,7 @@ const VALID_SECTIONS = [
   "programs",
   "exercises",
   "foods",
+  "notifications",
   "audit",
 ] as const satisfies readonly AdminSectionId[]
 
@@ -682,6 +686,7 @@ type AdminSectionId =
   | "programs"
   | "exercises"
   | "foods"
+  | "notifications"
   | "audit"
 
 function AdminConsoleLoadingState({ locale }: { locale: "en" | "vi" }) {
@@ -2456,6 +2461,10 @@ export function AdminConsole() {
 
           <TabsContent value="foods">
             <AdminFoodsPanel locale={locale} />
+          </TabsContent>
+
+          <TabsContent value="notifications">
+            <AdminBroadcastPanel locale={locale} />
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-4">

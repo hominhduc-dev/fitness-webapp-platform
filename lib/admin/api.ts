@@ -21,6 +21,9 @@ import type {
   AdminProgramSummary,
   AdminUserDetail,
   AdminUserListItem,
+  AdminBroadcast,
+  AdminBroadcastAudience,
+  AdminBroadcastTarget,
   ExerciseSyncPreview,
   ExerciseSyncResult,
   ExerciseSyncRow,
@@ -318,6 +321,32 @@ async function reviewAdminCoachSignupRequest(
   )
 
   return mapAdminUserListItem(response.user)
+}
+
+type Envelope<T> = { data: T }
+
+async function fetchAdminBroadcastAudience(accessToken: string): Promise<AdminBroadcastAudience> {
+  return (await request<Envelope<AdminBroadcastAudience>>("/api/admin/broadcasts/audience", accessToken)).data
+}
+
+async function fetchAdminBroadcasts(accessToken: string): Promise<AdminBroadcast[]> {
+  const response = await request<Envelope<{ broadcasts: Array<Omit<AdminBroadcast, "createdAt"> & { createdAt: string }> }>>(
+    "/api/admin/broadcasts",
+    accessToken,
+  )
+  return response.data.broadcasts.map((broadcast) => ({ ...broadcast, createdAt: new Date(broadcast.createdAt) }))
+}
+
+/** Sends a notice to every active trainee and coach, now. */
+async function sendAdminBroadcastRequest(
+  accessToken: string,
+  input: { message: string; target: AdminBroadcastTarget | null; title: string },
+) {
+  const response = await request<Envelope<{ id: string; recipientCount: number }>>("/api/admin/broadcasts", accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+  return response.data
 }
 
 async function fetchAdminUserDetail(accessToken: string, userId: string) {
@@ -739,6 +768,9 @@ export {
   removeAdminExerciseMediaRequest,
   resetAdminUserPasswordRequest,
   reviewAdminCoachSignupRequest,
+  fetchAdminBroadcastAudience,
+  fetchAdminBroadcasts,
+  sendAdminBroadcastRequest,
   reviewAdminCustomFoodRequest,
   reviewAdminExerciseImportRequest,
   saveAdminExerciseMediaRequest,

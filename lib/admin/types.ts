@@ -344,7 +344,32 @@ type ExerciseSyncResult = {
   skippedDeleteCount: number
 }
 
+/** In-app pages a broadcast can open (mirrors the backend's allow-list). */
+type AdminBroadcastTarget = "/dashboard" | "/workout" | "/schedule" | "/meals" | "/progress" | "/profile"
+
+/** Who a broadcast would reach right now: active trainees and coaches. */
+type AdminBroadcastAudience = {
+  accounts: number
+  devices: number
+  usersWithPush: number
+}
+
+type AdminBroadcast = {
+  createdAt: Date
+  id: string
+  message: string
+  push: { failed: number; pending: number; sent: number }
+  read: number
+  recipientCount: number
+  sentBy: string
+  title: string
+  url: string | null
+}
+
 export type {
+  AdminBroadcast,
+  AdminBroadcastAudience,
+  AdminBroadcastTarget,
   AdminAuditLogItem,
   AdminCustomFoodItem,
   AdminCoachOverview,

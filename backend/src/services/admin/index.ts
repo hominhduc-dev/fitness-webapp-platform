@@ -1,4 +1,5 @@
 export * from "./audit"
+export * from "./broadcasts"
 export * from "./coach-requests"
 export * from "./coach-signups"
 export * from "./connections"
