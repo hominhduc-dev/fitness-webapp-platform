@@ -128,6 +128,33 @@ function localizedNotificationCopy(
         title: isVi ? `${trainee} vừa ghi buổi tập` : `${trainee} logged a workout`,
       } : fallback
     }
+    case NotificationType.coach_request: {
+      const kind = text(metadata, "kind")
+      const requester = text(metadata, "requesterName")
+      const accepter = text(metadata, "accepterName")
+      if (kind === "coach_request_received" && requester) {
+        return {
+          body: isVi ? `${requester} muốn bạn làm coach. Chạm để trả lời.` : `${requester} wants you as their coach. Tap to answer.`,
+          title: isVi ? "Yêu cầu học viên mới" : "New trainee request",
+        }
+      }
+      if (kind === "coach_invite_received" && requester) {
+        return {
+          body: isVi ? `${requester} muốn làm coach của bạn. Chạm để trả lời.` : `${requester} wants to be your coach. Tap to answer.`,
+          title: isVi ? "Lời mời kết nối từ coach" : "Coach invitation",
+        }
+      }
+      if (kind === "coach_connection_accepted" && accepter) {
+        const invitation = text(metadata, "opener") === "coach"
+        return {
+          body: isVi
+            ? `${accepter} đã chấp nhận ${invitation ? "lời mời" : "yêu cầu"} của bạn.`
+            : `${accepter} accepted your ${invitation ? "invitation" : "request"}.`,
+          title: isVi ? "Đã kết nối" : "You're connected",
+        }
+      }
+      return fallback
+    }
     default:
       return fallback
   }

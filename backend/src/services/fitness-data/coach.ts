@@ -1,4 +1,5 @@
 export {
+  cancelCoachRequest,
   createBodyMetricForTrainee,
   createCoachCheckInForTrainee,
   createCoachRequestForTrainee,
@@ -12,7 +13,9 @@ export {
   listBodyMetricsForTrainee,
   listAvailableCoachesForTrainee,
   listCoachTrainees,
+  listCoachInvitesForTrainee,
   listCoachWorkoutLogsForTrainee,
+  respondToCoachInvite,
   updateCoachRequestStatus,
   updateWorkoutLogCommentForCoach,
 } from "./core"

@@ -40,6 +40,9 @@ import {
   updateCoachProgram,
   updateWorkoutLogCommentForCoach,
   updateCoachRequestStatus,
+  cancelCoachRequest,
+  listCoachInvitesForTrainee,
+  respondToCoachInvite,
 } from "../services/fitness-data.service"
 import { generateProgramSpreadsheet } from "../services/google-program-generate.service"
 import { getAccessToken, sendError } from "./route.utils"
@@ -66,6 +69,7 @@ import {
   traineeMealPlanParamsSchema,
 } from "./meal.schemas"
 import { sendData, sendApiError } from "./route.utils"
+import { coachRequestAnswerSchema, coachRequestParamsSchema } from "./coach.schemas"
 
 const coachRouter = Router()
 coachRouter.use("/google", googleRouter)
@@ -245,6 +249,32 @@ coachRouter.post("/requests", async (req, res) => {
     sendError(res, error)
   }
 })
+
+// A trainee's side of a coach's invitation: list them, then accept or decline.
+coachRouter.get(
+  "/invites",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { invites: await listCoachInvitesForTrainee(profile) })
+  }),
+)
+
+coachRouter.patch(
+  "/invites/:requestId",
+  validated({ body: coachRequestAnswerSchema, params: coachRequestParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { invite: await respondToCoachInvite(profile, req.params.requestId, req.body.status) })
+  }),
+)
+
+// Whoever opened a pending request (trainee request or coach invite) withdraws it.
+coachRouter.delete(
+  "/requests/:requestId",
+  validated({ params: coachRequestParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await cancelCoachRequest(profile, req.params.requestId))
+  }),
+)
 
 coachRouter.post("/trainee-invites", async (req, res) => {
   try {

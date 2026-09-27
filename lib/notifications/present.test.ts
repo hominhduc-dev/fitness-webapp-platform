@@ -82,4 +82,26 @@ describe("presentNotification", () => {
     const external = notification({ metadata: { url: "//evil.example" }, type: "general" })
     expect(presentNotification(external, getMessages("en"), "en").href).toBeNull()
   })
+
+  it("words coach connection notices for each side in the viewer's language", () => {
+    const invite = notification({
+      metadata: { kind: "coach_invite_received", requesterName: "Coach Khoa", url: "/dashboard" },
+      type: "coach_request",
+    })
+    const accepted = notification({
+      metadata: { accepterName: "Minh", kind: "coach_connection_accepted", opener: "coach", url: "/coach/trainees/t1" },
+      type: "coach_request",
+    })
+
+    expect(presentNotification(invite, getMessages("vi"), "vi")).toEqual({
+      href: "/dashboard",
+      message: "Coach Khoa muốn làm coach của bạn. Chạm để trả lời.",
+      title: "Lời mời kết nối từ coach",
+    })
+    expect(presentNotification(accepted, getMessages("en"), "en")).toEqual({
+      href: "/coach/trainees/t1",
+      message: "Minh accepted your invitation.",
+      title: "You're connected",
+    })
+  })
 })
