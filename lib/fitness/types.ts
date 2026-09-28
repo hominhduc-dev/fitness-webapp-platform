@@ -447,6 +447,7 @@ type CreateCoachProgramInput = {
   description?: string
   difficulty: CoachProgram["difficulty"]
   duration: number
+  goal?: string
   name: string
   /** `YYYY-MM-DD`, or null to clear it and fall back to each assignment date. */
   startDate?: string | null
@@ -731,6 +732,16 @@ type TrainingGuidance = {
   setAdjustmentPct: number
 }
 
+type VolumeRecoveryProgramContext = {
+  baselineWeekStart: string | null
+  goal: string | null
+  hasBaseline: boolean
+  programId: string
+  programWeekIndex: number | null
+  targetRir: number | null
+  targetRpe: number | null
+}
+
 type RecoveryHistoryEntry = {
   checkInDate: string
   fatigue: number
@@ -763,6 +774,7 @@ type VolumeRecoveryData = {
     label: "insufficient_data" | "low" | "moderate" | "ready"
     score: number | null
   }
+  programContext?: VolumeRecoveryProgramContext | null
   summary: {
     averageRir: number | null
     hardSets: number

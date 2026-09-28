@@ -117,10 +117,10 @@ export function useWorkoutLogDetail(logId: string | null) {
   })
 }
 
-export function useVolumeRecovery(options?: { enabled?: boolean; initialData?: VolumeRecoveryData; weekStart?: string }) {
+export function useVolumeRecovery(options?: { enabled?: boolean; initialData?: VolumeRecoveryData; programId?: string | null; weekStart?: string }) {
   return useQuery({
-    queryKey: queryKeys.progress.volumeRecovery(options?.weekStart),
-    queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), options?.weekStart),
+    queryKey: queryKeys.progress.volumeRecovery({ programId: options?.programId, weekStart: options?.weekStart }),
+    queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), { programId: options?.programId, weekStart: options?.weekStart }),
     enabled: options?.enabled ?? true,
     initialData: options?.initialData,
     staleTime: PROGRESS_STALE_TIME_MS,

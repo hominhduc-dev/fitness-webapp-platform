@@ -447,7 +447,8 @@ async function acceptAIProgramForAssignee(
 
   // Revalidate legacy generations too, before any transaction writes begin.
   const mapped = parseAI(mappedProgramSchema, normalizeAIWorkoutOutput(output.mapped))
-  const equipment = parseAI(generateProgramSchema, generation.input, 422).availableEquipment
+  const generationInput = parseAI(generateProgramSchema, generation.input, 422)
+  const equipment = generationInput.availableEquipment
 
   const program = await retryTransaction(() =>
     db.$transaction(async (tx) => {
@@ -462,6 +463,7 @@ async function acceptAIProgramForAssignee(
           description: mapped.description,
           difficulty: mapped.difficulty,
           duration: mapped.duration,
+          goal: generationInput.goal,
           workoutsPerWeek: mapped.workoutsPerWeek,
           isAIGenerated: true,
           createdById: profile.id,
@@ -766,7 +768,8 @@ async function acceptDailyWorkout(profile: SerializedProfile, generationId: stri
     throw new AuthServiceError("Dữ liệu buổi tập AI không hợp lệ.", 400)
   }
   const mapped = parseAI(mappedDailySchema, { ...output.mapped, exercises: normalizeAIWorkoutOutput({ workouts: [output.mapped] }).workouts[0].exercises })
-  const equipment = parseAI(generateDailyWorkoutSchema, generation.input, 422).availableEquipment
+  const generationInput = parseAI(generateDailyWorkoutSchema, generation.input, 422)
+  const equipment = generationInput.availableEquipment
   const scheduledDate = new Date(`${mapped.date}T00:00:00.000Z`)
 
   return retryTransaction(() => db.$transaction(async (tx) => {
@@ -781,6 +784,7 @@ async function acceptDailyWorkout(profile: SerializedProfile, generationId: stri
         description: mapped.description,
         difficulty: mapped.difficulty,
         duration: 1,
+        goal: generationInput.goal,
         workoutsPerWeek: 1,
         isAIGenerated: true,
         createdById: profile.id,

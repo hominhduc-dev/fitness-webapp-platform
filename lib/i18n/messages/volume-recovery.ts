@@ -96,15 +96,15 @@ export const volumeRecoveryMessages = {
       weeklyVolume: "Weekly muscle volume",
       trainingMetrics: {
         title: "Training Metrics",
-        description: "The terms used to read your training volume and recovery.",
-        hardSet: "A set performed close enough to failure to meaningfully stimulate muscle growth.",
+        description: "How RIR, intensity, and recovery shape your training.",
+        hardSet: "A main working set taken close enough to failure to stimulate strength or muscle growth.",
         mev: "Minimum weekly volume needed to make progress.",
         mav: "Your productive training-volume range.",
         mrv: "The most volume you can recover from.",
         e1rm: "Estimated maximum weight you could lift for one rep.",
       },
       noVolume: "Complete a workout with logged reps to calculate muscle volume.",
-      hardSets: "Hard sets",
+      hardSets: "Working sets",
       avgRir: "Avg RIR",
       performance: "Performance",
       recoverySignals: "Recovery signals",
@@ -127,21 +127,21 @@ export const volumeRecoveryMessages = {
       },
       recommendation: (action: string, muscle: string) =>
         action === "increase"
-          ? `${muscle} is below MEV. Consider adding one hard set next week.`
+          ? `${muscle} can take more intensity. Consider lowering RIR next time.`
           : action === "decrease"
-            ? `${muscle} shows declining performance and recovery. Reduce volume slightly.`
+            ? `${muscle} shows declining performance and recovery. Increase RIR to back off.`
             : action === "deload"
-              ? `${muscle} is above MRV with repeated recovery issues. Consider a deload.`
-              : `Keep ${muscle} volume steady while more data is collected.`,
-      sessionHint: (action: string, muscle: string, currentSets: number, recommendedSets: number) =>
+              ? `${muscle} is carrying too much fatigue. Increase RIR for a deload week.`
+              : `Keep ${muscle} RIR steady while more data is collected.`,
+      sessionHint: (action: string, muscle: string, _currentSets: number, _recommendedSets: number) =>
         action === "increase"
-          ? `${muscle}: add a hard set this week (${currentSets} → ${recommendedSets}).`
+          ? `${muscle}: lower RIR next set to raise intensity.`
           : action === "decrease"
-            ? `${muscle}: ease off — ${recommendedSets} hard sets this week instead of ${currentSets}.`
+            ? `${muscle}: increase RIR to ease off and recover.`
             : action === "deload"
-              ? `${muscle}: deload — keep it to ${recommendedSets} hard sets this week.`
-              : `${muscle}: hold at ${currentSets} hard sets while more data is collected.`,
-      addTheSet: "Add the set",
+              ? `${muscle}: deload — increase RIR and keep the set lighter.`
+              : `${muscle}: keep RIR steady while more data is collected.`,
+      addTheSet: "Apply hint",
       formTitle: "Daily recovery check-in",
       formDescription: "A quick check-in improves the confidence of volume recommendations.",
       sleepQuality: "Sleep quality",
@@ -202,8 +202,8 @@ export const volumeRecoveryMessages = {
       },
       guidanceDetail: {
         proceed: "Recovery looks good. Run the session as written.",
-        reduce_volume: "Drop about 15% of the sets, starting with the muscles below.",
-        light_session: "Cut roughly a third of the volume and stop two reps short.",
+        reduce_volume: "Increase RIR and stop earlier on the muscles below.",
+        light_session: "Keep RIR higher today: leave a few reps in reserve.",
         rest: "Signals are low across the board. Take the day off or go for a walk.",
       },
       guidanceReason: {
@@ -214,7 +214,7 @@ export const volumeRecoveryMessages = {
         readiness_very_low: "readiness is very low",
         soreness_high: "soreness is high",
       },
-      guidanceSetAdjustment: (pct: number) => `${pct}% sets`,
+      guidanceSetAdjustment: (pct: number) => `${pct}% intensity`,
       guidanceNoWorkout: "Nothing scheduled today.",
       trend: "Readiness trend",
       trendEmpty: "Check in on two days to see the trend.",
@@ -226,7 +226,7 @@ export const volumeRecoveryMessages = {
       dismiss: "Not now",
       editLandmarks: "Edit landmarks",
       landmarksTitle: "Volume landmarks",
-      landmarksDescription: "Weekly hard sets for this muscle. Each value must be at least the one before it.",
+      landmarksDescription: "Weekly main working sets for this muscle. Each value must be at least the one before it.",
       landmarksSystem: "System default",
       landmarksCoach: "Set by hand",
       landmarksLearned: "Learned",
@@ -252,15 +252,15 @@ export const volumeRecoveryMessages = {
       weeklyVolume: "Volume nhóm cơ trong tuần",
       trainingMetrics: {
         title: "Chỉ số tập luyện",
-        description: "Các thuật ngữ dùng để đọc volume và khả năng phục hồi.",
-        hardSet: "Một set được thực hiện đủ gần ngưỡng thất bại để kích thích cơ phát triển.",
+        description: "Cách RIR, độ khó và phục hồi ảnh hưởng tới buổi tập.",
+        hardSet: "Một set chính được tập đủ gần ngưỡng thất bại để kích thích tăng cơ hoặc sức mạnh.",
         mev: "Khối lượng tối thiểu cần thiết để tạo tiến bộ.",
         mav: "Khoảng volume hiệu quả để cơ thể thích nghi.",
         mrv: "Mức volume cao nhất bạn có thể phục hồi.",
         e1rm: "Mức tạ tối đa ước tính bạn có thể nâng một lần.",
       },
       noVolume: "Hoàn thành một buổi tập có ghi số reps để tính volume nhóm cơ.",
-      hardSets: "Hard sets",
+      hardSets: "Set chính",
       avgRir: "RIR trung bình",
       performance: "Hiệu suất",
       recoverySignals: "Tín hiệu phục hồi",
@@ -283,21 +283,21 @@ export const volumeRecoveryMessages = {
       },
       recommendation: (action: string, muscle: string) =>
         action === "increase"
-          ? `${muscle} đang dưới MEV. Có thể thêm một hard set vào tuần sau.`
+          ? `${muscle} có thể tăng độ khó. Nên giảm RIR ở lần tập tới.`
           : action === "decrease"
-            ? `${muscle} có hiệu suất và phục hồi giảm. Nên giảm nhẹ volume.`
+            ? `${muscle} có hiệu suất và phục hồi giảm. Nên tăng RIR để giảm tải.`
             : action === "deload"
-              ? `${muscle} đang trên MRV với dấu hiệu phục hồi kém lặp lại. Nên cân nhắc deload.`
-              : `Giữ ổn định volume của ${muscle} trong khi tiếp tục thu thập dữ liệu.`,
-      sessionHint: (action: string, muscle: string, currentSets: number, recommendedSets: number) =>
+              ? `${muscle} đang tích lũy mệt mỏi cao. Nên tăng RIR trong tuần deload.`
+              : `Giữ ổn định RIR của ${muscle} trong khi tiếp tục thu thập dữ liệu.`,
+      sessionHint: (action: string, muscle: string, _currentSets: number, _recommendedSets: number) =>
         action === "increase"
-          ? `${muscle}: thêm một hard set trong tuần này (${currentSets} → ${recommendedSets}).`
+          ? `${muscle}: giảm RIR ở set tiếp theo để tăng độ khó.`
           : action === "decrease"
-            ? `${muscle}: giảm nhẹ — ${recommendedSets} hard set tuần này thay vì ${currentSets}.`
+            ? `${muscle}: tăng RIR để giảm tải và phục hồi tốt hơn.`
             : action === "deload"
-              ? `${muscle}: tuần deload — giữ ở mức ${recommendedSets} hard set.`
-              : `${muscle}: giữ nguyên ${currentSets} hard set trong khi thu thập thêm dữ liệu.`,
-      addTheSet: "Thêm set",
+              ? `${muscle}: tuần deload — tăng RIR và tập nhẹ hơn.`
+              : `${muscle}: giữ nguyên RIR trong khi thu thập thêm dữ liệu.`,
+      addTheSet: "Áp dụng gợi ý",
       formTitle: "Check-in phục hồi hằng ngày",
       formDescription: "Một check-in nhanh giúp đề xuất volume đáng tin cậy hơn.",
       sleepQuality: "Chất lượng giấc ngủ",
@@ -358,8 +358,8 @@ export const volumeRecoveryMessages = {
       },
       guidanceDetail: {
         proceed: "Phục hồi tốt. Cứ tập đúng giáo án.",
-        reduce_volume: "Bớt khoảng 15% số set, ưu tiên bớt ở các nhóm cơ bên dưới.",
-        light_session: "Giảm khoảng một phần ba khối lượng và dừng sớm hai rep.",
+        reduce_volume: "Tăng RIR và dừng sớm hơn ở các nhóm cơ bên dưới.",
+        light_session: "Giữ RIR cao hơn hôm nay: chừa lại vài rep dự trữ.",
         rest: "Các tín hiệu đều thấp. Nghỉ hoặc đi bộ nhẹ hôm nay.",
       },
       guidanceReason: {
@@ -370,7 +370,7 @@ export const volumeRecoveryMessages = {
         readiness_very_low: "mức sẵn sàng rất thấp",
         soreness_high: "đau mỏi ở mức cao",
       },
-      guidanceSetAdjustment: (pct: number) => `${pct}% số set`,
+      guidanceSetAdjustment: (pct: number) => `${pct}% độ khó`,
       guidanceNoWorkout: "Hôm nay không có buổi nào trong lịch.",
       trend: "Xu hướng sẵn sàng",
       trendEmpty: "Check-in ít nhất hai ngày để thấy xu hướng.",
@@ -382,7 +382,7 @@ export const volumeRecoveryMessages = {
       dismiss: "Để sau",
       editLandmarks: "Chỉnh ngưỡng",
       landmarksTitle: "Ngưỡng volume",
-      landmarksDescription: "Số set nặng mỗi tuần cho nhóm cơ này. Mỗi giá trị phải lớn hơn hoặc bằng giá trị trước.",
+      landmarksDescription: "Số set chính mỗi tuần cho nhóm cơ này. Mỗi giá trị phải lớn hơn hoặc bằng giá trị trước.",
       landmarksSystem: "Mặc định hệ thống",
       landmarksCoach: "Tự đặt",
       landmarksLearned: "Hệ thống học được",

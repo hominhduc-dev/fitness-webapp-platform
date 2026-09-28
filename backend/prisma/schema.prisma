@@ -594,6 +594,9 @@ model Program {
   forks               Program[]           @relation("ProgramFork")
   googleSpreadsheetId String?
   googleSheetName     String?
+  /// Training intent for program-scoped analysis, e.g. build_muscle,
+  /// hypertrophy, strength, endurance. Null keeps legacy programs compatible.
+  goal                String?
   createdById         String              @db.Uuid
   createdBy           User                @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Cascade)
   workouts            Workout[]

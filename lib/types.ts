@@ -307,6 +307,7 @@ export interface Program {
   forkedFromProgramId?: string
   googleSpreadsheetId?: string
   googleSheetName?: string
+  goal?: string
   name: string
   description?: string
   duration: number // weeks

@@ -863,6 +863,7 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
     googleSpreadsheetId: program.googleSpreadsheetId,
     googleSheetName: program.googleSheetName,
     googleSheetConflict: program.googleSheetConflict,
+    goal: program.goal,
     id: program.id,
     name: program.name,
     startDate: program.startDate,
@@ -1437,9 +1438,13 @@ async function fetchProgressAnalytics(accessToken: string): Promise<ProgressAnal
   return mapProgressAnalytics(response.analytics)
 }
 
-async function fetchVolumeRecovery(accessToken: string, weekStart?: string): Promise<VolumeRecoveryData> {
+async function fetchVolumeRecovery(
+  accessToken: string,
+  options?: { programId?: string | null; weekStart?: string },
+): Promise<VolumeRecoveryData> {
   const searchParams = new URLSearchParams()
-  if (weekStart) searchParams.set("weekStart", weekStart)
+  if (options?.weekStart) searchParams.set("weekStart", options.weekStart)
+  if (options?.programId) searchParams.set("programId", options.programId)
   const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : ""
   const response = await request<ApiEnvelope<VolumeRecoveryData>>(
     `/api/progress/volume-recovery${suffix}`,

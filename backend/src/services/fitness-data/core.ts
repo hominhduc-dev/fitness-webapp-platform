@@ -366,6 +366,7 @@ type CoachProgramInput = {
   description?: string | null
   difficulty: ProgramDifficulty
   duration: number
+  goal?: string | null
   name: string
   /** `YYYY-MM-DD`; when set, week 1 starts here for every assigned trainee. */
   startDate?: string | null
@@ -1637,6 +1638,7 @@ function serializeProgram(program: ProgramRecord, options?: { viewerId?: string 
     googleSpreadsheetId: program.googleSpreadsheetId ?? undefined,
     googleSheetName: program.googleSheetName ?? undefined,
     forkedFromProgramId: program.forkedFromProgramId ?? undefined,
+    goal: program.goal ?? undefined,
     id: program.id,
     name: program.name,
     startDate: program.startDate ? formatUtcDateOnly(program.startDate) : undefined,
@@ -2047,6 +2049,20 @@ function isAssignmentProgramFinished(assignedAt: Date, weekStart: Date, duration
 // must not be read as "belongs to no week".
 function normalizeWeekIndexForVisibility(weekIndex: number | null | undefined) {
   return typeof weekIndex === "number" && Number.isFinite(weekIndex) ? Math.max(0, Math.round(weekIndex)) : 0
+}
+
+function resolveProgramWorkoutPlannedDate(
+  workout: Pick<WorkoutRecord, "scheduledDate" | "scheduledDay" | "weekIndex">,
+  anchorDate: Date | null | undefined,
+) {
+  if (workout.scheduledDate) return workout.scheduledDate
+  if (!anchorDate || typeof workout.scheduledDay !== "number") return undefined
+
+  const weekIndex = normalizeWeekIndexForVisibility(workout.weekIndex)
+  const dayIndex = DISPLAY_WEEKDAY_ORDER.indexOf(workout.scheduledDay)
+  if (dayIndex < 0) return undefined
+
+  return addUtcDays(startOfUtcWeek(anchorDate), weekIndex * 7 + dayIndex)
 }
 
 /**
@@ -4349,10 +4365,25 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
   // exercise the trainee is actually going to do.
   await applyTraineeExerciseOverrides([workout as WorkoutWithProgramRecord], profile.id)
 
+  const assignment = workout.programId
+    ? await db.programAssignment.findUnique({
+        where: {
+          programId_userId: {
+            programId: workout.programId,
+            userId: profile.id,
+          },
+        },
+      })
+    : null
+  const plannedReferenceDate = resolveProgramWorkoutPlannedDate(
+    workout as WorkoutWithProgramRecord,
+    workout.program ? resolveProgramAnchorDate(workout.program.startDate, assignment?.assignedAt ?? workout.program.createdAt) : null,
+  )
   const previousPerformanceByWorkoutExerciseId = await buildPreviousSetPerformanceByWorkoutExercise(
     profile.id,
     workout.exercises as WorkoutExerciseRecord[],
     { programId: workout.programId, workoutId: workout.id },
+    plannedReferenceDate ?? new Date(),
   )
   const coachUpdatesByWorkoutExerciseId = await buildCoachUpdatesForAdjustedWorkout(
     profile,
@@ -5642,6 +5673,7 @@ async function createCoachProgram(
     description?: string | null
     difficulty: ProgramDifficulty
     duration: number
+    goal?: string | null
     startDate?: string | null
     name: string
     googleSpreadsheetId?: string
@@ -5727,6 +5759,7 @@ async function createCoachProgram(
         description: input.description?.trim() || undefined,
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
+        goal: input.goal?.trim() || undefined,
         id: programId,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
@@ -6087,6 +6120,7 @@ async function adjustCoachProgramForTrainee(
     description?: string | null
     difficulty: ProgramDifficulty
     duration: number
+    goal?: string | null
     name: string
     startDate?: string | null
     workouts: Array<{
@@ -6194,6 +6228,7 @@ async function adjustCoachProgramForTrainee(
         description: input.description?.trim() || undefined,
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
+        goal: input.goal?.trim() || existingProgram.goal || undefined,
         id: programId,
         googleSpreadsheetId: keepsSpreadsheetLink ? existingProgram.googleSpreadsheetId : undefined,
         googleSheetName: keepsSpreadsheetLink ? existingProgram.googleSheetName : undefined,

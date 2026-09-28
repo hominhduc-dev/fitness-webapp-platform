@@ -135,6 +135,7 @@ function parseProgramInput(body: Record<string, unknown>) {
     startDate: typeof body.startDate === "string" ? body.startDate : null,
     googleSpreadsheetId: typeof body.googleSpreadsheetId === "string" ? body.googleSpreadsheetId : undefined,
     googleSheetName: typeof body.googleSheetName === "string" ? body.googleSheetName : undefined,
+    goal: typeof body.goal === "string" ? body.goal : undefined,
     workouts: Array.isArray(body.workouts)
       ? body.workouts.map((workout: unknown) => {
           const record = workout && typeof workout === "object" ? workout : {}

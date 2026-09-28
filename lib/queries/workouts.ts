@@ -114,11 +114,11 @@ export function useTraineePrograms(programIds: string[], enabled: boolean) {
   })) })
 }
 
-/** The default gcTime: an in-memory session seed younger than this is reused as-is. */
+/** The default gcTime: offline-restored active-session seeds older than this must refresh first. */
 export const ACTIVE_SESSION_SEED_REUSE_MS = 5 * 60_000
 
 function activeSessionStaleTime(query: Query<Workout>) {
-  return Date.now() - query.state.dataUpdatedAt > ACTIVE_SESSION_SEED_REUSE_MS ? 0 : "static" as const
+  return Date.now() - query.state.dataUpdatedAt > ACTIVE_SESSION_SEED_REUSE_MS ? 0 : 0
 }
 
 export function useWorkoutDetail(workoutId: string, options: { initialData?: Workout; enabled?: boolean; activeSession?: boolean; select?: (workout: Workout) => Workout } = {}) {
@@ -128,9 +128,9 @@ export function useWorkoutDetail(workoutId: string, options: { initialData?: Wor
     initialData: options.initialData,
     enabled: Boolean(workoutId) && (options.enabled ?? true),
     select: options.select,
-    // Static also blocks invalidation refetches; Infinity alone does not. A seed
-    // older than the reuse window can only have been restored from storage, so
-    // it goes stale and refetches once rather than starting a session from it.
+    // Active sessions need fresh workout detail because program-list seeds do
+    // not include previousPerformance. Once the session state is built, the page
+    // disables this query so the refetch cannot overwrite in-progress edits.
     ...(options.activeSession ? { staleTime: activeSessionStaleTime, refetchOnMount: true as const,
       refetchOnWindowFocus: false as const, refetchOnReconnect: false as const } : {}),
   })

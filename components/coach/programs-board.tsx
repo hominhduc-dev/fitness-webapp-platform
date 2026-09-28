@@ -51,6 +51,7 @@ function toCreateInput(program: CoachProgram, name: string): CreateCoachProgramI
     description: program.description,
     difficulty: program.difficulty,
     duration: program.duration,
+    goal: program.goal,
     assignToUserIds: [],
     workouts: program.workouts.map((workout) => ({
       name: workout.name,
