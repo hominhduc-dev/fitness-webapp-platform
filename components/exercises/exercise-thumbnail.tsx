@@ -16,6 +16,9 @@ const SIZES = {
   lg: { className: "size-[72px] rounded-2xl", pixels: 72 },
 } as const
 
+/** The list thumbnail is 144px, sharp up to 48px at 3x; larger frames take the poster. */
+const THUMBNAIL_MAX_PIXELS = 48
+
 const FRAME_CLASS_NAME =
   "relative inline-flex shrink-0 items-center justify-center overflow-hidden border border-border bg-surface-subtle text-muted-foreground"
 
@@ -63,7 +66,7 @@ export function ExerciseThumbnail({
       height={pixels}
       loading="lazy"
       onError={() => setFailed(true)}
-      src={media.thumbnailUrl}
+      src={pixels > THUMBNAIL_MAX_PIXELS ? media.posterUrl ?? media.thumbnailUrl : media.thumbnailUrl}
       unoptimized
       width={pixels}
     />

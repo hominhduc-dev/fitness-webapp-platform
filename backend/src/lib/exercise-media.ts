@@ -2,6 +2,19 @@ import { env } from "../config/env"
 
 const EXERCISE_MEDIA_DIMENSION = 180 as const
 
+/**
+ * Cloudinary bills delivered bytes, so every URL asks for the size it is shown
+ * at instead of the original upload. The resize is chained after any stored
+ * transform, and `c_limit` only ever scales down. Sizes are fixed on purpose:
+ * each distinct transform is generated (and billed) once per asset.
+ *
+ * - Thumbnails fill 40–48px list rows, 144px covers them at 3x.
+ * - The poster and the animation fill the 180px player, 360px covers it at 2x.
+ */
+const THUMBNAIL_SIZE_TRANSFORM = "c_limit,f_auto,h_144,q_auto,w_144"
+const POSTER_SIZE_TRANSFORM = "c_limit,f_auto,h_360,q_auto,w_360"
+const ANIMATION_SIZE_TRANSFORM = "c_limit,h_360,w_360"
+
 type JsonRecord = Record<string, unknown>
 type ExerciseMediaType = "gif" | "video"
 type ExerciseMediaKind = "thumbnail" | "animation"
@@ -10,6 +23,8 @@ type ExerciseMediaSource = "custom" | "cdn"
 type SerializedExerciseMedia = {
   animationUrl: string
   height: typeof EXERCISE_MEDIA_DIMENSION
+  /** The still frame at player size; lists use the smaller `thumbnailUrl`. */
+  posterUrl?: string
   thumbnailUrl: string
   type: ExerciseMediaType
   width: typeof EXERCISE_MEDIA_DIMENSION
@@ -130,6 +145,10 @@ function asCloudinaryVersion(value: unknown) {
   return undefined
 }
 
+function withSize(transform: string | undefined, size: string) {
+  return transform ? `${transform}/${size}` : size
+}
+
 function cloudinaryAssetUrl(input: {
   cloudName: string
   deliveryType: string
@@ -168,6 +187,15 @@ function serializeCustomMedia(media: JsonRecord | undefined, cloudName = env.clo
 
   const animationResourceType = asCloudinaryToken(media.animationResourceType)
     ?? (media.animationType === "video" ? "video" : "image")
+  const thumbnailUrl = (size: string) => cloudinaryAssetUrl({
+    cloudName: resolvedCloudName,
+    deliveryType: "upload",
+    extension: "jpg",
+    publicId: thumbnailPublicId,
+    resourceType: asCloudinaryToken(media.thumbnailResourceType) ?? "image",
+    transform: size,
+    version: asCloudinaryVersion(media.thumbnailVersion),
+  })
 
   return {
     animationUrl: cloudinaryAssetUrl({
@@ -176,19 +204,12 @@ function serializeCustomMedia(media: JsonRecord | undefined, cloudName = env.clo
       extension: "mp4",
       publicId: animationPublicId,
       resourceType: animationResourceType,
-      transform: animationResourceType === "video" ? "f_auto,q_auto" : "f_mp4,q_auto",
+      transform: withSize(animationResourceType === "video" ? "f_auto,q_auto" : "f_mp4,q_auto", ANIMATION_SIZE_TRANSFORM),
       version: asCloudinaryVersion(media.animationVersion),
     }),
     height: EXERCISE_MEDIA_DIMENSION,
-    thumbnailUrl: cloudinaryAssetUrl({
-      cloudName: resolvedCloudName,
-      deliveryType: "upload",
-      extension: "jpg",
-      publicId: thumbnailPublicId,
-      resourceType: asCloudinaryToken(media.thumbnailResourceType) ?? "image",
-      transform: "f_auto,q_auto",
-      version: asCloudinaryVersion(media.thumbnailVersion),
-    }),
+    posterUrl: thumbnailUrl(POSTER_SIZE_TRANSFORM),
+    thumbnailUrl: thumbnailUrl(THUMBNAIL_SIZE_TRANSFORM),
     type: "video",
     width: EXERCISE_MEDIA_DIMENSION,
   }
@@ -207,6 +228,15 @@ function serializeCdnMedia(media: JsonRecord | undefined, cloudName = env.cloudi
   const thumbnailTransform = asCloudinaryPath(media?.thumbnailTransform)
   const animationResourceType = asCloudinaryToken(media?.animationResourceType) ?? "video"
   const thumbnailResourceType = asCloudinaryToken(media?.thumbnailResourceType) ?? "image"
+  const thumbnailUrl = (size: string) => cloudinaryAssetUrl({
+    cloudName,
+    deliveryType,
+    extension: "jpg",
+    publicId: thumbnailPublicId,
+    resourceType: thumbnailResourceType,
+    transform: withSize(thumbnailTransform, size),
+    version,
+  })
 
   return {
     animationUrl: cloudinaryAssetUrl({
@@ -215,19 +245,12 @@ function serializeCdnMedia(media: JsonRecord | undefined, cloudName = env.cloudi
       extension: "mp4",
       publicId: animationPublicId,
       resourceType: animationResourceType,
-      transform: animationTransform,
+      transform: withSize(animationTransform, ANIMATION_SIZE_TRANSFORM),
       version,
     }),
     height: EXERCISE_MEDIA_DIMENSION,
-    thumbnailUrl: cloudinaryAssetUrl({
-      cloudName,
-      deliveryType,
-      extension: "jpg",
-      publicId: thumbnailPublicId,
-      resourceType: thumbnailResourceType,
-      transform: thumbnailTransform,
-      version,
-    }),
+    posterUrl: thumbnailUrl(POSTER_SIZE_TRANSFORM),
+    thumbnailUrl: thumbnailUrl(THUMBNAIL_SIZE_TRANSFORM),
     type: "video",
     width: EXERCISE_MEDIA_DIMENSION,
   }

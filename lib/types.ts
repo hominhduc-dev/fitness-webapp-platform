@@ -59,6 +59,8 @@ export interface ExerciseMuscleProfile {
 export interface ExerciseMedia {
   animationUrl: string
   height: 180
+  /** The still frame at player size; lists use the smaller `thumbnailUrl`. */
+  posterUrl?: string
   thumbnailUrl: string
   type?: "gif" | "video"
   width: 180

@@ -51,9 +51,10 @@ describe("serializeExerciseMedia", () => {
 
     expect(resolved).toEqual({
       media: {
-        animationUrl: "https://res.cloudinary.com/demo/video/upload/q_auto/f_mp4/v1234567890/exercise-media/yeahbuddy/hevy-123/animation.mp4",
+        animationUrl: "https://res.cloudinary.com/demo/video/upload/q_auto/f_mp4/c_limit,h_360,w_360/v1234567890/exercise-media/yeahbuddy/hevy-123/animation.mp4",
         height: 180,
-        thumbnailUrl: "https://res.cloudinary.com/demo/image/upload/c_fill,w_180,h_180/so_0/v1234567890/exercise-media/yeahbuddy/hevy-123/thumbnail.jpg",
+        posterUrl: "https://res.cloudinary.com/demo/image/upload/c_fill,w_180,h_180/so_0/c_limit,f_auto,h_360,q_auto,w_360/v1234567890/exercise-media/yeahbuddy/hevy-123/thumbnail.jpg",
+        thumbnailUrl: "https://res.cloudinary.com/demo/image/upload/c_fill,w_180,h_180/so_0/c_limit,f_auto,h_144,q_auto,w_144/v1234567890/exercise-media/yeahbuddy/hevy-123/thumbnail.jpg",
         type: "video",
         width: 180,
       },
@@ -109,12 +110,16 @@ describe("custom exercise media", () => {
       },
     })
 
-    // An animated image is delivered as MP4, which is far smaller than the GIF it replaces.
+    // An animated image is delivered as MP4, which is far smaller than the GIF it
+    // replaces, and every file is scaled down to the size it is shown at.
     expect(resolved?.media.animationUrl).toBe(
-      "https://res.cloudinary.com/demo/image/upload/f_mp4,q_auto/v123/exercise-media/admin/variation/animation-id.mp4",
+      "https://res.cloudinary.com/demo/image/upload/f_mp4,q_auto/c_limit,h_360,w_360/v123/exercise-media/admin/variation/animation-id.mp4",
+    )
+    expect(resolved?.media.posterUrl).toBe(
+      "https://res.cloudinary.com/demo/image/upload/c_limit,f_auto,h_360,q_auto,w_360/v124/exercise-media/admin/variation/thumbnail-id.jpg",
     )
     expect(resolved?.media.thumbnailUrl).toBe(
-      "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/v124/exercise-media/admin/variation/thumbnail-id.jpg",
+      "https://res.cloudinary.com/demo/image/upload/c_limit,f_auto,h_144,q_auto,w_144/v124/exercise-media/admin/variation/thumbnail-id.jpg",
     )
     expect(resolved?.media.type).toBe("video")
   })
