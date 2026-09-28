@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 
 import { ProgramEditorLazy } from "@/components/coach/program-editor-lazy"
 import { COACH_DATA_STALE_TIME_MS, useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
-import { useExercises, useExerciseLibrary } from "@/lib/queries/exercises"
+import { useExercises } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { useQueryClient } from "@tanstack/react-query"
 import { userQueryKey } from "@/lib/queries/scoped"
@@ -27,7 +27,6 @@ import {
   fetchCoachTrainees,
   restoreCoachProgram,
 } from "@/lib/fitness/api"
-import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
 import type {
   AssignedTrainee,
   CoachProgram,
@@ -102,15 +101,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   // The 4k+ exercise catalogue is only needed by the import dialog. Program
   // cards and assignment actions should not pay that cost during initial load.
   const importExercisesQuery = useExercises(undefined, undefined, importOpen)
-  const importLibraryQuery = useExerciseLibrary(undefined, undefined, importOpen)
-  const exerciseOptions = useMemo(() => {
-    if (initialExerciseOptions?.length) return initialExerciseOptions
-    if (!importExercisesQuery.data || !importLibraryQuery.data) return []
-    return mergeExerciseOptions(
-      importExercisesQuery.data,
-      flattenExerciseLibraryToVariationOptions(importLibraryQuery.data),
-    )
-  }, [initialExerciseOptions, importExercisesQuery.data, importLibraryQuery.data])
+  const exerciseOptions = initialExerciseOptions?.length ? initialExerciseOptions : importExercisesQuery.data ?? []
   const createProgram = useCoachMutation(createCoachProgram)
   const archiveProgram = useCoachMutation(archiveCoachProgram)
   const restoreProgram = useCoachMutation(restoreCoachProgram)

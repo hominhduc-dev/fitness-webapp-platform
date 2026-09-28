@@ -23,7 +23,7 @@ import {
 import { useMemo, useState } from "react"
 
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
-import { useExercises, useExerciseLibrary } from "@/lib/queries/exercises"
+import { useExercises } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -42,7 +42,6 @@ import {
   unlinkGoogleSheetFromCoachProgram,
   updateCoachProgram,
 } from "@/lib/fitness/api"
-import { flattenExerciseLibraryToVariationOptions, mergeExerciseOptions } from "@/lib/fitness/exercise-options"
 import {
   MAX_WEEKS,
   MIN_WEEKS,
@@ -585,11 +584,10 @@ export function ProgramEditor({
   const [daysPerWeek, setDaysPerWeek] = useState("4")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
   const { data: traineeOptions = initialTraineeOptions } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTraineeOptions)
+  // `/api/exercises` already lists every variation this coach can see; the
+  // grouped `/library` response holds the same rows, so it is not fetched here.
   const rawExercisesQuery = useExercises()
-  const libraryQuery = useExerciseLibrary()
-  const exercisesQuery = { data: useMemo(() => rawExercisesQuery.data && libraryQuery.data
-    ? mergeExerciseOptions(rawExercisesQuery.data, flattenExerciseLibraryToVariationOptions(libraryQuery.data))
-    : initialExerciseOptions, [rawExercisesQuery.data, libraryQuery.data, initialExerciseOptions]) }
+  const exercisesQuery = { data: rawExercisesQuery.data ?? initialExerciseOptions }
   const programQuery = useCoachData(queryKeys.coach.program(programId ?? ""), (token) => fetchCoachProgram(token, programId!), undefined, Boolean(programId))
   const createProgram = useCoachMutation(createCoachProgram)
   const updateProgram = useCoachMutation(updateCoachProgram)

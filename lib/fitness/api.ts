@@ -1837,8 +1837,9 @@ async function fetchExercises(
   const response = await request<{ exercises: SerializedExerciseVariationOption[] }>(
     `/api/exercises${buildExerciseQuery(options)}`,
     accessToken,
+    // Revalidate the browser's copy: an unchanged catalogue comes back as a 304.
     {
-      cache: "no-store",
+      cache: "no-cache",
     },
   )
 
@@ -1863,8 +1864,9 @@ async function fetchExerciseLibrary(
   const response = await request<{ exercises: SerializedExerciseLibraryExercise[] }>(
     `/api/exercises/library${buildExerciseQuery(options)}`,
     accessToken,
+    // Revalidate the browser's copy: an unchanged catalogue comes back as a 304.
     {
-      cache: "no-store",
+      cache: "no-cache",
     },
   )
   return response.exercises.map(mapExerciseLibraryExercise)
