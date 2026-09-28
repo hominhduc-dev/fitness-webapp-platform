@@ -4,7 +4,8 @@
 // activate handler deletes any `yeahbuddy-*` cache not listed here.
 const STATIC_CACHE = "yeahbuddy-static-v1"
 const PAGES_CACHE = "yeahbuddy-pages-v1"
-const CURRENT_CACHES = [STATIC_CACHE, PAGES_CACHE]
+const MEDIA_CACHE = "yeahbuddy-media-v1"
+const CURRENT_CACHES = [STATIC_CACHE, PAGES_CACHE, MEDIA_CACHE]
 
 const OFFLINE_URL = "/offline.html"
 const PRECACHE_URLS = [
@@ -19,6 +20,10 @@ const PRECACHE_URLS = [
 // Hashed build output accumulates across deploys; pages hold per-user HTML.
 const MAX_STATIC_ENTRIES = 400
 const MAX_PAGE_ENTRIES = 24
+// Exercise thumbnails and posters. Cloudinary bills every byte it delivers and
+// iOS evicts its HTTP cache freely, so the installed app keeps its own copy.
+const MAX_MEDIA_ENTRIES = 300
+const MEDIA_ORIGIN = "https://res.cloudinary.com"
 
 // Data belongs to TanStack Query and the IndexedDB sync queue, never to this
 // cache: a stale API response served here would bypass both.
@@ -99,6 +104,12 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return
 
   const url = new URL(request.url)
+  // Versioned Cloudinary URLs never change content. Only images: video is
+  // fetched in byte ranges, which a cache cannot answer.
+  if (url.origin === MEDIA_ORIGIN && request.destination === "image") {
+    event.respondWith(cacheFirstMedia(event, request))
+    return
+  }
   if (url.origin !== self.location.origin) return
   if (BYPASS_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return
 
@@ -132,6 +143,18 @@ async function cacheFirst(event, request) {
   if (response.ok && (response.headers.get("Cache-Control") || "").includes("immutable")) {
     event.waitUntil(putAndTrim(cache, request, response.clone(), MAX_STATIC_ENTRIES))
   }
+  return response
+}
+
+async function cacheFirstMedia(event, request) {
+  const cache = await caches.open(MEDIA_CACHE)
+  const cached = await cache.match(request.url)
+  if (cached) return cached
+
+  // Fetched with CORS (Cloudinary allows any origin) rather than the image's
+  // no-cors: an opaque response would count several MB against the quota.
+  const response = await fetch(request.url, { credentials: "omit", mode: "cors" })
+  if (response.ok) event.waitUntil(putAndTrim(cache, request.url, response.clone(), MAX_MEDIA_ENTRIES))
   return response
 }
 

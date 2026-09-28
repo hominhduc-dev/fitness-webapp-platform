@@ -42,7 +42,8 @@ function ExerciseAnimation({ exerciseName, media, playOnMount = false }: Exercis
   }
 
   const showAnimation = reducedMotion === false || manualPlayback
-  const source = showAnimation ? media.animationUrl : media.thumbnailUrl
+  const poster = media.posterUrl ?? media.thumbnailUrl
+  const source = showAnimation ? media.animationUrl : poster
   const isVideo = media.type === "video" || media.animationUrl.toLowerCase().endsWith(".mp4")
 
   const playAnimation = () => {
@@ -68,7 +69,7 @@ function ExerciseAnimation({ exerciseName, media, playOnMount = false }: Exercis
               muted
               onError={() => setUnavailable(true)}
               playsInline
-              poster={media.thumbnailUrl}
+              poster={poster}
               src={showAnimation ? media.animationUrl : undefined}
             />
           ) : (
