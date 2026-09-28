@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Undo2,
   Search,
+  Share2,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -110,10 +111,23 @@ type FormData = {
   primaryMuscles: MuscleSlug[]
   secondaryMuscles: MuscleSlug[]
   equipment: string
+  /** Set only by a form that offers sharing: also send it for admin review. */
+  shareRequested?: boolean
 }
 
 function getExercisePanelCopy(locale: "en" | "vi") {
   return {
+    offerShare: locale === "en" ? "Suggest for the shared library" : "Đề xuất dùng chung cho mọi người",
+    offerShareHint:
+      locale === "en"
+        ? "You can use it right away. An admin reviews it before other coaches and trainees see it."
+        : "Bạn dùng được ngay. Admin duyệt xong thì coach và trainee khác mới thấy.",
+    requestShare: locale === "en" ? "Suggest for shared library" : "Đề xuất dùng chung",
+    shareStatus: {
+      pending: locale === "en" ? "Awaiting review" : "Chờ duyệt",
+      rejected: locale === "en" ? "Not shared" : "Chưa được duyệt",
+      shared: locale === "en" ? "Shared" : "Dùng chung",
+    },
     addToLibrary: locale === "en" ? "Add to library" : "Thêm vào thư viện",
     approve: locale === "en" ? "Approve" : "Duyệt",
     approveProfile: locale === "en" ? "Approve muscle profile" : "Duyệt profile cơ",
@@ -592,18 +606,38 @@ function ExerciseComboboxSingleSelect({
 /* ------------------------------------------------------------------ */
 
 type ExerciseFormModalProps = {
+  /** Offer media files when creating; only admins can upload them. */
+  allowMedia?: boolean
   initial: AdminExerciseItem | null
+  /** Prefills the name of a new exercise, e.g. with what a picker search found nothing for. */
+  initialName?: string
   locale: "en" | "vi"
   /** Media upload for the exercise being edited; it saves independently of the form. */
   mediaEditor?: ReactNode
+  /** A coach's new exercise: offer to send it for review, ticked by default. */
+  offerShare?: boolean
   saving: boolean
+  /** Opened on top of another dialog (an exercise picker), so it layers above it. */
+  stacked?: boolean
   onClose: () => void
   onSave: (data: FormData) => void
 }
 
-function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSave }: ExerciseFormModalProps) {
+export function ExerciseFormModal({
+  allowMedia = true,
+  initial,
+  initialName,
+  locale,
+  mediaEditor,
+  offerShare = false,
+  saving,
+  stacked = false,
+  onClose,
+  onSave,
+}: ExerciseFormModalProps) {
   const copy = getExercisePanelCopy(locale)
-  const [name, setName] = useState(initial?.name ?? "")
+  const [name, setName] = useState(initial?.name ?? initialName ?? "")
+  const [shareRequested, setShareRequested] = useState(true)
   const [variationName, setVariation] = useState(initial?.variationName === "Default" ? "" : (initial?.variationName ?? ""))
   const [muscleGroup, setMuscle] = useState(initial?.muscleGroup ?? MUSCLES[0])
   const [equipment, setEquipment] = useState(initial?.equipment ?? EQUIP[0])
@@ -661,13 +695,17 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
       name: name.trim(),
       primaryMuscles,
       secondaryMuscles,
+      shareRequested: offerShare && !initial ? shareRequested : undefined,
       variationName: variationName.trim() || "Default",
     })
   }
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="flex max-h-[90vh] max-w-[560px] flex-col gap-0 overflow-hidden rounded-xl p-0">
+      <DialogContent
+        overlayClassName={stacked ? "z-[105]" : undefined}
+        className={cn("flex max-h-[90vh] max-w-[560px] flex-col gap-0 overflow-hidden rounded-xl p-0", stacked && "z-[110]")}
+      >
         <VisuallyHidden>
           <DialogTitle>{initial ? copy.editExercise : copy.newExercise}</DialogTitle>
         </VisuallyHidden>
@@ -683,9 +721,9 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {initial ? mediaEditor : (
+          {initial ? mediaEditor : allowMedia ? (
             <CreateExerciseMediaDraft files={mediaFiles} locale={locale} onChange={setMediaFiles} />
-          )}
+          ) : null}
 
           {/* Name */}
           <div>
@@ -774,6 +812,20 @@ function ExerciseFormModal({ initial, locale, mediaEditor, saving, onClose, onSa
             </div>
           </div>
 
+          {offerShare && !initial ? (
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3">
+              <Checkbox
+                checked={shareRequested}
+                onCheckedChange={(checked) => setShareRequested(checked === true)}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">{copy.offerShare}</span>
+                <span className="block text-xs text-muted-foreground">{copy.offerShareHint}</span>
+              </span>
+            </label>
+          ) : null}
+
         </div>
 
         {/* Footer */}
@@ -814,6 +866,8 @@ type GroupBlockProps = {
   onTransferMetadata?: (e: AdminExerciseItem) => void
   /** Offered on a row whose newest metadata change is a transfer that can be undone. */
   onUndoMetadataTransfer?: (e: AdminExerciseItem) => void
+  /** A coach offers their own private or declined exercise to the shared library. */
+  onRequestShare?: (e: AdminExerciseItem) => void
   transferringId?: string | null
 }
 
@@ -821,21 +875,29 @@ type GroupBlockProps = {
 const TRANSFER_PICKER_LIMIT = 50
 
 /**
- * A search box over the variations that have media, instead of a native select
- * with hundreds of options. Each match shows its thumbnail, so two exercises
+ * A search box over library variations, instead of a native select with
+ * hundreds of options. Each match shows its thumbnail, so two exercises
  * with the same name (e.g. two "machine shoulder press") can be told apart.
  */
-function TransferSourcePicker({
+export function VariationSearchPicker({
   candidates,
+  emptyLabel,
+  inputId = "transfer-source-search",
   label,
   locale,
   onChange,
+  selectedPrefix,
   value,
 }: {
   candidates: AdminExerciseItem[]
+  /** Shown when nothing matches; defaults to the metadata-transfer wording. */
+  emptyLabel?: string
+  inputId?: string
   label: string
   locale: "en" | "vi"
   onChange: (id: string) => void
+  /** Leads the line naming the picked variation. */
+  selectedPrefix?: string
   value: string
 }) {
   const [query, setQuery] = useState("")
@@ -856,9 +918,9 @@ function TransferSourcePicker({
   // nowrap text would otherwise widen it past a phone screen.
   return (
     <div className="min-w-0 space-y-2">
-      <Label htmlFor="transfer-source-search">{label}</Label>
+      <Label htmlFor={inputId}>{label}</Label>
       <InputWithIcon
-        id="transfer-source-search"
+        id={inputId}
         type="search"
         autoComplete="off"
         icon={<Search />}
@@ -868,7 +930,7 @@ function TransferSourcePicker({
       />
       <div role="listbox" aria-label={label} className="min-w-0 max-h-64 overflow-y-auto overscroll-contain rounded-md border border-border">
         {shown.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">{locale === "en" ? "No variation with media matches." : "Không có variation có media nào khớp."}</p>
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">{emptyLabel ?? (locale === "en" ? "No variation with media matches." : "Không có variation có media nào khớp.")}</p>
         ) : (
           shown.map((item) => {
             const active = item.id === value
@@ -899,16 +961,16 @@ function TransferSourcePicker({
       </div>
       <p className="text-xs text-muted-foreground">
         {selected
-          ? `${locale === "en" ? "Source" : "Nguồn"}: ${selected.name} · ${selected.variationName}`
+          ? `${selectedPrefix ?? (locale === "en" ? "Source" : "Nguồn")}: ${selected.name} · ${selected.variationName}`
           : matches.length > TRANSFER_PICKER_LIMIT
             ? locale === "en" ? `Showing ${TRANSFER_PICKER_LIMIT} of ${matches.length}. Type to narrow down.` : `Đang hiện ${TRANSFER_PICKER_LIMIT}/${matches.length}. Gõ để lọc thêm.`
-            : locale === "en" ? `${matches.length} variations with media` : `${matches.length} variation có media`}
+            : locale === "en" ? `${matches.length} variations` : `${matches.length} variation`}
       </p>
     </div>
   )
 }
 
-function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onTransferMetadata, onUndoMetadataTransfer, transferringId }: GroupBlockProps) {
+function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected, onToggle, onToggleSelect, onToggleGroupSelect, onEdit, onDelete, onApproveProfile, approvingProfiles, deletingId, locale, onRequestShare, onTransferMetadata, onUndoMetadataTransfer, transferringId }: GroupBlockProps) {
   const copy = getExercisePanelCopy(locale)
   const [openSectionKeys, setOpenSectionKeys] = useState<Set<string>>(() => new Set())
   const selectableIds = exercises.filter((e) => ((e as AdminExerciseItem & { canManage?: boolean }).canManage ?? true)).map((e) => e.id)
@@ -956,6 +1018,20 @@ function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex min-w-0 items-center gap-1.5">
               <span className="truncate text-sm font-medium text-foreground">{e.name}</span>
+              {/* Admins' own exercises are library data from the start; only a coach's carry a review status. */}
+              {e.shareStatus && e.shareStatus !== "private" && e.createdBy?.role !== "admin" ? (
+                <Badge
+                  variant="outline"
+                  title={e.shareStatus === "rejected" ? e.shareReviewNote : undefined}
+                  className={cn(
+                    "shrink-0 text-micro",
+                    e.shareStatus === "shared" && "border-primary/30 text-primary",
+                    e.shareStatus === "rejected" && "text-muted-foreground",
+                  )}
+                >
+                  {copy.shareStatus[e.shareStatus]}
+                </Badge>
+              ) : null}
             </div>
             <MuscleProfileSummary exercise={e} locale={locale} />
             <span className="truncate text-micro text-muted-foreground sm:hidden">
@@ -994,6 +1070,9 @@ function GroupBlock({ group, exercises, forceSectionOpen = false, open, selected
               {onTransferMetadata ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onTransferMetadata(e)}><ArrowDownUp />{copy.transferMetadata}</DropdownMenuItem> : null}
               {onUndoMetadataTransfer && e.undoableMetadataTransferId ? <DropdownMenuItem disabled={!canManage || transferringId === e.id} onSelect={() => onUndoMetadataTransfer(e)}><Undo2 />{copy.undoTransfer}</DropdownMenuItem> : null}
               <DropdownMenuItem disabled={!canManage} onSelect={() => onEdit(e)}><Pencil />{copy.edit}</DropdownMenuItem>
+              {onRequestShare && canManage && (e.shareStatus === "private" || e.shareStatus === "rejected") ? (
+                <DropdownMenuItem onSelect={() => onRequestShare(e)}><Share2 />{copy.requestShare}</DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" disabled={!canManage || e.usageCount > 0 || deletingId === e.id} onSelect={() => onDelete(e)} title={!canManage ? copy.cannotManageShared : e.usageCount > 0 ? copy.cannotDeleteInUse : copy.delete}><Trash2 />{copy.delete}</DropdownMenuItem>
             </DropdownMenuContent>
@@ -1112,6 +1191,7 @@ export type ExerciseSaveData = {
   primaryMuscles: MuscleSlug[]
   secondaryMuscles: MuscleSlug[]
   equipment: string
+  shareRequested?: boolean
 }
 
 type ExerciseLibraryPanelProps = {
@@ -1132,6 +1212,8 @@ type ExerciseLibraryPanelProps = {
   onReviewImportRequest?: (requestId: string, status: "approved" | "rejected") => Promise<void>
   onTransferMetadata?: (sourceVariationId: string, targetVariationId: string) => Promise<void>
   onUndoMetadataTransfer?: (transferId: string, variationId: string) => Promise<void>
+  /** Coach only: offer an own exercise to the shared library; also adds the offer to the create form. */
+  onRequestShare?: (exercise: AdminExerciseItem) => Promise<void>
   capabilities?: { canExport?: boolean; canBulkApprove?: boolean }
 }
 
@@ -1152,6 +1234,7 @@ export function ExerciseLibraryPanel({
   onReviewImportRequest,
   onTransferMetadata,
   onUndoMetadataTransfer,
+  onRequestShare,
   capabilities = {},
 }: ExerciseLibraryPanelProps) {
   const copy = getExercisePanelCopy(locale)
@@ -1580,6 +1663,7 @@ export function ExerciseLibraryPanel({
             onTransferMetadata={onTransferMetadata ? (e) => { setTransferTarget(e); setTransferSourceId("") } : undefined}
             onUndoMetadataTransfer={onUndoMetadataTransfer ? (e) => { if (e.undoableMetadataTransferId) void onUndoMetadataTransfer(e.undoableMetadataTransferId, e.id).catch(() => undefined) } : undefined}
             transferringId={transferBusyId}
+            onRequestShare={onRequestShare ? (e) => void onRequestShare(e).catch(() => undefined) : undefined}
             locale={locale}
           />
         ))}
@@ -1594,8 +1678,10 @@ export function ExerciseLibraryPanel({
       {/* Modal */}
       {modal !== null && (
         <ExerciseFormModal
+          allowMedia={Boolean(onSaveMedia)}
           initial={modal === "new" ? null : editingExercise}
           locale={locale}
+          offerShare={Boolean(onRequestShare)}
           mediaEditor={editingExercise && onSaveMedia && onRemoveMedia ? (
             <ExerciseMediaEditor
               exercise={editingExercise}
@@ -1636,7 +1722,7 @@ export function ExerciseLibraryPanel({
           {transferTarget ? <div className="min-w-0 space-y-4">
             <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-xs leading-5 text-warning-text">{copy.transferWarning}</p>
             <div className="rounded-md border border-border bg-muted/20 p-3 text-sm"><p className="label-micro text-muted-foreground">{copy.target}</p><p className="mt-1 font-medium">{transferTarget.name} · {transferTarget.variationName}</p><p className="text-xs text-muted-foreground">{transferTarget.media ? "Media ✓" : "Media —"} · {copy.usageCount(transferTarget.usageCount)}</p></div>
-            <TransferSourcePicker
+            <VariationSearchPicker
               candidates={exercises.filter((e) => e.id !== transferTarget.id && e.media)}
               label={copy.source}
               locale={locale}

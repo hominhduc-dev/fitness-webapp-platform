@@ -117,4 +117,30 @@ describe("presentNotification", () => {
       title: "Hồ sơ coach mới cần duyệt",
     })
   })
+
+  it("tells admins about a coach exercise to review and opens it", () => {
+    const pending = notification({
+      metadata: { coachName: "Khoa", exerciseName: "Tempo Hack Squat", kind: "exercise_share_pending", pendingCount: 1, url: "/admin?s=exercises&share=e1" },
+      type: "general",
+    })
+
+    expect(presentNotification(pending, getMessages("vi"), "vi")).toEqual({
+      href: "/admin?s=exercises&share=e1",
+      message: "Khoa đề xuất Tempo Hack Squat vào thư viện chung. Chạm để duyệt.",
+      title: "Bài tập cần duyệt",
+    })
+  })
+
+  it("tells the coach an exercise was declined, with the admin's note", () => {
+    const reviewed = notification({
+      metadata: { decision: "rejected", exerciseName: "Tempo Hack Squat", kind: "exercise_share_reviewed", note: "Trùng Hack Squat", url: "/coach/exercises" },
+      type: "general",
+    })
+
+    expect(presentNotification(reviewed, getMessages("en"), "en")).toEqual({
+      href: "/coach/exercises",
+      message: "Tempo Hack Squat stays in your own library. Note: Trùng Hack Squat",
+      title: "Exercise not shared",
+    })
+  })
 })

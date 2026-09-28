@@ -258,3 +258,17 @@ export function useSendAdminBroadcast() {
   return useAdminMutation(api.sendAdminBroadcastRequest, [queryKeys.admin.broadcasts(), queryKeys.notifications.all])
 }
 
+
+export function useAdminExerciseShareRequests(enabled = true) {
+  return useUserQuery<Result<typeof api.fetchAdminExerciseShareRequests>>({
+    enabled,
+    queryFn: async () => api.fetchAdminExerciseShareRequests(await requireAccessToken()),
+    queryKey: queryKeys.admin.exerciseShares(),
+    staleTime: 30_000,
+  })
+}
+
+/** A decision changes the library everyone picks from, not just the admin list. */
+export function useReviewAdminExerciseShare() {
+  return useAdminMutation(api.reviewAdminExerciseShareRequest, [queryKeys.admin.all, queryKeys.exercises.all, queryKeys.coach.all, queryKeys.workouts.all])
+}

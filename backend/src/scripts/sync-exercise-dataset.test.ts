@@ -21,6 +21,7 @@ type ExerciseFixture = Prisma.ExerciseGetPayload<{ include: { variations: true }
 function exercise(id: string, name: string, createdById: string | null, variations: Array<Record<string, unknown>> = []): ExerciseFixture {
   return {
     createdAt: new Date(), createdById, id, muscleGroup: "Back", name, updatedAt: new Date(),
+    shareRequestedAt: null, shareReviewNote: null, shareReviewedAt: null, shareReviewedById: null, shareStatus: "private",
     variations: variations.map((variation, index) => ({
       activityType: null, createdAt: new Date(), equipment: null, exerciseId: id, id: `${id}-v${index}`,
       isDefault: index === 0, metadata: null, displayMetadata: null, muscleProfileRationale: null,

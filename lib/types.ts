@@ -29,6 +29,12 @@ export interface ExerciseBase {
 
 export type ExerciseSource = "system" | "coach"
 
+/**
+ * A coach's own exercise: private to them, waiting for an admin, shared with
+ * everyone, or declined (still private).
+ */
+export type ExerciseShareStatus = "private" | "pending" | "shared" | "rejected"
+
 export type ExerciseActivityType = "strength" | "cardio" | "mobility" | "sport" | "other"
 export type MuscleProfileStatus = "approved" | "pending"
 export type MuscleProfileSource = "ai" | "manual"

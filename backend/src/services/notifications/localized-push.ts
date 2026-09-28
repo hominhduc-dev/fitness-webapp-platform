@@ -132,6 +132,42 @@ function localizedNotificationCopy(
           title: isVi ? "Hồ sơ coach mới cần duyệt" : "New coach application",
         }
       }
+      const coach = text(metadata, "coachName")
+      const exercise = text(metadata, "exerciseName")
+      if (text(metadata, "kind") === "exercise_share_pending" && coach && exercise) {
+        const others = Math.max(pending - 1, 0)
+        return {
+          body: isVi
+            ? `${coach} đề xuất ${exercise} vào thư viện chung.${others > 0 ? ` Còn ${others} bài khác đang chờ.` : " Chạm để duyệt."}`
+            : `${coach} suggested ${exercise} for the shared library.${others > 0 ? ` ${others} more ${others === 1 ? "is" : "are"} waiting.` : " Tap to review."}`,
+          title: isVi ? "Bài tập cần duyệt" : "Exercise to review",
+        }
+      }
+      if (text(metadata, "kind") === "exercise_share_reviewed" && exercise) {
+        const decision = text(metadata, "decision")
+        const target = text(metadata, "targetName")
+        const note = text(metadata, "note")
+        if (decision === "approved") {
+          return {
+            body: isVi ? `${exercise} đã có trong thư viện chung.` : `${exercise} is now in the shared library.`,
+            title: isVi ? "Bài tập đã được dùng chung" : "Exercise shared",
+          }
+        }
+        if (decision === "merged") {
+          return {
+            body: isVi
+              ? `${exercise} đã được gộp vào ${target ?? "một bài có sẵn"}; giáo án của bạn giờ dùng bài đó.`
+              : `${exercise} was merged into ${target ?? "a library exercise"}; your programs now use it.`,
+            title: isVi ? "Bài tập đã được dùng chung" : "Exercise shared",
+          }
+        }
+        return {
+          body: isVi
+            ? `${exercise} vẫn nằm trong thư viện riêng của bạn.${note ? ` Ghi chú: ${note}` : ""}`
+            : `${exercise} stays in your own library.${note ? ` Note: ${note}` : ""}`,
+          title: isVi ? "Bài tập chưa được dùng chung" : "Exercise not shared",
+        }
+      }
       return fallback
     }
     case NotificationType.workout_logged: {

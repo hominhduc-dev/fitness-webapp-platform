@@ -1,5 +1,6 @@
 export * from "./audit"
 export * from "./broadcasts"
+export { listAdminExerciseShareRequests, reviewAdminExerciseShare } from "./exercise-shares"
 export * from "./coach-requests"
 export * from "./coach-signups"
 export * from "./connections"

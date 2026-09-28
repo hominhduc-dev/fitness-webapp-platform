@@ -1,4 +1,4 @@
-import type { ExerciseActivityType, ExerciseMedia, ExerciseMuscleProfile, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
+import type { ExerciseActivityType, ExerciseMedia, ExerciseMuscleProfile, ExerciseShareStatus, MuscleProfileSource, MuscleProfileStatus, MuscleSlug, UserRole } from "@/lib/types"
 import type { CoachApprovalStatus } from "@/lib/auth/types"
 
 type AdminMiniUser = {
@@ -103,6 +103,10 @@ type AdminExerciseItem = ExerciseMuscleProfile & {
   muscleProfileSource?: MuscleProfileSource
   muscleProfileStatus?: MuscleProfileStatus
   name: string
+  /** Why an admin declined to share it, when they said. */
+  shareReviewNote?: string
+  /** Only set for a coach's own exercise; system exercises have no owner to share from. */
+  shareStatus?: ExerciseShareStatus
   /**
    * The metadata transfer onto this variation that can still be undone: the
    * newest change to its metadata, with the previous metadata kept. Only set
@@ -372,10 +376,34 @@ type AdminBroadcast = {
  */
 type CoachSignupEmailStatus = "failed" | "sent" | "skipped"
 
+/** A coach exercise offered to the shared library, waiting for an admin. */
+type AdminExerciseShareRequest = {
+  coach: { id: string; name: string } | null
+  id: string
+  muscleGroup: string
+  name: string
+  requestedAt: Date
+  usageCount: number
+  variations: Array<ExerciseMuscleProfile & {
+    equipment?: string
+    id: string
+    isDefault: boolean
+    media?: ExerciseMedia
+    name: string
+  }>
+}
+
+type AdminExerciseShareDecision =
+  | { decision: "approve"; note?: string }
+  | { decision: "reject"; note?: string }
+  | { decision: "merge"; note?: string; targetVariationId: string }
+
 export type {
   AdminBroadcast,
   AdminBroadcastAudience,
   AdminBroadcastTarget,
+  AdminExerciseShareDecision,
+  AdminExerciseShareRequest,
   CoachSignupEmailStatus,
   AdminAuditLogItem,
   AdminCustomFoodItem,

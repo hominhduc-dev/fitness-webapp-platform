@@ -22,6 +22,8 @@ import type {
   AdminUserDetail,
   AdminUserListItem,
   AdminBroadcast,
+  AdminExerciseShareDecision,
+  AdminExerciseShareRequest,
   AdminBroadcastAudience,
   AdminBroadcastTarget,
   CoachSignupEmailStatus,
@@ -325,6 +327,25 @@ async function reviewAdminCoachSignupRequest(
 }
 
 type Envelope<T> = { data: T }
+
+/** Coach exercises offered to the shared library, oldest request first. */
+async function fetchAdminExerciseShareRequests(accessToken: string): Promise<AdminExerciseShareRequest[]> {
+  const response = await request<Envelope<{ requests: Array<Omit<AdminExerciseShareRequest, "requestedAt"> & { requestedAt: string }> }>>(
+    "/api/admin/exercise-shares",
+    accessToken,
+  )
+  return response.data.requests.map((item) => ({ ...item, requestedAt: new Date(item.requestedAt) }))
+}
+
+/** Approve, decline, or merge a coach exercise into a library one. */
+async function reviewAdminExerciseShareRequest(accessToken: string, exerciseId: string, input: AdminExerciseShareDecision) {
+  const response = await request<Envelope<{ decision: "approved" | "merged" | "rejected"; exerciseId: string; targetExerciseId: string | null }>>(
+    `/api/admin/exercise-shares/${exerciseId}/review`,
+    accessToken,
+    { body: JSON.stringify(input), method: "POST" },
+  )
+  return response.data
+}
 
 async function fetchAdminBroadcastAudience(accessToken: string): Promise<AdminBroadcastAudience> {
   return (await request<Envelope<AdminBroadcastAudience>>("/api/admin/broadcasts/audience", accessToken)).data
@@ -741,6 +762,8 @@ async function updateAdminCustomFoodRequest(
 }
 
 export {
+  fetchAdminExerciseShareRequests,
+  reviewAdminExerciseShareRequest,
   applyExerciseSyncRequest,
   assignAdminCoachConnection,
   bulkApproveAdminMuscleProfilesRequest,

@@ -7,6 +7,9 @@ import type { ExerciseVariationOption } from "@/lib/types"
 vi.mock("@/components/providers/locale-provider", () => ({
   useLocale: () => ({ locale: "en", messages: messages.en }),
 }))
+vi.mock("@/components/providers/toast-provider", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}))
 
 const exercises = ["Bench", "Squat", "Row"].map((name) => ({
   id: name, name, exerciseId: name, exerciseName: name, variationName: "Default", sortOrder: 0,
@@ -66,5 +69,20 @@ describe("multi-exercise picker", () => {
     fireEvent.click(screen.getByRole("button", { name: /Bench/ }))
     expect(callbacks.onPick).toHaveBeenCalledWith(exercises[0])
     expect(screen.queryByRole("button", { name: "Create" })).not.toBeInTheDocument()
+  })
+})
+
+describe("creating an exercise from the picker", () => {
+  it("is offered only when the caller can create, prefilled with the search", () => {
+    setup(false)
+    expect(screen.queryByRole("button", { name: /Create a new exercise/ })).not.toBeInTheDocument()
+    cleanup()
+
+    render(<AddExerciseModal exercises={exercises} existingVariationIds={[]} onPick={vi.fn()} onClose={vi.fn()}
+      createExercise={vi.fn()} />)
+    expect(screen.getByRole("button", { name: /Create a new exercise/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText(messages.en.workoutPage.searchShortPlaceholder), { target: { value: "Tempo Squat" } })
+    expect(screen.getByRole("button", { name: /Create "Tempo Squat"/ })).toBeInTheDocument()
   })
 })

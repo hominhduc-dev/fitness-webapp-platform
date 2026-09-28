@@ -49,6 +49,17 @@ const adminBroadcastSchema = z.object({
   title: z.string().trim().min(1, "Nhập tiêu đề thông báo.").max(60, "Tiêu đề tối đa 60 ký tự."),
 })
 
+/** An admin's decision on a coach exercise offered to the shared library. */
+const reviewExerciseShareSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("approve"), note: z.string().trim().max(300).optional() }),
+  z.object({ decision: z.literal("reject"), note: z.string().trim().max(300, "Ghi chú tối đa 300 ký tự.").optional() }),
+  z.object({
+    decision: z.literal("merge"),
+    note: z.string().trim().max(300).optional(),
+    targetVariationId: z.uuid("Chọn bài tập trong thư viện để gộp vào."),
+  }),
+], "Quyết định không hợp lệ.")
+
 const transferExerciseMetadataSchema = z
   .object({
     sourceVariationId: z.uuid("sourceVariationId không hợp lệ."),
@@ -99,4 +110,5 @@ export {
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
   adminBroadcastSchema,
+  reviewExerciseShareSchema,
 }

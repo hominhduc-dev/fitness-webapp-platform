@@ -1459,6 +1459,7 @@ export function ProgramEditor({
         onOpenChange={(v) => { if (!v) setBuilderMode(null) }}
         draftToEdit={builderDraft}
         onSaveDraft={(draft) => handleBuilderSave(draftToRoutine(draft))}
+        allowCreateExercise
       />
 
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>

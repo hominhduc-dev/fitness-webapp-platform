@@ -23,7 +23,8 @@ import {
   fetchCoachExerciseImportRequests,
   createCoachExerciseRequest,
   deleteCoachExerciseRequest,
-  submitCoachExerciseImportRequest,
+  importCoachExercisesRequest,
+  requestCoachExerciseShareRequest,
   updateCoachExerciseRequest,
 } from "@/lib/fitness/api"
 import type { AdminExerciseItem, AdminExerciseImportRow } from "@/lib/admin/types"
@@ -107,6 +108,9 @@ function mapCoachExerciseToPanelItem(exercise: CoachExercise): AdminExerciseItem
     media: exercise.media,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
+    // System exercises have no owner to share from; only the coach's own carry a status.
+    shareReviewNote: exercise.shareReviewNote,
+    shareStatus: exercise.source === "coach" ? exercise.shareStatus : undefined,
     updatedAt: exercise.updatedAt,
     usageCount: exercise.usageCount,
     variationName: exercise.variationName,
@@ -132,11 +136,18 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       locale === "en" ? "Missing exercise_name or muscle_group." : "Thiếu exercise_name hoặc muscle_group.",
     noRows: locale === "en" ? "No exercise rows found in this file." : "Không tìm thấy dòng bài tập nào trong file.",
     readFileError: locale === "en" ? "Unable to read selected file." : "Không thể đọc file đã chọn.",
-    importSubmitted: (count: number) =>
+    importDone: (created: number, skipped: number) =>
       locale === "en"
-        ? `Submitted ${count} exercise rows for admin approval. Data has not been inserted into the database yet.`
-        : `Đã gửi ${count} dòng bài tập để admin duyệt. Dữ liệu chưa được insert vào DB.`,
-    submitImportError: locale === "en" ? "Unable to submit import request." : "Không thể gửi yêu cầu import.",
+        ? `Added ${created} to your library${skipped ? `, skipped ${skipped} already in the library` : ""}. An admin will review them for the shared library.`
+        : `Đã thêm ${created} bài vào thư viện của bạn${skipped ? `, bỏ qua ${skipped} bài đã có` : ""}. Admin sẽ duyệt để dùng chung.`,
+    submitImportError: locale === "en" ? "Unable to import these exercises." : "Không thể import các bài tập này.",
+    exerciseCreatedAndOffered:
+      locale === "en"
+        ? "Exercise created. You can use it now; an admin will review it for the shared library."
+        : "Đã tạo bài tập. Bạn dùng được ngay; admin sẽ duyệt để dùng chung.",
+    shareRequested:
+      locale === "en" ? "Sent for review. It stays yours until an admin shares it." : "Đã gửi admin duyệt. Bài vẫn là của riêng bạn cho tới khi được duyệt.",
+    shareRequestError: locale === "en" ? "Unable to send this exercise for review." : "Không thể gửi bài tập này để duyệt.",
     exerciseUpdated: locale === "en" ? "Personal exercise updated." : "Đã cập nhật bài tập cá nhân.",
     exerciseCreated: locale === "en" ? "Personal exercise created." : "Đã tạo bài tập cá nhân.",
     saveExerciseError: locale === "en" ? "Unable to save personal exercise." : "Không thể lưu bài tập cá nhân.",
@@ -147,11 +158,11 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       locale === "en"
         ? `${count} Excel import request${count === 1 ? "" : "s"} pending admin approval.`
         : `${count} yêu cầu import Excel đang chờ admin duyệt.`,
-    importTitle: locale === "en" ? "Submit exercise import for admin approval" : "Gửi import bài tập để admin duyệt",
+    importTitle: locale === "en" ? "Import exercises from Excel" : "Import bài tập từ Excel",
     importDescription:
       locale === "en"
-        ? "The Excel file will be saved as a pending request. Exercises are inserted only after an admin approves it."
-        : "File Excel sẽ được lưu thành yêu cầu chờ duyệt. Chỉ sau khi admin approve thì bài tập mới được insert vào DB.",
+        ? "The exercises go straight into your own library, ready for your programs. An admin then reviews them for the shared library."
+        : "Bài tập vào thẳng thư viện riêng của bạn, dùng được ngay trong giáo án. Sau đó admin duyệt để đưa vào thư viện chung.",
     selectFile: locale === "en" ? "Select file" : "Chọn file",
     importHelp:
       locale === "en"
@@ -167,15 +178,15 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     preview: locale === "en" ? "Preview" : "Xem trước",
     previewDescription:
       locale === "en"
-        ? "The rows below will be sent for admin approval and will not create exercises immediately."
-        : "Các dòng dưới đây sẽ được gửi để admin duyệt, chưa tạo bài tập ngay.",
+        ? "Rows naming an exercise the library already has are skipped."
+        : "Dòng trùng với bài đã có trong thư viện sẽ được bỏ qua.",
     row: locale === "en" ? "Row" : "Dòng",
     exercise: locale === "en" ? "Exercise" : "Bài tập",
     muscleGroup: locale === "en" ? "Muscle group" : "Nhóm cơ",
     variation: "Variation",
     equipment: locale === "en" ? "Equipment" : "Thiết bị",
     noEquipment: locale === "en" ? "No equipment" : "Không có thiết bị",
-    submitForApproval: locale === "en" ? "Submit for approval" : "Gửi admin duyệt",
+    submitImport: locale === "en" ? "Import" : "Import",
     loadingExercises: locale === "en" ? "Loading exercise library..." : "Đang tải thư viện bài tập...",
     loadExercisesError: locale === "en" ? "Unable to load the exercise library." : "Không thể tải thư viện bài tập.",
     tryAgain: locale === "en" ? "Try again" : "Thử lại",
@@ -185,10 +196,10 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   const createExercise = useCoachMutation(createCoachExerciseRequest, ["coach", "exercises"])
   const updateExercise = useCoachMutation(updateCoachExerciseRequest, ["coach", "exercises"])
   const deleteExercise = useCoachMutation(deleteCoachExerciseRequest, ["coach", "exercises"])
-  const submitImport = useCoachMutation(submitCoachExerciseImportRequest, ["coach", "admin"])
+  const importExercises = useCoachMutation(importCoachExercisesRequest, ["coach", "exercises"])
+  const requestShare = useCoachMutation(requestCoachExerciseShareRequest, ["coach", "exercises"])
   const importRequestsQuery = useCoachData(queryKeys.coach.exerciseImportRequests(), fetchCoachExerciseImportRequests, initialImportRequests)
   const importRequests = importRequestsQuery.data ?? []
-  const setImportRequests = importRequestsQuery.setData
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [importFileName, setImportFileName] = useState("")
   const [importRows, setImportRows] = useState<AdminExerciseImportRow[]>([])
@@ -355,12 +366,9 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     setNotice(null)
 
     try {
-      const request = await submitImport.mutateAsync([{
-        fileName: importFileName || undefined,
-        rows: importRows,
-      }])
-      setImportRequests((current) => [request, ...current])
-      setNotice(copy.importSubmitted(request.rowCount))
+      const result = await importExercises.mutateAsync([importRows])
+      await exercisesQuery.refetch()
+      setNotice(copy.importDone(result.createdCount, result.skippedCount))
       setIsImportDialogOpen(false)
       resetImportState()
     } catch (submitError) {
@@ -384,6 +392,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
         name: data.name.trim(),
         primaryMuscles: data.primaryMuscles,
         secondaryMuscles: data.secondaryMuscles,
+        shareRequested: data.id ? undefined : data.shareRequested,
       }
       const savedExercise = data.id
         ? await updateExercise.mutateAsync([data.id, payload])
@@ -392,10 +401,26 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
       setExercises((current) =>
         sortExercises(data.id ? current.map((exercise) => (exercise.id === savedExercise.id ? savedExercise : exercise)) : [savedExercise, ...current]),
       )
-      setNotice(data.id ? copy.exerciseUpdated : copy.exerciseCreated)
+      setNotice(data.id ? copy.exerciseUpdated : data.shareRequested ? copy.exerciseCreatedAndOffered : copy.exerciseCreated)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : copy.saveExerciseError)
       throw saveError
+    } finally {
+      setActionKey(null)
+    }
+  }
+
+  async function handleRequestShare(exercise: AdminExerciseItem) {
+    setActionKey(`exercise-share-${exercise.id}`)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const updated = await requestShare.mutateAsync([exercise.id])
+      setExercises((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+      setNotice(copy.shareRequested)
+    } catch (shareError) {
+      setError(shareError instanceof Error ? shareError.message : copy.shareRequestError)
     } finally {
       setActionKey(null)
     }
@@ -491,6 +516,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
           onBulkDelete={handleBulkDeleteExercises}
           onDownloadTemplate={() => void handleDownloadExerciseTemplate()}
           onImport={() => setIsImportDialogOpen(true)}
+          onRequestShare={handleRequestShare}
           onSave={handleSaveExercise}
         />
       )}
@@ -617,7 +643,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
             </Button>
             <Button onClick={() => void handleSubmitImportRequest()} disabled={actionKey === "exercise-import" || !importRows.length || importIssues.length > 0}>
               {actionKey === "exercise-import" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {copy.submitForApproval}
+              {copy.submitImport}
             </Button>
           </DialogFooter>
         </DialogContent>

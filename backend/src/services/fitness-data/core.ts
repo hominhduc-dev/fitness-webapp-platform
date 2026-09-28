@@ -5,6 +5,7 @@ import {
   CoachApprovalStatus,
   CoachRequestInitiator,
   CoachRequestStatus,
+  ExerciseShareStatus,
   type CoachCheckIn,
   MealStatus,
   NotificationStatus,
@@ -51,6 +52,7 @@ import {
   type NotificationDraft,
 } from "../notifications/notification-dispatch.service"
 import { buildProgramAssignedDraft, buildProgramUpdatedDraft } from "../notifications/program-notifications"
+import { notifyAdminsOfExerciseShare } from "../notifications/exercise-share-notifications"
 import { serializeExerciseMedia } from "../../lib/exercise-media"
 import { buildExerciseDisplayName, type ExerciseDisplayNameInput } from "../../domain/exercise-display"
 import {
@@ -279,23 +281,16 @@ type WorkoutSessionDraftInput = {
   workoutName?: string
 }
 
-type CoachExerciseRecord = Prisma.ExerciseGetPayload<{
-  include: {
-    createdBy: { select: { name: true } }
-    variations: {
-      omit: typeof LEAN_VARIATION_OMIT
-      include: {
-        _count: {
-          select: {
-            workoutExercises: true
-          }
-        }
-        muscleTargets: true
-      }
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
-    }
-  }
-}>
+const COACH_EXERCISE_INCLUDE = {
+  createdBy: { select: { name: true } },
+  variations: {
+    include: { _count: { select: { workoutExercises: true } }, muscleTargets: true },
+    omit: LEAN_VARIATION_OMIT,
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  },
+} satisfies Prisma.ExerciseInclude
+
+type CoachExerciseRecord = Prisma.ExerciseGetPayload<{ include: typeof COACH_EXERCISE_INCLUDE }>
 
 type NotificationRecord = Notification
 
@@ -502,21 +497,28 @@ function serializeVariation(
   }
 }
 
-function getExerciseSourceForProfile(createdById: string | null | undefined, profile?: SerializedProfile) {
-  const source = createdById ? "coach" : "system"
+type ExerciseOwnership = { createdById?: string | null; shareStatus?: ExerciseShareStatus | null }
+
+/** System exercises and the ones an admin shared belong to everyone. */
+function isLibraryExercise(exercise: ExerciseOwnership) {
+  return !exercise.createdById || exercise.shareStatus === ExerciseShareStatus.shared
+}
+
+function getExerciseSourceForProfile(exercise: ExerciseOwnership, profile?: SerializedProfile) {
+  const source = exercise.createdById ? "coach" : "system"
 
   return {
-    canManage: Boolean(profile && createdById && profile.id === createdById),
+    // Once shared, other coaches' programs rely on it, so only admins change it.
+    canManage: Boolean(
+      profile && exercise.createdById && profile.id === exercise.createdById && exercise.shareStatus !== ExerciseShareStatus.shared,
+    ),
     source,
   } as const
 }
 
-function canProfileAccessExercise(createdById: string | null | undefined, profile?: SerializedProfile) {
-  if (!createdById) {
-    return true
-  }
-
-  return profile?.role === UserRole.coach
+/** A coach's own exercise stays theirs until an admin shares it. */
+function canProfileAccessExercise(exercise: ExerciseOwnership, profile?: SerializedProfile) {
+  return isLibraryExercise(exercise) || Boolean(profile && exercise.createdById === profile.id)
 }
 
 function sanitizeImportText(value?: string | null) {
@@ -623,7 +625,7 @@ function serializeVariationOption(
   variation: VariationWithMuscleTargets & { exercise: Exercise & { createdById?: string | null } },
   profile?: SerializedProfile,
 ) {
-  const visibility = getExerciseSourceForProfile(variation.exercise.createdById, profile)
+  const visibility = getExerciseSourceForProfile(variation.exercise, profile)
   const displayName = buildVariationDisplayName({
     exerciseName: variation.exercise.name,
     isDefault: variation.isDefault,
@@ -2331,7 +2333,7 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
     (sum, variation) => sum + variation._count.workoutExercises,
     0,
   )
-  const visibility = getExerciseSourceForProfile(exercise.createdById, profile)
+  const visibility = getExerciseSourceForProfile(exercise, profile)
 
   return {
     ...(defaultVariation
@@ -2353,6 +2355,8 @@ function serializeCoachExercise(exercise: CoachExerciseRecord, profile: Serializ
     media: defaultVariation ? serializeExerciseMedia(defaultVariation.displayMetadata) : undefined,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
+    shareReviewNote: exercise.shareReviewNote ?? undefined,
+    shareStatus: exercise.shareStatus,
     source: visibility.source,
     updatedAt: exercise.updatedAt,
     usageCount,
@@ -3132,7 +3136,7 @@ async function listExercises(
 
   return variations
     .filter((variation) => {
-      const isVisible = canProfileAccessExercise(variation.exercise.createdById, profile)
+      const isVisible = canProfileAccessExercise(variation.exercise, profile)
 
       if (!isVisible) {
         return false
@@ -3206,9 +3210,9 @@ async function listExerciseLibrary(
   )
 
   return exercises
-    .filter((exercise) => canProfileAccessExercise(exercise.createdById, profile))
+    .filter((exercise) => canProfileAccessExercise(exercise, profile))
     .map((exercise) => ({
-      canManage: exercise.createdById === profile.id,
+      canManage: getExerciseSourceForProfile(exercise, profile).canManage,
       createdById: exercise.createdById ?? undefined,
       createdByName: exercise.createdBy?.name ?? undefined,
       id: exercise.id,
@@ -3270,7 +3274,7 @@ async function listCoachExercises(profile: SerializedProfile, options?: { search
     },
     orderBy: [{ createdById: "asc" }, { muscleGroup: "asc" }, { name: "asc" }],
     where: {
-      OR: [{ createdById: null }, { createdById: profile.id }],
+      OR: [{ createdById: null }, { shareStatus: ExerciseShareStatus.shared }, { createdById: profile.id }],
     },
   })
 
@@ -3294,6 +3298,18 @@ async function listCoachExercises(profile: SerializedProfile, options?: { search
     .map((exercise) => serializeCoachExercise(exercise as CoachExerciseRecord, profile))
 }
 
+/** Fields that put a coach's exercise in the admins' review queue. */
+function shareRequestData() {
+  return { shareRequestedAt: new Date(), shareReviewNote: null, shareStatus: ExerciseShareStatus.pending }
+}
+
+/** A shared exercise sits in other coaches' programs, so only admins change it. */
+function assertNotShared(exercise: { shareStatus: ExerciseShareStatus }) {
+  if (exercise.shareStatus === ExerciseShareStatus.shared) {
+    throw new AuthServiceError("Bài tập đã được dùng chung; chỉ admin mới sửa hoặc xoá được.", 403)
+  }
+}
+
 async function createCoachExercise(
   profile: SerializedProfile,
   input: {
@@ -3301,6 +3317,8 @@ async function createCoachExercise(
     muscleGroup: string
     muscleProfile: MuscleProfileInput
     name: string
+    /** Also offer it to the shared library, pending an admin's review. */
+    shareRequested?: boolean
   },
 ) {
   const db = ensurePrisma()
@@ -3337,6 +3355,7 @@ async function createCoachExercise(
       createdById: profile.id,
       muscleGroup,
       name,
+      ...(input.shareRequested ? shareRequestData() : {}),
       variations: {
         create: {
           equipment,
@@ -3347,29 +3366,133 @@ async function createCoachExercise(
         },
       },
     },
-    include: {
-      createdBy: {
-        select: {
-          name: true,
-        },
-      },
-      variations: {
-        omit: LEAN_VARIATION_OMIT,
-        include: {
-          _count: {
-            select: {
-              workoutExercises: true,
-            },
-          },
-          muscleTargets: true,
-        },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      },
-    },
+    include: COACH_EXERCISE_INCLUDE,
   })
 
   invalidateExerciseLibrary()
-  return serializeCoachExercise(exercise as CoachExerciseRecord, profile)
+  if (input.shareRequested) {
+    void notifyAdminsOfExerciseShare({ coachName: profile.name, exercises: [exercise] })
+  }
+  return serializeCoachExercise(exercise, profile)
+}
+
+/** The coach offers one of their own exercises to the shared library. */
+async function requestCoachExerciseShare(profile: SerializedProfile, exerciseId: string) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+
+  const exercise = await db.exercise.findFirst({
+    include: COACH_EXERCISE_INCLUDE,
+    where: { createdById: profile.id, id: exerciseId },
+  })
+  if (!exercise) {
+    throw new AuthServiceError("Không tìm thấy bài tập cá nhân.", 404)
+  }
+  if (exercise.shareStatus === ExerciseShareStatus.shared) {
+    throw new AuthServiceError("Bài tập này đã được dùng chung.", 400)
+  }
+  // Asking twice is a no-op, not a second notice to every admin.
+  if (exercise.shareStatus === ExerciseShareStatus.pending) {
+    return serializeCoachExercise(exercise, profile)
+  }
+
+  const updated = await db.exercise.update({
+    data: shareRequestData(),
+    include: COACH_EXERCISE_INCLUDE,
+    where: { id: exercise.id },
+  })
+  void notifyAdminsOfExerciseShare({ coachName: profile.name, exercises: [updated] })
+  return serializeCoachExercise(updated, profile)
+}
+
+/**
+ * A coach's Excel import: the exercises land in the coach's own library at
+ * once, usable in their programs, and wait for an admin to share them.
+ *
+ * A row naming an exercise the shared library already has is skipped rather
+ * than added as a variation: a coach's variation on a shared exercise would be
+ * visible to everyone before any admin saw it.
+ */
+async function importCoachExercises(profile: SerializedProfile, rows: ExerciseImportRowInput[]) {
+  const db = ensurePrisma()
+  assertCoach(profile)
+  const normalizedRows = normalizeCoachExerciseImportRows(rows)
+  const exerciseKey = (row: { muscleGroup: string; name: string }) =>
+    `${row.name.trim().toLowerCase()}::${row.muscleGroup.trim().toLowerCase()}`
+
+  const visible = await db.exercise.findMany({
+    select: { createdById: true, id: true, muscleGroup: true, name: true, variations: { select: { name: true } } },
+    where: { OR: [{ createdById: null }, { shareStatus: ExerciseShareStatus.shared }, { createdById: profile.id }] },
+  })
+  const libraryKeys = new Set(visible.filter((exercise) => exercise.createdById !== profile.id).map(exerciseKey))
+  const ownByKey = new Map(visible.filter((exercise) => exercise.createdById === profile.id).map((exercise) => [
+    exerciseKey(exercise),
+    { id: exercise.id, variations: new Set(exercise.variations.map((variation) => variation.name.toLowerCase())) },
+  ]))
+
+  let skippedCount = 0
+  const newExercises = new Map<string, { muscleGroup: string; name: string; rows: typeof normalizedRows }>()
+  const newVariations: Array<{ exerciseId: string; row: (typeof normalizedRows)[number] }> = []
+
+  for (const row of normalizedRows) {
+    const key = exerciseKey({ muscleGroup: row.muscleGroup, name: row.exerciseName })
+    const variationName = row.variationName.toLowerCase()
+    const own = ownByKey.get(key)
+    if (libraryKeys.has(key) || own?.variations.has(variationName)) {
+      skippedCount += 1
+      continue
+    }
+    if (own) {
+      own.variations.add(variationName)
+      newVariations.push({ exerciseId: own.id, row })
+      continue
+    }
+    const pending = newExercises.get(key) ?? { muscleGroup: row.muscleGroup, name: row.exerciseName, rows: [] }
+    if (pending.rows.some((existing) => existing.variationName.toLowerCase() === variationName)) {
+      skippedCount += 1
+      continue
+    }
+    pending.rows.push(row)
+    newExercises.set(key, pending)
+  }
+
+  const variationData = (row: (typeof normalizedRows)[number], index: number) => ({
+    equipment: row.equipment,
+    isDefault: row.isDefault || (index === 0 && row.variationName.toLowerCase() === "default"),
+    name: row.variationName,
+    sortOrder: row.sortOrder ?? index,
+    ...buildApprovedMuscleProfileData(
+      { activityType: row.activityType, primaryMuscles: row.primaryMuscles, secondaryMuscles: row.secondaryMuscles },
+      profile.id,
+    ),
+  })
+
+  const created = await db.$transaction(async (tx) => {
+    const exercises = []
+    for (const pending of newExercises.values()) {
+      exercises.push(await tx.exercise.create({
+        data: {
+          createdById: profile.id,
+          muscleGroup: pending.muscleGroup,
+          name: pending.name,
+          ...shareRequestData(),
+          variations: { create: pending.rows.map(variationData) },
+        },
+        select: { id: true, name: true },
+      }))
+    }
+    for (const { exerciseId, row } of newVariations) {
+      await tx.variation.create({ data: { exerciseId, ...variationData(row, 1) } })
+    }
+    return exercises
+  }, { timeout: 60_000 })
+
+  invalidateExerciseLibrary()
+  void notifyAdminsOfExerciseShare({ coachName: profile.name, exercises: created })
+  return {
+    createdCount: created.length + newVariations.length,
+    skippedCount,
+  }
 }
 
 async function updateCoachExercise(
@@ -3412,6 +3535,7 @@ async function updateCoachExercise(
   if (!existingExercise) {
     throw new AuthServiceError("Không tìm thấy bài tập cá nhân.", 404)
   }
+  assertNotShared(existingExercise)
 
   const duplicateExercise = await db.exercise.findFirst({
     select: {
@@ -3518,6 +3642,7 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
   if (!exercise) {
     throw new AuthServiceError("Không tìm thấy bài tập cá nhân.", 404)
   }
+  assertNotShared(exercise)
 
   const usageCount = exercise.variations.reduce((sum, variation) => sum + variation._count.workoutExercises, 0)
 
@@ -3536,38 +3661,6 @@ async function deleteCoachExercise(profile: SerializedProfile, exerciseId: strin
     deleted: true,
     id: exerciseId,
   }
-}
-
-async function submitCoachExerciseImportRequest(
-  profile: SerializedProfile,
-  input: {
-    fileName?: string
-    rows: ExerciseImportRowInput[]
-  },
-) {
-  const db = ensurePrisma()
-  assertCoach(profile)
-
-  const rows = normalizeCoachExerciseImportRows(input.rows)
-
-  const request = await db.exerciseImportRequest.create({
-    data: {
-      fileName: sanitizeImportText(input.fileName),
-      rowCount: rows.length,
-      rows: rows as Prisma.InputJsonValue,
-      submittedById: profile.id,
-    },
-    include: {
-      reviewedBy: {
-        select: IMPORT_REVIEWER_SELECT,
-      },
-      submittedBy: {
-        select: IMPORT_REVIEWER_SELECT,
-      },
-    },
-  })
-
-  return serializeExerciseImportRequest(request as ExerciseImportRequestRecord)
 }
 
 async function listCoachExerciseImportRequests(profile: SerializedProfile) {
@@ -8741,7 +8834,10 @@ export {
   createBodyMetricForTrainee,
   createBodyMetricForCurrentTrainee,
   createCoachCheckInForTrainee,
+  canProfileAccessExercise,
   createCoachExercise,
+  importCoachExercises,
+  requestCoachExerciseShare,
   cancelCoachRequest,
   createCoachRequestForTrainee,
   inviteTraineeForCoach,
@@ -8797,7 +8893,6 @@ export {
   resolveCopyWeekTargets,
   restoreCoachProgram,
   selectVisibleWorkoutsForAssignmentWeek,
-  submitCoachExerciseImportRequest,
   swapExerciseForTraineeFromWorkout,
   unassignCoachProgramFromTrainee,
   unlinkGoogleSpreadsheetFromCoachProgram,

@@ -1,8 +1,12 @@
 "use client"
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
-import { Check, Search, SlidersHorizontal, X } from "lucide-react"
+import dynamic from "next/dynamic"
+import { Check, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
+
+import type { ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { useToast } from "@/components/providers/toast-provider"
 
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
@@ -22,6 +26,12 @@ import { muscleGroupFromSlug, muscleGroupToSlugs } from "@/lib/fitness/muscle-ma
 import type { ExerciseActivityType, ExerciseVariationOption, MuscleSlug } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
+// Loaded on demand: only coaches building a program ever open the form.
+const ExerciseFormModal = dynamic(
+  () => import("@/components/admin/admin-exercises-panel").then((module) => module.ExerciseFormModal),
+  { ssr: false },
+)
+
 type AddExerciseModalProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -39,6 +49,11 @@ type AddExerciseModalProps = {
   loading?: boolean
   /** Optional footer slot (e.g. a "Create custom exercise" action). */
   footer?: ReactNode
+  /**
+   * Lets the user add an exercise the library lacks, prefilled with the search.
+   * The new exercise is picked straight away (or selected, in multi-pick mode).
+   */
+  createExercise?: (data: ExerciseSaveData) => Promise<ExerciseVariationOption>
 }
 
 /**
@@ -50,7 +65,7 @@ type AddExerciseModalProps = {
 export function AddExerciseModal({
   open = true,
   onOpenChange,
-  exercises,
+  exercises: libraryExercises,
   currentVariationId,
   existingVariationIds,
   onPick,
@@ -59,9 +74,22 @@ export function AddExerciseModal({
   title,
   loading = false,
   footer,
+  createExercise,
 }: AddExerciseModalProps) {
   const { locale, messages } = useLocale()
+  const { toast } = useToast()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [creating, setCreating] = useState(false)
+  const [savingExercise, setSavingExercise] = useState(false)
+  // Shown until the refetched catalogue includes them.
+  const [createdOptions, setCreatedOptions] = useState<ExerciseVariationOption[]>([])
+  const exercises = useMemo(
+    () => {
+      const pending = createdOptions.filter((created) => !libraryExercises.some((exercise) => exercise.id === created.id))
+      return pending.length > 0 ? [...pending, ...libraryExercises] : libraryExercises
+    },
+    [createdOptions, libraryExercises],
+  )
   const exerciseById = useMemo(() => new Map(exercises.map((exercise) => [exercise.id, exercise])), [exercises])
   const handleClose = () => { setSelectedIds([]); onOpenChange?.(false); onClose?.(); }
   const selectedExercises = useMemo(
@@ -160,6 +188,39 @@ export function AddExerciseModal({
 
   const isSearchPending = query !== deferredQuery
 
+  async function handleCreateExercise(data: ExerciseSaveData) {
+    if (!createExercise) return
+    setSavingExercise(true)
+    try {
+      const option = await createExercise(data)
+      setCreatedOptions((current) => [option, ...current])
+      setCreating(false)
+      setQuery("")
+      if (onPickMany) setSelectedIds((current) => [...current, option.id])
+      else onPick(option)
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : messages.workoutPage.createExerciseError, tone: "error" })
+    } finally {
+      setSavingExercise(false)
+    }
+  }
+
+  const createButton = createExercise ? (
+    <button
+      type="button"
+      onClick={() => setCreating(true)}
+      className="flex w-full items-center gap-3 px-[22px] py-3 text-left text-sm font-medium text-primary transition-colors hover:bg-muted"
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-md border border-dashed border-primary/40">
+        <Plus aria-hidden className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate">{messages.workoutPage.createExercise(query.trim())}</span>
+        <span className="block text-xs font-normal text-muted-foreground">{messages.workoutPage.createExerciseHint}</span>
+      </span>
+    </button>
+  ) : null
+
   function toggleMuscle(slug: MapMuscleSlug) {
     if (!(MUSCLE_SLUGS as readonly string[]).includes(slug)) return
     setMuscle((current) => current === slug ? "all" : slug as MuscleSlug)
@@ -235,10 +296,17 @@ export function AddExerciseModal({
               {messages.workoutPage.loadingExercises}
             </div>
           ) : visible.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              {messages.workoutPage.noExercisesFound}
-            </div>
+            <>
+              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                {messages.workoutPage.noExercisesFound}
+              </div>
+              {createButton}
+            </>
           ) : (
+            <>
+            {/* Offered first while searching, where a miss is most likely. */}
+            {query.trim() && createButton ? <div className="border-b border-border">{createButton}</div> : null}
+            {
             visible.map((exercise, index) => {
               const added = existingSet.has(exercise.id)
               const selected = selectedIds.includes(exercise.id)
@@ -294,7 +362,9 @@ export function AddExerciseModal({
                 </button>
                 </div>
               )
-            })
+            })}
+            {!query.trim() && createButton ? <div className="border-t border-border">{createButton}</div> : null}
+            </>
           )}
         </div>
 
@@ -307,6 +377,20 @@ export function AddExerciseModal({
         )}
         {footer ? <div className="border-t border-border px-[22px] py-3">{footer}</div> : null}
       </DialogContent>
+
+      {creating ? (
+        <ExerciseFormModal
+          allowMedia={false}
+          initial={null}
+          initialName={query.trim()}
+          locale={locale}
+          offerShare
+          saving={savingExercise}
+          stacked
+          onClose={() => { if (!savingExercise) setCreating(false) }}
+          onSave={(data) => void handleCreateExercise(data)}
+        />
+      ) : null}
 
       <Dialog open={showFilters} onOpenChange={setShowFilters}>
         <DialogContent
