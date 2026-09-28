@@ -2,6 +2,7 @@ import {
   CoachApprovalStatus,
   CoachRequestStatus,
   ExerciseImportRequestStatus,
+  ExerciseShareStatus,
   MealStatus,
   Prisma,
   PrismaClient,
@@ -45,6 +46,7 @@ import {
 import { logger } from "../../lib/logger"
 import { sendCoachSignupDecisionEmail, type CoachSignupEmailStatus } from "../../lib/coach-signup-email"
 import { invalidateExerciseLibrary } from "../../lib/library-cache"
+import { LIBRARY_EXERCISE_WHERE } from "./exercise-shares"
 import { prisma } from "../../lib/prisma"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatClientDateKey, formatUtcDateOnly } from "../fitness-data/shared/dates"
 import { supabaseAdmin } from "../../lib/supabase"
@@ -365,6 +367,7 @@ function serializeExerciseSummary(exercise: ExerciseSummaryRecord) {
   return {
     createdAt: exercise.createdAt,
     createdBy: exercise.exercise.createdBy ? serializeMiniUser(exercise.exercise.createdBy) : null,
+    shareStatus: exercise.exercise.shareStatus,
     equipment: exercise.equipment ?? undefined,
     id: exercise.id,
     isDefault: exercise.isDefault,
@@ -1743,6 +1746,11 @@ async function listAdminExercises(
     }))
 }
 
+/** What admins add is library data: shared from the start. */
+function adminSharedExercise(adminId: string) {
+  return { shareReviewedAt: new Date(), shareReviewedById: adminId, shareStatus: ExerciseShareStatus.shared }
+}
+
 async function createAdminExercise(
   profile: SerializedProfile,
   input: {
@@ -1775,6 +1783,7 @@ async function createAdminExercise(
         createdById: profile.id,
         muscleGroup,
         name,
+        ...adminSharedExercise(profile.id),
         variations: {
           create: {
             equipment,
@@ -1906,7 +1915,10 @@ async function importAdminExercises(
   })
 
   // --- Phase 2: Deduplicate against existing DB records ---
+  // Only the shared library counts: a coach's private copy must neither swallow
+  // an admin's row nor receive variations everyone else could not see.
   const existingVariations = await db.variation.findMany({
+    where: { exercise: LIBRARY_EXERCISE_WHERE },
     select: {
       exercise: {
         select: {
@@ -1988,6 +2000,7 @@ async function importAdminExercises(
     createdCount = await db.$transaction(async (tx) => {
       // 3a. Build map of existing exercises
       const allExercises = await tx.exercise.findMany({
+        where: LIBRARY_EXERCISE_WHERE,
         select: {
           id: true,
           muscleGroup: true,
@@ -2041,6 +2054,7 @@ async function importAdminExercises(
             id: exerciseId,
             muscleGroup,
             name: exerciseName,
+            ...adminSharedExercise(profile.id),
           })
 
           existingExerciseMap.set(exerciseSignature, {
@@ -3268,7 +3282,7 @@ async function applyExerciseSync(profile: SerializedProfile, rawRows: ExerciseSy
     }
     if (newExercises.length > 0) {
       await transaction.exercise.createMany({
-        data: newExercises.map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscleGroup, createdById: profile.id })),
+        data: newExercises.map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscleGroup, createdById: profile.id, ...adminSharedExercise(profile.id) })),
       })
     }
     for (const [val, ids] of equipGroups) {

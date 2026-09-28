@@ -30,6 +30,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { AdminExercisesPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { ExerciseShareReviewPanel } from "@/components/admin/exercise-share-review-panel"
 import { AdminBroadcastPanel } from "@/components/admin/admin-broadcast-panel"
 import { AdminFoodsPanel } from "@/components/admin/admin-foods-panel"
 import { CoachSignupsPanel } from "@/components/admin/coach-signups-panel"
@@ -2426,6 +2427,7 @@ export function AdminConsole() {
           </TabsContent>
 
           <TabsContent value="exercises">
+            <ExerciseShareReviewPanel libraryExercises={exercises} locale={locale} />
             <AdminExercisesPanel
               exercises={exercises}
               actionKey={actionKey}

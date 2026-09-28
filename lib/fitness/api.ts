@@ -1089,6 +1089,8 @@ function mapCoachExercise(exercise: SerializedCoachExercise): CoachExercise {
     media: exercise.media,
     muscleGroup: exercise.muscleGroup,
     name: exercise.name,
+    shareReviewNote: exercise.shareReviewNote,
+    shareStatus: exercise.shareStatus ?? "private",
     source: exercise.source,
     updatedAt: new Date(exercise.updatedAt),
     usageCount: exercise.usageCount,
@@ -2367,6 +2369,54 @@ async function updateCoachExerciseRequest(accessToken: string, exerciseId: strin
   return mapCoachExercise(response.exercise)
 }
 
+/** The coach offers one of their own exercises to the shared library. */
+async function requestCoachExerciseShareRequest(accessToken: string, exerciseId: string) {
+  const response = await request<ApiEnvelope<{ exercise: SerializedCoachExercise }>>(
+    `/api/coach/exercises/${exerciseId}/share`,
+    accessToken,
+    { method: "POST" },
+  )
+  return mapCoachExercise(response.data.exercise)
+}
+
+/** An Excel import: lands in the coach's own library now, and waits for an admin to share it. */
+async function importCoachExercisesRequest(accessToken: string, rows: CoachExerciseImportRow[]) {
+  const response = await request<ApiEnvelope<{ createdCount: number; skippedCount: number }>>(
+    "/api/coach/exercises/import",
+    accessToken,
+    { body: JSON.stringify({ rows }), method: "POST" },
+  )
+  return response.data
+}
+
+/**
+ * A coach exercise as the exercise pickers list it, so one created from a
+ * picker can be picked straight away.
+ */
+function coachExerciseToVariationOption(exercise: CoachExercise): ExerciseVariationOption | null {
+  if (!exercise.variationId) return null
+  const isDefault = exercise.variationName.trim().toLowerCase() === "default"
+  return {
+    activityType: exercise.activityType,
+    canManage: exercise.canManage,
+    createdById: exercise.createdById,
+    displayName: isDefault ? exercise.name : `${exercise.name} (${exercise.variationName})`,
+    equipment: exercise.equipment,
+    exerciseId: exercise.id,
+    exerciseName: exercise.name,
+    id: exercise.variationId,
+    isDefault,
+    media: exercise.media,
+    muscleGroup: exercise.muscleGroup,
+    name: isDefault ? exercise.name : `${exercise.name} (${exercise.variationName})`,
+    primaryMuscles: exercise.primaryMuscles,
+    secondaryMuscles: exercise.secondaryMuscles,
+    sortOrder: 0,
+    source: exercise.source,
+    variationName: exercise.variationName,
+  }
+}
+
 async function deleteCoachExerciseRequest(accessToken: string, exerciseId: string) {
   return request<{ deleted: boolean; id: string }>(`/api/coach/exercises/${exerciseId}`, accessToken, {
     method: "DELETE",
@@ -2383,25 +2433,6 @@ async function fetchCoachExerciseImportRequests(accessToken: string): Promise<Co
   )
 
   return response.requests.map(mapCoachExerciseImportRequest)
-}
-
-async function submitCoachExerciseImportRequest(
-  accessToken: string,
-  input: {
-    fileName?: string
-    rows: CoachExerciseImportRow[]
-  },
-) {
-  const response = await request<{ request: SerializedCoachExerciseImportRequest }>(
-    "/api/coach/exercise-import-requests",
-    accessToken,
-    {
-      body: JSON.stringify(input),
-      method: "POST",
-    },
-  )
-
-  return mapCoachExerciseImportRequest(response.request)
 }
 
 async function fetchNotifications(accessToken: string, limit = 20): Promise<NotificationList> {
@@ -2807,6 +2838,9 @@ export {
   archiveCoachProgram,
   assignCoachProgram,
   createCoachExerciseRequest,
+  coachExerciseToVariationOption,
+  importCoachExercisesRequest,
+  requestCoachExerciseShareRequest,
   createCoachBodyMetric,
   regenerateAIMealPlanMeal,
   createCoachCheckIn,
@@ -2870,7 +2904,6 @@ export {
   sendAIChatMessage,
   fetchNutritionDay,
   fetchNotifications,
-  submitCoachExerciseImportRequest,
   duplicateWorkoutToRoutine,
   fetchWorkoutDetail,
   fetchWorkoutSessionDraft,

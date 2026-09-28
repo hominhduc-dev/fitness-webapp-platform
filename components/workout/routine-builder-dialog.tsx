@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useCreateWorkout, useUpdateWorkout } from "@/lib/queries/workouts"
-import { useExercises } from "@/lib/queries/exercises"
+import { useCreateExerciseFromPicker, useExercises } from "@/lib/queries/exercises"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import { normalizeSetIntensityAssignments, readSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -71,6 +71,8 @@ export type RoutineBuilderDialogProps = {
   onOpenChange?: (open: boolean) => void
   draftToEdit?: RoutineDraftData
   onSaveDraft?: (data: RoutineDraftData) => void
+  /** Coach only: the picker offers to create an exercise the library lacks. */
+  allowCreateExercise?: boolean
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -195,7 +197,9 @@ export function RoutineBuilderDialog({
   onOpenChange,
   draftToEdit,
   onSaveDraft,
+  allowCreateExercise = false,
 }: RoutineBuilderDialogProps) {
+  const createExerciseMutation = useCreateExerciseFromPicker()
   const createWorkoutMutation = useCreateWorkout()
   const updateWorkoutMutation = useUpdateWorkout()
   const { isLoading: authLoading, session } = useAuth()
@@ -574,6 +578,17 @@ export function RoutineBuilderDialog({
             onPick={pickExercise}
             onPickMany={pickerTarget === "add" ? addExercises : undefined}
             onClose={() => setPickerTarget(null)}
+            createExercise={allowCreateExercise
+              ? (data) => createExerciseMutation.mutateAsync({
+                  activityType: data.activityType,
+                  equipment: data.equipment?.trim() || undefined,
+                  muscleGroup: data.muscleGroup.trim(),
+                  name: data.name.trim(),
+                  primaryMuscles: data.primaryMuscles,
+                  secondaryMuscles: data.secondaryMuscles,
+                  shareRequested: data.shareRequested,
+                })
+              : undefined}
           />
         )}
       </DialogContent>

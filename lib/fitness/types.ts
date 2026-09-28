@@ -520,6 +520,9 @@ type CoachExercise = ExerciseMuscleProfile & {
   media?: import("@/lib/types").ExerciseMedia
   muscleGroup: string
   name: string
+  /** Why an admin declined to share it, when they said. */
+  shareReviewNote?: string
+  shareStatus: import("@/lib/types").ExerciseShareStatus
   source: ExerciseSource
   updatedAt: Date
   usageCount: number
@@ -534,6 +537,8 @@ type CoachExerciseInput = {
   name: string
   primaryMuscles: import("@/lib/types").MuscleSlug[]
   secondaryMuscles: import("@/lib/types").MuscleSlug[]
+  /** Also offer it to the shared library, pending an admin's review. */
+  shareRequested?: boolean
 }
 
 type CoachExerciseImportRow = {

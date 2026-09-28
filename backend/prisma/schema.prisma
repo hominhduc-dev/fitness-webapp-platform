@@ -74,6 +74,19 @@ enum CoachRequestInitiator {
   coach
 }
 
+/// Whether a coach's own exercise is offered to everyone. System exercises
+/// (no creator) are always visible and ignore this.
+enum ExerciseShareStatus {
+  /// Only the coach who made it sees it.
+  private
+  /// The coach asked for it to be shared; waiting on an admin.
+  pending
+  /// An admin approved it: everyone sees it, only admins may change it.
+  shared
+  /// An admin declined; it stays private to its coach.
+  rejected
+}
+
 enum ExerciseImportRequestStatus {
   pending
   approved
@@ -268,6 +281,7 @@ model User {
   trainees               User[]                    @relation("CoachTrainees")
   meals                  Meal[]
   exercisesCreated       Exercise[]                @relation("ExerciseCreator")
+  exerciseShareReviews   Exercise[]                @relation("ExerciseShareReviewer")
   exerciseImportRequests ExerciseImportRequest[]   @relation("ExerciseImportSubmitter")
   exerciseImportReviews  ExerciseImportRequest[]   @relation("ExerciseImportReviewer")
   muscleProfilesReviewed Variation[]               @relation("MuscleProfileReviewer")
@@ -311,10 +325,18 @@ model Exercise {
   createdById String?     @db.Uuid
   createdBy   User?       @relation("ExerciseCreator", fields: [createdById], references: [id], onDelete: SetNull)
   variations  Variation[]
+  shareStatus       ExerciseShareStatus @default(private)
+  shareRequestedAt  DateTime?
+  shareReviewedAt   DateTime?
+  shareReviewedById String?             @db.Uuid
+  shareReviewNote   String?
+  shareReviewedBy   User?               @relation("ExerciseShareReviewer", fields: [shareReviewedById], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@index([createdById])
+  @@index([shareStatus, shareRequestedAt])
+  @@index([shareReviewedById])
 }
 
 model Variation {

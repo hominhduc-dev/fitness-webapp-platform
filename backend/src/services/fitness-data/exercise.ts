@@ -1,10 +1,11 @@
 export {
   createCoachExercise,
+  importCoachExercises,
+  requestCoachExerciseShare,
   deleteCoachExercise,
   listCoachExerciseImportRequests,
   listCoachExercises,
   listExerciseLibrary,
   listExercises,
-  submitCoachExerciseImportRequest,
   updateCoachExercise,
 } from "./core"

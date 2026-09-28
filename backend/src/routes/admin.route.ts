@@ -48,6 +48,8 @@ import {
   getAdminBroadcastAudience,
   listAdminBroadcasts,
   sendAdminBroadcast,
+  listAdminExerciseShareRequests,
+  reviewAdminExerciseShare,
 } from "../services/admin.service"
 import { invalidateExerciseLibrary } from "../lib/library-cache"
 import { validated } from "../middleware/validate"
@@ -64,6 +66,7 @@ import {
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
   adminBroadcastSchema,
+  reviewExerciseShareSchema,
 } from "./admin.schemas"
 import { getAccessToken, sendData, sendError } from "./route.utils"
 
@@ -420,6 +423,23 @@ adminRouter.post(
   validated({ body: adminBroadcastSchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await sendAdminBroadcast(profile, req.body), { status: 201 })
+  }),
+)
+
+// Coach exercises offered to the shared library: the queue, and a decision on one.
+adminRouter.get(
+  "/exercise-shares",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { requests: await listAdminExerciseShareRequests(profile) })
+  }),
+)
+
+adminRouter.post(
+  "/exercise-shares/:exerciseId/review",
+  validated({ body: reviewExerciseShareSchema, params: exerciseIdParams }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await reviewAdminExerciseShare(profile, req.params.exerciseId, req.body))
   }),
 )
 

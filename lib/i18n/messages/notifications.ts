@@ -46,6 +46,18 @@ export const notificationsMessages = {
             `${name} applied to be a coach.${others > 0 ? ` ${others} more ${others === 1 ? "is" : "are"} waiting.` : " Tap to review."}`,
           title: "New coach application",
         },
+        exerciseSharePending: {
+          message: (coach: string, exercise: string, others: number) =>
+            `${coach} suggested ${exercise} for the shared library.${others > 0 ? ` ${others} more ${others === 1 ? "is" : "are"} waiting.` : " Tap to review."}`,
+          title: "Exercise to review",
+        },
+        exerciseShareReviewed: {
+          approved: (exercise: string) => `${exercise} is now in the shared library.`,
+          merged: (exercise: string, target?: string) => `${exercise} was merged into ${target ?? "a library exercise"}; your programs now use it.`,
+          rejected: (exercise: string, note?: string) => `${exercise} stays in your own library.${note ? ` Note: ${note}` : ""}`,
+          sharedTitle: "Exercise shared",
+          notSharedTitle: "Exercise not shared",
+        },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} completed ${workout}.`,
           title: (trainee: string) => `${trainee} logged a workout`,
@@ -113,6 +125,18 @@ export const notificationsMessages = {
           message: (name: string, others: number) =>
             `${name} vừa đăng ký làm coach.${others > 0 ? ` Còn ${others} hồ sơ khác đang chờ.` : " Chạm để duyệt."}`,
           title: "Hồ sơ coach mới cần duyệt",
+        },
+        exerciseSharePending: {
+          message: (coach: string, exercise: string, others: number) =>
+            `${coach} đề xuất ${exercise} vào thư viện chung.${others > 0 ? ` Còn ${others} bài khác đang chờ.` : " Chạm để duyệt."}`,
+          title: "Bài tập cần duyệt",
+        },
+        exerciseShareReviewed: {
+          approved: (exercise: string) => `${exercise} đã có trong thư viện chung.`,
+          merged: (exercise: string, target?: string) => `${exercise} đã được gộp vào ${target ?? "một bài có sẵn"}; giáo án của bạn giờ dùng bài đó.`,
+          rejected: (exercise: string, note?: string) => `${exercise} vẫn nằm trong thư viện riêng của bạn.${note ? ` Ghi chú: ${note}` : ""}`,
+          sharedTitle: "Bài tập đã được dùng chung",
+          notSharedTitle: "Bài tập chưa được dùng chung",
         },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} đã hoàn thành ${workout}.`,

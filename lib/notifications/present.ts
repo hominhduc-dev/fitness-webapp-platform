@@ -59,6 +59,8 @@ function resolveNotificationHref(notification: AppNotification) {
       return "/coach/trainees"
     case "general":
       if (kind === "coach_signup_pending") return "/admin?s=coach-signups"
+      if (kind === "exercise_share_pending") return "/admin?s=exercises"
+      if (kind === "exercise_share_reviewed") return "/coach/exercises"
       if (kind === "trainee_swapped_exercise" && traineeId) return `/coach/trainees/${traineeId}`
       if (kind === "meal_plan_reviewed") return "/meals"
       return null
@@ -153,6 +155,19 @@ function localizeCopy(
       if (readString(notification, "kind") === "coach_signup_pending" && applicant) {
         const pending = Number(notification.metadata?.pendingCount ?? 1)
         return { message: copy.coachSignupPending.message(applicant, Math.max(pending - 1, 0)), title: copy.coachSignupPending.title }
+      }
+      const coach = readString(notification, "coachName")
+      const exercise = readString(notification, "exerciseName")
+      if (readString(notification, "kind") === "exercise_share_pending" && coach && exercise) {
+        const pending = Number(notification.metadata?.pendingCount ?? 1)
+        return { message: copy.exerciseSharePending.message(coach, exercise, Math.max(pending - 1, 0)), title: copy.exerciseSharePending.title }
+      }
+      if (readString(notification, "kind") === "exercise_share_reviewed" && exercise) {
+        const reviewed = copy.exerciseShareReviewed
+        const decision = readString(notification, "decision")
+        if (decision === "approved") return { message: reviewed.approved(exercise), title: reviewed.sharedTitle }
+        if (decision === "merged") return { message: reviewed.merged(exercise, readString(notification, "targetName")), title: reviewed.sharedTitle }
+        return { message: reviewed.rejected(exercise, readString(notification, "note")), title: reviewed.notSharedTitle }
       }
       return null
     }

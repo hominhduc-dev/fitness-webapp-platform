@@ -10,3 +10,8 @@ export const coachRequestParamsSchema = z.object({
 export const coachRequestAnswerSchema = z.object({
   status: z.enum([CoachRequestStatus.approved, CoachRequestStatus.rejected], "Trạng thái trả lời không hợp lệ."),
 })
+
+/** A coach's own exercise named in the URL. */
+export const coachExerciseParamsSchema = z.object({
+  exerciseId: z.uuid("exerciseId không hợp lệ."),
+})

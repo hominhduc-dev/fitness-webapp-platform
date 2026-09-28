@@ -4,7 +4,12 @@ import { logger } from "../../lib/logger"
 import { ensurePrisma } from "../fitness-data/shared/guards"
 import { sendPushToSubscription } from "../push-notification.service"
 import { localizedNotificationCopy, type PushLocale } from "./localized-push"
-import { COACH_SIGNUP_PENDING_KIND, COACH_SIGNUP_PUSH_TAG } from "./admin-notification-kinds"
+import {
+  COACH_SIGNUP_PENDING_KIND,
+  COACH_SIGNUP_PUSH_TAG,
+  EXERCISE_SHARE_PENDING_KIND,
+  EXERCISE_SHARE_PUSH_TAG,
+} from "./admin-notification-kinds"
 
 const MAX_ATTEMPTS = 5
 const DELIVERY_BATCH_SIZE = 50
@@ -41,10 +46,15 @@ function notificationPushTag(notification: Pick<Notification, "id" | "metadata" 
     case NotificationType.coach_weekly_review:
       return "coach-weekly-review"
     case NotificationType.general:
-      // New coach applications replace each other: the latest carries the count.
-      return metadataText(notification.metadata, "kind") === COACH_SIGNUP_PENDING_KIND
-        ? COACH_SIGNUP_PUSH_TAG
-        : `notification:${notification.id}`
+      // Each admin queue keeps one notice on the device: the latest carries the count.
+      switch (metadataText(notification.metadata, "kind")) {
+        case COACH_SIGNUP_PENDING_KIND:
+          return COACH_SIGNUP_PUSH_TAG
+        case EXERCISE_SHARE_PENDING_KIND:
+          return EXERCISE_SHARE_PUSH_TAG
+        default:
+          return `notification:${notification.id}`
+      }
     default:
       return `notification:${notification.id}`
   }

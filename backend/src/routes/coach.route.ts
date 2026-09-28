@@ -10,6 +10,8 @@ import {
   rejectTraineeExerciseSwapForCoach,
   assignCoachProgramToTrainee,
   createCoachExercise,
+  importCoachExercises,
+  requestCoachExerciseShare,
   createBodyMetricForTrainee,
   createCoachRequestForTrainee,
   createCoachCheckInForTrainee,
@@ -33,7 +35,6 @@ import {
   listCoachWorkoutLogsForTrainee,
   listCoachTrainees,
   restoreCoachProgram,
-  submitCoachExerciseImportRequest,
   unassignCoachProgramFromTrainee,
   unlinkGoogleSpreadsheetFromCoachProgram,
   updateCoachExercise,
@@ -69,7 +70,7 @@ import {
   traineeMealPlanParamsSchema,
 } from "./meal.schemas"
 import { sendData, sendApiError } from "./route.utils"
-import { coachRequestAnswerSchema, coachRequestParamsSchema } from "./coach.schemas"
+import { coachExerciseParamsSchema, coachRequestAnswerSchema, coachRequestParamsSchema } from "./coach.schemas"
 
 const coachRouter = Router()
 coachRouter.use("/google", googleRouter)
@@ -480,6 +481,7 @@ coachRouter.post("/exercises", async (req, res) => {
       muscleGroup: String(req.body.muscleGroup ?? ""),
       muscleProfile: parseMuscleProfileInput(req.body),
       name: String(req.body.name ?? ""),
+      shareRequested: req.body.shareRequested === true,
     })
 
     res.status(201).json({
@@ -490,6 +492,24 @@ coachRouter.post("/exercises", async (req, res) => {
   }
 })
 
+// An Excel import lands in the coach's own library and waits for an admin to share it.
+coachRouter.post(
+  "/exercises/import",
+  validated({}, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await importCoachExercises(profile, parseExerciseImportRows(req.body as Record<string, unknown>)), { status: 201 })
+  }),
+)
+
+// The coach offers one of their own exercises to the shared library.
+coachRouter.post(
+  "/exercises/:exerciseId/share",
+  validated({ params: coachExerciseParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { exercise: await requestCoachExerciseShare(profile, req.params.exerciseId) })
+  }),
+)
+
 coachRouter.get("/exercise-import-requests", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
@@ -497,22 +517,6 @@ coachRouter.get("/exercise-import-requests", async (req, res) => {
 
     res.json({
       requests,
-    })
-  } catch (error) {
-    sendError(res, error)
-  }
-})
-
-coachRouter.post("/exercise-import-requests", async (req, res) => {
-  try {
-    const profile = await requireCurrentProfile(getAccessToken(req))
-    const request = await submitCoachExerciseImportRequest(profile.profile, {
-      fileName: getOptionalString(req.body.fileName),
-      rows: parseExerciseImportRows(req.body),
-    })
-
-    res.status(201).json({
-      request,
     })
   } catch (error) {
     sendError(res, error)
