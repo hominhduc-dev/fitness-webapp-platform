@@ -9,6 +9,7 @@ const dateKey = z
   }, "Ngày không hợp lệ.")
 
 const volumeRecoveryQuerySchema = z.object({
+  programId: z.string().uuid().optional(),
   weekStart: dateKey.optional(),
 })
 

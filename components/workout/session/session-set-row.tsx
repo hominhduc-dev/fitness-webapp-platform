@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, FileText, MoreVertical, Trash2, TrendingUp } from "lucide-react"
+import { FileText, MoreVertical, RotateCcw, Trash2, TrendingUp } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -24,13 +24,13 @@ export type ProgramSetTarget = {
   weight?: number
 }
 
-// Set | Prev | kg | Reps | RIR | tick + menu. The trailing column holds a 44px
-// tick and the row menu. Prev carries the longest string in the row
+// Set | Prev | kg | Reps | RIR | menu. The trailing column keeps the row menu
+// compact. Prev carries the longest string in the row
 // ("82.5×8-10") while kg, Reps and RIR never hold more than a few digits, so on
 // phones the width leans towards Prev — otherwise the target rep range is the
 // part that gets truncated away.
 export const SET_ROW_GRID_CLASS =
-  "grid-cols-[22px_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.75fr)_68px] gap-1 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_76px] sm:gap-2 sm:px-4"
+  "grid-cols-[22px_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.75fr)_28px] gap-1 px-2 sm:grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_32px] sm:gap-2 sm:px-4"
 
 // Every figure is plain text, never a box or a line. The touch target stays
 // full height; only the field being typed in shows an accent underline. `!` on
@@ -60,7 +60,6 @@ interface SessionSetRowProps {
   canRemove: boolean
   /** The set the trainee is on — the one the bottom bar's button logs. */
   active?: boolean
-  onToggle: (data: Partial<ExerciseSet>) => void
   onChange: (patch: Partial<ExerciseSet>) => void
   onRemove: () => void
 }
@@ -72,7 +71,6 @@ export function SessionSetRow({
   weightUnit,
   canRemove,
   active = false,
-  onToggle,
   onChange,
   onRemove,
 }: SessionSetRowProps) {
@@ -106,26 +104,17 @@ export function SessionSetRow({
     setRir(set.rir?.toString() ?? "")
   }, [set.id, set.rir])
 
-  const handleToggle = () => {
-    const next = !completed
-    onToggle({
-      completed: next,
-      weight: Number.parseFloat(weight) || undefined,
-      actualReps: Number.parseInt(reps) || set.targetReps,
-      rir: rir.trim() ? Number.parseInt(rir) : undefined,
-    })
-  }
-
   // Prev column mixes two sources: weight from the trainee's last logged set of
   // this exercise in the same program, and reps from the coach's programmed rep
   // range for this program. Weight shows progression; the range shows today's
-  // target. Each side falls back to the other source when one is missing.
+  // target. Added-in-session sets have no original program target row, so they
+  // fall back to their own target range instead of showing an empty Prev cell.
   const prevWeight = set.previousPerformance?.weight ?? programTarget?.weight
   const repsPart = programTarget
     ? formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })
     : set.previousPerformance?.reps != null
       ? String(set.previousPerformance.reps)
-      : null
+      : formatRepTarget({ reps: set.targetReps, repsMin: set.targetRepsMin })
   const weightPart = prevWeight != null ? String(prevWeight) : null
   // No spaces around the "×": at 375px the two of them are the difference
   // between showing the target rep range and truncating it away.
@@ -246,32 +235,7 @@ export function SessionSetRow({
           className={cn(FIELD_CLASS, fieldStateClass(completed, active))}
         />
 
-        {/* Row actions: the tick is the most-tapped control in the app, so the
-            button is a full 44px target on touch while the circle drawn inside
-            stays small; the menu stays narrow beside it. */}
-        <div className="flex items-center justify-end gap-0.5">
-          <button
-            type="button"
-            onClick={handleToggle}
-            aria-label={completed ? messages.workoutPage.markIncomplete : messages.workoutPage.completeSet}
-            aria-pressed={completed}
-            className="group flex size-10 shrink-0 items-center justify-center rounded-full outline-none pointer-coarse:size-11"
-          >
-            <span
-              className={cn(
-                "flex size-8 items-center justify-center rounded-full",
-                "transition-all duration-[180ms] [transition-timing-function:cubic-bezier(.2,.7,.2,1)]",
-                "group-focus-visible:ring-2 group-focus-visible:ring-ring group-active:scale-90",
-                completed
-                  ? "bg-primary text-primary-foreground"
-                  : active
-                    ? "border-[1.5px] border-primary text-primary"
-                    : "border border-border text-transparent group-hover:border-primary/60",
-              )}
-            >
-              <Check className="size-4" strokeWidth={3} />
-            </span>
-          </button>
+        <div className="flex items-center justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -290,6 +254,12 @@ export function SessionSetRow({
                 <FileText className="mr-2 h-4 w-4" />
                 {noteOpen ? messages.workoutPage.hideNote : messages.workoutPage.addNote}
               </DropdownMenuItem>
+              {completed ? (
+                <DropdownMenuItem onClick={() => onChange({ completed: false })}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  {messages.workoutPage.markIncomplete}
+                </DropdownMenuItem>
+              ) : null}
               {canRemove && (
                 <>
                   <DropdownMenuSeparator />

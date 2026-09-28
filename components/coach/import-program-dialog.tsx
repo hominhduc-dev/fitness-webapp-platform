@@ -58,6 +58,12 @@ type ImportSource = "excel" | "google"
 const STEP_ORDER: Step[] = ["upload", "review", "done"]
 
 const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced"]
+const PROGRAM_GOALS = [
+  { en: "Hypertrophy", value: "build_muscle", vi: "Tăng cơ" },
+  { en: "Strength", value: "strength", vi: "Sức mạnh" },
+  { en: "Endurance", value: "endurance", vi: "Sức bền" },
+  { en: "General", value: "general_fitness", vi: "Tổng hợp" },
+]
 
 function ImportSourceIcon({ source }: { source: ImportSource }) {
   if (source === "excel") return <FileSpreadsheet className="size-5" />
@@ -180,6 +186,7 @@ export function ImportProgramDialog({
   const [programName, setProgramName] = useState("")
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate")
   const [duration, setDuration] = useState(4)
+  const [programGoal, setProgramGoal] = useState("build_muscle")
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
@@ -212,6 +219,7 @@ export function ImportProgramDialog({
       description: description.trim() || undefined,
       difficulty,
       duration,
+      goal: programGoal,
       name,
       startDate: startDate.trim() || null,
       ...(googleSource ? { googleSpreadsheetId: googleSource.spreadsheetId, googleSheetName: googleSource.sheetName } : {}),
@@ -219,7 +227,7 @@ export function ImportProgramDialog({
         .map(editableToPayloadWorkout)
         .filter((w) => w.exercises.length > 0),
     }
-  }, [description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programName, selectedTraineeIds, startDate])
+  }, [description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeIds, startDate])
 
   const exerciseCount = useMemo(
     () => editableWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
@@ -250,6 +258,7 @@ export function ImportProgramDialog({
     setDifficulty("intermediate")
     setDuration(4)
     setDescription("")
+    setProgramGoal("build_muscle")
     setStartDate("")
     setSelectedTraineeIds([])
     setSource("excel")
@@ -280,6 +289,7 @@ export function ImportProgramDialog({
       setProgramName(importedDraft.name?.trim() || file.name.replace(/\.[^.]+$/, ""))
       setDifficulty(importedDraft.difficulty ?? "intermediate")
       setDuration(importedDraft.duration ?? 4)
+      setProgramGoal(importedDraft.goal ?? "build_muscle")
       setDescription(importedDraft.description?.trim() ?? "")
       // The sheet's assign_to_emails column seeds the roster; the coach can
       // still add or drop anyone before the program is created.
@@ -562,6 +572,26 @@ export function ImportProgramDialog({
                         onClick={() => setDifficulty(item)}
                       >
                         {difficultyLabel(item)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="label-micro mb-1.5 block">{locale === "vi" ? "Mục tiêu" : "Goal"}</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PROGRAM_GOALS.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className={cn(
+                          "h-9 rounded-full border px-3 text-micro font-semibold transition-colors",
+                          programGoal === item.value
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground",
+                        )}
+                        onClick={() => setProgramGoal(item.value)}
+                      >
+                        {item[locale]}
                       </button>
                     ))}
                   </div>

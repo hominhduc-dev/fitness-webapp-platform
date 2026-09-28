@@ -83,7 +83,6 @@ interface SessionExerciseViewProps {
   weightUnit: "kg" | "lbs"
   noteOpen: boolean
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void
-  onSetComplete: (exercise: WorkoutExercise, set: ExerciseSet, data: Partial<ExerciseSet>) => void
   onAddSet: (exerciseId: string) => void
   onRemoveSet: (exerciseId: string, setId: string) => void
   onExerciseNoteChange: (exerciseId: string, note: string) => void
@@ -104,7 +103,6 @@ export function SessionExerciseView({
   weightUnit,
   noteOpen,
   onSetUpdate,
-  onSetComplete,
   onAddSet,
   onRemoveSet,
   onExerciseNoteChange,
@@ -273,12 +271,6 @@ export function SessionExerciseView({
               weightUnit={weightUnit}
               canRemove={exercise.sets.length > 1}
               active={idx === activeSet}
-              onToggle={(data) => {
-                onSetUpdate(set.id, data)
-                if (data.completed) {
-                  onSetComplete(exercise, set, data)
-                }
-              }}
               onChange={(patch) => onSetUpdate(set.id, patch)}
               onRemove={() => onRemoveSet(exercise.id, set.id)}
             />

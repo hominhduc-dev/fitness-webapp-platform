@@ -123,6 +123,12 @@ type BuilderMode =
 
 const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
 const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
+const PROGRAM_GOAL_OPTIONS = [
+  { en: "Hypertrophy", value: "build_muscle", vi: "Tăng cơ" },
+  { en: "Strength", value: "strength", vi: "Sức mạnh" },
+  { en: "Endurance", value: "endurance", vi: "Sức bền" },
+  { en: "General", value: "general_fitness", vi: "Tổng hợp" },
+]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
 
 const DAY_OPTIONS = [
@@ -583,6 +589,7 @@ export function ProgramEditor({
   const [durationDraft, setDurationDraft] = useState("8")
   const [daysPerWeek, setDaysPerWeek] = useState("4")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
+  const [programGoal, setProgramGoal] = useState("build_muscle")
   const { data: traineeOptions = initialTraineeOptions } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTraineeOptions)
   // `/api/exercises` already lists every variation this coach can see; the
   // grouped `/library` response holds the same rows, so it is not fetched here.
@@ -645,6 +652,7 @@ export function ProgramEditor({
           setDurationDraft(String(nextWeeks))
           setDaysPerWeek(String(nextDaysPerWeek))
           setDifficulty(program.difficulty)
+          setProgramGoal(program.goal ?? "build_muscle")
           setSelectedTraineeIds(
             adjustForTraineeId
               ? [adjustForTraineeId]
@@ -923,6 +931,7 @@ export function ProgramEditor({
       description: description.trim() || undefined,
       difficulty,
       duration: totalWeeks,
+      goal: programGoal,
       name: programName.trim(),
       startDate: startDate.trim() || null,
       workouts,
@@ -1162,7 +1171,7 @@ export function ProgramEditor({
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground">{messages.coach.programDetails}</span>
                   <span className="block truncate text-micro text-muted-foreground">
-                  {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty}
+                  {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty} · {PROGRAM_GOAL_OPTIONS.find((option) => option.value === programGoal)?.[locale] ?? programGoal}
                   </span>
                 </span>
               </span>
@@ -1179,7 +1188,7 @@ export function ProgramEditor({
                 isArchived && "pointer-events-none opacity-60",
               )}
             >
-              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-3 md:gap-x-4 md:gap-y-2.5 xl:grid-cols-[1.35fr_0.8fr_1fr_1fr_1.05fr_1.6fr]">
+              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-3 md:gap-x-4 md:gap-y-2.5 xl:grid-cols-[1.25fr_0.72fr_0.9fr_0.9fr_1fr_1fr_1.4fr]">
                 <label className="col-span-2 space-y-0.5 md:col-span-1 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programName} <span className="text-destructive-text">*</span></span>
                   <span className="relative block">
@@ -1243,6 +1252,23 @@ export function ProgramEditor({
                       {DIFFICULTY_OPTIONS.map((option) => (
                         <SelectItem key={option} value={option} className="capitalize">
                           {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="space-y-0.5 md:space-y-1">
+                  <span className="text-micro font-medium text-muted-foreground md:text-xs">
+                    {locale === "vi" ? "Mục tiêu" : "Goal"} <span className="text-destructive-text">*</span>
+                  </span>
+                  <Select value={programGoal} onValueChange={setProgramGoal}>
+                    <SelectTrigger className="h-9 w-full bg-background/65 md:h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[100] border-border bg-card">
+                      {PROGRAM_GOAL_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option[locale]}
                         </SelectItem>
                       ))}
                     </SelectContent>

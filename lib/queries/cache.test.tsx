@@ -235,15 +235,18 @@ describe("client cache contracts", () => {
     hook.unmount(); client.clear()
   })
 
-  it("does not refetch an active session on invalidation or provider remount", async () => {
+  it("refetches an active session on provider remount so detail-only history is fresh", async () => {
     const { client, wrapper } = setup()
     const seed = { id: "w1", exercises: [] } as unknown as import("@/lib/types").Workout
+    const fresh = { id: "w1", exercises: [], name: "Fresh detail" } as unknown as import("@/lib/types").Workout
+    api.workout.mockResolvedValue(fresh)
+
     const hook = renderHook(() => useWorkoutDetail("w1", { initialData: seed, activeSession: true }), { wrapper })
     await act(async () => { await client.invalidateQueries() })
     hook.unmount()
     const again = renderHook(() => useWorkoutDetail("w1", { activeSession: true }), { wrapper })
-    expect(again.result.current.data).toEqual(seed)
-    expect(api.workout).not.toHaveBeenCalled()
+    await waitFor(() => expect(again.result.current.data).toEqual(fresh))
+    expect(api.workout).toHaveBeenCalled()
     again.unmount(); client.clear()
   })
 

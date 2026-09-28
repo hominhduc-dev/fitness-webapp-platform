@@ -34,6 +34,75 @@ function roundOrNull(value: number | null) {
   return value == null ? null : Math.round(value)
 }
 
+type ProgramRecoveryContext = {
+  baselineWeekStart: Date
+  duration: number
+  goal: string | null
+  programId: string
+  weekIndex: number
+}
+
+function normalizeProgramGoal(value: string | null | undefined, fallbackGoals: readonly string[]) {
+  const source = [value, ...fallbackGoals].find((goal) => typeof goal === "string" && goal.trim().length > 0)
+  const normalized = source?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? null
+  if (!normalized) return null
+  if (["build_muscle", "hypertrophy", "muscle_gain", "tang_co", "tăng_cơ"].includes(normalized)) return "hypertrophy"
+  if (["strength", "increase_strength", "tang_suc_manh", "tăng_sức_mạnh"].includes(normalized)) return "strength"
+  if (["endurance", "improve_endurance", "suc_ben", "sức_bền"].includes(normalized)) return "endurance"
+  return normalized
+}
+
+function rirTargetForProgram(goal: string | null, weekIndex: number, duration: number) {
+  if (goal !== "hypertrophy") return null
+  if (duration >= 5 && weekIndex >= duration - 1) return 5
+  if (weekIndex <= 0) return 4
+  if (weekIndex === 1) return 2
+  if (weekIndex === 2) return 1
+  return 0
+}
+
+function rpeFromRir(rir: number | null) {
+  return rir == null ? null : Math.max(5, Math.min(10, 10 - rir))
+}
+
+async function resolveProgramRecoveryContext(
+  profile: SerializedProfile,
+  programId: string | undefined,
+  weekStart: Date,
+): Promise<ProgramRecoveryContext | null> {
+  if (!programId) return null
+
+  const db = ensurePrisma()
+  const program = await db.program.findFirst({
+    include: { assignments: true },
+    where: {
+      id: programId,
+      OR: [
+        { assignments: { some: { userId: profile.id } } },
+        { createdById: profile.id },
+      ],
+    },
+  })
+
+  if (!program) {
+    throw new AppError("Không tìm thấy program để phân tích recovery.", { status: 404, code: "PROGRAM_NOT_FOUND" })
+  }
+
+  const assignment = program.assignments.find((entry) => entry.userId === profile.id)
+  const anchorDate = program.startDate ?? assignment?.assignedAt ?? program.createdAt
+  const baselineWeekStart = startOfUtcWeek(anchorDate)
+  const elapsedDays = Math.max(0, Math.floor((weekStart.getTime() - baselineWeekStart.getTime()) / (24 * 60 * 60 * 1000)))
+  const weekIndex = Math.min(Math.max(0, Math.floor(elapsedDays / 7)), Math.max(0, program.duration - 1))
+
+  return {
+    baselineWeekStart,
+    duration: Math.max(1, Math.round(program.duration)),
+    goal: normalizeProgramGoal(program.goal, profile.fitnessGoals ?? []),
+    programId: program.id,
+    weekIndex,
+  }
+}
+
 function serializeRecommendationRecord(record: {
   acceptedAt: Date | null
   dismissedAt: Date | null
@@ -141,13 +210,16 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
   return serializeCheckIn(checkIn)
 }
 
-async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requestedWeekStart?: Date) {
+async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requestedWeekStart?: Date, programId?: string) {
   const db = ensurePrisma()
   assertTrainee(profile)
 
   const weekStart = startOfUtcWeek(requestedWeekStart ?? clientCalendarDay())
   const weekEnd = addUtcDays(weekStart, 7)
   const previousWeekStart = addUtcDays(weekStart, -7)
+  const programContext = await resolveProgramRecoveryContext(profile, programId, weekStart)
+  const baselineWeekEnd = programContext ? addUtcDays(programContext.baselineWeekStart, 7) : null
+  const analysisStart = programContext ? programContext.baselineWeekStart : previousWeekStart
 
   const [logs, checkIns, profiles, storedRecommendations] = await Promise.all([
     db.workoutLog.findMany({
@@ -156,7 +228,8 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       where: {
         completedAt: { not: null },
         // Week bounds are day keys; the logs are instants, filtered by the client's midnights.
-        startedAt: { gte: clientDayStart(previousWeekStart), lt: clientDayStart(weekEnd) },
+        startedAt: { gte: clientDayStart(analysisStart), lt: clientDayStart(weekEnd) },
+        ...(programContext ? { programId: programContext.programId } : {}),
         userId: profile.id,
       },
     }),
@@ -174,8 +247,12 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
   ])
 
   const weekStartInstant = clientDayStart(weekStart)
+  const baselineStartInstant = programContext ? clientDayStart(programContext.baselineWeekStart) : null
+  const baselineEndInstant = baselineWeekEnd ? clientDayStart(baselineWeekEnd) : null
   const currentLogs = logs.filter((log) => log.startedAt >= weekStartInstant) as VolumeLogRecord[]
-  const previousLogs = logs.filter((log) => log.startedAt < weekStartInstant) as VolumeLogRecord[]
+  const previousLogs = programContext && baselineStartInstant && baselineEndInstant && programContext.weekIndex > 0
+    ? logs.filter((log) => log.startedAt >= baselineStartInstant && log.startedAt < baselineEndInstant) as VolumeLogRecord[]
+    : logs.filter((log) => log.startedAt < weekStartInstant) as VolumeLogRecord[]
   const volume = aggregateWeeklyMuscleVolume(currentLogs)
   const performanceByMuscle = buildMusclePerformanceTrend(currentLogs, previousLogs)
   const latestCheckIn = checkIns[0] ?? null
@@ -203,7 +280,7 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
     const zone = classifyVolumeZone(muscleVolume.effectiveSets, landmarks)
     const performanceChangePct = performanceByMuscle.get(muscleVolume.muscleSlug) ?? null
     const soreness = sorenessByMuscle.get(muscleVolume.muscleSlug) ?? null
-    const recommendation = buildVolumeRecommendation({
+    const computedRecommendation = buildVolumeRecommendation({
       effectiveSets: muscleVolume.effectiveSets,
       landmarks,
       performanceChangePct,
@@ -212,6 +289,15 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       soreness,
       zone,
     })
+    const recommendation = programContext?.weekIndex === 0
+      ? {
+          ...computedRecommendation,
+          action: "maintain" as const,
+          confidence: Math.min(computedRecommendation.confidence, 0.35),
+          reasons: ["collect_more_performance" as const],
+          recommendedSets: muscleVolume.effectiveSets,
+        }
+      : computedRecommendation
 
     return {
       ...muscleVolume,
@@ -228,6 +314,9 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
 
   const averageRir = average(volume.flatMap((muscle) => (muscle.averageRir == null ? [] : [muscle.averageRir])))
   const performanceChangePct = average(Array.from(performanceByMuscle.values()))
+  const targetRir = programContext
+    ? rirTargetForProgram(programContext.goal, programContext.weekIndex, programContext.duration)
+    : null
 
   const worstSoreness = latestCheckIn && latestCheckIn.muscles.length > 0
     ? Math.max(...latestCheckIn.muscles.map((muscle) => muscle.soreness))
@@ -243,6 +332,17 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       workoutSessions: currentLogs.length,
     },
     muscles,
+    programContext: programContext
+      ? {
+          baselineWeekStart: formatUtcDateOnly(programContext.baselineWeekStart),
+          goal: programContext.goal,
+          hasBaseline: previousLogs.length > 0,
+          programId: programContext.programId,
+          programWeekIndex: programContext.weekIndex,
+          targetRir,
+          targetRpe: rpeFromRir(targetRir),
+        }
+      : null,
     readiness: {
       label: readinessScore == null ? "insufficient_data" : readinessScore >= 70 ? "ready" : readinessScore >= 50 ? "moderate" : "low",
       score: readinessScore,

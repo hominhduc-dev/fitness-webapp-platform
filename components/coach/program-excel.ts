@@ -17,11 +17,12 @@ type ImportedProgramDraft = {
   description?: string
   difficulty?: CreateCoachProgramInput["difficulty"]
   duration?: number
+  goal?: string
   name?: string
   workouts: CreateCoachProgramInput["workouts"]
 }
 
-type ProgramFieldKey = "assignToEmails" | "description" | "difficulty" | "duration" | "name"
+type ProgramFieldKey = "assignToEmails" | "description" | "difficulty" | "duration" | "goal" | "name"
 
 type WorkoutColumnKey =
   | "exerciseName"
@@ -45,6 +46,21 @@ const DIFFICULTY_MAP = new Map<string, CreateCoachProgramInput["difficulty"]>([
   ["advanced", "advanced"],
   ["beginner", "beginner"],
   ["intermediate", "intermediate"],
+])
+
+const GOAL_MAP = new Map<string, string>([
+  ["buildmuscle", "build_muscle"],
+  ["hypertrophy", "build_muscle"],
+  ["muscle", "build_muscle"],
+  ["musclegain", "build_muscle"],
+  ["tangco", "build_muscle"],
+  ["strength", "strength"],
+  ["sucmanh", "strength"],
+  ["endurance", "endurance"],
+  ["sucben", "endurance"],
+  ["general", "general_fitness"],
+  ["generalfitness", "general_fitness"],
+  ["tonghop", "general_fitness"],
 ])
 
 const DAY_ALIASES: Array<[number, string[]]> = [
@@ -72,6 +88,7 @@ const PROGRAM_FIELD_ALIASES: Record<ProgramFieldKey, string[]> = {
   description: ["description", "program_description"],
   difficulty: ["difficulty", "level"],
   duration: ["duration", "duration_weeks", "weeks"],
+  goal: ["goal", "program_goal", "programgoal", "training_goal", "traininggoal", "muc_tieu", "mục_tiêu"],
   name: ["name", "program_name"],
 }
 
@@ -303,6 +320,16 @@ function parseProgramSheet(
     }
 
     draft.difficulty = difficulty
+  }
+
+  if (rawValues.goal) {
+    const goal = GOAL_MAP.get(normalizeLookup(rawValues.goal))
+
+    if (!goal) {
+      throw new Error("Giá trị goal trong sheet Program phải là build_muscle, strength, endurance hoặc general_fitness.")
+    }
+
+    draft.goal = goal
   }
 
   if (rawValues.assignToEmails) {

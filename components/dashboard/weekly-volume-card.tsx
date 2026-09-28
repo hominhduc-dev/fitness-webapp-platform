@@ -99,7 +99,7 @@ export function WeeklyVolumeCard() {
           <BottomSheetBody>
             <div className="space-y-4">
               {[
-                ["Hard set", "Hard set", copy.trainingMetrics.hardSet],
+                [locale === "vi" ? "Set chính" : "Working set", locale === "vi" ? "Hiệp tập chính" : "Main working set", copy.trainingMetrics.hardSet],
                 ["MEV", "Minimum Effective Volume", copy.trainingMetrics.mev],
                 ["MAV", "Maximum Adaptive Volume", copy.trainingMetrics.mav],
                 ["MRV", "Maximum Recoverable Volume", copy.trainingMetrics.mrv],

@@ -47,11 +47,11 @@ export const onboardingMessages = {
           },
           weeklyVolume: {
             title: "Weekly muscle volume",
-            body: "Check hard sets by muscle group and spot when a muscle is near or above its recovery range.",
+            body: "Check main working sets by muscle group and spot when a muscle is near or above its recovery range.",
           },
           trainingMetrics: {
             title: "Training metrics",
-            body: "Tap this info button to understand hard sets, MEV, MAV, MRV and e1RM.",
+            body: "Tap this info button to understand working sets, RIR, MEV, MAV, MRV and e1RM.",
           },
           recentActivity: {
             title: "Recent activity",
@@ -153,7 +153,7 @@ export const onboardingMessages = {
           },
           thisWeek: {
             title: "This week",
-            body: "Workouts, volume lifted, hard sets and average sleep since Monday: a quick read on whether the week is on track.",
+            body: "Workouts, volume lifted, working sets and average sleep since Monday: a quick read on whether the week is on track.",
           },
           body: {
             title: "Body weight",
@@ -217,7 +217,7 @@ export const onboardingMessages = {
           },
           recoveryVolume: {
             title: "Weekly muscle volume",
-            body: "Hard sets for each muscle against its recovery landmarks (MEV, MAV, MRV). Use Edit landmarks to set your own targets for a muscle.",
+            body: "Working sets for each muscle against its recovery landmarks (MEV, MAV, MRV). Use Edit landmarks to set your own targets for a muscle.",
           },
         },
         traineeSchedule: {
@@ -302,11 +302,11 @@ export const onboardingMessages = {
           },
           weeklyVolume: {
             title: "Volume cơ theo tuần",
-            body: "Theo dõi hard set theo từng nhóm cơ và nhận biết khi cơ gần hoặc vượt vùng phục hồi.",
+            body: "Theo dõi set chính theo từng nhóm cơ và nhận biết khi cơ gần hoặc vượt vùng phục hồi.",
           },
           trainingMetrics: {
             title: "Chỉ số tập luyện",
-            body: "Bấm nút thông tin để hiểu hard set, MEV, MAV, MRV và e1RM.",
+            body: "Bấm nút thông tin để hiểu set chính, RIR, MEV, MAV, MRV và e1RM.",
           },
           recentActivity: {
             title: "Hoạt động gần đây",
@@ -408,7 +408,7 @@ export const onboardingMessages = {
           },
           thisWeek: {
             title: "Tuần này",
-            body: "Số buổi tập, khối lượng, hard set và giấc ngủ trung bình từ thứ Hai: xem nhanh tuần này có đúng nhịp không.",
+            body: "Số buổi tập, khối lượng, set chính và giấc ngủ trung bình từ thứ Hai: xem nhanh tuần này có đúng nhịp không.",
           },
           body: {
             title: "Cân nặng",
@@ -472,7 +472,7 @@ export const onboardingMessages = {
           },
           recoveryVolume: {
             title: "Volume nhóm cơ trong tuần",
-            body: "Hard set của mỗi nhóm cơ so với các ngưỡng phục hồi (MEV, MAV, MRV). Bấm Chỉnh ngưỡng để đặt mục tiêu riêng cho từng nhóm cơ.",
+            body: "Set chính của mỗi nhóm cơ so với các ngưỡng phục hồi (MEV, MAV, MRV). Bấm Chỉnh ngưỡng để đặt mục tiêu riêng cho từng nhóm cơ.",
           },
         },
         traineeSchedule: {

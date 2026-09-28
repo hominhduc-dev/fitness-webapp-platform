@@ -165,6 +165,25 @@ function seedFromPreviousPerformance(exercises: Workout["exercises"]) {
   })
 }
 
+function fillMissingFromPreviousPerformance(exercises: Workout["exercises"]) {
+  return exercises.map((exercise) => {
+    if (exercise.coachUpdate) return exercise
+    return {
+      ...exercise,
+      sets: exercise.sets.map((set) => {
+        const pp = set.previousPerformance
+        if (!pp || set.completed) return set
+        return {
+          ...set,
+          actualReps: set.actualReps ?? pp.reps,
+          rir: set.rir ?? pp.rir,
+          weight: set.weight ?? pp.weight,
+        }
+      }),
+    }
+  })
+}
+
 function restoreWorkoutSessionStartTime(startedAt: string) {
   const parsedTime = new Date(startedAt)
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
@@ -278,8 +297,8 @@ function buildSessionSeed(workout: Workout, storedSession: StoredWorkoutSession 
     ...workout,
     originalExercises: workout.exercises,
     exercises: storedSession
-      ? restoreWorkoutSessionExercises(workout.exercises, storedSession.exercises,
-          storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION, storedSession.deletedSetIds)
+      ? fillMissingFromPreviousPerformance(restoreWorkoutSessionExercises(workout.exercises, storedSession.exercises,
+          storedSession.schemaVersion === WORKOUT_SESSION_STORAGE_SCHEMA_VERSION, storedSession.deletedSetIds))
       : seedFromPreviousPerformance(workout.exercises),
   }
 }
@@ -309,6 +328,7 @@ function WorkoutSession() {
   const addedSetTokensRef = useRef<Map<string, string>>(new Map())
   const deletedSetIdsRef = useRef<Set<string>>(new Set())
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
+  const previousPerformanceBackfillRef = useRef<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDateDialog, setShowDateDialog] = useState(false)
@@ -334,16 +354,10 @@ function WorkoutSession() {
   const replacementCandidates = replacementsQuery.data ?? []
   const loadingReplacements = replacementsQuery.isFetching
   const [swapInFlight, setSwapInFlight] = useState(false)
-  // Recommendations accepted on the dashboard, surfaced here on the exercises
-  // that actually drive each muscle's volume.
-  const volumeRecoveryQuery = useVolumeRecovery()
   const answerRecommendation = useSetVolumeRecommendationStatus()
   // Drops a hint the moment it is acted on, so a slow refetch cannot leave the
   // button up long enough to add the set twice.
   const [appliedHintSlugs, setAppliedHintSlugs] = useState<string[]>([])
-  const coachHints = acceptedCoachHints(volumeRecoveryQuery.data).filter(
-    (hint) => !appliedHintSlugs.includes(hint.muscleSlug),
-  )
 
   const workoutId = Array.isArray(params.id) ? params.id[0] : params.id
   const userId = profile?.id ?? null
@@ -371,6 +385,13 @@ function WorkoutSession() {
     enabled: Boolean(profile) && Boolean(workoutId) && !workout && unsyncedDraft === null,
   })
   const workoutSeed = workoutQuery.data ?? offlineWorkout
+  // Recommendations accepted on the dashboard, surfaced here on the exercises
+  // that actually drive each muscle's volume. Program workouts use program-
+  // scoped recovery so the hint follows the plan's goal and week progression.
+  const volumeRecoveryQuery = useVolumeRecovery({ programId: workoutSeed?.programId ?? null })
+  const coachHints = acceptedCoachHints(volumeRecoveryQuery.data).filter(
+    (hint) => !appliedHintSlugs.includes(hint.muscleSlug),
+  )
   // A snapshot restored from storage refetches before seeding (see
   // useWorkoutDetail); offline that fetch pauses and the snapshot is used.
   const isRefreshingSeed = workoutQuery.fetchStatus === "fetching"
@@ -468,6 +489,32 @@ function WorkoutSession() {
     setStartTime(storedSession ? restoreWorkoutSessionStartTime(storedSession.startedAt) : new Date())
   }, [draftQuery.data, isDraftResolved, isRefreshingSeed, unsyncedDraft, workout, workoutSeed])
 
+  useEffect(() => {
+    if (!workout || previousPerformanceBackfillRef.current === workout.id) return
+    previousPerformanceBackfillRef.current = workout.id
+
+    setExercises((current) => {
+      let changed = false
+      const next = fillMissingFromPreviousPerformance(current).map((exercise, exerciseIndex) => ({
+        ...exercise,
+        sets: exercise.sets.map((set, setIndex) => {
+          const currentSet = current[exerciseIndex]?.sets[setIndex]
+          if (
+            currentSet &&
+            (currentSet.actualReps !== set.actualReps ||
+              currentSet.rir !== set.rir ||
+              currentSet.weight !== set.weight)
+          ) {
+            changed = true
+          }
+          return set
+        }),
+      }))
+
+      return changed ? next : current
+    })
+  }, [workout])
+
   // ── Read `?logDate=` once on mount (back-logging a past session) ────────────
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("logDate")
@@ -552,6 +599,9 @@ function WorkoutSession() {
         const shouldSyncWeightToFollowingSets =
           updatedSetIndex >= 0 &&
           Object.prototype.hasOwnProperty.call(patch, "weight")
+        const shouldSyncRirFromFirstSet =
+          updatedSetIndex === 0 &&
+          Object.prototype.hasOwnProperty.call(patch, "rir")
 
         return {
           ...ex,
@@ -560,15 +610,20 @@ function WorkoutSession() {
               return { ...set, ...patch }
             }
 
+            let nextSet = set
             if (
               shouldSyncWeightToFollowingSets &&
               index > updatedSetIndex &&
               !set.completed
             ) {
-              return { ...set, weight: patch.weight }
+              nextSet = { ...nextSet, weight: patch.weight }
             }
 
-            return set
+            if (shouldSyncRirFromFirstSet && index > 0 && !set.completed) {
+              nextSet = { ...nextSet, rir: patch.rir }
+            }
+
+            return nextSet
           }),
         }
       }),
@@ -781,8 +836,10 @@ function WorkoutSession() {
           id: Math.random().toString(36).slice(2),
           setNumber: ex.sets.length + 1,
           targetReps: last?.targetReps ?? 10,
-          actualReps: undefined,
+          targetRepsMin: last?.targetRepsMin,
+          actualReps: last?.actualReps ?? last?.targetReps,
           weight: last?.weight,
+          rir: last?.rir,
           completed: false,
         }
         addedSetTokensRef.current.set(newSet.id, `${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -1079,7 +1136,6 @@ function WorkoutSession() {
             weightUnit={weightUnit}
             noteOpen={noteOpenForId === currentExercise.id}
             onSetUpdate={(setId, patch) => handleSetUpdate(currentExercise.id, setId, patch)}
-            onSetComplete={handleSetComplete}
             onAddSet={handleAddSet}
             onRemoveSet={handleRemoveSet}
             onExerciseNoteChange={handleExerciseNoteChange}

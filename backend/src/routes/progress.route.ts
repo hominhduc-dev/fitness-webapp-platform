@@ -37,7 +37,7 @@ progressRouter.get(
     const weekStart = req.query.weekStart
       ? new Date(`${req.query.weekStart}T00:00:00.000Z`)
       : undefined
-    sendData(res, await getVolumeRecoveryForTrainee(profile, weekStart))
+    sendData(res, await getVolumeRecoveryForTrainee(profile, weekStart, req.query.programId))
   }),
 )
 
