@@ -34,12 +34,17 @@ export function ShareStatsDialog({
   onClose,
   shareText,
   shareTitle,
+  subtitle,
+  title,
 }: {
   data: ShareCardData
   fileNamePrefix?: string
   onClose: () => void
   shareText?: string
   shareTitle?: string
+  /** The sheet's own heading; defaults to the progress page's. */
+  subtitle?: string
+  title?: string
 }) {
   const { messages } = useLocale()
   const copy = messages.progressPage.share
@@ -90,9 +95,9 @@ export function ShareStatsDialog({
       <BottomSheetHeader>
         <div className="min-w-0">
           <h2 id={titleId} className="text-base font-semibold tracking-tight text-foreground">
-            {copy.title}
+            {title ?? copy.title}
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{copy.subtitle}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{subtitle ?? copy.subtitle}</p>
         </div>
         <button
           type="button"

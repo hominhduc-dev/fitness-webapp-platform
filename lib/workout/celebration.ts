@@ -13,6 +13,8 @@
  * celebration.
  */
 
+import type { WorkoutShareSummary } from "@/lib/share/stats-card"
+
 const CELEBRATION_KEY = "yeahbuddy-workout-celebration"
 
 export type WorkoutCelebration = {
@@ -20,6 +22,29 @@ export type WorkoutCelebration = {
   workoutName: string
   /** False when the log is sitting in the offline queue rather than saved. */
   savedOnline: boolean
+  /** What the session added up to, for the share card the dashboard offers. */
+  share?: WorkoutShareSummary
+}
+
+const SUMMARY_NUMBERS = [
+  "completedExercises",
+  "completedSets",
+  "durationMins",
+  "totalExercises",
+  "totalReps",
+  "totalSets",
+  "totalVolume",
+] as const
+
+function readShareSummary(value: unknown): WorkoutShareSummary | undefined {
+  if (typeof value !== "object" || value === null) return undefined
+  const summary = value as Partial<WorkoutShareSummary>
+  if (typeof summary.workoutName !== "string") return undefined
+  if (!SUMMARY_NUMBERS.every((key) => Number.isFinite(summary[key]))) return undefined
+  const topSet = summary.topSet
+  const validTopSet = topSet != null &&
+    typeof topSet.exerciseName === "string" && Number.isFinite(topSet.reps) && Number.isFinite(topSet.weight)
+  return { ...(summary as WorkoutShareSummary), topSet: validTopSet ? topSet : null }
 }
 
 /**
@@ -51,11 +76,11 @@ export function consumeWorkoutCelebration(): WorkoutCelebration | null {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== "object" || parsed === null) return null
 
-    const { savedOnline, workoutName } = parsed as Partial<WorkoutCelebration>
+    const { savedOnline, share, workoutName } = parsed as Partial<WorkoutCelebration>
     // A half-written or hand-edited entry should be ignored, not rendered.
     if (typeof workoutName !== "string") return null
 
-    return { savedOnline: savedOnline === true, workoutName }
+    return { savedOnline: savedOnline === true, share: readShareSummary(share), workoutName }
   } catch {
     return null
   }

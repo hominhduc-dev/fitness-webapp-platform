@@ -174,6 +174,75 @@ export function buildProgressShareCard({
   }
 }
 
+export type WorkoutShareCopy = {
+  anonymousAthlete: string
+  duration: string
+  exercises: string
+  headlineCaption: string
+  reps: string
+  sets: string
+}
+
+export type WorkoutShareSummary = {
+  completedExercises: number
+  completedSets: number
+  durationMins: number
+  /** The heaviest completed set, the one figure worth the accent strip. */
+  topSet: { exerciseName: string; reps: number; weight: number } | null
+  totalExercises: number
+  totalReps: number
+  totalSets: number
+  totalVolume: number
+  workoutName: string
+}
+
+/**
+ * The card for a session that was just finished. Volume leads here too, and
+ * the session's name stands where the progress card puts its period.
+ */
+export function buildWorkoutShareCard({
+  athleteName,
+  copy,
+  localeCode,
+  stamp,
+  summary,
+  weightUnit,
+}: {
+  athleteName: string | null | undefined
+  copy: WorkoutShareCopy
+  localeCode: string
+  stamp: string
+  summary: WorkoutShareSummary
+  weightUnit: string
+}): ShareCardData {
+  const count = (value: number) => formatCount(value, localeCode)
+  const stats: ShareCardStat[] = [
+    { label: copy.duration, value: formatDurationLabel(summary.durationMins) },
+    { detail: `/ ${count(summary.totalSets)}`, label: copy.sets, value: count(summary.completedSets) },
+    { detail: `/ ${count(summary.totalExercises)}`, label: copy.exercises, value: count(summary.completedExercises) },
+    { label: copy.reps, value: count(summary.totalReps) },
+  ]
+
+  return {
+    athleteName: athleteName?.trim() || copy.anonymousAthlete,
+    headline: {
+      caption: copy.headlineCaption,
+      trend: `${count(summary.completedSets)} ${copy.sets.toLowerCase()} · ${count(summary.totalReps)} ${copy.reps.toLowerCase()}`,
+      unit: weightUnit,
+      value: formatShareVolume(summary.totalVolume, localeCode),
+    },
+    highlight: summary.topSet
+      ? {
+          label: summary.topSet.exerciseName,
+          value: `${new Intl.NumberFormat(localeCode, { maximumFractionDigits: 1 }).format(summary.topSet.weight)} ${weightUnit} × ${count(summary.topSet.reps)}`,
+        }
+      : undefined,
+    periodLabel: summary.workoutName,
+    stats: stats.slice(0, SHARE_CARD_STAT_LIMIT),
+    stamp,
+  }
+}
+
 /** `yeahbuddy-progress-2026-09-18-story.png` — sorts by date in a photo roll. */
 export function buildShareFileName(prefix: string, format: ShareCardFormatId, date: Date) {
   const iso = [

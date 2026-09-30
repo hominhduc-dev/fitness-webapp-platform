@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildProgressShareCard,
   buildShareFileName,
+  buildWorkoutShareCard,
   formatDurationLabel,
   formatShareVolume,
   formatSignedPercent,
@@ -148,5 +149,62 @@ describe("buildShareFileName", () => {
 
   it("pads single-digit months and days", () => {
     expect(buildShareFileName("yeahbuddy", "square", new Date(2026, 0, 5))).toBe("yeahbuddy-2026-01-05-square.png")
+  })
+})
+
+describe("buildWorkoutShareCard", () => {
+  const workoutCopy = {
+    anonymousAthlete: "Athlete",
+    duration: "Duration",
+    exercises: "Exercises",
+    headlineCaption: "Volume lifted",
+    reps: "Reps",
+    sets: "Sets",
+  }
+  const workoutSummary = {
+    completedExercises: 6,
+    completedSets: 14,
+    durationMins: 62,
+    topSet: { exerciseName: "Leg Press", reps: 10, weight: 240 },
+    totalExercises: 7,
+    totalReps: 152,
+    totalSets: 16,
+    totalVolume: 12_840,
+    workoutName: "Day 3",
+  }
+
+  it("leads with the session's volume under its name", () => {
+    const card = buildWorkoutShareCard({
+      athleteName: "Minh Duc",
+      copy: workoutCopy,
+      localeCode: "en-US",
+      stamp: "Sep 30, 2026",
+      summary: workoutSummary,
+      weightUnit: "kg",
+    })
+
+    expect(card.periodLabel).toBe("Day 3")
+    expect(card.headline).toMatchObject({ trend: "14 sets · 152 reps", unit: "kg", value: "12.8k" })
+    expect(card.highlight).toEqual({ label: "Leg Press", value: "240 kg × 10" })
+    expect(card.stats.map((stat) => [stat.label, stat.value, stat.detail])).toEqual([
+      ["Duration", "1h 2m", undefined],
+      ["Sets", "14", "/ 16"],
+      ["Exercises", "6", "/ 7"],
+      ["Reps", "152", undefined],
+    ])
+  })
+
+  it("drops the accent strip when no set carried weight", () => {
+    const card = buildWorkoutShareCard({
+      athleteName: "",
+      copy: workoutCopy,
+      localeCode: "en-US",
+      stamp: "Sep 30, 2026",
+      summary: { ...workoutSummary, topSet: null },
+      weightUnit: "kg",
+    })
+
+    expect(card.highlight).toBeUndefined()
+    expect(card.athleteName).toBe("Athlete")
   })
 })

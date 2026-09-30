@@ -53,6 +53,7 @@ import {
   type StoredWorkoutSession,
 } from "@/lib/workout/session-storage"
 import { markWorkoutCelebration } from "@/lib/workout/celebration"
+import { summarizeWorkoutSession } from "@/lib/workout/share-summary"
 import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { isExerciseDone, nextIncompleteExercise } from "@/lib/workout/exercise-order"
@@ -941,7 +942,14 @@ function WorkoutSession() {
       // trainee earned the same celebration whether or not the phone had signal.
       // This screen cannot show it itself — the push below unmounts it — so the
       // dashboard spends the flag on arrival.
-      markWorkoutCelebration({ savedOnline, workoutName: workout.name })
+      markWorkoutCelebration({
+        savedOnline,
+        share: summarizeWorkoutSession(exercises, {
+          durationMins: Math.round((loggedCompletedAt.getTime() - loggedStartedAt.getTime()) / 60_000),
+          workoutName: workout.name,
+        }),
+        workoutName: workout.name,
+      })
       router.push("/dashboard")
     } catch (saveError) {
       sessionRetiredRef.current = false
