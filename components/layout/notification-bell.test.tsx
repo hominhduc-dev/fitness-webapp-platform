@@ -23,6 +23,8 @@ vi.mock("@/components/providers/locale-provider", async () => {
   return { useLocale: () => ({ locale: "en", messages: getMessages("en"), setLocale: vi.fn() }) }
 })
 
+vi.mock("@/components/providers/toast-provider", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+
 vi.mock("@/lib/queries/notifications", () => ({
   useClearNotifications: () => ({ isPending: false, mutate: state.clear }),
   useMarkAllNotificationsRead: () => ({ isPending: false, mutate: state.markAll }),
