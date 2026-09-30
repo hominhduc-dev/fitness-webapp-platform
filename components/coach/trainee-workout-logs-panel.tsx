@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useCoachLogs, useCoachLogComment } from "@/lib/queries/coach-logs"
 import { useExportQueries, useCoachSheetsExport } from "@/lib/queries/exports"
-import { ChevronDown, Clock3, Download, FileSpreadsheet, Loader2, MessageSquare, Pencil, Save, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, FileSpreadsheet, Loader2, MessageSquare, Pencil, Save, Trash2 } from "lucide-react"
 
 import { formatDateInputValue, startOfLocalWeek } from "@/components/coach/trainee-workout-log-dates"
 import type { CoachWorkoutLogsWorkbookPreview } from "@/components/coach/trainee-workout-logs-excel"
@@ -88,6 +88,27 @@ function getWeekEndDateInput(weekStart: string) {
   const end = new Date(start)
   end.setDate(end.getDate() + 7)
   return formatDateInputValue(end)
+}
+
+/** The week start `weeks` weeks before (negative) or after (positive) this one. */
+function shiftWeekStart(weekStart: string, weeks: number) {
+  const start = parseDateInputAsLocalDate(weekStart)
+  if (!start) return weekStart
+
+  start.setDate(start.getDate() + weeks * 7)
+  return formatDateInputValue(start)
+}
+
+/** "28/09 – 04/10/2026": the seven days of the week, both ends included. */
+function formatWeekRangeLabel(weekStart: string) {
+  const start = parseDateInputAsLocalDate(weekStart)
+  if (!start) return weekStart
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  // Built by hand: Intl's vi-VN day/month separator differs between browsers ("28/09" or "28-09").
+  const dayMonth = (date: Date) => `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`
+  return `${dayMonth(start)} – ${dayMonth(end)}/${end.getFullYear()}`
 }
 
 function formatDaySectionLabel(date: Date) {
@@ -242,6 +263,9 @@ export function TraineeWorkoutLogsPanel({
         ? "Preview the Excel file before downloading. The in-app preview may not match the final Excel styling exactly."
         : "Preview nhanh file Excel trước khi tải. Bản xem trong app có thể không giống Excel 100% về style.",
     previewReport: locale === "en" ? "Preview report" : "Preview report",
+    previousWeek: locale === "en" ? "Previous week" : "Tuần trước",
+    nextWeek: locale === "en" ? "Next week" : "Tuần sau",
+    noLogsThisWeek: locale === "en" ? "No workout logs this week." : "Tuần này không có workout log nào.",
     previewWeeklyReport: locale === "en" ? "Preview weekly report" : "Preview báo cáo tuần",
     sessions: (count: number) => (locale === "en" ? `${count} sessions` : `${count} buổi`),
     sessionSummary: (count: number, completed: number, total: number, volume: number) => {
@@ -335,17 +359,21 @@ export function TraineeWorkoutLogsPanel({
       onError: (error) => setError(error.message),
     })
   }
+  // The week the preview dialog shows; its arrows move it, and the panel's week with it.
+  const [previewWeekStart, setPreviewWeekStart] = useState(weekStart)
+  const latestPreviewWeekRef = useRef(weekStart)
   const previewMutation = useMutation({
-    mutationFn: async () => {
-      const exportLogs = await queries.coachLogs(traineeId, { weekStart })
+    // Null when the week has no logs: the dialog stays open on an empty week.
+    mutationFn: async (targetWeekStart: string) => {
+      const exportLogs = await queries.coachLogs(traineeId, { weekStart: targetWeekStart })
 
       if (exportLogs.length === 0) {
-        throw new Error("Không có workout log nào để preview.")
+        return null
       }
 
       const bodyMetrics = await queries.coachBodyMetrics(traineeId, {
-        from: weekStart,
-        to: getWeekEndDateInput(weekStart),
+        from: targetWeekStart,
+        to: getWeekEndDateInput(targetWeekStart),
       })
 
       const { createCoachWorkoutLogsWorkbookPreview } = await import("@/components/coach/trainee-workout-logs-excel")
@@ -353,17 +381,38 @@ export function TraineeWorkoutLogsPanel({
         bodyMetrics,
         traineeId,
         traineeName,
-        weekStart,
+        weekStart: targetWeekStart,
       })
 
       return preview
     },
-    onMutate: () => { setIsPreviewOpen(true); setPreviewWorkbook(null); setError(null) },
-    onSuccess: (preview) => setPreviewWorkbook(preview),
-    onError: (error) => { setError(error.message); setIsPreviewOpen(false) },
+    onMutate: (targetWeekStart) => {
+      latestPreviewWeekRef.current = targetWeekStart
+      setPreviewWeekStart(targetWeekStart)
+      setIsPreviewOpen(true)
+      setPreviewWorkbook(null)
+      setError(null)
+    },
+    // A quick run of arrow clicks can settle out of order; only the last week asked for counts.
+    onSuccess: (preview, targetWeekStart) => {
+      if (latestPreviewWeekRef.current === targetWeekStart) setPreviewWorkbook(preview)
+    },
+    onError: (error, targetWeekStart) => {
+      if (latestPreviewWeekRef.current !== targetWeekStart) return
+      setError(error.message)
+      setIsPreviewOpen(false)
+    },
   })
   const isPreviewLoading = previewMutation.isPending
-  const handlePreviewExcel = () => previewMutation.mutate()
+  const handlePreviewExcel = () => previewMutation.mutate(weekStart)
+  const isPreviewAtCurrentWeek = previewWeekStart >= defaultWeekStart
+  const showPreviewWeek = (weeks: number) => {
+    const nextWeekStart = shiftWeekStart(previewWeekStart, weeks)
+    setWeekStart(nextWeekStart)
+    setExpandedDayKeys([])
+    setNotice(null)
+    previewMutation.mutate(nextWeekStart)
+  }
 
   const handleCreateComment = (logId: string) => {
     const content = draftByLogId[logId]?.trim()
@@ -888,22 +937,56 @@ export function TraineeWorkoutLogsPanel({
       ) : null}
 
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-h-[90vh] max-w-[min(96vw,1200px)] overflow-hidden p-0">
-          <DialogHeader className="border-b border-border px-6 py-4">
+        {/* A column of fixed height: header and footer keep theirs and the sheet
+            takes the rest, scrolling inside it. The fixed height keeps the dialog
+            from resizing between sheets of different lengths. The sm: width
+            overrides DialogContent's default sm:max-w-lg. */}
+        <DialogContent className="flex h-[90dvh] w-[96vw] max-w-[min(96vw,1200px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(96vw,1200px)]">
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-4">
             <DialogTitle>{copy.previewWeeklyReport}</DialogTitle>
             <DialogDescription>
               {copy.previewDescription}
             </DialogDescription>
+            <div className="mt-1 flex items-center gap-1 self-start">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="bg-transparent"
+                aria-label={copy.previousWeek}
+                title={copy.previousWeek}
+                onClick={() => showPreviewWeek(-1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[10.5rem] text-center font-mono text-sm font-semibold tabular-nums" aria-live="polite">
+                {formatWeekRangeLabel(previewWeekStart)}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="bg-transparent"
+                aria-label={copy.nextWeek}
+                title={copy.nextWeek}
+                disabled={isPreviewAtCurrentWeek}
+                onClick={() => showPreviewWeek(1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4">
             {isPreviewLoading ? (
               <div className="flex h-[60vh] items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {copy.workbookPreviewLoading}
               </div>
             ) : previewWorkbook ? (
-              <Tabs defaultValue={previewWorkbook.sheets[0]?.name} className="h-full">
+              // Keyed by week: each week's first sheet is named after it, so a kept
+              // selection would point at a sheet the new workbook does not have.
+              <Tabs key={previewWeekStart} defaultValue={previewWorkbook.sheets[0]?.name} className="min-h-0 flex-1">
                 <TabsList className="max-w-full flex-wrap justify-start">
                   {previewWorkbook.sheets.map((sheet) => (
                     <TabsTrigger key={sheet.name} value={sheet.name}>
@@ -913,8 +996,8 @@ export function TraineeWorkoutLogsPanel({
                 </TabsList>
 
                 {previewWorkbook.sheets.map((sheet) => (
-                  <TabsContent key={sheet.name} value={sheet.name} className="mt-4">
-                    <div className="max-h-[60vh] overflow-auto rounded-xl border border-export-border bg-export-background p-4 text-export-foreground">
+                  <TabsContent key={sheet.name} value={sheet.name} className="mt-2 flex min-h-0 flex-1 flex-col">
+                    <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-export-border bg-export-background p-4 text-export-foreground">
                       <div
                         className="min-w-max [&_table]:border-collapse [&_table]:text-xs [&_td]:border [&_td]:border-export-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-export-border [&_th]:bg-export-heading [&_th]:px-2 [&_th]:py-1"
                         dangerouslySetInnerHTML={{ __html: sheet.html }}
@@ -925,12 +1008,12 @@ export function TraineeWorkoutLogsPanel({
               </Tabs>
             ) : (
               <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">
-                {copy.noPreviewData}
+                {previewMutation.isSuccess ? copy.noLogsThisWeek : copy.noPreviewData}
               </div>
             )}
           </div>
 
-          <DialogFooter className="border-t border-border px-6 py-4">
+          <DialogFooter className="shrink-0 border-t border-border px-6 py-4">
             <Button
               type="button"
               variant="outline"

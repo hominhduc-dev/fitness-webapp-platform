@@ -2,10 +2,11 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { Dumbbell, X } from "lucide-react"
+import { Dumbbell, GripVertical, X } from "lucide-react"
 
 import { AddExerciseModal } from "@/components/exercises/add-exercise-modal"
 import { RoutineExerciseCard } from "@/components/workout/routine-exercise-card"
+import { SortableExerciseList, moveListItem } from "@/components/workout/sortable-exercise-list"
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useLocale } from "@/components/providers/locale-provider"
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useCreateWorkout, useUpdateWorkout } from "@/lib/queries/workouts"
-import { useCreateExerciseFromPicker, useExercises } from "@/lib/queries/exercises"
+import { useCreateExerciseFromPicker, useExercises, useUpdateExerciseFromPicker } from "@/lib/queries/exercises"
 import { buildMuscleProfileHighlights } from "@/lib/fitness/muscle-map"
 import { normalizeSetIntensityAssignments, readSetIntensityAssignments, type SetIntensityAssignment } from "@/lib/workout/intensity-tag"
 import type { AppMessages } from "@/lib/i18n/messages"
@@ -71,6 +72,13 @@ export type RoutineBuilderDialogProps = {
   onOpenChange?: (open: boolean) => void
   draftToEdit?: RoutineDraftData
   onSaveDraft?: (data: RoutineDraftData) => void
+  /** Coach draft mode: the fields as they are edited, so they outlive the dialog. */
+  onDraftChange?: (data: RoutineDraftData) => void
+  /**
+   * Coach draft mode: set when `draftToEdit` holds unsaved edits restored from
+   * an earlier opening. The dialog says so and can revert to these saved fields.
+   */
+  savedDraft?: RoutineDraftData
   /** Coach only: the picker offers to create an exercise the library lacks. */
   allowCreateExercise?: boolean
 }
@@ -98,6 +106,17 @@ function getRoutineTagLabel(tag: RoutineTag, messages: ReturnType<typeof useLoca
     upper: messages.workoutPage.tagUpper,
   }
   return labels[tag]
+}
+
+function exerciseCardValues(exercise: RoutineExerciseDraft) {
+  return {
+    notes: exercise.notes ?? "",
+    reps: exercise.reps,
+    restTime: exercise.restTime ?? "",
+    rir: exercise.rir,
+    sets: String(exercise.sets),
+    weight: exercise.weight,
+  }
 }
 
 function draftId() {
@@ -197,9 +216,12 @@ export function RoutineBuilderDialog({
   onOpenChange,
   draftToEdit,
   onSaveDraft,
+  onDraftChange,
+  savedDraft,
   allowCreateExercise = false,
 }: RoutineBuilderDialogProps) {
   const createExerciseMutation = useCreateExerciseFromPicker()
+  const updateExerciseMutation = useUpdateExerciseFromPicker()
   const createWorkoutMutation = useCreateWorkout()
   const updateWorkoutMutation = useUpdateWorkout()
   const { isLoading: authLoading, session } = useAuth()
@@ -227,6 +249,7 @@ export function RoutineBuilderDialog({
   const loadingLibrary = libraryQuery.isFetching
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showsRestoredDraft, setShowsRestoredDraft] = useState(false)
 
   const totalSets = exercises.reduce((acc, ex) => acc + (Number(ex.sets) || 0), 0)
   const canSave = name.trim().length > 0 && exercises.length > 0 && !isSaving
@@ -256,11 +279,32 @@ export function RoutineBuilderDialog({
     setExercises(initialExercises)
     setExpandedExerciseIds(new Set())
     setError(null)
+    setShowsRestoredDraft(Boolean(draftToEdit && savedDraft))
+  }
+
+  // Reset while rendering rather than in an effect: the first committed render
+  // of an opened dialog already holds its new fields, so `onDraftChange` never
+  // reports the previous opening's fields as this session's.
+  const [formOpen, setFormOpen] = useState(false)
+  if (open !== formOpen) {
+    setFormOpen(open)
+    if (open) resetForm()
   }
 
   useEffect(() => {
-    if (open) resetForm()
-  }, [open])
+    if (open) onDraftChange?.({ id: draftToEdit?.id, name, tag, exercises })
+    // Reports field edits only; the callback and draft identity change with every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, name, tag, exercises])
+
+  const revertToSavedDraft = () => {
+    if (!savedDraft) return
+    setName(savedDraft.name)
+    setTag(savedDraft.tag)
+    setExercises(savedDraft.exercises)
+    setExpandedExerciseIds(new Set())
+    setShowsRestoredDraft(false)
+  }
 
 
 
@@ -289,6 +333,27 @@ export function RoutineBuilderDialog({
     setExercises((previous) => [...previous, ...additions])
     setExpandedExerciseIds(new Set(additions.map((exercise) => exercise.id)))
     setPickerTarget(null)
+  }
+
+  /** An exercise edited in the picker: cards already holding it show its new name and muscles. */
+  const refreshEditedExercise = (ex: ExerciseVariationOption) => {
+    setExercises((prev) =>
+      prev.some((item) => item.variationId === ex.id)
+        ? prev.map((item) =>
+            item.variationId === ex.id
+              ? {
+                  ...item,
+                  activityType: ex.activityType,
+                  displayName: ex.displayName ?? ex.name,
+                  equipment: ex.equipment,
+                  muscleGroup: ex.muscleGroup,
+                  primaryMuscles: ex.primaryMuscles,
+                  secondaryMuscles: ex.secondaryMuscles,
+                }
+              : item,
+          )
+        : prev,
+    )
   }
 
   const pickExercise = (ex: ExerciseVariationOption) => {
@@ -477,6 +542,15 @@ export function RoutineBuilderDialog({
                 </div>
               )}
 
+              {showsRestoredDraft && (
+                <div className="mb-4 flex flex-col gap-2 rounded-lg border border-primary/25 bg-primary-soft px-4 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <span>{messages.coach.routineDraftRestored}</span>
+                  <Button type="button" size="sm" variant="outline" className="shrink-0 bg-background/70" onClick={revertToSavedDraft}>
+                    {messages.coach.revertRoutineDraft}
+                  </Button>
+                </div>
+              )}
+
               {exercises.length === 0 && (
                 <div className="mb-4 flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10 text-center text-muted-foreground">
                   <Dumbbell className="mb-2.5 h-5 w-5 opacity-50" />
@@ -484,10 +558,34 @@ export function RoutineBuilderDialog({
                 </div>
               )}
 
-              <div className="space-y-3">
-                {exercises.map((ex, i) => (
+              <SortableExerciseList
+                className="space-y-3"
+                handleLabel={messages.schedule.dragExerciseHint}
+                items={exercises}
+                onReorder={(from, to) => setExercises((prev) => moveListItem(prev, from, to))}
+                renderOverlay={(ex, i) => (
+                  <div className="rounded-xl shadow-[var(--glass-shadow)]">
+                    <RoutineExerciseCard
+                      dragHandle={<span className="flex h-8 w-6 items-center justify-center text-muted-foreground"><GripVertical aria-hidden className="h-4 w-4" /></span>}
+                      expanded={false}
+                      index={i}
+                      total={exercises.length}
+                      title={ex.displayName}
+                      media={ex.media}
+                      values={exerciseCardValues(ex)}
+                      messages={messages}
+                      onFieldChange={() => undefined}
+                      onMove={() => undefined}
+                      onRemove={() => undefined}
+                      onSwap={() => undefined}
+                      setIntensityTags={ex.setIntensityTags}
+                      onSetIntensityTagsChange={() => undefined}
+                    />
+                  </div>
+                )}
+                renderItem={(ex, i, dragHandle) => (
                   <RoutineExerciseCard
-                    key={ex.id}
+                    dragHandle={dragHandle}
                     expanded={expandedExerciseIds.has(ex.id)}
                     onExpandedChange={(expanded) =>
                       setExpandedExerciseIds((prev) => {
@@ -502,14 +600,7 @@ export function RoutineBuilderDialog({
                     title={ex.displayName}
                     media={ex.media}
                     meta={[ex.muscleGroup, ex.equipment].filter(Boolean).join(" · ")}
-                    values={{
-                      notes: ex.notes ?? "",
-                      reps: ex.reps,
-                      restTime: ex.restTime ?? "",
-                      rir: ex.rir,
-                      sets: String(ex.sets),
-                      weight: ex.weight,
-                    }}
+                    values={exerciseCardValues(ex)}
                     messages={messages}
                     onFieldChange={(field, value) =>
                       updateExercise(
@@ -523,8 +614,8 @@ export function RoutineBuilderDialog({
                     setIntensityTags={ex.setIntensityTags}
                     onSetIntensityTagsChange={(setIntensityTags) => updateExercise(ex.id, { setIntensityTags })}
                   />
-                ))}
-              </div>
+                )}
+              />
 
               {/* Add exercise button */}
               <button
@@ -589,6 +680,20 @@ export function RoutineBuilderDialog({
                   shareRequested: data.shareRequested,
                 })
               : undefined}
+            updateExercise={allowCreateExercise
+              ? (exerciseId, data) => updateExerciseMutation.mutateAsync({
+                  exerciseId,
+                  input: {
+                    activityType: data.activityType,
+                    equipment: data.equipment?.trim() || undefined,
+                    muscleGroup: data.muscleGroup.trim(),
+                    name: data.name.trim(),
+                    primaryMuscles: data.primaryMuscles,
+                    secondaryMuscles: data.secondaryMuscles,
+                  },
+                })
+              : undefined}
+            onExerciseUpdated={refreshEditedExercise}
           />
         )}
       </DialogContent>

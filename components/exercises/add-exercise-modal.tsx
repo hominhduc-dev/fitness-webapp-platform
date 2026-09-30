@@ -2,10 +2,12 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { Check, Plus, Search, SlidersHorizontal, X } from "lucide-react"
+import { Check, Pencil, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 import type { ReactNode } from "react"
 
 import type { ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import type { AdminExerciseItem } from "@/lib/admin/types"
+import { useAuth } from "@/components/providers/auth-provider"
 import { useToast } from "@/components/providers/toast-provider"
 
 import { MuscleMapPair } from "@/components/body/muscle-map-pair"
@@ -54,6 +56,35 @@ type AddExerciseModalProps = {
    * The new exercise is picked straight away (or selected, in multi-pick mode).
    */
   createExercise?: (data: ExerciseSaveData) => Promise<ExerciseVariationOption>
+  /**
+   * Lets a coach edit an exercise of their own that is not shared yet
+   * (`canManage`). Resolves with the updated option.
+   */
+  updateExercise?: (exerciseId: string, data: ExerciseSaveData) => Promise<ExerciseVariationOption>
+  /** Told about an edited exercise, so a routine already holding it can refresh its card. */
+  onExerciseUpdated?: (option: ExerciseVariationOption) => void
+}
+
+type ExerciseScope = "all" | "mine"
+
+/** The edit form's starting values, from the option the picker lists. */
+function toExerciseFormItem(option: ExerciseVariationOption): AdminExerciseItem {
+  return {
+    activityType: option.activityType,
+    createdAt: new Date(),
+    createdBy: null,
+    equipment: option.equipment,
+    id: option.exerciseId,
+    isDefault: option.isDefault,
+    media: option.media,
+    muscleGroup: option.muscleGroup,
+    name: option.exerciseName,
+    primaryMuscles: option.primaryMuscles,
+    secondaryMuscles: option.secondaryMuscles,
+    updatedAt: new Date(),
+    usageCount: 0,
+    variationName: option.variationName,
+  }
 }
 
 /**
@@ -75,21 +106,33 @@ export function AddExerciseModal({
   loading = false,
   footer,
   createExercise,
+  updateExercise,
+  onExerciseUpdated,
 }: AddExerciseModalProps) {
   const { locale, messages } = useLocale()
+  const profileId = useAuth().profile?.id
   const { toast } = useToast()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<ExerciseVariationOption | null>(null)
   const [savingExercise, setSavingExercise] = useState(false)
+  // A coach's own exercises get their own tab; only coaches can create them.
+  const offersOwnExercises = Boolean(createExercise || updateExercise)
+  const [scope, setScope] = useState<ExerciseScope>("all")
   // Shown until the refetched catalogue includes them.
   const [createdOptions, setCreatedOptions] = useState<ExerciseVariationOption[]>([])
+  // Edited exercises, shown over the catalogue's copy until it refetches.
+  const [editedOptions, setEditedOptions] = useState<Record<string, ExerciseVariationOption>>({})
   const exercises = useMemo(
     () => {
       const pending = createdOptions.filter((created) => !libraryExercises.some((exercise) => exercise.id === created.id))
-      return pending.length > 0 ? [...pending, ...libraryExercises] : libraryExercises
+      const all = pending.length > 0 ? [...pending, ...libraryExercises] : libraryExercises
+      return Object.keys(editedOptions).length > 0 ? all.map((exercise) => editedOptions[exercise.id] ?? exercise) : all
     },
-    [createdOptions, libraryExercises],
+    [createdOptions, editedOptions, libraryExercises],
   )
+  const isOwnExercise = (exercise: ExerciseVariationOption) =>
+    Boolean(profileId && exercise.createdById === profileId)
   const exerciseById = useMemo(() => new Map(exercises.map((exercise) => [exercise.id, exercise])), [exercises])
   const handleClose = () => { setSelectedIds([]); onOpenChange?.(false); onClose?.(); }
   const selectedExercises = useMemo(
@@ -169,6 +212,7 @@ export function AddExerciseModal({
   const visible = useMemo(() => {
     const search = compileExerciseSearch(deferredQuery)
     const filtered = searchableExercises.flatMap(({ document, exercise }) => {
+      if (scope === "mine" && !(profileId && exercise.createdById === profileId)) return []
       if (muscle !== "all") {
         const explicitMuscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
         const targetMuscles = explicitMuscles.length > 0
@@ -184,7 +228,7 @@ export function AddExerciseModal({
       return matchesExerciseSearchDocument(document, search) ? [exercise] : []
     })
     return sortByExerciseRelevance(filtered, deferredQuery, (exercise) => exercise.displayName ?? exercise.name)
-  }, [activityType, deferredQuery, equipment, muscle, searchableExercises])
+  }, [activityType, deferredQuery, equipment, muscle, profileId, scope, searchableExercises])
 
   const isSearchPending = query !== deferredQuery
 
@@ -200,6 +244,23 @@ export function AddExerciseModal({
       else onPick(option)
     } catch (error) {
       toast({ title: error instanceof Error ? error.message : messages.workoutPage.createExerciseError, tone: "error" })
+    } finally {
+      setSavingExercise(false)
+    }
+  }
+
+  async function handleUpdateExercise(data: ExerciseSaveData) {
+    if (!updateExercise || !editing) return
+    setSavingExercise(true)
+    try {
+      const option = await updateExercise(editing.exerciseId, data)
+      setEditedOptions((current) => ({ ...current, [option.id]: option }))
+      setCreatedOptions((current) => current.map((created) => (created.id === option.id ? option : created)))
+      onExerciseUpdated?.(option)
+      setEditing(null)
+      toast({ title: messages.workoutPage.exerciseUpdated(option.displayName ?? option.name), tone: "success" })
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : messages.workoutPage.updateExerciseError, tone: "error" })
     } finally {
       setSavingExercise(false)
     }
@@ -287,6 +348,29 @@ export function AddExerciseModal({
               )}
             </button>
           </div>
+          {offersOwnExercises ? (
+            <div role="tablist" aria-label={messages.workoutPage.myExercisesTab} className="grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1">
+              {(["all", "mine"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === value}
+                  onClick={() => setScope(value)}
+                  className={cn(
+                    "h-8 pointer-coarse:h-10 rounded-lg text-sm transition-colors",
+                    scope === value
+                      ? "bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                      : "font-medium text-muted-foreground hover:bg-background/60 hover:text-foreground",
+                  )}
+                >
+                  {value === "all"
+                    ? messages.workoutPage.allExercisesTab
+                    : `${messages.workoutPage.myExercisesTab} (${exercises.filter(isOwnExercise).length})`}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {/* List */}
@@ -297,8 +381,8 @@ export function AddExerciseModal({
             </div>
           ) : visible.length === 0 ? (
             <>
-              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                {messages.workoutPage.noExercisesFound}
+              <div className="flex items-center justify-center px-[22px] py-12 text-center text-sm text-muted-foreground">
+                {scope === "mine" && !query.trim() ? messages.workoutPage.noMyExercises : messages.workoutPage.noExercisesFound}
               </div>
               {createButton}
             </>
@@ -311,6 +395,8 @@ export function AddExerciseModal({
               const added = existingSet.has(exercise.id)
               const selected = selectedIds.includes(exercise.id)
               const isCurrent = exercise.id === currentVariationId
+              // Only the coach's own, not yet shared: once shared, other coaches rely on it.
+              const canEdit = Boolean(updateExercise && exercise.canManage && isOwnExercise(exercise))
               return (
                 // The thumbnail is its own button (it opens the GIF/video), so it
                 // sits beside the pick button rather than inside it.
@@ -338,7 +424,8 @@ export function AddExerciseModal({
                     } else onPick(exercise)
                   }}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-3 py-3 pr-[22px] text-left",
+                    "flex min-w-0 flex-1 items-center gap-3 py-3 text-left",
+                    canEdit ? "pr-1" : "pr-[22px]",
                     added && "cursor-default",
                   )}
                 >
@@ -360,6 +447,17 @@ export function AddExerciseModal({
                     <span className="text-lg leading-none text-muted-foreground">+</span>
                   )}
                 </button>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(exercise)}
+                    aria-label={messages.workoutPage.editExercise(exercise.displayName ?? exercise.name)}
+                    title={messages.workoutPage.editExercise(exercise.displayName ?? exercise.name)}
+                    className="mr-3 inline-flex size-9 pointer-coarse:size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                  >
+                    <Pencil aria-hidden className="size-4" />
+                  </button>
+                ) : null}
                 </div>
               )
             })}
@@ -389,6 +487,18 @@ export function AddExerciseModal({
           stacked
           onClose={() => { if (!savingExercise) setCreating(false) }}
           onSave={(data) => void handleCreateExercise(data)}
+        />
+      ) : null}
+
+      {editing ? (
+        <ExerciseFormModal
+          allowMedia={false}
+          initial={toExerciseFormItem(editing)}
+          locale={locale}
+          saving={savingExercise}
+          stacked
+          onClose={() => { if (!savingExercise) setEditing(null) }}
+          onSave={(data) => void handleUpdateExercise(data)}
         />
       ) : null}
 
