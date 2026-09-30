@@ -27,22 +27,37 @@ vi.mock("@/lib/auth/api", async (original) => ({ ...await original<typeof import
 const profile = { id: "profile-a", supabaseAuthUserId: "auth-a", name: "A" } as AppProfile
 const session = (id: string, token = "token") => ({ user: { id }, access_token: token }) as Session
 
-function setup() {
+function setup(initialProfile: AppProfile | null = profile) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })
-  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}><AuthProvider initialProfile={profile}>{children}</AuthProvider></QueryClientProvider>
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}><AuthProvider initialProfile={initialProfile}>{children}</AuthProvider></QueryClientProvider>
   return { client, ...renderHook(() => useAuth(), { wrapper }) }
 }
 
 beforeEach(() => { vi.clearAllMocks(); state.session = session("auth-a"); state.callback = undefined })
 
-it("does not reuse an old bootstrap snapshot on repeated sign in", async () => {
+it("does not refetch the profile when SIGNED_IN repeats for the loaded account", async () => {
   const hook = setup()
   await waitFor(() => expect(hook.result.current.session).not.toBeNull())
-  hook.client.setQueryData(["profile", "bootstrap", "auth-a"], { ...profile, name: "Old" })
-  state.read.mockResolvedValueOnce({ ...profile, name: "Updated" })
+  hook.client.setQueryData(["workouts", "sentinel"], "keep")
+  // Another tab initializing or regaining focus broadcasts SIGNED_IN again.
+  act(() => {
+    for (let i = 0; i < 3; i += 1) state.callback?.("SIGNED_IN", session("auth-a", `token-${i}`))
+  })
+  await waitFor(() => expect(hook.result.current.session?.access_token).toBe("token-2"))
+  expect(state.read).not.toHaveBeenCalled()
+  expect(hook.result.current.profile?.id).toBe("profile-a")
+  expect(hook.client.getQueryData(["workouts", "sentinel"])).toBe("keep")
+  hook.unmount(); hook.client.clear()
+})
+
+it("retries the profile on a repeated SIGNED_IN when it has not loaded", async () => {
+  state.read.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(profile)
+  const hook = setup(null)
+  await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
+  expect(hook.result.current.profile).toBeNull()
   act(() => { state.callback?.("SIGNED_IN", state.session) })
-  await waitFor(() => expect(hook.result.current.profile?.name).toBe("Updated"))
-  expect(state.read).toHaveBeenCalledTimes(1)
+  await waitFor(() => expect(hook.result.current.profile?.id).toBe("profile-a"))
+  expect(state.read).toHaveBeenCalledTimes(2)
   hook.unmount(); hook.client.clear()
 })
 

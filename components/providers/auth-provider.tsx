@@ -55,9 +55,16 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(!initialProfile)
   const accountRef = useRef<string | null>(initialProfile?.supabaseAuthUserId ?? null)
   const revisionRef = useRef(0)
+  // Read from the auth-state callback, which is subscribed once and would
+  // otherwise see the profile from its first render.
+  const profileRef = useRef(profile)
   const profileQuery = useCurrentProfile(profile, Boolean(session))
   const updateMutation = useUpdateProfile()
   const avatarMutation = useUploadAvatar()
+
+  useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
 
   // Memoized because it now closes over the query client, which makes it a
   // reactive value for the auth-state effect below. The client is a singleton,
@@ -185,6 +192,16 @@ export function AuthProvider({
       }
 
       if (event === "TOKEN_REFRESHED" && accountRef.current === nextSession?.user.id) {
+        setSession(nextSession)
+        return
+      }
+
+      // Supabase re-emits SIGNED_IN for the same account whenever any tab of
+      // this origin initializes or becomes visible again, and broadcasts it to
+      // every other tab. Refetching the profile on each one sent /api/auth/me
+      // every couple of seconds while another tab kept doing that. Only a
+      // profile that is not loaded yet (or failed to load) still needs a sync.
+      if (event === "SIGNED_IN" && accountRef.current === nextSession?.user.id && profileRef.current) {
         setSession(nextSession)
         return
       }
