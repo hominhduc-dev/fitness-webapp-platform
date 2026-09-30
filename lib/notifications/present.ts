@@ -174,9 +174,19 @@ function localizeCopy(
     case "workout_logged": {
       const trainee = readString(notification, "traineeName")
       const workout = readString(notification, "workoutName")
-      return trainee && workout
-        ? { message: copy.workoutLogged.message(trainee, workout), title: copy.workoutLogged.title(trainee) }
-        : null
+      if (!trainee || !workout) return null
+
+      // Notes the trainee left on exercises, sent with the finished session.
+      const notes = Array.isArray(notification.metadata?.exerciseNotes)
+        ? (notification.metadata.exerciseNotes as Array<{ exerciseName?: unknown; note?: unknown }>)
+            .flatMap((entry) => typeof entry.exerciseName === "string" && typeof entry.note === "string"
+              ? [`${entry.exerciseName}: ${entry.note}`]
+              : [])
+        : []
+      return {
+        message: `${copy.workoutLogged.message(trainee, workout)}${notes.length > 0 ? copy.workoutLogged.notes(notes.join("; ")) : ""}`,
+        title: copy.workoutLogged.title(trainee),
+      }
     }
     default:
       return null

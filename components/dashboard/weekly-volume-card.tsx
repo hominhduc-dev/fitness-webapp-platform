@@ -8,17 +8,20 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { VolumeLandmarkBar, volumeZoneClass } from "@/components/progress/volume-recovery/volume-landmark-bar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BottomSheet, BottomSheetBody, BottomSheetHeader } from "@/components/ui/bottom-sheet"
+import type { fetchVolumeRecovery } from "@/lib/fitness/api"
+import { useHydrationSafeQuery } from "@/lib/queries/hydration"
 import { useVolumeRecovery } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
 
 // Enough rows to show where the week is unbalanced, few enough to stay a glance.
 const VISIBLE_MUSCLES = 5
 
-export function WeeklyVolumeCard() {
+/** `seed` is the server-rendered data, shown until hydration. */
+export function WeeklyVolumeCard({ seed }: { seed?: Awaited<ReturnType<typeof fetchVolumeRecovery>> }) {
   const { locale, messages } = useLocale()
   const copy = messages.volumeRecovery
   const dashboardCopy = messages.dashboard
-  const query = useVolumeRecovery()
+  const query = useHydrationSafeQuery(useVolumeRecovery(), seed)
   const [metricsOpen, setMetricsOpen] = useState(false)
 
   if (query.isPending) {

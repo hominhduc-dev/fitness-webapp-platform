@@ -6,6 +6,8 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { fetchProgressAnalytics } from "@/lib/fitness/api"
+import { useHydrationSafeQuery } from "@/lib/queries/hydration"
 import { useProgressAnalytics } from "@/lib/queries/progress"
 
 type WeeklyProgressCardProps = {
@@ -13,6 +15,8 @@ type WeeklyProgressCardProps = {
   completedWorkouts: number
   nextWorkout: { subtitle: string; value: string }
   scheduledWorkouts: number
+  /** The server-rendered analytics, shown until hydration. */
+  seed?: Awaited<ReturnType<typeof fetchProgressAnalytics>>
   volumeUnitLabel: string
 }
 
@@ -25,11 +29,12 @@ export function WeeklyProgressCard({
   completedWorkouts,
   nextWorkout,
   scheduledWorkouts,
+  seed,
   volumeUnitLabel,
 }: WeeklyProgressCardProps) {
   const { messages } = useLocale()
   const copy = messages.dashboard
-  const query = useProgressAnalytics()
+  const query = useHydrationSafeQuery(useProgressAnalytics(), seed)
   // The last seven days, ending today.
   const weeklyVolume = query.data?.weeklyVolume ?? []
   const totalVolume = weeklyVolume.reduce((sum, point) => sum + point.volume, 0)

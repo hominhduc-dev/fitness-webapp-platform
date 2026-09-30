@@ -1802,35 +1802,6 @@ async function deleteWorkoutLog(accessToken: string, workoutId: string, logId: s
   })
 }
 
-export type SwapWorkoutExerciseResponse = {
-  currentSetIdMap: Record<string, string>
-  currentWorkoutExerciseIdMap: Record<string, string>
-  forkedProgramId: string | null
-  workoutId: string
-}
-
-async function swapWorkoutExercise(
-  accessToken: string,
-  workoutId: string,
-  workoutExerciseId: string,
-  newVariationId: string,
-): Promise<SwapWorkoutExerciseResponse> {
-  const response = await request<Partial<SwapWorkoutExerciseResponse> & { forkedProgramId: string | null; workoutId: string }>(
-    `/api/workouts/${workoutId}/exercises/${workoutExerciseId}/swap`,
-    accessToken,
-    {
-      body: JSON.stringify({ variationId: newVariationId }),
-      method: "POST",
-    },
-  )
-  return {
-    currentSetIdMap: response.currentSetIdMap ?? {},
-    currentWorkoutExerciseIdMap: response.currentWorkoutExerciseIdMap ?? {},
-    forkedProgramId: response.forkedProgramId,
-    workoutId: response.workoutId,
-  }
-}
-
 async function fetchExercises(
   accessToken: string,
   options?: {
@@ -2932,7 +2903,6 @@ export {
   sendTestPush,
   updateNotificationPreferences,
   restoreCoachProgram,
-  swapWorkoutExercise,
   unassignCoachProgram,
   unlinkGoogleSheetFromCoachProgram,
   updateCoachExerciseRequest,

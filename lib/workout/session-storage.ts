@@ -1,3 +1,5 @@
+import type { ExerciseBase, ExerciseVariation } from "@/lib/types"
+
 export const WORKOUT_SESSION_STORAGE_PREFIX = "workout-session"
 export const WORKOUT_SESSION_STORAGE_SCHEMA_VERSION = 6
 
@@ -12,9 +14,21 @@ export type StoredWorkoutSessionSet = {
   weight?: number
 }
 
+/**
+ * An exercise the trainee swapped in during the session. It stays local until
+ * the session is finished, so the draft has to carry it across a reload.
+ */
+export type StoredWorkoutSessionSwap = {
+  exercise: ExerciseBase
+  variation: ExerciseVariation
+}
+
 export type StoredWorkoutSessionExercise = {
   id: string
+  /** The trainee's note when it differs from the prescribed one; "" when cleared. */
+  notes?: string
   sets: StoredWorkoutSessionSet[]
+  swap?: StoredWorkoutSessionSwap
 }
 
 export type StoredWorkoutSession = {
@@ -47,17 +61,34 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
+/**
+ * A stored swap, or undefined when the value is not one. Server drafts reach
+ * the restore path unsanitized, so it checks them through this too.
+ */
+export function readStoredWorkoutSessionSwap(value: unknown): StoredWorkoutSessionSwap | undefined {
+  if (typeof value !== "object" || value === null) return undefined
+  const { exercise, variation } = value as { exercise?: unknown; variation?: unknown }
+  if (typeof exercise !== "object" || exercise === null || typeof variation !== "object" || variation === null) return undefined
+  const exerciseRecord = exercise as Partial<ExerciseBase>
+  const variationRecord = variation as Partial<ExerciseVariation>
+  if (typeof exerciseRecord.id !== "string" || typeof exerciseRecord.name !== "string") return undefined
+  if (typeof variationRecord.id !== "string" || typeof variationRecord.name !== "string") return undefined
+  return { exercise: exercise as ExerciseBase, variation: variation as ExerciseVariation }
+}
+
 function sanitizeStoredWorkoutExercises(rawExercises: unknown): StoredWorkoutSessionExercise[] {
   if (!Array.isArray(rawExercises)) return []
 
   return rawExercises.flatMap((exercise: unknown) => {
     if (typeof exercise !== "object" || exercise === null) return []
-    const exerciseRecord = exercise as { id?: unknown; sets?: unknown }
+    const exerciseRecord = exercise as { id?: unknown; notes?: unknown; sets?: unknown; swap?: unknown }
     if (typeof exerciseRecord.id !== "string") return []
     const rawSets = Array.isArray(exerciseRecord.sets) ? exerciseRecord.sets : []
     return [
       {
         id: exerciseRecord.id,
+        notes: typeof exerciseRecord.notes === "string" ? exerciseRecord.notes : undefined,
+        swap: readStoredWorkoutSessionSwap(exerciseRecord.swap),
         sets: rawSets.flatMap((set: unknown) => {
           if (typeof set !== "object" || set === null) return []
           const setRecord = set as {
@@ -156,6 +187,8 @@ export function markStoredWorkoutSessionSynced(workoutId: string, startedAt: str
 
 export function storedSessionHasProgress(exercises: StoredWorkoutSessionExercise[]): boolean {
   return exercises.some((exercise) =>
+    exercise.swap != null ||
+    exercise.notes != null ||
     exercise.sets.some(
       (set) =>
         set.completed ||

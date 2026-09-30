@@ -68,6 +68,7 @@ import {
   type MuscleSlugValue,
 } from "../../domain/muscle-profile"
 import { enrichExerciseSnapshot, type SnapshotMuscleProfile } from "../../domain/workout-muscle-snapshot"
+import { collectSessionChanges } from "../../domain/workout-session-changes"
 import {
   buildSetIntensityTagMap,
   normalizeSetIntensityAssignments,
@@ -4479,6 +4480,8 @@ async function createWorkoutLogForTrainee(
     }]),
   )
   const prescribedById = new Map(serializedWorkout.exercises.map((entry) => [entry.id, entry]))
+  const sessionChanges = collectSessionChanges(input.exercises, prescribedById)
+  const swappedExerciseIds = new Set(sessionChanges.swaps.map((swap) => swap.workoutExerciseId))
   const enrichedSnapshot = enrichExerciseSnapshot(input.exercises.map((entry) => {
     const prescribed = prescribedById.get(entry.id)
     // The method tag belongs to the coach's plan, not to what the client posts
@@ -4490,7 +4493,10 @@ async function createWorkoutLogForTrainee(
     )
     return {
       ...entry,
-      originalVariationId: prescribed?.originalVariationId,
+      // A swap made in this session is not applied yet, so the slot still
+      // holds the exercise it replaced.
+      originalVariationId: prescribed?.originalVariationId ??
+        (swappedExerciseIds.has(entry.id) ? prescribed?.variation.id : undefined),
       order: prescribed?.order,
       sets: entry.sets.map((set) => ({ ...set, intensityTag: prescribedTagBySetNumber.get(set.setNumber) })),
     }
@@ -4541,17 +4547,33 @@ async function createWorkoutLogForTrainee(
     throw error
   }
 
+  // Swaps are made during the session but take effect here, once it is
+  // finished: this slot and its later recurrences switch over, and a coach's
+  // program notifies the coach to approve or reject each one. The log is
+  // already saved, so a swap that fails is reported rather than thrown.
+  for (const swap of sessionChanges.swaps) {
+    await swapExerciseForTraineeFromWorkout(profile, { ...swap, workoutId: workout.id }).catch((error) => {
+      logger.warn("unable to apply session swap", { error, workoutId: workout.id, ...swap })
+    })
+  }
+
   // The coach notification is non-critical: send it after the log is saved so the
   // trainee's request returns immediately, and never fail the log if it errors.
-  if (profile.coachId) {
-    const coachId = profile.coachId
+  const coachId = profile.coachId ??
+    (workout.program && workout.program.createdById !== profile.id ? workout.program.createdById : null)
+  if (coachId) {
+    const exerciseNotes = sessionChanges.notes
+    const notesSuffix = exerciseNotes.length > 0
+      ? ` Notes: ${exerciseNotes.map((entry) => `${entry.exerciseName}: ${entry.note}`).join("; ")}`
+      : ""
 
     void db.notification
       .create({
         data: {
           channel: "in_app",
-          message: `${profile.name} completed ${serializedWorkout.name}.`,
+          message: `${profile.name} completed ${serializedWorkout.name}.${notesSuffix}`,
           metadata: {
+            ...(exerciseNotes.length > 0 ? { exerciseNotes } : {}),
             traineeId: profile.id,
             traineeName: profile.name,
             workoutId: workout.id,
@@ -6428,7 +6450,28 @@ async function notifyCoachOfTraineeSwap(input: {
       }
     : {}
 
-  await db.notification.create({
+  // Requests from this trainee for the same exercise that the coach has not
+  // answered yet. The newer swap replaces them: approving an older one would
+  // rewrite the program to an exercise the trainee has already moved on from.
+  const programNotifications = await db.notification.findMany({
+    select: { id: true, metadata: true, readAt: true },
+    where: {
+      relatedEntityId: input.program.id,
+      relatedEntityType: "program",
+      type: NotificationType.general,
+      userId: input.program.createdById,
+    },
+  })
+  const superseded = programNotifications.filter((notification) =>
+    readNotificationMetadataString(notification.metadata, "kind") === "trainee_swapped_exercise" &&
+    readNotificationMetadataString(notification.metadata, "traineeId") === input.profile.id &&
+    readNotificationMetadataString(notification.metadata, "oldVariationId") === input.oldVariationId &&
+    !readNotificationMetadataString(notification.metadata, "approvedAt") &&
+    !readNotificationMetadataString(notification.metadata, "rejectedAt") &&
+    !readNotificationMetadataString(notification.metadata, "supersededAt"),
+  )
+
+  const created = await db.notification.create({
     data: {
       channel: "in_app",
       message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
@@ -6457,6 +6500,21 @@ async function notifyCoachOfTraineeSwap(input: {
       userId: input.program.createdById,
     },
   })
+
+  const supersededAt = new Date()
+  for (const notification of superseded) {
+    await db.notification.update({
+      data: {
+        metadata: {
+          ...(notification.metadata as Prisma.JsonObject),
+          supersededAt: supersededAt.toISOString(),
+          supersededByNotificationId: created.id,
+        },
+        readAt: notification.readAt ?? supersededAt,
+      },
+      where: { id: notification.id },
+    })
+  }
 }
 
 async function swapExerciseForTraineeFromWorkout(
@@ -6695,6 +6753,10 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
     return { approved: true, alreadyApproved: true, notificationId, updatedExerciseCount: 0 }
   }
 
+  if (readNotificationMetadataString(notification.metadata, "supersededAt")) {
+    throw new AuthServiceError("Trainee đã đổi bài này thêm lần nữa. Hãy duyệt yêu cầu mới nhất.", 409)
+  }
+
   if (!originalProgramId || !originalWorkoutId || !oldVariationId || !newVariationId || targetOrder == null) {
     throw new AuthServiceError("Thông báo đổi bài này thiếu dữ liệu để duyệt. Hãy yêu cầu trainee đổi lại bài để tạo thông báo mới.", 409)
   }
@@ -6777,6 +6839,13 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
     // surviving a "no", exactly as the notification copy promises.
     if (traineeId) {
       await tx.traineeExerciseOverride.deleteMany({
+        where: { userId: traineeId, variationId: newVariationId, workoutExerciseId: { in: targetExerciseIds } },
+      })
+      // A slot the trainee has since swapped to something else keeps that
+      // choice. It now stands in for the approved exercise, and has to say so,
+      // or it would read as stale against the row and silently drop out.
+      await tx.traineeExerciseOverride.updateMany({
+        data: { replacedVariationId: newVariationId },
         where: { userId: traineeId, workoutExerciseId: { in: targetExerciseIds } },
       })
     }

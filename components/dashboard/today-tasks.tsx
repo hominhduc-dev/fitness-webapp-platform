@@ -10,6 +10,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { convertWeightToKg, formatWeight } from "@/lib/fitness/weight"
+import { useHasHydrated } from "@/lib/queries/hydration"
 import { useCreateWeightEntry, useVolumeRecovery, useWeightEntries } from "@/lib/queries/progress"
 import { formatDateKey } from "@/lib/time-zone"
 import { CoachInsightCard } from "./coach-insight"
@@ -28,9 +29,12 @@ export function TodayTasks() {
   const recovery = useVolumeRecovery()
   const weights = useWeightEntries(RECENT_WEIGHT_DAYS)
   const [checkInOpen, setCheckInOpen] = useState(false)
+  const hasHydrated = useHasHydrated()
   const data = recovery.data
 
-  if (!data) return null
+  // Which task is due depends on the device's date and on cached weigh-ins the
+  // server never saw, so the slot fills in after hydration.
+  if (!hasHydrated || !data) return null
 
   // `checkIn` is the latest one this week, not necessarily today's.
   const checkedInToday = data.checkIn?.checkInDate === formatDateKey(new Date())

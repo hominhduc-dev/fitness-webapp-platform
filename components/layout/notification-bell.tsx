@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
+import { useToast } from "@/components/providers/toast-provider"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +39,9 @@ function isPendingExerciseSwapApproval(notification: AppNotification) {
   return notification.type === "general" &&
     notification.metadata?.kind === "trainee_swapped_exercise" &&
     typeof notification.metadata?.approvedAt !== "string" &&
-    typeof notification.metadata?.rejectedAt !== "string"
+    typeof notification.metadata?.rejectedAt !== "string" &&
+    // The trainee swapped the same exercise again; only the newest request counts.
+    typeof notification.metadata?.supersededAt !== "string"
 }
 
 /**
@@ -66,6 +69,9 @@ export function NotificationBell({
   const approveExerciseSwap = useApproveTraineeExerciseSwap()
   const rejectExerciseSwap = useRejectTraineeExerciseSwap()
   const [selectedSwap, setSelectedSwap] = useState<AppNotification | null>(null)
+  const { toast } = useToast()
+  // A refused approval or rejection must not look like it went through.
+  const reportSwapError = (error: Error) => toast({ title: error.message, tone: "error" })
 
   const notifications = query.data?.notifications ?? []
   const unreadCount = query.data?.unreadCount ?? 0
@@ -188,7 +194,7 @@ export function NotificationBell({
                         onClick={(event) => {
                           event.preventDefault()
                           event.stopPropagation()
-                          approveExerciseSwap.mutate(notification.id)
+                          approveExerciseSwap.mutate(notification.id, { onError: reportSwapError })
                         }}
                         className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-md border border-primary/30 bg-primary-soft px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft/80 disabled:pointer-events-none disabled:opacity-70"
                       >
@@ -229,10 +235,10 @@ export function NotificationBell({
               notification={selectedSwap}
               locale={locale}
               onApprove={() => {
-                approveExerciseSwap.mutate(selectedSwap.id, { onSuccess: () => setSelectedSwap(null) })
+                approveExerciseSwap.mutate(selectedSwap.id, { onError: reportSwapError, onSuccess: () => setSelectedSwap(null) })
               }}
               onReject={() => {
-                rejectExerciseSwap.mutate(selectedSwap.id, { onSuccess: () => setSelectedSwap(null) })
+                rejectExerciseSwap.mutate(selectedSwap.id, { onError: reportSwapError, onSuccess: () => setSelectedSwap(null) })
               }}
               approving={approveExerciseSwap.isPending}
               rejecting={rejectExerciseSwap.isPending}

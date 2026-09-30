@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { getTagLabel, inferRoutineTag, type RoutineTag } from "@/lib/fitness/routine-tag"
 import type { ArchivedTraineeProgram, TraineeProgram } from "@/lib/fitness/types"
 import type { WorkoutCollection } from "@/lib/fitness/types"
+import { useHydrationSafeQuery } from "@/lib/queries/hydration"
 import { useWorkouts } from "@/lib/queries/workouts"
 import type { Workout } from "@/lib/types"
 
@@ -49,7 +50,7 @@ function CreateRoutineButton() {
 
 export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps = {}) {
   const workoutsQuery = useWorkouts(initialData)
-  const data = workoutsQuery.data
+  const { data, isPending } = useHydrationSafeQuery(workoutsQuery, initialData)
   const historyLogs = data?.historyLogs ?? []
   const programs = data?.programs ?? EMPTY_PROGRAMS
   const archivedPrograms = data?.archivedPrograms ?? EMPTY_ARCHIVED_PROGRAMS
@@ -126,7 +127,7 @@ export function RoutinesWorkoutBoard({ initialData }: RoutinesWorkoutBoardProps 
   // one-off below them.
   const cardCount = programGroups.length + standaloneWorkouts.length + datedWorkouts.length
 
-  if (workoutsQuery.isPending && !data) {
+  if (isPending && !data) {
     return <RoutinesLoadingState />
   }
 
