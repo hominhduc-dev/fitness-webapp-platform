@@ -4,7 +4,9 @@ import { useMemo, useState, type ChangeEvent } from "react"
 import { Download, Loader2, Upload } from "lucide-react"
 
 import { ExerciseLibraryPanel, type ExerciseSaveData } from "@/components/admin/admin-exercises-panel"
+import { useAuth } from "@/components/providers/auth-provider"
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
+import { cn } from "@/lib/utils"
 import { queryKeys } from "@/lib/queries/keys"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -190,7 +192,16 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
     loadingExercises: locale === "en" ? "Loading exercise library..." : "Đang tải thư viện bài tập...",
     loadExercisesError: locale === "en" ? "Unable to load the exercise library." : "Không thể tải thư viện bài tập.",
     tryAgain: locale === "en" ? "Try again" : "Thử lại",
+    allExercisesTab: locale === "en" ? "All" : "Tất cả",
+    myExercisesTab: locale === "en" ? "My exercises" : "Bài tập của tôi",
+    noMyExercises:
+      locale === "en"
+        ? "You haven't created any exercises yet. Use New exercise or Import Excel to add your own."
+        : "Bạn chưa tạo bài tập nào. Dùng New exercise hoặc Import Excel để thêm bài của bạn.",
   }
+  const profileId = useAuth().profile?.id
+  // The coach's own exercises (private, pending, shared or declined) get their own tab.
+  const [scope, setScope] = useState<"all" | "mine">("all")
   const exercisesQuery = useCoachData(queryKeys.coach.exercises(), fetchCoachExercises, initialExercises)
   const setExercises = exercisesQuery.setData
   const createExercise = useCoachMutation(createCoachExerciseRequest, ["coach", "exercises"])
@@ -209,9 +220,16 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  const ownExerciseCount = useMemo(
+    () => (exercisesQuery.data ?? []).filter((exercise) => profileId && exercise.createdById === profileId).length,
+    [exercisesQuery.data, profileId],
+  )
   const panelExercises = useMemo(
-    () => (exercisesQuery.data ?? []).map(mapCoachExerciseToPanelItem),
-    [exercisesQuery.data],
+    () =>
+      (exercisesQuery.data ?? [])
+        .filter((exercise) => scope === "all" || (profileId && exercise.createdById === profileId))
+        .map(mapCoachExerciseToPanelItem),
+    [exercisesQuery.data, profileId, scope],
   )
 
   function resetImportState() {
@@ -508,6 +526,30 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
           </Button>
         </div>
       ) : (
+        <>
+        {/* Same look as the Programs page's Library / By client switch. */}
+        <div role="tablist" aria-label={copy.myExercisesTab} className="inline-grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1 shadow-sm">
+          {(["all", "mine"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={scope === value}
+              onClick={() => setScope(value)}
+              className={cn(
+                "h-9 pointer-coarse:h-10 rounded-lg px-4 text-sm transition-colors",
+                scope === value
+                  ? "bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                  : "font-medium text-muted-foreground hover:bg-background/60 hover:text-foreground",
+              )}
+            >
+              {value === "all" ? copy.allExercisesTab : `${copy.myExercisesTab} (${ownExerciseCount})`}
+            </button>
+          ))}
+        </div>
+        {scope === "mine" && ownExerciseCount === 0 ? (
+          <p className="rounded-lg border border-dashed border-border bg-card px-4 py-3 text-sm text-muted-foreground">{copy.noMyExercises}</p>
+        ) : null}
         <ExerciseLibraryPanel
           actionKey={actionKey}
           exercises={panelExercises}
@@ -519,6 +561,7 @@ export function ExerciseLibraryClient({ initialExercises, initialImportRequests 
           onRequestShare={handleRequestShare}
           onSave={handleSaveExercise}
         />
+        </>
       )}
 
       <Dialog

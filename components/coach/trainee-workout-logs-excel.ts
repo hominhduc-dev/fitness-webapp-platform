@@ -427,12 +427,60 @@ function clearReportArea(worksheet: Worksheet, maxRow: number) {
   }
 }
 
+/**
+ * What the summary's SUMIF gives for one muscle group: the Sets column (G) of
+ * the rows naming it. Excel's SUMIF matches text case-insensitively.
+ */
+function sumSetsForMuscleGroup(rows: ReportRow[], label: string) {
+  const key = label.trim().toLowerCase()
+  return rows.reduce((sum, row) => (row.muscleGroup.trim().toLowerCase() === key ? sum + (row.completedSets || 0) : sum), 0)
+}
+
+/** How the app's muscle groups are listed in the summary; others follow alphabetically. */
+const SUMMARY_MUSCLE_GROUP_ORDER = ["chest", "back", "shoulders", "arms", "legs", "glutes", "calves", "core", "cardio", "other"]
+const SUMMARY_ITEM_SLOTS = SUMMARY_TOTAL_ROW - SUMMARY_ITEM_START_ROW
+
+/**
+ * The muscle groups the summary lists: the app's groups this week's exercises
+ * belong to. The template's own labels (Front Delts, Biceps, ...) are finer than
+ * the app's groups (Shoulders, Arms, ...), so sets of a group they don't name
+ * were left out of every total.
+ */
+function collectSummaryMuscleGroups(rows: Pick<ReportRow, "muscleGroup">[]) {
+  const groups = new Map<string, string>()
+  for (const row of rows) {
+    const group = row.muscleGroup.trim()
+    const key = group.toLowerCase()
+    if (group && !groups.has(key)) groups.set(key, group)
+  }
+
+  const rank = (key: string) => {
+    const index = SUMMARY_MUSCLE_GROUP_ORDER.indexOf(key)
+    return index < 0 ? SUMMARY_MUSCLE_GROUP_ORDER.length : index
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => rank(left) - rank(right) || left.localeCompare(right))
+    .map(([, group]) => group)
+    .slice(0, SUMMARY_ITEM_SLOTS)
+}
+
 function rebuildSummary(
   worksheet: Worksheet,
   styles: TemplateStyles,
-  summaryLabels: string[],
-  lastDataRow: number,
+  rows: ReportRow[],
 ) {
+  const lastDataRow = REPORT_START_ROW + rows.length - 1
+  const summaryLabels = collectSummaryMuscleGroups(rows)
+
+  // The template's own labels sit in these rows; slots this week doesn't use stay blank.
+  for (let rowNumber = SUMMARY_ITEM_START_ROW; rowNumber < SUMMARY_TOTAL_ROW; rowNumber += 1) {
+    worksheet.getCell(rowNumber, SUMMARY_LABEL_COLUMN).value = null
+    worksheet.getCell(rowNumber, SUMMARY_VALUE_COLUMN).value = null
+  }
+  // Formulas carry their computed result: Excel recalculates anyway, but readers
+  // that only show stored values (the in-app preview) would otherwise show blanks.
+  const labelSums = summaryLabels.map((label) => sumSetsForMuscleGroup(rows, label))
+
   worksheet.getCell(SUMMARY_HEADER_ROW, SUMMARY_LABEL_COLUMN).value = "Muscle Group"
   worksheet.getCell(SUMMARY_HEADER_ROW, SUMMARY_VALUE_COLUMN).value = "SUM OF SETS"
   applyStylesToRange(
@@ -448,6 +496,7 @@ function rebuildSummary(
     worksheet.getCell(rowNumber, SUMMARY_LABEL_COLUMN).value = label
     worksheet.getCell(rowNumber, SUMMARY_VALUE_COLUMN).value = {
       formula: `SUMIF(B${REPORT_START_ROW}:B${lastDataRow},"${label.replace(/"/g, '""')}",G${REPORT_START_ROW}:G${lastDataRow})`,
+      result: labelSums[index],
     }
 
     applyStylesToRange(
@@ -461,6 +510,7 @@ function rebuildSummary(
   worksheet.getCell(SUMMARY_TOTAL_ROW, SUMMARY_LABEL_COLUMN).value = "Total Volume "
   worksheet.getCell(SUMMARY_TOTAL_ROW, SUMMARY_VALUE_COLUMN).value = {
     formula: `SUM(S${SUMMARY_ITEM_START_ROW}:S${SUMMARY_TOTAL_ROW - 1})`,
+    result: labelSums.reduce((sum, value) => sum + value, 0),
   }
   applyStylesToRange(
     worksheet,
@@ -663,11 +713,6 @@ async function buildCoachWorkoutLogsWorkbookFile(
   // Widen column A to fit day-of-week label (e.g. "Sunday, 05/31")
   reportSheet.getColumn(1).width = 18
   const styles = captureStyles(reportSheet)
-  const summaryLabels = Array.from(
-    { length: SUMMARY_TOTAL_ROW - SUMMARY_ITEM_START_ROW },
-    (_value, index) => String(reportSheet.getCell(SUMMARY_ITEM_START_ROW + index, SUMMARY_LABEL_COLUMN).value ?? "").trim(),
-  ).filter(Boolean)
-
   TEMPLATE_MERGES.forEach((range) => {
     try {
       reportSheet.unMergeCells(range)
@@ -724,7 +769,7 @@ async function buildCoachWorkoutLogsWorkbookFile(
     }
   })
 
-  rebuildSummary(reportSheet, styles, summaryLabels, REPORT_START_ROW + rows.length - 1)
+  rebuildSummary(reportSheet, styles, rows)
 
   const existingRawSheet = workbook.getWorksheet("Raw Sets")
 
@@ -847,11 +892,6 @@ async function addWeeklyReportSheet(
   reportSheet.getColumn(1).width = 18
 
   const styles = captureStyles(reportSheet)
-  const summaryLabels = Array.from(
-    { length: SUMMARY_TOTAL_ROW - SUMMARY_ITEM_START_ROW },
-    (_v, i) => String(reportSheet.getCell(SUMMARY_ITEM_START_ROW + i, SUMMARY_LABEL_COLUMN).value ?? "").trim(),
-  ).filter(Boolean)
-
   TEMPLATE_MERGES.forEach((range) => {
     try { reportSheet.unMergeCells(range) } catch { /* ignore */ }
   })
@@ -898,7 +938,7 @@ async function addWeeklyReportSheet(
     }
   })
 
-  rebuildSummary(reportSheet, styles, summaryLabels, REPORT_START_ROW + rows.length - 1)
+  rebuildSummary(reportSheet, styles, rows)
 
   // Freeze the title/meta + column header rows so they stay visible while
   // scrolling. REPORT_START_ROW is the first data row, so ySplit = that - 1.
@@ -907,6 +947,7 @@ async function addWeeklyReportSheet(
 
 export {
   addWeeklyReportSheet,
+  collectSummaryMuscleGroups,
   createCoachWorkoutLogsWorkbookPreview,
   downloadCoachWorkoutLogsWorkbook,
   downloadCoachWorkoutLogsWorkbookFile,

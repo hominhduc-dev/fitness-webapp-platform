@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
-import { coachExerciseToVariationOption, createCoachExerciseRequest, fetchExercises } from "@/lib/fitness/api"
+import { coachExerciseToVariationOption, createCoachExerciseRequest, fetchExercises, updateCoachExerciseRequest } from "@/lib/fitness/api"
 import type { CoachExerciseInput } from "@/lib/fitness/types"
 import { queryKeys } from "@/lib/queries/keys"
 import { useUserQuery } from "@/lib/queries/scoped"
@@ -26,6 +26,26 @@ export function useCreateExerciseFromPicker() {
     mutationFn: async (input: CoachExerciseInput) => {
       const option = coachExerciseToVariationOption(await createCoachExerciseRequest(await requireAccessToken(), input))
       if (!option) throw new Error("The new exercise has no variation to pick.")
+      return option
+    },
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.exercises.all }),
+        client.invalidateQueries({ queryKey: ["coach", "exercises"] }),
+      ]),
+  })
+}
+
+/**
+ * A coach edits one of their own exercises from a picker and gets the updated
+ * pickable option back. Refetches the same lists as creating one.
+ */
+export function useUpdateExerciseFromPicker() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ exerciseId, input }: { exerciseId: string; input: CoachExerciseInput }) => {
+      const option = coachExerciseToVariationOption(await updateCoachExerciseRequest(await requireAccessToken(), exerciseId, input))
+      if (!option) throw new Error("The edited exercise has no variation to pick.")
       return option
     },
     onSuccess: () =>

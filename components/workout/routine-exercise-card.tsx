@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useId, useState, type ReactNode } from "react"
 import { ArrowDown, ArrowLeftRight, ArrowUp, ChevronDown, NotebookPen, Pencil, Trash2 } from "lucide-react"
 
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
@@ -41,6 +41,8 @@ export type RoutineExerciseCardProps = {
   /** The per-set method row only renders when the caller can store it. */
   setIntensityTags?: SetIntensityAssignment[]
   onSetIntensityTagsChange?: (assignments: SetIntensityAssignment[]) => void
+  /** A grip for drag-to-reorder, shown at the start of the header row. */
+  dragHandle?: ReactNode
 }
 
 const fieldInputClass = cn(
@@ -114,6 +116,7 @@ export function formatPrescriptionSummary(values: Record<RoutineExerciseField, s
 export function RoutineExerciseCard({
   defaultExpanded = false,
   disabled,
+  dragHandle,
   expanded: controlledExpanded,
   index,
   media,
@@ -155,13 +158,19 @@ export function RoutineExerciseCard({
         expanded ? "border-primary/30" : "border-border",
       )}
     >
+      <div className={cn("flex min-w-0 items-center", dragHandle && "pl-1")}>
+      {/* The grip sits beside the toggle, not inside it: a button cannot hold another control. */}
+      {dragHandle}
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
         aria-controls={bodyId}
         aria-label={`${expanded ? t.collapseExercise : t.expandExercise}: ${title}`}
-        className="flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-surface-hover"
+        className={cn(
+          "flex w-full min-w-0 items-center gap-2.5 rounded-xl py-2 pr-2.5 text-left transition-colors hover:bg-surface-hover",
+          dragHandle ? "pl-1" : "pl-2.5",
+        )}
       >
         <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-xs font-semibold text-primary-foreground tnum">
           {index + 1}
@@ -185,6 +194,7 @@ export function RoutineExerciseCard({
           className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-180")}
         />
       </button>
+      </div>
 
       {expanded ? (
         <div id={bodyId} className="border-t border-border px-2.5 pb-2 pt-2.5">

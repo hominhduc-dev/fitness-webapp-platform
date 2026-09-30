@@ -20,8 +20,28 @@ import {
   UserPlus,
   X,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
+import {
+  NEW_PROGRAM_SERVER_VERSION,
+  clearProgramDraft,
+  getProgramDraftStorageKey,
+  getProgramServerVersion,
+  getRoutineDraftKey,
+  isSameRoutineDraft,
+  pruneRoutineDrafts,
+  readProgramDraft,
+  stableStringify,
+  writeProgramDraft,
+  type ProgramDraftForm,
+  type Routine,
+  type RoutineExercise,
+  type RoutineTag,
+  type Schedule,
+  type StoredProgramDraft,
+} from "@/components/coach/program-draft-storage"
+import { layoutLoadedSchedule, makeEmptySchedule, resizeScheduleWeeks } from "@/components/coach/program-schedule"
+import { useAuth } from "@/components/providers/auth-provider"
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
 import { useExercises } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
@@ -50,11 +70,7 @@ import {
   resolveProgramAnchor,
   type CurrentWeekProgress,
 } from "@/lib/fitness/program-week"
-import {
-  normalizeSetIntensityAssignments,
-  readSetIntensityAssignments,
-  type SetIntensityAssignment,
-} from "@/lib/workout/intensity-tag"
+import { normalizeSetIntensityAssignments, readSetIntensityAssignments } from "@/lib/workout/intensity-tag"
 import { formatRepTarget, parseRepTargetText } from "@/lib/workout-reps"
 import type {
   AssignedTrainee,
@@ -80,37 +96,6 @@ type ProgramEditorProps = {
   programId?: string
 }
 
-type RoutineTag = "push" | "pull" | "legs" | "upper" | "lower" | "full"
-
-type RoutineExercise = {
-  fallbackEquipment?: string
-  fallbackExerciseName?: string
-  fallbackIsDefault?: boolean
-  fallbackMuscleGroup?: string
-  fallbackVariationName?: string
-  id: string
-  rir?: number | string
-  reps: string
-  restTime?: string
-  setIntensityTags?: SetIntensityAssignment[]
-  sets: number
-  variationId: string
-  weight: string
-}
-
-type Routine = {
-  exercises: RoutineExercise[]
-  id: string
-  name: string
-  tag: RoutineTag
-}
-
-type ScheduleSlot = {
-  routine: Routine | null
-} | null
-
-type Schedule = ScheduleSlot[][]
-
 type PickerSlot = {
   dayIndex: number
   weekIndex: number
@@ -121,7 +106,6 @@ type BuilderMode =
   | { kind: "edit-slot"; slot: PickerSlot }
   | { kind: "edit-library"; routineId: string }
 
-const DAYS_PER_WEEK_OPTIONS = [3, 4, 5, 6]
 const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
 const PROGRAM_GOAL_OPTIONS = [
   { en: "Hypertrophy", value: "build_muscle", vi: "Tăng cơ" },
@@ -130,6 +114,25 @@ const PROGRAM_GOAL_OPTIONS = [
   { en: "General", value: "general_fitness", vi: "Tổng hợp" },
 ]
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
+/** What the routine dialog opens with when it creates a new session. */
+const EMPTY_ROUTINE_DRAFT: RoutineDraftData = { exercises: [], name: "", tag: "push" }
+
+/**
+ * The unsaved-draft state of one editor opening. `baseline` is the form as the
+ * server holds it; the draft is written whenever the form differs from it.
+ */
+type DraftTracking = {
+  baseline: string
+  baselineForm: ProgramDraftForm
+  key: string
+  /** A draft edited before the program was saved again elsewhere, waiting for the coach's choice. */
+  pending: StoredProgramDraft | null
+  /** When the draft the editor opened with was last edited. */
+  restoredAt: string | null
+  /** The restored draft's content, which needs no rewrite until something changes. */
+  restoredContent: string | null
+  serverVersion: string
+}
 
 const DAY_OPTIONS = [
   { label: "Mon", scheduledDay: 1 },
@@ -165,29 +168,12 @@ function getRoutineTagLabel(tag: RoutineTag, messages: AppMessages) {
   return messages.workoutPage[keyByTag[tag]] as string
 }
 
-const DAY_PATTERN_BY_DAYS_PER_WEEK: Record<number, number[]> = {
-  3: [0, 2, 4],
-  4: [0, 1, 3, 5],
-  5: [0, 1, 3, 4, 6],
-  6: [0, 1, 2, 4, 5, 6],
-}
-
-
-
 function createFormId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }
 
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function clampDaysPerWeek(value: number) {
-  if (DAYS_PER_WEEK_OPTIONS.includes(value)) {
-    return value
-  }
-
-  return Math.min(6, Math.max(3, value || 4))
 }
 
 function resolveInitialActiveWeek(assignedAt: unknown, totalWeeks: number) {
@@ -200,29 +186,6 @@ function resolveInitialActiveWeek(assignedAt: unknown, totalWeeks: number) {
   return progress?.kind === "completed" ? Math.max(0, clampWeeks(totalWeeks) - 1) : 0
 }
 
-function makeEmptySchedule(weeks: number, daysPerWeek: number): Schedule {
-  const activeDays = new Set(DAY_PATTERN_BY_DAYS_PER_WEEK[clampDaysPerWeek(daysPerWeek)] ?? DAY_PATTERN_BY_DAYS_PER_WEEK[4])
-
-  return Array.from({ length: weeks }, () =>
-    DAY_OPTIONS.map((_day, dayIndex) => (activeDays.has(dayIndex) ? { routine: null } : null)),
-  )
-}
-
-function resizeSchedule(current: Schedule, weeks: number, daysPerWeek: number) {
-  const next = makeEmptySchedule(weeks, daysPerWeek)
-
-  for (let weekIndex = 0; weekIndex < Math.min(current.length, weeks); weekIndex += 1) {
-    for (let dayIndex = 0; dayIndex < DAY_OPTIONS.length; dayIndex += 1) {
-      const existingSlot = current[weekIndex]?.[dayIndex]
-
-      if (existingSlot?.routine && next[weekIndex]?.[dayIndex]) {
-        next[weekIndex][dayIndex] = existingSlot
-      }
-    }
-  }
-
-  return next
-}
 
 function getInitials(name: string) {
   return name
@@ -342,11 +305,10 @@ function getDayIndexFromScheduledDay(scheduledDay?: number) {
 function mapProgramToSchedule(
   program: CoachProgram,
   weeks: number,
-  daysPerWeek: number,
   exerciseOptions: ExerciseVariationOption[],
   messages: AppMessages,
 ) {
-  const schedule = makeEmptySchedule(weeks, daysPerWeek)
+  const schedule = makeEmptySchedule(weeks)
   const occurrenceByDay = new Map<number, number>()
   const routines = program.workouts.map((workout, index) => mapWorkoutToRoutine(workout, index, exerciseOptions, messages))
 
@@ -365,7 +327,7 @@ function mapProgramToSchedule(
 
   return {
     routines,
-    schedule,
+    schedule: layoutLoadedSchedule(schedule),
   }
 }
 
@@ -587,7 +549,6 @@ export function ProgramEditor({
   const [description, setDescription] = useState("")
   const [duration, setDuration] = useState("8")
   const [durationDraft, setDurationDraft] = useState("8")
-  const [daysPerWeek, setDaysPerWeek] = useState("4")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
   const [programGoal, setProgramGoal] = useState("build_muscle")
   const { data: traineeOptions = initialTraineeOptions } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTraineeOptions)
@@ -607,14 +568,14 @@ export function ProgramEditor({
   const [archivedAt, setArchivedAt] = useState<Date | null>(null)
   const [googleSheetConflict, setGoogleSheetConflict] = useState<CoachProgram["googleSheetConflict"]>(null)
   const [routineLibrary, setRoutineLibrary] = useState<Routine[]>([])
-  const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8, 4))
+  const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8))
   const [activeWeek, setActiveWeek] = useState(0)
   const [pickerSlot, setPickerSlot] = useState<PickerSlot | null>(null)
   const [builderMode, setBuilderMode] = useState<BuilderMode | null>(null)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
 
-  // Derive the draft data for the shared RoutineBuilderDialog (slot or library edit)
-  const builderDraft = useMemo((): RoutineDraftData | undefined => {
+  // The saved fields of the session the RoutineBuilderDialog edits (slot or library edit)
+  const builderSavedDraft = useMemo((): RoutineDraftData | undefined => {
     if (!builderMode) return undefined
     if (builderMode.kind === "edit-slot") {
       const routine = schedule[builderMode.slot.weekIndex]?.[builderMode.slot.dayIndex]?.routine
@@ -642,15 +603,13 @@ export function ProgramEditor({
     const nextExerciseOptions = exercisesQuery.data ?? initialExerciseOptions
     setInitializedProgram(draftIdentity)
           const nextWeeks = clampWeeks(program.duration || 8)
-          const nextDaysPerWeek = clampDaysPerWeek(program.workoutsPerWeek || program.workouts.length || 4)
-          const mapped = mapProgramToSchedule(program, nextWeeks, nextDaysPerWeek, nextExerciseOptions, messages)
+          const mapped = mapProgramToSchedule(program, nextWeeks, nextExerciseOptions, messages)
 
           setProgramName(program.name)
           setStartDate(program.startDate ?? "")
           setDescription(program.description ?? "")
           setDuration(String(nextWeeks))
           setDurationDraft(String(nextWeeks))
-          setDaysPerWeek(String(nextDaysPerWeek))
           setDifficulty(program.difficulty)
           setProgramGoal(program.goal ?? "build_muscle")
           setSelectedTraineeIds(
@@ -674,8 +633,143 @@ export function ProgramEditor({
           ))
   }
 
+  // ─── Unsaved draft ───────────────────────────────────────────────────────
+  // Edits live in memory until "Save". A copy goes to localStorage on every
+  // change, so closing the editor, a reload or leaving the page keeps them,
+  // and the next opening of this program restores them.
+  const { profile } = useAuth()
+  const [draftTracking, setDraftTracking] = useState<DraftTracking | null>(null)
+  const [routineDrafts, setRoutineDrafts] = useState<Record<string, RoutineDraftData>>({})
+  const lastWrittenDraftRef = useRef<{ content: string; key: string } | null>(null)
+  const draftStorageKey = profile?.id ? getProgramDraftStorageKey(profile.id, programId, adjustForTraineeId) : null
+  const serverVersion = useMemo(
+    () => (programId ? (programQuery.data ? getProgramServerVersion(programQuery.data) : null) : NEW_PROGRAM_SERVER_VERSION),
+    [programId, programQuery.data],
+  )
+  const draftForm = useMemo<ProgramDraftForm>(
+    () => ({
+      description,
+      difficulty,
+      duration,
+      programGoal,
+      programName,
+      routineLibrary,
+      schedule,
+      selectedTraineeIds,
+      startDate,
+    }),
+    [description, difficulty, duration, programGoal, programName, routineLibrary, schedule, selectedTraineeIds, startDate],
+  )
+  const draftFormSnapshot = useMemo(() => stableStringify(draftForm), [draftForm])
+
+  const applyDraftForm = (form: ProgramDraftForm) => {
+    setProgramName(form.programName)
+    setStartDate(form.startDate)
+    setDescription(form.description)
+    setDuration(form.duration)
+    setDurationDraft(form.duration)
+    setDifficulty(form.difficulty)
+    setProgramGoal(form.programGoal)
+    setSelectedTraineeIds(form.selectedTraineeIds)
+    setRoutineLibrary(form.routineLibrary)
+    setSchedule(form.schedule)
+    setActiveWeek((current) => Math.min(current, Math.max(0, form.schedule.length - 1)))
+  }
+
+  // Runs once the form holds the server's program (the render after the
+  // initialization above), so that form is the baseline a draft differs from.
+  const isFormInitialized = !programId || initializedProgram === draftIdentity
+  if (draftStorageKey && serverVersion && isFormInitialized && draftTracking?.key !== draftStorageKey) {
+    const stored = readProgramDraft(draftStorageKey)
+    const storedRoutineDrafts = stored ? pruneRoutineDrafts(stored.form, stored.routineDrafts) : {}
+    const storedHasChanges = Boolean(
+      stored && (stableStringify(stored.form) !== draftFormSnapshot || Object.keys(storedRoutineDrafts).length > 0),
+    )
+    const canRestore = Boolean(stored && storedHasChanges && stored.serverVersion === serverVersion)
+
+    setDraftTracking({
+      baseline: draftFormSnapshot,
+      baselineForm: draftForm,
+      key: draftStorageKey,
+      pending: stored && storedHasChanges && !canRestore ? stored : null,
+      restoredAt: canRestore && stored ? stored.savedAt : null,
+      restoredContent: canRestore && stored ? stableStringify({ form: stored.form, routineDrafts: storedRoutineDrafts }) : null,
+      serverVersion,
+    })
+    if (canRestore && stored) {
+      applyDraftForm(stored.form)
+      setRoutineDrafts(storedRoutineDrafts)
+    }
+  }
+
+  useEffect(() => {
+    // While a conflicting draft waits for the coach, it is not overwritten.
+    if (!draftTracking || draftTracking.pending) return
+
+    const { key } = draftTracking
+    const drafts = pruneRoutineDrafts(draftForm, routineDrafts)
+    if (draftFormSnapshot === draftTracking.baseline && Object.keys(drafts).length === 0) {
+      clearProgramDraft(key)
+      lastWrittenDraftRef.current = null
+      return
+    }
+
+    const content = stableStringify({ form: draftForm, routineDrafts: drafts })
+    const previousContent =
+      lastWrittenDraftRef.current?.key === key ? lastWrittenDraftRef.current.content : draftTracking.restoredContent
+    // Unchanged content keeps its `savedAt`, which is when the coach last edited.
+    if (content === previousContent) return
+
+    writeProgramDraft(key, { form: draftForm, routineDrafts: drafts, savedAt: new Date().toISOString(), serverVersion: draftTracking.serverVersion })
+    lastWrittenDraftRef.current = { content, key }
+  }, [draftForm, draftFormSnapshot, draftTracking, routineDrafts])
+
+  const discardProgramDraft = () => {
+    if (!draftTracking) return
+    applyDraftForm(draftTracking.baselineForm)
+    setRoutineDrafts({})
+    clearProgramDraft(draftTracking.key)
+    setDraftTracking({ ...draftTracking, pending: null, restoredAt: null, restoredContent: null })
+  }
+
+  const restorePendingProgramDraft = () => {
+    const pending = draftTracking?.pending
+    if (!draftTracking || !pending) return
+    applyDraftForm(pending.form)
+    setRoutineDrafts(pruneRoutineDrafts(pending.form, pending.routineDrafts))
+    // Kept against the current server version, so the next opening restores it without asking.
+    setDraftTracking({ ...draftTracking, pending: null, restoredAt: pending.savedAt, restoredContent: null })
+  }
+
+  const formatDraftTime = (value: string) =>
+    new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "short", timeStyle: "short" }).format(new Date(value))
+
+  // The session open in the routine dialog, and its unsaved fields from an earlier opening.
+  const builderDraftKey = (() => {
+    if (!builderMode) return null
+    if (builderMode.kind === "create") return getRoutineDraftKey(undefined)
+    const routineId =
+      builderMode.kind === "edit-slot"
+        ? schedule[builderMode.slot.weekIndex]?.[builderMode.slot.dayIndex]?.routine?.id
+        : builderMode.routineId
+    return routineId ? getRoutineDraftKey(routineId) : null
+  })()
+  const builderUnsavedDraft = builderDraftKey ? routineDrafts[builderDraftKey] : undefined
+
+  const handleRoutineDraftChange = (data: RoutineDraftData) => {
+    if (!builderDraftKey) return
+    const key = builderDraftKey
+    const saved = builderSavedDraft ?? EMPTY_ROUTINE_DRAFT
+    setRoutineDrafts((current) => {
+      if (!isSameRoutineDraft(data, saved)) return { ...current, [key]: data }
+      if (!(key in current)) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
   const totalWeeks = Number(duration) || 8
-  const totalDaysPerWeek = Number(daysPerWeek) || 4
   const filledSessions = schedule.reduce(
     (sum, week) => sum + week.filter((slot) => Boolean(slot?.routine?.exercises.length)).length,
     0,
@@ -744,15 +838,8 @@ export function ProgramEditor({
 
     setDuration(String(nextWeeks))
     setDurationDraft(String(nextWeeks))
-    setSchedule((current) => resizeSchedule(current, nextWeeks, totalDaysPerWeek))
+    setSchedule((current) => resizeScheduleWeeks(current, nextWeeks))
     setActiveWeek((current) => Math.min(current, nextWeeks - 1))
-  }
-
-  const handleDaysPerWeekChange = (nextValue: string) => {
-    const nextDaysPerWeek = Number(nextValue)
-
-    setDaysPerWeek(nextValue)
-    setSchedule((current) => resizeSchedule(current, totalWeeks, nextDaysPerWeek))
   }
 
   const assignRoutineToPickerSlot = (routine: Routine) => {
@@ -775,6 +862,17 @@ export function ProgramEditor({
   /** Central handler for RoutineBuilderDialog save — handles all 3 modes */
   const handleBuilderSave = (routine: Routine) => {
     if (!builderMode) return
+
+    // The session's fields are in the program now; its dialog draft is done.
+    if (builderDraftKey) {
+      const savedKey = builderDraftKey
+      setRoutineDrafts((current) => {
+        if (!(savedKey in current)) return current
+        const next = { ...current }
+        delete next[savedKey]
+        return next
+      })
+    }
 
     if (builderMode.kind === "create") {
       // New routine: add to library and assign to the pending picker slot
@@ -998,6 +1096,13 @@ export function ProgramEditor({
             ? await updateProgram.mutateAsync([programId, payload])
             : await createProgram.mutateAsync([payload])
 
+      if (draftTracking) {
+        clearProgramDraft(draftTracking.key)
+        // Re-reads the (now empty) draft and takes the saved form as the new baseline.
+        setDraftTracking(null)
+        setRoutineDrafts({})
+      }
+
       if (onSaved || onClose) {
         onSaved?.(savedProgram)
         onClose?.()
@@ -1171,7 +1276,7 @@ export function ProgramEditor({
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground">{messages.coach.programDetails}</span>
                   <span className="block truncate text-micro text-muted-foreground">
-                  {messages.coach.weeks(totalWeeks)} · {messages.coach.daysPerWeek(totalDaysPerWeek)} · {difficulty} · {PROGRAM_GOAL_OPTIONS.find((option) => option.value === programGoal)?.[locale] ?? programGoal}
+                  {messages.coach.weeks(totalWeeks)} · {difficulty} · {PROGRAM_GOAL_OPTIONS.find((option) => option.value === programGoal)?.[locale] ?? programGoal}
                   </span>
                 </span>
               </span>
@@ -1188,7 +1293,7 @@ export function ProgramEditor({
                 isArchived && "pointer-events-none opacity-60",
               )}
             >
-              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-3 md:gap-x-4 md:gap-y-2.5 xl:grid-cols-[1.25fr_0.72fr_0.9fr_0.9fr_1fr_1fr_1.4fr]">
+              <div className="grid grid-cols-2 items-start gap-x-2.5 gap-y-2 md:grid-cols-3 md:gap-x-4 md:gap-y-2.5 xl:grid-cols-[1.25fr_0.72fr_0.9fr_1fr_1fr_1.4fr]">
                 <label className="col-span-2 space-y-0.5 md:col-span-1 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programName} <span className="text-destructive-text">*</span></span>
                   <span className="relative block">
@@ -1226,21 +1331,6 @@ export function ProgramEditor({
                       {messages.coach.weeksUnit}
                     </span>
                   </div>
-                </label>
-                <label className="space-y-0.5 md:space-y-1">
-                  <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programFrequency} <span className="text-destructive-text">*</span></span>
-                  <Select value={daysPerWeek} onValueChange={handleDaysPerWeekChange}>
-                    <SelectTrigger className="h-9 w-full bg-background/65 md:h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[100] border-border bg-card">
-                      {DAYS_PER_WEEK_OPTIONS.map((dayCount) => (
-                        <SelectItem key={dayCount} value={String(dayCount)}>
-                          {messages.coach.daysPerWeek(dayCount)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </label>
                 <label className="space-y-0.5 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">{messages.coach.programDifficulty} <span className="text-destructive-text">*</span></span>
@@ -1369,6 +1459,26 @@ export function ProgramEditor({
               </Button>
             </div>
           ) : null}
+          {draftTracking?.pending ? (
+            <div className="mb-4 flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>{messages.coach.programDraftConflict(formatDraftTime(draftTracking.pending.savedAt))}</span>
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" size="sm" variant="outline" className="rounded-xl bg-background/70" onClick={discardProgramDraft}>
+                  {messages.coach.discardProgramDraft}
+                </Button>
+                <Button type="button" size="sm" className="rounded-xl" onClick={restorePendingProgramDraft}>
+                  {messages.coach.restoreProgramDraft}
+                </Button>
+              </div>
+            </div>
+          ) : draftTracking?.restoredAt ? (
+            <div className="mb-4 flex flex-col gap-2 rounded-lg border border-primary/25 bg-primary-soft px-4 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>{messages.coach.programDraftRestored(formatDraftTime(draftTracking.restoredAt))}</span>
+              <Button type="button" size="sm" variant="outline" className="shrink-0 rounded-xl bg-background/70" onClick={discardProgramDraft}>
+                {messages.coach.discardProgramDraft}
+              </Button>
+            </div>
+          ) : null}
           {error ? (
             <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
               {error}
@@ -1483,7 +1593,9 @@ export function ProgramEditor({
       <RoutineBuilderDialog
         open={Boolean(builderMode)}
         onOpenChange={(v) => { if (!v) setBuilderMode(null) }}
-        draftToEdit={builderDraft}
+        draftToEdit={builderUnsavedDraft ?? builderSavedDraft}
+        savedDraft={builderUnsavedDraft ? builderSavedDraft ?? EMPTY_ROUTINE_DRAFT : undefined}
+        onDraftChange={handleRoutineDraftChange}
         onSaveDraft={(draft) => handleBuilderSave(draftToRoutine(draft))}
         allowCreateExercise
       />

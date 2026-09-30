@@ -660,9 +660,11 @@ export function CoachTraineeDetailClient({
                   const isOpen = expandedNutritionDate === row.date
                   const bodyMetric = bodyMetricsByDate.get(row.date)
                   return (
+                    // shrink-0: in a height-capped flex column, overflow-hidden rows
+                    // would otherwise be squashed to fit instead of the list scrolling.
                     <div
                       key={row.date}
-                      className="overflow-hidden rounded-lg border border-border bg-card"
+                      className="shrink-0 overflow-hidden rounded-lg border border-border bg-card"
                     >
                       <button
                         type="button"
@@ -674,8 +676,12 @@ export function CoachTraineeDetailClient({
                         ) : (
                           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
-                        <span className="w-12 shrink-0 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground sm:w-14">
-                          {row.date}
+                        {/* dd/MM on one line: the list only spans the last 30 days. */}
+                        <span
+                          title={row.date}
+                          className="shrink-0 whitespace-nowrap font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground"
+                        >
+                          {`${row.date.slice(8, 10)}/${row.date.slice(5, 7)}`}
                         </span>
                         <span
                           className={cn(
