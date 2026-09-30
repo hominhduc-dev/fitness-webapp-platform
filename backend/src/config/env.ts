@@ -79,6 +79,11 @@ const raw = {
   GOOGLE_OAUTH_CLIENT_SECRET: clean(process.env.GOOGLE_OAUTH_CLIENT_SECRET),
   GOOGLE_OAUTH_REDIRECT_URI: clean(process.env.GOOGLE_OAUTH_REDIRECT_URI),
   GOOGLE_TOKEN_ENCRYPTION_KEY: clean(process.env.GOOGLE_TOKEN_ENCRYPTION_KEY),
+  HUAWEI_HEALTH_CLIENT_ID: clean(process.env.HUAWEI_HEALTH_CLIENT_ID),
+  HUAWEI_HEALTH_CLIENT_SECRET: clean(process.env.HUAWEI_HEALTH_CLIENT_SECRET),
+  HUAWEI_HEALTH_REDIRECT_URI: clean(process.env.HUAWEI_HEALTH_REDIRECT_URI),
+  HUAWEI_HEALTH_SYNC_ENABLED: clean(process.env.HUAWEI_HEALTH_SYNC_ENABLED),
+  HUAWEI_HEALTH_SYNC_INTERVAL_MS: clean(process.env.HUAWEI_HEALTH_SYNC_INTERVAL_MS),
   NODE_ENV: clean(process.env.NODE_ENV),
   NOTIFICATION_SCHEDULER_ENABLED: clean(process.env.NOTIFICATION_SCHEDULER_ENABLED),
   NOTIFICATION_SCHEDULER_INTERVAL_MS: clean(process.env.NOTIFICATION_SCHEDULER_INTERVAL_MS),
@@ -132,6 +137,17 @@ const envSchema = z.object({
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.url().optional(),
   GOOGLE_TOKEN_ENCRYPTION_KEY: z.string().optional(),
+  HUAWEI_HEALTH_CLIENT_ID: z.string().optional(),
+  HUAWEI_HEALTH_CLIENT_SECRET: z.string().optional(),
+  HUAWEI_HEALTH_REDIRECT_URI: z.url().optional(),
+  /** Background pull of Huawei Health data for every connected user. */
+  HUAWEI_HEALTH_SYNC_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value !== "false"),
+  HUAWEI_HEALTH_SYNC_INTERVAL_MS: numberFromString(3_600_000).pipe(
+    z.int().min(300_000, "HUAWEI_HEALTH_SYNC_INTERVAL_MS must be at least 300000"),
+  ),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   /** Scheduled reminders (open workout, weight log, morning check-in). Set to false on extra instances if desired; dedupe keys make running several safe. */
   NOTIFICATION_SCHEDULER_ENABLED: z
@@ -262,6 +278,13 @@ function loadEnv() {
     googleOauthClientSecret: parsed.GOOGLE_OAUTH_CLIENT_SECRET,
     googleOauthRedirectUri: parsed.GOOGLE_OAUTH_REDIRECT_URI,
     googleTokenEncryptionKey: parsed.GOOGLE_TOKEN_ENCRYPTION_KEY,
+    // Huawei Health Kit is optional too. Its tokens are encrypted with the same
+    // GOOGLE_TOKEN_ENCRYPTION_KEY (lib/token-crypto.ts).
+    huaweiHealthClientId: parsed.HUAWEI_HEALTH_CLIENT_ID,
+    huaweiHealthClientSecret: parsed.HUAWEI_HEALTH_CLIENT_SECRET,
+    huaweiHealthRedirectUri: parsed.HUAWEI_HEALTH_REDIRECT_URI,
+    huaweiHealthSyncEnabled: parsed.HUAWEI_HEALTH_SYNC_ENABLED,
+    huaweiHealthSyncIntervalMs: parsed.HUAWEI_HEALTH_SYNC_INTERVAL_MS,
     supabaseAnonKey: parsed.SUPABASE_ANON_KEY,
     supabaseServiceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY,
     supabaseUrl: parsed.SUPABASE_URL,

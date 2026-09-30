@@ -9,6 +9,7 @@ import { exerciseRouter } from "./exercise.route"
 import { foodRouter } from "./food.route"
 import { googleConnectionRouter } from "./google.route"
 import { healthRouter } from "./health.route"
+import { huaweiRouter } from "./huawei.route"
 import { mealRouter } from "./meal.route"
 import { notificationRouter } from "./notification.route"
 import { progressRouter } from "./progress.route"
@@ -32,6 +33,7 @@ apiRouter.use("/dashboard", dashboardRouter)
 apiRouter.use("/exercises", exerciseRouter)
 apiRouter.use("/foods", foodRouter)
 apiRouter.use("/google", googleConnectionRouter)
+apiRouter.use("/huawei", huaweiRouter)
 apiRouter.use("/meals", mealRouter)
 apiRouter.use("/notifications", notificationRouter)
 apiRouter.use("/progress", progressRouter)

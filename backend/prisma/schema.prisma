@@ -288,6 +288,8 @@ model User {
   foodsCreated           Food[]                    @relation("FoodCreator")
   foodsReviewed          Food[]                    @relation("FoodReviewer")
   googleConnection       GoogleConnection?
+  huaweiConnection       HuaweiConnection?
+  wearableDailySummaries WearableDailySummary[]
   notifications          Notification[]
   pushSubscriptions      PushSubscription[]
   notificationPreference NotificationPreference?
@@ -640,6 +642,55 @@ model GoogleConnection {
   updatedAt             DateTime @updatedAt
 
   @@index([expiresAt])
+}
+
+/// A user's Huawei ID grant for Health Kit (watch / band data synced through the
+/// Huawei Health app). Tokens are encrypted like GoogleConnection's; one row per user.
+model HuaweiConnection {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @unique @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  expiresAt             DateTime
+  /// Space-separated scopes actually granted, which may be narrower than requested.
+  scope                 String
+  /// IANA zone the user connected from. The background sync has no request to
+  /// read it from, and Huawei cuts daily totals in this zone's offset.
+  timeZone              String
+  lastSyncedAt          DateTime?
+  /// Error code of the last failed sync, cleared by the next successful one.
+  lastSyncError         String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([lastSyncedAt])
+}
+
+enum WearableSource {
+  huawei
+}
+
+/// One day of wearable activity for a user, as reported by the source. Re-synced
+/// days are overwritten, since a band that syncs late fills in earlier days.
+model WearableDailySummary {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @db.Uuid
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source       WearableSource
+  /// Day key (the user's calendar day), not an instant.
+  date         DateTime       @db.Date
+  steps        Int?
+  activeKcal   Float?
+  avgHeartRate Float?
+  minHeartRate Float?
+  maxHeartRate Float?
+  syncedAt     DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([userId, source, date])
+  @@index([userId, date])
 }
 
 model ProgramAssignment {

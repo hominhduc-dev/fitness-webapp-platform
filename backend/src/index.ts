@@ -2,11 +2,13 @@ import { app } from "./app"
 import { env } from "./config/env"
 import { logger } from "./lib/logger"
 import { prisma } from "./lib/prisma"
+import { startHuaweiSyncScheduler, stopHuaweiSyncScheduler } from "./services/huawei-health-sync.service"
 import { startNotificationScheduler, stopNotificationScheduler } from "./services/notifications/notification-scheduler"
 
 const server = app.listen(env.port, () => {
   logger.info("backend started", { environment: env.nodeEnv, port: env.port, url: `http://localhost:${env.port}` })
   startNotificationScheduler()
+  startHuaweiSyncScheduler()
 })
 
 // Allow long-running requests (e.g. bulk exercise import) up to 5 minutes
@@ -38,6 +40,7 @@ async function shutdown(signal: NodeJS.Signals) {
   shuttingDown = true
   logger.info("shutting down", { signal })
   stopNotificationScheduler()
+  stopHuaweiSyncScheduler()
 
   const forceExit = setTimeout(() => {
     logger.error("graceful shutdown timed out, forcing exit")
