@@ -19,7 +19,6 @@ import {
   deleteWorkout,
   deleteWorkoutLog,
   fetchActiveWorkoutSessions,
-  swapWorkoutExercise,
   archiveTraineeProgram,
   deleteTraineeProgram,
   restoreTraineeProgram,
@@ -246,25 +245,6 @@ export function useDeleteWorkoutLog() {
     onSuccess: () => {
       invalidateTrainingData()
       void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
-    },
-  })
-}
-
-export function useSwapWorkoutExercise() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      workoutId,
-      workoutExerciseId,
-      variationId,
-    }: {
-      workoutId: string
-      workoutExerciseId: string
-      variationId: string
-    }) => swapWorkoutExercise(await requireAccessToken(), workoutId, workoutExerciseId, variationId),
-    onSuccess: (_result, { workoutId }) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.detail(workoutId) })
     },
   })
 }

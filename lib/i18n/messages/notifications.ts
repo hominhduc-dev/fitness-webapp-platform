@@ -60,6 +60,7 @@ export const notificationsMessages = {
         },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} completed ${workout}.`,
+          notes: (notes: string) => ` Notes: ${notes}`,
           title: (trainee: string) => `${trainee} logged a workout`,
         },
         workoutReminder: {
@@ -140,6 +141,7 @@ export const notificationsMessages = {
         },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} đã hoàn thành ${workout}.`,
+          notes: (notes: string) => ` Ghi chú: ${notes}`,
           title: (trainee: string) => `${trainee} vừa ghi buổi tập`,
         },
         workoutReminder: {

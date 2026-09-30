@@ -68,6 +68,7 @@ import {
   type MuscleSlugValue,
 } from "../../domain/muscle-profile"
 import { enrichExerciseSnapshot, type SnapshotMuscleProfile } from "../../domain/workout-muscle-snapshot"
+import { collectSessionChanges } from "../../domain/workout-session-changes"
 import {
   buildSetIntensityTagMap,
   normalizeSetIntensityAssignments,
@@ -4479,6 +4480,8 @@ async function createWorkoutLogForTrainee(
     }]),
   )
   const prescribedById = new Map(serializedWorkout.exercises.map((entry) => [entry.id, entry]))
+  const sessionChanges = collectSessionChanges(input.exercises, prescribedById)
+  const swappedExerciseIds = new Set(sessionChanges.swaps.map((swap) => swap.workoutExerciseId))
   const enrichedSnapshot = enrichExerciseSnapshot(input.exercises.map((entry) => {
     const prescribed = prescribedById.get(entry.id)
     // The method tag belongs to the coach's plan, not to what the client posts
@@ -4490,7 +4493,10 @@ async function createWorkoutLogForTrainee(
     )
     return {
       ...entry,
-      originalVariationId: prescribed?.originalVariationId,
+      // A swap made in this session is not applied yet, so the slot still
+      // holds the exercise it replaced.
+      originalVariationId: prescribed?.originalVariationId ??
+        (swappedExerciseIds.has(entry.id) ? prescribed?.variation.id : undefined),
       order: prescribed?.order,
       sets: entry.sets.map((set) => ({ ...set, intensityTag: prescribedTagBySetNumber.get(set.setNumber) })),
     }
@@ -4541,17 +4547,33 @@ async function createWorkoutLogForTrainee(
     throw error
   }
 
+  // Swaps are made during the session but take effect here, once it is
+  // finished: this slot and its later recurrences switch over, and a coach's
+  // program notifies the coach to approve or reject each one. The log is
+  // already saved, so a swap that fails is reported rather than thrown.
+  for (const swap of sessionChanges.swaps) {
+    await swapExerciseForTraineeFromWorkout(profile, { ...swap, workoutId: workout.id }).catch((error) => {
+      logger.warn("unable to apply session swap", { error, workoutId: workout.id, ...swap })
+    })
+  }
+
   // The coach notification is non-critical: send it after the log is saved so the
   // trainee's request returns immediately, and never fail the log if it errors.
-  if (profile.coachId) {
-    const coachId = profile.coachId
+  const coachId = profile.coachId ??
+    (workout.program && workout.program.createdById !== profile.id ? workout.program.createdById : null)
+  if (coachId) {
+    const exerciseNotes = sessionChanges.notes
+    const notesSuffix = exerciseNotes.length > 0
+      ? ` Notes: ${exerciseNotes.map((entry) => `${entry.exerciseName}: ${entry.note}`).join("; ")}`
+      : ""
 
     void db.notification
       .create({
         data: {
           channel: "in_app",
-          message: `${profile.name} completed ${serializedWorkout.name}.`,
+          message: `${profile.name} completed ${serializedWorkout.name}.${notesSuffix}`,
           metadata: {
+            ...(exerciseNotes.length > 0 ? { exerciseNotes } : {}),
             traineeId: profile.id,
             traineeName: profile.name,
             workoutId: workout.id,
