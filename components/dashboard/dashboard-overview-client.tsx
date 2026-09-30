@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { useState } from "react"
 
 import { AIChatBubble } from "@/components/ai/chat-bubble"
 import { WorkoutCelebration } from "@/components/workout/workout-celebration"
@@ -19,6 +19,7 @@ import type { fetchProgressAnalytics, fetchRecoveryHistory, fetchVolumeRecovery 
 import { fetchDashboard } from "@/lib/fitness/api"
 import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
 import { useNutritionDay } from "@/lib/queries/meals"
+import { useHasHydrated } from "@/lib/queries/hydration"
 import { useProgressAnalytics, useRecoveryHistory, useVolumeRecovery } from "@/lib/queries/progress"
 import { useUserQuery } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
@@ -53,10 +54,6 @@ type DashboardSeeds = {
   volumeRecovery?: Awaited<ReturnType<typeof fetchVolumeRecovery>>
 }
 
-const subscribeToNothing = () => () => {}
-const clientHydrated = () => true
-const serverHydrated = () => false
-
 export function DashboardOverviewClient({
   initialData,
   preferredWeightUnit,
@@ -67,7 +64,7 @@ export function DashboardOverviewClient({
   seeds?: DashboardSeeds
 }) {
   const [aiChatOpen, setAIChatOpen] = useState(false)
-  const hasHydrated = useSyncExternalStore(subscribeToNothing, clientHydrated, serverHydrated)
+  const hasHydrated = useHasHydrated()
   const { messages } = useLocale()
   const dashboardQuery = useUserQuery({
     queryKey: ["workouts", "dashboard"],
@@ -137,7 +134,7 @@ export function DashboardOverviewClient({
         </div>
 
         <div className="order-1 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-2 lg:row-start-1" data-tour="dashboard-readiness">
-          <ReadinessCard />
+          <ReadinessCard seed={seeds?.volumeRecovery} />
         </div>
 
         <div className="order-2 col-span-1 min-w-0 sm:col-span-2 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-start-1" data-tour="dashboard-nutrition">
@@ -150,12 +147,13 @@ export function DashboardOverviewClient({
             completedWorkouts={workoutsThisWeek}
             nextWorkout={nextWorkout}
             scheduledWorkouts={scheduledThisWeek}
+            seed={seeds?.analytics}
             volumeUnitLabel={volumeUnitLabel}
           />
         </div>
 
         <div className="order-5 col-span-2 min-w-0 lg:order-none lg:col-span-2 lg:col-start-1 lg:row-start-3" data-tour="dashboard-weekly-volume">
-          <WeeklyVolumeCard />
+          <WeeklyVolumeCard seed={seeds?.volumeRecovery} />
         </div>
 
         <div className="order-6 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:col-start-3 lg:row-span-2 lg:row-start-2" data-tour="dashboard-recent-activity">

@@ -6,6 +6,8 @@ import { Activity, ChevronRight, Heart, Moon, Zap } from "lucide-react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
+import type { fetchVolumeRecovery } from "@/lib/fitness/api"
+import { useHydrationSafeQuery } from "@/lib/queries/hydration"
 import { useVolumeRecovery } from "@/lib/queries/progress"
 
 const READINESS_LABELS = ["ready", "moderate", "low"] as const
@@ -46,10 +48,11 @@ function formatSleepDuration(minutes: number) {
  * the ring shrinks and the four signals become a 2×2 grid of icon + value.
  * The signal names stay in the markup for screen readers and tooltips.
  */
-export function ReadinessCard() {
+/** `seed` is the server-rendered data, shown until hydration. */
+export function ReadinessCard({ seed }: { seed?: Awaited<ReturnType<typeof fetchVolumeRecovery>> }) {
   const { messages } = useLocale()
   const copy = messages.dashboard
-  const query = useVolumeRecovery()
+  const query = useHydrationSafeQuery(useVolumeRecovery(), seed)
   const data = query.data
 
   if (query.isPending) {
