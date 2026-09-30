@@ -1,5 +1,5 @@
 import type { Workout } from "@/lib/types"
-import type { StoredWorkoutSession } from "./session-storage"
+import { readStoredWorkoutSessionSwap, type StoredWorkoutSession } from "./session-storage"
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
@@ -21,12 +21,17 @@ export function restoreWorkoutSessionExercises(
     const storedExercise = storedExercisesById.get(exercise.id)
     if (!storedExercise) return exercise
     const storedSetsById = new Map(storedExercise.sets.map((set) => [set.id, set]))
+    // A swap is local until the session is finished, so the slot still comes
+    // back as the prescribed exercise. Its history belongs to that exercise.
+    const swap = readStoredWorkoutSessionSwap(storedExercise.swap)
+    const isSwapped = swap != null && swap.variation.id !== exercise.variation.id
 
     const restoredSets = exercise.sets.filter((set) => !deleted.has(set.id)).map((set) => {
       const storedSet = storedSetsById.get(set.id)
-      if (!storedSet) return set
+      const baseSet = isSwapped ? { ...set, previousPerformance: undefined } : set
+      if (!storedSet) return baseSet
       return {
-        ...set,
+        ...baseSet,
         actualReps: isFiniteNumber(storedSet.actualReps) ? storedSet.actualReps : undefined,
         completed: Boolean(storedSet.completed),
         notes: typeof storedSet.notes === "string" ? storedSet.notes : set.notes,
@@ -63,6 +68,8 @@ export function restoreWorkoutSessionExercises(
 
     return {
       ...exercise,
+      ...(isSwapped ? { exercise: swap.exercise, variation: swap.variation } : {}),
+      notes: typeof storedExercise.notes === "string" ? storedExercise.notes || undefined : exercise.notes,
       sets: [...restoredSets, ...sessionAddedSets].map((set, index) => ({ ...set, setNumber: index + 1 })),
     }
   })

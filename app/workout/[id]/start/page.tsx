@@ -32,7 +32,6 @@ import { warmOfflineWorkoutRoute } from "@/lib/offline/service-worker"
 import {
   useCreateWorkoutLog,
   useDuplicateWorkoutToRoutine,
-  useSwapWorkoutExercise,
   useWorkoutDetail,
   useWorkoutSessionDraft,
 } from "@/lib/queries/workouts"
@@ -51,9 +50,9 @@ import {
   pickNewerStoredWorkoutSession,
   readStoredWorkoutSession,
   type StoredWorkoutSession,
+  type StoredWorkoutSessionSwap,
 } from "@/lib/workout/session-storage"
 import { markWorkoutCelebration } from "@/lib/workout/celebration"
-import type { SwapWorkoutExerciseResponse } from "@/lib/fitness/api"
 import { restoreWorkoutSessionExercises } from "@/lib/workout/restore-session"
 import { isExerciseDone, nextIncompleteExercise } from "@/lib/workout/exercise-order"
 import { primaryNavAction } from "@/lib/workout/session-navigation"
@@ -116,12 +115,16 @@ function createStoredWorkoutSession(
   addedSetTokens: ReadonlyMap<string, string>,
   workoutName: string,
   deletedSetIds: ReadonlySet<string>,
+  swaps: ReadonlyMap<string, StoredWorkoutSessionSwap>,
+  noteEditedIds: ReadonlySet<string>,
 ): StoredWorkoutSession {
   return {
     deletedSetIds: [...deletedSetIds],
     currentExerciseIndex,
     exercises: exercises.map((exercise) => ({
       id: exercise.id,
+      notes: noteEditedIds.has(exercise.id) ? exercise.notes ?? "" : undefined,
+      swap: swaps.get(exercise.id),
       sets: exercise.sets.map((set) => ({
         actualReps: set.actualReps,
         addedDuringSession: addedSetTokens.has(set.id),
@@ -184,42 +187,40 @@ function fillMissingFromPreviousPerformance(exercises: Workout["exercises"]) {
   })
 }
 
+function workoutExerciseFromOption(option: ExerciseVariationOption): Pick<WorkoutExercise, "exercise" | "variation"> {
+  return {
+    exercise: { id: option.exerciseId, muscleGroup: option.muscleGroup, name: option.exerciseName },
+    variation: {
+      activityType: option.activityType,
+      // Carried over so the row keeps the exact label the picker showed,
+      // curated import names included, instead of a recomposed one.
+      displayName: option.displayName,
+      equipment: option.equipment,
+      id: option.id,
+      isDefault: option.isDefault,
+      name: option.variationName,
+      primaryMuscles: option.primaryMuscles,
+      secondaryMuscles: option.secondaryMuscles,
+      sortOrder: option.sortOrder,
+    },
+  }
+}
+
+// A swapped-in exercise inherits the slot's sets, but their previous
+// performance and the values pre-filled from it belong to the old exercise.
+// Sets still to do take the new exercise's history, which is only known when
+// swapping back to the prescribed exercise; completed sets keep what was logged.
+function reseedSwappedSets(sets: ExerciseSet[], freshExercise: WorkoutExercise | undefined) {
+  return sets.map((set) => {
+    if (set.completed) return set
+    const pp = freshExercise?.sets.find((fresh) => fresh.setNumber === set.setNumber)?.previousPerformance
+    return { ...set, actualReps: pp?.reps, previousPerformance: pp, rir: pp?.rir, weight: pp?.weight }
+  })
+}
+
 function restoreWorkoutSessionStartTime(startedAt: string) {
   const parsedTime = new Date(startedAt)
   return Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime
-}
-
-// After a coach-program fork, every workoutExercise and set gets a fresh UUID.
-// Re-key the stored session under the new workoutId and remap each exercise/set
-// id via the server-provided mapping; unmapped ids (e.g. sets the user added
-// mid-session, or exercises from a workout that wasn't the current one) fall
-// through unchanged.
-function migrateStoredWorkoutSession(oldWorkoutId: string, response: SwapWorkoutExerciseResponse) {
-  if (typeof window === "undefined") return
-  const stored = readStoredWorkoutSession(oldWorkoutId)
-  if (!stored) return
-  const exerciseIdMap = response.currentWorkoutExerciseIdMap
-  const setIdMap = response.currentSetIdMap
-  const migrated: StoredWorkoutSession = {
-    ...stored,
-    // Not synced under the new workout id yet; keeping the marker would make the new
-    // page treat the missing server draft as "discarded on another device".
-    syncedAt: undefined,
-    deletedSetIds: stored.deletedSetIds?.map((id) => setIdMap[id] ?? id),
-    exercises: stored.exercises.map((exercise) => ({
-      ...exercise,
-      id: exerciseIdMap[exercise.id] ?? exercise.id,
-      sets: exercise.sets.map((set) => ({
-        ...set,
-        id: setIdMap[set.id] ?? set.id,
-      })),
-    })),
-  }
-  window.localStorage.setItem(
-    getWorkoutSessionStorageKey(response.workoutId),
-    JSON.stringify(migrated),
-  )
-  clearStoredWorkoutSession(oldWorkoutId)
 }
 
 function getRecentDays(): Date[] {
@@ -312,7 +313,7 @@ export default function WorkoutStartPage() {
 function WorkoutSession() {
   const params = useParams()
   const router = useRouter()
-  const { isLoading: authLoading, profile, session } = useAuth()
+  const { isLoading: authLoading, profile } = useAuth()
   const { locale, messages } = useLocale()
 
   const [workout, setWorkout] = useState<Workout | null>(null)
@@ -327,6 +328,11 @@ function WorkoutSession() {
   const sessionRetiredRef = useRef(false)
   const addedSetTokensRef = useRef<Map<string, string>>(new Map())
   const deletedSetIdsRef = useRef<Set<string>>(new Set())
+  // Swaps and note edits stay in the session until it is finished; the server
+  // applies the swaps and tells the coach about both from the finished log.
+  const swapsRef = useRef<Map<string, StoredWorkoutSessionSwap>>(new Map())
+  const noteEditedIdsRef = useRef<Set<string>>(new Set())
+  const prescribedExercisesRef = useRef<Workout["exercises"]>([])
   const programSetTargetsRef = useRef<Map<string, ProgramSetTarget>>(new Map())
   const previousPerformanceBackfillRef = useRef<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -353,7 +359,6 @@ function WorkoutSession() {
     { muscleGroup: replacingExercise?.exercise.muscleGroup }, undefined, Boolean(replacingExercise))
   const replacementCandidates = replacementsQuery.data ?? []
   const loadingReplacements = replacementsQuery.isFetching
-  const [swapInFlight, setSwapInFlight] = useState(false)
   const answerRecommendation = useSetVolumeRecommendationStatus()
   // Drops a hint the moment it is acted on, so a slow refetch cannot leave the
   // button up long enough to add the set twice.
@@ -407,7 +412,6 @@ function WorkoutSession() {
       ((!workoutSeed && workoutQuery.isPending && !isWorkoutUnavailableOffline) ||
         isRefreshingSeed || !isOfflineWorkoutResolved || !isDraftResolved))
   const logMutation = useCreateWorkoutLog()
-  const swapMutation = useSwapWorkoutExercise()
   const duplicateToRoutineMutation = useDuplicateWorkoutToRoutine()
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const weightUnit = profile?.preferredWeightUnit === "lbs" ? "lbs" : "kg"
@@ -481,6 +485,11 @@ function WorkoutSession() {
     const nextWorkout = buildSessionSeed(workoutSeed, storedSession)
     addedSetTokensRef.current = buildStoredAddedSetTokenMap(storedSession)
     deletedSetIdsRef.current = new Set(storedSession?.deletedSetIds ?? [])
+    swapsRef.current = new Map((storedSession?.exercises ?? []).flatMap((exercise) =>
+      exercise.swap ? [[exercise.id, exercise.swap] as const] : []))
+    noteEditedIdsRef.current = new Set((storedSession?.exercises ?? []).flatMap((exercise) =>
+      typeof exercise.notes === "string" ? [exercise.id] : []))
+    prescribedExercisesRef.current = nextWorkout.originalExercises
     programSetTargetsRef.current = buildProgramSetTargetMap(nextWorkout.originalExercises)
     setWorkout(nextWorkout)
     setExercises(nextWorkout.exercises)
@@ -531,7 +540,12 @@ function WorkoutSession() {
     // metadata required to rebuild the logger after iOS has killed the app.
     void saveOfflineWorkoutSnapshot(userId, { ...workout, exercises }).catch(() => undefined)
     const storageKey = getWorkoutSessionStorageKey(workoutId)
-    if (!hasSessionProgress(exercises) && deletedSetIdsRef.current.size === 0) {
+    if (
+      !hasSessionProgress(exercises) &&
+      deletedSetIdsRef.current.size === 0 &&
+      swapsRef.current.size === 0 &&
+      noteEditedIdsRef.current.size === 0
+    ) {
       window.localStorage.removeItem(storageKey)
       void queueWorkoutSessionDraftDelete(userId, workoutId).catch(() => undefined)
       return
@@ -543,6 +557,8 @@ function WorkoutSession() {
       addedSetTokensRef.current,
       workout.name,
       deletedSetIdsRef.current,
+      swapsRef.current,
+      noteEditedIdsRef.current,
     )
     window.localStorage.setItem(storageKey, JSON.stringify(storedSession))
     void queueWorkoutSessionDraft(userId, workoutId, storedSession).catch(() => undefined)
@@ -643,6 +659,7 @@ function WorkoutSession() {
   }
 
   const handleExerciseNoteChange = (exerciseId: string, note: string) => {
+    noteEditedIdsRef.current.add(exerciseId)
     setExercises((prev) =>
       prev.map((ex) => ex.id === exerciseId ? { ...ex, notes: note || undefined } : ex),
     )
@@ -656,20 +673,7 @@ function WorkoutSession() {
     const id = `added-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const newExercise: WorkoutExercise = {
       id,
-      exercise: { id: variation.exerciseId, muscleGroup: variation.muscleGroup, name: variation.exerciseName },
-      variation: {
-        activityType: variation.activityType,
-        // Carried over so the row keeps the exact label the picker showed,
-        // curated import names included, instead of a recomposed one.
-        displayName: variation.displayName,
-        equipment: variation.equipment,
-        id: variation.id,
-        isDefault: variation.isDefault,
-        name: variation.variationName,
-        primaryMuscles: variation.primaryMuscles,
-        secondaryMuscles: variation.secondaryMuscles,
-        sortOrder: variation.sortOrder,
-      },
+      ...workoutExerciseFromOption(variation),
       sets: Array.from({ length: 3 }, (_, i) => ({
         id: `${id}-s${i}`,
         completed: false,
@@ -686,87 +690,25 @@ function WorkoutSession() {
     setReplacingExercise(exercise)
   }
 
-  const handleReplacePick = async (variation: ExerciseVariationOption) => {
-    if (!replacingExercise || !session?.access_token || !workoutId) return
-    if (variation.id === replacingExercise.variation.id) {
-      setReplacingExercise(null)
-      return
-    }
+  const handleReplacePick = (variation: ExerciseVariationOption) => {
+    if (!replacingExercise) return
+    const exerciseId = replacingExercise.id
+    setReplacingExercise(null)
+    if (variation.id === replacingExercise.variation.id) return
 
-    setSwapInFlight(true)
-    setError(null)
-    try {
-      const response = await swapMutation.mutateAsync({
-        workoutId, workoutExerciseId: replacingExercise.id, variationId: variation.id,
-      })
+    // Local until the session is finished: it works offline, and a cancelled
+    // session leaves the program and the coach untouched.
+    const prescribed = prescribedExercisesRef.current.find((ex) => ex.id === exerciseId)
+    const isBackToPrescribed = prescribed?.variation.id === variation.id
+    const swapped = prescribed && isBackToPrescribed
+      ? { exercise: prescribed.exercise, variation: prescribed.variation }
+      : workoutExerciseFromOption(variation)
+    if (isBackToPrescribed) swapsRef.current.delete(exerciseId)
+    else swapsRef.current.set(exerciseId, swapped)
 
-      // On a coach-program fork every workoutExercise + set gets a fresh UUID;
-      // remap in-memory state (and the in-progress addedSetTokens map) so the
-      // persist effect writes the new IDs — otherwise the pre-remount save would
-      // overwrite our migrated localStorage with stale old-IDs.
-      const isForkedSwap = Boolean(response.forkedProgramId && response.workoutId !== workoutId)
-      const exerciseIdMap = response.currentWorkoutExerciseIdMap
-      const setIdMap = response.currentSetIdMap
-
-      const patchExercise = (list: Workout["exercises"]) =>
-        list.map((ex) => {
-          const remappedExerciseId = isForkedSwap ? (exerciseIdMap[ex.id] ?? ex.id) : ex.id
-          const remappedSets = isForkedSwap
-            ? ex.sets.map((set) => ({ ...set, id: setIdMap[set.id] ?? set.id }))
-            : ex.sets
-          if (ex.id === replacingExercise.id) {
-            return {
-              ...ex,
-              id: remappedExerciseId,
-              sets: remappedSets,
-              exercise: {
-                id: variation.exerciseId,
-                muscleGroup: variation.muscleGroup,
-                name: variation.exerciseName,
-              },
-              variation: {
-                activityType: variation.activityType,
-                displayName: variation.displayName,
-                equipment: variation.equipment,
-                id: variation.id,
-                isDefault: variation.isDefault,
-                name: variation.variationName,
-                primaryMuscles: variation.primaryMuscles,
-                secondaryMuscles: variation.secondaryMuscles,
-                sortOrder: variation.sortOrder,
-              },
-            }
-          }
-          return { ...ex, id: remappedExerciseId, sets: remappedSets }
-        })
-      setExercises(patchExercise)
-      setWorkout((prev) => (prev ? { ...prev, exercises: patchExercise(prev.exercises) } : prev))
-      setReplacingExercise(null)
-
-      if (isForkedSwap) {
-        // Rewire client-added-set tokens under their new set IDs so restored sessions
-        // can still tell "added mid-session" vs "part of the program".
-        const nextTokens = new Map<string, string>()
-        addedSetTokensRef.current.forEach((token, setId) => {
-          nextTokens.set(setIdMap[setId] ?? setId, token)
-        })
-        addedSetTokensRef.current = nextTokens
-        deletedSetIdsRef.current = new Set(
-          [...deletedSetIdsRef.current].map((id) => setIdMap[id] ?? id),
-        )
-
-        // Migrate the in-progress localStorage session under the new workoutId with
-        // remapped exercise/set IDs so completed sets and entered weights survive
-        // the redirect (and clear the old key so it doesn't linger).
-        migrateStoredWorkoutSession(workoutId, response)
-        retireSession(workoutId)
-        router.replace(`/workout/${response.workoutId}/start`)
-      }
-    } catch (swapError) {
-      setError(swapError instanceof Error ? swapError.message : "Không thể đổi bài tập.")
-    } finally {
-      setSwapInFlight(false)
-    }
+    setExercises((prev) => prev.map((ex) => ex.id === exerciseId
+      ? { ...ex, ...swapped, sets: reseedSwappedSets(ex.sets, isBackToPrescribed ? prescribed : undefined) }
+      : ex))
   }
 
   const handleRemoveSet = (exerciseId: string, setId: string) => {
@@ -860,9 +802,8 @@ function WorkoutSession() {
 
   /**
    * Stops this page from writing the session again and queues removal of the
-   * server draft. Without the flag, a state update still rendering (a forked
-   * swap remaps exercises right before redirecting) would re-queue the draft
-   * after its delete and resurrect it.
+   * server draft. Without the flag, a state update still rendering would
+   * re-queue the draft after its delete and resurrect it.
    */
   const retireSession = (retiredWorkoutId: string) => {
     sessionRetiredRef.current = true
@@ -1307,14 +1248,14 @@ function WorkoutSession() {
       {replacingExercise ? (
         <AddExerciseModal
           exercises={replacementCandidates}
-          loading={loadingReplacements || swapInFlight}
+          loading={loadingReplacements}
           currentVariationId={replacingExercise.variation.id}
           existingVariationIds={exercises
             .filter((ex) => ex.id !== replacingExercise.id)
             .map((ex) => ex.variation.id)}
           title={messages.workoutPage.swapExercise}
-          onPick={(pick) => { void handleReplacePick(pick) }}
-          onClose={() => { if (!swapInFlight) setReplacingExercise(null) }}
+          onPick={handleReplacePick}
+          onClose={() => setReplacingExercise(null)}
         />
       ) : null}
     </div>

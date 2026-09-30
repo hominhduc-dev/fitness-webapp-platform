@@ -75,3 +75,48 @@ describe("resume deleted sets", () => {
     expect(readStoredWorkoutSession("workout")?.deletedSetIds).toEqual(["set-3"])
   })
 })
+
+describe("resume a swapped exercise", () => {
+  beforeEach(() => window.localStorage.clear())
+
+  const prescribed = [{
+    ...base[0],
+    exercise: { id: "bench-base", muscleGroup: "Chest", name: "Bench Press" },
+    notes: "Pause at the chest",
+    sets: base[0].sets.map((set) => ({ ...set, previousPerformance: { reps: 8, weight: 80 } })),
+    variation: { id: "bench", isDefault: true, name: "Bench Press", sortOrder: 0 },
+  }] as Workout["exercises"]
+  const swap = {
+    exercise: { id: "fly-base", muscleGroup: "Chest", name: "Cable Fly" },
+    variation: { id: "fly", isDefault: true, name: "Cable Fly", sortOrder: 0 },
+  }
+
+  it("brings the swapped exercise and the trainee's note back after a reload", () => {
+    window.localStorage.setItem(getWorkoutSessionStorageKey("workout"), JSON.stringify({
+      ...draft(), deletedSetIds: [], exercises: [{ ...draft().exercises[0], notes: "Shoulder hurt", swap }],
+    }))
+    const session = readStoredWorkoutSession("workout")!
+    const [restored] = restoreWorkoutSessionExercises(prescribed, session.exercises, true, session.deletedSetIds)
+
+    expect(restored.variation.id).toBe("fly")
+    expect(restored.exercise.name).toBe("Cable Fly")
+    expect(restored.notes).toBe("Shoulder hurt")
+    // The prescribed exercise's history does not describe the swapped-in one.
+    expect(restored.sets.every((set) => set.previousPerformance === undefined)).toBe(true)
+  })
+
+  it("keeps a swap-only session in Resume", () => {
+    window.localStorage.setItem(getWorkoutSessionStorageKey("workout"), JSON.stringify({
+      ...draft(), exercises: [{ id: "bench", sets: [{ id: "set-1", completed: false }], swap }],
+    }))
+    expect(scanActiveSessions()).toHaveLength(1)
+  })
+
+  it("leaves the prescribed exercise and coach note alone without a swap or note edit", () => {
+    const [restored] = restoreWorkoutSessionExercises(prescribed, draft().exercises, true)
+
+    expect(restored.variation.id).toBe("bench")
+    expect(restored.notes).toBe("Pause at the chest")
+    expect(restored.sets[0].previousPerformance).toEqual({ reps: 8, weight: 80 })
+  })
+})
