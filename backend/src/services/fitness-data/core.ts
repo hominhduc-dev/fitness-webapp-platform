@@ -6428,7 +6428,28 @@ async function notifyCoachOfTraineeSwap(input: {
       }
     : {}
 
-  await db.notification.create({
+  // Requests from this trainee for the same exercise that the coach has not
+  // answered yet. The newer swap replaces them: approving an older one would
+  // rewrite the program to an exercise the trainee has already moved on from.
+  const programNotifications = await db.notification.findMany({
+    select: { id: true, metadata: true, readAt: true },
+    where: {
+      relatedEntityId: input.program.id,
+      relatedEntityType: "program",
+      type: NotificationType.general,
+      userId: input.program.createdById,
+    },
+  })
+  const superseded = programNotifications.filter((notification) =>
+    readNotificationMetadataString(notification.metadata, "kind") === "trainee_swapped_exercise" &&
+    readNotificationMetadataString(notification.metadata, "traineeId") === input.profile.id &&
+    readNotificationMetadataString(notification.metadata, "oldVariationId") === input.oldVariationId &&
+    !readNotificationMetadataString(notification.metadata, "approvedAt") &&
+    !readNotificationMetadataString(notification.metadata, "rejectedAt") &&
+    !readNotificationMetadataString(notification.metadata, "supersededAt"),
+  )
+
+  const created = await db.notification.create({
     data: {
       channel: "in_app",
       message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
@@ -6457,6 +6478,21 @@ async function notifyCoachOfTraineeSwap(input: {
       userId: input.program.createdById,
     },
   })
+
+  const supersededAt = new Date()
+  for (const notification of superseded) {
+    await db.notification.update({
+      data: {
+        metadata: {
+          ...(notification.metadata as Prisma.JsonObject),
+          supersededAt: supersededAt.toISOString(),
+          supersededByNotificationId: created.id,
+        },
+        readAt: notification.readAt ?? supersededAt,
+      },
+      where: { id: notification.id },
+    })
+  }
 }
 
 async function swapExerciseForTraineeFromWorkout(
@@ -6695,6 +6731,10 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
     return { approved: true, alreadyApproved: true, notificationId, updatedExerciseCount: 0 }
   }
 
+  if (readNotificationMetadataString(notification.metadata, "supersededAt")) {
+    throw new AuthServiceError("Trainee đã đổi bài này thêm lần nữa. Hãy duyệt yêu cầu mới nhất.", 409)
+  }
+
   if (!originalProgramId || !originalWorkoutId || !oldVariationId || !newVariationId || targetOrder == null) {
     throw new AuthServiceError("Thông báo đổi bài này thiếu dữ liệu để duyệt. Hãy yêu cầu trainee đổi lại bài để tạo thông báo mới.", 409)
   }
@@ -6777,6 +6817,13 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
     // surviving a "no", exactly as the notification copy promises.
     if (traineeId) {
       await tx.traineeExerciseOverride.deleteMany({
+        where: { userId: traineeId, variationId: newVariationId, workoutExerciseId: { in: targetExerciseIds } },
+      })
+      // A slot the trainee has since swapped to something else keeps that
+      // choice. It now stands in for the approved exercise, and has to say so,
+      // or it would read as stale against the row and silently drop out.
+      await tx.traineeExerciseOverride.updateMany({
+        data: { replacedVariationId: newVariationId },
         where: { userId: traineeId, workoutExerciseId: { in: targetExerciseIds } },
       })
     }
