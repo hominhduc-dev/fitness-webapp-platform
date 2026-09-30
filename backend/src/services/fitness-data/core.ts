@@ -8005,12 +8005,14 @@ async function exportCoachWorkoutLogsToGoogleSheetsForTrainee(
     const files: Array<{ name: string; url: string }> = []
     let exportedLogCount = 0
     let rowCount = 0
+    let skippedExerciseCount = 0
 
     for (const group of groups.values()) {
       const result = await exportGoogleProgramLogs(profile, traineeId, group.logIds)
       files.push({ name: group.name, url: result.spreadsheetUrl })
       exportedLogCount += result.logCount
       rowCount += result.rowCount
+      skippedExerciseCount += result.skippedExerciseCount
     }
 
     return {
@@ -8018,6 +8020,7 @@ async function exportCoachWorkoutLogsToGoogleSheetsForTrainee(
       files,
       logCount: exportedLogCount,
       rowCount,
+      skippedExerciseCount,
       skippedLogCount: logs.length - exportedLogCount,
       spreadsheetUrl: files[0].url,
     }

@@ -4,6 +4,9 @@ import { getGoogleAccessToken } from "./google-connection.service"
 import { parseGoogleProgramRows } from "./google-program-import.service"
 import { assertCoach, assertCoachOwnsTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 import { BadRequestError } from "./errors"
+import type { PlanDay } from "./google-program-plan.service"
+import { refreshWeekPlan } from "./google-program-plan-refresh"
+import { selectProgramWeekWorkouts, toPlanDays, type SourceWorkout } from "./google-program-week-plan"
 import type { SerializedProfile } from "./auth.service"
 
 type ExportDb = ReturnType<typeof ensurePrisma>
@@ -30,17 +33,56 @@ export function formatSubstitute(exercise: ExportExercise) {
  * position falls back to the same variation elsewhere on that day, and one that
  * still has no unique home is counted and left out. A coach-authored sheet keeps
  * the strict match: there the mismatch may be the coach's layout, not the log.
+ *
+ * `followsPlan` is for a tab whose plan was just rewritten from the program in
+ * the app (see refreshWeekPlan). A log trained before the coach last edited the
+ * program is placed on the row holding its exercise, else on the row at its
+ * position, and shows what was actually trained as the substitute when that
+ * row now plans something else; a log with more exercises than the day has is
+ * counted and left out.
  */
-export function buildGoogleResultRequests(values: string[][], sessions: ExportSession[], sheetId: number, rowCount: number, clearCopiedResults = false, lenient = false) {
+/** Validates one logged set and returns its set number. */
+function assertLoggedSet(set: ExportExercise["sets"][number]) {
+  if (!Number.isInteger(set.setNumber) || set.setNumber < 1) throw new BadRequestError("Số thứ tự set trong log không hợp lệ.")
+  if (set.completed && (!Number.isFinite(set.actualReps) || set.actualReps! < 0 || (set.weight != null && (!Number.isFinite(set.weight) || set.weight < 0)))) throw new BadRequestError("Kết quả reps/weight không hợp lệ.")
+  return set.setNumber
+}
+
+export function buildGoogleResultRequests(values: string[][], sessions: ExportSession[], sheetId: number, rowCount: number, clearCopiedResults = false, lenient = false, followsPlan = false) {
   const rows = parseGoogleProgramRows(values)
   const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
   const oldRirColumn = values[headerIndex].indexOf("RIR")
   const oldSetCount = oldRirColumn - 9
   let setCount = oldSetCount
-  const updates: Array<{ row: number; exercise: ExportExercise }> = []
+  const updates: Array<{ row: number; exercise: ExportExercise; substitute: string }> = []
   const seen = new Set<number>()
   let skippedExerciseCount = 0
+  if (followsPlan && new Set(sessions.map((session) => session.day)).size !== sessions.length) {
+    throw new BadRequestError("Có nhiều log cho cùng một buổi/tuần. Hãy chọn khoảng ngày chỉ chứa một kết quả mỗi buổi.")
+  }
   for (const session of sessions) for (const exercise of session.exercises) {
+    if (followsPlan) {
+      const dayRows = rows.filter((row) => row.scheduledDay === session.day && !seen.has(row.sourceRow))
+      const trainedIds = new Set([exercise.originalVariationId, exercise.variation?.id].filter(Boolean))
+      const byExercise = dayRows.filter((row) => trainedIds.has(row.variationId))
+      const match = byExercise.length === 1
+        ? byExercise[0]
+        : byExercise.find((row) => row.order === exercise.order) ??
+          (byExercise.length === 0 ? dayRows.find((row) => row.order === exercise.order) : undefined)
+      if (!match) { skippedExerciseCount += 1; continue }
+      seen.add(match.sourceRow)
+      const setNumbers = new Set<number>()
+      for (const set of exercise.sets) {
+        if (setNumbers.has(set.setNumber)) throw new BadRequestError("Số thứ tự set trong log không hợp lệ.")
+        setNumbers.add(set.setNumber)
+        setCount = Math.max(setCount, assertLoggedSet(set))
+      }
+      const substitute = match.variationId === exercise.variation?.id
+        ? ""
+        : [exercise.exercise?.name, exercise.variation?.name].filter(Boolean).join(" / ")
+      updates.push({ row: match.sourceRow - 1, exercise, substitute })
+      continue
+    }
     const variationId = exercise.originalVariationId ?? exercise.variation?.id
     if (!variationId || !Number.isInteger(exercise.order)) {
       if (lenient) { skippedExerciseCount += 1; continue }
@@ -57,12 +99,11 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
     seen.add(matches[0].sourceRow)
     const setNumbers = new Set<number>()
     for (const set of exercise.sets) {
-      if (!Number.isInteger(set.setNumber) || set.setNumber < 1 || setNumbers.has(set.setNumber)) throw new BadRequestError("Số thứ tự set trong log không hợp lệ.")
+      if (setNumbers.has(set.setNumber)) throw new BadRequestError("Số thứ tự set trong log không hợp lệ.")
       setNumbers.add(set.setNumber)
-      if (set.completed && (!Number.isFinite(set.actualReps) || set.actualReps! < 0 || (set.weight != null && (!Number.isFinite(set.weight) || set.weight < 0)))) throw new BadRequestError("Kết quả reps/weight không hợp lệ.")
-      setCount = Math.max(setCount, set.setNumber)
+      setCount = Math.max(setCount, assertLoggedSet(set))
     }
-    updates.push({ row: matches[0].sourceRow - 1, exercise })
+    updates.push({ row: matches[0].sourceRow - 1, exercise, substitute: formatSubstitute(exercise) })
   }
   const requests: unknown[] = []
   if (setCount > oldSetCount) {
@@ -71,8 +112,8 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
     requests.push({ mergeCells: { range: { sheetId, startRowIndex: headerIndex, endRowIndex: headerIndex + 1, startColumnIndex: 9, endColumnIndex: 9 + setCount }, mergeType: "MERGE_ALL" } })
   }
   if (clearCopiedResults) requests.push({ repeatCell: { range: { sheetId, startRowIndex: headerIndex + 1, endRowIndex: rowCount, startColumnIndex: 8, endColumnIndex: 9 + setCount }, cell: {}, fields: "userEnteredValue" } })
-  for (const { row, exercise } of updates) {
-    const cells: string[] = [formatSubstitute(exercise), ...Array<string>(setCount).fill("")]
+  for (const { row, exercise, substitute } of updates) {
+    const cells: string[] = [substitute, ...Array<string>(setCount).fill("")]
     for (const set of exercise.sets) if (set.completed) cells[set.setNumber] = formatSetResult(set)
     requests.push({ updateCells: { start: { sheetId, rowIndex: row, columnIndex: 8 }, rows: [{ values: cells.map((value) => value ? { userEnteredValue: { stringValue: value } } : {}) }], fields: "userEnteredValue" } })
   }
@@ -223,7 +264,11 @@ export async function writeSessionsToSpreadsheet(
   spreadsheetId: string,
   sourceSheetName: string,
   sessions: ReadonlyMap<number, ExportSession[]>,
-  options: { lenient?: boolean } = {},
+  options: {
+    lenient?: boolean
+    /** The program's plan for a week; when given, each tab is rewritten to it before results go in. */
+    planForWeek?: (weekIndex: number) => PlanDay[]
+  } = {},
 ) {
   const meta = await fetchSpreadsheetMeta(token, spreadsheetId)
   const source = meta.sheetProperties.find((sheet) => sheet.title === sourceSheetName)
@@ -247,12 +292,19 @@ export async function writeSessionsToSpreadsheet(
       ids.add(sheetId)
       duplicateRequests.push({ duplicateSheet: { sourceSheetId: source.sheetId, newSheetId: sheetId, newSheetName: title } })
     }
-    const values = existing ? (existing.title === source.title ? sourceValues : await fetchSheetValues(token, spreadsheetId, title)) : sourceValues
-    const built = buildGoogleResultRequests(values, group, sheetId, (existing ?? source).gridProperties?.rowCount ?? values.length, !existing, options.lenient)
+    let values = existing ? (existing.title === source.title ? sourceValues : await fetchSheetValues(token, spreadsheetId, title)) : sourceValues
+    let gridRowCount = (existing ?? source).gridProperties?.rowCount ?? values.length
+    if (options.planForWeek) {
+      const refreshed = refreshWeekPlan(values, sheetId, gridRowCount, options.planForWeek(week), `Week ${week + 1}`)
+      requests.push(...refreshed.requests)
+      values = refreshed.values
+      gridRowCount = refreshed.rowCount
+    }
+    const built = buildGoogleResultRequests(values, group, sheetId, gridRowCount, !existing, options.lenient, Boolean(options.planForWeek))
     requests.push(...built.requests); rowCount += built.rowCount; skippedExerciseCount += built.skippedExerciseCount
     const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
     requests.push({ setDataValidation: {
-      range: { sheetId, startRowIndex: headerIndex + 1, endRowIndex: (existing ?? source).gridProperties?.rowCount ?? values.length, startColumnIndex: 2, endColumnIndex: 3 },
+      range: { sheetId, startRowIndex: headerIndex + 1, endRowIndex: gridRowCount, startColumnIndex: 2, endColumnIndex: 3 },
       rule: { condition: { type: "ONE_OF_RANGE", values: [{ userEnteredValue: "='Exercise Table'!$D$2:$D" }] }, strict: true, showCustomUi: true },
     } })
   }
@@ -276,7 +328,29 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   const sessions = groupLogsIntoSessions(logs)
   const sourceNames = [...new Set(programs.map((program) => program.googleSheetName!))]
   if (sourceNames.length !== 1) throw new BadRequestError("Các chương trình dùng sheet tuần mẫu khác nhau.")
+  // The program in the app is the plan: a coach edits it there after importing
+  // the sheet, and the import never writes back, so each week tab is brought
+  // up to date with it before the results go in.
+  const workouts = await db.workout.findMany({
+    select: {
+      exercises: {
+        select: {
+          notes: true,
+          order: true,
+          restTime: true,
+          sets: { orderBy: { setNumber: "asc" }, select: { intensityTag: true, rir: true, setNumber: true, targetReps: true, targetRepsMin: true, weight: true } },
+          variation: { select: { exercise: { select: { muscleGroup: true, name: true } }, id: true, isDefault: true, name: true } },
+        },
+      },
+      scheduledDate: true,
+      scheduledDay: true,
+      weekIndex: true,
+    },
+    where: { programId: programs[0].id },
+  }) as SourceWorkout[]
   const token = await getGoogleAccessToken(profile)
-  const { rowCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, spreadsheetId, sourceNames[0], sessions)
-  return { exported: true, logCount: logs.length, rowCount, spreadsheetUrl }
+  const { rowCount, skippedExerciseCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, spreadsheetId, sourceNames[0], sessions, {
+    planForWeek: (weekIndex) => toPlanDays(selectProgramWeekWorkouts(workouts, weekIndex)),
+  })
+  return { exported: true, logCount: logs.length, rowCount, skippedExerciseCount, spreadsheetUrl }
 }

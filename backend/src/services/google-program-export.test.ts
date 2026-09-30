@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SerializedProfile } from "./auth.service"
 
-const mocks = vi.hoisted(() => ({ logs: vi.fn(), conflictLogs: vi.fn(), programs: vi.fn(), users: vi.fn(), batch: vi.fn(), values: vi.fn() }))
+const mocks = vi.hoisted(() => ({ logs: vi.fn(), conflictLogs: vi.fn(), programs: vi.fn(), users: vi.fn(), batch: vi.fn(), values: vi.fn(), workouts: vi.fn() }))
 vi.mock("./fitness-data/shared/guards", () => ({
   assertCoach: vi.fn(),
   assertCoachOwnsTrainee: vi.fn(),
   ensurePrisma: () => ({
     program: { findMany: mocks.programs },
     user: { findMany: mocks.users },
+    workout: { findMany: mocks.workouts },
     // The trainee's own logs (to export) and the conflict check's distinct
     // userIds are both `workoutLog.findMany` calls with different shapes;
     // routing on `distinct` keeps existing tests unaware of the second one.
@@ -28,8 +29,19 @@ import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "./go
 const headers = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
 type BatchRequest = {
   duplicateSheet?: { newSheetName?: string }
-  insertDimension?: { range?: { sheetId?: number; startIndex?: number; endIndex?: number } }
+  insertDimension?: { range?: { dimension?: string; sheetId?: number; startIndex?: number; endIndex?: number } }
+  updateCells?: { start?: { sheetId?: number; rowIndex?: number; columnIndex?: number }; rows?: Array<{ values?: Array<{ userEnteredValue?: { stringValue?: string } }> }> }
 }
+
+/** The program in the app: Day 1 of every week plans Bench, whose id is v1. */
+const benchWorkout = (overrides: { scheduledDay?: number } = {}) => ({
+  exercises: [{
+    notes: null, order: 1, restTime: null,
+    sets: Array.from({ length: 3 }, (_, index) => ({ intensityTag: null, rir: 2, setNumber: index + 1, targetReps: 10, targetRepsMin: null, weight: 40 })),
+    variation: { exercise: { muscleGroup: "Chest", name: "Bench" }, id: "v1", isDefault: true, name: "Default" },
+  }],
+  scheduledDate: null, scheduledDay: 1, weekIndex: 0, ...overrides,
+})
 
 describe("Google export batch across weeks", () => {
   beforeEach(() => {
@@ -38,6 +50,7 @@ describe("Google export batch across weeks", () => {
     mocks.conflictLogs.mockResolvedValue([])
     mocks.users.mockResolvedValue([])
     mocks.values.mockResolvedValue([["Week 1"], headers, ["1", "Chest", "Bench", "Default", "v1", "7", "10"]])
+    mocks.workouts.mockResolvedValue([benchWorkout()])
     mocks.logs.mockResolvedValue([0, 1, 2].map(week => ({ programId: "program", workoutSnapshot: { weekIndex: week, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "v1" }, sets: [{ setNumber: week === 0 ? 7 : 6, completed: true, actualReps: 10, weight: 35 }] }] })))
   })
   it("duplicates every missing week before changing the source layout in one atomic batch", async () => {
@@ -45,12 +58,27 @@ describe("Google export batch across weeks", () => {
     expect(mocks.batch).toHaveBeenCalledTimes(1)
     const requests = mocks.batch.mock.calls[0][2] as BatchRequest[]
     expect(requests.slice(0, 2).map((request) => request.duplicateSheet?.newSheetName)).toEqual(["Week 2", "Week 3"])
-    expect(requests[2]?.insertDimension?.range).toMatchObject({ sheetId: 1, startIndex: 14, endIndex: 16 })
+    expect(requests.find((request) => request.insertDimension?.range?.dimension === "COLUMNS")?.insertDimension?.range).toMatchObject({ sheetId: 1, startIndex: 14, endIndex: 16 })
     expect(requests.slice(2).some((request) => request.duplicateSheet)).toBe(false)
   })
-  it("sends no writes or duplicates when a later week fails preflight", async () => {
-    mocks.logs.mockResolvedValue([{ programId: "program", workoutSnapshot: { weekIndex: 1, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "missing" }, sets: [] }] }])
-    await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/Không khớp/)
+  it("writes the app's plan into the tab before the results, so an edited program still exports", async () => {
+    // The log was trained on "Old Bench" before the coach changed the program to Bench.
+    mocks.values.mockResolvedValue([["Week 1"], headers, ["1", "Chest", "Old Bench", "Default", "v-old", "3", "10"]])
+    mocks.logs.mockResolvedValue([{ programId: "program", workoutSnapshot: { weekIndex: 0, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, exercise: { name: "Old Bench" }, variation: { id: "v-old", name: "Default" }, sets: [{ setNumber: 1, completed: true, actualReps: 8, weight: 30 }] }] }])
+
+    const result = await exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])
+
+    expect(result).toMatchObject({ rowCount: 1, skippedExerciseCount: 0 })
+    const writes = (mocks.batch.mock.calls[0][2] as BatchRequest[]).flatMap((request) => request.updateCells ? [request.updateCells] : [])
+    const plan = writes.findIndex((write) => write.start?.columnIndex === 1 && write.start?.rowIndex === 2)
+    const results = writes.findIndex((write) => write.start?.columnIndex === 8 && write.rows?.[0]?.values?.[0]?.userEnteredValue?.stringValue)
+    expect(writes[plan]?.rows?.[0]?.values?.[1]?.userEnteredValue?.stringValue).toBe("Bench")
+    expect(writes[results]?.rows?.[0]?.values?.[0]?.userEnteredValue?.stringValue).toBe("Old Bench / Default")
+    expect(plan).toBeLessThan(results)
+  })
+  it("sends no writes or duplicates when a week's plan has a day the sheet cannot hold", async () => {
+    mocks.workouts.mockResolvedValue([benchWorkout(), benchWorkout({ scheduledDay: 5 })])
+    await expect(exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])).rejects.toThrow(/Day 5/)
     expect(mocks.batch).not.toHaveBeenCalled()
   })
   it("names the trainee a spreadsheet is currently assigned to", async () => {
