@@ -25,6 +25,20 @@ function clockTime(value: string, locale: PushLocale) {
     .format(new Date(Date.UTC(2000, 0, 1, Number(match[1]), Number(match[2]))))
 }
 
+/** Trainee notes carried by a finished session, as "Exercise: note; ...". */
+function exerciseNotesText(metadata: Record<string, unknown>) {
+  const entries = Array.isArray(metadata.exerciseNotes) ? metadata.exerciseNotes : []
+  return entries
+    .flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return []
+      const { exerciseName, note } = entry as { exerciseName?: unknown; note?: unknown }
+      return typeof exerciseName === "string" && typeof note === "string" && note.trim()
+        ? [`${exerciseName}: ${note.trim()}`]
+        : []
+    })
+    .join("; ")
+}
+
 function elapsedSince(startedAt: string, locale: PushLocale, now: Date) {
   const milliseconds = Math.max(60_000, now.getTime() - new Date(startedAt).getTime())
   const hours = Math.floor(milliseconds / 3_600_000)
@@ -143,6 +157,18 @@ function localizedNotificationCopy(
           title: isVi ? "Bài tập cần duyệt" : "Exercise to review",
         }
       }
+      const trainee = text(metadata, "traineeName")
+      const oldExercise = text(metadata, "oldExerciseName")
+      const newExercise = text(metadata, "newExerciseName")
+      if (text(metadata, "kind") === "trainee_swapped_exercise" && trainee && oldExercise && newExercise) {
+        const program = text(metadata, "programName")
+        return {
+          body: isVi
+            ? `${trainee} đổi ${oldExercise} → ${newExercise}${program ? ` trong ${program}` : ""}. Chạm để duyệt.`
+            : `${trainee} swapped ${oldExercise} → ${newExercise}${program ? ` in ${program}` : ""}. Tap to review.`,
+          title: isVi ? "Yêu cầu đổi bài tập" : "Exercise swap request",
+        }
+      }
       if (text(metadata, "kind") === "exercise_share_reviewed" && exercise) {
         const decision = text(metadata, "decision")
         const target = text(metadata, "targetName")
@@ -173,8 +199,11 @@ function localizedNotificationCopy(
     case NotificationType.workout_logged: {
       const trainee = text(metadata, "traineeName")
       const workout = text(metadata, "workoutName")
+      const notes = exerciseNotesText(metadata)
       return trainee && workout ? {
-        body: isVi ? `${trainee} đã hoàn thành ${workout}.` : `${trainee} completed ${workout}.`,
+        body: isVi
+          ? `${trainee} đã hoàn thành ${workout}.${notes ? ` Ghi chú: ${notes}` : ""}`
+          : `${trainee} completed ${workout}.${notes ? ` Notes: ${notes}` : ""}`,
         title: isVi ? `${trainee} vừa ghi buổi tập` : `${trainee} logged a workout`,
       } : fallback
     }

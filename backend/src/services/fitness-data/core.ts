@@ -4569,8 +4569,7 @@ async function createWorkoutLogForTrainee(
 
     void db.notification
       .create({
-        data: {
-          channel: "in_app",
+        data: buildNotificationData({
           message: `${profile.name} completed ${serializedWorkout.name}.${notesSuffix}`,
           metadata: {
             ...(exerciseNotes.length > 0 ? { exerciseNotes } : {}),
@@ -4582,14 +4581,14 @@ async function createWorkoutLogForTrainee(
           },
           relatedEntityId: log.id,
           relatedEntityType: "workout_log",
-          scheduledFor: new Date(),
-          sentAt: new Date(),
-          status: NotificationStatus.sent,
           title: `${profile.name} logged a workout`,
           type: NotificationType.workout_logged,
+          url: `/coach/trainees/${profile.id}`,
           userId: coachId,
-        },
+        }),
       })
+      // Written straight to the table, this used to reach only the in-app list.
+      .then((notification) => queuePushForNotifications([notification]))
       .catch((error) => {
         logger.warn("unable to create workout-logged notification", { coachId, error })
       })
@@ -6472,8 +6471,7 @@ async function notifyCoachOfTraineeSwap(input: {
   )
 
   const created = await db.notification.create({
-    data: {
-      channel: "in_app",
+    data: buildNotificationData({
       message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
       metadata: {
         ...approvable,
@@ -6485,6 +6483,8 @@ async function notifyCoachOfTraineeSwap(input: {
         // The program the trainee is actually on. Same as originalProgramId
         // now that swaps do not copy; different only for a legacy copy.
         personalizedProgramId: input.program.id,
+        // For the push copy, which has no other way to name the program.
+        programName: input.program.name,
         swappedAt: new Date().toISOString(),
         swappedWorkoutIds: input.swappedWorkoutIds,
         traineeId: input.profile.id,
@@ -6492,13 +6492,11 @@ async function notifyCoachOfTraineeSwap(input: {
       },
       relatedEntityId: input.program.id,
       relatedEntityType: "program",
-      scheduledFor: new Date(),
-      sentAt: new Date(),
-      status: NotificationStatus.sent,
       title: "Trainee replaced an exercise",
       type: NotificationType.general,
+      url: `/coach/trainees/${input.profile.id}`,
       userId: input.program.createdById,
-    },
+    }),
   })
 
   const supersededAt = new Date()
@@ -6515,6 +6513,8 @@ async function notifyCoachOfTraineeSwap(input: {
       where: { id: notification.id },
     })
   }
+
+  await queuePushForNotifications([created])
 }
 
 async function swapExerciseForTraineeFromWorkout(

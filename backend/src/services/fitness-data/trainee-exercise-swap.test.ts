@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   programCreate: vi.fn(),
   programFindFirst: vi.fn(),
   programFindUnique: vi.fn(),
+  queuePush: vi.fn(),
   variationFindUnique: vi.fn(),
   workoutExerciseFindMany: vi.fn(),
   workoutExerciseUpdateMany: vi.fn(),
@@ -47,6 +48,11 @@ vi.mock("../../lib/prisma", () => {
 
   return { prisma: db, retryTransaction: (fn: () => Promise<unknown>) => fn() }
 })
+
+vi.mock("../notifications/notification-dispatch.service", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  queuePushForNotifications: mocks.queuePush,
+}))
 
 import { applyTraineeExerciseOverrides, approveTraineeExerciseSwapForCoach, swapExerciseForTraineeFromWorkout } from "./core"
 
@@ -142,6 +148,14 @@ describe("trainee exercise swap", () => {
     arrangeCoachProgram()
 
     await swapExerciseForTraineeFromWorkout(trainee, swapInput)
+
+    // Pushed to the coach's devices, not only listed in the bell, and a tap
+    // opens the trainee.
+    expect(mocks.queuePush).toHaveBeenCalledWith([{ id: "new-notification" }])
+    expect(mocks.notificationCreate.mock.calls[0][0].data.metadata).toMatchObject({
+      programName: "Duc Bulking meso 4",
+      url: `/coach/trainees/${TRAINEE_ID}`,
+    })
 
     expect(mocks.notificationCreate).toHaveBeenCalledTimes(1)
     const notification = mocks.notificationCreate.mock.calls[0][0].data
