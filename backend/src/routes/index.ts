@@ -9,6 +9,7 @@ import { exerciseRouter } from "./exercise.route"
 import { foodRouter } from "./food.route"
 import { googleConnectionRouter } from "./google.route"
 import { healthRouter } from "./health.route"
+import { integrationsRouter } from "./integrations.route"
 import { mealRouter } from "./meal.route"
 import { notificationRouter } from "./notification.route"
 import { progressRouter } from "./progress.route"
@@ -24,6 +25,7 @@ apiRouter.get("/", (_req, res) => {
 })
 
 apiRouter.use("/health", healthRouter)
+apiRouter.use("/integrations", integrationsRouter)
 apiRouter.use("/auth", authRouter)
 apiRouter.use("/ai", aiRouter)
 apiRouter.use("/admin", adminRouter)
