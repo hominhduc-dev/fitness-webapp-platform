@@ -77,7 +77,7 @@ export function ReadinessCard({ seed }: { seed?: Awaited<ReturnType<typeof fetch
     {
       icon: Heart,
       label: messages.volumeRecovery.stress,
-      value: checkIn?.stress == null ? "—" : `${checkIn.stress}/5`,
+      value: checkIn?.stress == null ? "—" : `${checkIn.stress}/99`,
     },
     {
       icon: Activity,
