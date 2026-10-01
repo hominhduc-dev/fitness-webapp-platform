@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Check, GitMerge, Loader2, X } from "lucide-react"
+import { Check, ChevronDown, GitMerge, Loader2, X } from "lucide-react"
 
 import { VariationSearchPicker } from "@/components/admin/admin-exercises-panel"
 import { ExerciseThumbnail } from "@/components/exercises/exercise-thumbnail"
@@ -44,6 +44,8 @@ function getCopy(locale: "en" | "vi") {
     rejected: (name: string) => (en ? `${name} stays private to its coach.` : `${name} vẫn là bài riêng của coach.`),
     reviewError: en ? "Unable to save the decision." : "Không lưu được quyết định.",
     selectedPrefix: en ? "Merge into" : "Gộp vào",
+    showFewer: en ? "Show fewer" : "Thu gọn",
+    showMore: (count: number) => (en ? `Show ${count} more` : `Xem thêm ${count}`),
     uses: (count: number) => (en ? `${count} uses` : `${count} lượt dùng`),
   }
 }
@@ -69,41 +71,47 @@ function RequestRow({
   const lead = item.variations.find((variation) => variation.isDefault) ?? item.variations[0]
   const requested = item.requestedAt.toLocaleDateString(locale === "en" ? "en-US" : "vi-VN", { day: "2-digit", month: "2-digit" })
 
+  const details = [
+    item.muscleGroup,
+    lead?.equipment,
+    lead?.primaryMuscles.join(", "),
+    item.variations.length > 1 ? item.variations.map((variation) => variation.name).join(", ") : null,
+  ].filter(Boolean).join(" · ")
+  const meta = [item.coach ? copy.by(item.coach.name) : null, requested, copy.uses(item.usageCount)].filter(Boolean).join(" · ")
+
   return (
     <div
       id={`exercise-share-${item.id}`}
       className={cn(
-        "flex flex-col gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center",
+        "flex items-center gap-3 border-b border-border/60 px-4 py-2 last:border-b-0",
         highlighted && "bg-primary-soft",
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <ExerciseThumbnail media={lead?.media} name={item.name} previewable />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {[item.muscleGroup, lead?.equipment, lead?.primaryMuscles.join(", ")].filter(Boolean).join(" · ")}
-            {item.variations.length > 1 ? ` · ${item.variations.map((variation) => variation.name).join(", ")}` : ""}
-          </p>
-          <p className="font-mono text-micro text-muted-foreground tnum">
-            {item.coach ? `${copy.by(item.coach.name)} · ` : ""}{requested} · {copy.uses(item.usageCount)}
-          </p>
-        </div>
+      <ExerciseThumbnail className="size-8" media={lead?.media} name={item.name} previewable />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
+        <p className="truncate text-xs text-muted-foreground" title={`${details} · ${meta}`}>
+          {details}
+          <span className="font-mono text-micro tnum"> · {meta}</span>
+        </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={onReject}>
-          <X />{copy.reject}
+      <div className="flex shrink-0 items-center gap-1">
+        <Button type="button" size="icon-sm" variant="ghost" disabled={busy} onClick={onReject} aria-label={copy.reject} title={copy.reject}>
+          <X />
         </Button>
-        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onMerge}>
-          <GitMerge />{copy.merge}
+        <Button type="button" size="icon-sm" variant="ghost" disabled={busy} onClick={onMerge} aria-label={copy.merge} title={copy.merge}>
+          <GitMerge />
         </Button>
-        <Button type="button" size="sm" disabled={busy} onClick={onApprove}>
-          {busy ? <Loader2 className="animate-spin" /> : <Check />}{copy.approve}
+        <Button type="button" size="sm" disabled={busy} onClick={onApprove} aria-label={copy.approve}>
+          {busy ? <Loader2 className="animate-spin" /> : <Check />}<span className="hidden sm:inline">{copy.approve}</span>
         </Button>
       </div>
     </div>
   )
 }
+
+/** Rows shown before "Show more"; the rest stay one click away. */
+const COLLAPSED_ROWS = 3
 
 /**
  * Coach exercises offered to the shared library. Approving shares one as is,
@@ -128,7 +136,13 @@ export function ExerciseShareReviewPanel({
   const [merging, setMerging] = useState<AdminExerciseShareRequest | null>(null)
   const [note, setNote] = useState("")
   const [targetVariationId, setTargetVariationId] = useState("")
+  const [expanded, setExpanded] = useState(false)
   const requests = requestsQuery.data ?? []
+  // A notification link to a request past the fold opens the full list.
+  const highlightHidden = requests.findIndex((item) => item.id === highlightedId) >= COLLAPSED_ROWS
+  const showAll = expanded || highlightHidden
+  const visible = showAll ? requests : requests.slice(0, COLLAPSED_ROWS)
+  const hiddenCount = requests.length - COLLAPSED_ROWS
 
   const mergeCandidates = useMemo(
     () => libraryExercises.filter((item) => !item.createdBy || item.shareStatus === "shared"),
@@ -168,11 +182,11 @@ export function ExerciseShareReviewPanel({
 
   return (
     <Card className="mb-5 overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <h3 className="text-sm font-semibold text-foreground">{copy.heading}</h3>
         <Badge variant="outline" className="font-mono text-micro">{copy.pending(requests.length)}</Badge>
       </div>
-      {requests.map((item) => (
+      {visible.map((item) => (
         <RequestRow
           key={item.id}
           busy={busyId === item.id}
@@ -184,6 +198,17 @@ export function ExerciseShareReviewPanel({
           onReject={() => setRejecting(item)}
         />
       ))}
+      {hiddenCount > 0 && !highlightHidden ? (
+        <button
+          type="button"
+          aria-expanded={showAll}
+          className="flex w-full items-center justify-center gap-1 border-t border-border/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {showAll ? copy.showFewer : copy.showMore(hiddenCount)}
+          <ChevronDown className={cn("size-3.5 transition-transform", showAll && "rotate-180")} />
+        </button>
+      ) : null}
 
       <Dialog open={rejecting !== null} onOpenChange={(open) => { if (!open && !dialogBusy) closeDialogs() }}>
         <DialogContent className="sm:max-w-md">
