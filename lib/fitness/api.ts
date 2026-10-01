@@ -262,6 +262,14 @@ export type HuaweiConnectionStatus = {
   configured: boolean
   connected: boolean
   lastSyncedAt: string | null
+  latestSummary: {
+    activeCalories: number | null
+    date: string
+    restingHeartRate: number | null
+    sleepMinutes: number | null
+    steps: number | null
+    stressAvg: number | null
+  } | null
   scopes: string[]
 }
 
