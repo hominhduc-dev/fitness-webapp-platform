@@ -493,6 +493,7 @@ type SerializedBodyMetricEntry = {
   id: string
   note?: string | null
   recordedAt: string
+  source?: "huawei" | null
   thighCm?: number | null
   waistCm?: number | null
   weightKg?: number | null
@@ -970,6 +971,7 @@ function mapBodyMetricEntry(entry: SerializedBodyMetricEntry): BodyMetricEntry {
     id: entry.id,
     note: entry.note ?? undefined,
     recordedAt: new Date(entry.recordedAt),
+    source: entry.source ?? undefined,
     thighCm: entry.thighCm ?? undefined,
     waistCm: entry.waistCm ?? undefined,
     weightKg: entry.weightKg ?? undefined,

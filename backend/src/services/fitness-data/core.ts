@@ -1692,6 +1692,7 @@ function serializeBodyMetricEntry(entry: BodyMetricRecord) {
     id: entry.id,
     note: entry.note ?? undefined,
     recordedAt: entry.recordedAt,
+    source: entry.source ?? undefined,
     thighCm: entry.thighCm ?? undefined,
     waistCm: entry.waistCm ?? undefined,
     weightKg: entry.weightKg ?? undefined,

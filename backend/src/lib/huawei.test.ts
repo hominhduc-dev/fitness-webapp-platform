@@ -12,6 +12,7 @@ vi.mock("../config/env", () => ({
 import {
   buildHuaweiAuthorizationUrl,
   exchangeCodeForTokens,
+  OPTIONAL_SCOPES,
   requestHuaweiHealth,
   SCOPES,
 } from "./huawei"
@@ -37,8 +38,10 @@ describe("Huawei Health client", () => {
 
     const scopes = url.searchParams.get("scope")?.split(" ") ?? []
     expect(scopes).toEqual([...SCOPES])
-    expect(scopes).not.toContain("https://www.huawei.com/healthkit/heightweight.read")
     expect(scopes).not.toContain("https://www.huawei.com/healthkit/activity.read")
+    // Weight is requested for the weight log, but optional so a grant without it still connects.
+    expect(scopes).toContain("https://www.huawei.com/healthkit/heightweight.read")
+    expect([...OPTIONAL_SCOPES]).toEqual(["https://www.huawei.com/healthkit/heightweight.read"])
   })
 
   it("exchanges a code only through the server token endpoint", async () => {

@@ -26,13 +26,39 @@ const BACKGROUND_SYNC_BATCH_SIZE = 25
 type SummaryColumn =
   | "activeCalories"
   | "avgHeartRate"
+  | "awakeMinutes"
+  | "bodyFatPct"
+  | "deepSleepMinutes"
   | "distanceMeters"
+  | "lightSleepMinutes"
   | "maxHeartRate"
   | "minHeartRate"
+  | "remSleepMinutes"
   | "restingHeartRate"
   | "sleepMinutes"
   | "steps"
   | "stressAvg"
+  | "weightKg"
+
+/** Columns stored as whole numbers. */
+const INTEGER_COLUMNS: ReadonlySet<SummaryColumn> = new Set([
+  "awakeMinutes",
+  "deepSleepMinutes",
+  "lightSleepMinutes",
+  "remSleepMinutes",
+  "sleepMinutes",
+  "steps",
+])
+
+const SLEEP_COLUMNS = [
+  "sleepMinutes",
+  "deepSleepMinutes",
+  "lightSleepMinutes",
+  "remSleepMinutes",
+  "awakeMinutes",
+] as const satisfies readonly SummaryColumn[]
+
+const WEIGHT_SCOPE = "https://www.huawei.com/healthkit/heightweight.read"
 type SummaryValues = Partial<Record<SummaryColumn, number>>
 
 /**
@@ -49,6 +75,8 @@ type Fold = "max" | "mean" | "min"
 const DAILY_METRICS: Array<{
   columns: Array<{ column: SummaryColumn; fields: string[]; fold: Fold }>
   dataType: string
+  /** Optional scope the grant must hold; the type is skipped, not failed, without it. */
+  scope?: string
 }> = [
   { dataType: "com.huawei.continuous.steps.delta", columns: [{ column: "steps", fields: ["steps"], fold: "max" }] },
   { dataType: "com.huawei.continuous.distance.delta", columns: [{ column: "distanceMeters", fields: ["distance"], fold: "max" }] },
@@ -69,6 +97,16 @@ const DAILY_METRICS: Array<{
     columns: [{ column: "restingHeartRate", fields: ["avg", "last"], fold: "mean" }],
   },
   { dataType: "com.huawei.instantaneous.stress", columns: [{ column: "stressAvg", fields: ["avg"], fold: "mean" }] },
+  {
+    // Body fat is part of the weight type: its daily statistics carry the weight
+    // as avg/max/min/last and the body fat rate as avg_body_fat_rate.
+    dataType: "com.huawei.instantaneous.body_weight",
+    columns: [
+      { column: "weightKg", fields: ["last", "avg"], fold: "mean" },
+      { column: "bodyFatPct", fields: ["avg_body_fat_rate"], fold: "mean" },
+    ],
+    scope: WEIGHT_SCOPE,
+  },
 ]
 
 export const HUAWEI_STATE_MAX_AGE = 10 * 60 * 1000
@@ -209,7 +247,9 @@ async function connectHuawei(userId: string, code: string) {
   }
 
   const granted = new Set(tokens.scope.split(/\s+/).filter(Boolean))
-  const requiredHealthScopes = huawei.SCOPES.filter((scope) => scope.startsWith("https://"))
+  const requiredHealthScopes = huawei.SCOPES.filter(
+    (scope) => scope.startsWith("https://") && !huawei.OPTIONAL_SCOPES.has(scope),
+  )
   const missingScopes = requiredHealthScopes.filter((scope) => !granted.has(scope))
 
   if (missingScopes.length > 0) {
@@ -446,17 +486,32 @@ function activityMetric(
 }
 
 /**
- * Minutes asleep per day, keyed by the local day each sleep ends on. Overlapping
- * records are merged rather than added: the phone and the watch can each record
- * the same night.
+ * Sleep durations are milliseconds in health records, but a minute value is
+ * accepted too: no real duration is both over 1440 minutes and under a minute.
  */
-function sleepMinutesByDate(
+function durationToMinutes(value: number | undefined) {
+  if (value == null || !Number.isFinite(value) || value < 0) return undefined
+  return value > 1440 ? value / 60_000 : value
+}
+
+type SleepSummary = Partial<Record<(typeof SLEEP_COLUMNS)[number], number>>
+
+/**
+ * Sleep per day, keyed by the local day each sleep ends on.
+ *
+ * Overlapping records are one sleep seen by several devices (the phone and the
+ * watch): each such cluster counts once, through the record that saw the most
+ * of it, while a separate nap still adds. A record's own `all_sleep_time` and
+ * stage durations are used when present, since its interval also covers time
+ * awake; otherwise the cluster's span is the sleep time.
+ */
+function sleepSummaryByDate(
   records: huawei.HuaweiHealthRecord[],
   dateKeys: string[],
   offsetMinutes: number,
 ) {
   const allowed = new Set(dateKeys)
-  const intervalsByDate = new Map<string, Array<[number, number]>>()
+  const recordsByDate = new Map<string, Array<{ endMs: number; fields: Map<string, number>; startMs: number }>>()
 
   for (const record of records) {
     const startMs = epochToMs(record.startTime)
@@ -466,29 +521,92 @@ function sleepMinutesByDate(
     const dateKey = dateKeyFromMs(endMs, offsetMinutes)
     if (!allowed.has(dateKey)) continue
 
-    const intervals = intervalsByDate.get(dateKey) ?? []
-    intervals.push([startMs, endMs])
-    intervalsByDate.set(dateKey, intervals)
+    const dayRecords = recordsByDate.get(dateKey) ?? []
+    dayRecords.push({ endMs, fields: valuesMap(record.value), startMs })
+    recordsByDate.set(dateKey, dayRecords)
   }
 
-  const totals = new Map<string, number>()
-  for (const [dateKey, intervals] of intervalsByDate) {
-    intervals.sort((left, right) => left[0] - right[0])
-    let totalMs = 0
-    let [currentStart, currentEnd] = intervals[0]
-    for (const [start, end] of intervals.slice(1)) {
-      if (start <= currentEnd) {
-        currentEnd = Math.max(currentEnd, end)
+  const summaries = new Map<string, SleepSummary>()
+  for (const [dateKey, dayRecords] of recordsByDate) {
+    dayRecords.sort((left, right) => left.startMs - right.startMs)
+
+    const clusters: Array<{ endMs: number; records: typeof dayRecords; startMs: number }> = []
+    for (const record of dayRecords) {
+      const current = clusters[clusters.length - 1]
+      if (current && record.startMs <= current.endMs) {
+        current.endMs = Math.max(current.endMs, record.endMs)
+        current.records.push(record)
       } else {
-        totalMs += currentEnd - currentStart
-        ;[currentStart, currentEnd] = [start, end]
+        clusters.push({ endMs: record.endMs, records: [record], startMs: record.startMs })
       }
     }
-    totalMs += currentEnd - currentStart
-    totals.set(dateKey, Math.round(totalMs / 60_000))
+
+    const summary: SleepSummary = {}
+    const add = (column: keyof SleepSummary, minutes: number | undefined) => {
+      if (minutes != null) summary[column] = (summary[column] ?? 0) + minutes
+    }
+
+    for (const cluster of clusters) {
+      const asleep = (record: (typeof dayRecords)[number]) =>
+        durationToMinutes(record.fields.get("all_sleep_time")) ?? (record.endMs - record.startMs) / 60_000
+      const best = cluster.records.reduce((left, right) => (asleep(right) > asleep(left) ? right : left))
+
+      add("sleepMinutes", durationToMinutes(best.fields.get("all_sleep_time")) ?? (cluster.endMs - cluster.startMs) / 60_000)
+      add("deepSleepMinutes", durationToMinutes(best.fields.get("deep_sleep_time")))
+      add("lightSleepMinutes", durationToMinutes(best.fields.get("light_sleep_time")))
+      add("remSleepMinutes", durationToMinutes(best.fields.get("dream_time")))
+      add("awakeMinutes", durationToMinutes(best.fields.get("awake_time")))
+    }
+
+    summaries.set(dateKey, summary)
   }
 
-  return totals
+  return summaries
+}
+
+/**
+ * Mirrors a day's Huawei weight into the trainee's weight log (BodyMetricEntry),
+ * one entry per local day at local noon. A weight the trainee entered themselves
+ * that day wins: the synced entry is then removed rather than shown beside it.
+ */
+async function syncWeightEntries(
+  userId: string,
+  weightsByDate: Map<string, { bodyFatPct?: number; weightKg: number }>,
+  offsetMinutes: number,
+) {
+  const db = ensurePrisma()
+  let synced = 0
+
+  for (const [dateKey, { bodyFatPct, weightKg }] of weightsByDate) {
+    const dayStart = new Date(dateFromKey(dateKey).getTime() - offsetMinutes * 60_000)
+    const dayEnd = new Date(dayStart.getTime() + 86_400_000)
+    const externalId = `huawei:${dateKey}`
+
+    const manual = await db.bodyMetricEntry.findFirst({
+      select: { id: true },
+      where: { recordedAt: { gte: dayStart, lt: dayEnd }, source: null, traineeId: userId, weightKg: { not: null } },
+    })
+    if (manual) {
+      await db.bodyMetricEntry.deleteMany({ where: { externalId, traineeId: userId } })
+      continue
+    }
+
+    const data = { bodyFatPct: bodyFatPct ?? null, weightKg }
+    await db.bodyMetricEntry.upsert({
+      create: {
+        ...data,
+        externalId,
+        recordedAt: new Date(dayStart.getTime() + 12 * 3_600_000),
+        source: PROVIDER,
+        traineeId: userId,
+      },
+      update: data,
+      where: { traineeId_externalId: { externalId, traineeId: userId } },
+    })
+    synced += 1
+  }
+
+  return synced
 }
 
 function failureCode(error: unknown) {
@@ -533,7 +651,10 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
     }
   }
 
+  const grantedScopes = new Set(connection.scope.split(/\s+/).filter(Boolean))
+
   for (const metric of DAILY_METRICS) {
+    if (metric.scope && !grantedScopes.has(metric.scope)) continue
     const daily = await attempt(metric.dataType, () =>
       huawei.fetchDailyPolymerize(
         accessToken,
@@ -554,9 +675,9 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
     ),
   )
   if (sleep) {
-    syncedColumns.add("sleepMinutes")
-    for (const [dateKey, minutes] of sleepMinutesByDate(sleep.healthRecords ?? [], dateKeys, offsetMinutes)) {
-      valuesByDate.set(dateKey, { ...valuesByDate.get(dateKey), sleepMinutes: minutes })
+    for (const column of SLEEP_COLUMNS) syncedColumns.add(column)
+    for (const [dateKey, summary] of sleepSummaryByDate(sleep.healthRecords ?? [], dateKeys, offsetMinutes)) {
+      valuesByDate.set(dateKey, { ...valuesByDate.get(dateKey), ...summary })
     }
   }
 
@@ -579,7 +700,7 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
     const values: Partial<Record<SummaryColumn, number | null>> = {}
     for (const column of syncedColumns) {
       const value = dayValues[column]
-      values[column] = value == null ? null : column === "steps" || column === "sleepMinutes" ? Math.round(value) : value
+      values[column] = value == null ? null : INTEGER_COLUMNS.has(column) ? Math.round(value) : value
     }
 
     const hasAnyValue = Object.values(values).some((value) => value != null)
@@ -604,6 +725,16 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
       update: { ...values, syncedAt },
     })
     summariesSynced += 1
+  }
+
+  let weightsSynced = 0
+  if (syncedColumns.has("weightKg")) {
+    const weightsByDate = new Map<string, { bodyFatPct?: number; weightKg: number }>()
+    for (const dateKey of dateKeys) {
+      const { bodyFatPct, weightKg } = valuesByDate.get(dateKey) ?? {}
+      if (weightKg != null) weightsByDate.set(dateKey, { bodyFatPct, weightKg })
+    }
+    weightsSynced = await syncWeightEntries(userId, weightsByDate, offsetMinutes)
   }
 
   let workoutsSynced = 0
@@ -676,6 +807,7 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
     failedSources,
     lastSyncedAt: lastSyncedAt.toISOString(),
     summariesSynced,
+    weightsSynced,
     workoutsSynced,
   }
 }
@@ -776,7 +908,7 @@ export {
   isHuaweiConfigured,
   mergeDailyPolymerize,
   runHuaweiSyncTick,
-  sleepMinutesByDate,
+  sleepSummaryByDate,
   startHuaweiSyncScheduler,
   stopHuaweiSyncScheduler,
   syncHuaweiHealth,

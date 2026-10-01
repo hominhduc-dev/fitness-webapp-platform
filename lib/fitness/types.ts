@@ -189,6 +189,8 @@ type BodyMetricEntry = {
   id: string
   note?: string
   recordedAt: Date
+  /** Set when the entry was synced from a wearable rather than entered by a person. */
+  source?: "huawei"
   thighCm?: number
   waistCm?: number
   weightKg?: number
