@@ -1,3 +1,4 @@
+import { HealthProvider } from "@prisma/client"
 import type { SerializedProfile } from "../auth.service"
 import { AppError } from "../errors"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatUtcDateOnly, startOfUtcWeek } from "../fitness-data/shared/dates"
@@ -32,6 +33,12 @@ function average(values: number[]) {
 
 function roundOrNull(value: number | null) {
   return value == null ? null : Math.round(value)
+}
+
+function normalizeHuaweiStress(score: number | null | undefined) {
+  if (score == null || !Number.isFinite(score)) return null
+  const clamped = Math.max(1, Math.min(99, score))
+  return Math.max(1, Math.min(5, Math.round(1 + ((clamped - 1) / 98) * 4)))
 }
 
 type ProgramRecoveryContext = {
@@ -129,7 +136,9 @@ function serializeCheckIn(checkIn: {
   readinessScore: number | null
   sleepMinutes: number | null
   sleepQuality: number | null
+  sleepSource: string | null
   stress: number | null
+  stressSource: string | null
 }) {
   return {
     ...checkIn,
@@ -151,12 +160,41 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
     })
   }
 
+  const healthSummary =
+    input.sleepMinutes == null || input.stress == null
+      ? await db.healthDailySummary.findUnique({
+          where: {
+            userId_provider_date: {
+              date: input.checkInDate,
+              provider: HealthProvider.huawei,
+              userId: profile.id,
+            },
+          },
+        })
+      : null
+
+  const huaweiStress = normalizeHuaweiStress(healthSummary?.stressAvg)
+  const sleepMinutes = input.sleepMinutes ?? healthSummary?.sleepMinutes ?? null
+  const stress = input.stress ?? huaweiStress
+  const sleepSource =
+    input.sleepMinutes != null
+      ? "manual"
+      : healthSummary?.sleepMinutes != null
+        ? "huawei"
+        : null
+  const stressSource =
+    input.stress != null
+      ? "manual"
+      : huaweiStress != null
+        ? "huawei"
+        : null
+
   const readinessScore = calculateReadiness({
     fatigue: input.fatigue,
-    sleepMinutes: input.sleepMinutes,
+    sleepMinutes,
     sleepQuality: input.sleepQuality,
     soreness: readinessSoreness(input.muscles),
-    stress: input.stress,
+    stress,
   })
   const muscleRows = input.muscles.map((muscle) => ({
     muscleSlug: muscle.muscleSlug,
@@ -172,9 +210,11 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
         fatigue: input.fatigue,
         note: input.note?.trim() || undefined,
         readinessScore,
-        sleepMinutes: input.sleepMinutes,
+        sleepMinutes,
         sleepQuality: input.sleepQuality,
-        stress: input.stress,
+        sleepSource,
+        stress,
+        stressSource,
         userId: profile.id,
       },
       update: {
@@ -182,9 +222,11 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
         fatigue: input.fatigue,
         note: input.note?.trim() || null,
         readinessScore,
-        sleepMinutes: input.sleepMinutes ?? null,
+        sleepMinutes,
         sleepQuality: input.sleepQuality ?? null,
-        stress: input.stress ?? null,
+        sleepSource,
+        stress,
+        stressSource,
       },
       where: {
         userId_checkInDate: {
