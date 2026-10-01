@@ -21,6 +21,7 @@ export type ProgramSetTarget = {
   reps: number
   repsMin?: number
   rir?: number
+  suggestedRir?: number
   weight?: number
 }
 
@@ -109,6 +110,7 @@ export function SessionSetRow({
   // range for this program. Weight shows progression; the range shows today's
   // target. Added-in-session sets have no original program target row, so they
   // fall back to their own target range instead of showing an empty Prev cell.
+  const suggestedRir = programTarget?.rir ?? programTarget?.suggestedRir
   const prevWeight = set.previousPerformance?.weight ?? programTarget?.weight
   const repsPart = programTarget
     ? formatRepTarget({ reps: programTarget.reps, repsMin: programTarget.repsMin })
@@ -228,7 +230,7 @@ export function SessionSetRow({
             setRir(e.target.value)
             onChange({ rir: e.target.value.trim() ? Number.parseInt(e.target.value) : undefined })
           }}
-          placeholder={set.rir != null ? String(set.rir) : "—"}
+          placeholder={suggestedRir != null ? String(suggestedRir) : "—"}
           aria-label="RIR"
           min={0}
           max={10}

@@ -78,6 +78,16 @@ function buildProgramSetTargetMap(exercises: Workout["exercises"]) {
   return targets
 }
 
+function withSuggestedRirTargets(targets: ReadonlyMap<string, ProgramSetTarget>, suggestedRir: number | null | undefined) {
+  if (suggestedRir == null) return targets
+
+  const next = new Map<string, ProgramSetTarget>()
+  targets.forEach((target, setId) => {
+    next.set(setId, target.rir == null ? { ...target, suggestedRir } : target)
+  })
+  return next
+}
+
 function buildStoredAddedSetTokenMap(storedSession: StoredWorkoutSession | null) {
   if (storedSession?.schemaVersion !== WORKOUT_SESSION_STORAGE_SCHEMA_VERSION) {
     return new Map<string, string>()
@@ -1045,6 +1055,10 @@ function WorkoutSession() {
         currentCoachHint.recommendedSets,
       )
     : null
+  const programSetTargets = withSuggestedRirTargets(
+    programSetTargetsRef.current,
+    volumeRecoveryQuery.data?.programContext?.targetRir,
+  )
 
   return (
     <div className="min-h-[100dvh] overflow-x-clip bg-background">
@@ -1081,7 +1095,7 @@ function WorkoutSession() {
             coachHint={currentCoachHint}
             coachHintText={currentCoachHintText}
             onApplyCoachHint={handleApplyCoachHint}
-            programSetTargets={programSetTargetsRef.current}
+            programSetTargets={programSetTargets}
             weightUnit={weightUnit}
             noteOpen={noteOpenForId === currentExercise.id}
             onSetUpdate={(setId, patch) => handleSetUpdate(currentExercise.id, setId, patch)}
