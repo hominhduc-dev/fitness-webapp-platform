@@ -45,6 +45,10 @@ export function HuaweiHealthConnection() {
           lastSync: "Đồng bộ gần nhất",
           neverSynced: "Chưa đồng bộ dữ liệu",
           notConnected: "Kết nối Huawei Health để dùng dữ liệu wearable cho Recovery và Progress.",
+          restingHr: "Nhịp tim nghỉ",
+          sleep: "Giấc ngủ",
+          steps: "Bước chân",
+          stress: "Stress",
           sync: "Đồng bộ",
           syncing: "Đang đồng bộ…",
           title: "Ứng dụng sức khỏe",
@@ -57,6 +61,10 @@ export function HuaweiHealthConnection() {
           lastSync: "Last synced",
           neverSynced: "No health data synced yet",
           notConnected: "Connect Huawei Health to use wearable data in Recovery and Progress.",
+          restingHr: "Resting HR",
+          sleep: "Sleep",
+          steps: "Steps",
+          stress: "Stress",
           sync: "Sync",
           syncing: "Syncing…",
           title: "Health apps",
@@ -152,6 +160,46 @@ export function HuaweiHealthConnection() {
             </Button>
           ) : null}
         </div>
+
+        {connection.connected && connection.latestSummary ? (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              {
+                label: copy.sleep,
+                value:
+                  connection.latestSummary.sleepMinutes == null
+                    ? "—"
+                    : `${Math.floor(connection.latestSummary.sleepMinutes / 60)}h ${connection.latestSummary.sleepMinutes % 60}m`,
+              },
+              {
+                label: copy.restingHr,
+                value:
+                  connection.latestSummary.restingHeartRate == null
+                    ? "—"
+                    : `${Math.round(connection.latestSummary.restingHeartRate)} bpm`,
+              },
+              {
+                label: copy.steps,
+                value:
+                  connection.latestSummary.steps == null
+                    ? "—"
+                    : new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US").format(connection.latestSummary.steps),
+              },
+              {
+                label: copy.stress,
+                value:
+                  connection.latestSummary.stressAvg == null
+                    ? "—"
+                    : `${Math.round(connection.latestSummary.stressAvg)}/99`,
+              },
+            ].map((metric) => (
+              <div key={metric.label} className="rounded-lg bg-card px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">{metric.label}</p>
+                <p className="mt-0.5 font-mono text-sm font-semibold tnum text-foreground">{metric.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {connection.connected ? (
           <div className="mt-3 flex flex-wrap gap-2">
