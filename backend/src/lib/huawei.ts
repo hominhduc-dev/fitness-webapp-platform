@@ -232,7 +232,7 @@ async function requestHuaweiHealth<T>(
 
   throw new ExternalServiceError("Huawei Health không trả về dữ liệu hợp lệ.", {
     code: "HUAWEI_HEALTH_REQUEST_FAILED",
-    details: { status: first.response.status },
+    details: { huaweiCode: errorCode ?? null, path, status: first.response.status },
   })
 }
 
@@ -257,9 +257,9 @@ type HuaweiSampleSet = {
 }
 
 type HuaweiPolymerizeGroup = {
-  endTime?: number
+  endTime?: number | string
   sampleSet?: HuaweiSampleSet[]
-  startTime?: number
+  startTime?: number | string
 }
 
 type HuaweiPolymerizeResponse = {
@@ -302,27 +302,35 @@ type HuaweiActivityRecordsResponse = {
   activityRecord?: HuaweiActivityRecord[]
 }
 
-function polymerizeDaily(
+/**
+ * Daily statistics for one raw data type over an inclusive `yyyyMMdd` day range
+ * (at most 31 days), cut at `timeZone` (`+0700`). Huawei answers with the
+ * matching statistics type, e.g. steps.delta -> steps.total.
+ *
+ * This is the dedicated statistics endpoint. `sampleSet:polymerize` with
+ * `groupByTime` is refused for some types ("does not support the query mode,
+ * please use dailyPolymerize API"), and one type per request keeps a refused
+ * type from failing the others.
+ */
+function fetchDailyPolymerize(
   accessToken: string,
   input: {
-    dataTypes: string[]
-    endTime: number
-    startTime: number
+    dataType: string
+    endDay: string
+    startDay: string
     timeZone: string
   },
   preferredBaseUrl?: string | null,
 ) {
   return requestHuaweiHealth<HuaweiPolymerizeResponse>(
     accessToken,
-    "/healthkit/v2/sampleSet:polymerize",
+    "/healthkit/v2/sampleSet:dailyPolymerize",
     {
       body: JSON.stringify({
-        polymerizeWith: input.dataTypes.map((dataTypeName) => ({ dataTypeName })),
-        endTime: input.endTime,
-        groupByTime: {
-          groupPeriod: { timeZone: input.timeZone, unit: "day", value: 1 },
-        },
-        startTime: input.startTime,
+        dataTypes: [input.dataType],
+        endDay: input.endDay,
+        startDay: input.startDay,
+        timeZone: input.timeZone,
       }),
       method: "POST",
     },
@@ -372,9 +380,9 @@ export {
   exchangeCodeForTokens,
   EXPIRY_SKEW_MS,
   fetchActivityRecords,
+  fetchDailyPolymerize,
   fetchSleepRecords,
   isHuaweiOAuthConfigured,
-  polymerizeDaily,
   refreshAccessToken,
   requestHuaweiHealth,
   SCOPES,
@@ -385,6 +393,7 @@ export type {
   HuaweiActivityRecordsResponse,
   HuaweiHealthRecord,
   HuaweiHealthRecordsResponse,
+  HuaweiHealthResult,
   HuaweiPolymerizeGroup,
   HuaweiPolymerizeResponse,
   HuaweiSamplePoint,

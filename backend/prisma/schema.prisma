@@ -664,12 +664,17 @@ model HealthConnection {
   scope                 String
   dataRegionBaseUrl     String?
   lastSyncedAt          DateTime?
+  /// Set when any sync starts, success or not; the background job backs off on it.
+  lastSyncAttemptAt     DateTime?
+  /// UTC offset (`+0700`) of the last manual sync, reused by the background job.
+  syncTimezoneOffset    String?
   connectedAt           DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
   @@index([provider, expiresAt])
+  @@index([provider, lastSyncAttemptAt])
 }
 
 /// Provider-neutral daily facts used by dashboard/recovery. Raw Huawei payloads

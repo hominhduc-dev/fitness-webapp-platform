@@ -53,6 +53,9 @@ HUAWEI_CLIENT_SECRET=
 HUAWEI_OAUTH_REDIRECT_URI=http://localhost:3000/backend/api/integrations/huawei/callback
 HUAWEI_HEALTH_API_BASE=https://health-api.cloud.huawei.com
 HUAWEI_TOKEN_ENCRYPTION_KEY=
+# Optional, background sync on by default:
+# HUAWEI_HEALTH_SYNC_ENABLED=true
+# HUAWEI_HEALTH_SYNC_INTERVAL_MS=3600000
 ```
 
 Generate the encryption key with:
@@ -72,7 +75,7 @@ All routes are mounted below `/api/integrations/huawei`.
 | GET | `/connection` | Connection state and latest synced summary |
 | POST | `/authorize` | Create a signed OAuth authorization URL |
 | GET | `/callback` | Verify OAuth state and store encrypted tokens |
-| POST | `/sync` | Sync up to 30 days of cloud health data |
+| POST | `/sync` | Sync up to 30 days of cloud health data now |
 | DELETE | `/connection` | Remove the local Huawei connection |
 
 The sync request accepts:
@@ -86,6 +89,40 @@ The sync request accepts:
 
 The frontend derives `timezoneOffset` from the browser. This keeps Huawei's
 natural-day aggregation aligned with the date keys used by recovery check-ins.
+The offset is stored on the connection and reused by the background sync.
+
+## How data is fetched
+
+Daily values come from `POST /healthkit/v2/sampleSet:dailyPolymerize`, one raw
+data type per request (`steps.delta`, `distance.delta`, `calories.burnt`,
+`heart_rate`, `resting_heart_rate`, `stress`), each answered with its daily
+statistics type. `sampleSet:polymerize` with `groupByTime` is not used: Huawei
+refuses it for some types ("please use dailyPolymerize API").
+
+Every source (each data type, sleep records, activity records) is fetched on
+its own. A source that fails is logged and reported in the sync result's
+`failedSources`; the others still sync, and the columns of the failed source
+keep their previously stored values. A sync fails only when every source does.
+
+When the phone and a watch both report the same day, totals (steps, distance,
+calories, max heart rate) take the larger reading instead of adding them,
+averages are averaged, and minimums take the lower. Overlapping sleep records
+are merged as time intervals, so one night recorded by two devices is counted
+once while a separate nap is still added.
+
+Timestamps are read by magnitude: `dailyPolymerize` groups are epoch
+milliseconds around nanosecond sample points, and health records are
+nanoseconds.
+
+## Background sync
+
+The backend syncs every connected trainee about once an hour
+(`HUAWEI_HEALTH_SYNC_INTERVAL_MS`, minimum 5 minutes), re-reading the last
+3 days because bands often upload late. It uses the offset saved by the
+trainee's last manual sync, or the app's default zone if there was none.
+`lastSyncAttemptAt` is stamped before each attempt, so a revoked or broken
+grant is retried once per interval rather than on every tick. Set
+`HUAWEI_HEALTH_SYNC_ENABLED=false` to turn it off.
 
 ## Stored data
 
@@ -157,9 +194,10 @@ rejected.
 
 ## Current limitations
 
-- Manual sync only; Data Subscription/webhook is not enabled.
+- Hourly background polling only; Data Subscription/webhook is not enabled.
 - Health Service Kit cloud data is not guaranteed to be real-time.
-- Sleep duration currently derives from the returned sleep record interval;
+- Sleep duration currently derives from the merged sleep record intervals
+  (awake periods inside a record are still counted);
   sleep stages are intentionally left null until their record/sub-data mapping
   is implemented and tested against real Huawei data.
 - HRV, SpO2, body composition, and weight are deferred so the MVP does not ask
