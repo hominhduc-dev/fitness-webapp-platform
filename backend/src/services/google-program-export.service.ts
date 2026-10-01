@@ -3,16 +3,43 @@ import { batchUpdateSpreadsheet, fetchSheetValues, fetchSpreadsheetMeta } from "
 import { getGoogleAccessToken } from "./google-connection.service"
 import { parseGoogleProgramRows } from "./google-program-import.service"
 import { assertCoach, assertCoachOwnsTrainee, ensurePrisma } from "./fitness-data/shared/guards"
-import { BadRequestError } from "./errors"
+import { BadRequestError, ExternalServiceError } from "./errors"
+import { buildReferenceRows, WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
 import type { PlanDay } from "./google-program-plan.service"
 import { refreshWeekPlan } from "./google-program-plan-refresh"
-import { selectProgramWeekWorkouts, toPlanDays, type SourceWorkout } from "./google-program-week-plan"
+import { createProgramTemplateSpreadsheet } from "./google-program-template.service"
+import { selectProgramWeekWorkouts, toPlanDays, variationDisplayName, type SourceWorkout } from "./google-program-week-plan"
 import type { SerializedProfile } from "./auth.service"
 
 type ExportDb = ReturnType<typeof ensurePrisma>
 
 export type ExportExercise = { order?: number; originalVariationId?: string; variation?: { id?: string; name?: string }; exercise?: { name?: string; muscleGroup?: string }; sets: Array<{ setNumber: number; completed: boolean; actualReps?: number; weight?: number }> }
 type ExportSession = { day: number; week: number; exercises: ExportExercise[] }
+
+function isLostSpreadsheetAccess(error: unknown) {
+  if (!(error instanceof ExternalServiceError) || error.code !== "GOOGLE_REQUEST_FAILED") return false
+
+  const status = (error.details as { status?: unknown } | undefined)?.status
+  return status === 403 || status === 404
+}
+
+function programReferenceRows(workouts: readonly SourceWorkout[]) {
+  const byVariationId = new Map<string, Parameters<typeof buildReferenceRows>[0][number]>()
+
+  for (const workout of workouts) {
+    for (const exercise of workout.exercises) {
+      byVariationId.set(exercise.variation.id, {
+        exerciseName: exercise.variation.exercise.name,
+        id: exercise.variation.id,
+        muscleGroup: exercise.variation.exercise.muscleGroup,
+        name: variationDisplayName(exercise.variation),
+        variationName: exercise.variation.name,
+      })
+    }
+  }
+
+  return buildReferenceRows([...byVariationId.values()])
+}
 
 /** The "Actual rep per weight" cell text, shared by the coach and trainee sheets. */
 export function formatSetResult(set: ExportExercise["sets"][number]) {
@@ -349,8 +376,33 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
     where: { programId: programs[0].id },
   }) as SourceWorkout[]
   const token = await getGoogleAccessToken(profile)
-  const { rowCount, skippedExerciseCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, spreadsheetId, sourceNames[0], sessions, {
-    planForWeek: (weekIndex) => toPlanDays(selectProgramWeekWorkouts(workouts, weekIndex)),
+  const planForWeek = (weekIndex: number) => toPlanDays(selectProgramWeekWorkouts(workouts, weekIndex))
+  const writeOptions = { planForWeek }
+
+  try {
+    const { rowCount, skippedExerciseCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, spreadsheetId, sourceNames[0], sessions, writeOptions)
+    return { exported: true, logCount: logs.length, rowCount, skippedExerciseCount, spreadsheetUrl }
+  } catch (error) {
+    if (!isLostSpreadsheetAccess(error)) throw error
+  }
+
+  const created = await createProgramTemplateSpreadsheet(token, {
+    referenceRows: programReferenceRows(workouts),
+    title: `${programs[0].name} — replacement`,
+    trainees: [],
   })
-  return { exported: true, logCount: logs.length, rowCount, skippedExerciseCount, spreadsheetUrl }
+  const { rowCount, skippedExerciseCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, created.spreadsheetId, WEEK_SHEET_TITLE, sessions, writeOptions)
+  await db.program.updateMany({
+    data: { googleSheetName: WEEK_SHEET_TITLE, googleSpreadsheetId: created.spreadsheetId },
+    where: { createdById: profile.id, googleSpreadsheetId: spreadsheetId, id: { in: programIds } },
+  })
+
+  return {
+    exported: true,
+    logCount: logs.length,
+    recreatedSpreadsheet: true,
+    rowCount,
+    skippedExerciseCount,
+    spreadsheetUrl,
+  }
 }
