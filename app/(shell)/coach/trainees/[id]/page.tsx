@@ -4,7 +4,6 @@ import { ArrowLeft } from "lucide-react"
 import { CoachTraineeDetailClient } from "@/components/coach/trainee-detail-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { requireAppSession } from "@/lib/auth/server"
 import { fetchCoachPrograms, fetchCoachTraineeDetail } from "@/lib/fitness/api"
 import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
@@ -72,50 +71,57 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
     : null
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-6 pt-page md:px-6" data-tour="coach-client-overview">
-      {/* Back nav */}
-      <div className="mb-5 flex items-center gap-2">
-        <Link href="/coach/trainees">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <span className="text-sm text-muted-foreground">{messages.coach.allClients}</span>
-      </div>
+    <div className="mx-auto max-w-7xl px-3 pb-8 pt-page sm:px-5 lg:px-6" data-tour="coach-client-overview">
+      <section className="mb-6 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg shadow-slate-200/70 ring-1 ring-white/80">
+        <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5">
+          <Link href="/coach/trainees" className="inline-flex min-w-0 items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            <span className="truncate">{messages.coach.allClients}</span>
+          </Link>
+          <Badge variant="micro" className={STATUS_BADGE_CLASS[status]}>
+            {getStatusLabel(status, messages)}
+          </Badge>
+        </div>
 
-      {/* Client header */}
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <Avatar className="h-14 w-14 shrink-0 md:h-16 md:w-16">
-          <AvatarImage src={detail.trainee.avatar ?? undefined} />
-          <AvatarFallback className="bg-muted text-lg font-medium text-foreground md:text-xl">
-            {getInitials(detail.trainee.name)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar className="h-14 w-14 shrink-0 rounded-xl ring-4 ring-primary/10 md:h-16 md:w-16">
+              <AvatarImage src={detail.trainee.avatar ?? undefined} />
+              <AvatarFallback className="rounded-xl bg-muted text-lg font-semibold text-foreground md:text-xl">
+                {getInitials(detail.trainee.name)}
+              </AvatarFallback>
+            </Avatar>
 
-        <div className="min-w-0 flex-1">
-          {activeProgram && (
-            <p className="mb-1 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {activeProgram.name}
-            </p>
-          )}
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-4xl md:leading-[1.15]">
-            {detail.trainee.name}
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Badge
-              variant="micro"
-              className={STATUS_BADGE_CLASS[status]}
-            >
-              {getStatusLabel(status, messages)}
-            </Badge>
-            <span className="font-mono text-xs text-muted-foreground">
-              {messages.coach.traineeWorkoutSummary(streak, lastSeen ?? undefined)}
-            </span>
+            <div className="min-w-0">
+              <p className="mb-1 truncate font-mono text-micro uppercase tracking-[0.12em] text-muted-foreground">
+                {activeProgram?.name ?? messages.coach.noProgramsAssigned}
+              </p>
+              <h1 className="truncate text-2xl font-semibold tracking-tight text-foreground md:text-4xl md:leading-[1.05]">
+                {detail.trainee.name}
+              </h1>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                {messages.coach.traineeWorkoutSummary(streak, lastSeen ?? undefined)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+            <div className="rounded-xl border border-primary/15 bg-primary-soft/50 px-3 py-2 shadow-sm">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.thisWeek}</p>
+              <p className="mt-0.5 font-mono text-base font-semibold tabular-nums text-foreground">
+                {detail.trainee.thisWeekWorkouts}/{detail.trainee.plannedSessionsPerWeek ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border border-primary/15 bg-primary-soft/50 px-3 py-2 shadow-sm">
+              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{messages.coach.completion}</p>
+              <p className="mt-0.5 font-mono text-base font-semibold tabular-nums text-foreground">
+                {Math.round(detail.trainee.completionRate ?? 0)}%
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Detail tabs (overview, progress, metrics, check-ins, logs) */}
       <CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} />
     </div>
   )
