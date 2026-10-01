@@ -82,6 +82,8 @@ const raw = {
   HUAWEI_CLIENT_ID: clean(process.env.HUAWEI_CLIENT_ID),
   HUAWEI_CLIENT_SECRET: clean(process.env.HUAWEI_CLIENT_SECRET),
   HUAWEI_HEALTH_API_BASE: clean(process.env.HUAWEI_HEALTH_API_BASE),
+  HUAWEI_HEALTH_SYNC_ENABLED: clean(process.env.HUAWEI_HEALTH_SYNC_ENABLED),
+  HUAWEI_HEALTH_SYNC_INTERVAL_MS: clean(process.env.HUAWEI_HEALTH_SYNC_INTERVAL_MS),
   HUAWEI_OAUTH_REDIRECT_URI: clean(process.env.HUAWEI_OAUTH_REDIRECT_URI),
   HUAWEI_TOKEN_ENCRYPTION_KEY: clean(process.env.HUAWEI_TOKEN_ENCRYPTION_KEY),
   NODE_ENV: clean(process.env.NODE_ENV),
@@ -140,6 +142,14 @@ const envSchema = z.object({
   HUAWEI_CLIENT_ID: z.string().optional(),
   HUAWEI_CLIENT_SECRET: z.string().optional(),
   HUAWEI_HEALTH_API_BASE: z.url().default("https://health-api.cloud.huawei.com"),
+  /** Background pull of Huawei Health data for every connected trainee. */
+  HUAWEI_HEALTH_SYNC_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value !== "false"),
+  HUAWEI_HEALTH_SYNC_INTERVAL_MS: numberFromString(3_600_000).pipe(
+    z.int().min(300_000, "HUAWEI_HEALTH_SYNC_INTERVAL_MS must be at least 300000"),
+  ),
   HUAWEI_OAUTH_REDIRECT_URI: z.url().optional(),
   HUAWEI_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -277,6 +287,8 @@ function loadEnv() {
     huaweiClientId: parsed.HUAWEI_CLIENT_ID,
     huaweiClientSecret: parsed.HUAWEI_CLIENT_SECRET,
     huaweiHealthApiBase: parsed.HUAWEI_HEALTH_API_BASE,
+    huaweiHealthSyncEnabled: parsed.HUAWEI_HEALTH_SYNC_ENABLED,
+    huaweiHealthSyncIntervalMs: parsed.HUAWEI_HEALTH_SYNC_INTERVAL_MS,
     huaweiOauthRedirectUri: parsed.HUAWEI_OAUTH_REDIRECT_URI,
     huaweiTokenEncryptionKey: parsed.HUAWEI_TOKEN_ENCRYPTION_KEY,
     supabaseAnonKey: parsed.SUPABASE_ANON_KEY,

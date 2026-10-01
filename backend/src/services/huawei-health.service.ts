@@ -3,13 +3,15 @@ import { HealthProvider, UserRole } from "@prisma/client"
 
 import { env } from "../config/env"
 import * as huawei from "../lib/huawei"
+import { logger } from "../lib/logger"
+import { DEFAULT_TIME_ZONE, getTimeZoneOffsetMs } from "../lib/time-zone"
 import {
   decryptHuaweiToken,
   encryptHuaweiToken,
   isHuaweiTokenCryptoConfigured,
 } from "../lib/huawei-token-crypto"
 import type { SerializedProfile } from "./auth.service"
-import { BadRequestError } from "./errors"
+import { AppError, BadRequestError, ExternalServiceError } from "./errors"
 import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 
 const PROVIDER = HealthProvider.huawei
@@ -17,13 +19,56 @@ const CONNECTABLE_ROLE = UserRole.trainee
 const MAX_SYNC_DAYS = 30
 const DEFAULT_SYNC_DAYS = 7
 
-const DAILY_DATA_TYPES = [
-  "com.huawei.continuous.steps.delta",
-  "com.huawei.continuous.distance.delta",
-  "com.huawei.continuous.calories.burnt",
-  "com.huawei.instantaneous.heart_rate",
-  "com.huawei.instantaneous.resting_heart_rate",
-  "com.huawei.instantaneous.stress",
+/** Background sync re-reads a short window: bands upload late, but rarely by more than a day or two. */
+const BACKGROUND_SYNC_DAYS = 3
+const BACKGROUND_SYNC_BATCH_SIZE = 25
+
+type SummaryColumn =
+  | "activeCalories"
+  | "avgHeartRate"
+  | "distanceMeters"
+  | "maxHeartRate"
+  | "minHeartRate"
+  | "restingHeartRate"
+  | "sleepMinutes"
+  | "steps"
+  | "stressAvg"
+type SummaryValues = Partial<Record<SummaryColumn, number>>
+
+/**
+ * How several readings for one day fold together. Totals take the larger value
+ * rather than a sum: when the phone and the band both report a day, Huawei can
+ * return a point per device, and adding them would double count.
+ */
+type Fold = "max" | "mean" | "min"
+
+/**
+ * Raw data types queried through `sampleSet:dailyPolymerize`, one per request,
+ * and the fields of the statistics type Huawei answers with.
+ */
+const DAILY_METRICS: Array<{
+  columns: Array<{ column: SummaryColumn; fields: string[]; fold: Fold }>
+  dataType: string
+}> = [
+  { dataType: "com.huawei.continuous.steps.delta", columns: [{ column: "steps", fields: ["steps"], fold: "max" }] },
+  { dataType: "com.huawei.continuous.distance.delta", columns: [{ column: "distanceMeters", fields: ["distance"], fold: "max" }] },
+  {
+    dataType: "com.huawei.continuous.calories.burnt",
+    columns: [{ column: "activeCalories", fields: ["calories_total", "calories"], fold: "max" }],
+  },
+  {
+    dataType: "com.huawei.instantaneous.heart_rate",
+    columns: [
+      { column: "avgHeartRate", fields: ["avg"], fold: "mean" },
+      { column: "minHeartRate", fields: ["min"], fold: "min" },
+      { column: "maxHeartRate", fields: ["max"], fold: "max" },
+    ],
+  },
+  {
+    dataType: "com.huawei.instantaneous.resting_heart_rate",
+    columns: [{ column: "restingHeartRate", fields: ["avg", "last"], fold: "mean" }],
+  },
+  { dataType: "com.huawei.instantaneous.stress", columns: [{ column: "stressAvg", fields: ["avg"], fold: "mean" }] },
 ]
 
 export const HUAWEI_STATE_MAX_AGE = 10 * 60 * 1000
@@ -265,25 +310,55 @@ function valuesMap(values: huawei.HuaweiValue[] | undefined) {
   return result
 }
 
-function pointsInGroup(group: huawei.HuaweiPolymerizeGroup) {
-  return (group.sampleSet ?? []).flatMap((set) => set.samplePoints ?? [])
+/** How many readings each day's mean columns average, kept off the values themselves. */
+const meanCounts = new WeakMap<SummaryValues, Map<SummaryColumn, number>>()
+
+function foldValue(values: SummaryValues, column: SummaryColumn, fold: Fold, value: number) {
+  const current = values[column]
+
+  if (fold === "mean") {
+    const counts = meanCounts.get(values) ?? new Map<SummaryColumn, number>()
+    const count = (counts.get(column) ?? 0) + 1
+    counts.set(column, count)
+    meanCounts.set(values, counts)
+    values[column] = current === undefined ? value : current + (value - current) / count
+    return
+  }
+
+  values[column] = current === undefined ? value : fold === "max" ? Math.max(current, value) : Math.min(current, value)
 }
 
-function metricFromGroup(
-  group: huawei.HuaweiPolymerizeGroup,
-  dataTypeName: string,
-  fields: string[],
+/**
+ * Folds one `dailyPolymerize` reply into per-day values. Each request names a
+ * single data type, so every point in the reply belongs to `metric`.
+ */
+function mergeDailyPolymerize(
+  into: Map<string, SummaryValues>,
+  response: huawei.HuaweiPolymerizeResponse,
+  metric: (typeof DAILY_METRICS)[number],
+  offsetMinutes: number,
 ) {
-  for (const point of pointsInGroup(group)) {
-    if (point.dataTypeName !== dataTypeName) continue
-    const map = valuesMap(point.value)
-    for (const field of fields) {
-      const value = map.get(field)
-      if (value != null) return value
+  for (const group of response.group ?? []) {
+    for (const set of group.sampleSet ?? []) {
+      for (const point of set.samplePoints ?? []) {
+        const startMs = epochToMs(point.startTime ?? group.startTime)
+        if (startMs == null) continue
+
+        const dateKey = dateKeyFromMs(startMs, offsetMinutes)
+        const values = into.get(dateKey) ?? {}
+        const fields = valuesMap(point.value)
+
+        for (const { column, fields: names, fold } of metric.columns) {
+          const name = names.find((candidate) => fields.has(candidate))
+          if (name) foldValue(values, column, fold, fields.get(name)!)
+        }
+
+        into.set(dateKey, values)
+      }
     }
   }
 
-  return null
+  return into
 }
 
 function parseTimezoneOffset(value: string) {
@@ -330,16 +405,28 @@ function nsFromMs(ms: number) {
   return (BigInt(Math.trunc(ms)) * 1_000_000n).toString()
 }
 
-function timestampToMs(value: number | string | undefined) {
-  if (typeof value === "number" && Number.isFinite(value)) return value / 1_000_000
-  if (typeof value === "string" && /^\d+$/.test(value)) {
-    try {
-      return Number(BigInt(value) / 1_000_000n)
-    } catch {
-      return null
-    }
+/**
+ * Health Kit mixes units: `dailyPolymerize` groups are epoch milliseconds around
+ * sample points in nanoseconds, and health records are nanoseconds, sometimes
+ * sent as strings. Any post-2001 instant is >= 1e12 in ms and >= 1e18 in ns, so
+ * the unit is read off the magnitude.
+ */
+function epochToMs(value: number | string | undefined) {
+  let epoch: number
+  if (typeof value === "number") {
+    epoch = value
+  } else if (typeof value === "string" && /^\d+$/.test(value)) {
+    // Nanosecond strings exceed Number precision; BigInt keeps the millisecond part exact.
+    if (value.length > 15) return Number(BigInt(value) / 1_000_000n)
+    epoch = Number(value)
+  } else {
+    return null
   }
-  return null
+
+  if (!Number.isFinite(epoch)) return null
+  if (epoch >= 1e17) return Math.floor(epoch / 1_000_000)
+  if (epoch >= 1e14) return Math.floor(epoch / 1_000)
+  return epoch
 }
 
 function activityMetric(
@@ -358,143 +445,169 @@ function activityMetric(
   return null
 }
 
+/**
+ * Minutes asleep per day, keyed by the local day each sleep ends on. Overlapping
+ * records are merged rather than added: the phone and the watch can each record
+ * the same night.
+ */
 function sleepMinutesByDate(
   records: huawei.HuaweiHealthRecord[],
   dateKeys: string[],
   offsetMinutes: number,
 ) {
   const allowed = new Set(dateKeys)
-  const totals = new Map<string, number>()
+  const intervalsByDate = new Map<string, Array<[number, number]>>()
 
   for (const record of records) {
-    const startMs = timestampToMs(record.startTime)
-    const endMs = timestampToMs(record.endTime)
+    const startMs = epochToMs(record.startTime)
+    const endMs = epochToMs(record.endTime)
     if (startMs == null || endMs == null || endMs <= startMs) continue
 
     const dateKey = dateKeyFromMs(endMs, offsetMinutes)
     if (!allowed.has(dateKey)) continue
 
-    const durationMinutes = Math.round((endMs - startMs) / 60_000)
-    totals.set(dateKey, (totals.get(dateKey) ?? 0) + durationMinutes)
+    const intervals = intervalsByDate.get(dateKey) ?? []
+    intervals.push([startMs, endMs])
+    intervalsByDate.set(dateKey, intervals)
+  }
+
+  const totals = new Map<string, number>()
+  for (const [dateKey, intervals] of intervalsByDate) {
+    intervals.sort((left, right) => left[0] - right[0])
+    let totalMs = 0
+    let [currentStart, currentEnd] = intervals[0]
+    for (const [start, end] of intervals.slice(1)) {
+      if (start <= currentEnd) {
+        currentEnd = Math.max(currentEnd, end)
+      } else {
+        totalMs += currentEnd - currentStart
+        ;[currentStart, currentEnd] = [start, end]
+      }
+    }
+    totalMs += currentEnd - currentStart
+    totals.set(dateKey, Math.round(totalMs / 60_000))
   }
 
   return totals
 }
 
-async function syncHuaweiHealth(
-  profile: SerializedProfile,
-  options?: { days?: number; timezoneOffset?: string },
-) {
-  assertConnectableProfile(profile)
+function failureCode(error: unknown) {
+  return error instanceof AppError ? error.code : "UNKNOWN"
+}
 
-  const requestedDays = options?.days ?? DEFAULT_SYNC_DAYS
-  const days = Number.isFinite(requestedDays)
-    ? Math.max(1, Math.min(MAX_SYNC_DAYS, Math.trunc(requestedDays)))
-    : DEFAULT_SYNC_DAYS
-  const timezoneOffset = options?.timezoneOffset ?? "+0000"
-  const offsetMinutes = parseTimezoneOffset(timezoneOffset)
-  const { accessToken, connection } = await getHuaweiAccessToken(profile.id)
-  const { dateKeys, endTime, startTime } = buildSyncRange(days, offsetMinutes)
+/**
+ * Pulls `days` of Huawei data for one user. Every source is fetched on its own,
+ * so a type Huawei refuses (or a scope the user later revoked) does not stop the
+ * rest; a column whose source failed keeps the value it already had.
+ */
+async function syncHuaweiHealthForUser(userId: string, options: { days: number; timezoneOffset: string }) {
+  const offsetMinutes = parseTimezoneOffset(options.timezoneOffset)
+  const db = ensurePrisma()
+
+  // Stamped before anything can fail, so the background job backs off a broken
+  // grant instead of retrying it every tick.
+  await db.healthConnection.updateMany({
+    where: { provider: PROVIDER, userId },
+    data: { lastSyncAttemptAt: new Date() },
+  })
+
+  const { accessToken, connection } = await getHuaweiAccessToken(userId)
+  const { dateKeys, endTime, startTime } = buildSyncRange(options.days, offsetMinutes)
+  const startDay = dateKeys[0].replaceAll("-", "")
+  const endDay = dateKeys[dateKeys.length - 1].replaceAll("-", "")
 
   let regionBaseUrl = connection.dataRegionBaseUrl
+  const failedSources: string[] = []
+  const syncedColumns = new Set<SummaryColumn>()
+  const valuesByDate = new Map<string, SummaryValues>()
 
-  const daily = await huawei.polymerizeDaily(
-    accessToken,
-    { dataTypes: DAILY_DATA_TYPES, endTime, startTime, timeZone: timezoneOffset },
-    regionBaseUrl,
-  )
-  regionBaseUrl = daily.baseUrl
-
-  const sleep = await huawei.fetchSleepRecords(
-    accessToken,
-    { endTimeNs: nsFromMs(endTime), startTimeNs: nsFromMs(startTime) },
-    regionBaseUrl,
-  )
-  regionBaseUrl = sleep.baseUrl
-
-  const workouts = await huawei.fetchActivityRecords(
-    accessToken,
-    { endTime, startTime },
-    regionBaseUrl,
-  )
-  regionBaseUrl = workouts.baseUrl
-
-  const sleepByDate = sleepMinutesByDate(sleep.data.healthRecords ?? [], dateKeys, offsetMinutes)
-  const groupByDate = new Map<string, huawei.HuaweiPolymerizeGroup>()
-
-  for (const group of daily.data.group ?? []) {
-    if (typeof group.startTime !== "number") continue
-    groupByDate.set(dateKeyFromMs(group.startTime, offsetMinutes), group)
+  const attempt = async <T>(source: string, request: () => Promise<huawei.HuaweiHealthResult<T>>) => {
+    try {
+      const result = await request()
+      regionBaseUrl = result.baseUrl
+      return result.data
+    } catch (error) {
+      failedSources.push(source)
+      logger.warn("huawei health source failed", { code: failureCode(error), source, userId })
+      return null
+    }
   }
 
-  const db = ensurePrisma()
+  for (const metric of DAILY_METRICS) {
+    const daily = await attempt(metric.dataType, () =>
+      huawei.fetchDailyPolymerize(
+        accessToken,
+        { dataType: metric.dataType, endDay, startDay, timeZone: options.timezoneOffset },
+        regionBaseUrl,
+      ),
+    )
+    if (!daily) continue
+    mergeDailyPolymerize(valuesByDate, daily, metric, offsetMinutes)
+    for (const { column } of metric.columns) syncedColumns.add(column)
+  }
+
+  const sleep = await attempt("com.huawei.health.record.sleep", () =>
+    huawei.fetchSleepRecords(
+      accessToken,
+      { endTimeNs: nsFromMs(endTime), startTimeNs: nsFromMs(startTime) },
+      regionBaseUrl,
+    ),
+  )
+  if (sleep) {
+    syncedColumns.add("sleepMinutes")
+    for (const [dateKey, minutes] of sleepMinutesByDate(sleep.healthRecords ?? [], dateKeys, offsetMinutes)) {
+      valuesByDate.set(dateKey, { ...valuesByDate.get(dateKey), sleepMinutes: minutes })
+    }
+  }
+
+  const workouts = await attempt("activityRecords", () =>
+    huawei.fetchActivityRecords(accessToken, { endTime, startTime }, regionBaseUrl),
+  )
+
+  if (syncedColumns.size === 0 && !workouts) {
+    throw new ExternalServiceError("Không lấy được dữ liệu nào từ Huawei Health.", {
+      code: "HUAWEI_HEALTH_SYNC_FAILED",
+      details: { failedSources },
+    })
+  }
 
   let summariesSynced = 0
   for (const dateKey of dateKeys) {
-    const group = groupByDate.get(dateKey)
-
-    const avgHeartRate = group
-      ? metricFromGroup(group, "com.huawei.continuous.heart_rate.statistics", ["avg"])
-      : null
-    const minHeartRate = group
-      ? metricFromGroup(group, "com.huawei.continuous.heart_rate.statistics", ["min"])
-      : null
-    const maxHeartRate = group
-      ? metricFromGroup(group, "com.huawei.continuous.heart_rate.statistics", ["max"])
-      : null
-
-    const values = {
-      activeCalories: group
-        ? metricFromGroup(group, "com.huawei.continuous.calories.burnt.total", ["calories_total", "calories"])
-        : null,
-      avgHeartRate,
-      distanceMeters: group
-        ? metricFromGroup(group, "com.huawei.continuous.distance.total", ["distance"])
-        : null,
-      maxHeartRate,
-      minHeartRate,
-      restingHeartRate: group
-        ? metricFromGroup(group, "com.huawei.continuous.resting_heart_rate.statistics", ["avg", "last"])
-        : null,
-      sleepMinutes: sleepByDate.get(dateKey) ?? null,
-      steps: group
-        ? metricFromGroup(group, "com.huawei.continuous.steps.total", ["steps"])
-        : null,
-      stressAvg: group
-        ? metricFromGroup(group, "com.huawei.instantaneous.stress.statistics", ["avg"])
-        : null,
+    const dayValues = valuesByDate.get(dateKey) ?? {}
+    // Only columns whose source answered: a failed source must not blank out
+    // what an earlier sync stored.
+    const values: Partial<Record<SummaryColumn, number | null>> = {}
+    for (const column of syncedColumns) {
+      const value = dayValues[column]
+      values[column] = value == null ? null : column === "steps" || column === "sleepMinutes" ? Math.round(value) : value
     }
 
     const hasAnyValue = Object.values(values).some((value) => value != null)
     if (!hasAnyValue) continue
 
+    const syncedAt = new Date()
     await db.healthDailySummary.upsert({
       where: {
         userId_provider_date: {
           date: dateFromKey(dateKey),
           provider: PROVIDER,
-          userId: profile.id,
+          userId,
         },
       },
       create: {
         ...values,
-        provider: PROVIDER,
-        syncedAt: new Date(),
-        userId: profile.id,
         date: dateFromKey(dateKey),
-        steps: values.steps == null ? null : Math.round(values.steps),
+        provider: PROVIDER,
+        syncedAt,
+        userId,
       },
-      update: {
-        ...values,
-        syncedAt: new Date(),
-        steps: values.steps == null ? null : Math.round(values.steps),
-      },
+      update: { ...values, syncedAt },
     })
     summariesSynced += 1
   }
 
   let workoutsSynced = 0
-  for (const record of workouts.data.activityRecord ?? []) {
+  for (const record of workouts?.activityRecord ?? []) {
     if (typeof record.startTime !== "number" || typeof record.endTime !== "number") continue
 
     const externalId =
@@ -506,7 +619,7 @@ async function syncHuaweiHealth(
         userId_provider_externalId: {
           externalId,
           provider: PROVIDER,
-          userId: profile.id,
+          userId: userId,
         },
       },
       create: {
@@ -528,7 +641,7 @@ async function syncHuaweiHealth(
           return value == null ? null : Math.round(value)
         })(),
         syncedAt: new Date(),
-        userId: profile.id,
+        userId: userId,
       },
       update: {
         activityType: record.activityType == null ? null : String(record.activityType),
@@ -555,15 +668,104 @@ async function syncHuaweiHealth(
   const lastSyncedAt = new Date()
   await db.healthConnection.update({
     where: { id: connection.id },
-    data: { dataRegionBaseUrl: regionBaseUrl, lastSyncedAt },
+    data: { dataRegionBaseUrl: regionBaseUrl, lastSyncedAt, syncTimezoneOffset: options.timezoneOffset },
   })
 
   return {
-    daysRequested: days,
+    daysRequested: options.days,
+    failedSources,
     lastSyncedAt: lastSyncedAt.toISOString(),
     summariesSynced,
     workoutsSynced,
   }
+}
+
+/** The "Sync" button. Remembers the browser's offset for the background job. */
+async function syncHuaweiHealth(
+  profile: SerializedProfile,
+  options?: { days?: number; timezoneOffset?: string },
+) {
+  assertConnectableProfile(profile)
+
+  const requestedDays = options?.days ?? DEFAULT_SYNC_DAYS
+  const days = Number.isFinite(requestedDays)
+    ? Math.max(1, Math.min(MAX_SYNC_DAYS, Math.trunc(requestedDays)))
+    : DEFAULT_SYNC_DAYS
+
+  return syncHuaweiHealthForUser(profile.id, { days, timezoneOffset: options?.timezoneOffset ?? "+0000" })
+}
+
+/** `+0700` for the app's default zone, used for a connection that never ran a manual sync. */
+function defaultTimezoneOffset(now = new Date()) {
+  const minutes = Math.round(getTimeZoneOffsetMs(now, DEFAULT_TIME_ZONE) / 60_000)
+  const abs = Math.abs(minutes)
+  return `${minutes < 0 ? "-" : "+"}${String(Math.floor(abs / 60)).padStart(2, "0")}${String(abs % 60).padStart(2, "0")}`
+}
+
+/** One pass over the trainees due for a sync. A failing user is logged and does not stop the others. */
+async function runHuaweiSyncTick(now = new Date()) {
+  const due = await ensurePrisma().healthConnection.findMany({
+    orderBy: { lastSyncAttemptAt: { nulls: "first", sort: "asc" } },
+    select: { syncTimezoneOffset: true, userId: true },
+    take: BACKGROUND_SYNC_BATCH_SIZE,
+    where: {
+      OR: [
+        { lastSyncAttemptAt: null },
+        { lastSyncAttemptAt: { lt: new Date(now.getTime() - env.huaweiHealthSyncIntervalMs) } },
+      ],
+      provider: PROVIDER,
+      refreshTokenEncrypted: { not: null },
+      user: { role: CONNECTABLE_ROLE },
+    },
+  })
+
+  let synced = 0
+  for (const connection of due) {
+    try {
+      await syncHuaweiHealthForUser(connection.userId, {
+        days: BACKGROUND_SYNC_DAYS,
+        timezoneOffset: connection.syncTimezoneOffset ?? defaultTimezoneOffset(now),
+      })
+      synced += 1
+    } catch (error) {
+      logger.warn("huawei health background sync failed", { code: failureCode(error), userId: connection.userId })
+    }
+  }
+
+  if (due.length > 0) logger.info("huawei health sync tick", { due: due.length, synced })
+  return { due: due.length, synced }
+}
+
+let timer: NodeJS.Timeout | null = null
+let running = false
+
+function startHuaweiSyncScheduler() {
+  if (timer || !env.huaweiHealthSyncEnabled || !env.databaseUrl || !isHuaweiConfigured()) return
+
+  const tick = async () => {
+    // A slow tick (many users, slow Huawei) must not overlap the next one.
+    if (running) return
+    running = true
+    try {
+      await runHuaweiSyncTick()
+    } catch (error) {
+      logger.error("huawei health sync tick failed", { error })
+    } finally {
+      running = false
+    }
+  }
+
+  // Ticks run more often than the per-user interval so a batch left over from a
+  // busy tick is picked up well before the next interval.
+  const tickMs = Math.max(60_000, Math.floor(env.huaweiHealthSyncIntervalMs / 6))
+  timer = setInterval(() => void tick(), tickMs)
+  timer.unref()
+  logger.info("huawei health sync scheduler started", { intervalMs: env.huaweiHealthSyncIntervalMs, tickMs })
+}
+
+function stopHuaweiSyncScheduler() {
+  if (timer) clearInterval(timer)
+  timer = null
 }
 
 export {
@@ -572,6 +774,12 @@ export {
   disconnectHuawei,
   getHuaweiConnection,
   isHuaweiConfigured,
+  mergeDailyPolymerize,
+  runHuaweiSyncTick,
+  sleepMinutesByDate,
+  startHuaweiSyncScheduler,
+  stopHuaweiSyncScheduler,
   syncHuaweiHealth,
+  syncHuaweiHealthForUser,
   verifyHuaweiState,
 }
