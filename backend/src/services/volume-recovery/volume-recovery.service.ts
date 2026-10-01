@@ -35,10 +35,9 @@ function roundOrNull(value: number | null) {
   return value == null ? null : Math.round(value)
 }
 
-function normalizeHuaweiStress(score: number | null | undefined) {
+function normalizeStress99(score: number | null | undefined) {
   if (score == null || !Number.isFinite(score)) return null
-  const clamped = Math.max(1, Math.min(99, score))
-  return Math.max(1, Math.min(5, Math.round(1 + ((clamped - 1) / 98) * 4)))
+  return Math.max(1, Math.min(99, Math.round(score)))
 }
 
 type ProgramRecoveryContext = {
@@ -173,7 +172,7 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
         })
       : null
 
-  const huaweiStress = normalizeHuaweiStress(healthSummary?.stressAvg)
+  const huaweiStress = normalizeStress99(healthSummary?.stressAvg)
   const sleepMinutes = input.sleepMinutes ?? healthSummary?.sleepMinutes ?? null
   const stress = input.stress ?? huaweiStress
   const sleepSource =
