@@ -6,15 +6,27 @@ ALTER TABLE "RecoveryCheckIn"
 ADD COLUMN "sleepSource" TEXT,
 ADD COLUMN "stressSource" TEXT;
 
--- Recovery stress previously used a 1-5 scale. Preserve the old meaning while
--- moving the system to Huawei's 1-99 scale:
+-- Recovery stress previously used a 1-5 scale. The original recovery
+-- migration enforces that range at the database level, so drop that constraint
+-- before converting existing rows.
+ALTER TABLE "RecoveryCheckIn"
+DROP CONSTRAINT IF EXISTS "RecoveryCheckIn_stress_check";
+
+-- Preserve the old meaning while moving the system to Huawei's 1-99 scale:
 -- 1 -> 1, 2 -> 26, 3 -> 50, 4 -> 75, 5 -> 99.
 UPDATE "RecoveryCheckIn"
-SET "stress" = ROUND(1 + (("stress" - 1) * 98.0 / 4.0))
+SET "stress" = CASE "stress"
+  WHEN 1 THEN 1
+  WHEN 2 THEN 26
+  WHEN 3 THEN 50
+  WHEN 4 THEN 75
+  WHEN 5 THEN 99
+  ELSE "stress"
+END
 WHERE "stress" BETWEEN 1 AND 5;
 
 ALTER TABLE "RecoveryCheckIn"
-ADD CONSTRAINT "RecoveryCheckIn_stress_1_99_check"
+ADD CONSTRAINT "RecoveryCheckIn_stress_check"
 CHECK ("stress" IS NULL OR ("stress" BETWEEN 1 AND 99));
 
 -- CreateTable
