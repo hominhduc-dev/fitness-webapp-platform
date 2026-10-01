@@ -102,6 +102,7 @@ async function getHuaweiConnection(profile: SerializedProfile) {
       configured: false,
       connected: false,
       lastSyncedAt: null,
+      latestSummary: null,
       scopes: [] as string[],
     }
   }
