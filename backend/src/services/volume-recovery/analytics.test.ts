@@ -80,8 +80,14 @@ describe("volume recovery analytics", () => {
 
   it("calculates readiness while redistributing missing optional weights", () => {
     expect(calculateReadiness({ fatigue: 1, sleepQuality: 5 })).toBe(100)
-    expect(calculateReadiness({ fatigue: 5, sleepQuality: 1, soreness: 5, stress: 5 })).toBe(0)
+    expect(calculateReadiness({ fatigue: 5, sleepQuality: 1, soreness: 5, stress: 99 })).toBe(0)
     expect(calculateReadiness({})).toBeNull()
+  })
+
+  it("scores stress across Huawei's 1-99 scale", () => {
+    expect(calculateReadiness({ stress: 1 })).toBe(100)
+    expect(calculateReadiness({ stress: 50 })).toBe(50)
+    expect(calculateReadiness({ stress: 99 })).toBe(0)
   })
 
   it("scores sleep duration on a ramp between four and seven hours", () => {
@@ -99,7 +105,7 @@ describe("volume recovery analytics", () => {
   })
 
   it("ignores sleep duration when it was skipped", () => {
-    const answers = { fatigue: 3, sleepQuality: 3, soreness: 2, stress: 3 }
+    const answers = { fatigue: 3, sleepQuality: 3, soreness: 2, stress: 50 }
 
     expect(calculateReadiness({ ...answers, sleepMinutes: null })).toBe(calculateReadiness(answers))
   })
