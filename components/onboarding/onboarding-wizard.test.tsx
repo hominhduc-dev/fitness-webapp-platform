@@ -71,7 +71,7 @@ describe("OnboardingWizard", () => {
       sex: "male",
     })
     expect(state.createWeightEntry).toHaveBeenCalledWith({ weightKg: 72 })
-    expect(state.replace).toHaveBeenCalledWith("/workout/ai-generate?mode=program&goal=build_muscle")
+    expect(state.replace).toHaveBeenCalledWith("/workout/ai-generate?mode=program&goal=hypertrophy")
     // Sex, birthDate and height can each be left blank, so the profile alone
     // cannot be trusted to keep the shell from redirecting back here — the
     // cookie is what actually breaks the loop after this screen hands off to

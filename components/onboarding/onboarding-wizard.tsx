@@ -24,11 +24,11 @@ const GOAL_VALUES = ["Build Muscle", "Lose Weight", "Increase Strength", "Improv
 
 /** Translates the goal picked here into the vocabulary the AI generator expects. */
 const AI_GOALS: Record<(typeof GOAL_VALUES)[number], string> = {
-  "Build Muscle": "build_muscle",
+  "Build Muscle": "hypertrophy",
   Flexibility: "general_fitness",
   "Improve Endurance": "endurance",
   "Increase Strength": "strength",
-  "Lose Weight": "lose_weight",
+  "Lose Weight": "fat_loss",
 }
 
 const MIN_HEIGHT_CM = 50

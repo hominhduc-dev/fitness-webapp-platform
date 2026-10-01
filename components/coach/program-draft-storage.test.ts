@@ -26,7 +26,7 @@ function makeForm(overrides: Partial<ProgramDraftForm> = {}): ProgramDraftForm {
     description: "",
     difficulty: "beginner",
     duration: "2",
-    programGoal: "build_muscle",
+    programGoal: "hypertrophy",
     programName: "Bulking",
     routineLibrary: [pushDay],
     schedule: [

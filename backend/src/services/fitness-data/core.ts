@@ -40,6 +40,7 @@ import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "../g
 import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
+import { normalizeTrainingGoal } from "../../domain/training-goal-policy"
 import {
   buildCoachConnectionAcceptedDraft,
   buildCoachInviteReceivedDraft,
@@ -5769,6 +5770,7 @@ async function createCoachProgram(
 
   const googleSpreadsheetId = input.googleSpreadsheetId?.trim() || undefined
   const googleSheetName = input.googleSheetName?.trim() || undefined
+  const programGoal = normalizeTrainingGoal(input.goal) ?? (input.goal?.trim() || undefined)
   await assertGoogleSpreadsheetNotInUse(db, profile.id, googleSpreadsheetId)
 
   const { notifications, program } = await retryTransaction(() => db.$transaction(async (tx) => {
@@ -5781,7 +5783,7 @@ async function createCoachProgram(
         description: input.description?.trim() || undefined,
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
-        goal: input.goal?.trim() || undefined,
+        goal: programGoal,
         id: programId,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
@@ -5923,6 +5925,7 @@ async function updateCoachProgram(
 
   const notifications = await retryTransaction(() => db.$transaction(async (tx) => {
     const reusableWorkoutIds = buildReusableWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts)
+    const programGoal = normalizeTrainingGoal(input.goal) ?? (input.goal?.trim() || existingProgram.goal || undefined)
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(
       existingProgram.id,
       input.workouts,
@@ -6012,6 +6015,7 @@ async function updateCoachProgram(
         description: input.description?.trim() || null,
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
+        goal: programGoal,
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate),
         workoutsPerWeek: countProgramWorkoutsPerWeek(input.workouts),
@@ -6217,6 +6221,7 @@ async function adjustCoachProgramForTrainee(
   const adjustedProgram = await retryTransaction(() => db.$transaction(async (transaction) => {
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
+    const programGoal = normalizeTrainingGoal(input.goal) ?? (input.goal?.trim() || existingProgram.goal || undefined)
     const updatedWorkoutIds = buildUpdatedWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts, workoutRows)
     const coachUpdatesByWorkoutId = buildCoachUpdatePayloadForProgramInput(
       existingProgram as ProgramRecord,
@@ -6250,7 +6255,7 @@ async function adjustCoachProgramForTrainee(
         description: input.description?.trim() || undefined,
         difficulty: input.difficulty,
         duration: Math.max(1, Math.round(input.duration)),
-        goal: input.goal?.trim() || existingProgram.goal || undefined,
+        goal: programGoal,
         id: programId,
         googleSpreadsheetId: keepsSpreadsheetLink ? existingProgram.googleSpreadsheetId : undefined,
         googleSheetName: keepsSpreadsheetLink ? existingProgram.googleSheetName : undefined,

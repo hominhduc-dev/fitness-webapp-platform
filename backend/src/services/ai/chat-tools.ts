@@ -13,6 +13,16 @@ import type { AIToolDefinition } from "../../lib/ai/types"
 
 const CREATE_WORKOUT_PROGRAM = "create_workout_program" as const
 const CREATE_MEAL_PLAN = "create_meal_plan" as const
+const TRAINING_GOALS = [
+  "hypertrophy",
+  "strength",
+  "powerbuilding",
+  "fat_loss",
+  "endurance",
+  "general_fitness",
+  "athletic_performance",
+  "rehab_corrective",
+] as const
 
 const chatTools: AIToolDefinition[] = [
   {
@@ -24,7 +34,7 @@ const chatTools: AIToolDefinition[] = [
       properties: {
         goal: {
           type: "string",
-          enum: ["build_muscle", "lose_weight", "strength", "endurance", "general_fitness"],
+          enum: TRAINING_GOALS,
           description: "Mục tiêu tập luyện chính.",
         },
         experienceLevel: {

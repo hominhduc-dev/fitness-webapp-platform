@@ -87,6 +87,14 @@ export const WORKOUT_RULES = `- CHỈ dùng bài tập và variation có trong E
 - Tôn trọng tuyệt đối chấn thương và hạn chế được khai báo: bỏ hẳn bài gây đau vùng đó, không "tập nhẹ hơn".
 ${UNTRUSTED_INPUT_RULE}`
 
+export const TRAINING_GOAL_RULES = `- Nếu goal là hypertrophy/build_muscle: ưu tiên volume theo nhóm cơ, rep range thường 6-20, RIR tuần đầu cao hơn để lấy baseline rồi giảm dần trong chu kỳ.
+- Nếu goal là strength: ưu tiên compound chính, rep range thường 1-6 cho bài chính, nghỉ dài hơn, tránh failure liên tục; dùng RIR 1-3 để giữ kỹ thuật.
+- Nếu goal là powerbuilding: đầu buổi có bài compound nặng 3-6 reps, sau đó back-off/accessory 6-15 reps để tăng cơ.
+- Nếu goal là fat_loss/lose_weight: giữ strength và khối cơ với volume vừa phải, thêm conditioning/cardio hợp lý, không tăng volume quá mạnh khi recovery thấp.
+- Nếu goal là endurance: ưu tiên rep cao, density, rest ngắn vừa phải, circuit hoặc cardio; cường độ tạ không cần sát failure.
+- Nếu goal là athletic_performance: ưu tiên sức mạnh, power, tốc độ, unilateral/core; không biến thành bodybuilding thuần.
+- Nếu goal là rehab_corrective: giữ RIR cao 3-5+, tải nhẹ-vừa, kỹ thuật kiểm soát, tránh đau và tránh các pattern đã khai báo hạn chế.`
+
 /**
  * Only needed while the provider layer still asks for free-form JSON. Once
  * every call goes through a forced tool (Anthropic `tool_choice`) or a strict
@@ -164,9 +172,14 @@ export function buildExerciseCatalogIndex(catalog: CatalogInput): ExerciseCatalo
 // ---------------------------------------------------------------------------
 
 export const GOAL_LABELS: Record<string, string> = {
+  athletic_performance: "Hiệu suất thể thao",
   build_muscle: "Tăng cơ bắp",
-  lose_weight: "Giảm cân",
   strength: "Tăng sức mạnh",
+  fat_loss: "Giảm mỡ",
+  hypertrophy: "Tăng cơ bắp",
+  lose_weight: "Giảm cân",
+  powerbuilding: "Tăng cơ và sức mạnh",
+  rehab_corrective: "Phục hồi và sửa vận động",
   endurance: "Tăng sức bền",
   general_fitness: "Thể lực tổng hợp",
 }

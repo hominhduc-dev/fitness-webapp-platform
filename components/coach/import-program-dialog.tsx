@@ -41,6 +41,7 @@ import { fetchGoogleConnection, overwriteGoogleProgram, type GoogleImportResult 
 import { useLocale } from "@/components/providers/locale-provider"
 import { googleImportMessages } from "@/lib/i18n/messages/google-import"
 import { programImportMessages } from "@/lib/i18n/messages/program-import"
+import { TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type ImportProgramDialogProps = {
   exerciseOptions: ExerciseVariationOption[]
@@ -58,12 +59,7 @@ type ImportSource = "excel" | "google"
 const STEP_ORDER: Step[] = ["upload", "review", "done"]
 
 const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "advanced"]
-const PROGRAM_GOALS = [
-  { en: "Hypertrophy", value: "build_muscle", vi: "Tăng cơ" },
-  { en: "Strength", value: "strength", vi: "Sức mạnh" },
-  { en: "Endurance", value: "endurance", vi: "Sức bền" },
-  { en: "General", value: "general_fitness", vi: "Tổng hợp" },
-]
+const PROGRAM_GOALS = TRAINING_GOAL_OPTIONS
 
 function ImportSourceIcon({ source }: { source: ImportSource }) {
   if (source === "excel") return <FileSpreadsheet className="size-5" />
@@ -186,7 +182,7 @@ export function ImportProgramDialog({
   const [programName, setProgramName] = useState("")
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate")
   const [duration, setDuration] = useState(4)
-  const [programGoal, setProgramGoal] = useState("build_muscle")
+  const [programGoal, setProgramGoal] = useState("hypertrophy")
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
   const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
@@ -258,7 +254,7 @@ export function ImportProgramDialog({
     setDifficulty("intermediate")
     setDuration(4)
     setDescription("")
-    setProgramGoal("build_muscle")
+    setProgramGoal("hypertrophy")
     setStartDate("")
     setSelectedTraineeIds([])
     setSource("excel")
@@ -289,7 +285,7 @@ export function ImportProgramDialog({
       setProgramName(importedDraft.name?.trim() || file.name.replace(/\.[^.]+$/, ""))
       setDifficulty(importedDraft.difficulty ?? "intermediate")
       setDuration(importedDraft.duration ?? 4)
-      setProgramGoal(importedDraft.goal ?? "build_muscle")
+      setProgramGoal(importedDraft.goal ?? "hypertrophy")
       setDescription(importedDraft.description?.trim() ?? "")
       // The sheet's assign_to_emails column seeds the roster; the coach can
       // still add or drop anyone before the program is created.

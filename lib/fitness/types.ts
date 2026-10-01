@@ -737,9 +737,11 @@ type TrainingGuidance = {
 }
 
 type VolumeRecoveryProgramContext = {
+  analysisFocus: string[]
   baselineWeekStart: string | null
   goal: string | null
   hasBaseline: boolean
+  phase: string | null
   programId: string
   programWeekIndex: number | null
   targetRir: number | null

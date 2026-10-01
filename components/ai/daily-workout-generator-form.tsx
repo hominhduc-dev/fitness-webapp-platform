@@ -6,6 +6,7 @@ import { useState } from "react"
 import { ChoiceCard, ChoiceRow, MoreOptions, SingleChoice } from "@/components/ai/choice-controls"
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
+import { TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type DailyWorkoutFormValues = {
   goal: string
@@ -17,13 +18,7 @@ type DailyWorkoutFormValues = {
   energyLevel: "low" | "normal" | "high"
 }
 
-const GOALS = [
-  { value: "build_muscle", en: "Build muscle", vi: "Tăng cơ" },
-  { value: "lose_weight", en: "Burn fat", vi: "Đốt mỡ" },
-  { value: "strength", en: "Strength", vi: "Sức mạnh" },
-  { value: "endurance", en: "Endurance", vi: "Sức bền" },
-  { value: "general_fitness", en: "General", vi: "Tổng hợp" },
-] as const
+const GOALS = TRAINING_GOAL_OPTIONS
 const DURATIONS = [30, 45, 60, 75, 90] as const
 const ENERGY = [
   { value: "low", en: "Tired", vi: "Hơi mệt", hintEn: "Lower volume", hintVi: "Giảm volume" },
@@ -40,7 +35,7 @@ function DailyWorkoutGeneratorForm({ onSubmit, isLoading }: { onSubmit: (values:
   const { locale } = useLocale()
   const isVi = locale === "vi"
   const [values, setValues] = useState<DailyWorkoutFormValues>({
-    goal: "build_muscle",
+    goal: "hypertrophy",
     experienceLevel: "intermediate",
     sessionDuration: 60,
     availableEquipment: "full_gym",

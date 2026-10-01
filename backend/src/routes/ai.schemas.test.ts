@@ -14,13 +14,19 @@ const validProgram = {
   daysPerWeek: 4,
   durationWeeks: 8,
   experienceLevel: "intermediate",
-  goal: "build_muscle",
+  goal: "hypertrophy",
   sessionDuration: 60,
 }
 
 describe("generateProgramSchema", () => {
   it("accepts a well-formed request", () => {
     expect(generateProgramSchema.safeParse(validProgram).success).toBe(true)
+  })
+
+  it("accepts specialized training goals", () => {
+    for (const goal of ["powerbuilding", "fat_loss", "athletic_performance", "rehab_corrective"]) {
+      expect(generateProgramSchema.safeParse({ ...validProgram, goal }).success).toBe(true)
+    }
   })
 
   it("coerces numeric strings sent by HTML form inputs", () => {
@@ -65,7 +71,7 @@ describe("generateDailyWorkoutSchema", () => {
     date: "2026-08-14",
     energyLevel: "normal",
     experienceLevel: "beginner",
-    goal: "lose_weight",
+    goal: "fat_loss",
     sessionDuration: 45,
   }
 
