@@ -249,11 +249,11 @@ function pointsInGroup(group: huawei.HuaweiPolymerizeGroup) {
 
 function metricFromGroup(
   group: huawei.HuaweiPolymerizeGroup,
-  dataTypeIncludes: string,
+  dataTypeName: string,
   fields: string[],
 ) {
   for (const point of pointsInGroup(group)) {
-    if (!point.dataTypeName?.includes(dataTypeIncludes)) continue
+    if (point.dataTypeName !== dataTypeName) continue
     const map = valuesMap(point.value)
     for (const field of fields) {
       const value = map.get(field)
@@ -365,7 +365,10 @@ async function syncHuaweiHealth(
 ) {
   assertConnectableProfile(profile)
 
-  const days = Math.max(1, Math.min(MAX_SYNC_DAYS, Math.trunc(options?.days ?? DEFAULT_SYNC_DAYS)))
+  const requestedDays = options?.days ?? DEFAULT_SYNC_DAYS
+  const days = Number.isFinite(requestedDays)
+    ? Math.max(1, Math.min(MAX_SYNC_DAYS, Math.trunc(requestedDays)))
+    : DEFAULT_SYNC_DAYS
   const timezoneOffset = options?.timezoneOffset ?? "+0000"
   const offsetMinutes = parseTimezoneOffset(timezoneOffset)
   const { accessToken, connection } = await getHuaweiAccessToken(profile.id)
@@ -404,38 +407,39 @@ async function syncHuaweiHealth(
 
   const db = ensurePrisma()
 
+  let summariesSynced = 0
   for (const dateKey of dateKeys) {
     const group = groupByDate.get(dateKey)
 
     const avgHeartRate = group
-      ? metricFromGroup(group, "heart_rate.statistics", ["avg"])
+      ? metricFromGroup(group, "com.huawei.continuous.heart_rate.statistics", ["avg"])
       : null
     const minHeartRate = group
-      ? metricFromGroup(group, "heart_rate.statistics", ["min"])
+      ? metricFromGroup(group, "com.huawei.continuous.heart_rate.statistics", ["min"])
       : null
     const maxHeartRate = group
-      ? metricFromGroup(group, "heart_rate.statistics", ["max"])
+      ? metricFromGroup(group, "com.huawei.continuous.heart_rate.statistics", ["max"])
       : null
 
     const values = {
       activeCalories: group
-        ? metricFromGroup(group, "calories.burnt", ["calories_total", "calories"])
+        ? metricFromGroup(group, "com.huawei.continuous.calories.burnt.total", ["calories_total", "calories"])
         : null,
       avgHeartRate,
       distanceMeters: group
-        ? metricFromGroup(group, "distance", ["distance"])
+        ? metricFromGroup(group, "com.huawei.continuous.distance.total", ["distance"])
         : null,
       maxHeartRate,
       minHeartRate,
       restingHeartRate: group
-        ? metricFromGroup(group, "resting_heart_rate.statistics", ["avg", "last"])
+        ? metricFromGroup(group, "com.huawei.continuous.resting_heart_rate.statistics", ["avg", "last"])
         : null,
       sleepMinutes: sleepByDate.get(dateKey) ?? null,
       steps: group
-        ? metricFromGroup(group, "steps", ["steps"])
+        ? metricFromGroup(group, "com.huawei.continuous.steps.total", ["steps"])
         : null,
       stressAvg: group
-        ? metricFromGroup(group, "stress.statistics", ["avg"])
+        ? metricFromGroup(group, "com.huawei.instantaneous.stress.statistics", ["avg"])
         : null,
     }
 
@@ -464,6 +468,7 @@ async function syncHuaweiHealth(
         steps: values.steps == null ? null : Math.round(values.steps),
       },
     })
+    summariesSynced += 1
   }
 
   let workoutsSynced = 0
@@ -534,7 +539,7 @@ async function syncHuaweiHealth(
   return {
     daysRequested: days,
     lastSyncedAt: lastSyncedAt.toISOString(),
-    summariesSynced: dateKeys.length,
+    summariesSynced,
     workoutsSynced,
   }
 }
