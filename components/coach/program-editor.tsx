@@ -1253,7 +1253,7 @@ export function ProgramEditor({
                   onClick={onImportProgram}
                 >
                   <Upload className="h-4 w-4" />
-                  Import program
+                  {messages.coach.importProgram}
                 </Button>
               ) : null}
               {programId && assignedTrainees.length > 0 && (
@@ -1449,7 +1449,7 @@ export function ProgramEditor({
               {!programId && onImportProgram ? (
                 <Button type="button" variant="outline" className="bg-transparent" onClick={onImportProgram}>
                   <Upload className="h-4 w-4" />
-                  Import program
+                  {messages.coach.importProgram}
                 </Button>
               ) : null}
               {programId && assignedTrainees.length > 0 && (
@@ -1544,12 +1544,12 @@ export function ProgramEditor({
                 <span className="min-w-0">
                   <span
                     className="block text-base font-semibold text-foreground"
-                    title={`Drag and drop to rearrange workouts. Copy one week, then choose another week to paste it.`}
+                    title={`${messages.coach.dragToRearrangeHint} ${messages.coach.copyWeekHint}`}
                   >
                     Weekly Structure
                   </span>
                   <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">
-                    Copy one week, then choose another week to paste it.
+                    {messages.coach.copyWeekHint}
                   </span>
                 </span>
               </div>
@@ -1560,7 +1560,7 @@ export function ProgramEditor({
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled={isArchived} onClick={copyActiveWeek}>
                   <Copy className="h-4 w-4" />
-                  Copy week {activeWeek + 1}
+                  {messages.coach.copyWeek(activeWeek + 1)}
                 </Button>
                 <Button
                   type="button"
@@ -1571,7 +1571,7 @@ export function ProgramEditor({
                   onClick={pasteCopiedWeekToActive}
                 >
                   <ClipboardPaste className="h-4 w-4" />
-                  {copiedWeekIndex === null ? "Paste week" : `Paste week ${copiedWeekIndex + 1} here`}
+                  {copiedWeekIndex === null ? messages.coach.pasteWeek : messages.coach.pasteWeekHere(copiedWeekIndex + 1)}
                 </Button>
                 <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled>
                   <Trash2 className="h-4 w-4" />

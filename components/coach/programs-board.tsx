@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
 import { CoachAIProgramAssistant } from "@/components/coach/coach-ai-program-assistant"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
@@ -91,6 +92,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [viewMode, setViewMode] = useState<"library" | "clients">("library")
   const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
   const [aiTraineeId, setAiTraineeId] = useState("")
+  const { messages } = useLocale()
   const includePersonalized = viewMode === "clients"
 
   const programsQuery = useCoachData(
@@ -337,15 +339,15 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     <section className="mb-5 rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="label-micro text-muted-foreground">AI program</p>
-          <h2 className="mt-2 text-xl font-semibold tracking-tight">Generate a client program</h2>
+          <p className="label-micro text-muted-foreground">{messages.coach.aiProgramEyebrow}</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight">{messages.coach.aiProgramTitle}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pick a client, generate a personalized draft, then review and assign it.
+            {messages.coach.aiProgramDescription}
           </p>
         </div>
         <Select value={selectedAITrainee?.id ?? ""} onValueChange={setAiTraineeId} disabled={trainees.length === 0}>
           <SelectTrigger className="w-full rounded-xl bg-background/70 lg:w-[280px]">
-            <SelectValue placeholder="Select a client" />
+            <SelectValue placeholder={messages.coach.aiProgramSelectClient} />
           </SelectTrigger>
           <SelectContent>
             {trainees.map((trainee) => (
@@ -366,7 +368,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         />
       ) : (
         <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-          Add a client before generating an AI program.
+          {messages.coach.aiProgramNoClients}
         </div>
       )}
     </section>
