@@ -13,6 +13,10 @@ UPDATE "RecoveryCheckIn"
 SET "stress" = ROUND(1 + (("stress" - 1) * 98.0 / 4.0))
 WHERE "stress" BETWEEN 1 AND 5;
 
+ALTER TABLE "RecoveryCheckIn"
+ADD CONSTRAINT "RecoveryCheckIn_stress_1_99_check"
+CHECK ("stress" IS NULL OR ("stress" BETWEEN 1 AND 99));
+
 -- CreateTable
 CREATE TABLE "HealthConnection" (
     "id" UUID NOT NULL,
