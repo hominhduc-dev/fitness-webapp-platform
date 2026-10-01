@@ -79,6 +79,11 @@ const raw = {
   GOOGLE_OAUTH_CLIENT_SECRET: clean(process.env.GOOGLE_OAUTH_CLIENT_SECRET),
   GOOGLE_OAUTH_REDIRECT_URI: clean(process.env.GOOGLE_OAUTH_REDIRECT_URI),
   GOOGLE_TOKEN_ENCRYPTION_KEY: clean(process.env.GOOGLE_TOKEN_ENCRYPTION_KEY),
+  HUAWEI_CLIENT_ID: clean(process.env.HUAWEI_CLIENT_ID),
+  HUAWEI_CLIENT_SECRET: clean(process.env.HUAWEI_CLIENT_SECRET),
+  HUAWEI_HEALTH_API_BASE: clean(process.env.HUAWEI_HEALTH_API_BASE),
+  HUAWEI_OAUTH_REDIRECT_URI: clean(process.env.HUAWEI_OAUTH_REDIRECT_URI),
+  HUAWEI_TOKEN_ENCRYPTION_KEY: clean(process.env.HUAWEI_TOKEN_ENCRYPTION_KEY),
   NODE_ENV: clean(process.env.NODE_ENV),
   NOTIFICATION_SCHEDULER_ENABLED: clean(process.env.NOTIFICATION_SCHEDULER_ENABLED),
   NOTIFICATION_SCHEDULER_INTERVAL_MS: clean(process.env.NOTIFICATION_SCHEDULER_INTERVAL_MS),
@@ -132,6 +137,11 @@ const envSchema = z.object({
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.url().optional(),
   GOOGLE_TOKEN_ENCRYPTION_KEY: z.string().optional(),
+  HUAWEI_CLIENT_ID: z.string().optional(),
+  HUAWEI_CLIENT_SECRET: z.string().optional(),
+  HUAWEI_HEALTH_API_BASE: z.url().default("https://health-api.cloud.huawei.com"),
+  HUAWEI_OAUTH_REDIRECT_URI: z.url().optional(),
+  HUAWEI_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   /** Scheduled reminders (open workout, weight log, morning check-in). Set to false on extra instances if desired; dedupe keys make running several safe. */
   NOTIFICATION_SCHEDULER_ENABLED: z
@@ -262,6 +272,13 @@ function loadEnv() {
     googleOauthClientSecret: parsed.GOOGLE_OAUTH_CLIENT_SECRET,
     googleOauthRedirectUri: parsed.GOOGLE_OAUTH_REDIRECT_URI,
     googleTokenEncryptionKey: parsed.GOOGLE_TOKEN_ENCRYPTION_KEY,
+    // Huawei Health Service Kit is optional. When these values are absent, the
+    // connected-app UI hides the integration instead of failing application boot.
+    huaweiClientId: parsed.HUAWEI_CLIENT_ID,
+    huaweiClientSecret: parsed.HUAWEI_CLIENT_SECRET,
+    huaweiHealthApiBase: parsed.HUAWEI_HEALTH_API_BASE,
+    huaweiOauthRedirectUri: parsed.HUAWEI_OAUTH_REDIRECT_URI,
+    huaweiTokenEncryptionKey: parsed.HUAWEI_TOKEN_ENCRYPTION_KEY,
     supabaseAnonKey: parsed.SUPABASE_ANON_KEY,
     supabaseServiceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY,
     supabaseUrl: parsed.SUPABASE_URL,
