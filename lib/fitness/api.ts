@@ -257,6 +257,72 @@ export async function authorizeGoogle(token: string) {
 export async function disconnectGoogle(token: string) {
   return request("/api/google/connection", token, { method: "DELETE" })
 }
+
+export type HuaweiConnectionStatus = {
+  configured: boolean
+  connected: boolean
+  lastSyncedAt: string | null
+  latestSummary: {
+    activeCalories: number | null
+    date: string
+    restingHeartRate: number | null
+    sleepMinutes: number | null
+    steps: number | null
+    stressAvg: number | null
+  } | null
+  scopes: string[]
+}
+
+export type HuaweiHealthSyncResult = {
+  daysRequested: number
+  lastSyncedAt: string
+  summariesSynced: number
+  workoutsSynced: number
+}
+
+export async function fetchHuaweiConnection(token: string) {
+  return (
+    await request<ApiEnvelope<HuaweiConnectionStatus>>(
+      "/api/integrations/huawei/connection",
+      token,
+      { cache: "no-store" },
+    )
+  ).data
+}
+
+export async function authorizeHuawei(token: string) {
+  return (
+    await request<ApiEnvelope<{ url: string }>>(
+      "/api/integrations/huawei/authorize",
+      token,
+      { credentials: "include", method: "POST" },
+    )
+  ).data
+}
+
+export async function syncHuaweiHealth(
+  token: string,
+  input?: { days?: number; timezoneOffset?: string },
+) {
+  return (
+    await request<ApiEnvelope<HuaweiHealthSyncResult>>(
+      "/api/integrations/huawei/sync",
+      token,
+      { body: JSON.stringify(input ?? {}), method: "POST" },
+    )
+  ).data
+}
+
+export async function disconnectHuawei(token: string) {
+  return (
+    await request<ApiEnvelope<{ connected: boolean }>>(
+      "/api/integrations/huawei/connection",
+      token,
+      { method: "DELETE" },
+    )
+  ).data
+}
+
 /** One Google Sheets file a log export wrote into. */
 export type SheetsExportFile = { created?: boolean; name: string; url: string; weeks?: number[] }
 export type SheetsExportResult = {

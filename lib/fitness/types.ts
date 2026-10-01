@@ -684,7 +684,9 @@ type RecoveryCheckIn = {
   readinessScore: number | null
   sleepMinutes: number | null
   sleepQuality: number | null
+  sleepSource: "huawei" | "manual" | null
   stress: number | null
+  stressSource: "huawei" | "manual" | null
 }
 
 type VolumeRecoveryMuscle = {

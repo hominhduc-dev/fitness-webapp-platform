@@ -40,13 +40,6 @@ const checkInOptionsEn = {
     { value: 4, label: "High", description: "Getting in the way of lifts" },
     { value: 5, label: "Severe", description: "Hard to train normally" },
   ] satisfies CheckInOption[],
-  stress: [
-    { value: 1, label: "Very low", description: "Calm and relaxed" },
-    { value: 2, label: "Low", description: "Mostly steady" },
-    { value: 3, label: "Moderate", description: "Some pressure" },
-    { value: 4, label: "High", description: "Noticeably stressed" },
-    { value: 5, label: "Very high", description: "Overwhelmed" },
-  ] satisfies CheckInOption[],
 }
 
 const checkInOptionsVi = {
@@ -70,13 +63,6 @@ const checkInOptionsVi = {
     { value: 3, label: "Đau vừa", description: "Cảm nhận rõ khi vận động" },
     { value: 4, label: "Đau nhiều", description: "Ảnh hưởng tới động tác" },
     { value: 5, label: "Đau dữ dội", description: "Khó tập bình thường" },
-  ] satisfies CheckInOption[],
-  stress: [
-    { value: 1, label: "Rất thấp", description: "Thoải mái, bình tĩnh" },
-    { value: 2, label: "Thấp", description: "Phần lớn ổn định" },
-    { value: 3, label: "Vừa", description: "Có chút áp lực" },
-    { value: 4, label: "Cao", description: "Căng thẳng rõ rệt" },
-    { value: 5, label: "Rất cao", description: "Quá tải" },
   ] satisfies CheckInOption[],
 }
 
@@ -170,7 +156,7 @@ export const volumeRecoveryMessages = {
       fatigueStepTitle: "How tired do you feel today?",
       fatigueStepHelp: "This answer weighs the most, so it cannot be skipped.",
       stressStepTitle: "How stressed do you feel?",
-      stressStepHelp: "Stress affects recovery as much as training does.",
+      stressStepHelp: "Rate stress from 1 (very low) to 99 (very high).",
       sorenessStepTitle: "Which muscles are sore?",
       sorenessStepHelp: "Tap the muscles that are sore. Nothing tapped means nothing is sore.",
       sorenessBodyMapLabel: "Body map: tap a muscle to mark it sore",
@@ -326,7 +312,7 @@ export const volumeRecoveryMessages = {
       fatigueStepTitle: "Hôm nay bạn thấy mệt thế nào?",
       fatigueStepHelp: "Câu này có trọng số cao nhất nên không thể bỏ qua.",
       stressStepTitle: "Bạn đang căng thẳng tới mức nào?",
-      stressStepHelp: "Căng thẳng ảnh hưởng tới phục hồi không kém gì buổi tập.",
+      stressStepHelp: "Chấm mức căng thẳng từ 1 (rất thấp) đến 99 (rất cao).",
       sorenessStepTitle: "Nhóm cơ nào đang đau mỏi?",
       sorenessStepHelp: "Chạm vào cơ đang đau. Không chạm gì nghĩa là không đau cơ nào.",
       sorenessBodyMapLabel: "Sơ đồ cơ thể: chạm vào cơ để đánh dấu đang đau",

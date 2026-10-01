@@ -174,7 +174,7 @@ export function CheckInSheet({
   onClose: () => void
   open: boolean
 }) {
-  const { messages } = useLocale()
+  const { locale, messages } = useLocale()
   const copy = messages.volumeRecovery
   const mutation = useUpsertRecoveryCheckIn()
   const [stepIndex, setStepIndex] = useState(0)
@@ -259,9 +259,17 @@ export function CheckInSheet({
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { icon: Moon, label: copy.sleep, value: saved.sleepMinutes == null ? "—" : `${Math.floor(saved.sleepMinutes / 60)}h ${saved.sleepMinutes % 60}m` },
+              {
+                icon: Moon,
+                label: saved.sleepSource === "huawei" ? `${copy.sleep} · Huawei` : copy.sleep,
+                value: saved.sleepMinutes == null ? "—" : `${Math.floor(saved.sleepMinutes / 60)}h ${saved.sleepMinutes % 60}m`,
+              },
               { icon: Activity, label: copy.fatigue, value: `${saved.fatigue}/5` },
-              { icon: Brain, label: copy.stress, value: saved.stress == null ? "—" : `${saved.stress}/5` },
+              {
+                icon: Brain,
+                label: saved.stressSource === "huawei" ? `${copy.stress} · Huawei` : copy.stress,
+                value: saved.stress == null ? "—" : `${saved.stress}/99`,
+              },
               { icon: Dumbbell, label: copy.soreness, value: sorenessSummary },
             ].map((item) => (
               <div key={item.label} className="rounded-md bg-surface-subtle p-3 text-left">
@@ -401,12 +409,42 @@ export function CheckInSheet({
         ) : null}
 
         {step === "stress" ? (
-          <OptionList
-            ariaLabel={copy.stressStepTitle}
-            options={copy.checkInOptions.stress}
-            value={stress}
-            onChange={setStress}
-          />
+          <div className="space-y-4 rounded-xl border border-border/70 bg-surface-subtle/35 p-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {locale === "vi" ? "Thấp" : "Low"} · 1
+                </p>
+                <p className="mt-1 font-mono text-3xl font-semibold tnum text-foreground">
+                  {stress ?? "—"}
+                  <span className="ml-1 text-sm font-medium text-muted-foreground">/99</span>
+                </p>
+              </div>
+              <p className="text-right text-xs text-muted-foreground">
+                99 · {locale === "vi" ? "Rất cao" : "Very high"}
+              </p>
+            </div>
+            <input
+              aria-label={copy.stressStepTitle}
+              aria-valuemax={99}
+              aria-valuemin={1}
+              aria-valuenow={stress ?? undefined}
+              className="h-2 w-full cursor-pointer accent-primary"
+              max={99}
+              min={1}
+              onChange={(event) => setStress(Number(event.target.value))}
+              step={1}
+              type="range"
+              value={stress ?? 50}
+            />
+            <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
+              <span>1</span>
+              <span>25</span>
+              <span>50</span>
+              <span>75</span>
+              <span>99</span>
+            </div>
+          </div>
         ) : null}
 
         {step === "soreness" ? (
@@ -464,7 +502,7 @@ export function VolumeRecoveryPanel() {
   const signals = [
     { icon: Moon, label: copy.sleep, value: checkIn?.sleepMinutes ? `${Math.floor(checkIn.sleepMinutes / 60)}h ${checkIn.sleepMinutes % 60}m` : "—" },
     { icon: Activity, label: copy.fatigue, value: checkIn ? `${checkIn.fatigue}/5` : "—" },
-    { icon: Brain, label: copy.stress, value: checkIn?.stress ? `${checkIn.stress}/5` : "—" },
+    { icon: Brain, label: copy.stress, value: checkIn?.stress ? `${checkIn.stress}/99` : "—" },
     { icon: Dumbbell, label: copy.soreness, value: checkIn?.muscles.length ? `${Math.max(...checkIn.muscles.map((muscle) => muscle.soreness))}/5` : "—" },
   ]
   const checkInLabel = checkIn ? copy.updateCheckIn : copy.checkIn

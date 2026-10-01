@@ -27,7 +27,7 @@ const recoveryCheckInSchema = z
     note: z.string().trim().max(1000).optional(),
     sleepMinutes: z.number().int().min(0).max(1440).optional(),
     sleepQuality: z.number().int().min(1).max(5).optional(),
-    stress: z.number().int().min(1).max(5).optional(),
+    stress: z.number().int().min(1).max(99).optional(),
   })
   .refine(
     (value) => new Set(value.muscles.map((muscle) => muscle.muscleSlug)).size === value.muscles.length,
