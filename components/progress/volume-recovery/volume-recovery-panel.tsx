@@ -259,9 +259,17 @@ export function CheckInSheet({
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { icon: Moon, label: copy.sleep, value: saved.sleepMinutes == null ? "—" : `${Math.floor(saved.sleepMinutes / 60)}h ${saved.sleepMinutes % 60}m` },
+              {
+                icon: Moon,
+                label: saved.sleepSource === "huawei" ? `${copy.sleep} · Huawei` : copy.sleep,
+                value: saved.sleepMinutes == null ? "—" : `${Math.floor(saved.sleepMinutes / 60)}h ${saved.sleepMinutes % 60}m`,
+              },
               { icon: Activity, label: copy.fatigue, value: `${saved.fatigue}/5` },
-              { icon: Brain, label: copy.stress, value: saved.stress == null ? "—" : `${saved.stress}/5` },
+              {
+                icon: Brain,
+                label: saved.stressSource === "huawei" ? `${copy.stress} · Huawei` : copy.stress,
+                value: saved.stress == null ? "—" : `${saved.stress}/5`,
+              },
               { icon: Dumbbell, label: copy.soreness, value: sorenessSummary },
             ].map((item) => (
               <div key={item.label} className="rounded-md bg-surface-subtle p-3 text-left">
