@@ -252,12 +252,13 @@ function readinessSoreness(muscles: ReadonlyArray<{ soreness: number }>) {
 function calculateReadiness(input: ReadinessInput) {
   const components: Array<{ score: number; weight: number }> = []
   const toFivePointScore = (value: number) => clamp(((value - 1) / 4) * 100, 0, 100)
+  const toNinetyNinePointScore = (value: number) => clamp(((value - 1) / 98) * 100, 0, 100)
 
   if (input.fatigue != null) components.push({ score: 100 - toFivePointScore(input.fatigue), weight: 35 })
   if (input.sleepQuality != null) components.push({ score: toFivePointScore(input.sleepQuality), weight: 20 })
   if (input.sleepMinutes != null) components.push({ score: scoreSleepDuration(input.sleepMinutes), weight: 15 })
   if (input.soreness != null) components.push({ score: 100 - clamp((input.soreness / 5) * 100, 0, 100), weight: 20 })
-  if (input.stress != null) components.push({ score: 100 - toFivePointScore(input.stress), weight: 10 })
+  if (input.stress != null) components.push({ score: 100 - toNinetyNinePointScore(input.stress), weight: 10 })
 
   const totalWeight = components.reduce((sum, component) => sum + component.weight, 0)
   if (totalWeight === 0) return null
