@@ -3,6 +3,7 @@ import type { SerializedProfile } from "../auth.service"
 import { AppError } from "../errors"
 import { addUtcDays, clientCalendarDay, clientDayStart, formatUtcDateOnly, startOfUtcWeek } from "../fitness-data/shared/dates"
 import { assertTrainee, ensurePrisma } from "../fitness-data/shared/guards"
+import { normalizeTrainingGoal, policyForTrainingGoal, type TrainingGoal, type TrainingGoalPolicy } from "../../domain/training-goal-policy"
 import {
   aggregateWeeklyMuscleVolume,
   buildMusclePerformanceTrend,
@@ -43,32 +44,10 @@ function normalizeStress99(score: number | null | undefined) {
 type ProgramRecoveryContext = {
   baselineWeekStart: Date
   duration: number
-  goal: string | null
+  goal: TrainingGoal | null
+  policy: TrainingGoalPolicy | null
   programId: string
   weekIndex: number
-}
-
-function normalizeProgramGoal(value: string | null | undefined, fallbackGoals: readonly string[]) {
-  const source = [value, ...fallbackGoals].find((goal) => typeof goal === "string" && goal.trim().length > 0)
-  const normalized = source?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? null
-  if (!normalized) return null
-  if (["build_muscle", "hypertrophy", "muscle_gain", "tang_co", "tăng_cơ"].includes(normalized)) return "hypertrophy"
-  if (["strength", "increase_strength", "tang_suc_manh", "tăng_sức_mạnh"].includes(normalized)) return "strength"
-  if (["endurance", "improve_endurance", "suc_ben", "sức_bền"].includes(normalized)) return "endurance"
-  return normalized
-}
-
-function rirTargetForProgram(goal: string | null, weekIndex: number, duration: number) {
-  if (goal !== "hypertrophy") return null
-  if (duration >= 5 && weekIndex >= duration - 1) return 5
-  if (weekIndex <= 0) return 4
-  if (weekIndex === 1) return 2
-  if (weekIndex === 2) return 1
-  return 0
-}
-
-function rpeFromRir(rir: number | null) {
-  return rir == null ? null : Math.max(5, Math.min(10, 10 - rir))
 }
 
 async function resolveProgramRecoveryContext(
@@ -99,11 +78,14 @@ async function resolveProgramRecoveryContext(
   const baselineWeekStart = startOfUtcWeek(anchorDate)
   const elapsedDays = Math.max(0, Math.floor((weekStart.getTime() - baselineWeekStart.getTime()) / (24 * 60 * 60 * 1000)))
   const weekIndex = Math.min(Math.max(0, Math.floor(elapsedDays / 7)), Math.max(0, program.duration - 1))
+  const duration = Math.max(1, Math.round(program.duration))
+  const goal = normalizeTrainingGoal(program.goal, profile.fitnessGoals ?? [])
 
   return {
     baselineWeekStart,
-    duration: Math.max(1, Math.round(program.duration)),
-    goal: normalizeProgramGoal(program.goal, profile.fitnessGoals ?? []),
+    duration,
+    goal,
+    policy: policyForTrainingGoal(goal, weekIndex, duration),
     programId: program.id,
     weekIndex,
   }
@@ -330,7 +312,7 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
       soreness,
       zone,
     })
-    const recommendation = programContext?.weekIndex === 0
+    const recommendation = programContext?.policy?.baselineWeek
       ? {
           ...computedRecommendation,
           action: "maintain" as const,
@@ -355,10 +337,6 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
 
   const averageRir = average(volume.flatMap((muscle) => (muscle.averageRir == null ? [] : [muscle.averageRir])))
   const performanceChangePct = average(Array.from(performanceByMuscle.values()))
-  const targetRir = programContext
-    ? rirTargetForProgram(programContext.goal, programContext.weekIndex, programContext.duration)
-    : null
-
   const worstSoreness = latestCheckIn && latestCheckIn.muscles.length > 0
     ? Math.max(...latestCheckIn.muscles.map((muscle) => muscle.soreness))
     : null
@@ -378,10 +356,12 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
           baselineWeekStart: formatUtcDateOnly(programContext.baselineWeekStart),
           goal: programContext.goal,
           hasBaseline: previousLogs.length > 0,
+          phase: programContext.policy?.phase ?? null,
           programId: programContext.programId,
           programWeekIndex: programContext.weekIndex,
-          targetRir,
-          targetRpe: rpeFromRir(targetRir),
+          targetRir: programContext.policy?.targetRir ?? null,
+          targetRpe: programContext.policy?.targetRpe ?? null,
+          analysisFocus: programContext.policy?.analysisFocus ?? [],
         }
       : null,
     readiness: {

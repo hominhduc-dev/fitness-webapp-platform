@@ -16,7 +16,7 @@ const program = {
   description: "",
   difficulty: "beginner",
   duration: 1,
-  goal: "build_muscle",
+  goal: "hypertrophy",
   id: "program-1",
   name: "Bulking",
   workouts: [
@@ -183,7 +183,7 @@ describe("program editor unsaved draft", () => {
   it("asks before restoring a draft edited before the program was saved again", () => {
     writeProgramDraft(storageKey, {
       form: {
-        description: "", difficulty: "beginner", duration: "1", programGoal: "build_muscle",
+        description: "", difficulty: "beginner", duration: "1", programGoal: "hypertrophy",
         programName: "Old draft name", routineLibrary: [], schedule: [[null, null, null, null, null, null, null]],
         selectedTraineeIds: [], startDate: "",
       },

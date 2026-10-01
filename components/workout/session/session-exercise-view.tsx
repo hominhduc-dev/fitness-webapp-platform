@@ -57,7 +57,7 @@ function getCoachUpdateMeta(type: CoachUpdate["type"]) {
 }
 
 /** "2 sets · 8–12 reps · RIR 2", from what the coach programmed for set one. */
-function useTargetSummary(exercise: WorkoutExercise, programSetTargets: Map<string, ProgramSetTarget>) {
+function useTargetSummary(exercise: WorkoutExercise, programSetTargets: ReadonlyMap<string, ProgramSetTarget>) {
   const { messages } = useLocale()
   const firstSet = exercise.sets[0]
   const target = firstSet ? programSetTargets.get(firstSet.id) : undefined
@@ -70,6 +70,7 @@ function useTargetSummary(exercise: WorkoutExercise, programSetTargets: Map<stri
     parts.push(messages.workoutPage.exerciseTargetReps(reps.replace("-", "–")))
   }
   if (target?.rir != null) parts.push(`RIR ${target.rir}`)
+  else if (target?.suggestedRir != null) parts.push(`RIR ~${target.suggestedRir}`)
   return parts.join(" · ")
 }
 
@@ -79,7 +80,7 @@ interface SessionExerciseViewProps {
   coachHint: CoachHint | null
   coachHintText: string | null
   onApplyCoachHint: (hint: CoachHint, exerciseId: string) => void
-  programSetTargets: Map<string, ProgramSetTarget>
+  programSetTargets: ReadonlyMap<string, ProgramSetTarget>
   weightUnit: "kg" | "lbs"
   noteOpen: boolean
   onSetUpdate: (setId: string, patch: Partial<ExerciseSet>) => void

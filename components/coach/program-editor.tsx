@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ClipboardPaste,
   Copy,
   Dumbbell,
   FileText,
@@ -17,6 +18,7 @@ import {
   Search,
   Target,
   Trash2,
+  Upload,
   UserPlus,
   X,
 } from "lucide-react"
@@ -87,11 +89,13 @@ import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft 
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { SessionSlotGrid, swapDaySlots, type SessionSlotView } from "@/components/coach/session-slot-grid"
 import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock"
+import { TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void
+  onImportProgram?: () => void
   onSaved?: (program: CoachProgram) => void
   programId?: string
 }
@@ -107,12 +111,7 @@ type BuilderMode =
   | { kind: "edit-library"; routineId: string }
 
 const DIFFICULTY_OPTIONS: Array<CoachProgram["difficulty"]> = ["beginner", "intermediate", "advanced"]
-const PROGRAM_GOAL_OPTIONS = [
-  { en: "Hypertrophy", value: "build_muscle", vi: "Tăng cơ" },
-  { en: "Strength", value: "strength", vi: "Sức mạnh" },
-  { en: "Endurance", value: "endurance", vi: "Sức bền" },
-  { en: "General", value: "general_fitness", vi: "Tổng hợp" },
-]
+const PROGRAM_GOAL_OPTIONS = TRAINING_GOAL_OPTIONS
 const ROUTINE_TAGS: RoutineTag[] = ["push", "pull", "legs", "upper", "lower", "full"]
 /** What the routine dialog opens with when it creates a new session. */
 const EMPTY_ROUTINE_DRAFT: RoutineDraftData = { exercises: [], name: "", tag: "push" }
@@ -531,6 +530,7 @@ export function ProgramEditor({
   initialExerciseOptions = [],
   initialTraineeOptions = [],
   onClose,
+  onImportProgram,
   onSaved,
   programId,
 }: ProgramEditorProps) {
@@ -550,7 +550,7 @@ export function ProgramEditor({
   const [duration, setDuration] = useState("8")
   const [durationDraft, setDurationDraft] = useState("8")
   const [difficulty, setDifficulty] = useState<CoachProgram["difficulty"]>("beginner")
-  const [programGoal, setProgramGoal] = useState("build_muscle")
+  const [programGoal, setProgramGoal] = useState("hypertrophy")
   const { data: traineeOptions = initialTraineeOptions } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTraineeOptions)
   // `/api/exercises` already lists every variation this coach can see; the
   // grouped `/library` response holds the same rows, so it is not fetched here.
@@ -570,6 +570,7 @@ export function ProgramEditor({
   const [routineLibrary, setRoutineLibrary] = useState<Routine[]>([])
   const [schedule, setSchedule] = useState<Schedule>(() => makeEmptySchedule(8))
   const [activeWeek, setActiveWeek] = useState(0)
+  const [copiedWeekIndex, setCopiedWeekIndex] = useState<number | null>(null)
   const [pickerSlot, setPickerSlot] = useState<PickerSlot | null>(null)
   const [builderMode, setBuilderMode] = useState<BuilderMode | null>(null)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
@@ -611,7 +612,7 @@ export function ProgramEditor({
           setDuration(String(nextWeeks))
           setDurationDraft(String(nextWeeks))
           setDifficulty(program.difficulty)
-          setProgramGoal(program.goal ?? "build_muscle")
+          setProgramGoal(program.goal ?? "hypertrophy")
           setSelectedTraineeIds(
             adjustForTraineeId
               ? [adjustForTraineeId]
@@ -819,6 +820,13 @@ export function ProgramEditor({
   }, [assignedTrainees, adjustForTraineeId, startDate, totalWeeks])
 
   const currentWeekIndex = currentWeekProgress?.kind === "active" ? currentWeekProgress.weekIndex : null
+  const isPastOrCurrentTrainingWeek = (weekIndex: number) =>
+    currentWeekProgress?.kind === "completed" || (currentWeekIndex !== null && weekIndex <= currentWeekIndex)
+  const canPasteCopiedWeek =
+    copiedWeekIndex !== null &&
+    copiedWeekIndex !== activeWeek &&
+    !isArchived &&
+    !isPastOrCurrentTrainingWeek(activeWeek)
 
   const filteredTrainees = useMemo(() => {
     const normalized = clientQuery.trim().toLowerCase()
@@ -944,8 +952,28 @@ export function ProgramEditor({
 
   const toggleRestForDay = (dayIndex: number) => toggleRestDay(activeWeek, dayIndex)
 
-  const copyActiveWeekToAll = () => {
+  const cloneWeekSlots = (sourceWeek: Schedule[number]) =>
+    sourceWeek.map((slot) =>
+      slot?.routine ? { routine: cloneRoutineForSlot(slot.routine) } : slot === null ? null : { routine: null },
+    )
+
+  const copyActiveWeek = () => {
     const sourceWeek = schedule[activeWeek]
+
+    if (!sourceWeek) {
+      return
+    }
+
+    setCopiedWeekIndex(activeWeek)
+    setNotice(messages.coach.copyWeekNotice(activeWeek + 1))
+  }
+
+  const pasteCopiedWeekToActive = () => {
+    if (!canPasteCopiedWeek || copiedWeekIndex === null) {
+      return
+    }
+
+    const sourceWeek = schedule[copiedWeekIndex]
 
     if (!sourceWeek) {
       return
@@ -953,12 +981,10 @@ export function ProgramEditor({
 
     setSchedule((current) =>
       current.map((week, weekIndex) =>
-        weekIndex === activeWeek
-          ? week
-          : sourceWeek.map((slot) => (slot?.routine ? { routine: cloneRoutineForSlot(slot.routine) } : slot === null ? null : { routine: null })),
+        weekIndex === activeWeek ? cloneWeekSlots(sourceWeek) : week,
       ),
     )
-    setNotice(messages.coach.copyWeekToAllNotice(activeWeek + 1))
+    setNotice(messages.coach.pasteWeekNotice(copiedWeekIndex + 1, activeWeek + 1))
   }
 
   const toggleTraineeAssignment = (traineeId: string, checked: boolean) => {
@@ -1202,7 +1228,7 @@ export function ProgramEditor({
               </p>
               <div className="md:flex md:items-baseline md:gap-3">
               <h1 className="mt-2 truncate text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-3xl md:mt-1 md:text-2xl">
-                {programId ? programName.trim() || messages.coach.untitledProgram : "Create Workout Program"}
+                {programId ? programName.trim() || messages.coach.untitledProgram : messages.coach.createWorkoutProgram}
               </h1>
               {currentWeekProgress ? (
                 <p className="mt-1 shrink-0 font-mono text-xs text-primary tnum md:mt-0">
@@ -1215,10 +1241,21 @@ export function ProgramEditor({
               ) : null}
               </div>
               <p className="mt-1.5 text-sm text-muted-foreground md:hidden">
-                Build a structured training program and assign it to your clients.
+                {messages.coach.programEditorDescription}
               </p>
             </div>
             <div className="hidden shrink-0 flex-wrap items-center gap-2 md:flex">
+              {!programId && onImportProgram ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl bg-transparent"
+                  onClick={onImportProgram}
+                >
+                  <Upload className="h-4 w-4" />
+                  {messages.coach.importProgram}
+                </Button>
+              ) : null}
               {programId && assignedTrainees.length > 0 && (
                 <ExportProgramLogsDialog
                   assignedTrainees={assignedTrainees}
@@ -1246,12 +1283,12 @@ export function ProgramEditor({
               </Button>
             </div>
             {onClose ? (
-              <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close editor">
+              <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label={messages.coach.closeEditor}>
                 <X className="h-4 w-4" />
               </Button>
             ) : (
               <Button variant="ghost" size="icon-sm" asChild>
-                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} aria-label="Close editor">
+                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} aria-label={messages.coach.closeEditor}>
                   <X className="h-4 w-4" />
                 </Link>
               </Button>
@@ -1349,7 +1386,7 @@ export function ProgramEditor({
                 </label>
                 <label className="space-y-0.5 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">
-                    {locale === "vi" ? "Mục tiêu" : "Goal"} <span className="text-destructive-text">*</span>
+                    {messages.coach.programGoalLabel} <span className="text-destructive-text">*</span>
                   </span>
                   <Select value={programGoal} onValueChange={setProgramGoal}>
                     <SelectTrigger className="h-9 w-full bg-background/65 md:h-10">
@@ -1409,6 +1446,12 @@ export function ProgramEditor({
 
           <div className={cn("mt-3 flex flex-wrap items-center gap-2 md:hidden", !isDetailsExpanded && "hidden")}>
             <div className="flex flex-wrap items-center gap-2">
+              {!programId && onImportProgram ? (
+                <Button type="button" variant="outline" className="bg-transparent" onClick={onImportProgram}>
+                  <Upload className="h-4 w-4" />
+                  {messages.coach.importProgram}
+                </Button>
+              ) : null}
               {programId && assignedTrainees.length > 0 && (
                 <ExportProgramLogsDialog
                   assignedTrainees={assignedTrainees}
@@ -1501,12 +1544,12 @@ export function ProgramEditor({
                 <span className="min-w-0">
                   <span
                     className="block text-base font-semibold text-foreground"
-                    title={`Drag and drop to rearrange workouts. You can copy week ${activeWeek + 1} to other weeks.`}
+                    title={`${messages.coach.dragToRearrangeHint} ${messages.coach.copyWeekHint}`}
                   >
-                    Weekly Structure
+                    {messages.coach.weeklyStructure}
                   </span>
                   <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">
-                    Drag and drop to rearrange workouts. You can copy week {activeWeek + 1} to other weeks.
+                    {messages.coach.copyWeekHint}
                   </span>
                 </span>
               </div>
@@ -1515,13 +1558,24 @@ export function ProgramEditor({
                 {weekPicker}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled={isArchived} onClick={copyActiveWeekToAll}>
+                <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled={isArchived} onClick={copyActiveWeek}>
                   <Copy className="h-4 w-4" />
-                  Copy week {activeWeek + 1} to all
+                  {messages.coach.copyWeek(activeWeek + 1)}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl bg-background/70"
+                  disabled={!canPasteCopiedWeek}
+                  title={isPastOrCurrentTrainingWeek(activeWeek) ? messages.coach.pasteWeekLocked : undefined}
+                  onClick={pasteCopiedWeekToActive}
+                >
+                  <ClipboardPaste className="h-4 w-4" />
+                  {copiedWeekIndex === null ? messages.coach.pasteWeek : messages.coach.pasteWeekHere(copiedWeekIndex + 1)}
                 </Button>
                 <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled>
                   <Trash2 className="h-4 w-4" />
-                  Clear all
+                  {messages.coach.clearAllWeek}
                 </Button>
               </div>
             </div>
@@ -1568,7 +1622,7 @@ export function ProgramEditor({
               onClick={() => void handleRestoreFromEditor()}
             >
               {isRestoring ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Restore
+              {messages.coach.restoreProgram}
             </Button>
           ) : (
             <Button type="button" className="w-full rounded-xl sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>

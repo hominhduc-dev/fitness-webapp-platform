@@ -240,55 +240,128 @@ async function CoachDashboardContent() {
               </div>
             </div>
 
-            {/* Recent logs */}
-            <div className="rounded-lg border border-border bg-card p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="label-micro text-muted-foreground">{coachMessages.recentLogs}</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.sessionsCompletedRecently}</h2>
+            <div className="grid gap-6 xl:grid-cols-2">
+              {/* Recent logs */}
+              <div className="rounded-lg border border-border bg-card p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="label-micro text-muted-foreground">{coachMessages.recentLogs}</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.sessionsCompletedRecently}</h2>
+                  </div>
+                  <Link href="/coach/trainees">
+                    <Button variant="outline" className="bg-transparent">
+                      {coachMessages.viewTrainees}
+                    </Button>
+                  </Link>
                 </div>
-                <Link href="/coach/trainees">
-                  <Button variant="outline" className="bg-transparent">
-                    {coachMessages.viewTrainees}
-                  </Button>
-                </Link>
+
+                <div className="mt-5 space-y-2">
+                  {dashboard.recentWorkoutLogs.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                      {coachMessages.noRecentWorkoutLogs}
+                    </div>
+                  ) : (
+                    dashboard.recentWorkoutLogs.map((log) => (
+                      <Link
+                        key={log.id}
+                        href={`/coach/trainees/${log.trainee.id}`}
+                        className="block rounded-lg border border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/25 hover:bg-muted/40"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-semibold">{log.workout.name}</p>
+                              {log.commentCount > 0 ? (
+                                <span className="label-micro rounded-full bg-primary-soft px-2 py-0.5 text-primary">
+                                  {coachMessages.feedbackCount(log.commentCount)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
+                              {log.trainee.name} · {formatDateTime(log.startedAt, locale)}
+                            </p>
+                          </div>
+                          <div className="font-mono text-xs text-muted-foreground tnum sm:text-right">
+                            <p>{log.totalVolume?.toLocaleString() ?? 0} kg</p>
+                            <p>{log.completedAt ? formatDate(log.completedAt, locale) : coachMessages.inProgress}</p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))
+                  )}
+                </div>
               </div>
 
-              <div className="mt-5 space-y-2">
-                {dashboard.recentWorkoutLogs.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                    {coachMessages.noRecentWorkoutLogs}
+              {/* All trainees table */}
+              <section className="rounded-lg border border-border bg-card p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="label-micro text-muted-foreground">{coachMessages.allTrainees}</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.progressOverview}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {coachMessages.traineesOverviewCopy}
+                    </p>
                   </div>
-                ) : (
-                  dashboard.recentWorkoutLogs.map((log) => (
-                    <Link
-                      key={log.id}
-                      href={`/coach/trainees/${log.trainee.id}`}
-                      className="block rounded-lg border border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/25 hover:bg-muted/40"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold">{log.workout.name}</p>
-                            {log.commentCount > 0 ? (
-                              <span className="label-micro rounded-full bg-primary-soft px-2 py-0.5 text-primary">
-                                {coachMessages.feedbackCount(log.commentCount)}
-                              </span>
-                            ) : null}
+                  <Link href="/coach/trainees" className="shrink-0">
+                    <Button variant="outline" className="bg-transparent">
+                      {coachMessages.openFullList}
+                    </Button>
+                  </Link>
+                </div>
+
+                <div className="mt-5 space-y-2">
+                  {dashboard.trainees.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                      {coachMessages.noTraineesAssignedToCoach}
+                    </div>
+                  ) : (
+                    dashboard.trainees.map((trainee) => (
+                      <div
+                        key={trainee.id}
+                        className="grid gap-3 rounded-lg border border-border bg-card px-4 py-3.5 lg:grid-cols-[minmax(0,1fr)_86px_86px] xl:grid-cols-[minmax(0,1fr)_82px_82px]"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar className="h-9 w-9 border border-border">
+                            <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
+                              {getInitials(trainee.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">{trainee.name}</p>
+                            <p className="truncate font-mono text-xs text-muted-foreground">{trainee.email}</p>
                           </div>
-                          <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
-                            {log.trainee.name} · {formatDateTime(log.startedAt, locale)}
+                        </div>
+
+                        <div>
+                          <p className="label-micro text-muted-foreground">{coachMessages.thisWeek}</p>
+                          <p className="mt-1 font-mono text-lg font-semibold tnum">
+                            {trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0}
                           </p>
                         </div>
-                        <div className="font-mono text-xs text-muted-foreground tnum sm:text-right">
-                          <p>{log.totalVolume?.toLocaleString() ?? 0} kg</p>
-                          <p>{log.completedAt ? formatDate(log.completedAt, locale) : coachMessages.inProgress}</p>
+
+                        <div>
+                          <p className="label-micro text-muted-foreground">{coachMessages.completion}</p>
+                          <p className="mt-1 font-mono text-lg font-semibold tnum">
+                            {formatPercent(trainee.completionRate ?? 0)}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2 lg:col-span-3 xl:col-span-3">
+                          <Link href={`/coach/trainees/${trainee.id}`} className="flex-1">
+                            <Button variant="outline" className="w-full bg-transparent">
+                              {coachMessages.open}
+                            </Button>
+                          </Link>
+                          <Link href={getAdjustHref(trainee)} className="flex-1">
+                            <Button className="w-full">{coachMessages.adjustPlan}</Button>
+                          </Link>
                         </div>
                       </div>
-                    </Link>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              </section>
             </div>
           </div>
 
@@ -384,76 +457,6 @@ async function CoachDashboardContent() {
           </div>
         </section>
 
-        {/* All trainees table */}
-        <section className="rounded-lg border border-border bg-card p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="label-micro text-muted-foreground">{coachMessages.allTrainees}</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.progressOverview}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {coachMessages.traineesOverviewCopy}
-              </p>
-            </div>
-            <Link href="/coach/trainees">
-              <Button variant="outline" className="bg-transparent">
-                {coachMessages.openFullList}
-              </Button>
-            </Link>
-          </div>
-
-          <div className="mt-5 space-y-2">
-            {dashboard.trainees.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                {coachMessages.noTraineesAssignedToCoach}
-              </div>
-            ) : (
-              dashboard.trainees.map((trainee) => (
-                <div
-                  key={trainee.id}
-                  className="grid gap-4 rounded-lg border border-border bg-card px-4 py-3.5 lg:grid-cols-[minmax(0,1.2fr)_200px_160px_220px]"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Avatar className="h-9 w-9 border border-border">
-                      <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                      <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
-                        {getInitials(trainee.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{trainee.name}</p>
-                      <p className="truncate font-mono text-xs text-muted-foreground">{trainee.email}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="label-micro text-muted-foreground">{coachMessages.thisWeek}</p>
-                    <p className="mt-1 font-mono text-lg font-semibold tnum">
-                      {trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="label-micro text-muted-foreground">{coachMessages.completion}</p>
-                    <p className="mt-1 font-mono text-lg font-semibold tnum">
-                      {formatPercent(trainee.completionRate ?? 0)}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 lg:justify-end">
-                    <Link href={`/coach/trainees/${trainee.id}`} className="flex-1 lg:flex-none">
-                      <Button variant="outline" className="w-full bg-transparent">
-                        {coachMessages.open}
-                      </Button>
-                    </Link>
-                    <Link href={getAdjustHref(trainee)} className="flex-1 lg:flex-none">
-                      <Button className="w-full">{coachMessages.adjustPlan}</Button>
-                    </Link>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
       </div>
     </div>
   )

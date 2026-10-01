@@ -10,13 +10,16 @@ import { useQueryClient } from "@tanstack/react-query"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { useAuth } from "@/components/providers/auth-provider"
+import { useLocale } from "@/components/providers/locale-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
+import { CoachAIProgramAssistant } from "@/components/coach/coach-ai-program-assistant"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
 import { ProgramViewerDialog } from "@/components/coach/program-viewer-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   archiveCoachProgram,
@@ -34,7 +37,7 @@ import type {
   CreateCoachProgramInput,
   ExerciseVariationOption,
 } from "@/lib/fitness/types"
-import { ChevronDown, ChevronRight, Loader2, Plus, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react"
 
 function isoDate(value?: Date) {
   if (!value) return undefined
@@ -88,6 +91,8 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [showArchived, setShowArchived] = useState(false)
   const [viewMode, setViewMode] = useState<"library" | "clients">("library")
   const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
+  const [aiTraineeId, setAiTraineeId] = useState("")
+  const { messages } = useLocale()
   const includePersonalized = viewMode === "clients"
 
   const programsQuery = useCoachData(
@@ -99,6 +104,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const setPrograms = programsQuery.setData
   const traineesQuery = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
   const trainees = traineesQuery.data ?? []
+  const selectedAITrainee = trainees.find((trainee) => trainee.id === aiTraineeId) ?? trainees[0]
   // The 4k+ exercise catalogue is only needed by the import dialog. Program
   // cards and assignment actions should not pay that cost during initial load.
   const importExercisesQuery = useExercises(undefined, undefined, importOpen)
@@ -235,6 +241,11 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     setPrograms((prev) => [program, ...prev.filter((item) => item.id !== program.id)])
   }
 
+  const handleAIProgramAccepted = () => {
+    void programsQuery.refetch()
+    void traineesQuery.refetch()
+  }
+
   const toggleClientPrograms = (traineeId: string) => {
     setExpandedClientIds((current) => {
       const next = new Set(current)
@@ -273,12 +284,20 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         initialTraineeOptions={trainees}
         programId={editorTarget === "new" ? undefined : editorTarget}
         onClose={() => setEditorTarget(null)}
+        onImportProgram={
+          editorTarget === "new"
+            ? () => {
+                setEditorTarget(null)
+                setImportOpen(true)
+              }
+            : undefined
+        }
         onSaved={handleEditorSaved}
       />
     )
 
   const header = (
-    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-end">
+    <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-end">
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center" data-tour="coach-program-actions">
         <div className="grid grid-cols-2 rounded-xl border-2 border-primary/40 bg-muted/40 p-1 shadow-sm" data-tour="coach-program-tabs">
           <Button
@@ -306,15 +325,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         </label>
         <Button
           type="button"
-          variant="outline"
-          className="w-full gap-2 bg-transparent sm:w-auto"
-          onClick={() => setImportOpen(true)}
-        >
-          <Upload className="h-4 w-4" />
-          Import program
-        </Button>
-        <Button
-          type="button"
           className="w-full gap-2 sm:w-auto"
           onClick={() => setEditorTarget("new")}
         >
@@ -323,6 +333,45 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         </Button>
       </div>
     </div>
+  )
+
+  const aiProgramPanel = (
+    <section className="mb-5 rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="label-micro text-muted-foreground">{messages.coach.aiProgramEyebrow}</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight">{messages.coach.aiProgramTitle}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {messages.coach.aiProgramDescription}
+          </p>
+        </div>
+        <Select value={selectedAITrainee?.id ?? ""} onValueChange={setAiTraineeId} disabled={trainees.length === 0}>
+          <SelectTrigger className="w-full rounded-xl bg-background/70 lg:w-[280px]">
+            <SelectValue placeholder={messages.coach.aiProgramSelectClient} />
+          </SelectTrigger>
+          <SelectContent>
+            {trainees.map((trainee) => (
+              <SelectItem key={trainee.id} value={trainee.id}>
+                {trainee.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {selectedAITrainee ? (
+        <CoachAIProgramAssistant
+          key={selectedAITrainee.id}
+          onAccepted={handleAIProgramAccepted}
+          traineeId={selectedAITrainee.id}
+          traineeName={selectedAITrainee.name}
+        />
+      ) : (
+        <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          {messages.coach.aiProgramNoClients}
+        </div>
+      )}
+    </section>
   )
 
   if (programsQuery.isPending) {
@@ -355,6 +404,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     return (
       <>
         {header}
+        {aiProgramPanel}
         <div className="rounded-lg border border-dashed border-border py-12 text-center">
           <h3 className="mb-2 text-lg font-semibold">No programs yet</h3>
           <p className="mb-4 text-sm text-muted-foreground">
@@ -383,6 +433,8 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       {error ? (
         <div className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{error}</div>
       ) : null}
+
+      {aiProgramPanel}
 
       {viewMode === "library" ? (
         <div

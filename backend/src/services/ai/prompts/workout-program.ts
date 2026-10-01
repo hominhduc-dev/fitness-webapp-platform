@@ -19,6 +19,7 @@ import {
   PROMPT_VERSION,
   SAFETY_RULES,
   traineeInput,
+  TRAINING_GOAL_RULES,
   WORKOUT_RULES,
   type ExerciseCatalogIndex,
 } from "./shared"
@@ -71,6 +72,7 @@ export function buildProgramPrompt(input: ProgramPromptInput) {
 
 QUY TẮC BẮT BUỘC
 ${WORKOUT_RULES}
+${TRAINING_GOAL_RULES}
 - Chỉ tạo lịch cho tuần đầu tiên: mọi workout phải có weekIndex = 0. Backend sẽ sinh các tuần sau.
 - Số buổi phải đúng bằng số buổi/tuần được yêu cầu, và mỗi buổi một scheduledDay KHÁC nhau. Không hai buổi cùng ngày.
 - Xếp các ngày tập cách nhau hợp lý; không dồn hai buổi cùng nhóm cơ vào hai ngày liền kề.

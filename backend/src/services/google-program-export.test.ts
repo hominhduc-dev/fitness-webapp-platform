@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SerializedProfile } from "./auth.service"
+import { ExternalServiceError } from "./errors"
 
-const mocks = vi.hoisted(() => ({ logs: vi.fn(), conflictLogs: vi.fn(), programs: vi.fn(), users: vi.fn(), batch: vi.fn(), values: vi.fn(), workouts: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  batch: vi.fn(),
+  conflictLogs: vi.fn(),
+  createTemplate: vi.fn(),
+  logs: vi.fn(),
+  programs: vi.fn(),
+  updatePrograms: vi.fn(),
+  users: vi.fn(),
+  values: vi.fn(),
+  workouts: vi.fn(),
+}))
 vi.mock("./fitness-data/shared/guards", () => ({
   assertCoach: vi.fn(),
   assertCoachOwnsTrainee: vi.fn(),
   ensurePrisma: () => ({
-    program: { findMany: mocks.programs },
+    program: { findMany: mocks.programs, updateMany: mocks.updatePrograms },
     user: { findMany: mocks.users },
     workout: { findMany: mocks.workouts },
     // The trainee's own logs (to export) and the conflict check's distinct
@@ -23,6 +34,7 @@ vi.mock("../lib/google", () => ({
   fetchSheetValues: mocks.values,
   fetchSpreadsheetMeta: vi.fn().mockResolvedValue({ sheetProperties: [{ sheetId: 1, title: "Week 1", gridProperties: { rowCount: 50 } }, { sheetId: 2, title: "Exercise Table" }] }),
 }))
+vi.mock("./google-program-template.service", () => ({ createProgramTemplateSpreadsheet: mocks.createTemplate }))
 import { ensurePrisma } from "./fitness-data/shared/guards"
 import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "./google-program-export.service"
 
@@ -46,9 +58,11 @@ const benchWorkout = (overrides: { scheduledDay?: number } = {}) => ({
 describe("Google export batch across weeks", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.programs.mockResolvedValueOnce([{ id: "program", googleSpreadsheetId: "spreadsheet", googleSheetName: "Week 1" }]).mockResolvedValueOnce([{ id: "program", assignments: [{ userId: "trainee" }] }])
+    mocks.programs.mockResolvedValueOnce([{ id: "program", name: "Push Block", googleSpreadsheetId: "spreadsheet", googleSheetName: "Week 1" }]).mockResolvedValueOnce([{ id: "program", assignments: [{ userId: "trainee" }] }])
     mocks.conflictLogs.mockResolvedValue([])
     mocks.users.mockResolvedValue([])
+    mocks.createTemplate.mockResolvedValue({ spreadsheetId: "replacement-sheet", spreadsheetUrl: "https://docs.google.com/spreadsheets/d/replacement-sheet/edit" })
+    mocks.updatePrograms.mockResolvedValue({ count: 1 })
     mocks.values.mockResolvedValue([["Week 1"], headers, ["1", "Chest", "Bench", "Default", "v1", "7", "10"]])
     mocks.workouts.mockResolvedValue([benchWorkout()])
     mocks.logs.mockResolvedValue([0, 1, 2].map(week => ({ programId: "program", workoutSnapshot: { weekIndex: week, scheduledDay: 1 }, exerciseSnapshot: [{ order: 1, variation: { id: "v1" }, sets: [{ setNumber: week === 0 ? 7 : 6, completed: true, actualReps: 10, weight: 35 }] }] })))
@@ -75,6 +89,27 @@ describe("Google export batch across weeks", () => {
     expect(writes[plan]?.rows?.[0]?.values?.[1]?.userEnteredValue?.stringValue).toBe("Bench")
     expect(writes[results]?.rows?.[0]?.values?.[0]?.userEnteredValue?.stringValue).toBe("Old Bench / Default")
     expect(plan).toBeLessThan(results)
+  })
+  it("creates and remembers a replacement spreadsheet when the linked sheet is gone", async () => {
+    mocks.batch
+      .mockRejectedValueOnce(new ExternalServiceError("Google trả về lỗi 404.", {
+        code: "GOOGLE_REQUEST_FAILED",
+        details: { label: "spreadsheet_write", status: 404 },
+      }))
+      .mockResolvedValueOnce({})
+
+    const result = await exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])
+
+    expect(result).toMatchObject({ recreatedSpreadsheet: true, spreadsheetUrl: "https://docs.google.com/spreadsheets/d/replacement-sheet/edit" })
+    expect(mocks.createTemplate).toHaveBeenCalledWith("test-token", expect.objectContaining({
+      referenceRows: expect.arrayContaining([expect.arrayContaining(["v1"])]),
+      title: "Push Block — replacement",
+    }))
+    expect(mocks.batch.mock.calls[1][1]).toBe("replacement-sheet")
+    expect(mocks.updatePrograms).toHaveBeenCalledWith({
+      data: { googleSheetName: "Week 1", googleSpreadsheetId: "replacement-sheet" },
+      where: { createdById: "coach", googleSpreadsheetId: "spreadsheet", id: { in: ["program"] } },
+    })
   })
   it("sends no writes or duplicates when a week's plan has a day the sheet cannot hold", async () => {
     mocks.workouts.mockResolvedValue([benchWorkout(), benchWorkout({ scheduledDay: 5 })])

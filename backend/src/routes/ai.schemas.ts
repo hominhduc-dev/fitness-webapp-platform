@@ -12,7 +12,18 @@ import { dateSchema } from "../lib/ai/output-schemas"
 const isoDate = dateSchema
 const equipment = z.enum(["full_gym", "home_dumbbells", "bodyweight"])
 const experience = z.enum(["beginner", "intermediate", "advanced"])
-const goal = z.enum(["build_muscle", "lose_weight", "strength", "endurance", "general_fitness"])
+const goal = z.enum([
+  "build_muscle",
+  "hypertrophy",
+  "strength",
+  "powerbuilding",
+  "lose_weight",
+  "fat_loss",
+  "endurance",
+  "general_fitness",
+  "athletic_performance",
+  "rehab_corrective",
+])
 const inputInt = (min: number, max: number) => z.union([z.number(), z.string().regex(/^\d+$/).transform(Number)]).pipe(z.number().int().min(min).max(max))
 const freeText = z.string().trim().max(500)
 const focusAreas = z.array(z.string().trim().min(1).max(60)).max(10).optional()

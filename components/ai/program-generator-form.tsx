@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { ChoiceCard, ChoiceRow, MoreOptions, SingleChoice } from "@/components/ai/choice-controls"
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/components/providers/locale-provider"
+import { TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type FormValues = {
   goal: string
@@ -18,13 +19,7 @@ type FormValues = {
   durationWeeks: number
 }
 
-const GOALS = [
-  { value: "build_muscle", en: "Build muscle", vi: "Tăng cơ" },
-  { value: "lose_weight", en: "Lose weight", vi: "Giảm cân" },
-  { value: "strength", en: "Strength", vi: "Sức mạnh" },
-  { value: "endurance", en: "Endurance", vi: "Sức bền" },
-  { value: "general_fitness", en: "General", vi: "Tổng hợp" },
-] as const
+const GOALS = TRAINING_GOAL_OPTIONS
 
 const LEVELS = [
   { value: "beginner", en: "Beginner", vi: "Mới tập", descEn: "Under 6 months", descVi: "Dưới 6 tháng tập" },
@@ -64,7 +59,7 @@ function ProgramGeneratorForm({
     : ["Analyzing your goal and experience...", "Building a suitable schedule...", "Balancing muscle groups and volume...", "Checking limitations and finalizing..."]
   const [loadingStage, setLoadingStage] = useState(0)
   const [values, setValues] = useState<FormValues>({
-    goal: "build_muscle",
+    goal: "hypertrophy",
     experienceLevel: "intermediate",
     daysPerWeek: 4,
     sessionDuration: 60,

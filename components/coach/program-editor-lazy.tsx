@@ -10,6 +10,7 @@ type ProgramEditorLazyProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void
+  onImportProgram?: () => void
   onSaved?: (program: CoachProgram) => void
   programId?: string
 }

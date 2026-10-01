@@ -19,6 +19,7 @@ import {
   PROMPT_VERSION,
   SAFETY_RULES,
   traineeInput,
+  TRAINING_GOAL_RULES,
   WORKOUT_RULES,
   type ExerciseCatalogIndex,
 } from "./shared"
@@ -61,6 +62,7 @@ export function buildDailyWorkoutPrompt(input: DailyWorkoutPromptInput) {
 
 QUY TẮC BẮT BUỘC
 ${WORKOUT_RULES}
+${TRAINING_GOAL_RULES}
 - Điều chỉnh volume theo trình độ, thời lượng và mức năng lượng hôm nay. Năng lượng thấp: giảm số set và chọn bài ít gây mệt mỏi toàn thân, không đổi sang buổi dài hơn.
 - Chọn kind sao cho không lặp lại nhóm cơ đã tập trong 2 ngày gần nhất (nếu có dữ liệu).
 - Đặt bài compound trước bài isolation.

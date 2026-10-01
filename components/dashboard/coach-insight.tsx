@@ -49,32 +49,34 @@ export function CoachInsightCard() {
     copy.muscleLabels[insight.muscleSlug as keyof typeof copy.muscleLabels] ?? insight.muscleSlug,
   )
 
-  // Two rows: the label with a dismiss ✕, then the advice beside Apply — so the
-  // advice keeps nearly the full width and wraps to two lines at most on a phone.
   return (
-    <section className="rounded-2xl border border-primary/20 bg-primary-soft px-3 py-2.5 md:px-4">
-      <div className="flex items-center gap-1.5">
-        <Sparkles className="size-4 shrink-0 text-primary" aria-hidden="true" />
-        <p className="label-micro min-w-0 flex-1 truncate text-primary">{copy.coachInsight}</p>
+    <section className="rounded-2xl border border-primary/20 bg-primary-soft p-3 md:p-4">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Sparkles className="size-3.5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="label-micro truncate text-primary">{copy.coachInsight}</p>
+          <p className="mt-1 text-sm leading-5 text-foreground">{message}</p>
+        </div>
         <button
           type="button"
           aria-label={copy.dismiss}
           title={copy.dismiss}
           disabled={answerRecommendation.isPending}
           onClick={() => answer("dismissed")}
-          // A 44px target on touch, pulled back into the row so it stays short.
-          className="-my-1.5 -mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground disabled:opacity-50 pointer-coarse:-my-2.5 pointer-coarse:-mr-2.5 pointer-coarse:size-11"
+          className="-mt-1 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground disabled:opacity-50 pointer-coarse:-mt-2 pointer-coarse:-mr-2 pointer-coarse:size-11"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
       </div>
-      <div className="mt-1 flex items-center gap-3">
-        <p className="min-w-0 flex-1 text-sm leading-5 text-foreground">{message}</p>
+      <div className="mt-2 flex justify-end">
         <Button
           type="button"
           disabled={answerRecommendation.isPending}
           onClick={() => answer("accepted")}
-          className="h-9 shrink-0 rounded-xl px-3.5"
+          size="sm"
+          className="h-8 rounded-xl px-3.5"
         >
           {copy.accept}
         </Button>

@@ -8,6 +8,7 @@ import {
 } from "@/components/coach/program-import-rows"
 import { INTENSITY_METHOD_CHOICES, parseSetIntensityMethodCell } from "@/lib/workout/intensity-tag"
 import { parseRepTargetText } from "@/lib/workout-reps"
+import { normalizeTrainingGoal } from "@/lib/training-goals"
 
 type RawCell = string | number | boolean | null | undefined
 
@@ -46,21 +47,6 @@ const DIFFICULTY_MAP = new Map<string, CreateCoachProgramInput["difficulty"]>([
   ["advanced", "advanced"],
   ["beginner", "beginner"],
   ["intermediate", "intermediate"],
-])
-
-const GOAL_MAP = new Map<string, string>([
-  ["buildmuscle", "build_muscle"],
-  ["hypertrophy", "build_muscle"],
-  ["muscle", "build_muscle"],
-  ["musclegain", "build_muscle"],
-  ["tangco", "build_muscle"],
-  ["strength", "strength"],
-  ["sucmanh", "strength"],
-  ["endurance", "endurance"],
-  ["sucben", "endurance"],
-  ["general", "general_fitness"],
-  ["generalfitness", "general_fitness"],
-  ["tonghop", "general_fitness"],
 ])
 
 const DAY_ALIASES: Array<[number, string[]]> = [
@@ -323,10 +309,10 @@ function parseProgramSheet(
   }
 
   if (rawValues.goal) {
-    const goal = GOAL_MAP.get(normalizeLookup(rawValues.goal))
+    const goal = normalizeTrainingGoal(rawValues.goal)
 
     if (!goal) {
-      throw new Error("Giá trị goal trong sheet Program phải là build_muscle, strength, endurance hoặc general_fitness.")
+      throw new Error("Giá trị goal trong sheet Program phải là hypertrophy, strength, powerbuilding, fat_loss, endurance, general_fitness, athletic_performance hoặc rehab_corrective.")
     }
 
     draft.goal = goal

@@ -27,6 +27,7 @@ import { getOptionalBrowserSupabaseClient } from "@/lib/supabase/client"
 import { getAppBaseUrl, getSupabasePublicConfigError } from "@/lib/supabase/config"
 import { trackRegistrationEvent } from "@/lib/analytics/registration"
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile"
+import { cn } from "@/lib/utils"
 
 interface AuthModalProps {
   defaultTab?: "login" | "register"
@@ -81,6 +82,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
   const [registerEmail, setRegisterEmail] = useState("")
   const [registerPassword, setRegisterPassword] = useState("")
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("")
+  const [registerRole, setRegisterRole] = useState<Exclude<AppRole, "admin">>("trainee")
   const [acceptTerms, setAcceptTerms] = useState(false)
   const finalRedirectPath = sanitizeRedirectPath(redirectToPath)
 
@@ -222,7 +224,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     event.preventDefault()
     setError(null)
     setSuccess(null)
-    trackRegistrationEvent("form_submit", { method: "email", role: "trainee" })
+    trackRegistrationEvent("form_submit", { method: "email", role: registerRole })
 
     if (!isSupabaseConfigured) {
       setError(supabaseConfigError ?? messages.auth.supabaseNotConfigured)
@@ -230,13 +232,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     }
 
     if (registerPassword.length < 6) {
-      trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
+      trackRegistrationEvent("form_error", { method: "email", role: registerRole })
       setError(messages.auth.passwordTooShort)
       return
     }
 
     if (registerPassword !== registerConfirmPassword) {
-      trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
+      trackRegistrationEvent("form_error", { method: "email", role: registerRole })
       setError(messages.auth.passwordMismatch)
       return
     }
@@ -251,15 +253,22 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
         name: registerName,
         password: registerPassword,
         redirectTo: createCallbackRedirect(finalRedirectPath),
-        role: "trainee",
+        role: registerRole,
       })
       accountCreated = true
 
       trackRegistrationEvent("sign_up", {
         method: "email",
         email_confirmation_required: Boolean(response.requiresEmailConfirmation || !response.session),
-        role: "trainee",
+        role: registerRole,
       })
+
+      if (response.requiresApproval) {
+        setSuccess(response.message ?? messages.auth.coachSignupPendingCopy)
+        setRegisterPassword("")
+        setRegisterConfirmPassword("")
+        return
+      }
 
       if (response.requiresEmailConfirmation || !response.session) {
         setSuccess(response.message ?? messages.auth.registerPending)
@@ -273,7 +282,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       await finalizeAuthentication(response.profile?.role, response.session)
     } catch (rawError) {
       if (!accountCreated) {
-        trackRegistrationEvent("form_error", { method: "email", role: "trainee" })
+        trackRegistrationEvent("form_error", { method: "email", role: registerRole })
       }
       const message =
         rawError instanceof ApiError || rawError instanceof Error
@@ -337,19 +346,24 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
 
     setOauthLoadingProvider(provider)
     if (activeTab === "register") {
-      trackRegistrationEvent("form_submit", { method: provider })
+      trackRegistrationEvent("form_submit", { method: provider, role: registerRole })
+    }
+
+    const redirectTo = new URL(createCallbackRedirect(finalRedirectPath))
+    if (activeTab === "register" && registerRole === "coach") {
+      redirectTo.searchParams.set("role", "coach")
     }
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       options: {
-        redirectTo: createCallbackRedirect(finalRedirectPath),
+        redirectTo: redirectTo.toString(),
       },
       provider,
     })
 
     if (oauthError) {
       if (activeTab === "register") {
-        trackRegistrationEvent("form_error", { method: provider })
+        trackRegistrationEvent("form_error", { method: provider, role: registerRole })
       }
       setError(oauthError.message)
       setOauthLoadingProvider(null)
@@ -375,6 +389,28 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
       {label}
     </Button>
   )
+
+  const renderRegisterRoleButton = (role: Exclude<AppRole, "admin">, label: string) => {
+    const selected = registerRole === role
+
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        aria-pressed={selected}
+        onClick={() => setRegisterRole(role)}
+        className={cn(
+          "relative h-12 justify-center bg-card text-sm font-semibold transition-colors sm:h-11",
+          selected
+            ? "border-primary bg-primary-soft text-primary hover:bg-primary-soft"
+            : "border-border text-muted-foreground hover:border-primary/40 hover:bg-card/80 hover:text-foreground",
+        )}
+      >
+        {label}
+        {selected ? <CheckCircle className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" /> : null}
+      </Button>
+    )
+  }
 
   const renderAuthContent = () => (
     <>
@@ -610,6 +646,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
               </div>
             </div>
 
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-sm">{messages.auth.registerRoleLabel}</Label>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3" role="group" aria-label={messages.auth.registerRoleLabel}>
+                {renderRegisterRoleButton("coach", messages.auth.registerAsCoach)}
+                {renderRegisterRoleButton("trainee", messages.auth.registerAsClient)}
+              </div>
+            </div>
+
             <div className="flex items-start space-x-2">
               <Checkbox
                 id="terms"
@@ -682,7 +726,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", redirectTo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="auth-floating-panel !bottom-[calc(0.75rem+env(safe-area-inset-bottom))] !left-3 !right-3 !top-auto !flex !h-[min(640px,calc(100dvh-env(safe-area-inset-top)-1.5rem-env(safe-area-inset-bottom)))] !max-h-none !w-auto !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !overflow-hidden !rounded-2xl !border !border-border !bg-background !p-0 sm:!bottom-auto sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!h-[min(640px,calc(100dvh-2rem))] sm:!w-full sm:!max-w-[425px] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!rounded-2xl"
+        className="auth-floating-panel !bottom-0 !left-0 !right-0 !top-auto !flex !h-[min(640px,calc(100dvh-env(safe-area-inset-top)))] !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 !flex-col !gap-0 !overflow-hidden !rounded-b-none !rounded-t-2xl !border-x-0 !border-b-0 !border-t !border-border !bg-background !p-0 sm:!bottom-auto sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!h-[min(640px,calc(100dvh-2rem))] sm:!w-full sm:!max-w-[425px] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!rounded-2xl sm:!border"
       >
         <div className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-hidden sm:max-w-none">
           <div className="relative shrink-0 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
