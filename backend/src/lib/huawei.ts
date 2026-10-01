@@ -16,9 +16,7 @@ const SCOPES = [
   "https://www.huawei.com/healthkit/step.read",
   "https://www.huawei.com/healthkit/distance.read",
   "https://www.huawei.com/healthkit/calories.read",
-  "https://www.huawei.com/healthkit/heightweight.read",
   "https://www.huawei.com/healthkit/activityrecord.read",
-  "https://www.huawei.com/healthkit/activity.read",
 ] as const
 
 const ALLOWED_HEALTH_API_HOSTS = new Set([
@@ -177,18 +175,18 @@ async function executeHealthRequest<T>(
 ): Promise<{ payload: T | null; response: Response }> {
   const config = requireHuaweiOAuthConfig()
 
+  const headers = new Headers(init.headers)
+  headers.set("Accept", "application/json")
+  headers.set("Authorization", `Bearer ${accessToken}`)
+  headers.set("Content-Type", "application/json")
+  headers.set("x-caller-trace-id", randomUUID())
+  headers.set("x-client-id", config.clientId)
+
   let response: Response
   try {
     response = await fetch(url, {
       ...init,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "x-caller-trace-id": randomUUID(),
-        "x-client-id": config.clientId,
-        ...init.headers,
-      },
+      headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   } catch (error) {
