@@ -126,9 +126,9 @@ When a trainee submits the morning recovery check-in:
 1. Manual sleep duration wins when supplied.
 2. Otherwise the synced Huawei sleep duration for that date is used.
 3. Manual stress wins when supplied.
-4. Otherwise Huawei's 1–99 average stress score is normalized to YeahBuddy's
-   1–5 stress scale.
-5. Fatigue, soreness, pain, and sleep quality remain manual.
+4. Manual stress and Huawei stress both use the same 1–99 scale, so Huawei's
+   average stress score is used directly without converting it to 1–5.
+5. Fatigue, soreness, pain, and sleep quality remain on their existing manual scales.
 6. `sleepSource` and `stressSource` record whether the effective value was
    `manual` or `huawei`.
 
