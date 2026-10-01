@@ -1228,7 +1228,7 @@ export function ProgramEditor({
               </p>
               <div className="md:flex md:items-baseline md:gap-3">
               <h1 className="mt-2 truncate text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-3xl md:mt-1 md:text-2xl">
-                {programId ? programName.trim() || messages.coach.untitledProgram : "Create Workout Program"}
+                {programId ? programName.trim() || messages.coach.untitledProgram : messages.coach.createWorkoutProgram}
               </h1>
               {currentWeekProgress ? (
                 <p className="mt-1 shrink-0 font-mono text-xs text-primary tnum md:mt-0">
@@ -1241,7 +1241,7 @@ export function ProgramEditor({
               ) : null}
               </div>
               <p className="mt-1.5 text-sm text-muted-foreground md:hidden">
-                Build a structured training program and assign it to your clients.
+                {messages.coach.programEditorDescription}
               </p>
             </div>
             <div className="hidden shrink-0 flex-wrap items-center gap-2 md:flex">
@@ -1283,12 +1283,12 @@ export function ProgramEditor({
               </Button>
             </div>
             {onClose ? (
-              <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close editor">
+              <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label={messages.coach.closeEditor}>
                 <X className="h-4 w-4" />
               </Button>
             ) : (
               <Button variant="ghost" size="icon-sm" asChild>
-                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} aria-label="Close editor">
+                <Link href={adjustForTraineeId ? `/coach/trainees/${adjustForTraineeId}` : "/coach/programs"} aria-label={messages.coach.closeEditor}>
                   <X className="h-4 w-4" />
                 </Link>
               </Button>
@@ -1386,7 +1386,7 @@ export function ProgramEditor({
                 </label>
                 <label className="space-y-0.5 md:space-y-1">
                   <span className="text-micro font-medium text-muted-foreground md:text-xs">
-                    {locale === "vi" ? "Mục tiêu" : "Goal"} <span className="text-destructive-text">*</span>
+                    {messages.coach.programGoalLabel} <span className="text-destructive-text">*</span>
                   </span>
                   <Select value={programGoal} onValueChange={setProgramGoal}>
                     <SelectTrigger className="h-9 w-full bg-background/65 md:h-10">
@@ -1546,7 +1546,7 @@ export function ProgramEditor({
                     className="block text-base font-semibold text-foreground"
                     title={`${messages.coach.dragToRearrangeHint} ${messages.coach.copyWeekHint}`}
                   >
-                    Weekly Structure
+                    {messages.coach.weeklyStructure}
                   </span>
                   <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">
                     {messages.coach.copyWeekHint}
@@ -1575,7 +1575,7 @@ export function ProgramEditor({
                 </Button>
                 <Button type="button" variant="outline" className="rounded-xl bg-background/70" disabled>
                   <Trash2 className="h-4 w-4" />
-                  Clear all
+                  {messages.coach.clearAllWeek}
                 </Button>
               </div>
             </div>
@@ -1622,7 +1622,7 @@ export function ProgramEditor({
               onClick={() => void handleRestoreFromEditor()}
             >
               {isRestoring ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Restore
+              {messages.coach.restoreProgram}
             </Button>
           ) : (
             <Button type="button" className="w-full rounded-xl sm:w-auto" onClick={() => void handleSaveProgram()} disabled={!canSave}>
