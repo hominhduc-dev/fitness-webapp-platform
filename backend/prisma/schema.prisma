@@ -121,6 +121,10 @@ enum WeightUnit {
   lbs
 }
 
+enum HealthProvider {
+  huawei
+}
+
 enum FoodSource {
   system
   user
@@ -288,6 +292,9 @@ model User {
   foodsCreated           Food[]                    @relation("FoodCreator")
   foodsReviewed          Food[]                    @relation("FoodReviewer")
   googleConnection       GoogleConnection?
+  healthConnections      HealthConnection[]
+  healthDailySummaries   HealthDailySummary[]
+  healthWorkouts         HealthWorkout[]
   notifications          Notification[]
   pushSubscriptions      PushSubscription[]
   notificationPreference NotificationPreference?
@@ -640,6 +647,87 @@ model GoogleConnection {
   updatedAt             DateTime @updatedAt
 
   @@index([expiresAt])
+}
+
+
+/// OAuth grant for a health-data provider. Provider tokens stay server-side and
+/// encrypted; clients only see connection state and sync timestamps.
+model HealthConnection {
+  id                    String         @id @default(uuid()) @db.Uuid
+  userId                String         @db.Uuid
+  provider              HealthProvider
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  expiresAt             DateTime
+  scope                 String
+  dataRegionBaseUrl     String?
+  lastSyncedAt          DateTime?
+  connectedAt           DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([provider, expiresAt])
+}
+
+/// Provider-neutral daily facts used by dashboard/recovery. Raw Huawei payloads
+/// are intentionally not mixed into RecoveryCheckIn, so manual and wearable
+/// signals keep independent provenance.
+model HealthDailySummary {
+  id                String         @id @default(uuid()) @db.Uuid
+  userId            String         @db.Uuid
+  provider          HealthProvider
+  date              DateTime       @db.Date
+  steps             Int?
+  distanceMeters    Float?
+  activeCalories    Float?
+  restingCalories   Float?
+  sleepMinutes      Int?
+  deepSleepMinutes  Int?
+  lightSleepMinutes Int?
+  remSleepMinutes   Int?
+  awakeMinutes      Int?
+  restingHeartRate  Float?
+  avgHeartRate      Float?
+  minHeartRate      Float?
+  maxHeartRate      Float?
+  hrvRmssd          Float?
+  stressAvg         Float?
+  spo2Avg           Float?
+  weightKg          Float?
+  bodyFatPct        Float?
+  syncedAt          DateTime       @default(now())
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, date])
+  @@index([userId, date])
+}
+
+/// Wearable-recorded sessions are kept separate from WorkoutLog. A future match
+/// can enrich a logged strength session with heart-rate/calorie data without
+/// pretending the wearable record is the programmed workout itself.
+model HealthWorkout {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @db.Uuid
+  provider        HealthProvider
+  externalId      String
+  activityType    String?
+  name            String?
+  startTime       DateTime
+  endTime         DateTime
+  durationSeconds Int?
+  calories        Float?
+  distanceMeters  Float?
+  steps           Int?
+  avgHeartRate    Float?
+  minHeartRate    Float?
+  maxHeartRate    Float?
+  rawData         Json?
+  syncedAt        DateTime       @default(now())
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, externalId])
+  @@index([userId, startTime])
 }
 
 model ProgramAssignment {
