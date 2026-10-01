@@ -83,17 +83,6 @@ function fallbackNameFromEmail(email?: string | null) {
   return email.split("@")[0]?.replace(/[._-]+/g, " ").trim() || email
 }
 
-function normalizeRole(role?: string | null) {
-  switch (role) {
-    case UserRole.admin:
-      return UserRole.admin
-    case UserRole.coach:
-      return UserRole.coach
-    default:
-      return UserRole.trainee
-  }
-}
-
 function normalizePublicRole(role?: string | null) {
   return role === UserRole.coach ? UserRole.coach : UserRole.trainee
 }
@@ -479,11 +468,17 @@ function resolveUserPhone(authUser: SupabaseUser, phoneOverride?: string | null)
   return normalizePhoneNumber(phoneOverride ?? authUser.phone ?? metadataPhone)
 }
 
+/**
+ * Role for a profile created on first sign-in. `user_metadata` is written by the
+ * user (anyone can sign up against Supabase with the public key and set it), so
+ * it can only ask for a public role: trainee, or coach pending approval. Admin
+ * is granted by changing a stored profile, never at creation.
+ */
 function resolveUserRole(authUser: SupabaseUser, roleOverride?: string | null) {
   const metadataRole =
     typeof authUser.user_metadata?.role === "string" ? authUser.user_metadata.role : undefined
 
-  return normalizeRole(roleOverride ?? metadataRole)
+  return normalizePublicRole(roleOverride ?? metadataRole)
 }
 
 function ensureAuthClient() {
