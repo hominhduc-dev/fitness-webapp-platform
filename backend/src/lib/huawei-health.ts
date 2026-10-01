@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto"
-
 import { env } from "../config/env"
 import { BadRequestError, ExternalServiceError } from "../services/errors"
 import { logger } from "./logger"
@@ -26,7 +24,13 @@ const SCOPES = [
   "https://www.huawei.com/healthkit/heartrate.read",
 ]
 
-/** Raw data types passed to `sampleSet:dailyPolymerize`; Huawei returns one daily aggregate per type. */
+/**
+ * Raw data types passed to `sampleSet:dailyPolymerize`, which answers with their
+ * daily aggregate: steps.delta -> steps.total (`steps`), calories.burnt ->
+ * calories.burnt.total (`calories_total`), heart_rate -> heart_rate.statistics
+ * (`avg`/`max`/`min`). Requesting a `*.total` type directly is rejected, and a
+ * request may span at most 31 days.
+ */
 const DAILY_DATA_TYPES = [
   "com.huawei.continuous.steps.delta",
   "com.huawei.continuous.calories.burnt",
@@ -219,8 +223,6 @@ async function fetchDailyPolymerize(
   accessToken: string,
   input: { dataType: string; endDay: string; startDay: string; timeZone: string },
 ) {
-  const { clientId } = requireHuaweiOAuthConfig()
-
   const response = await huaweiFetch(
     `${HEALTH_API_URL}/sampleSet:dailyPolymerize`,
     {
@@ -232,10 +234,7 @@ async function fetchDailyPolymerize(
       }),
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "x-caller-trace-id": randomUUID(),
-        "x-client-id": clientId,
-        "x-version": "1.0",
+        "Content-Type": "application/json;charset=UTF-8",
       },
       method: "POST",
     },

@@ -37,10 +37,17 @@ function fieldNumber(field: { floatValue?: number; integerValue?: number; longVa
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-/** Health Kit timestamps are epoch nanoseconds, sometimes sent as strings. */
-function nanosToDate(value: number | string | undefined) {
-  const nanos = typeof value === "string" ? Number(value) : value
-  return typeof nanos === "number" && Number.isFinite(nanos) ? new Date(Math.floor(nanos / 1e6)) : undefined
+/**
+ * Health Kit mixes units: `dailyPolymerize` groups are epoch milliseconds around
+ * sample points in nanoseconds, sometimes sent as strings. Any post-2001 instant
+ * is >= 1e12 in ms and >= 1e18 in ns, so the unit is read off the magnitude.
+ */
+function epochToDate(value: number | string | undefined) {
+  const epoch = typeof value === "string" ? Number(value) : value
+  if (typeof epoch !== "number" || !Number.isFinite(epoch)) return undefined
+  if (epoch >= 1e17) return new Date(Math.floor(epoch / 1e6))
+  if (epoch >= 1e14) return new Date(Math.floor(epoch / 1e3))
+  return new Date(epoch)
 }
 
 /** How many averages each day's avgHeartRate is the mean of, kept off the row itself. */
@@ -81,7 +88,7 @@ function parseDailyPolymerize(response: HuaweiDailyPolymerizeResponse, timeZone:
   for (const group of response.group ?? []) {
     for (const sampleSet of group.sampleSet ?? []) {
       for (const point of sampleSet.samplePoints ?? []) {
-        const start = nanosToDate(point.startTime ?? group.startTime)
+        const start = epochToDate(point.startTime ?? group.startTime)
         if (!start) continue
         const key = toZonedDateKey(start, timeZone)
         const totals = into.get(key) ?? {}

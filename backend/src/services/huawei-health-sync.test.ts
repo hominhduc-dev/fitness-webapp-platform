@@ -74,6 +74,13 @@ describe("parseDailyPolymerize", () => {
     expect(days.get("2026-09-29")).toEqual({ avgHeartRate: 70 })
   })
 
+  it("falls back to the group's millisecond start when a point carries none", () => {
+    const response = { group: [{ startTime: LOCAL_EARLY_MORNING_NS / 1e6, sampleSet: [{ samplePoints: [
+      { dataTypeName: "com.huawei.continuous.steps.total", value: [{ fieldName: "steps", integerValue: 500 }] },
+    ] }] }] }
+    expect([...parseDailyPolymerize(response, "Asia/Ho_Chi_Minh")]).toEqual([["2026-09-29", { steps: 500 }]])
+  })
+
   it("skips points without a usable timestamp or value", () => {
     const response = { group: [{ sampleSet: [{ samplePoints: [
       { dataTypeName: "steps", value: [{ fieldName: "steps", integerValue: 1 }] },
