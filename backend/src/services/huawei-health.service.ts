@@ -106,15 +106,36 @@ async function getHuaweiConnection(profile: SerializedProfile) {
     }
   }
 
-  const connection = await ensurePrisma().healthConnection.findUnique({
-    where: { userId_provider: { provider: PROVIDER, userId: profile.id } },
-    select: { lastSyncedAt: true, refreshTokenEncrypted: true, scope: true },
-  })
+  const db = ensurePrisma()
+  const [connection, latestSummary] = await Promise.all([
+    db.healthConnection.findUnique({
+      where: { userId_provider: { provider: PROVIDER, userId: profile.id } },
+      select: { lastSyncedAt: true, refreshTokenEncrypted: true, scope: true },
+    }),
+    db.healthDailySummary.findFirst({
+      orderBy: { date: "desc" },
+      select: {
+        activeCalories: true,
+        date: true,
+        restingHeartRate: true,
+        sleepMinutes: true,
+        steps: true,
+        stressAvg: true,
+      },
+      where: { provider: PROVIDER, userId: profile.id },
+    }),
+  ])
 
   return {
     configured: true,
     connected: Boolean(connection?.refreshTokenEncrypted),
     lastSyncedAt: connection?.lastSyncedAt?.toISOString() ?? null,
+    latestSummary: latestSummary
+      ? {
+          ...latestSummary,
+          date: latestSummary.date.toISOString().slice(0, 10),
+        }
+      : null,
     scopes: connection?.scope ? connection.scope.split(/\s+/).filter(Boolean) : [],
   }
 }
