@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 
 import { ProfileEmailChange } from "@/components/profile-email-change"
+import { HuaweiHealthConnection } from "@/components/settings/huawei-health-connection"
 import { NotificationPreferencesSettings } from "@/components/settings/notification-preferences"
 
 import { LanguageToggle } from "@/components/layout/language-toggle"
@@ -948,6 +949,8 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               ) : null}
             </div>
           </SettingsSection>
+
+          <HuaweiHealthConnection />
 
           <SettingsSection
             collapsible
