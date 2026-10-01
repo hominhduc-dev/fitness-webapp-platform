@@ -147,6 +147,11 @@ export const queryKeys = {
     connection: () => ["google", "connection"] as const,
   },
 
+  healthIntegrations: {
+    all: ["health-integrations"] as const,
+    huaweiConnection: () => ["health-integrations", "huawei", "connection"] as const,
+  },
+
   admin: {
     all: ["admin"] as const,
     dashboard: () => ["admin", "dashboard"] as const,
