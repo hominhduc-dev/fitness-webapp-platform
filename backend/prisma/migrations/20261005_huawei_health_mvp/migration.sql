@@ -1,6 +1,11 @@
 -- CreateEnum
 CREATE TYPE "HealthProvider" AS ENUM ('huawei');
 
+-- AlterTable
+ALTER TABLE "RecoveryCheckIn"
+ADD COLUMN "sleepSource" TEXT,
+ADD COLUMN "stressSource" TEXT;
+
 -- CreateTable
 CREATE TABLE "HealthConnection" (
     "id" UUID NOT NULL,
