@@ -122,6 +122,7 @@ Public users land on `/` and can open the auth modal. After login, the app redir
 
 - Anthropic or OpenAI for AI workout and meal-plan generation
 - Google OAuth, Google Sheets, and Drive APIs for program imports
+- Huawei Health Service Kit cloud sync for trainee recovery/activity data
 - Web Push (VAPID) for reminder and activity notifications
 - Cloudinary for exercise media hosting
 - n8n webhook for workout-log export
@@ -321,6 +322,13 @@ GOOGLE_OAUTH_CLIENT_SECRET=
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/backend/api/coach/google/callback
 GOOGLE_TOKEN_ENCRYPTION_KEY=
 
+# Huawei Health Service Kit (optional)
+HUAWEI_CLIENT_ID=
+HUAWEI_CLIENT_SECRET=
+HUAWEI_OAUTH_REDIRECT_URI=http://localhost:3000/backend/api/integrations/huawei/callback
+HUAWEI_HEALTH_API_BASE=https://health-api.cloud.huawei.com
+HUAWEI_TOKEN_ENCRYPTION_KEY=
+
 # Web push notifications (VAPID)
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
@@ -444,6 +452,7 @@ Authenticated trainee areas:
 - `/api/meals`
 - `/api/foods`
 - `/api/progress`
+- `/api/integrations/huawei` (Huawei Health connection and sync)
 - `/api/exercises`
 - `/api/notifications`
 - `/api/ai`
