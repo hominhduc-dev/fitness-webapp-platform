@@ -126,7 +126,7 @@ function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDa
 /* ─── Stat card ─────────────────────────────────────────────────────────── */
 function StatCard({ hint, label, unit, value }: { hint?: string; label: string; unit?: string; value: string | number }) {
   return (
-    <div className="min-h-[88px] rounded-2xl border border-border/80 bg-card px-4 py-3 shadow-md shadow-slate-200/60 ring-1 ring-white/70">
+    <div className="min-h-[88px] rounded-2xl border border-border/80 bg-card px-4 py-3 shadow-md shadow-foreground/5 ring-1 ring-card/70">
       <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
       <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-foreground">
         {value}
@@ -322,7 +322,7 @@ export function CoachTraineeDetailClient({
 
   return (
     <Tabs defaultValue="overview" className="space-y-6">
-      <div className="sticky top-0 z-10 rounded-2xl border border-border/80 bg-card p-1.5 shadow-md shadow-slate-200/60 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+      <div className="sticky top-0 z-10 rounded-2xl border border-border/80 bg-card p-1.5 shadow-md shadow-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/90">
         <TabsList
           data-tour="coach-client-tabs"
           className={cn(
@@ -362,7 +362,7 @@ export function CoachTraineeDetailClient({
 
         {/* Compact snapshot: week, consistency, and body metrics */}
         <div className="space-y-4">
-          <div className="flex min-h-[220px] flex-col rounded-2xl border border-border/80 bg-card p-5 shadow-lg shadow-slate-200/70 ring-1 ring-white/80">
+          <div className="flex min-h-[220px] flex-col rounded-2xl border border-border/80 bg-card p-5 shadow-lg shadow-foreground/5 ring-1 ring-card/80">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
@@ -417,7 +417,7 @@ export function CoachTraineeDetailClient({
         <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           {/* Personal records */}
           {overview.recentPRs.length > 0 ? (
-            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-slate-200/60 ring-1 ring-white/70">
+            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
               <p className="mb-2 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
                 {messages.coach.recentPRsTitle}
               </p>
@@ -442,7 +442,7 @@ export function CoachTraineeDetailClient({
           ) : null}
 
           {/* Recent sessions */}
-          <section className={cn("rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-slate-200/60 ring-1 ring-white/70", overview.recentPRs.length === 0 && "xl:col-span-2")}>
+          <section className={cn("rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70", overview.recentPRs.length === 0 && "xl:col-span-2")}>
             <p className="mb-2 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
               {messages.coach.recentSessions}
             </p>
@@ -451,7 +451,7 @@ export function CoachTraineeDetailClient({
         </div>
 
         {/* Assigned programs */}
-        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-slate-200/60 ring-1 ring-white/70" data-tour="coach-client-actions">
+        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70" data-tour="coach-client-actions">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h2 className="text-base font-semibold">{messages.coach.assignedProgramsTitle}</h2>
@@ -570,7 +570,7 @@ export function CoachTraineeDetailClient({
           <div className="min-w-0 space-y-4">
             <TraineeMealPlanPanel traineeId={detail.trainee.id} />
 
-            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-slate-200/60 ring-1 ring-white/70">
+            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
               <h2 className="text-base font-semibold">{messages.coach.nutritionTitle}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {messages.coach.nutritionDesc}
@@ -605,7 +605,7 @@ export function CoachTraineeDetailClient({
             </section>
           </div>
 
-          <section className="min-w-0 max-w-full rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-slate-200/60 ring-1 ring-white/70">
+          <section className="min-w-0 max-w-full rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-base font-semibold">{messages.coach.nutritionTitle} · 30 ngày</h2>
@@ -787,7 +787,7 @@ export function CoachTraineeDetailClient({
 
       {/* ── Workout logs ──────────────────────────────────────────────────── */}
       <TabsContent value="logs" className="space-y-6">
-        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-slate-200/60 ring-1 ring-white/70">
+        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70">
           <div>
             <h2 className="text-base font-semibold">{messages.coach.workoutLogHistoryTitle}</h2>
             <p className="mt-1 text-sm text-muted-foreground">

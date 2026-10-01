@@ -72,7 +72,7 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-8 pt-page sm:px-5 lg:px-6" data-tour="coach-client-overview">
-      <section className="mb-6 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg shadow-slate-200/70 ring-1 ring-white/80">
+      <section className="mb-6 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg shadow-foreground/5 ring-1 ring-card/80">
         <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-muted/20 px-4 py-3 sm:px-5">
           <Link href="/coach/trainees" className="inline-flex min-w-0 items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4 shrink-0" />
