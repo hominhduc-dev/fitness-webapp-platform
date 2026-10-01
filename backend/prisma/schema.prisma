@@ -398,8 +398,10 @@ model RecoveryCheckIn {
   checkInDate      DateTime               @db.Date
   sleepMinutes     Int?
   sleepQuality     Int?
+  sleepSource      String?
   fatigue          Int
   stress           Int?
+  stressSource     String?
   readinessScore   Float?
   algorithmVersion String?
   note             String?
