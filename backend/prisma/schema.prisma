@@ -915,11 +915,16 @@ model BodyMetricEntry {
   armCm      Float?
   thighCm    Float?
   note       String?
+  /// Set for entries synced from a wearable; null for ones a person entered.
+  source     HealthProvider?
+  /// Provider-side identity of a synced entry (`huawei:2026-09-29`), so re-syncs update it.
+  externalId String?
   trainee    User     @relation("BodyMetricTrainee", fields: [traineeId], references: [id], onDelete: Cascade)
   coach      User?    @relation("BodyMetricCoach", fields: [coachId], references: [id], onDelete: SetNull)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@unique([traineeId, externalId])
   @@index([traineeId, recordedAt])
   @@index([coachId])
 }

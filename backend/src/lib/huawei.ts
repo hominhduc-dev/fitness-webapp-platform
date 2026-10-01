@@ -17,7 +17,14 @@ const SCOPES = [
   "https://www.huawei.com/healthkit/distance.read",
   "https://www.huawei.com/healthkit/calories.read",
   "https://www.huawei.com/healthkit/activityrecord.read",
+  "https://www.huawei.com/healthkit/heightweight.read",
 ] as const
+
+/**
+ * Requested but not required to connect: weight came after the first scope
+ * review, so a grant without it still syncs everything else.
+ */
+const OPTIONAL_SCOPES: ReadonlySet<string> = new Set(["https://www.huawei.com/healthkit/heightweight.read"])
 
 const ALLOWED_HEALTH_API_HOSTS = new Set([
   "health-api.cloud.huawei.com",
@@ -383,6 +390,7 @@ export {
   fetchDailyPolymerize,
   fetchSleepRecords,
   isHuaweiOAuthConfigured,
+  OPTIONAL_SCOPES,
   refreshAccessToken,
   requestHuaweiHealth,
   SCOPES,

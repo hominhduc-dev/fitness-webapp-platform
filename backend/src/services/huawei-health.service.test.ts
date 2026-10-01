@@ -3,11 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   activity: vi.fn(),
   daily: vi.fn(),
+  deleteBodyMetrics: vi.fn(),
+  findBodyMetric: vi.fn(),
   findConnection: vi.fn(),
   findConnections: vi.fn(),
   sleep: vi.fn(),
   updateConnection: vi.fn(),
   updateConnections: vi.fn(),
+  upsertBodyMetric: vi.fn(),
   upsertSummary: vi.fn(),
   upsertWorkout: vi.fn(),
 }))
@@ -15,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../config/env", () => ({ env: { huaweiHealthSyncIntervalMs: 3_600_000 } }))
 vi.mock("../lib/prisma", () => ({
   prisma: {
+    bodyMetricEntry: { deleteMany: mocks.deleteBodyMetrics, findFirst: mocks.findBodyMetric, upsert: mocks.upsertBodyMetric },
     healthConnection: {
       findMany: mocks.findConnections,
       findUnique: mocks.findConnection,
@@ -42,7 +46,7 @@ import { ExternalServiceError } from "./errors"
 import {
   mergeDailyPolymerize,
   runHuaweiSyncTick,
-  sleepMinutesByDate,
+  sleepSummaryByDate,
   syncHuaweiHealthForUser,
 } from "./huawei-health.service"
 
@@ -94,21 +98,50 @@ describe("mergeDailyPolymerize", () => {
   })
 })
 
-describe("sleepMinutesByDate", () => {
-  const night = (startHourUtc: number, endHourUtc: number) => ({
+describe("sleepSummaryByDate", () => {
+  const night = (startHourUtc: number, endHourUtc: number, value?: Array<Record<string, unknown>>) => ({
     endTime: String(Date.UTC(2026, 8, 28, endHourUtc) * 1e6),
     startTime: String(Date.UTC(2026, 8, 28, startHourUtc) * 1e6),
+    value,
   })
+  const ms = (minutes: number) => minutes * 60_000
 
-  it("merges overlapping records from two devices instead of adding them", () => {
+  it("counts one night seen by two devices once", () => {
     // 22:00–06:00 and 23:00–05:00 local (UTC+7) are the same night.
-    const totals = sleepMinutesByDate([night(15, 23), night(16, 22)], ["2026-09-29"], PLUS_SEVEN)
-    expect(totals.get("2026-09-29")).toBe(8 * 60)
+    const days = sleepSummaryByDate([night(15, 23), night(16, 22)], ["2026-09-29"], PLUS_SEVEN)
+    expect(days.get("2026-09-29")).toEqual({ sleepMinutes: 8 * 60 })
   })
 
   it("still adds a separate nap on the same day", () => {
-    const totals = sleepMinutesByDate([night(15, 22), { startTime: String(Date.UTC(2026, 8, 29, 6) * 1e6), endTime: String(Date.UTC(2026, 8, 29, 7) * 1e6) }], ["2026-09-29"], PLUS_SEVEN)
-    expect(totals.get("2026-09-29")).toBe(7 * 60 + 60)
+    const nap = { startTime: String(Date.UTC(2026, 8, 29, 6) * 1e6), endTime: String(Date.UTC(2026, 8, 29, 7) * 1e6) }
+    const days = sleepSummaryByDate([night(15, 22), nap], ["2026-09-29"], PLUS_SEVEN)
+    expect(days.get("2026-09-29")).toEqual({ sleepMinutes: 7 * 60 + 60 })
+  })
+
+  it("uses the record's own sleep and stage durations, from the device that saw the most", () => {
+    const watch = night(15, 23, [
+      { fieldName: "all_sleep_time", integerValue: ms(420) },
+      { fieldName: "deep_sleep_time", integerValue: ms(90) },
+      { fieldName: "light_sleep_time", integerValue: ms(240) },
+      { fieldName: "dream_time", integerValue: ms(90) },
+      { fieldName: "awake_time", integerValue: ms(60) },
+    ])
+    const phone = night(16, 22, [{ fieldName: "all_sleep_time", integerValue: ms(300) }])
+
+    const days = sleepSummaryByDate([phone, watch], ["2026-09-29"], PLUS_SEVEN)
+
+    expect(days.get("2026-09-29")).toEqual({
+      awakeMinutes: 60,
+      deepSleepMinutes: 90,
+      lightSleepMinutes: 240,
+      remSleepMinutes: 90,
+      sleepMinutes: 420,
+    })
+  })
+
+  it("accepts durations already in minutes", () => {
+    const days = sleepSummaryByDate([night(15, 23, [{ fieldName: "all_sleep_time", integerValue: 435 }])], ["2026-09-29"], PLUS_SEVEN)
+    expect(days.get("2026-09-29")).toEqual({ sleepMinutes: 435 })
   })
 })
 
@@ -127,6 +160,7 @@ describe("syncHuaweiHealthForUser", () => {
       expiresAt: new Date(Date.UTC(2027, 0, 1)),
       id: "connection",
       refreshTokenEncrypted: "refresh",
+      scope: "openid https://www.huawei.com/healthkit/step.read",
     })
     mocks.daily.mockImplementation(async (_token, input) => ({
       baseUrl: "https://health-api.cloud.huawei.com",
@@ -167,6 +201,63 @@ describe("syncHuaweiHealthForUser", () => {
     const { update } = mocks.upsertSummary.mock.calls[0][0]
     expect(update).toMatchObject({ steps: 8421, avgHeartRate: null, sleepMinutes: null })
     expect(update).not.toHaveProperty("stressAvg")
+  })
+
+  it("skips weight without its optional scope, and logs it to the weight log when granted", async () => {
+    mocks.findBodyMetric.mockResolvedValue(null)
+    mocks.daily.mockImplementation(async (_token, input) => ({
+      baseUrl: "https://health-api.cloud.huawei.com",
+      data: input.dataType.includes("body_weight")
+        ? reply([{ startTime: LOCAL_EARLY_NS, value: [{ fieldName: "last", floatValue: 72.4 }, { fieldName: "avg_body_fat_rate", floatValue: 18.5 }] }])
+        : { group: [] },
+    }))
+
+    await syncHuaweiHealthForUser("trainee", { days: 7, timezoneOffset: "+0700" })
+    expect(mocks.daily.mock.calls.map(([, input]) => input.dataType)).not.toContain("com.huawei.instantaneous.body_weight")
+    expect(mocks.upsertBodyMetric).not.toHaveBeenCalled()
+
+    vi.clearAllMocks()
+    mocks.findConnection.mockResolvedValue({
+      accessTokenEncrypted: "token",
+      expiresAt: new Date(Date.UTC(2027, 0, 1)),
+      id: "connection",
+      refreshTokenEncrypted: "refresh",
+      scope: "openid https://www.huawei.com/healthkit/heightweight.read",
+    })
+
+    const result = await syncHuaweiHealthForUser("trainee", { days: 7, timezoneOffset: "+0700" })
+
+    expect(result.weightsSynced).toBe(1)
+    expect(mocks.upsertSummary.mock.calls[0][0].update).toMatchObject({ bodyFatPct: 18.5, weightKg: 72.4 })
+    const upsert = mocks.upsertBodyMetric.mock.calls[0][0]
+    expect(upsert.where).toEqual({ traineeId_externalId: { externalId: "huawei:2026-09-29", traineeId: "trainee" } })
+    // Local noon on 2026-09-29 at UTC+7.
+    expect(upsert.create).toMatchObject({ recordedAt: new Date(Date.UTC(2026, 8, 29, 5)), source: "huawei", weightKg: 72.4 })
+  })
+
+  it("leaves a day's weight to the trainee when they logged one themselves", async () => {
+    mocks.findConnection.mockResolvedValue({
+      accessTokenEncrypted: "token",
+      expiresAt: new Date(Date.UTC(2027, 0, 1)),
+      id: "connection",
+      refreshTokenEncrypted: "refresh",
+      scope: "https://www.huawei.com/healthkit/heightweight.read",
+    })
+    mocks.findBodyMetric.mockResolvedValue({ id: "manual" })
+    mocks.daily.mockImplementation(async (_token, input) => ({
+      baseUrl: "https://health-api.cloud.huawei.com",
+      data: input.dataType.includes("body_weight") ? reply([{ startTime: LOCAL_EARLY_NS, value: [{ fieldName: "last", floatValue: 72.4 }] }]) : { group: [] },
+    }))
+
+    const result = await syncHuaweiHealthForUser("trainee", { days: 7, timezoneOffset: "+0700" })
+
+    expect(result.weightsSynced).toBe(0)
+    expect(mocks.findBodyMetric.mock.calls[0][0].where).toMatchObject({
+      recordedAt: { gte: new Date(Date.UTC(2026, 8, 28, 17)), lt: new Date(Date.UTC(2026, 8, 29, 17)) },
+      source: null,
+    })
+    expect(mocks.deleteBodyMetrics).toHaveBeenCalledWith({ where: { externalId: "huawei:2026-09-29", traineeId: "trainee" } })
+    expect(mocks.upsertBodyMetric).not.toHaveBeenCalled()
   })
 
   it("fails, after recording the attempt, when every source fails", async () => {

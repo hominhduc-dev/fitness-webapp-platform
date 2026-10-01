@@ -29,7 +29,7 @@ regional API redirects are handled by the Express backend.
 
 1. Create/configure the web application in HUAWEI Developers.
 2. Apply for Health Service Kit.
-3. Request only these read scopes for the MVP:
+3. Request only these read scopes:
    - `https://www.huawei.com/healthkit/sleep.read`
    - `https://www.huawei.com/healthkit/heartrate.read`
    - `https://www.huawei.com/healthkit/stress.read`
@@ -37,6 +37,8 @@ regional API redirects are handled by the Express backend.
    - `https://www.huawei.com/healthkit/distance.read`
    - `https://www.huawei.com/healthkit/calories.read`
    - `https://www.huawei.com/healthkit/activityrecord.read`
+   - `https://www.huawei.com/healthkit/heightweight.read` (optional: a grant
+     without it connects and syncs everything except weight)
 4. Register the exact OAuth redirect URI:
    - local: `http://localhost:3000/backend/api/integrations/huawei/callback`
    - production: `https://<frontend-origin>/backend/api/integrations/huawei/callback`
@@ -95,7 +97,8 @@ The offset is stored on the connection and reused by the background sync.
 
 Daily values come from `POST /healthkit/v2/sampleSet:dailyPolymerize`, one raw
 data type per request (`steps.delta`, `distance.delta`, `calories.burnt`,
-`heart_rate`, `resting_heart_rate`, `stress`), each answered with its daily
+`heart_rate`, `resting_heart_rate`, `stress`, and `body_weight` when the
+weight scope was granted), each answered with its daily
 statistics type. `sampleSet:polymerize` with `groupByTime` is not used: Huawei
 refuses it for some types ("please use dailyPolymerize API").
 
@@ -107,8 +110,28 @@ keep their previously stored values. A sync fails only when every source does.
 When the phone and a watch both report the same day, totals (steps, distance,
 calories, max heart rate) take the larger reading instead of adding them,
 averages are averaged, and minimums take the lower. Overlapping sleep records
-are merged as time intervals, so one night recorded by two devices is counted
-once while a separate nap is still added.
+are grouped as time intervals, so one night recorded by two devices is counted
+once (through the record that saw the most of it) while a separate nap is
+still added.
+
+## Sleep
+
+Sleep comes from `com.huawei.health.record.sleep` records. When a record
+carries `all_sleep_time`, that is the night's sleep, so awake periods inside
+the record are not counted; the stage columns come from `deep_sleep_time`,
+`light_sleep_time`, `dream_time` (REM) and `awake_time`. Without them the
+record's interval is used and the stages stay null. Durations are read as
+milliseconds, or as minutes when the value is 1440 or less.
+
+## Weight
+
+Weight comes from the daily statistics of `com.huawei.instantaneous.body_weight`:
+the day's `last` weight (or `avg`) and `avg_body_fat_rate`. Besides
+`HealthDailySummary.weightKg`/`bodyFatPct`, each day's weight is written to the
+trainee's weight log (`BodyMetricEntry`) at local noon with `source = huawei`
+and `externalId = huawei:<date>`, so re-syncs update that one entry. If the
+trainee logged a weight themselves that day, theirs wins and the synced entry
+is removed.
 
 Timestamps are read by magnitude: `dailyPolymerize` groups are epoch
 milliseconds around nanosecond sample points, and health records are
@@ -142,10 +165,11 @@ Provider-neutral daily values currently populated by the MVP:
 - average/min/max heart rate
 - resting heart rate
 - average stress score
-- sleep duration
+- sleep duration and deep/light/REM/awake minutes
+- weight and body fat (with the weight scope)
 
-Columns for HRV, SpO2, weight, body fat, sleep stages, and resting calories are
-reserved for later phases but are not requested or populated by the MVP.
+Columns for HRV, SpO2 and resting calories are reserved for later phases but
+are not requested or populated.
 
 ### HealthWorkout
 
@@ -196,12 +220,11 @@ rejected.
 
 - Hourly background polling only; Data Subscription/webhook is not enabled.
 - Health Service Kit cloud data is not guaranteed to be real-time.
-- Sleep duration currently derives from the merged sleep record intervals
-  (awake periods inside a record are still counted);
-  sleep stages are intentionally left null until their record/sub-data mapping
-  is implemented and tested against real Huawei data.
-- HRV, SpO2, body composition, and weight are deferred so the MVP does not ask
-  for scopes it does not use.
+- Sleep and weight field names follow Huawei's data type references as used
+  by other Health Kit clients; they have not been checked against a real
+  account yet.
+- HRV and SpO2 are deferred so the integration does not ask for scopes it does
+  not use.
 - Disconnect removes the local grant and encrypted tokens. Provider-side
   authorization revocation can be added once the Huawei revocation flow is
   included in the production review requirements.
