@@ -57,7 +57,7 @@ describe("parseDailyPolymerize", () => {
 
   it("merges calories and heart rate into the same day and ignores unknown fields", () => {
     const days = parseDailyPolymerize(point("com.huawei.calories.burnt.total", LOCAL_EARLY_MORNING_NS, [{ fieldName: "calories_total", floatValue: 412.5 }]), "Asia/Ho_Chi_Minh")
-    parseDailyPolymerize(point("com.huawei.heart_rate.statistics", LOCAL_EARLY_MORNING_NS, [
+    parseDailyPolymerize(point("com.huawei.continuous.heart_rate.statistics", LOCAL_EARLY_MORNING_NS, [
       { fieldName: "avg", floatValue: 72 },
       { fieldName: "max", floatValue: 151 },
       { fieldName: "min", floatValue: 51 },
@@ -69,9 +69,15 @@ describe("parseDailyPolymerize", () => {
   it("averages heart rate evenly across every point of the day", () => {
     const days = new Map()
     for (const avg of [60, 70, 80]) {
-      parseDailyPolymerize(point("com.huawei.heart_rate.statistics", LOCAL_EARLY_MORNING_NS, [{ fieldName: "avg", floatValue: avg }]), "Asia/Ho_Chi_Minh", days)
+      parseDailyPolymerize(point("com.huawei.continuous.heart_rate.statistics", LOCAL_EARLY_MORNING_NS, [{ fieldName: "avg", floatValue: avg }]), "Asia/Ho_Chi_Minh", days)
     }
     expect(days.get("2026-09-29")).toEqual({ avgHeartRate: 70 })
+  })
+
+  it("keeps resting heart rate apart from the day's heart-rate statistics", () => {
+    const days = parseDailyPolymerize(point("com.huawei.continuous.heart_rate.statistics", LOCAL_EARLY_MORNING_NS, [{ fieldName: "avg", floatValue: 78 }, { fieldName: "min", floatValue: 52 }]), "Asia/Ho_Chi_Minh")
+    parseDailyPolymerize(point("com.huawei.continuous.resting_heart_rate.statistics", LOCAL_EARLY_MORNING_NS, [{ fieldName: "avg", floatValue: 55 }, { fieldName: "min", floatValue: 55 }]), "Asia/Ho_Chi_Minh", days)
+    expect(days.get("2026-09-29")).toEqual({ avgHeartRate: 78, minHeartRate: 52, restingHeartRate: 55 })
   })
 
   it("falls back to the group's millisecond start when a point carries none", () => {
@@ -117,7 +123,7 @@ describe("syncHuaweiHealthForUser", () => {
 
     await expect(syncHuaweiHealthForUser("user-1", now)).resolves.toEqual({ days: 1 })
 
-    expect(mocks.fetchDaily).toHaveBeenCalledTimes(3)
+    expect(mocks.fetchDaily).toHaveBeenCalledTimes(4)
     expect(mocks.fetchDaily.mock.calls[0][1]).toMatchObject({ startDay: "20260923", endDay: "20260929", timeZone: "+0700" })
     const [upsert] = mocks.transaction.mock.calls[0][0]
     expect(upsert.where.userId_source_date).toEqual({ date: new Date("2026-09-29T00:00:00.000Z"), source: "huawei", userId: "user-1" })

@@ -11,7 +11,7 @@ import { ensurePrisma } from "./fitness-data/shared/guards"
 import { getHuaweiAccessToken, getHuaweiConnection, isHuaweiConfigured } from "./huawei-connection.service"
 
 /**
- * Pulls daily step, calorie and heart-rate totals from Huawei Health Kit into
+ * Pulls daily step, calorie, heart-rate and resting heart-rate totals from Huawei Health Kit into
  * WearableDailySummary.
  *
  * Each run re-reads the last SYNC_DAYS days: a band only uploads when its phone
@@ -29,6 +29,7 @@ type DailyTotals = {
   avgHeartRate?: number
   maxHeartRate?: number
   minHeartRate?: number
+  restingHeartRate?: number
   steps?: number
 }
 
@@ -50,8 +51,20 @@ function epochToDate(value: number | string | undefined) {
   return new Date(epoch)
 }
 
-/** How many averages each day's avgHeartRate is the mean of, kept off the row itself. */
-const avgHeartRateCounts = new WeakMap<DailyTotals, number>()
+/** Response data types of the heart-rate statistics, matched exactly: both contain "heart_rate". */
+const HEART_RATE_STATISTICS = "com.huawei.continuous.heart_rate.statistics"
+const RESTING_HEART_RATE_STATISTICS = "com.huawei.continuous.resting_heart_rate.statistics"
+
+/** How many averages each day's mean fields are the mean of, kept off the row itself. */
+const meanCounts = new WeakMap<DailyTotals, Map<keyof DailyTotals, number>>()
+
+function foldMean(totals: DailyTotals, key: "avgHeartRate" | "restingHeartRate", value: number) {
+  const counts = meanCounts.get(totals) ?? new Map<keyof DailyTotals, number>()
+  const count = (counts.get(key) ?? 0) + 1
+  counts.set(key, count)
+  meanCounts.set(totals, counts)
+  totals[key] = ((totals[key] ?? 0) * (count - 1) + value) / count
+}
 
 /**
  * Folds one point into its day. Totals take the larger reading rather than a
@@ -59,7 +72,6 @@ const avgHeartRateCounts = new WeakMap<DailyTotals, number>()
  * per device, and adding them would double count.
  */
 function applyPoint(totals: DailyTotals, point: HuaweiSamplePoint) {
-  const isHeartRate = point.dataTypeName?.includes("heart_rate") ?? false
   const max = (current: number | undefined, next: number) => (current === undefined ? next : Math.max(current, next))
   const min = (current: number | undefined, next: number) => (current === undefined ? next : Math.min(current, next))
 
@@ -67,14 +79,13 @@ function applyPoint(totals: DailyTotals, point: HuaweiSamplePoint) {
     const value = fieldNumber(field)
     if (value === undefined) continue
 
-    if (isHeartRate) {
-      if (field.fieldName === "avg") {
-        const count = (avgHeartRateCounts.get(totals) ?? 0) + 1
-        avgHeartRateCounts.set(totals, count)
-        totals.avgHeartRate = ((totals.avgHeartRate ?? 0) * (count - 1) + value) / count
-      }
+    if (point.dataTypeName === HEART_RATE_STATISTICS) {
+      if (field.fieldName === "avg") foldMean(totals, "avgHeartRate", value)
       else if (field.fieldName === "max") totals.maxHeartRate = max(totals.maxHeartRate, value)
       else if (field.fieldName === "min") totals.minHeartRate = min(totals.minHeartRate, value)
+    } else if (point.dataTypeName === RESTING_HEART_RATE_STATISTICS) {
+      // One resting value per day; `avg` is that value when only one is recorded.
+      if (field.fieldName === "avg") foldMean(totals, "restingHeartRate", value)
     } else if (field.fieldName === "steps") {
       totals.steps = max(totals.steps, Math.round(value))
     } else if (field.fieldName === "calories" || field.fieldName === "calories_total") {
@@ -173,7 +184,7 @@ async function listWearableDailySummaries(profile: SerializedProfile, days: numb
   const from = new Date(`${dayKeyMinus(endKey, Math.min(days, MAX_HISTORY_DAYS) - 1)}T00:00:00.000Z`)
   const rows = await ensurePrisma().wearableDailySummary.findMany({
     orderBy: { date: "asc" },
-    select: { activeKcal: true, avgHeartRate: true, date: true, maxHeartRate: true, minHeartRate: true, source: true, steps: true, syncedAt: true },
+    select: { activeKcal: true, avgHeartRate: true, date: true, maxHeartRate: true, minHeartRate: true, restingHeartRate: true, source: true, steps: true, syncedAt: true },
     where: { date: { gte: from }, userId: profile.id },
   })
   return rows.map((row) => ({ ...row, date: row.date.toISOString().slice(0, 10) }))

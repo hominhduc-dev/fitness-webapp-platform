@@ -30,6 +30,7 @@ CREATE TABLE "WearableDailySummary" (
     "avgHeartRate" DOUBLE PRECISION,
     "minHeartRate" DOUBLE PRECISION,
     "maxHeartRate" DOUBLE PRECISION,
+    "restingHeartRate" DOUBLE PRECISION,
     "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,

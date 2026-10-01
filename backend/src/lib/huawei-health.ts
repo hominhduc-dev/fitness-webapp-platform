@@ -28,13 +28,15 @@ const SCOPES = [
  * Raw data types passed to `sampleSet:dailyPolymerize`, which answers with their
  * daily aggregate: steps.delta -> steps.total (`steps`), calories.burnt ->
  * calories.burnt.total (`calories_total`), heart_rate -> heart_rate.statistics
- * (`avg`/`max`/`min`). Requesting a `*.total` type directly is rejected, and a
- * request may span at most 31 days.
+ * (`avg`/`max`/`min`), resting_heart_rate -> resting_heart_rate.statistics
+ * (`avg`, under the same heartrate.read scope). Requesting a `*.total` type
+ * directly is rejected, and a request may span at most 31 days.
  */
 const DAILY_DATA_TYPES = [
   "com.huawei.continuous.steps.delta",
   "com.huawei.continuous.calories.burnt",
   "com.huawei.instantaneous.heart_rate",
+  "com.huawei.instantaneous.resting_heart_rate",
 ] as const
 
 const REQUEST_TIMEOUT_MS = 15000
