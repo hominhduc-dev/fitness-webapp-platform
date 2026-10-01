@@ -6,6 +6,13 @@ ALTER TABLE "RecoveryCheckIn"
 ADD COLUMN "sleepSource" TEXT,
 ADD COLUMN "stressSource" TEXT;
 
+-- Recovery stress previously used a 1-5 scale. Preserve the old meaning while
+-- moving the system to Huawei's 1-99 scale:
+-- 1 -> 1, 2 -> 26, 3 -> 50, 4 -> 75, 5 -> 99.
+UPDATE "RecoveryCheckIn"
+SET "stress" = ROUND(1 + (("stress" - 1) * 98.0 / 4.0))
+WHERE "stress" BETWEEN 1 AND 5;
+
 -- CreateTable
 CREATE TABLE "HealthConnection" (
     "id" UUID NOT NULL,
