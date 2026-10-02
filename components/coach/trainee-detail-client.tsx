@@ -552,7 +552,7 @@ export function CoachTraineeDetailClient({
           <section className="min-w-0 max-w-full rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-base font-semibold">{messages.coach.nutritionTitle} · 30 ngày</h2>
+                <h2 className="text-base font-semibold">{messages.coach.nutritionTitle}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {nutritionSummary ? messages.coach.daysTrackedLabel(nutritionSummary.daysTracked) : messages.coach.nutritionDesc}
                 </p>
@@ -748,14 +748,14 @@ export function CoachTraineeDetailClient({
           ) : (
             <>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {[
+                {([
                   [messages.coach.weightKgLabel, sortedBodyMetrics[0].weightKg, "kg"],
                   [messages.coach.bodyFatPctLabel, sortedBodyMetrics[0].bodyFatPct, "%"],
                   [messages.coach.waistCmLabel, sortedBodyMetrics[0].waistCm, "cm"],
                   [messages.coach.chestCmLabel, sortedBodyMetrics[0].chestCm, "cm"],
                   [messages.coach.hipsCmLabel, sortedBodyMetrics[0].hipsCm, "cm"],
                   [messages.coach.thighCmLabel, sortedBodyMetrics[0].thighCm, "cm"],
-                ].map(([label, value, unit]) => (
+                ] as Array<[string, number | undefined, string]>).map(([label, value, unit]) => (
                   <div key={String(label)} className="rounded-xl border border-border bg-muted/20 px-3 py-3">
                     <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
                     <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-foreground">
@@ -780,8 +780,8 @@ export function CoachTraineeDetailClient({
                     <span className="text-sm text-foreground">
                       {[
                         entry.weightKg != null ? `${entry.weightKg} kg` : null,
-                        entry.bodyFatPct != null ? `${entry.bodyFatPct}% BF` : null,
-                        entry.waistCm != null ? `${entry.waistCm} cm waist` : null,
+                        entry.bodyFatPct != null ? `${entry.bodyFatPct}%` : null,
+                        entry.waistCm != null ? `${entry.waistCm} cm` : null,
                       ].filter(Boolean).join(" · ") || messages.coach.notRecorded}
                     </span>
                     <span className="font-mono text-micro text-muted-foreground">
@@ -809,6 +809,65 @@ export function CoachTraineeDetailClient({
             label={messages.coach.recentPRsTitle}
             value={overview.recentPRs.length}
           />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                  {messages.coach.program}
+                </p>
+                <h2 className="mt-1 text-base font-semibold text-foreground">
+                  {detail.programs[0]?.name ?? messages.coach.noProgramsAssigned}
+                </h2>
+              </div>
+              {detail.programs[0] ? (
+                <Badge variant="micro" className="border-success/20 bg-success/10 text-success-text">
+                  {messages.coach.statusOnTrack}
+                </Badge>
+              ) : null}
+            </div>
+
+            {detail.programs[0] ? (
+              <>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {detail.programs[0].description || detail.programs[0].goal || messages.coach.noDescription}
+                </p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-muted/25 px-3 py-2">
+                    <p className="font-mono text-micro uppercase text-muted-foreground">{messages.coach.weeksUnit}</p>
+                    <p className="mt-1 font-mono text-sm font-semibold tabular-nums">{detail.programs[0].duration}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/25 px-3 py-2">
+                    <p className="font-mono text-micro uppercase text-muted-foreground">{messages.coach.sessionsThisWeek}</p>
+                    <p className="mt-1 font-mono text-sm font-semibold tabular-nums">{detail.programs[0].workoutsPerWeek}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/25 px-3 py-2">
+                    <p className="font-mono text-micro uppercase text-muted-foreground">{messages.coach.programDifficulty}</p>
+                    <p className="mt-1 truncate text-sm font-semibold capitalize">{detail.programs[0].difficulty}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">{messages.coach.buildOneFirst}</p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                  {messages.coach.weeklyActivity}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{messages.coach.weeklyActivityCopy}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-primary-soft px-2.5 py-1 font-mono text-xs tabular-nums text-primary">
+                {week.completedSessions}/{week.plannedSessions}
+              </span>
+            </div>
+            <WeeklyBarChart dateLocale={dateLocale} days={week.days} />
+          </section>
         </div>
 
         {/* Assigned programs */}
