@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ChevronRight, Utensils } from "lucide-react"
+import { ChevronRight, Cookie, Sun, Sunrise, Sunset, Utensils } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import type { DailyNutrition } from "@/lib/types"
@@ -11,8 +11,10 @@ interface NutritionSummaryProps {
 }
 
 /**
- * Phones show this card as a square beside the readiness card, so below `sm`
- * the donut shrinks, the calorie figures stack and the meal slots tighten.
+ * Phones show this card as a square beside the readiness card and lay it out
+ * the same way: a centred ring (eaten over target inside, like readiness's
+ * score) over a 2×2 of meal slots, each an icon and its kcal. From `sm` up the
+ * card has room for the labelled figures and meal names.
  */
 export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
   const { messages } = useLocale()
@@ -22,6 +24,13 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
       ? Math.min(100, Math.round((nutrition.totalCalories / nutrition.targetCalories) * 100))
       : 0
   const remaining = Math.max(0, nutrition.targetCalories - nutrition.totalCalories)
+
+  const meals = [
+    { icon: Sunrise, key: "breakfast", label: messages.dashboard.breakfast },
+    { icon: Sun, key: "lunch", label: messages.dashboard.lunch },
+    { icon: Sunset, key: "dinner", label: messages.dashboard.dinner },
+    { icon: Cookie, key: "snack", label: messages.dashboard.snack },
+  ].map((slot) => ({ ...slot, meal: nutrition.meals.find((entry) => entry.type === slot.key) }))
 
   // SVG donut params
   const radius = 42
@@ -39,7 +48,40 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </div>
 
-        <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col justify-between gap-2 sm:flex-none sm:justify-start">
+        {/* Phones: ring over a 2×2 of meal slots, as the readiness card beside it. */}
+        <div className="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:hidden">
+          <div className="relative size-14 shrink-0 self-center">
+            <svg viewBox="0 0 100 100" className="size-full -rotate-90" aria-hidden="true">
+              <circle cx="50" cy="50" r={radius} stroke="currentColor" strokeWidth="8" fill="none" className="text-primary/12" />
+              {percentage > 0 && (
+                <circle
+                  cx="50" cy="50" r={radius}
+                  stroke="currentColor" strokeWidth="8" fill="none"
+                  strokeDasharray={`${arc} ${circumference}`}
+                  className="text-primary transition-all duration-500"
+                  strokeLinecap="round"
+                />
+              )}
+            </svg>
+            <span className="absolute inset-0 flex flex-col items-center justify-center" aria-label={`${messages.dashboard.consumed} ${formatCalories(nutrition.totalCalories)} / ${formatCalories(nutrition.targetCalories)} kcal`}>
+              <span className="font-mono text-sm font-semibold leading-none tnum text-foreground">{formatCalories(nutrition.totalCalories)}</span>
+              <span className="mt-0.5 font-mono text-[9px] leading-none tnum text-muted-foreground">/ {formatCalories(nutrition.targetCalories)}</span>
+            </span>
+          </div>
+          <ul className="grid grid-cols-2 gap-1">
+            {meals.map(({ icon: Icon, key, label, meal }) => (
+              <li key={key} title={`${label}: ${meal ? `${formatCalories(meal.calories)} kcal` : "—"}`} className="flex min-w-0 items-center gap-1 rounded-lg bg-surface-subtle px-1.5 py-1">
+                <Icon className="size-3.5 shrink-0 text-primary" strokeWidth={2} aria-hidden="true" />
+                <span className="sr-only">{label}</span>
+                <span className={`ml-auto min-w-0 truncate font-mono text-[11px] tnum ${meal ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                  {meal ? formatCalories(meal.calories) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-2 hidden min-w-0 flex-col gap-2 sm:flex">
           {/* Donut + calories */}
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <div className="relative aspect-square size-12 shrink-0 rounded-full sm:size-14">
@@ -91,25 +133,17 @@ export function NutritionSummary({ nutrition }: NutritionSummaryProps) {
 
           {/* Meal slots */}
           <div className="grid min-w-0 grid-cols-2 gap-1 sm:gap-1.5">
-            {[
-              { key: "breakfast", label: messages.dashboard.breakfast },
-              { key: "lunch",     label: messages.dashboard.lunch },
-              { key: "dinner",    label: messages.dashboard.dinner },
-              { key: "snack",     label: messages.dashboard.snack },
-            ].map((mealType) => {
-              const meal = nutrition.meals.find((entry) => entry.type === mealType.key)
-              return (
-                <div
-                  key={mealType.key}
-                  className="flex min-w-0 items-center justify-between gap-1 rounded-lg bg-surface-subtle px-1.5 py-1 sm:gap-2 sm:px-2.5"
-                >
-                  <span className="min-w-0 truncate text-[10px] text-muted-foreground sm:text-xs">{mealType.label}</span>
-                  <span className={meal ? "font-mono text-[10px] font-medium tnum text-foreground sm:text-xs" : "font-mono text-[10px] text-muted-foreground sm:text-xs"}>
-                    {meal ? formatCalories(meal.calories) : "—"}
-                  </span>
-                </div>
-              )
-            })}
+            {meals.map(({ key, label, meal }) => (
+              <div
+                key={key}
+                className="flex min-w-0 items-center justify-between gap-1 rounded-lg bg-surface-subtle px-1.5 py-1 sm:gap-2 sm:px-2.5"
+              >
+                <span className="min-w-0 truncate text-[10px] text-muted-foreground sm:text-xs">{label}</span>
+                <span className={meal ? "font-mono text-[10px] font-medium tnum text-foreground sm:text-xs" : "font-mono text-[10px] text-muted-foreground sm:text-xs"}>
+                  {meal ? formatCalories(meal.calories) : "—"}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* Log meal hint — the whole card is the link, so phones skip it. */}
