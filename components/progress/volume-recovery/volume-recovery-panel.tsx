@@ -6,10 +6,18 @@ import { Activity, Brain, Check, ChevronLeft, Dumbbell, Moon, X } from "lucide-r
 import { useLocale } from "@/components/providers/locale-provider"
 import { BottomSheet, BottomSheetBody, BottomSheetFooter, BottomSheetHeader } from "@/components/ui/bottom-sheet"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
-import { formatStress, STRESS_LEVELS, stressLevelFor } from "@/lib/fitness/stress"
+import {
+  formatSleepDuration,
+  SLEEP_BANDS,
+  SLEEP_MAX_MINUTES,
+  SLEEP_MIN_MINUTES,
+  SLEEP_STEP_MINUTES,
+  sleepBandMidpoint,
+  sleepQualityFor,
+} from "@/lib/fitness/sleep"
+import { formatStress, STRESS_LEVELS } from "@/lib/fitness/stress"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
 import { useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
 import { formatDateKey } from "@/lib/time-zone"
@@ -179,26 +187,14 @@ export function CheckInSheet({
   const copy = messages.volumeRecovery
   const mutation = useUpsertRecoveryCheckIn()
   const [stepIndex, setStepIndex] = useState(0)
-  const [sleepQuality, setSleepQuality] = useState<number | null>(null)
-  const [sleepHours, setSleepHours] = useState("")
-  const [sleepMinutePart, setSleepMinutePart] = useState("")
+  // Optional: null until the trainee moves the slider or picks a band.
+  const [sleepMinutes, setSleepMinutes] = useState<number | null>(null)
+  // The quality answers are defined by hours, so the slider sets the quality too.
+  const sleepQuality = sleepQualityFor(sleepMinutes)
+  const sleepBandLabel = (quality: number) => copy.checkInOptions.sleepQuality.find((option) => option.value === quality)?.label ?? ""
   const [fatigue, setFatigue] = useState<number | null>(null)
   const [stress, setStress] = useState<number | null>(null)
-  const stressLevel = stressLevelFor(stress)
   const [sorenessByMuscle, setSorenessByMuscle] = useState<SorenessByMuscle>({})
-
-  const hasSleepDuration = sleepHours !== "" || sleepMinutePart !== ""
-  const parsedSleepHours = sleepHours === "" ? 0 : Number(sleepHours)
-  const parsedSleepMinutePart = sleepMinutePart === "" ? 0 : Number(sleepMinutePart)
-  const sleepDurationInvalid = hasSleepDuration && !(
-    Number.isInteger(parsedSleepHours) &&
-    Number.isInteger(parsedSleepMinutePart) &&
-    parsedSleepHours >= 0 &&
-    parsedSleepHours <= 24 &&
-    parsedSleepMinutePart >= 0 &&
-    parsedSleepMinutePart <= 59 &&
-    parsedSleepHours * 60 + parsedSleepMinutePart <= 1440
-  )
 
   if (!open) return null
 
@@ -209,15 +205,12 @@ export function CheckInSheet({
   // Fatigue carries the heaviest weight in the score and is NOT NULL in the
   // database, so it is the one answer a trainee cannot skip past.
   const canSkip = step !== "fatigue"
-  const canAdvance = step === "sleep"
-    ? !sleepDurationInvalid
-    : step === "fatigue"
-      ? fatigue != null
-      : true
+  // The slider only offers valid durations, so only the unskippable fatigue answer can hold a step back.
+  const canAdvance = step === "fatigue" ? fatigue != null : true
 
   /** `sorenessAnswered` is false when the last step was skipped rather than saved. */
   async function submit(sorenessAnswered: boolean) {
-    if (fatigue == null || sleepDurationInvalid) return
+    if (fatigue == null) return
 
     try {
       await mutation.mutateAsync({
@@ -227,7 +220,7 @@ export function CheckInSheet({
         // Rated per muscle, as the volume engine reads it: tapped muscles at
         // their level, every other one at 0. Skipped, nothing is sent.
         muscles: buildSorenessPayload(sorenessByMuscle, sorenessAnswered),
-        sleepMinutes: hasSleepDuration ? parsedSleepHours * 60 + parsedSleepMinutePart : undefined,
+        sleepMinutes: sleepMinutes ?? undefined,
         sleepQuality: sleepQuality ?? undefined,
         stress: stress ?? undefined,
       })
@@ -353,52 +346,69 @@ export function CheckInSheet({
         </div>
 
         {step === "sleep" ? (
-          <>
-            <OptionList
-              ariaLabel={copy.sleepStepTitle}
-              options={copy.checkInOptions.sleepQuality}
-              value={sleepQuality}
-              onChange={setSleepQuality}
-            />
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-foreground">{copy.sleepDurationOptional}</span>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="space-y-1.5" htmlFor="recovery-sleep-hours">
-                  <span className="text-xs text-muted-foreground">{copy.hours}</span>
-                  <Input
-                    id="recovery-sleep-hours"
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    max="24"
-                    step="1"
-                    aria-invalid={sleepDurationInvalid}
-                    value={sleepHours}
-                    onChange={(event) => setSleepHours(event.target.value)}
-                    className="h-11 bg-background font-mono tnum"
-                  />
-                </label>
-                <label className="space-y-1.5" htmlFor="recovery-sleep-minute-part">
-                  <span className="text-xs text-muted-foreground">{copy.minutes}</span>
-                  <Input
-                    id="recovery-sleep-minute-part"
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    max="59"
-                    step="1"
-                    aria-invalid={sleepDurationInvalid}
-                    value={sleepMinutePart}
-                    onChange={(event) => setSleepMinutePart(event.target.value)}
-                    className="h-11 bg-background font-mono tnum"
-                  />
-                </label>
+          // One card, like the stress step: the hours, a slider, and the quality
+          // bands under it — picking hours answers both questions.
+          <div className="space-y-4 rounded-xl border border-border/70 bg-surface-subtle/35 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{copy.sleepDurationOptional}</p>
+                <p className="mt-1 font-mono text-3xl font-semibold tnum text-foreground">
+                  {sleepMinutes == null ? "—" : formatSleepDuration(sleepMinutes)}
+                </p>
               </div>
-              {sleepDurationInvalid ? (
-                <p className="text-xs text-destructive-text">{copy.invalidSleepDuration}</p>
-              ) : null}
+              <div className="flex flex-col items-end gap-1.5">
+                <p className="text-right text-sm font-medium text-foreground">
+                  {sleepQuality ? sleepBandLabel(sleepQuality) : "—"}
+                </p>
+                {sleepMinutes != null ? (
+                  <button
+                    type="button"
+                    onClick={() => setSleepMinutes(null)}
+                    className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {copy.clearSleepDuration}
+                  </button>
+                ) : null}
+              </div>
             </div>
-          </>
+            <input
+              aria-label={copy.sleepDurationOptional}
+              aria-valuemax={SLEEP_MAX_MINUTES}
+              aria-valuemin={SLEEP_MIN_MINUTES}
+              aria-valuenow={sleepMinutes ?? undefined}
+              aria-valuetext={sleepMinutes == null ? undefined : formatSleepDuration(sleepMinutes)}
+              className="h-2 w-full cursor-pointer accent-primary"
+              max={SLEEP_MAX_MINUTES}
+              min={SLEEP_MIN_MINUTES}
+              onChange={(event) => setSleepMinutes(Number(event.target.value))}
+              step={SLEEP_STEP_MINUTES}
+              type="range"
+              value={sleepMinutes ?? 450}
+            />
+            {/* Equal widths: the hour-wide middle bands would be too narrow to read at their share. */}
+            <div className="grid grid-cols-5 gap-1">
+              {SLEEP_BANDS.map((band) => {
+                const active = sleepQuality === band.quality
+                return (
+                  <button
+                    key={band.quality}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setSleepMinutes(sleepBandMidpoint(band))}
+                    className={cn(
+                      "min-w-0 rounded-md border px-0.5 py-1.5 text-center text-[10px] leading-tight transition-colors",
+                      active
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border/70 text-muted-foreground hover:bg-surface-subtle",
+                    )}
+                  >
+                    <span className="block truncate font-medium">{sleepBandLabel(band.quality)}</span>
+                    <span className="block truncate font-mono tnum">{band.range}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         ) : null}
 
         {step === "fatigue" ? (
@@ -411,56 +421,19 @@ export function CheckInSheet({
         ) : null}
 
         {step === "stress" ? (
-          <div className="space-y-4 rounded-xl border border-border/70 bg-surface-subtle/35 p-4">
-            <div className="flex items-end justify-between gap-3">
-              <p className="font-mono text-3xl font-semibold tnum text-foreground">
-                {stress ?? "—"}
-                <span className="ml-1 text-sm font-medium text-muted-foreground">/99</span>
-              </p>
-              <p className="text-right text-sm font-medium text-foreground">
-                {stressLevel ? copy.stressLevels[stressLevel] : "—"}
-              </p>
-            </div>
-            <input
-              aria-label={copy.stressStepTitle}
-              aria-valuemax={99}
-              aria-valuemin={1}
-              aria-valuenow={stress ?? undefined}
-              className="h-2 w-full cursor-pointer accent-primary"
-              max={99}
-              min={1}
-              onChange={(event) => setStress(Number(event.target.value))}
-              step={1}
-              type="range"
-              value={stress ?? 50}
-            />
-            {/* Each band is as wide as its share of 1–99, so it lines up under the slider. */}
-            <div className="flex gap-1">
-              {STRESS_LEVELS.map((band) => {
-                const active = stressLevel === band.level
-                return (
-                  <button
-                    key={band.level}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setStress(Math.round((band.min + band.max) / 2))}
-                    style={{ flexGrow: band.max - band.min + 1, flexBasis: 0 }}
-                    className={cn(
-                      "min-w-0 rounded-md border px-1 py-1.5 text-center text-[11px] leading-tight transition-colors",
-                      active
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border/70 text-muted-foreground hover:bg-surface-subtle",
-                    )}
-                  >
-                    <span className="block font-medium">{copy.stressLevels[band.level]}</span>
-                    <span className="block font-mono tnum">
-                      {band.min}–{band.max}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          // A felt level, not a number: nobody can tell 12 from 18, so each level
+          // stores its midpoint on Huawei's 1–99 scale for the charts and readiness.
+          // Same list as the fatigue step, so the two questions read alike.
+          <OptionList
+            ariaLabel={copy.stressStepTitle}
+            options={STRESS_LEVELS.map((band) => ({
+              description: copy.stressLevelHints[band.level],
+              label: copy.stressLevels[band.level],
+              value: Math.round((band.min + band.max) / 2),
+            }))}
+            value={stress}
+            onChange={setStress}
+          />
         ) : null}
 
         {step === "soreness" ? (

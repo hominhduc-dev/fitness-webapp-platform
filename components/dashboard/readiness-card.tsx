@@ -6,6 +6,7 @@ import { Activity, ChevronRight, Heart, Moon, Zap } from "lucide-react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
+import { formatSleepDuration } from "@/lib/fitness/sleep"
 import { formatStress } from "@/lib/fitness/stress"
 import type { fetchVolumeRecovery } from "@/lib/fitness/api"
 import { useHydrationSafeQuery } from "@/lib/queries/hydration"
@@ -40,10 +41,6 @@ function ReadinessRing({ label, score }: { label: string; score: number | null }
   )
 }
 
-function formatSleepDuration(minutes: number) {
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-}
-
 /**
  * Phones show this card as a square beside the nutrition card, so below `sm`
  * the ring shrinks and the four signals become a 2×2 grid of icon + value.
@@ -64,7 +61,7 @@ export function ReadinessCard({ seed }: { seed?: Awaited<ReturnType<typeof fetch
   const checkIn = data?.checkIn ?? null
   const maxSoreness = checkIn?.muscles.length ? Math.max(...checkIn.muscles.map((muscle) => muscle.soreness)) : null
 
-  const metrics = [
+  const metrics: Array<{ icon: typeof Moon; label: string; shortValue?: string; value: string }> = [
     {
       icon: Moon,
       label: messages.volumeRecovery.sleep,
@@ -78,6 +75,8 @@ export function ReadinessCard({ seed }: { seed?: Awaited<ReturnType<typeof fetch
     {
       icon: Heart,
       label: messages.volumeRecovery.stress,
+      // The phone's 2×2 cells only fit the number; the level name shows from sm up.
+      shortValue: checkIn?.stress == null ? undefined : String(checkIn.stress),
       value: checkIn?.stress == null ? "—" : formatStress(checkIn.stress, messages.volumeRecovery.stressLevels),
     },
     {
@@ -108,13 +107,19 @@ export function ReadinessCard({ seed }: { seed?: Awaited<ReturnType<typeof fetch
           {metrics.map((metric) => (
             <li
               key={metric.label}
-              title={metric.label}
+              title={`${metric.label}: ${metric.value}`}
               className="flex min-w-0 items-center gap-1 rounded-lg bg-surface-subtle px-1.5 py-1 text-sm sm:gap-2 sm:rounded-none sm:bg-transparent sm:p-0"
             >
               <metric.icon className="size-3.5 shrink-0 text-primary sm:size-4" strokeWidth={2} aria-hidden="true" />
               <span className="sr-only sm:not-sr-only sm:min-w-0 sm:flex-1 sm:truncate sm:text-muted-foreground">{metric.label}</span>
-              <span className="ml-auto shrink-0 truncate font-mono text-[11px] font-semibold tnum text-foreground sm:ml-0 sm:text-xs">
-                {metric.value}
+              {/* min-w-0, not shrink-0: a value that still does not fit ends in an ellipsis instead of spilling out. */}
+              <span className="ml-auto min-w-0 truncate font-mono text-[11px] font-semibold tnum text-foreground sm:ml-0 sm:max-w-[60%] sm:text-xs">
+                {metric.shortValue ? (
+                  <>
+                    <span className="sm:hidden">{metric.shortValue}</span>
+                    <span className="hidden sm:inline">{metric.value}</span>
+                  </>
+                ) : metric.value}
               </span>
             </li>
           ))}

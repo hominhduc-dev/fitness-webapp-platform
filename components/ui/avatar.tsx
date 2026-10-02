@@ -28,7 +28,8 @@ function AvatarImage({
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
-      className={cn('aspect-square size-full', className)}
+      // object-cover crops a non-square photo instead of squashing it into the circle.
+      className={cn('aspect-square size-full object-cover', className)}
       {...props}
     />
   )
