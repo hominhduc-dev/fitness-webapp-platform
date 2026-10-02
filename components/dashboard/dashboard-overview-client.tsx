@@ -11,6 +11,7 @@ import { TodayTasks } from "./today-tasks"
 import { ReadinessCard } from "./readiness-card"
 import { RecentActivity } from "./recent-activity"
 import { TodayWorkout } from "./today-workout"
+import { TrainingRecommendationCard } from "./training-recommendation-card"
 import { WeekStrip } from "./week-strip"
 import { WeeklyProgressCard } from "./weekly-progress-card"
 import { WeeklyVolumeCard } from "./weekly-volume-card"
@@ -117,6 +118,10 @@ export function DashboardOverviewClient({
       <TodayTasks />
 
       <div data-tour="dashboard-quick-actions"><QuickActions onOpenAIChat={() => setAIChatOpen(true)} /></div>
+
+      {/* Day guidance, weekly muscle volume and each exercise's progression,
+          reconciled on the server into one answer for today. */}
+      <div data-tour="dashboard-training-recommendation"><TrainingRecommendationCard /></div>
 
       {/* Mobile keeps the task-first reading order. Desktop follows the
           overview matrix from the dashboard mockup. */}

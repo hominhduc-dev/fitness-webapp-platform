@@ -30,6 +30,7 @@ async function getTrainingRecommendationForTrainee(profile: SerializedProfile) {
             name: exercise.variation.displayName ?? exercise.exercise.name,
             progression: exercise.progression ?? null,
           })),
+          id: workout.id,
           isCompleted: today.isCompleted,
           name: workout.name,
         }

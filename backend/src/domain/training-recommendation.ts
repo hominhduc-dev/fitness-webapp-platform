@@ -190,6 +190,7 @@ type TrainingRecommendationInput = {
   workout: {
     /** Progressions already reconciled with the day and the muscles. */
     exercises: ReadonlyArray<{ name: string; progression?: ReconciledProgression | null }>
+    id: string
     isCompleted: boolean
     name: string
   } | null
@@ -201,7 +202,7 @@ type TrainingRecommendation = {
   day: TrainingRecommendationInput["guidance"]
   intensity: { phase: string | null; targetRir: number | null }
   muscles: Array<{ action: MuscleAction; currentSets: number; muscleSlug: string; recommendedSets: number }>
-  workout: { exercises: ExerciseRecommendation[]; isCompleted: boolean; name: string } | null
+  workout: { exercises: ExerciseRecommendation[]; id: string; isCompleted: boolean; name: string } | null
 }
 
 function buildTrainingRecommendation(input: TrainingRecommendationInput): TrainingRecommendation {
@@ -221,7 +222,9 @@ function buildTrainingRecommendation(input: TrainingRecommendationInput): Traini
         muscleSlug: muscle.muscleSlug,
         recommendedSets: muscle.recommendation.recommendedSets,
       })),
-    workout: input.workout ? { exercises, isCompleted: input.workout.isCompleted, name: input.workout.name } : null,
+    workout: input.workout
+      ? { exercises, id: input.workout.id, isCompleted: input.workout.isCompleted, name: input.workout.name }
+      : null,
   }
 }
 

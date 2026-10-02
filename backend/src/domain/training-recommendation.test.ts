@@ -127,7 +127,7 @@ describe("training recommendation", () => {
       ],
       phase: "accumulation",
       targetRir: 2,
-      workout: { exercises: [{ name: "Bench", progression: reconciled }, { name: "Curl", progression: null }], isCompleted: false, name: "Upper A" },
+      workout: { exercises: [{ name: "Bench", progression: reconciled }, { name: "Curl", progression: null }], id: "w1", isCompleted: false, name: "Upper A" },
     })
 
     expect(result.muscles).toEqual([{ action: "decrease", currentSets: 18, muscleSlug: "chest", recommendedSets: 15.5 }])

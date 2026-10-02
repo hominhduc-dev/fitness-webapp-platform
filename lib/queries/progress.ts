@@ -14,6 +14,7 @@ import {
   fetchProgressYearView,
   fetchVolumeRecovery,
   fetchRecoveryHistory,
+  fetchTrainingRecommendation,
   fetchWeightEntries,
   resetVolumeLandmarks,
   saveVolumeLandmarks,
@@ -123,6 +124,16 @@ export function useVolumeRecovery(options?: { enabled?: boolean; initialData?: V
     queryFn: async () => fetchVolumeRecovery(await requireAccessToken(), { programId: options?.programId, weekStart: options?.weekStart }),
     enabled: options?.enabled ?? true,
     initialData: options?.initialData,
+    staleTime: PROGRESS_STALE_TIME_MS,
+  })
+}
+
+/** Today's reconciled recommendation; invalidated with the rest of the progress tree. */
+export function useTrainingRecommendation(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.progress.trainingRecommendation(),
+    queryFn: async () => fetchTrainingRecommendation(await requireAccessToken()),
+    enabled: options?.enabled ?? true,
     staleTime: PROGRESS_STALE_TIME_MS,
   })
 }

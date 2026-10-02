@@ -14,6 +14,7 @@ import { progressMessages } from "@/lib/i18n/messages/progress"
 import { scheduleMessages } from "@/lib/i18n/messages/schedule"
 import { workoutMessages } from "@/lib/i18n/messages/workout"
 import { traineeHubMessages } from "@/lib/i18n/messages/trainee-hub"
+import { trainingRecommendationMessages } from "@/lib/i18n/messages/training-recommendation"
 import { volumeRecoveryMessages } from "@/lib/i18n/messages/volume-recovery"
 
 type WidenLiteral<T> =
@@ -32,6 +33,7 @@ const enMessages = {
   ...scheduleMessages.en,
   ...workoutMessages.en,
   ...volumeRecoveryMessages.en,
+  ...trainingRecommendationMessages.en,
   ...progressMessages.en,
   ...mealsMessages.en,
   ...profileMessages.en,
@@ -53,6 +55,7 @@ const viMessages: AppMessages = {
   ...scheduleMessages.vi,
   ...workoutMessages.vi,
   ...volumeRecoveryMessages.vi,
+  ...trainingRecommendationMessages.vi,
   ...progressMessages.vi,
   ...mealsMessages.vi,
   ...profileMessages.vi,

@@ -23,6 +23,7 @@ describe("recommendation context", () => {
             reasons: [], setDelta: -1, sets: [],
           },
         ],
+        id: "w1",
         isCompleted: false,
         name: "Upper A",
       },
