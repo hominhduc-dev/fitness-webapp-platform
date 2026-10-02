@@ -40,12 +40,48 @@ function rpeFromRir(rir: number | null) {
   return rir == null ? null : Math.max(5, Math.min(10, 10 - rir))
 }
 
+/** Longest block, deload included, before fatigue has to be shed. */
+const MAX_BLOCK_WEEKS = 7
+/** A block shorter than this is too short to earn a deload of its own. */
+const MIN_BLOCK_WEEKS_FOR_DELOAD = 4
+
+/**
+ * Splits the weeks after the baseline into mesocycle blocks of near-equal
+ * length, longer ones last, so the program always ends on its deload.
+ */
+function blockLengths(trainingWeeks: number) {
+  const blockCount = Math.max(1, Math.ceil(trainingWeeks / MAX_BLOCK_WEEKS))
+  const base = Math.floor(trainingWeeks / blockCount)
+  const extra = trainingWeeks % blockCount
+  return Array.from({ length: blockCount }, (_, index) => base + (index >= blockCount - extra ? 1 : 0))
+}
+
+/**
+ * Week 0 is the baseline. The rest is cut into blocks of at most seven weeks,
+ * each ending on a deload once it is long enough to need one. Inside a block
+ * the loading weeks climb from accumulation to intensification, and only the
+ * last loading week before a deload is overreaching — the one week a goal's
+ * hardest RIR target applies. Earlier versions ran every week from the third
+ * on as overreaching, which held hypertrophy trainees at 0 RIR for weeks.
+ */
 function phaseForWeek(weekIndex: number, duration: number): TrainingPhase {
   if (weekIndex <= 0) return "baseline"
-  if (duration >= 5 && weekIndex >= duration - 1) return "deload"
-  if (weekIndex === 1) return "accumulation"
-  if (weekIndex === 2) return "intensification"
-  return "overreaching"
+
+  let blockStart = 1
+  for (const length of blockLengths(Math.max(1, duration - 1))) {
+    if (weekIndex < blockStart + length) {
+      const position = weekIndex - blockStart
+      const hasDeload = length >= MIN_BLOCK_WEEKS_FOR_DELOAD
+      const loadingWeeks = hasDeload ? length - 1 : length
+      if (hasDeload && position === length - 1) return "deload"
+      if (hasDeload && loadingWeeks >= 3 && position === loadingWeeks - 1) return "overreaching"
+      const rampWeeks = hasDeload && loadingWeeks >= 3 ? loadingWeeks - 1 : loadingWeeks
+      return position < Math.ceil(rampWeeks / 2) ? "accumulation" : "intensification"
+    }
+    blockStart += length
+  }
+
+  return "intensification"
 }
 
 function targetRirForGoal(goal: TrainingGoal, phase: TrainingPhase) {
@@ -92,8 +128,12 @@ function analysisFocusForGoal(goal: TrainingGoal) {
   }
 }
 
+/**
+ * Null once the program has run its course: the weeks after it belong to no
+ * block, so there is no phase or RIR target left to hold the trainee to.
+ */
 function policyForTrainingGoal(goal: TrainingGoal | null, weekIndex: number, duration: number): TrainingGoalPolicy | null {
-  if (!goal) return null
+  if (!goal || weekIndex >= duration) return null
   const phase = phaseForWeek(weekIndex, duration)
   const targetRir = targetRirForGoal(goal, phase)
 
