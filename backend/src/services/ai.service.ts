@@ -77,6 +77,7 @@ const DAILY_LIMITS: Record<AIGenerationType, number> = {
   workout_program: 5,
   meal_plan: 10,
   nutrition_insight: 10,
+  coach_trainee_insight: 20,
 }
 
 async function checkRateLimit(userId: string, type: AIGenerationType) {
@@ -1697,6 +1698,7 @@ export {
   acceptDailyWorkout,
   acceptAIMealPlan,
   acceptAIProgram,
+  checkRateLimit,
   acceptCoachTraineeAIProgram,
   chatWithAI,
   createNutritionInsight,
