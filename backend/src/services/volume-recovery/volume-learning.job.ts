@@ -21,6 +21,10 @@ import { systemLandmarksForMuscle } from "./volume-landmarks"
 
 const INTERVAL_MS = 6 * 60 * 60 * 1000
 const USERS_PER_PASS = 50
+/** A backfill reads sixteen weeks per user, so fewer of them fit in a pass. */
+const BACKFILL_USERS_PER_PASS = 10
+/** First pass shortly after boot, so a deploy starts backfilling without waiting six hours. */
+const FIRST_PASS_DELAY_MS = 60 * 1000
 /** History the learning reads: about four months of weeks. */
 const LEARNING_WEEKS = 16
 const PERFORMANCE_LOOKBACK_DAYS = 14
@@ -128,49 +132,93 @@ async function learnForUser(userId: string, currentWeekStart: Date) {
   return learned
 }
 
+type LearningCandidate = { id: string; notificationPreference: { timeZone: string } | null }
+
+/** Runs `work` in the trainee's own time zone, so week bounds are their midnights. */
+async function inTraineeZone(user: LearningCandidate, work: () => Promise<void>) {
+  const timeZone = user.notificationPreference?.timeZone ?? DEFAULT_NOTIFICATION_PREFERENCES.timeZone
+  try {
+    await withRequestContext({ method: "JOB", path: "volume-learning", requestId: randomUUID(), timeZone }, work)
+  } catch (error) {
+    logger.warn("volume learning failed for user", { error, userId: user.id })
+  }
+}
+
 /**
- * One pass: summarise last week for trainees who trained in it and have no
- * summary for it yet, then re-learn their landmarks. Bounded per pass; the rest
- * are picked up by the next one.
+ * Summarises every completed week in the learning window for one user, oldest
+ * first, then learns from them. This is what lets a trainee with months of
+ * history get personal landmarks right away instead of after four new weeks.
+ */
+async function backfillUser(userId: string, now = new Date()) {
+  const currentWeekStart = startOfUtcWeek(clientCalendarDay(now))
+  let weeks = 0
+  for (let weeksAgo = LEARNING_WEEKS; weeksAgo >= 1; weeksAgo -= 1) {
+    if ((await summarizeWeek(userId, addUtcDays(currentWeekStart, -7 * weeksAgo))) > 0) weeks += 1
+  }
+  const learned = await learnForUser(userId, currentWeekStart)
+  return { learned, weeks }
+}
+
+/**
+ * One pass, in two parts. First, trainees with training in the learning window
+ * but no summaries at all — those who trained before this feature existed —
+ * get their whole window backfilled. Then everyone who trained last week and
+ * has no summary for it gets that week, and their landmarks re-learned.
+ * Each part is bounded; the rest are picked up by the next pass.
  */
 async function runVolumeLearningPass(now = new Date()) {
   const db = ensurePrisma()
   const currentWeekStart = startOfUtcWeek(clientCalendarDay(now))
   const lastWeekStart = addUtcDays(currentWeekStart, -7)
+  const select = { id: true, notificationPreference: { select: { timeZone: true } } } as const
+  const trainedBetween = (from: Date, to: Date) => ({
+    some: { completedAt: { not: null }, startedAt: { gte: addUtcDays(from, -1), lt: addUtcDays(to, 1) } },
+  })
 
-  const candidates = await db.user.findMany({
-    select: { id: true, notificationPreference: { select: { timeZone: true } } },
+  const backfillCandidates = await db.user.findMany({
+    select,
+    take: BACKFILL_USERS_PER_PASS,
+    where: {
+      isActive: true,
+      weeklyMuscleSummaries: { none: {} },
+      workoutLogs: trainedBetween(addUtcDays(currentWeekStart, -7 * LEARNING_WEEKS), currentWeekStart),
+    },
+  })
+
+  let backfilled = 0
+  let summarized = 0
+  let learned = 0
+  for (const user of backfillCandidates) {
+    await inTraineeZone(user, async () => {
+      const result = await backfillUser(user.id, now)
+      if (result.weeks > 0) backfilled += 1
+      learned += result.learned
+    })
+  }
+
+  const weeklyCandidates = await db.user.findMany({
+    select,
     take: USERS_PER_PASS,
     where: {
       isActive: true,
       weeklyMuscleSummaries: { none: { weekStart: lastWeekStart } },
-      workoutLogs: {
-        some: {
-          completedAt: { not: null },
-          startedAt: { gte: addUtcDays(lastWeekStart, -1), lt: addUtcDays(currentWeekStart, 1) },
-        },
-      },
+      workoutLogs: trainedBetween(lastWeekStart, currentWeekStart),
     },
   })
 
-  let summarized = 0
-  let learned = 0
-  for (const user of candidates) {
-    const timeZone = user.notificationPreference?.timeZone ?? DEFAULT_NOTIFICATION_PREFERENCES.timeZone
-    try {
-      // Week bounds are the trainee's own midnights, as everywhere else.
-      await withRequestContext({ method: "JOB", path: "volume-learning", requestId: randomUUID(), timeZone }, async () => {
-        const userWeekStart = addUtcDays(startOfUtcWeek(clientCalendarDay(now)), -7)
-        if ((await summarizeWeek(user.id, userWeekStart)) > 0) summarized += 1
-        learned += await learnForUser(user.id, addUtcDays(userWeekStart, 7))
-      })
-    } catch (error) {
-      logger.warn("volume learning failed for user", { error, userId: user.id })
-    }
+  for (const user of weeklyCandidates) {
+    await inTraineeZone(user, async () => {
+      const userWeekStart = addUtcDays(startOfUtcWeek(clientCalendarDay(now)), -7)
+      if ((await summarizeWeek(user.id, userWeekStart)) > 0) summarized += 1
+      learned += await learnForUser(user.id, addUtcDays(userWeekStart, 7))
+    })
   }
 
-  if (summarized > 0 || learned > 0) logger.info("volume learning pass", { learned, summarized, users: candidates.length })
-  return { learned, summarized, users: candidates.length }
+  const users = backfillCandidates.length + weeklyCandidates.length
+  if (backfilled > 0 || summarized > 0 || learned > 0) {
+    logger.info("volume learning pass", { backfilled, learned, summarized, users })
+  }
+  return { backfilled, learned, summarized, users }
 }
 
 let timer: NodeJS.Timeout | null = null
@@ -193,6 +241,7 @@ function startVolumeLearningScheduler() {
 
   timer = setInterval(() => void tick(), INTERVAL_MS)
   timer.unref()
+  setTimeout(() => void tick(), FIRST_PASS_DELAY_MS).unref()
   logger.info("volume learning scheduler started", { intervalMs: INTERVAL_MS })
 }
 
@@ -201,4 +250,4 @@ function stopVolumeLearningScheduler() {
   timer = null
 }
 
-export { learnForUser, runVolumeLearningPass, startVolumeLearningScheduler, stopVolumeLearningScheduler, summarizeWeek }
+export { backfillUser, learnForUser, runVolumeLearningPass, startVolumeLearningScheduler, stopVolumeLearningScheduler, summarizeWeek }
