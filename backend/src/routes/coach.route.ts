@@ -307,7 +307,10 @@ coachRouter.get("/programs", async (req, res) => {
 coachRouter.post("/programs", async (req, res) => {
   try {
     const profile = await requireCurrentProfile(getAccessToken(req))
-    const program = await createCoachProgram(profile.profile, parseProgramInput(req.body))
+    const program = await createCoachProgram(profile.profile, {
+      ...parseProgramInput(req.body),
+      aiGenerationId: typeof req.body.aiGenerationId === "string" ? req.body.aiGenerationId : undefined,
+    })
 
     res.status(201).json({
       program,

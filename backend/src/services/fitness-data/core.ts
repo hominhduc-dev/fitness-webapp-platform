@@ -1,5 +1,6 @@
 import {
   $Enums,
+  AIGenerationType,
   Prisma,
   type BodyMetricEntry,
   CoachApprovalStatus,
@@ -26,6 +27,7 @@ import {
 import { randomUUID } from "node:crypto"
 
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
+import { claimGeneration } from "../ai/acceptance"
 import { ConflictError } from "../errors"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
 import {
@@ -5653,6 +5655,13 @@ function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>)
   return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
 }
 
+/** A program belongs to a single trainee; see assignCoachProgramToTrainee. */
+function assertSingleAssignee(userIds: string[]) {
+  if (userIds.length > 1) {
+    throw new AuthServiceError("Mỗi program chỉ gán cho một học viên.", 400)
+  }
+}
+
 /**
  * One spreadsheet backs one program, which the `Program_googleSpreadsheetId_key`
  * index enforces. This is the same rule stated in the language of the app, so a
@@ -5692,6 +5701,8 @@ async function assertGoogleSpreadsheetNotInUse(
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
+    /** The AI draft this program was edited from; marked accepted with it. */
+    aiGenerationId?: string
     assignToUserIds?: string[]
     description?: string | null
     difficulty: ProgramDifficulty
@@ -5731,6 +5742,7 @@ async function createCoachProgram(
   }
 
   const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+  assertSingleAssignee(assignToUserIds)
 
   if (assignToUserIds.length > 0) {
     const validTrainees = await db.user.count({
@@ -5777,6 +5789,12 @@ async function createCoachProgram(
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
 
+    // Claimed first, so a draft is used once even if the coach saves twice; a
+    // failed save rolls the claim back and the draft stays usable.
+    if (input.aiGenerationId) {
+      await claimGeneration(tx, input.aiGenerationId, profile.id, AIGenerationType.workout_program)
+    }
+
     await tx.program.create({
       data: {
         createdById: profile.id,
@@ -5785,6 +5803,7 @@ async function createCoachProgram(
         duration: Math.max(1, Math.round(input.duration)),
         goal: programGoal,
         id: programId,
+        isAIGenerated: Boolean(input.aiGenerationId),
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
         googleSpreadsheetId,
@@ -5829,6 +5848,10 @@ async function createCoachProgram(
 
     if (!createdProgram) {
       throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
+    }
+
+    if (input.aiGenerationId) {
+      await tx.aIGeneration.update({ data: { programId }, where: { id: input.aiGenerationId } })
     }
 
     const assignedNotifications = assignToUserIds.length > 0
@@ -5886,6 +5909,7 @@ async function updateCoachProgram(
   }
 
   const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+  assertSingleAssignee(assignToUserIds)
 
   if (assignToUserIds.length > 0) {
     const validTrainees = await db.user.count({
@@ -7020,24 +7044,22 @@ async function assignCoachProgramToTrainee(profile: SerializedProfile, programId
     throw new AuthServiceError("Program đã archive — hãy restore trước khi gán.", 409)
   }
 
-  // A spreadsheet carries one result block, so a Sheets-backed program belongs to a
-  // single trainee. Refusing here rather than at export time means the coach finds
-  // out while they can still fix it, instead of after a week of logged sessions.
-  if (program.googleSpreadsheetId) {
-    const otherAssignee = await db.programAssignment.findFirst({
-      select: { user: { select: { name: true } } },
-      where: {
-        programId,
-        userId: { not: traineeId },
-      },
-    })
+  // A program belongs to a single trainee: approving a swap and exporting logs
+  // both edit it as theirs. Refusing here means the coach finds out while they
+  // can still fix it.
+  const otherAssignee = await db.programAssignment.findFirst({
+    select: { user: { select: { name: true } } },
+    where: {
+      programId,
+      userId: { not: traineeId },
+    },
+  })
 
-    if (otherAssignee) {
-      throw new AuthServiceError(
-        `Program này import từ Google Sheets nên chỉ gán được cho một học viên. Hiện đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
-        409,
-      )
-    }
+  if (otherAssignee) {
+    throw new AuthServiceError(
+      `Mỗi program chỉ gán cho một học viên. Program này đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
+      409,
+    )
   }
 
   const assignmentKey = {
