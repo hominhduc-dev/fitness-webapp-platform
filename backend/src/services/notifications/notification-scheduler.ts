@@ -426,6 +426,7 @@ async function runCoachTraineeAlertJob(now: Date) {
 
   const traineeIds = due.flatMap(({ coach }) => coach.trainees.map((trainee) => trainee.id))
   const since = new Date(now.getTime() - ALERT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const [logs, checkIns, assignments] = await Promise.all([
     db.workoutLog.findMany({
       select: { exerciseSnapshot: true, startedAt: true, userId: true },
@@ -438,7 +439,12 @@ async function runCoachTraineeAlertJob(now: Date) {
     db.programAssignment.findMany({
       orderBy: { assignedAt: "desc" },
       select: { program: { select: { workoutsPerWeek: true } }, userId: true },
-      where: { program: { archivedAt: null }, userId: { in: traineeIds } },
+      // A program has to have run a full week before sessions can be missed on it.
+      where: {
+        assignedAt: { lte: weekAgo },
+        program: { archivedAt: null, OR: [{ startDate: null }, { startDate: { lte: weekAgo } }] },
+        userId: { in: traineeIds },
+      },
     }),
   ])
 
