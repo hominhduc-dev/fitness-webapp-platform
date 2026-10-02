@@ -8486,6 +8486,14 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       select: { body: true, createdAt: true, id: true, updatedAt: true },
       take: 20,
       where: { coachId: profile.id, traineeId: trainee.id },
+    }).catch((error: unknown) => {
+      // Before migration 20261007_coach_notes runs (P2021: table missing), the
+      // rest of the page still loads; only the notes are empty.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+        logger.warn("CoachNote table missing; run prisma migrate deploy", { traineeId: trainee.id })
+        return []
+      }
+      throw error
     }),
   ])
 
