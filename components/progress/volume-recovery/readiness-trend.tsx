@@ -7,7 +7,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { GlassSegmented } from "@/components/ui/glass-segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { READINESS_TREND_DEFAULT_DAYS } from "@/lib/fitness/progress-ranges"
-import { formatReadinessScore, READINESS_SCALE_MAX, toReadinessScale } from "@/lib/fitness/readiness"
+import { formatReadinessScore, READINESS_SCALE_MAX } from "@/lib/fitness/readiness"
 import { useRecoveryHistory } from "@/lib/queries/progress"
 import { cn } from "@/lib/utils"
 
@@ -33,7 +33,7 @@ export function ReadinessTrend() {
         month: "short",
         timeZone: "UTC",
       }),
-      value: Number(toReadinessScale(entry.readinessScore as number).toFixed(1)),
+      value: Math.round(entry.readinessScore as number),
     }))
   const averageSleepMinutes = query.data?.averages.sleepMinutes ?? null
 
@@ -110,7 +110,7 @@ export function ReadinessTrend() {
                 axisLine={false}
                 tickLine={false}
                 domain={[0, READINESS_SCALE_MAX]}
-                ticks={[0, 5, 10]}
+                ticks={[0, 50, READINESS_SCALE_MAX]}
                 tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
               />
               <Tooltip

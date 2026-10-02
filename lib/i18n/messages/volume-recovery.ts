@@ -177,7 +177,7 @@ export const volumeRecoveryMessages = {
       sorenessMuscleButton: (muscle: string, level: string | null) =>
         level ? `${muscle}, sore: ${level}` : muscle,
       resultTitle: "Today's readiness",
-      resultScale: "out of 10",
+      resultScale: "out of 100",
       resultDone: "Done",
       resultPending: "Saving your check-in...",
       guidanceTitle: "Today's session",
@@ -334,7 +334,7 @@ export const volumeRecoveryMessages = {
       sorenessMuscleButton: (muscle: string, level: string | null) =>
         level ? `${muscle}, đau ${level.toLowerCase()}` : muscle,
       resultTitle: "Mức sẵn sàng hôm nay",
-      resultScale: "trên 10",
+      resultScale: "trên 100",
       resultDone: "Xong",
       resultPending: "Đang lưu check-in...",
       guidanceTitle: "Buổi tập hôm nay",
