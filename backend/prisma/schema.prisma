@@ -368,6 +368,10 @@ model Variation {
   exerciseId                String                  @db.Uuid
   name                      String
   equipment                 String?
+  /// Smallest load jump this variation allows, in kg (2.5 for a barbell, 2 for
+  /// dumbbell pairs, 5 for a pin-loaded machine). Null falls back to what the
+  /// equipment implies; progression suggestions are rounded to it.
+  loadIncrementKg           Float?
   isDefault                 Boolean                 @default(false)
   sortOrder                 Int                     @default(0)
   metadata                  Json?
