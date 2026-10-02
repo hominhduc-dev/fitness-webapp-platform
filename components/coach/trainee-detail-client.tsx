@@ -16,7 +16,7 @@ import {
   Sunset,
   Trash2,
 } from "lucide-react"
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useCoachData } from "@/lib/queries/coach-data"
@@ -215,6 +215,9 @@ export function CoachTraineeDetailClient({
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(
     requestedTab === "training" || requestedTab === "nutrition" ? requestedTab : "overview",
   )
+  useEffect(() => {
+    setActiveTab(requestedTab === "training" || requestedTab === "nutrition" ? requestedTab : "overview")
+  }, [requestedTab])
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
   const assignProgram = useAssignCoachProgram()
@@ -824,7 +827,7 @@ export function CoachTraineeDetailClient({
               </div>
               {detail.programs[0] ? (
                 <Badge variant="micro" className="border-success/20 bg-success/10 text-success-text">
-                  {messages.coach.statusOnTrack}
+                  {messages.coach.inProgress}
                 </Badge>
               ) : null}
             </div>
