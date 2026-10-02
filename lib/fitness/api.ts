@@ -10,6 +10,7 @@ import type {
   ExerciseBase,
   ExerciseLibraryExercise,
   ExerciseActivityType,
+  ExerciseProgression,
   ExerciseSet,
   ExerciseVariation,
   ExerciseVariationOption,
@@ -112,6 +113,7 @@ type SerializedWorkoutExercise = {
   }
   id: string
   notes?: string
+  progression?: ExerciseProgression
   restTime?: number
   sets: SerializedExerciseSet[]
   variation?: SerializedExerciseVariation | null
@@ -816,6 +818,7 @@ function mapWorkoutExercise(exercise: SerializedWorkoutExercise): Workout["exerc
     },
     id: exercise.id,
     notes: exercise.notes,
+    progression: exercise.progression,
     restTime: exercise.restTime,
     sets: exercise.sets.map(mapExerciseSet),
     variation: exercise.variation ? mapExerciseVariation(exercise.variation) : synthesizeExerciseVariation(exercise),

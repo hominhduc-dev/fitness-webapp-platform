@@ -213,7 +213,16 @@ export const workoutMessages = {
       planned: "planned",
       playExerciseAnimation: "Play animation",
       previous: "Prev",
-      prevExceededHint: "Exceeded range last time — try more weight",
+      progressionSetHint: (target: string) => `Suggested today: ${target}`,
+      progressionNote: (action: "add_load" | "add_reps" | "maintain" | "reduce_load", target: string) =>
+        action === "add_load"
+          ? `You reached the top of the range last time. Add weight: ${target}.`
+          : action === "add_reps"
+            ? `Same weight, one more rep per set: ${target}.`
+            : action === "reduce_load"
+              ? `Most sets fell short last time. Go lighter: ${target}.`
+              : `Repeat last session before progressing: ${target}.`,
+      progressionReadinessLow: "Kept smaller because today's readiness is low.",
       kgLifted: "kg lifted",
       thisWorkoutUnavailable: "This workout is unavailable or not assigned to you.",
       actualWorkoutDateTitle: "When did you actually train?",
@@ -491,7 +500,16 @@ export const workoutMessages = {
       planned: "đã lên kế hoạch",
       playExerciseAnimation: "Phát animation",
       previous: "Trước",
-      prevExceededHint: "Lần trước vượt range — thử tăng weight",
+      progressionSetHint: (target: string) => `Gợi ý hôm nay: ${target}`,
+      progressionNote: (action: "add_load" | "add_reps" | "maintain" | "reduce_load", target: string) =>
+        action === "add_load"
+          ? `Lần trước đã chạm đỉnh range. Tăng tạ: ${target}.`
+          : action === "add_reps"
+            ? `Giữ mức tạ, thêm 1 rep mỗi set: ${target}.`
+            : action === "reduce_load"
+              ? `Lần trước phần lớn set chưa đạt range. Giảm tạ: ${target}.`
+              : `Lặp lại buổi trước rồi mới tăng: ${target}.`,
+      progressionReadinessLow: "Mức tăng được giữ nhỏ vì readiness hôm nay thấp.",
       kgLifted: "kg đã nâng",
       thisWorkoutUnavailable: "Buổi tập này không khả dụng hoặc chưa được giao cho bạn.",
       actualWorkoutDateTitle: "Bạn thực sự tập lúc nào?",

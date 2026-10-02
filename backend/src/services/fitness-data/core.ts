@@ -43,6 +43,7 @@ import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.se
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
 import { normalizeTrainingGoal } from "../../domain/training-goal-policy"
+import { buildOverloadRecommendation, isLowerBodyExercise } from "../../domain/progressive-overload"
 import {
   buildCoachConnectionAcceptedDraft,
   buildCoachInviteReceivedDraft,
@@ -693,6 +694,38 @@ function serializeExerciseSet(set: ExerciseSet, previousPerformanceBySetNumber?:
   }
 }
 
+/**
+ * Today's progression for one exercise slot, from what the coach programmed and
+ * what the trainee did last time. Absent when there is no history to read.
+ */
+function buildExerciseProgression(
+  templateSets: ExerciseSet[],
+  previousPerformanceBySetNumber: Map<number, PreviousExerciseSetPerformance> | undefined,
+  primaryMuscles: readonly string[],
+  readinessScore: number | null | undefined,
+) {
+  if (!previousPerformanceBySetNumber || previousPerformanceBySetNumber.size === 0) return undefined
+
+  return buildOverloadRecommendation({
+    lowerBody: isLowerBodyExercise(primaryMuscles),
+    readinessScore,
+    sets: templateSets
+      .slice()
+      .sort((a, b) => a.setNumber - b.setNumber)
+      .map((set) => {
+        const previous = previousPerformanceBySetNumber.get(set.setNumber)
+        return {
+          isWarmup: set.intensityTag === "warmup",
+          previous: previous ? { reps: previous.reps, rir: previous.rir, weight: previous.weight } : null,
+          setNumber: set.setNumber,
+          targetReps: set.targetReps,
+          targetRepsMin: set.targetRepsMin,
+          targetRir: set.rir,
+        }
+      }),
+  })
+}
+
 function buildExerciseSetsWithHistory(
   templateSets: ExerciseSet[],
   previousPerformanceBySetNumber: Map<number, PreviousExerciseSetPerformance> | undefined,
@@ -710,6 +743,8 @@ function serializeWorkout(
     /** Day key the coach's program opens on, when the trainee is still before it. */
     lockedUntil?: Date | null
     previousPerformanceByWorkoutExerciseId?: Map<string, Map<number, PreviousExerciseSetPerformance>>
+    /** Today's readiness, which tempers how hard the progression pushes. */
+    readinessScore?: number | null
   },
 ) {
   return {
@@ -717,20 +752,28 @@ function serializeWorkout(
     exercises: workout.exercises
       .slice()
       .sort((left, right) => left.order - right.order)
-      .map((workoutExercise) => ({
-        coachUpdate: options?.coachUpdatesByWorkoutExerciseId?.get(workoutExercise.id),
-        exercise: serializeExerciseBase(workoutExercise.variation.exercise),
-        id: workoutExercise.id,
-        originalVariationId: workoutExercise.originalVariationId ?? undefined,
-        order: workoutExercise.order,
-        notes: workoutExercise.notes ?? undefined,
-        restTime: workoutExercise.restTime ?? undefined,
-        sets: buildExerciseSetsWithHistory(
-          workoutExercise.sets,
-          options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id),
-        ),
-        variation: serializeVariation(workoutExercise.variation, workoutExercise.variation.exercise.muscleGroup),
-      })),
+      .map((workoutExercise) => {
+        const previousPerformance = options?.previousPerformanceByWorkoutExerciseId?.get(workoutExercise.id)
+        const variation = serializeVariation(workoutExercise.variation, workoutExercise.variation.exercise.muscleGroup)
+
+        return {
+          coachUpdate: options?.coachUpdatesByWorkoutExerciseId?.get(workoutExercise.id),
+          exercise: serializeExerciseBase(workoutExercise.variation.exercise),
+          id: workoutExercise.id,
+          originalVariationId: workoutExercise.originalVariationId ?? undefined,
+          order: workoutExercise.order,
+          notes: workoutExercise.notes ?? undefined,
+          progression: buildExerciseProgression(
+            workoutExercise.sets,
+            previousPerformance,
+            variation.primaryMuscles,
+            options?.readinessScore,
+          ),
+          restTime: workoutExercise.restTime ?? undefined,
+          sets: buildExerciseSetsWithHistory(workoutExercise.sets, previousPerformance),
+          variation,
+        }
+      }),
     ...(options?.hasCoachUpdate ? { hasCoachUpdate: true } : {}),
     id: workout.id,
     isPersonal: options?.isPersonal ?? false,
@@ -4395,6 +4438,10 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
     profile,
     workout as WorkoutWithProgramRecord,
   )
+  const todayCheckIn = await db.recoveryCheckIn.findUnique({
+    select: { readinessScore: true },
+    where: { userId_checkInDate: { checkInDate: clientCalendarDay(), userId: profile.id } },
+  })
 
   return serializeWorkout(workout as WorkoutWithProgramRecord, {
     coachUpdatesByWorkoutExerciseId,
@@ -4404,6 +4451,7 @@ async function getWorkoutDetailForTrainee(profile: SerializedProfile, workoutId:
     // of starting a session is refused.
     lockedUntil: resolveProgramLockDate(workout.program, profile.id),
     previousPerformanceByWorkoutExerciseId,
+    readinessScore: todayCheckIn?.readinessScore ?? null,
   })
 }
 

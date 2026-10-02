@@ -1,6 +1,6 @@
 "use client"
 
-import { FileText, MoreVertical, RotateCcw, Trash2, TrendingUp } from "lucide-react"
+import { FileText, MoreVertical, RotateCcw, Trash2, TrendingDown, TrendingUp } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -53,8 +53,16 @@ function fieldStateClass(completed: boolean, active: boolean) {
   return "text-muted-foreground"
 }
 
+/** The progression engine's target for this set today. */
+export type SetProgressionSuggestion = {
+  direction: "down" | "hold" | "up"
+  reps: number
+  weight: number | null
+}
+
 interface SessionSetRowProps {
   programTarget?: ProgramSetTarget
+  suggestion?: SetProgressionSuggestion
   set: ExerciseSet
   setIndex: number
   weightUnit: "kg" | "lbs"
@@ -67,6 +75,7 @@ interface SessionSetRowProps {
 
 export function SessionSetRow({
   programTarget,
+  suggestion,
   set,
   setIndex,
   weightUnit,
@@ -122,13 +131,13 @@ export function SessionSetRow({
   // between showing the target rep range and truncating it away.
   const prevLabel =
     weightPart || repsPart ? `${weightPart ?? "—"}×${repsPart ?? "—"}` : "— · —"
-  // Passive progression hint: if last session's reps exceeded the coach's upper
-  // bound, tint the cell green and append a ↗ so trainee sees they've earned a
-  // weight bump. No auto-adjustment — trainee decides.
-  const exceededRange =
-    set.previousPerformance?.reps != null &&
-    programTarget?.reps != null &&
-    set.previousPerformance.reps > programTarget.reps
+  // The engine's target for today tints the Prev cell — up or down — and fills
+  // the weight placeholder. It never writes a value: the trainee decides.
+  const trend = suggestion && suggestion.direction !== "hold" ? suggestion.direction : null
+  const suggestionLabel = suggestion
+    ? `${suggestion.weight != null ? String(suggestion.weight) : "—"}×${suggestion.reps}`
+    : null
+  const TrendIcon = trend === "down" ? TrendingDown : TrendingUp
 
   return (
     <div
@@ -176,17 +185,17 @@ export function SessionSetRow({
         <span
           className={cn(
             "min-w-0 font-mono text-micro leading-tight",
-            exceededRange
-              ? "inline-flex items-center justify-center gap-1 text-success-text"
+            trend
+              ? cn("inline-flex items-center justify-center gap-1", trend === "up" ? "text-success-text" : "text-warning-text")
               : "block truncate text-center text-muted-foreground",
           )}
-          title={exceededRange ? messages.workoutPage.prevExceededHint : undefined}
-          aria-label={exceededRange ? `${prevLabel}. ${messages.workoutPage.prevExceededHint}` : undefined}
+          title={suggestionLabel ? messages.workoutPage.progressionSetHint(suggestionLabel) : undefined}
+          aria-label={suggestionLabel ? `${prevLabel}. ${messages.workoutPage.progressionSetHint(suggestionLabel)}` : undefined}
         >
-          {exceededRange ? (
+          {trend ? (
             <>
               <span className="truncate">{prevLabel}</span>
-              <TrendingUp className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
+              <TrendIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden />
             </>
           ) : (
             prevLabel
@@ -202,7 +211,7 @@ export function SessionSetRow({
             setWeight(e.target.value)
             onChange({ weight: Number.parseFloat(e.target.value) || undefined })
           }}
-          placeholder="—"
+          placeholder={suggestion?.weight != null ? String(suggestion.weight) : "—"}
           aria-label={messages.workoutPage.weightInUnit(weightUnit)}
           className={cn(FIELD_CLASS, fieldStateClass(completed, active))}
         />
