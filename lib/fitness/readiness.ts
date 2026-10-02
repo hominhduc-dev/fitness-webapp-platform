@@ -1,30 +1,22 @@
 /**
- * Readiness is stored and transported on a 0–100 scale — the database enforces
- * `CHECK (readinessScore BETWEEN 0 AND 100)` — but trainees read it on a 0–10
- * scale, the way a rating is normally spoken ("7.8 today"). The conversion
- * lives here so every surface shows the same number.
+ * Readiness is stored, transported and shown on a 0–100 scale — the database
+ * enforces `CHECK (readinessScore BETWEEN 0 AND 100)` — the same range Huawei
+ * Health uses for its own scores, so the numbers sit naturally beside synced
+ * wearable data. The helpers live here so every surface shows the same number.
  */
 
-const READINESS_SCALE_MAX = 10
-const READINESS_STORED_MAX = 100
+const READINESS_SCALE_MAX = 100
 
-function toReadinessScale(score: number) {
-  return (score / READINESS_STORED_MAX) * READINESS_SCALE_MAX
-}
-
-/**
- * One decimal, because whole numbers on a 0–10 scale hide the day-to-day
- * movement that makes the score worth checking.
- */
+/** Whole points: on 0–100 a decimal adds noise, not information. */
 function formatReadinessScore(score?: number | null, placeholder = "—") {
   if (score == null || !Number.isFinite(score)) return placeholder
-  return toReadinessScale(score).toFixed(1)
+  return String(Math.round(Math.max(0, Math.min(READINESS_SCALE_MAX, score))))
 }
 
 /** Fraction of the ring to fill, clamped so a stray value cannot overdraw it. */
 function readinessRingProgress(score?: number | null) {
   if (score == null || !Number.isFinite(score)) return 0
-  return Math.max(0, Math.min(1, score / READINESS_STORED_MAX))
+  return Math.max(0, Math.min(1, score / READINESS_SCALE_MAX))
 }
 
-export { formatReadinessScore, READINESS_SCALE_MAX, readinessRingProgress, toReadinessScale }
+export { formatReadinessScore, READINESS_SCALE_MAX, readinessRingProgress }

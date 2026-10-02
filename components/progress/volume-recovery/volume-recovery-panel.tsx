@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
+import { formatStress, STRESS_LEVELS, stressLevelFor } from "@/lib/fitness/stress"
 import type { VolumeRecoveryMuscle } from "@/lib/fitness/types"
 import { useUpsertRecoveryCheckIn, useVolumeRecovery } from "@/lib/queries/progress"
 import { formatDateKey } from "@/lib/time-zone"
@@ -174,7 +175,7 @@ export function CheckInSheet({
   onClose: () => void
   open: boolean
 }) {
-  const { locale, messages } = useLocale()
+  const { messages } = useLocale()
   const copy = messages.volumeRecovery
   const mutation = useUpsertRecoveryCheckIn()
   const [stepIndex, setStepIndex] = useState(0)
@@ -183,6 +184,7 @@ export function CheckInSheet({
   const [sleepMinutePart, setSleepMinutePart] = useState("")
   const [fatigue, setFatigue] = useState<number | null>(null)
   const [stress, setStress] = useState<number | null>(null)
+  const stressLevel = stressLevelFor(stress)
   const [sorenessByMuscle, setSorenessByMuscle] = useState<SorenessByMuscle>({})
 
   const hasSleepDuration = sleepHours !== "" || sleepMinutePart !== ""
@@ -268,7 +270,7 @@ export function CheckInSheet({
               {
                 icon: Brain,
                 label: saved.stressSource === "huawei" ? `${copy.stress} · Huawei` : copy.stress,
-                value: saved.stress == null ? "—" : `${saved.stress}/99`,
+                value: saved.stress == null ? "—" : formatStress(saved.stress, copy.stressLevels),
               },
               { icon: Dumbbell, label: copy.soreness, value: sorenessSummary },
             ].map((item) => (
@@ -411,17 +413,12 @@ export function CheckInSheet({
         {step === "stress" ? (
           <div className="space-y-4 rounded-xl border border-border/70 bg-surface-subtle/35 p-4">
             <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {locale === "vi" ? "Thấp" : "Low"} · 1
-                </p>
-                <p className="mt-1 font-mono text-3xl font-semibold tnum text-foreground">
-                  {stress ?? "—"}
-                  <span className="ml-1 text-sm font-medium text-muted-foreground">/99</span>
-                </p>
-              </div>
-              <p className="text-right text-xs text-muted-foreground">
-                99 · {locale === "vi" ? "Rất cao" : "Very high"}
+              <p className="font-mono text-3xl font-semibold tnum text-foreground">
+                {stress ?? "—"}
+                <span className="ml-1 text-sm font-medium text-muted-foreground">/99</span>
+              </p>
+              <p className="text-right text-sm font-medium text-foreground">
+                {stressLevel ? copy.stressLevels[stressLevel] : "—"}
               </p>
             </div>
             <input
@@ -437,12 +434,31 @@ export function CheckInSheet({
               type="range"
               value={stress ?? 50}
             />
-            <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
-              <span>1</span>
-              <span>25</span>
-              <span>50</span>
-              <span>75</span>
-              <span>99</span>
+            {/* Each band is as wide as its share of 1–99, so it lines up under the slider. */}
+            <div className="flex gap-1">
+              {STRESS_LEVELS.map((band) => {
+                const active = stressLevel === band.level
+                return (
+                  <button
+                    key={band.level}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setStress(Math.round((band.min + band.max) / 2))}
+                    style={{ flexGrow: band.max - band.min + 1, flexBasis: 0 }}
+                    className={cn(
+                      "min-w-0 rounded-md border px-1 py-1.5 text-center text-[11px] leading-tight transition-colors",
+                      active
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border/70 text-muted-foreground hover:bg-surface-subtle",
+                    )}
+                  >
+                    <span className="block font-medium">{copy.stressLevels[band.level]}</span>
+                    <span className="block font-mono tnum">
+                      {band.min}–{band.max}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ) : null}
@@ -502,7 +518,7 @@ export function VolumeRecoveryPanel() {
   const signals = [
     { icon: Moon, label: copy.sleep, value: checkIn?.sleepMinutes ? `${Math.floor(checkIn.sleepMinutes / 60)}h ${checkIn.sleepMinutes % 60}m` : "—" },
     { icon: Activity, label: copy.fatigue, value: checkIn ? `${checkIn.fatigue}/5` : "—" },
-    { icon: Brain, label: copy.stress, value: checkIn?.stress ? `${checkIn.stress}/99` : "—" },
+    { icon: Brain, label: copy.stress, value: checkIn?.stress ? formatStress(checkIn.stress, copy.stressLevels) : "—" },
     { icon: Dumbbell, label: copy.soreness, value: checkIn?.muscles.length ? `${Math.max(...checkIn.muscles.map((muscle) => muscle.soreness))}/5` : "—" },
   ]
   const checkInLabel = checkIn ? copy.updateCheckIn : copy.checkIn
