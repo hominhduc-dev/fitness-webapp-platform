@@ -269,6 +269,7 @@ export type HuaweiConnectionStatus = {
   latestSummary: {
     activeCalories: number | null
     date: string
+    hrvRmssd: number | null
     restingHeartRate: number | null
     sleepMinutes: number | null
     steps: number | null

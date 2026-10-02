@@ -142,6 +142,12 @@ const envSchema = z.object({
   HUAWEI_CLIENT_ID: z.string().optional(),
   HUAWEI_CLIENT_SECRET: z.string().optional(),
   HUAWEI_HEALTH_API_BASE: z.url().default("https://health-api.cloud.huawei.com"),
+  /**
+   * Health Kit data type the daily HRV (RMSSD) is read from. Unset skips HRV:
+   * the type has to be confirmed against the account's Health Kit permissions
+   * before it is turned on, and a type Huawei refuses is skipped per sync.
+   */
+  HUAWEI_HRV_DATA_TYPE: z.string().trim().min(1).optional(),
   /** Background pull of Huawei Health data for every connected trainee. */
   HUAWEI_HEALTH_SYNC_ENABLED: z
     .string()
@@ -287,6 +293,7 @@ function loadEnv() {
     huaweiClientId: parsed.HUAWEI_CLIENT_ID,
     huaweiClientSecret: parsed.HUAWEI_CLIENT_SECRET,
     huaweiHealthApiBase: parsed.HUAWEI_HEALTH_API_BASE,
+    huaweiHrvDataType: parsed.HUAWEI_HRV_DATA_TYPE,
     huaweiHealthSyncEnabled: parsed.HUAWEI_HEALTH_SYNC_ENABLED,
     huaweiHealthSyncIntervalMs: parsed.HUAWEI_HEALTH_SYNC_INTERVAL_MS,
     huaweiOauthRedirectUri: parsed.HUAWEI_OAUTH_REDIRECT_URI,

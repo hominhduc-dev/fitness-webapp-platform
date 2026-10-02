@@ -17,6 +17,7 @@ import {
   type VolumeLogRecord,
 } from "./analytics"
 import { systemLandmarksForMuscle } from "./volume-landmarks"
+import { BASELINE_DAYS, wearableSignalsForDay } from "./wearable-baseline"
 
 type RecoveryCheckInInput = {
   checkInDate: Date
@@ -146,18 +147,18 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
     })
   }
 
-  const healthSummary =
-    input.sleepMinutes == null || input.stress == null
-      ? await db.healthDailySummary.findUnique({
-          where: {
-            userId_provider_date: {
-              date: input.checkInDate,
-              provider: HealthProvider.huawei,
-              userId: profile.id,
-            },
-          },
-        })
-      : null
+  // Today's row fills skipped answers; the weeks before it are the baseline
+  // HRV and resting heart rate are read against.
+  const healthDays = await db.healthDailySummary.findMany({
+    select: { date: true, hrvRmssd: true, restingHeartRate: true, sleepMinutes: true, stressAvg: true },
+    where: {
+      date: { gte: addUtcDays(input.checkInDate, -BASELINE_DAYS), lte: input.checkInDate },
+      provider: HealthProvider.huawei,
+      userId: profile.id,
+    },
+  })
+  const healthSummary = healthDays.find((day) => day.date.getTime() === input.checkInDate.getTime()) ?? null
+  const wearable = wearableSignalsForDay(healthDays, input.checkInDate)
 
   const huaweiStress = normalizeStress99(healthSummary?.stressAvg)
   const sleepMinutes = input.sleepMinutes ?? healthSummary?.sleepMinutes ?? null
@@ -177,6 +178,8 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
 
   const readinessScore = calculateReadiness({
     fatigue: input.fatigue,
+    hrvZScore: wearable.hrvZScore,
+    restingHeartRateDelta: wearable.restingHeartRateDelta,
     sleepMinutes,
     sleepQuality: input.sleepQuality,
     soreness: readinessSoreness(input.muscles),
