@@ -19,6 +19,7 @@ type InstallCopy = {
   iosSteps: InstallStep[]
   iosTitle: string
   openApp: string
+  prompt: { body: string; fullGuide: string; later: string; neverAgain: string; title: string }
   tabAndroid: string
   tabIphone: string
   title: string
@@ -75,6 +76,13 @@ const vi: InstallCopy = {
   installedTitle: "YeahBuddy đã có trên Màn hình chính",
   installedBody: "Bạn đang mở YeahBuddy từ icon trên màn hình chính, không cần làm gì thêm.",
   openApp: "Vào ứng dụng",
+  prompt: {
+    title: "Thêm YeahBuddy vào Màn hình chính",
+    body: "Mở app bằng một chạm, chạy toàn màn hình và nhận thông báo nhắc tập.",
+    fullGuide: "Xem hướng dẫn chi tiết",
+    later: "Để sau",
+    neverAgain: "Không nhắc lại",
+  },
   troubleshootingTitle: "Không làm được?",
   troubleshooting: [
     {
@@ -138,6 +146,13 @@ const en: InstallCopy = {
   installedTitle: "YeahBuddy is on your Home Screen",
   installedBody: "You opened YeahBuddy from its Home Screen icon. Nothing more to do.",
   openApp: "Go to the app",
+  prompt: {
+    title: "Add YeahBuddy to your Home Screen",
+    body: "Open it with one tap, full screen, and get workout reminders.",
+    fullGuide: "See the full guide",
+    later: "Later",
+    neverAgain: "Don't remind me",
+  },
   troubleshootingTitle: "Not working?",
   troubleshooting: [
     {

@@ -19,32 +19,22 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { Button } from "@/components/ui/button"
 import type { InstallCopy } from "@/lib/i18n/messages/install"
-import { detectInstallPlatform, type InstallPlatform } from "@/lib/pwa/install-platform"
-import { isStandaloneWebApp } from "@/lib/pwa/push-support"
+import { readInstallPlatform, type InstallPlatform } from "@/lib/pwa/install-platform"
 import { cn } from "@/lib/utils"
 
 type Tab = "android" | "iphone"
 
 /** Chrome's install prompt event; not in the DOM typings. */
-type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }
+export type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }
 
-const IOS_STEP_ICONS: LucideIcon[] = [Compass, Share, SquarePlus, CircleCheck, Smartphone]
-const ANDROID_STEP_ICONS: LucideIcon[] = [Compass, EllipsisVertical, Download, CircleCheck]
+export const IOS_STEP_ICONS: LucideIcon[] = [Compass, Share, SquarePlus, CircleCheck, Smartphone]
+export const ANDROID_STEP_ICONS: LucideIcon[] = [Compass, EllipsisVertical, Download, CircleCheck]
 const BENEFIT_ICONS: LucideIcon[] = [Zap, MonitorSmartphone, Bell]
 
 /** The device never changes while the page is open, so there is nothing to subscribe to. */
 const subscribeNever = () => () => {}
 
-function readPlatform(): InstallPlatform {
-  return detectInstallPlatform({
-    maxTouchPoints: navigator.maxTouchPoints,
-    platform: navigator.platform,
-    standalone: isStandaloneWebApp(),
-    userAgent: navigator.userAgent,
-  })
-}
-
-function Steps({ icons, steps }: { icons: LucideIcon[]; steps: InstallCopy["iosSteps"] }) {
+export function InstallSteps({ icons, steps }: { icons: LucideIcon[]; steps: InstallCopy["iosSteps"] }) {
   return (
     <ol className="space-y-3">
       {steps.map((step, index) => {
@@ -74,7 +64,7 @@ function Steps({ icons, steps }: { icons: LucideIcon[]; steps: InstallCopy["iosS
  * this device needs.
  */
 export function InstallGuide({ copy }: { copy: InstallCopy }) {
-  const detected = useSyncExternalStore(subscribeNever, readPlatform, () => null)
+  const detected = useSyncExternalStore(subscribeNever, readInstallPlatform, () => null)
   const [justInstalled, setJustInstalled] = useState(false)
   const [chosenTab, setChosenTab] = useState<Tab | null>(null)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
@@ -148,7 +138,7 @@ export function InstallGuide({ copy }: { copy: InstallCopy }) {
             <h2 className="text-lg font-semibold text-foreground">{copy.inAppTitle}</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">{copy.inAppBody}</p>
           </div>
-          <Steps icons={[EllipsisVertical, Compass]} steps={copy.inAppSteps} />
+          <InstallSteps icons={[EllipsisVertical, Compass]} steps={copy.inAppSteps} />
           <Button variant="outline" className="w-full sm:w-auto" onClick={() => void copyLink()}>
             <Copy aria-hidden />
             {copied ? copy.copied : copy.copyLink}
@@ -179,7 +169,7 @@ export function InstallGuide({ copy }: { copy: InstallCopy }) {
                   </Button>
                 </div>
               ) : null}
-              <Steps icons={IOS_STEP_ICONS} steps={copy.iosSteps} />
+              <InstallSteps icons={IOS_STEP_ICONS} steps={copy.iosSteps} />
             </>
           ) : (
             <>
@@ -190,7 +180,7 @@ export function InstallGuide({ copy }: { copy: InstallCopy }) {
                   {copy.androidButton}
                 </Button>
               ) : null}
-              <Steps icons={ANDROID_STEP_ICONS} steps={copy.androidSteps} />
+              <InstallSteps icons={ANDROID_STEP_ICONS} steps={copy.androidSteps} />
             </>
           )}
         </div>

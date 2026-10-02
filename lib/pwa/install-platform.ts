@@ -1,3 +1,5 @@
+import { isStandaloneWebApp } from "./push-support"
+
 /**
  * Which "add to Home Screen" instructions a visitor needs.
  *
@@ -33,5 +35,20 @@ function detectInstallPlatform(input: {
   return "desktop"
 }
 
-export { detectInstallPlatform }
+/** The current device's platform. Browser only. */
+function readInstallPlatform(): InstallPlatform {
+  return detectInstallPlatform({
+    maxTouchPoints: navigator.maxTouchPoints,
+    platform: navigator.platform,
+    standalone: isStandaloneWebApp(),
+    userAgent: navigator.userAgent,
+  })
+}
+
+/** Platforms that can still add YeahBuddy to their Home Screen. */
+function canInstallFrom(platform: InstallPlatform | null) {
+  return platform === "android" || platform === "in-app" || platform === "ios-other" || platform === "ios-safari"
+}
+
+export { canInstallFrom, detectInstallPlatform, readInstallPlatform }
 export type { InstallPlatform }
