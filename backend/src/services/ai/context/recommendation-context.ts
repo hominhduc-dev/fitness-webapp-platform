@@ -49,8 +49,14 @@ function formatRecommendationLines(recommendation: TrainingRecommendation) {
       const targets = exercise.sets
         .map((set) => (set.weight != null ? `${formatNumber(set.weight, 1)}kg×${set.reps}` : `${set.reps} rep`))
         .join(", ")
+      const held = exercise.heldBy === "day"
+        ? " (giữ lại vì readiness hôm nay)"
+        : exercise.heldBy === "muscle" && exercise.muscleSlug
+          ? ` (theo volume tuần của ${exercise.muscleSlug}: ${MUSCLE_ACTION_TEXT[exercise.muscleAction ?? "maintain"]})`
+          : ""
+      const setChange = exercise.setDelta !== 0 ? `, ${exercise.setDelta > 0 ? "+" : ""}${exercise.setDelta} set` : ""
       lines.push(
-        `  • ${exercise.name}: ${EXERCISE_ACTION_TEXT[exercise.action] ?? exercise.action}${targets ? ` → ${targets}` : ""}${exercise.heldByDay ? " (giữ lại vì readiness hôm nay)" : ""}.`,
+        `  • ${exercise.name}: ${EXERCISE_ACTION_TEXT[exercise.action] ?? exercise.action}${targets ? ` → ${targets}` : ""}${setChange}${held}.`,
       )
     }
   } else {

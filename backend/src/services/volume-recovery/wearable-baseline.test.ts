@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { calculateReadiness } from "./analytics"
+import { calculateReadiness, wearableReadinessAdjustment } from "./analytics"
 import { wearableSignalsForDay, type WearableDay } from "./wearable-baseline"
 
 const today = new Date("2026-09-28T00:00:00.000Z")
@@ -48,12 +48,21 @@ describe("readiness with wearable signals", () => {
     expect(calculateReadiness({ ...answers, hrvZScore: null, restingHeartRateDelta: null })).toBe(calculateReadiness(answers))
   })
 
-  it("drops on suppressed HRV and an elevated resting heart rate", () => {
-    const base = calculateReadiness(answers)!
-    const strained = calculateReadiness({ ...answers, hrvZScore: -2, restingHeartRateDelta: 8 })!
-    const fresh = calculateReadiness({ ...answers, hrvZScore: 1.5, restingHeartRateDelta: -2 })!
+  it("leaves a perfect check-in at 100 when the wearable sits at baseline", () => {
+    const perfect = { fatigue: 1, sleepMinutes: 480, sleepQuality: 5, soreness: 0, stress: 1 }
+    expect(calculateReadiness({ ...perfect, hrvZScore: 0, restingHeartRateDelta: 0 })).toBe(100)
+  })
 
-    expect(strained).toBeLessThan(base - 10)
-    expect(fresh).toBeGreaterThan(base)
+  it("nudges the check-in score by the wearable, within -15 and +10", () => {
+    const base = calculateReadiness(answers)!
+
+    // HRV one SD low and resting HR three beats up: -4 and -3.
+    expect(calculateReadiness({ ...answers, hrvZScore: -1, restingHeartRateDelta: 3 })).toBe(base - 7)
+    expect(wearableReadinessAdjustment({ hrvZScore: -3, restingHeartRateDelta: 12 })).toBe(-15)
+    expect(wearableReadinessAdjustment({ hrvZScore: 3, restingHeartRateDelta: -6 })).toBe(10)
+  })
+
+  it("yields no score from wearable data alone", () => {
+    expect(calculateReadiness({ hrvZScore: 1, restingHeartRateDelta: -2 })).toBeNull()
   })
 })

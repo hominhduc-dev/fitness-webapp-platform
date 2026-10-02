@@ -105,6 +105,7 @@ export const queryKeys = {
     volumeRecovery: (options?: { programId?: string | null; weekStart?: string }) =>
       ["progress", "volume-recovery", options?.weekStart ?? null, options?.programId ?? null] as const,
     recoveryHistory: (days: number) => ["progress", "recovery-history", days] as const,
+    trainingRecommendation: () => ["progress", "training-recommendation"] as const,
   },
 
   coach: {

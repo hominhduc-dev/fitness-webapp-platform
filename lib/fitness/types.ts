@@ -796,6 +796,19 @@ type RecoveryHistory = {
 
 type VolumeRecommendationStatus = "accepted" | "applied" | "dismissed" | "pending"
 
+/** GET /progress/training-recommendation: day, muscle and exercise, reconciled. */
+type TrainingRecommendation = {
+  day: TrainingGuidance
+  intensity: { phase: string | null; targetRir: number | null }
+  muscles: Array<{ action: VolumeRecommendationAction; currentSets: number; muscleSlug: string; recommendedSets: number }>
+  workout: {
+    exercises: Array<import("@/lib/types").ExerciseProgression & { name: string }>
+    id: string
+    isCompleted: boolean
+    name: string
+  } | null
+}
+
 type VolumeRecoveryData = {
   algorithmVersion: string
   checkIn: RecoveryCheckIn | null
@@ -887,6 +900,7 @@ export type {
   TrainingGuidanceAction,
   TrainingGuidanceReason,
   VolumeRecommendationStatus,
+  TrainingRecommendation,
   VolumeRecoveryData,
   VolumeRecoveryMuscle,
   VolumeRecommendationAction,

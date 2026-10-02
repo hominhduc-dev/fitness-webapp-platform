@@ -137,11 +137,21 @@ export interface ExerciseSet {
 
 export type ExerciseProgressionAction = "add_load" | "add_reps" | "maintain" | "reduce_load" | "establish_baseline"
 
-/** Today's sets as the progression engine suggests them, from last session's. */
+/**
+ * Today's sets as the progression engine suggests them, from last session's,
+ * already reconciled with the day's readiness and the week's muscle volume.
+ */
 export interface ExerciseProgression {
   action: ExerciseProgressionAction
+  /** What the exercise's own history called for before day and muscle. */
+  engineAction: ExerciseProgressionAction
+  heldBy: "day" | "muscle" | null
+  muscleAction: "decrease" | "deload" | "increase" | "maintain" | null
+  muscleSlug: string | null
   reasons: string[]
-  sets: Array<{ reps: number; setNumber: number; weight: number | null }>
+  /** Sets to add or drop against the programmed count. */
+  setDelta: number
+  sets: Array<{ previousReps: number; previousWeight: number | null; reps: number; setNumber: number; weight: number | null }>
 }
 
 export type CoachUpdateType = "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"

@@ -15,8 +15,8 @@ import {
 // v2 folds sleep duration into the readiness score; v3 scores soreness by the
 // sorest muscle rather than the average; v4 gives each muscle its own default
 // landmarks, compares performance with the previous sessions rather than the
-// program's first week, lets volume climb between MEV and MAV, and folds HRV
-// and resting heart rate, against the trainee's own baseline, into readiness. Check-ins keep the version they were
+// program's first week, lets volume climb between MEV and MAV, and nudges
+// readiness by HRV and resting heart rate against the trainee's own baseline. Check-ins keep the version they were
 // scored with, so older rows stay explainable.
 const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v4"
 
@@ -267,12 +267,12 @@ function readinessSoreness(muscles: ReadonlyArray<{ soreness: number }>) {
 }
 
 /**
- * Weights are whole numbers adding up to 100 across the check-in answers; the
- * wearable signals add on top when the trainee has them, and the total is
- * renormalised either way. As
- * fractions they sum to 1.0000000000000002 and a score landing exactly on .5
- * then rounds the wrong way. A skipped answer drops out and the rest are
- * renormalised, so a partial check-in still yields a usable score.
+ * The check-in answers make the score; the wearable then nudges it (see
+ * wearableReadinessAdjustment). Weights are whole numbers adding up to 100
+ * when every answer is present: as fractions they sum to 1.0000000000000002
+ * and a score landing exactly on .5 then rounds the wrong way. A skipped
+ * answer drops out and the rest are renormalised, so a partial check-in still
+ * yields a usable score. Wearable data alone yields none.
  */
 function calculateReadiness(input: ReadinessInput) {
   const components: Array<{ score: number; weight: number }> = []
@@ -284,17 +284,29 @@ function calculateReadiness(input: ReadinessInput) {
   if (input.sleepMinutes != null) components.push({ score: scoreSleepDuration(input.sleepMinutes), weight: 15 })
   if (input.soreness != null) components.push({ score: 100 - clamp((input.soreness / 5) * 100, 0, 100), weight: 20 })
   if (input.stress != null) components.push({ score: 100 - toNinetyNinePointScore(input.stress), weight: 10 })
-  // Wearable signals: HRV at baseline scores 50, two SDs either side 0 or 100;
-  // resting heart rate at baseline scores 75, losing 7.5 a beat above it.
-  if (input.hrvZScore != null) components.push({ score: clamp(50 + input.hrvZScore * 25, 0, 100), weight: 15 })
-  if (input.restingHeartRateDelta != null) {
-    components.push({ score: clamp(75 - input.restingHeartRateDelta * 7.5, 0, 100), weight: 10 })
-  }
 
   const totalWeight = components.reduce((sum, component) => sum + component.weight, 0)
   if (totalWeight === 0) return null
 
-  return Math.round(components.reduce((sum, component) => sum + component.score * component.weight, 0) / totalWeight)
+  const base = components.reduce((sum, component) => sum + component.score * component.weight, 0) / totalWeight
+  return Math.round(clamp(base + wearableReadinessAdjustment(input), 0, 100))
+}
+
+/** Bounds on what the wearable can move a check-in's score: it informs, it does not overrule. */
+const WEARABLE_ADJUSTMENT_MIN = -15
+const WEARABLE_ADJUSTMENT_MAX = 10
+
+/**
+ * Points the wearable adds to or takes off the check-in's score. A day at the
+ * trainee's own baseline adjusts nothing, so having a wearable never re-scales
+ * the score by itself: HRV moves it 4 points per standard deviation (−10…+6),
+ * resting heart rate 1 point per beat away from baseline (−8…+4), and the two
+ * together stay within −15…+10.
+ */
+function wearableReadinessAdjustment(input: Pick<ReadinessInput, "hrvZScore" | "restingHeartRateDelta">) {
+  const hrv = input.hrvZScore == null ? 0 : clamp(input.hrvZScore * 4, -10, 6)
+  const restingHeartRate = input.restingHeartRateDelta == null ? 0 : clamp(-input.restingHeartRateDelta, -8, 4)
+  return Math.round(clamp(hrv + restingHeartRate, WEARABLE_ADJUSTMENT_MIN, WEARABLE_ADJUSTMENT_MAX))
 }
 
 function classifyVolumeZone(effectiveSets: number, landmarks: VolumeLandmarks): VolumeZone {
@@ -453,6 +465,7 @@ export {
   DEFAULT_VOLUME_LANDMARKS,
   readinessSoreness,
   VOLUME_RECOVERY_ALGORITHM_VERSION,
+  wearableReadinessAdjustment,
 }
 export type {
   MuscleVolume,

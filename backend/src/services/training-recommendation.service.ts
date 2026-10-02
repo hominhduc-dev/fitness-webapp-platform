@@ -14,8 +14,10 @@ async function getTrainingRecommendationForTrainee(profile: SerializedProfile) {
   assertTrainee(profile)
 
   const today = await findTodayScheduleEntryForTrainee(profile.id)
-  const workout = today ? await getWorkoutDetailForTrainee(profile, today.workoutId) : null
-  const recovery = await getVolumeRecoveryForTrainee(profile, undefined, workout?.programId ?? undefined)
+  const recovery = await getVolumeRecoveryForTrainee(profile, undefined, today?.programId ?? undefined)
+  // The workout read reconciles each exercise with this same recovery result,
+  // so the session and this recommendation never disagree.
+  const workout = today ? await getWorkoutDetailForTrainee(profile, today.workoutId, { recovery }) : null
 
   return buildTrainingRecommendation({
     guidance: recovery.guidance,
@@ -28,6 +30,7 @@ async function getTrainingRecommendationForTrainee(profile: SerializedProfile) {
             name: exercise.variation.displayName ?? exercise.exercise.name,
             progression: exercise.progression ?? null,
           })),
+          id: workout.id,
           isCompleted: today.isCompleted,
           name: workout.name,
         }

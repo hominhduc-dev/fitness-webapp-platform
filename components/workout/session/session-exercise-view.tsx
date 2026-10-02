@@ -55,6 +55,13 @@ function progressionTargetText(progression: ExerciseProgression, weightUnit: str
   return labels.join(" · ")
 }
 
+/** Which note reads right: a held or deloaded exercise is not the engine's own call. */
+function progressionNoteKind(progression: ExerciseProgression) {
+  if (progression.muscleAction === "deload" && progression.engineAction !== "reduce_load") return "deload" as const
+  if (progression.heldBy && progression.action === "maintain") return "hold" as const
+  return progression.action as "add_load" | "add_reps" | "maintain" | "reduce_load"
+}
+
 function getCoachUpdateMeta(type: CoachUpdate["type"]) {
   switch (type) {
     case "weight_up":
@@ -277,10 +284,18 @@ export function SessionExerciseView({
           <TrendingUp className="mt-px h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
           <p className="min-w-0 flex-1 text-xs leading-[1.45] text-muted-foreground">
             {messages.workoutPage.progressionNote(
-              progression.action as "add_load" | "add_reps" | "maintain" | "reduce_load",
+              progressionNoteKind(progression),
               progressionTargetText(progression, weightUnit),
             )}
             {progression.reasons.includes("readiness_low") ? ` ${messages.workoutPage.progressionReadinessLow}` : null}
+            {progression.heldBy === "day" ? ` ${messages.workoutPage.progressionHeldByDay}` : null}
+            {(progression.muscleAction === "decrease" || progression.muscleAction === "deload") && progression.muscleSlug
+              ? ` ${messages.workoutPage.progressionHeldByMuscle(
+                  messages.volumeRecovery.muscleLabels[progression.muscleSlug as keyof typeof messages.volumeRecovery.muscleLabels] ?? progression.muscleSlug,
+                  progression.muscleAction,
+                )}`
+              : null}
+            {progression.setDelta !== 0 ? ` ${messages.workoutPage.progressionSetDelta(progression.setDelta)}` : null}
           </p>
         </div>
       ) : null}

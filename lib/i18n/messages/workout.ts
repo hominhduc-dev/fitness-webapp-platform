@@ -214,8 +214,12 @@ export const workoutMessages = {
       playExerciseAnimation: "Play animation",
       previous: "Prev",
       progressionSetHint: (target: string) => `Suggested today: ${target}`,
-      progressionNote: (action: "add_load" | "add_reps" | "maintain" | "reduce_load", target: string) =>
-        action === "add_load"
+      progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
+        action === "deload"
+          ? `Deload: lighter load, same reps: ${target}.`
+          : action === "hold"
+            ? `Keep last session's numbers: ${target}.`
+            : action === "add_load"
           ? `You reached the top of the range last time. Add weight: ${target}.`
           : action === "add_reps"
             ? `Same weight, one more rep per set: ${target}.`
@@ -223,6 +227,11 @@ export const workoutMessages = {
               ? `Most sets fell short last time. Go lighter: ${target}.`
               : `Repeat last session before progressing: ${target}.`,
       progressionReadinessLow: "Kept smaller because today's readiness is low.",
+      progressionHeldByDay: "Holding last session's numbers: today's readiness calls for an easier day.",
+      progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
+        action === "deload" ? `${muscle} is due a deload this week.` : `${muscle}'s weekly volume should come down.`,
+      progressionSetDelta: (delta: number) =>
+        delta > 0 ? `Add ${delta} set${delta === 1 ? "" : "s"}.` : `Drop ${-delta} set${delta === -1 ? "" : "s"}.`,
       kgLifted: "kg lifted",
       thisWorkoutUnavailable: "This workout is unavailable or not assigned to you.",
       actualWorkoutDateTitle: "When did you actually train?",
@@ -501,8 +510,12 @@ export const workoutMessages = {
       playExerciseAnimation: "Phát animation",
       previous: "Trước",
       progressionSetHint: (target: string) => `Gợi ý hôm nay: ${target}`,
-      progressionNote: (action: "add_load" | "add_reps" | "maintain" | "reduce_load", target: string) =>
-        action === "add_load"
+      progressionNote: (action: "add_load" | "add_reps" | "deload" | "hold" | "maintain" | "reduce_load", target: string) =>
+        action === "deload"
+          ? `Deload: giảm tạ, giữ số rep: ${target}.`
+          : action === "hold"
+            ? `Giữ như buổi trước: ${target}.`
+            : action === "add_load"
           ? `Lần trước đã chạm đỉnh range. Tăng tạ: ${target}.`
           : action === "add_reps"
             ? `Giữ mức tạ, thêm 1 rep mỗi set: ${target}.`
@@ -510,6 +523,10 @@ export const workoutMessages = {
               ? `Lần trước phần lớn set chưa đạt range. Giảm tạ: ${target}.`
               : `Lặp lại buổi trước rồi mới tăng: ${target}.`,
       progressionReadinessLow: "Mức tăng được giữ nhỏ vì readiness hôm nay thấp.",
+      progressionHeldByDay: "Giữ như buổi trước: readiness hôm nay cần một buổi nhẹ hơn.",
+      progressionHeldByMuscle: (muscle: string, action: "decrease" | "deload") =>
+        action === "deload" ? `${muscle} cần deload tuần này.` : `Volume tuần của ${muscle} nên giảm.`,
+      progressionSetDelta: (delta: number) => (delta > 0 ? `Thêm ${delta} set.` : `Bớt ${-delta} set.`),
       kgLifted: "kg đã nâng",
       thisWorkoutUnavailable: "Buổi tập này không khả dụng hoặc chưa được giao cho bạn.",
       actualWorkoutDateTitle: "Bạn thực sự tập lúc nào?",

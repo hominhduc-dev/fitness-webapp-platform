@@ -48,9 +48,9 @@ function progressSteps(copy: TourMessages["traineeProgress"]): TourStep[] {
       ["body", "progress-body"],
       ["period", "progress-period"],
       ["periodSummary", "progress-period-summary"],
-      ["frequency", "progress-frequency"],
-      ["volume", "progress-volume"],
       ["muscles", "progress-muscles"],
+      ["consistency", "progress-consistency"],
+      ["strength", "progress-strength"],
       ["records", "progress-records"],
     ]),
     ...onTab("history", [

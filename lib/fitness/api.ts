@@ -66,6 +66,7 @@ import type {
   RecoveryCheckIn,
   RecoveryCheckInInput,
   RecoveryHistory,
+  TrainingRecommendation,
   TraineeDashboardData,
   WorkoutCollection,
   WorkoutLogInput,
@@ -1579,6 +1580,11 @@ async function fetchVolumeRecovery(
   return response.data
 }
 
+async function fetchTrainingRecommendation(accessToken: string): Promise<TrainingRecommendation> {
+  const response = await request<ApiEnvelope<TrainingRecommendation>>("/api/progress/training-recommendation", accessToken)
+  return response.data
+}
+
 async function fetchRecoveryHistory(accessToken: string, days = 30): Promise<RecoveryHistory> {
   const response = await request<ApiEnvelope<RecoveryHistory>>(
     `/api/progress/recovery-history?days=${days}`,
@@ -3030,6 +3036,7 @@ export {
   fetchNotificationPreferences,
   fetchPushConfig,
   fetchRecoveryHistory,
+  fetchTrainingRecommendation,
   fetchVolumeRecovery,
   fetchWeightEntries,
   resetVolumeLandmarks,

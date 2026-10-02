@@ -168,8 +168,8 @@ function localizedNotificationCopy(
         if (exercises.length === 0) return fallback
         return {
           body: isVi
-            ? `Không tiến bộ ở ${exercises.join(", ")} trong 3 tuần.`
-            : `No progress on ${exercises.join(", ")} in 3 weeks.`,
+            ? `Không có PR e1RM, tạ hay rep ở ${exercises.join(", ")} trong 3 tuần.`
+            : `No e1RM, weight or rep PR on ${exercises.join(", ")} in 3 weeks.`,
           title,
         }
       }

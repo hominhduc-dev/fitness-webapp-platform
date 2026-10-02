@@ -153,11 +153,11 @@ export const onboardingMessages = {
           },
           thisWeek: {
             title: "This week",
-            body: "Workouts, volume lifted, working sets and average sleep since Monday: a quick read on whether the week is on track.",
+            body: "Three rings since Monday: sessions against your plan, muscles inside their productive volume, and sleep against seven hours. Today's readiness sits in the middle.",
           },
           body: {
             title: "Body weight",
-            body: "Your latest weigh-in, the change and the trend line. Add a body fat reading to see lean mass too. Log weight opens the weigh-in.",
+            body: "Your seven-day average weight, how fast it is moving each week and the trend line under the daily weigh-ins. Add a body fat reading to see lean mass too.",
           },
           period: {
             title: "The last 90 days",
@@ -165,19 +165,19 @@ export const onboardingMessages = {
           },
           periodSummary: {
             title: "Compared with before",
-            body: "Each number sits next to the previous 90 days, so you can see whether you are training more or less.",
-          },
-          frequency: {
-            title: "Workout frequency",
-            body: "Completed sessions against planned ones, week by week. Gaps show where consistency slipped.",
-          },
-          volume: {
-            title: "Training volume",
-            body: "Kilograms lifted each week. A steady climb means progressive overload is working.",
+            body: "Sessions per week, volume, strength and new PRs, each with its change and a small trend line for the period.",
           },
           muscles: {
-            title: "Muscle distribution",
-            body: "How your sets split across muscle groups. Spot a group that is getting too little work.",
+            title: "Volume by muscle",
+            body: "Each muscle coloured by where this week's sets sit between MEV and MRV. Tap one to see its landmarks.",
+          },
+          consistency: {
+            title: "Consistency",
+            body: "Twelve weeks of training days, darker for more volume. Gaps show where the rhythm slipped.",
+          },
+          strength: {
+            title: "Strength",
+            body: "Estimated one-rep max for your main lifts, with the change over the period and a badge when a PR landed.",
           },
           records: {
             title: "Recent records",
@@ -408,11 +408,11 @@ export const onboardingMessages = {
           },
           thisWeek: {
             title: "Tuần này",
-            body: "Số buổi tập, khối lượng, set chính và giấc ngủ trung bình từ thứ Hai: xem nhanh tuần này có đúng nhịp không.",
+            body: "Ba vòng từ thứ Hai: số buổi so với kế hoạch, số nhóm cơ đang ở vùng volume tối ưu, và giấc ngủ so với 7 tiếng. Readiness hôm nay nằm ở giữa.",
           },
           body: {
             title: "Cân nặng",
-            body: "Lần cân gần nhất, mức thay đổi và đường xu hướng. Thêm chỉ số mỡ để xem cả khối nạc. Bấm Ghi cân nặng để cân nhanh.",
+            body: "Cân nặng trung bình 7 ngày, tốc độ thay đổi mỗi tuần và đường xu hướng bên dưới các lần cân. Thêm chỉ số mỡ để xem cả khối nạc.",
           },
           period: {
             title: "90 ngày gần nhất",
@@ -420,19 +420,19 @@ export const onboardingMessages = {
           },
           periodSummary: {
             title: "So với kỳ trước",
-            body: "Mỗi con số được đặt cạnh 90 ngày trước đó, để bạn biết mình đang tập nhiều hơn hay ít đi.",
-          },
-          frequency: {
-            title: "Tần suất tập",
-            body: "Số buổi đã hoàn thành so với kế hoạch theo từng tuần. Chỗ trống cho thấy lúc bạn mất nhịp.",
-          },
-          volume: {
-            title: "Khối lượng tập",
-            body: "Tổng kg nâng mỗi tuần. Đường đi lên đều nghĩa là tăng tải đang có hiệu quả.",
+            body: "Số buổi mỗi tuần, khối lượng, sức mạnh và PR mới, mỗi chỉ số kèm mức thay đổi và đường xu hướng nhỏ của cả kỳ.",
           },
           muscles: {
-            title: "Phân bố nhóm cơ",
-            body: "Số set chia theo từng nhóm cơ. Dễ thấy nhóm nào đang được tập quá ít.",
+            title: "Volume theo nhóm cơ",
+            body: "Mỗi nhóm cơ được tô màu theo vị trí số set tuần này giữa MEV và MRV. Chạm vào để xem các ngưỡng.",
+          },
+          consistency: {
+            title: "Độ đều đặn",
+            body: "12 tuần ngày tập, càng đậm là càng nhiều volume. Ô trống cho thấy lúc bạn mất nhịp.",
+          },
+          strength: {
+            title: "Sức mạnh",
+            body: "1RM ước tính của các bài chính, kèm mức thay đổi trong kỳ và huy hiệu khi có PR.",
           },
           records: {
             title: "Kỷ lục gần đây",

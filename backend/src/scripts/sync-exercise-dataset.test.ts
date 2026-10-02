@@ -23,7 +23,7 @@ function exercise(id: string, name: string, createdById: string | null, variatio
     createdAt: new Date(), createdById, id, muscleGroup: "Back", name, updatedAt: new Date(),
     shareRequestedAt: null, shareReviewNote: null, shareReviewedAt: null, shareReviewedById: null, shareStatus: "private",
     variations: variations.map((variation, index) => ({
-      activityType: null, createdAt: new Date(), equipment: null, exerciseId: id, id: `${id}-v${index}`,
+      activityType: null, createdAt: new Date(), equipment: null, exerciseId: id, loadIncrementKg: null, id: `${id}-v${index}`,
       isDefault: index === 0, metadata: null, displayMetadata: null, muscleProfileRationale: null,
       muscleProfileReviewedAt: null, muscleProfileReviewedById: null, muscleProfileSource: null,
       muscleProfileStatus: "pending", name: "Default", sortOrder: index, source: null, sourceId: null,

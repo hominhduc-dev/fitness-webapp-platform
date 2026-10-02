@@ -8,8 +8,13 @@
  * the bottom. Sets that fall short of the range hold the load, and a session
  * where most of them fell short takes weight off.
  *
+ * Loads land on the equipment's grid (see load-increment.ts); an exercise with
+ * no external load progresses on reps alone.
+ *
  * Pure: no Prisma, no I/O. The caller supplies the history.
  */
+
+import { lowerLoad, nextLoad } from "./load-increment"
 
 type OverloadAction = "add_load" | "add_reps" | "maintain" | "reduce_load" | "establish_baseline"
 
@@ -21,6 +26,7 @@ type OverloadReason =
   | "below_range"
   | "mostly_below_range"
   | "readiness_low"
+  | "no_load_increment"
 
 type OverloadSetInput = {
   setNumber: number
@@ -35,6 +41,9 @@ type OverloadSetInput = {
 }
 
 type OverloadSetSuggestion = {
+  /** What the set was last session, so a later step can fall back to it. */
+  previousReps: number
+  previousWeight: number | null
   reps: number
   setNumber: number
   weight: number | null
@@ -54,19 +63,11 @@ const REDUCE_FACTOR = 0.9
 /** Assumed when the coach programmed none: a hypertrophy-typical working effort. */
 const DEFAULT_TARGET_RIR = 2
 
-/**
- * Upper body moves in small jumps (2.5%, at least 1.25 kg — a pair of the
- * smallest common plates); lower body in larger ones (5%, at least 2.5 kg).
- */
-function loadStep(weight: number, lowerBody: boolean) {
-  const step = lowerBody ? 2.5 : 1.25
-  const pct = lowerBody ? 0.05 : 0.025
-  return Math.max(step, Math.round((weight * pct) / step) * step)
-}
-
-function roundDownTo(value: number, step: number) {
-  return Math.floor(value / step) * step
-}
+/** Upper body aims for ~2.5% jumps, lower body ~5%; the equipment grid has the last word. */
+const UPPER_BODY_PCT = 0.025
+const LOWER_BODY_PCT = 0.05
+/** Used when the caller does not know the equipment. */
+const DEFAULT_LOAD_INCREMENT = 2.5
 
 function repRange(set: OverloadSetInput) {
   const max = Math.max(1, set.targetReps)
@@ -75,6 +76,8 @@ function repRange(set: OverloadSetInput) {
 }
 
 function buildOverloadRecommendation(input: {
+  /** The equipment's smallest load jump; null when the load does not progress. */
+  loadIncrementKg?: number | null
   lowerBody?: boolean
   readinessScore?: number | null
   sets: readonly OverloadSetInput[]
@@ -127,30 +130,38 @@ function buildOverloadRecommendation(input: {
     reasons.push("inside_range")
   }
 
+  const increment = input.loadIncrementKg === undefined ? DEFAULT_LOAD_INCREMENT : input.loadIncrementKg
+  // Without external load there is nothing to add: the top of the range is
+  // pushed past instead, a rep at a time.
+  const loadless = increment == null || evaluated.every((entry) => entry.weight == null)
+  if (loadless && (action === "add_load" || action === "reduce_load")) {
+    action = action === "add_load" ? "add_reps" : "maintain"
+    reasons.push("no_load_increment")
+  }
+
   const lowReadiness = input.readinessScore != null && input.readinessScore < LOW_READINESS
   if (lowReadiness && (action === "add_load" || action === "add_reps")) {
     action = action === "add_load" ? "add_reps" : "maintain"
     reasons.push("readiness_low")
   }
 
+  const pct = lowerBody ? LOWER_BODY_PCT : UPPER_BODY_PCT
+  const pastTopAllowed = reasons.includes("no_load_increment")
   const sets = evaluated.map(({ range, reps, set, weight }): OverloadSetSuggestion => {
+    const previous = { previousReps: reps, previousWeight: weight, setNumber: set.setNumber }
     switch (action) {
       case "add_load":
-        return {
-          reps: range.min,
-          setNumber: set.setNumber,
-          weight: weight == null ? null : weight + loadStep(weight, lowerBody),
-        }
+        return { ...previous, reps: range.min, weight: weight == null || increment == null ? weight : nextLoad(weight, increment, pct) }
       case "reduce_load":
         return {
+          ...previous,
           reps: range.min,
-          setNumber: set.setNumber,
-          weight: weight == null ? null : roundDownTo(weight * REDUCE_FACTOR, lowerBody ? 2.5 : 1.25),
+          weight: weight == null || increment == null ? weight : lowerLoad(weight, increment, REDUCE_FACTOR),
         }
       case "add_reps":
-        return { reps: Math.min(range.max, reps + 1), setNumber: set.setNumber, weight }
+        return { ...previous, reps: pastTopAllowed ? reps + 1 : Math.min(range.max, reps + 1), weight }
       default:
-        return { reps: Math.max(range.min, Math.min(range.max, reps)), setNumber: set.setNumber, weight }
+        return { ...previous, reps: Math.max(range.min, Math.min(range.max, reps)), weight }
     }
   })
 
