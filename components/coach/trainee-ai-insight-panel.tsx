@@ -41,14 +41,15 @@ const signed = (value: number) => `${value > 0 ? "+" : ""}${value}`
 export function TraineeAIInsightPanel({ traineeId }: { traineeId: string }) {
   const { locale } = useLocale()
   const copy = coachInsightMessages[locale]
+  const language = locale === "en" ? "en" : "vi"
   const [days, setDays] = useState<CoachInsightWindow>(14)
-  const insightQuery = useCoachTraineeInsight(traineeId, days)
+  const insightQuery = useCoachTraineeInsight(traineeId, days, language)
   const createInsight = useCreateCoachTraineeInsight(traineeId)
   const insight = insightQuery.data ?? null
   const analyzing = createInsight.isPending && createInsight.variables?.days === days
   const error = createInsight.error && createInsight.variables?.days === days ? createInsight.error.message || copy.error : null
 
-  const analyze = () => createInsight.mutate({ days, locale: locale === "en" ? "en" : "vi" })
+  const analyze = () => createInsight.mutate({ days, locale: language })
 
   return (
     <section className="space-y-4 rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70">
@@ -87,7 +88,7 @@ export function TraineeAIInsightPanel({ traineeId }: { traineeId: string }) {
           <Loader2 aria-hidden className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : insight ? (
-        <InsightReport analyzing={analyzing} copy={copy} insight={insight} onReanalyze={analyze} />
+        <InsightReport analyzing={analyzing} copy={copy} insight={insight} otherLanguage={insight.locale !== language} onReanalyze={analyze} />
       ) : (
         <div className="space-y-3 rounded-xl border border-dashed border-border p-5 text-center">
           <p className="text-sm text-muted-foreground">{copy.empty}</p>
@@ -108,12 +109,16 @@ function InsightReport({
   copy,
   insight,
   onReanalyze,
+  otherLanguage,
 }: {
   analyzing: boolean
   copy: CoachInsightCopy
   insight: CoachTraineeInsight
   onReanalyze: () => void
+  /** Written in the other language; offer to redo it in the coach's. */
+  otherLanguage: boolean
 }) {
+  const needsRedo = insight.stale || otherLanguage
   const { current, previous, lifts, toTargetKg } = insight.findings
   const { metrics } = copy
   const sectionsByArea = insight.sections
@@ -228,10 +233,10 @@ function InsightReport({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <p className={cn("text-xs", insight.stale ? "text-warning-text" : "text-muted-foreground")}>
-          {insight.stale ? copy.stale : copy.generatedAt(format(new Date(insight.generatedAt), "dd/MM HH:mm"))}
+        <p className={cn("text-xs", needsRedo ? "text-warning-text" : "text-muted-foreground")}>
+          {otherLanguage ? copy.otherLanguage : insight.stale ? copy.stale : copy.generatedAt(format(new Date(insight.generatedAt), "dd/MM HH:mm"))}
         </p>
-        <Button disabled={analyzing} size="sm" type="button" variant={insight.stale ? "default" : "ghost"} onClick={onReanalyze}>
+        <Button disabled={analyzing} size="sm" type="button" variant={needsRedo ? "default" : "ghost"} onClick={onReanalyze}>
           {analyzing ? <Loader2 aria-hidden className="animate-spin" /> : <RefreshCw aria-hidden />}
           {analyzing ? copy.analyzing : copy.reanalyze}
         </Button>

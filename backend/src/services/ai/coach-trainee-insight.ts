@@ -14,6 +14,7 @@ import { z } from "zod"
 import { parseAI } from "../../lib/ai/output-schemas"
 import type { AIProvider } from "../../lib/ai/types"
 import { generateValidatedJSON } from "../../lib/ai/validated-generation"
+import { AppError } from "../errors"
 import { sanitizeUserText } from "./prompts/shared"
 
 const COACH_TRAINEE_INSIGHT_PROMPT_VERSION = "2026-10-02.1"
@@ -347,8 +348,37 @@ const outputSchema = z.object({
 
 type CoachInsightOutput = z.infer<typeof outputSchema>
 
-function validateCoachInsight(value: unknown): CoachInsightOutput {
-  return parseAI(outputSchema, value)
+/** Letters only Vietnamese uses; tone marks on a bare vowel are left out because French names have them too. */
+const VIETNAMESE_LETTERS = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i
+/** Any Vietnamese diacritic, for telling a Vietnamese sentence from an English one. */
+const VIETNAMESE_MARKS = /[àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ]/i
+
+/**
+ * Exercise names, codes and numbers are often English, so the model drifts
+ * into English. Most of the texts, the summary always, must be in the
+ * coach's language; a stray Vietnamese exercise name in English text is fine.
+ */
+function assertInsightLanguage(output: CoachInsightOutput, locale: InsightLocale) {
+  const texts = [output.summary, ...output.sections.map((section) => section.text), ...output.suggestions]
+  const inVietnamese = texts.filter((text) => (locale === "vi" ? VIETNAMESE_MARKS : VIETNAMESE_LETTERS).test(text))
+  const wrong =
+    locale === "vi"
+      ? !VIETNAMESE_MARKS.test(output.summary) || inVietnamese.length < texts.length / 2
+      : VIETNAMESE_LETTERS.test(output.summary) || inVietnamese.length > texts.length / 2
+  if (wrong) {
+    throw new AppError(
+      locale === "vi"
+        ? "Dữ liệu AI không hợp lệ: nội dung phải viết bằng tiếng Việt có dấu, không dùng tiếng Anh."
+        : "Dữ liệu AI không hợp lệ: nội dung phải viết bằng tiếng Anh (English), không dùng tiếng Việt.",
+      { code: "AI_VALIDATION_ERROR", status: 422 },
+    )
+  }
+}
+
+function validateCoachInsight(value: unknown, locale: InsightLocale = "vi"): CoachInsightOutput {
+  const output = parseAI(outputSchema, value)
+  assertInsightLanguage(output, locale)
+  return output
 }
 
 const SYSTEM_PROMPT = `Bạn là trợ lý phân tích cho huấn luyện viên (coach) trong một app tập luyện. Coach muốn biết trainee đang đi đúng program hay không. Viết nhận xét DỰA HOÀN TOÀN trên số liệu backend đã tính sẵn.
@@ -365,6 +395,13 @@ const SYSTEM_PROMPT = `Bạn là trợ lý phân tích cho huấn luyện viên 
 ## Trả về
 Chỉ một JSON object, không markdown:
 {"summary": string, "sections": [{"area": "training"|"progression"|"weight"|"nutrition"|"recovery", "tone": "good"|"warn"|"info", "text": string}], "suggestions": [string]}`
+
+/** The language rule goes last in the system prompt, where it outweighs the English names and codes in the data. */
+function systemPromptFor(locale: InsightLocale) {
+  return locale === "en"
+    ? `${SYSTEM_PROMPT}\n\n## Ngôn ngữ\nWrite summary, every section text and every suggestion in English only.`
+    : `${SYSTEM_PROMPT}\n\n## Ngôn ngữ\nViết summary, mọi section text và mọi suggestion hoàn toàn bằng tiếng Việt có dấu. Giữ nguyên tên bài tập và con số, nhưng câu văn không được viết bằng tiếng Anh.`
+}
 
 const fmt = (value: number | null | undefined, unit = "") => (value == null ? "không có dữ liệu" : `${value}${unit}`)
 
@@ -424,12 +461,15 @@ async function generateCoachTraineeInsight(
   const { data, tokenUsage } = await generateValidatedJSON(
     provider,
     {
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: systemPromptFor(options.locale),
       userPrompt: buildCoachInsightPrompt(findings, options),
       maxTokens: 1200,
-      repairInstruction: "Trả về JSON đầy đủ đã sửa lỗi này, đúng các trường summary, sections, suggestions.",
+      repairInstruction:
+        options.locale === "en"
+          ? "Return the full corrected JSON with summary, sections and suggestions, all written in English."
+          : "Trả về JSON đầy đủ đã sửa lỗi này, đúng các trường summary, sections, suggestions, viết hoàn toàn bằng tiếng Việt.",
     },
-    validateCoachInsight,
+    (value) => validateCoachInsight(value, options.locale),
   )
   return { ...data, promptVersion: COACH_TRAINEE_INSIGHT_PROMPT_VERSION, tokenUsage }
 }

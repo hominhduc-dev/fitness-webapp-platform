@@ -136,6 +136,39 @@ describe("coach insight output", () => {
     expect(() => validateCoachInsight({ ...valid, suggestions: [] })).toThrow()
   })
 
+  it("rejects commentary written in the wrong language", () => {
+    const english = {
+      sections: [{ area: "training", text: "Completed 3 of 3 sessions.", tone: "good" }],
+      suggestions: ["Keep the volume next week."],
+      summary: "A solid week.",
+    }
+    expect(() => validateCoachInsight(english, "vi")).toThrow(/tiếng Việt/)
+    expect(validateCoachInsight(english, "en")).toEqual(english)
+    expect(() => validateCoachInsight(valid, "en")).toThrow(/English/)
+    // A Vietnamese exercise name inside English text is not a language slip.
+    expect(validateCoachInsight({ ...english, sections: [{ area: "progression", text: "Đẩy ngực went up 5%.", tone: "good" }] }, "en")).toBeTruthy()
+  })
+
+  it("asks again in Vietnamese when the model answers in English", async () => {
+    const outputs = [
+      { sections: [{ area: "training", text: "Completed 3 of 3 sessions.", tone: "good" }], suggestions: ["Keep going."], summary: "A solid week." },
+      valid,
+    ]
+    const prompts: Array<{ systemPrompt: string; userPrompt: string }> = []
+    const provider = {
+      async generateStructuredJSON(request: { systemPrompt: string; userPrompt: string }) {
+        prompts.push(request)
+        return { data: outputs.shift(), tokenUsage: 4 }
+      },
+      supportsTools: false,
+    } as unknown as AIProvider
+
+    const result = await generateCoachTraineeInsight(provider, buildCoachInsightFindings(input()), { locale: "vi", programNames: [] })
+    expect(result.summary).toBe("Tuần tốt.")
+    expect(prompts[0].systemPrompt).toContain("hoàn toàn bằng tiếng Việt")
+    expect(prompts[1].userPrompt).toContain("tiếng Việt có dấu")
+  })
+
   it("hands the model the computed figures and signals", async () => {
     const prompts: string[] = []
     const provider = {

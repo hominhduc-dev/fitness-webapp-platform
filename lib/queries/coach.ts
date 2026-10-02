@@ -210,10 +210,10 @@ export function useCoachNoteMutations(traineeId: string) {
 }
 
 /** The saved AI report for a trainee and window; reading it never calls the AI. */
-export function useCoachTraineeInsight(traineeId: string, days: CoachInsightWindow) {
+export function useCoachTraineeInsight(traineeId: string, days: CoachInsightWindow, locale: "vi" | "en") {
   return useQuery({
-    queryFn: async () => fetchCoachTraineeInsight(await requireAccessToken(), traineeId, days),
-    queryKey: queryKeys.coach.traineeInsight(traineeId, days),
+    queryFn: async () => fetchCoachTraineeInsight(await requireAccessToken(), traineeId, days, locale),
+    queryKey: queryKeys.coach.traineeInsight(traineeId, days, locale),
   })
 }
 
@@ -224,7 +224,7 @@ export function useCreateCoachTraineeInsight(traineeId: string) {
     mutationFn: async (input: { days: CoachInsightWindow; locale: "vi" | "en" }) =>
       createCoachTraineeInsight(await requireAccessToken(), traineeId, input),
     onSuccess: (insight) => {
-      queryClient.setQueryData(queryKeys.coach.traineeInsight(traineeId, insight.days), insight)
+      queryClient.setQueryData(queryKeys.coach.traineeInsight(traineeId, insight.days, insight.locale), insight)
     },
   })
 }

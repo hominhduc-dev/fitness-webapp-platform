@@ -9,6 +9,7 @@ type CoachInsightCopy = {
   reanalyze: string
   empty: string
   stale: string
+  otherLanguage: string
   generatedAt: (time: string) => string
   error: string
   vsPrevious: string
@@ -51,6 +52,7 @@ const vi: CoachInsightCopy = {
   reanalyze: "Phân tích lại",
   empty: "Chưa có báo cáo cho khoảng này. Nhấn Phân tích để tạo.",
   stale: "Dữ liệu đã thay đổi từ lần phân tích trước.",
+  otherLanguage: "Báo cáo này đang bằng tiếng Anh. Nhấn Phân tích lại để có bản tiếng Việt.",
   generatedAt: (time) => `Phân tích lúc ${time}`,
   error: "Không thể phân tích. Vui lòng thử lại.",
   vsPrevious: "so với kỳ trước",
@@ -99,6 +101,7 @@ const en: CoachInsightCopy = {
   reanalyze: "Analyze again",
   empty: "No report for this period yet. Press Analyze to create one.",
   stale: "The data has changed since this analysis.",
+  otherLanguage: "This report is in Vietnamese. Press Analyze again for an English version.",
   generatedAt: (time) => `Analyzed at ${time}`,
   error: "Could not analyze. Please try again.",
   vsPrevious: "vs previous period",

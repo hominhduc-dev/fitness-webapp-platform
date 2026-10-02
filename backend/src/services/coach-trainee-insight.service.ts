@@ -37,6 +37,8 @@ type Db = ReturnType<typeof ensurePrisma>
 type CoachTraineeInsightResponse = CoachInsightOutput & {
   id: string
   days: InsightWindow
+  /** The language the commentary was written in. */
+  locale: InsightLocale
   generatedAt: string
   /** The trainee's data has changed, or a day has passed, since this report was written. */
   stale: boolean
@@ -183,7 +185,14 @@ async function loadCoachInsightInput(db: Db, trainee: Awaited<ReturnType<typeof 
   return { input, programNames: assignments.map((assignment) => assignment.program.name) }
 }
 
-type StoredInput = { days?: number; fingerprint?: string; findings?: CoachInsightFindings; programNames?: string[]; traineeId?: string }
+type StoredInput = {
+  days?: number
+  fingerprint?: string
+  findings?: CoachInsightFindings
+  locale?: InsightLocale
+  programNames?: string[]
+  traineeId?: string
+}
 
 function toResponse(
   generation: { createdAt: Date; id: string; input: Prisma.JsonValue; output: Prisma.JsonValue },
@@ -197,6 +206,7 @@ function toResponse(
     findings: input.findings,
     generatedAt: generation.createdAt.toISOString(),
     id: generation.id,
+    locale: input.locale === "en" ? "en" : "vi",
     programNames: input.programNames ?? [],
     sections: output.sections,
     stale: input.fingerprint !== currentFingerprint,
@@ -210,20 +220,31 @@ async function requireOwnTrainee(coach: SerializedProfile, traineeId: string) {
   return assertCoachOwnsTrainee(coach.id, traineeId)
 }
 
-/** The last report this coach saved for this trainee and window. Costs no tokens. */
-async function getCoachTraineeInsight(coach: SerializedProfile, traineeId: string, days: InsightWindow) {
+/**
+ * The last report this coach saved for this trainee and window, preferably in
+ * the coach's language. A report written in the other language is still
+ * returned, with its `locale`, so the panel can offer to redo it rather than
+ * hide what the coach already has. Costs no tokens.
+ */
+async function getCoachTraineeInsight(coach: SerializedProfile, traineeId: string, days: InsightWindow, locale: InsightLocale = "vi") {
   const db = ensurePrisma()
   const trainee = await requireOwnTrainee(coach, traineeId)
-  const generation = await db.aIGeneration.findFirst({
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true, id: true, input: true, output: true },
-    where: {
-      AND: [{ input: { equals: traineeId, path: ["traineeId"] } }, { input: { equals: days, path: ["days"] } }],
-      status: AIGenerationStatus.completed,
-      type: AIGenerationType.coach_trainee_insight,
-      userId: coach.id,
-    },
-  })
+  const findSaved = (inLocale?: InsightLocale) =>
+    db.aIGeneration.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true, id: true, input: true, output: true },
+      where: {
+        AND: [
+          { input: { equals: traineeId, path: ["traineeId"] } },
+          { input: { equals: days, path: ["days"] } },
+          ...(inLocale ? [{ input: { equals: inLocale, path: ["locale"] } }] : []),
+        ],
+        status: AIGenerationStatus.completed,
+        type: AIGenerationType.coach_trainee_insight,
+        userId: coach.id,
+      },
+    })
+  const generation = (await findSaved(locale)) ?? (await findSaved())
   if (!generation) return null
 
   const { input } = await loadCoachInsightInput(db, trainee, days)

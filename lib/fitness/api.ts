@@ -409,6 +409,8 @@ type CoachInsightPeriod = {
 export type CoachTraineeInsight = {
   id: string
   days: CoachInsightWindow
+  /** The language the commentary was written in; may differ from the viewer's. */
+  locale: "vi" | "en"
   generatedAt: string
   /** The trainee's data has changed, or a day has passed, since it was written. */
   stale: boolean
@@ -2749,9 +2751,14 @@ async function generateCoachTraineeAIProgram(accessToken: string, traineeId: str
 }
 
 /** The last saved report for this trainee and window, or null. Free — no AI call. */
-async function fetchCoachTraineeInsight(accessToken: string, traineeId: string, days: CoachInsightWindow): Promise<CoachTraineeInsight | null> {
+async function fetchCoachTraineeInsight(
+  accessToken: string,
+  traineeId: string,
+  days: CoachInsightWindow,
+  locale: "vi" | "en",
+): Promise<CoachTraineeInsight | null> {
   const response = await request<ApiEnvelope<{ insight: CoachTraineeInsight | null }>>(
-    `/api/coach/trainees/${traineeId}/ai-insight?days=${days}`,
+    `/api/coach/trainees/${traineeId}/ai-insight?days=${days}&locale=${locale}`,
     accessToken,
     { cache: "no-store" },
   )
