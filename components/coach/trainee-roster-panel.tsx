@@ -62,7 +62,7 @@ export function TraineeRosterPanel({ activeTraineeId, trainees }: TraineeRosterP
       <div className="border-b border-border/70 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-foreground">
-            {locale === "en" ? "Trainee list" : "Danh sách học viên"}
+            {messages.coach.traineeList}
           </h2>
           <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
             {messages.coach.clientTotal(trainees.length)}
@@ -133,7 +133,7 @@ export function TraineeRosterPanel({ activeTraineeId, trainees }: TraineeRosterP
                         : messages.coach.noProgram}
                     </p>
                     <p className="mt-1 font-mono text-micro tabular-nums text-muted-foreground">
-                      {locale === "en" ? `${completion}% this week` : `${completion}% tuần này`}
+                      {`${completion}% · ${messages.coach.thisWeek}`}
                     </p>
                   </div>
 
