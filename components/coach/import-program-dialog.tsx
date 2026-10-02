@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Stepper } from "@/components/ui/stepper"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import type { ImportedProgramDraft } from "@/components/coach/program-excel"
 import { buildWorkoutsFromRows } from "@/components/coach/program-import-rows"
 import {
@@ -41,9 +42,11 @@ import { fetchGoogleConnection, overwriteGoogleProgram, type GoogleImportResult 
 import { useLocale } from "@/components/providers/locale-provider"
 import { googleImportMessages } from "@/lib/i18n/messages/google-import"
 import { programImportMessages } from "@/lib/i18n/messages/program-import"
-import { TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
+import { normalizeTrainingGoal, TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type ImportProgramDialogProps = {
+  /** Opens straight on Review with this AI draft; saving marks the draft used. */
+  aiDraft?: AIProgramDraft | null
   exerciseOptions: ExerciseVariationOption[]
   onClose: () => void
   onImported: (program: CoachProgram) => void
@@ -150,6 +153,7 @@ function editableToPayloadWorkout(
 // ─── Main dialog ─────────────────────────────────────────────────────────────
 
 export function ImportProgramDialog({
+  aiDraft,
   exerciseOptions,
   onClose,
   onImported,
@@ -211,6 +215,7 @@ export function ImportProgramDialog({
     if (!draft) return null
     const name = programName.trim() || draft.name?.trim() || fileName.replace(/\.[^.]+$/, "") || "Imported program"
     return {
+      ...(aiDraft ? { aiGenerationId: aiDraft.generationId } : {}),
       assignToUserIds: selectedTraineeId ? [selectedTraineeId] : [],
       description: description.trim() || undefined,
       difficulty,
@@ -223,7 +228,7 @@ export function ImportProgramDialog({
         .map(editableToPayloadWorkout)
         .filter((w) => w.exercises.length > 0),
     }
-  }, [description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeId, startDate])
+  }, [aiDraft, description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeId, startDate])
 
   const exerciseCount = useMemo(
     () => editableWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
@@ -266,6 +271,41 @@ export function ImportProgramDialog({
       reset()
       onClose()
     }
+  }
+
+  // An AI draft skips the upload step: it lands on Review like a read sheet,
+  // with every session already on its week, for the trainee it was made for.
+  const [seededDraftId, setSeededDraftId] = useState<string | null>(null)
+  if (open && aiDraft && seededDraftId !== aiDraft.generationId) {
+    const workouts: CreateCoachProgramInput["workouts"] = aiDraft.program.workouts.map((workout) => ({
+      duration: workout.duration,
+      exercises: workout.exercises.map((exercise) => ({
+        reps: exercise.reps,
+        repsMin: exercise.repsMin,
+        restTime: exercise.restTime,
+        rir: exercise.rir,
+        sets: exercise.sets,
+        variationId: exercise.variationId,
+        weight: exercise.weight,
+      })),
+      name: workout.name,
+      scheduledDay: workout.scheduledDay,
+      weekIndex: workout.weekIndex,
+    }))
+    setSeededDraftId(aiDraft.generationId)
+    setDraft({ workouts })
+    setEditableWorkouts(workouts.map(workoutToEditable))
+    setFileName(aiDraft.program.name)
+    setProgramName(aiDraft.program.name)
+    setDescription(aiDraft.program.description ?? "")
+    setDuration(Math.min(52, Math.max(1, Math.round(aiDraft.program.duration || 4))))
+    setDifficulty(DIFFICULTIES.find((value) => value === aiDraft.program.difficulty) ?? "intermediate")
+    setProgramGoal(normalizeTrainingGoal(aiDraft.goal) ?? "hypertrophy")
+    setSelectedTraineeId(aiDraft.traineeId)
+    setError(null)
+    setStep("review")
+  } else if (!open && seededDraftId !== null) {
+    setSeededDraftId(null)
   }
 
   const handleFile = async (file?: File | null) => {
@@ -427,10 +467,10 @@ export function ImportProgramDialog({
             <div className="min-w-0">
               <p className="label-micro">{t.eyebrow}</p>
               <DialogTitle className="mt-1.5 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
-                {sourceText.title}
+                {aiDraft ? messages.coach.aiProgramTitle : sourceText.title}
               </DialogTitle>
               <DialogDescription className="mt-1.5 text-sm leading-6 sm:text-base">
-                {sourceText.description}
+                {aiDraft ? messages.coach.aiProgramReviewDescription : sourceText.description}
               </DialogDescription>
             </div>
             <Button type="button" variant="ghost" size="icon" onClick={() => handleOpenChange(false)} aria-label={t.close}>
@@ -524,8 +564,10 @@ export function ImportProgramDialog({
                   void overwriteGoogle.mutateAsync([googleSource.existingProgram.id, payload]).then((program) => { setDidOverwrite(true); setSavedName(program.name); onImported(program); setStep("done") }).catch((error) => setError(error instanceof Error ? error.message : googleText.failed)).finally(() => setIsSaving(false))
                 }}>{googleText.overwrite}</Button>
               </div> : null}
-              {/* Program name + difficulty + weeks */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              {/* Program name + weeks on one row; difficulty and goal under them,
+                  so the chips never squeeze the name field to nothing. */}
+              <div className="space-y-3">
+              <div className="flex items-end gap-3">
                 <div className="min-w-0 flex-1">
                   <Label className="label-micro mb-1.5 block">{t.review.programName}</Label>
                   <Input value={programName} onChange={(event) => setProgramName(event.target.value)} />
@@ -552,6 +594,8 @@ export function ImportProgramDialog({
                     className="w-24 text-center font-mono"
                   />
                 </div>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-x-6">
                 <div>
                   <Label className="label-micro mb-1.5 block">{t.review.difficulty}</Label>
                   <div className="flex flex-wrap gap-1.5">
@@ -592,6 +636,7 @@ export function ImportProgramDialog({
                     ))}
                   </div>
                 </div>
+              </div>
               </div>
 
               {/* Everything else the program carries, editable before it exists */}
@@ -773,10 +818,12 @@ export function ImportProgramDialog({
             ) : null}
             {step === "review" ? (
               <>
-                <Button type="button" variant="ghost" onClick={() => setStep("upload")} disabled={isSaving}>
-                  <ArrowLeft className="h-4 w-4" />
-                  {t.actions.back}
-                </Button>
+                {aiDraft ? null : (
+                  <Button type="button" variant="ghost" onClick={() => setStep("upload")} disabled={isSaving}>
+                    <ArrowLeft className="h-4 w-4" />
+                    {t.actions.back}
+                  </Button>
+                )}
                 <Button
                   type="button"
                   onClick={() => void handleCreate()}

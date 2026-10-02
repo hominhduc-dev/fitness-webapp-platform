@@ -186,3 +186,53 @@ describe("import review program details", () => {
     expect(save.mock.calls[0][0][0]).toMatchObject({ assignToUserIds: [], startDate: null })
   })
 })
+
+describe("reviewing an AI draft", () => {
+  const aiDraft = {
+    generationId: "generation-1",
+    goal: "strength",
+    program: {
+      description: "Four weeks of heavy work",
+      difficulty: "advanced",
+      duration: 2,
+      name: "AI strength block",
+      workoutsPerWeek: 1,
+      workouts: [0, 1].map((weekIndex) => ({
+        duration: 60,
+        exercises: [{ reps: 5, restTime: 180, rir: 2, sets: 4, variationId: "squat", weight: 100 }],
+        kind: "legs",
+        name: "Legs",
+        scheduledDay: 1,
+        weekIndex,
+      })),
+    },
+    traineeId: "trainee-2",
+  }
+
+  it("opens on Review with the draft and saves it as that draft, edits included", async () => {
+    render(<ImportProgramDialog open aiDraft={aiDraft} exerciseOptions={options} trainees={trainees} onClose={vi.fn()} onImported={vi.fn()} />)
+
+    // No upload step: the draft is already on Review, for its trainee, and cannot go back.
+    expect(await screen.findByDisplayValue("AI strength block")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Back/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Assign trainee.*Lan Anh/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByDisplayValue("AI strength block"), { target: { value: "Edited block" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create program" }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledOnce())
+    expect(save.mock.calls[0][0][0]).toMatchObject({
+      aiGenerationId: "generation-1",
+      assignToUserIds: ["trainee-2"],
+      description: "Four weeks of heavy work",
+      difficulty: "advanced",
+      duration: 2,
+      goal: "strength",
+      name: "Edited block",
+      workouts: [
+        { exercises: [{ reps: 5, restTime: 180, rir: 2, sets: 4, variationId: "squat", weight: 100 }], scheduledDay: 1, weekIndex: 0 },
+        { scheduledDay: 1, weekIndex: 1 },
+      ],
+    })
+  })
+})

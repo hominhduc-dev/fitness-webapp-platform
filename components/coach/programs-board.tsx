@@ -91,10 +91,11 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
   // Open with the trainee the editor had picked (null when none); undefined when closed.
   const [aiDialogTraineeId, setAiDialogTraineeId] = useState<string | null | undefined>(undefined)
-  // The AI draft the new-program editor starts from, until it is closed or saved.
+  // The AI draft the import dialog reviews, until that dialog closes.
   const [aiDraft, setAiDraft] = useState<AIProgramDraft | null>(null)
-  const closeEditor = () => {
-    setEditorTarget(null)
+  const closeEditor = () => setEditorTarget(null)
+  const closeImport = () => {
+    setImportOpen(false)
     setAiDraft(null)
   }
   const includePersonalized = viewMode === "clients"
@@ -283,7 +284,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       onEditDraft={(draft) => {
         setAiDialogTraineeId(undefined)
         setAiDraft(draft)
-        setEditorTarget("new")
+        setImportOpen(true)
       }}
       open={aiDialogTraineeId !== undefined}
       trainees={trainees}
@@ -293,7 +294,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const editor =
     editorTarget === null ? null : (
       <ProgramEditorLazy
-        initialAIDraft={editorTarget === "new" ? (aiDraft ?? undefined) : undefined}
         initialExerciseOptions={exerciseOptions}
         initialTraineeOptions={trainees}
         programId={editorTarget === "new" ? undefined : editorTarget}
@@ -399,8 +399,9 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         {editor}
         {aiDialog}
         <ImportProgramDialog
+          aiDraft={aiDraft}
           exerciseOptions={exerciseOptions}
-          onClose={() => setImportOpen(false)}
+          onClose={closeImport}
           onImported={handleImported}
           open={importOpen}
           trainees={trainees}
@@ -508,8 +509,9 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       {aiDialog}
 
       <ImportProgramDialog
+        aiDraft={aiDraft}
         exerciseOptions={exerciseOptions}
-        onClose={() => setImportOpen(false)}
+        onClose={closeImport}
         onImported={handleImported}
         open={importOpen}
         token={session?.access_token ?? ""}
