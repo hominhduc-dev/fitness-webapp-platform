@@ -13,7 +13,7 @@ vi.mock("@/components/providers/locale-provider", () => ({
         intensitySetMethodLabel: (set: number, method: string) => `Set ${set}: ${method}`,
         markIncomplete: "Mark incomplete",
         noteForSet: "Note",
-        prevExceededHint: "Ready to increase weight",
+        progressionSetHint: (target: string) => `Suggested ${target}`,
         removeSet: "Remove set",
         reps: "Reps",
         setOptions: "Set options",
@@ -68,5 +68,25 @@ describe("SessionSetRow", () => {
     )
 
     expect(screen.getByLabelText("RIR")).toHaveAttribute("placeholder", "2")
+  })
+
+  it("shows the progression target in Prev and as the weight placeholder", () => {
+    render(
+      <SessionSetRow
+        active
+        canRemove={false}
+        onChange={vi.fn()}
+        onRemove={vi.fn()}
+        programTarget={{ reps: 10, repsMin: 8 }}
+        set={{ ...baseSet, previousPerformance: { completedAt: new Date(), reps: 10, source: "most_recent", weight: 80 } }}
+        setIndex={0}
+        suggestion={{ direction: "up", reps: 8, weight: 82.5 }}
+        weightUnit="kg"
+      />,
+    )
+
+    expect(screen.getByTitle("Suggested 82.5×8")).toBeInTheDocument()
+    expect(screen.getByLabelText("Weight in kg")).toHaveAttribute("placeholder", "82.5")
+    expect(screen.getByLabelText("Weight in kg")).toHaveValue(null)
   })
 })

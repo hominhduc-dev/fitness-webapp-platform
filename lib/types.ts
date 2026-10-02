@@ -135,6 +135,15 @@ export interface ExerciseSet {
   completed: boolean
 }
 
+export type ExerciseProgressionAction = "add_load" | "add_reps" | "maintain" | "reduce_load" | "establish_baseline"
+
+/** Today's sets as the progression engine suggests them, from last session's. */
+export interface ExerciseProgression {
+  action: ExerciseProgressionAction
+  reasons: string[]
+  sets: Array<{ reps: number; setNumber: number; weight: number | null }>
+}
+
 export type CoachUpdateType = "weight_up" | "weight_down" | "rir_down" | "rir_up" | "edit"
 
 export interface CoachUpdate {
@@ -151,6 +160,7 @@ export interface WorkoutExercise {
   variation: ExerciseVariation
   sets: ExerciseSet[]
   coachUpdate?: CoachUpdate
+  progression?: ExerciseProgression
   restTime?: number // seconds
   notes?: string
 }

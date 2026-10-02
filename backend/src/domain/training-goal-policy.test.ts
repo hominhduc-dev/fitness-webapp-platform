@@ -40,4 +40,40 @@ describe("training goal policy", () => {
       targetRir: 4,
     })
   })
+
+  it("holds only the last loading week before a deload at the goal's hardest RIR", () => {
+    const weeks = Array.from({ length: 8 }, (_, week) => policyForTrainingGoal("hypertrophy", week, 8))
+
+    expect(weeks.map((week) => week?.phase)).toEqual([
+      "baseline",
+      "accumulation",
+      "accumulation",
+      "accumulation",
+      "intensification",
+      "intensification",
+      "overreaching",
+      "deload",
+    ])
+    expect(weeks.filter((week) => week?.targetRir === 0)).toHaveLength(1)
+  })
+
+  it("splits a long program into blocks that each end on a deload", () => {
+    const phases = Array.from({ length: 12 }, (_, week) => policyForTrainingGoal("strength", week, 12)?.phase)
+
+    // Eleven weeks after the baseline: a five-week block, then a six-week one.
+    expect(phases.flatMap((phase, week) => (phase === "deload" ? [week] : []))).toEqual([5, 11])
+    expect(phases.flatMap((phase, week) => (phase === "overreaching" ? [week] : []))).toEqual([4, 10])
+  })
+
+  it("skips the deload and the overreaching week when a block is too short for one", () => {
+    const phases = Array.from({ length: 4 }, (_, week) => policyForTrainingGoal("hypertrophy", week, 4)?.phase)
+
+    expect(phases).toEqual(["baseline", "accumulation", "accumulation", "intensification"])
+  })
+
+  it("stops setting targets once the program is over", () => {
+    expect(policyForTrainingGoal("hypertrophy", 7, 8)?.phase).toBe("deload")
+    expect(policyForTrainingGoal("hypertrophy", 8, 8)).toBeNull()
+    expect(policyForTrainingGoal("hypertrophy", 20, 8)).toBeNull()
+  })
 })

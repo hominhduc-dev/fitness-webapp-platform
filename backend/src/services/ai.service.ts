@@ -27,6 +27,7 @@ import type { ChatMessage } from "./ai/context/types"
 import { buildDailyWorkoutPrompt } from "./ai/prompts/daily-workout"
 import { buildExerciseCatalogIndex } from "./ai/prompts/shared"
 import { buildProgramPrompt } from "./ai/prompts/workout-program"
+import { normalizeTrainingGoal } from "../domain/training-goal-policy"
 import { AppError, AuthServiceError, TooManyRequestsError } from "./errors"
 import type { SerializedProfile } from "./auth.service"
 import { addMealItemForUser, calculateItemNutrition } from "./nutrition.service"
@@ -464,7 +465,7 @@ async function acceptAIProgramForAssignee(
           description: mapped.description,
           difficulty: mapped.difficulty,
           duration: mapped.duration,
-          goal: generationInput.goal,
+          goal: normalizeTrainingGoal(generationInput.goal),
           workoutsPerWeek: mapped.workoutsPerWeek,
           isAIGenerated: true,
           createdById: profile.id,
@@ -785,7 +786,7 @@ async function acceptDailyWorkout(profile: SerializedProfile, generationId: stri
         description: mapped.description,
         difficulty: mapped.difficulty,
         duration: 1,
-        goal: generationInput.goal,
+        goal: normalizeTrainingGoal(generationInput.goal),
         workoutsPerWeek: 1,
         isAIGenerated: true,
         createdById: profile.id,

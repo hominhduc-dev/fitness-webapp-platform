@@ -1,6 +1,6 @@
 import { Router } from "express"
 
-import { validated } from "../middleware/validate"
+import { asyncHandler, validated } from "../middleware/validate"
 import { requireCurrentProfile } from "../services/auth.service"
 import {
   createBodyMetricForCurrentTrainee,
@@ -10,6 +10,7 @@ import {
   getWorkoutLogDetailForTrainee,
   getYearViewForTrainee,
   listBodyMetricsForCurrentTrainee,
+  getTrainingRecommendationForTrainee,
   getVolumeRecoveryForTrainee,
   listRecoveryHistoryForTrainee,
   resetVolumeLandmarksForTrainee,
@@ -42,6 +43,14 @@ progressRouter.get(
 )
 
 progressRouter.get(
+  "/training-recommendation",
+  asyncHandler(async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getTrainingRecommendationForTrainee(profile))
+  }),
+)
+
+progressRouter.get(
   "/recovery-history",
   validated({ query: recoveryHistoryQuerySchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
@@ -55,6 +64,7 @@ progressRouter.put(
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await setVolumeRecommendationStatusForTrainee(profile, {
       muscleSlug: req.body.muscleSlug,
+      programId: req.body.programId,
       status: req.body.status,
       weekStart: req.body.weekStart ? new Date(`${req.body.weekStart}T00:00:00.000Z`) : undefined,
     }))

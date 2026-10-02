@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useCreateWeightEntry, useWeightEntries } from "@/lib/queries/progress"
 import type { BodyMetricEntry } from "@/lib/fitness/types"
 import { convertWeightFromKg, convertWeightToKg, formatSignedWeight, formatWeight } from "@/lib/fitness/weight"
+import { buildWeightTrend } from "@/lib/fitness/weight-trend"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
@@ -223,17 +224,18 @@ function buildWeightSummary(
       ? currentWeightKg - previousWeightKg
       : undefined
 
-  const weeklyEntries = entries.filter((e) => Date.now() - e.recordedAt.getTime() <= 7 * 86400000)
-  const weeklyAverageKg =
-    weeklyEntries.length > 0
-      ? weeklyEntries.reduce((t, e) => t + (e.weightKg ?? 0), 0) / weeklyEntries.length
-      : undefined
+  // Averages of one reading a day, so a second weigh-in or a salty dinner does
+  // not swing the week; the rate compares this week's average with last week's.
+  const trend = buildWeightTrend(weightedEntries)
+  const weeklyAverageKg = trend.sevenDayAverageKg ?? undefined
 
+  const weeklyEntries = weightedEntries.filter((e) => Date.now() - e.recordedAt.getTime() <= 7 * 86400000)
   const oldestWeeklyWeightKg = weeklyEntries.at(-1)?.weightKg
   const weeklyChangeKg =
-    isFiniteNumber(currentWeightKg) && isFiniteNumber(oldestWeeklyWeightKg)
+    trend.ratePerWeekKg ??
+    (isFiniteNumber(currentWeightKg) && isFiniteNumber(oldestWeeklyWeightKg)
       ? currentWeightKg - oldestWeeklyWeightKg
-      : currentDeltaKg
+      : currentDeltaKg)
 
   const oldestLoggedWeightKg = weightedEntries.at(-1)?.weightKg
   const hasTargetWeight = isFiniteNumber(targetWeightKg)
@@ -314,6 +316,8 @@ function buildWeightSummary(
     isTargetMet,
     targetDeltaKg,
     targetWeightKg: hasTargetWeight ? targetWeightKg : undefined,
+    ratePerWeekKg: trend.ratePerWeekKg,
+    ratePerWeekPct: trend.ratePerWeekPct,
     weeklyAverageKg,
     weeklyChangeKg,
     weeklyGoalProgressPct,
@@ -756,7 +760,13 @@ export function WeightTrackingClient() {
             unit={weightUnit}
             footer={
               <span className="font-mono text-xs tnum text-muted-foreground">
-                {weeklyTrendDirection === "stable"
+                {summary.ratePerWeekKg != null && summary.ratePerWeekPct != null
+                  ? messages.progressPage.ratePerWeek(
+                      formatSignedWeight(summary.ratePerWeekKg, weightUnit) ?? "",
+                      weightUnit,
+                      `${summary.ratePerWeekPct > 0 ? "+" : ""}${summary.ratePerWeekPct.toFixed(2)}`,
+                    )
+                  : weeklyTrendDirection === "stable"
                   ? messages.progressPage.stable
                   : weeklyTrendDirection === "up"
                     ? messages.progressPage.trendingUp

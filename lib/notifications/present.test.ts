@@ -68,6 +68,30 @@ describe("presentNotification", () => {
     })
   })
 
+  it("renders a coach trainee alert in the viewer's language", () => {
+    expect(presentNotification(
+      notification({
+        metadata: { exercises: ["Bench Press", "Squat"], kind: "plateau", traineeName: "An", url: "/coach/trainees/t1" },
+        type: "coach_trainee_alert",
+      }),
+      getMessages("vi"),
+      "vi",
+    )).toEqual({
+      href: "/coach/trainees/t1",
+      message: "Không tiến bộ ở Bench Press, Squat trong 3 tuần.",
+      title: "An cần bạn xem",
+    })
+
+    expect(presentNotification(
+      notification({
+        metadata: { completed: 1, kind: "missed_workouts", planned: 4, traineeName: "An", url: "/coach/trainees/t1" },
+        type: "coach_trainee_alert",
+      }),
+      getMessages("en"),
+      "en",
+    ).message).toBe("Completed 1 of 4 planned sessions in the last 7 days.")
+  })
+
   it("falls back to stored text and derives links for older notifications", () => {
     const logged = notification({ metadata: { traineeId: "t1" }, type: "workout_logged" })
 

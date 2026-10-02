@@ -31,6 +31,7 @@ type SummaryColumn =
   | "deepSleepMinutes"
   | "distanceMeters"
   | "lightSleepMinutes"
+  | "hrvRmssd"
   | "maxHeartRate"
   | "minHeartRate"
   | "remSleepMinutes"
@@ -108,6 +109,19 @@ const DAILY_METRICS: Array<{
     scope: WEIGHT_SCOPE,
   },
 ]
+
+/**
+ * HRV joins the daily metrics only when its data type is configured, so an
+ * unconfirmed type name never turns into a failed source on every sync.
+ */
+function dailyMetrics(): typeof DAILY_METRICS {
+  const hrvDataType = env.huaweiHrvDataType
+  if (!hrvDataType) return DAILY_METRICS
+  return [
+    ...DAILY_METRICS,
+    { columns: [{ column: "hrvRmssd", fields: ["avg", "rmssd", "last"], fold: "mean" }], dataType: hrvDataType },
+  ]
+}
 
 export const HUAWEI_STATE_MAX_AGE = 10 * 60 * 1000
 
@@ -201,6 +215,7 @@ async function getHuaweiConnection(profile: SerializedProfile) {
       select: {
         activeCalories: true,
         date: true,
+        hrvRmssd: true,
         restingHeartRate: true,
         sleepMinutes: true,
         steps: true,
@@ -653,7 +668,7 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
 
   const grantedScopes = new Set(connection.scope.split(/\s+/).filter(Boolean))
 
-  for (const metric of DAILY_METRICS) {
+  for (const metric of dailyMetrics()) {
     if (metric.scope && !grantedScopes.has(metric.scope)) continue
     const daily = await attempt(metric.dataType, () =>
       huawei.fetchDailyPolymerize(

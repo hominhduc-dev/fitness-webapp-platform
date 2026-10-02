@@ -11,12 +11,13 @@ import {
   buildVolumeRecommendation,
   calculateReadiness,
   classifyVolumeZone,
-  DEFAULT_VOLUME_LANDMARKS,
   readinessSoreness,
   VOLUME_RECOVERY_ALGORITHM_VERSION,
   type VolumeLandmarks,
   type VolumeLogRecord,
 } from "./analytics"
+import { systemLandmarksForMuscle } from "./volume-landmarks"
+import { BASELINE_DAYS, wearableSignalsForDay } from "./wearable-baseline"
 
 type RecoveryCheckInInput = {
   checkInDate: Date
@@ -27,6 +28,8 @@ type RecoveryCheckInInput = {
   sleepQuality?: number
   stress?: number
 }
+
+const PERFORMANCE_LOOKBACK_DAYS = 14
 
 function average(values: number[]) {
   return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null
@@ -77,7 +80,8 @@ async function resolveProgramRecoveryContext(
   const anchorDate = program.startDate ?? assignment?.assignedAt ?? program.createdAt
   const baselineWeekStart = startOfUtcWeek(anchorDate)
   const elapsedDays = Math.max(0, Math.floor((weekStart.getTime() - baselineWeekStart.getTime()) / (24 * 60 * 60 * 1000)))
-  const weekIndex = Math.min(Math.max(0, Math.floor(elapsedDays / 7)), Math.max(0, program.duration - 1))
+  const elapsedWeeks = Math.floor(elapsedDays / 7)
+  const weekIndex = Math.min(elapsedWeeks, Math.max(0, program.duration - 1))
   const duration = Math.max(1, Math.round(program.duration))
   const goal = normalizeTrainingGoal(program.goal, profile.fitnessGoals ?? [])
 
@@ -85,7 +89,9 @@ async function resolveProgramRecoveryContext(
     baselineWeekStart,
     duration,
     goal,
-    policy: policyForTrainingGoal(goal, weekIndex, duration),
+    // The unclamped week, so a finished program stops reporting its last
+    // week's phase (a deload) for every week that follows it.
+    policy: policyForTrainingGoal(goal, elapsedWeeks, duration),
     programId: program.id,
     weekIndex,
   }
@@ -141,18 +147,18 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
     })
   }
 
-  const healthSummary =
-    input.sleepMinutes == null || input.stress == null
-      ? await db.healthDailySummary.findUnique({
-          where: {
-            userId_provider_date: {
-              date: input.checkInDate,
-              provider: HealthProvider.huawei,
-              userId: profile.id,
-            },
-          },
-        })
-      : null
+  // Today's row fills skipped answers; the weeks before it are the baseline
+  // HRV and resting heart rate are read against.
+  const healthDays = await db.healthDailySummary.findMany({
+    select: { date: true, hrvRmssd: true, restingHeartRate: true, sleepMinutes: true, stressAvg: true },
+    where: {
+      date: { gte: addUtcDays(input.checkInDate, -BASELINE_DAYS), lte: input.checkInDate },
+      provider: HealthProvider.huawei,
+      userId: profile.id,
+    },
+  })
+  const healthSummary = healthDays.find((day) => day.date.getTime() === input.checkInDate.getTime()) ?? null
+  const wearable = wearableSignalsForDay(healthDays, input.checkInDate)
 
   const huaweiStress = normalizeStress99(healthSummary?.stressAvg)
   const sleepMinutes = input.sleepMinutes ?? healthSummary?.sleepMinutes ?? null
@@ -172,6 +178,8 @@ async function upsertRecoveryCheckInForTrainee(profile: SerializedProfile, input
 
   const readinessScore = calculateReadiness({
     fatigue: input.fatigue,
+    hrvZScore: wearable.hrvZScore,
+    restingHeartRateDelta: wearable.restingHeartRateDelta,
     sleepMinutes,
     sleepQuality: input.sleepQuality,
     soreness: readinessSoreness(input.muscles),
@@ -239,10 +247,10 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
 
   const weekStart = startOfUtcWeek(requestedWeekStart ?? clientCalendarDay())
   const weekEnd = addUtcDays(weekStart, 7)
-  const previousWeekStart = addUtcDays(weekStart, -7)
+  // Two weeks back, so a variation trained every other week still has a
+  // previous session to be compared with.
+  const analysisStart = addUtcDays(weekStart, -PERFORMANCE_LOOKBACK_DAYS)
   const programContext = await resolveProgramRecoveryContext(profile, programId, weekStart)
-  const baselineWeekEnd = programContext ? addUtcDays(programContext.baselineWeekStart, 7) : null
-  const analysisStart = programContext ? programContext.baselineWeekStart : previousWeekStart
 
   const [logs, checkIns, profiles, storedRecommendations] = await Promise.all([
     db.workoutLog.findMany({
@@ -270,12 +278,8 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
   ])
 
   const weekStartInstant = clientDayStart(weekStart)
-  const baselineStartInstant = programContext ? clientDayStart(programContext.baselineWeekStart) : null
-  const baselineEndInstant = baselineWeekEnd ? clientDayStart(baselineWeekEnd) : null
   const currentLogs = logs.filter((log) => log.startedAt >= weekStartInstant) as VolumeLogRecord[]
-  const previousLogs = programContext && baselineStartInstant && baselineEndInstant && programContext.weekIndex > 0
-    ? logs.filter((log) => log.startedAt >= baselineStartInstant && log.startedAt < baselineEndInstant) as VolumeLogRecord[]
-    : logs.filter((log) => log.startedAt < weekStartInstant) as VolumeLogRecord[]
+  const previousLogs = logs.filter((log) => log.startedAt < weekStartInstant) as VolumeLogRecord[]
   const volume = aggregateWeeklyMuscleVolume(currentLogs)
   const performanceByMuscle = buildMusclePerformanceTrend(currentLogs, previousLogs)
   const latestCheckIn = checkIns[0] ?? null
@@ -299,13 +303,14 @@ async function getVolumeRecoveryForTrainee(profile: SerializedProfile, requested
           mrvSets: stored.mrvSets,
           source: stored.source,
         }
-      : DEFAULT_VOLUME_LANDMARKS
+      : systemLandmarksForMuscle(muscleVolume.muscleSlug)
     const zone = classifyVolumeZone(muscleVolume.effectiveSets, landmarks)
     const performanceChangePct = performanceByMuscle.get(muscleVolume.muscleSlug) ?? null
     const soreness = sorenessByMuscle.get(muscleVolume.muscleSlug) ?? null
     const computedRecommendation = buildVolumeRecommendation({
       effectiveSets: muscleVolume.effectiveSets,
       landmarks,
+      lowConfidenceSets: muscleVolume.lowConfidenceSets,
       performanceChangePct,
       readinessScore,
       recoveryCheckInCount: checkIns.length,
@@ -421,13 +426,15 @@ async function listRecoveryHistoryForTrainee(profile: SerializedProfile, days: n
  */
 async function setVolumeRecommendationStatusForTrainee(
   profile: SerializedProfile,
-  input: { muscleSlug: string; status: "accepted" | "applied" | "dismissed"; weekStart?: Date },
+  input: { muscleSlug: string; programId?: string; status: "accepted" | "applied" | "dismissed"; weekStart?: Date },
 ) {
   const db = ensurePrisma()
   assertTrainee(profile)
 
   const weekStart = startOfUtcWeek(input.weekStart ?? clientCalendarDay())
-  const recovery = await getVolumeRecoveryForTrainee(profile, weekStart)
+  // Recomputed in the same program context the trainee was shown, or the
+  // stored action could differ from the one they answered.
+  const recovery = await getVolumeRecoveryForTrainee(profile, weekStart, input.programId)
   const muscle = recovery.muscles.find((entry) => entry.muscleSlug === input.muscleSlug)
 
   if (!muscle) {
@@ -528,7 +535,7 @@ async function resetVolumeLandmarksForTrainee(profile: SerializedProfile, muscle
 
   await db.userMuscleVolumeProfile.deleteMany({ where: { muscleSlug, userId: profile.id } })
 
-  return { muscleSlug, ...DEFAULT_VOLUME_LANDMARKS }
+  return { muscleSlug, ...systemLandmarksForMuscle(muscleSlug) }
 }
 
 export {

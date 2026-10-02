@@ -10,6 +10,7 @@ import { buildProgressionContext } from "./progression-context"
 import type { AIChatIntent, ContextBuilderInput, ContextSection, ContextSectionKey, TraineeChatContext } from "./types"
 import { buildWorkoutContext } from "./workout-context"
 import { buildRecoveryContext } from "./recovery-context"
+import { buildRecommendationContext } from "./recommendation-context"
 
 type SectionFactory = () => Promise<ContextSection | null> | ContextSection | null
 
@@ -17,13 +18,13 @@ const DEFAULT_CONTEXT_TOKEN_BUDGET = 2200
 
 const INTENT_SECTION_PLAN: Record<AIChatIntent, ContextSectionKey[]> = {
   coach_feedback: ["profile", "coach_notes", "recovery", "recent_workouts", "body_metrics", "nutrition"],
-  exercise_progression: ["profile", "progression", "recent_workouts", "program", "body_metrics"],
-  general_fitness: ["profile", "recent_workouts", "recovery", "nutrition", "body_metrics", "progression"],
+  exercise_progression: ["profile", "recommendation", "progression", "recent_workouts", "program", "body_metrics"],
+  general_fitness: ["profile", "recommendation", "recent_workouts", "recovery", "nutrition", "body_metrics", "progression"],
   nutrition_today: ["profile", "nutrition", "body_metrics", "recent_workouts"],
   nutrition_trend: ["profile", "nutrition", "body_metrics", "recent_workouts"],
-  program_review: ["profile", "program", "recent_workouts", "recovery", "progression", "body_metrics"],
+  program_review: ["profile", "program", "recommendation", "recent_workouts", "recovery", "progression", "body_metrics"],
   weight_progress: ["profile", "body_metrics", "nutrition", "recent_workouts", "progression"],
-  workout_today: ["profile", "recent_workouts", "recovery", "program", "progression", "body_metrics"],
+  workout_today: ["profile", "recommendation", "recent_workouts", "recovery", "program", "progression", "body_metrics"],
 }
 
 export async function buildTraineeChatContext(input: ContextBuilderInput): Promise<TraineeChatContext> {
@@ -61,6 +62,7 @@ function buildSectionFactories(
     program: () => buildProgramContext(db, profile),
     progression: () => buildProgressionContext(db, profile, now),
     recent_workouts: () => buildWorkoutContext(db, profile, now),
+    recommendation: () => buildRecommendationContext(profile),
     recovery: () => buildRecoveryContext(db, profile, now),
   }
 }

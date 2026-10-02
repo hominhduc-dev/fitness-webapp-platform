@@ -10,6 +10,7 @@ import type {
   ExerciseBase,
   ExerciseLibraryExercise,
   ExerciseActivityType,
+  ExerciseProgression,
   ExerciseSet,
   ExerciseVariation,
   ExerciseVariationOption,
@@ -112,6 +113,7 @@ type SerializedWorkoutExercise = {
   }
   id: string
   notes?: string
+  progression?: ExerciseProgression
   restTime?: number
   sets: SerializedExerciseSet[]
   variation?: SerializedExerciseVariation | null
@@ -267,6 +269,7 @@ export type HuaweiConnectionStatus = {
   latestSummary: {
     activeCalories: number | null
     date: string
+    hrvRmssd: number | null
     restingHeartRate: number | null
     sleepMinutes: number | null
     steps: number | null
@@ -864,6 +867,7 @@ function mapWorkoutExercise(exercise: SerializedWorkoutExercise): Workout["exerc
     },
     id: exercise.id,
     notes: exercise.notes,
+    progression: exercise.progression,
     restTime: exercise.restTime,
     sets: exercise.sets.map(mapExerciseSet),
     variation: exercise.variation ? mapExerciseVariation(exercise.variation) : synthesizeExerciseVariation(exercise),
@@ -1583,7 +1587,7 @@ async function fetchRecoveryHistory(accessToken: string, days = 30): Promise<Rec
 
 async function setVolumeRecommendationStatus(
   accessToken: string,
-  input: { muscleSlug: string; status: "accepted" | "applied" | "dismissed"; weekStart?: string },
+  input: { muscleSlug: string; programId?: string; status: "accepted" | "applied" | "dismissed"; weekStart?: string },
 ) {
   const response = await request<ApiEnvelope<{ muscleSlug: string | null; status: string; weekStart: string }>>(
     "/api/progress/volume-recommendation",

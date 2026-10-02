@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { withRequestContext } from "../../../lib/logger"
-import { calculateWeeklyWorkoutStreak, type ProgressAnalyticsLogRecord } from "./analytics"
+import {
+  buildPersonalRecords,
+  calculateWeeklyWorkoutStreak,
+  detectRecentPRs,
+  type ProgressAnalyticsLogRecord,
+} from "./analytics"
 
 afterEach(() => {
   vi.useRealTimers()
@@ -87,5 +92,73 @@ describe("calculateWeeklyWorkoutStreak", () => {
     expect(inZone("Asia/Ho_Chi_Minh", () => calculateWeeklyWorkoutStreak(logs))).toBe(2)
     // In UTC both land in last week, which the empty current week still carries.
     expect(inZone("UTC", () => calculateWeeklyWorkoutStreak(logs))).toBe(1)
+  })
+})
+
+function liftLog(day: string, name: string, sets: Array<{ reps: number; weight: number }>): ProgressAnalyticsLogRecord {
+  return {
+    exerciseSnapshot: [
+      {
+        exercise: { id: "exercise-bench", name },
+        sets: sets.map((set, index) => ({ actualReps: set.reps, completed: true, setNumber: index + 1, weight: set.weight })),
+        variation: { id: "variation-bench", isDefault: true, name: "Default" },
+      },
+    ],
+    startedAt: new Date(`${day}T10:00:00.000Z`),
+    totalVolume: 0,
+  }
+}
+
+describe("personal records", () => {
+  it("keeps a record when the exercise is renamed, under its latest name", () => {
+    const records = buildPersonalRecords([
+      liftLog("2026-09-01", "Bench Press", [{ reps: 5, weight: 100 }]),
+      liftLog("2026-09-08", "Barbell Bench Press", [{ reps: 5, weight: 95 }]),
+    ])
+
+    expect(records).toEqual([
+      { date: new Date("2026-09-01T10:00:00.000Z"), exercise: "Barbell Bench Press", weight: 100 },
+    ])
+  })
+
+  it("does not reset the baseline when the exercise is renamed", () => {
+    const prs = detectRecentPRs(
+      [
+        liftLog("2026-09-01", "Bench Press", [{ reps: 5, weight: 100 }]),
+        liftLog("2026-09-15", "Barbell Bench Press", [{ reps: 5, weight: 97.5 }]),
+      ],
+      new Date("2026-09-10T00:00:00.000Z"),
+      new Date("2026-09-20T00:00:00.000Z"),
+    )
+
+    expect(prs).toEqual([])
+  })
+
+  it("counts a heavier top set as a weight PR when the e1RM did not move", () => {
+    const prs = detectRecentPRs(
+      [
+        liftLog("2026-09-01", "Bench Press", [{ reps: 8, weight: 100 }]),
+        liftLog("2026-09-15", "Bench Press", [{ reps: 1, weight: 110 }]),
+      ],
+      new Date("2026-09-10T00:00:00.000Z"),
+      new Date("2026-09-20T00:00:00.000Z"),
+    )
+
+    expect(prs).toEqual([
+      expect.objectContaining({ delta: 10, exerciseName: "Bench Press", type: "weight", value: 110 }),
+    ])
+  })
+
+  it("reports an e1RM PR ahead of a weight PR for the same lift", () => {
+    const prs = detectRecentPRs(
+      [
+        liftLog("2026-09-01", "Bench Press", [{ reps: 5, weight: 100 }]),
+        liftLog("2026-09-15", "Bench Press", [{ reps: 5, weight: 105 }]),
+      ],
+      new Date("2026-09-10T00:00:00.000Z"),
+      new Date("2026-09-20T00:00:00.000Z"),
+    )
+
+    expect(prs).toEqual([expect.objectContaining({ type: "e1rm", value: 105 })])
   })
 })

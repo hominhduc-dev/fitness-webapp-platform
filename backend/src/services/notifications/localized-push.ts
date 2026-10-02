@@ -134,6 +134,47 @@ function localizedNotificationCopy(
         title: "Weekly trainee review",
       }
     }
+    case NotificationType.coach_trainee_alert: {
+      const trainee = text(metadata, "traineeName")
+      const kind = text(metadata, "kind")
+      if (!trainee) return fallback
+      const title = isVi ? `${trainee} cần bạn xem` : `${trainee} needs a look`
+      if (kind === "missed_workouts") {
+        const completed = number(metadata, "completed")
+        const planned = number(metadata, "planned")
+        if (completed === undefined || planned === undefined) return fallback
+        return {
+          body: isVi
+            ? `Hoàn thành ${completed}/${planned} buổi theo kế hoạch trong 7 ngày qua.`
+            : `Completed ${completed} of ${planned} planned sessions in the last 7 days.`,
+          title,
+        }
+      }
+      if (kind === "low_readiness") {
+        const days = number(metadata, "days")
+        const average = number(metadata, "averageReadiness")
+        if (days === undefined || average === undefined) return fallback
+        return {
+          body: isVi
+            ? `Readiness dưới 50 suốt ${days} ngày (trung bình ${average}). Cân nhắc giảm tải.`
+            : `Readiness below 50 for ${days} days (avg ${average}). Consider easing the load.`,
+          title,
+        }
+      }
+      if (kind === "plateau") {
+        const exercises = Array.isArray(metadata.exercises)
+          ? metadata.exercises.filter((entry): entry is string => typeof entry === "string")
+          : []
+        if (exercises.length === 0) return fallback
+        return {
+          body: isVi
+            ? `Không tiến bộ ở ${exercises.join(", ")} trong 3 tuần.`
+            : `No progress on ${exercises.join(", ")} in 3 weeks.`,
+          title,
+        }
+      }
+      return fallback
+    }
     case NotificationType.general: {
       const applicant = text(metadata, "applicantName")
       const pending = Number(metadata.pendingCount ?? 1)

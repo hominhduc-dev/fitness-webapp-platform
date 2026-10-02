@@ -138,6 +138,32 @@ function localizeCopy(
         title: copy.coachWeeklyReview.title,
       }
     }
+    case "coach_trainee_alert": {
+      const trainee = readString(notification, "traineeName")
+      if (!trainee) return null
+      const alert = copy.coachTraineeAlert
+      const title = alert.title(trainee)
+      switch (readString(notification, "kind")) {
+        case "missed_workouts": {
+          const completed = readNumber(notification, "completed")
+          const planned = readNumber(notification, "planned")
+          return completed !== undefined && planned !== undefined ? { message: alert.missedWorkouts(completed, planned), title } : null
+        }
+        case "low_readiness": {
+          const days = readNumber(notification, "days")
+          const average = readNumber(notification, "averageReadiness")
+          return days !== undefined && average !== undefined ? { message: alert.lowReadiness(days, average), title } : null
+        }
+        case "plateau": {
+          const exercises = Array.isArray(notification.metadata?.exercises)
+            ? (notification.metadata.exercises as unknown[]).filter((entry): entry is string => typeof entry === "string")
+            : []
+          return exercises.length > 0 ? { message: alert.plateau(exercises.join(", ")), title } : null
+        }
+        default:
+          return null
+      }
+    }
     case "coach_request": {
       const kind = readString(notification, "kind")
       const requester = readString(notification, "requesterName")

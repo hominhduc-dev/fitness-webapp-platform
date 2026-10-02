@@ -20,12 +20,40 @@ import {
   SET_ROW_GRID_CLASS,
   SessionSetRow,
   type ProgramSetTarget,
+  type SetProgressionSuggestion,
 } from "@/components/workout/session/session-set-row"
 import type { CoachHint } from "@/lib/fitness/coach-hints"
-import type { CoachUpdate, ExerciseSet, WorkoutExercise } from "@/lib/types"
+import type { CoachUpdate, ExerciseProgression, ExerciseSet, WorkoutExercise } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
 import { activeSetIndex } from "@/lib/workout/session-navigation"
+
+/** Per-set targets from the progression engine, keyed by set number. */
+function progressionSuggestions(progression: ExerciseProgression | undefined) {
+  const bySetNumber = new Map<number, SetProgressionSuggestion>()
+  if (!progression || progression.action === "establish_baseline") return bySetNumber
+
+  const direction: SetProgressionSuggestion["direction"] =
+    progression.action === "add_load" || progression.action === "add_reps"
+      ? "up"
+      : progression.action === "reduce_load"
+        ? "down"
+        : "hold"
+  for (const set of progression.sets) {
+    bySetNumber.set(set.setNumber, { direction, reps: set.reps, weight: set.weight })
+  }
+  return bySetNumber
+}
+
+/** "82.5 kg × 8" when every set shares a target, else each set's in order. */
+function progressionTargetText(progression: ExerciseProgression, weightUnit: string) {
+  const labels = progression.sets.map((set) => (set.weight != null ? `${set.weight}×${set.reps}` : `${set.reps}`))
+  if (labels.length > 0 && labels.every((label) => label === labels[0])) {
+    const [first] = progression.sets
+    return first.weight != null ? `${first.weight} ${weightUnit} × ${first.reps}` : `${first.reps} reps`
+  }
+  return labels.join(" · ")
+}
 
 function getCoachUpdateMeta(type: CoachUpdate["type"]) {
   switch (type) {
@@ -119,6 +147,10 @@ export function SessionExerciseView({
   const coachUpdateMeta = coachUpdate ? getCoachUpdateMeta(coachUpdate.type) : null
   const CoachUpdateIcon = coachUpdateMeta?.icon
   const targetSummary = useTargetSummary(exercise, programSetTargets)
+  const suggestions = progressionSuggestions(exercise.progression)
+  const progression = exercise.progression && exercise.progression.action !== "establish_baseline"
+    ? exercise.progression
+    : null
   const activeSet = activeSetIndex(exercise)
 
   return (
@@ -238,6 +270,21 @@ export function SessionExerciseView({
         </div>
       ) : null}
 
+      {/* What the progression engine suggests from last session: a quiet note,
+          the numbers themselves sit in the Prev column and weight placeholders. */}
+      {progression ? (
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted/60 px-2.5 py-2">
+          <TrendingUp className="mt-px h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-xs leading-[1.45] text-muted-foreground">
+            {messages.workoutPage.progressionNote(
+              progression.action as "add_load" | "add_reps" | "maintain" | "reduce_load",
+              progressionTargetText(progression, weightUnit),
+            )}
+            {progression.reasons.includes("readiness_low") ? ` ${messages.workoutPage.progressionReadinessLow}` : null}
+          </p>
+        </div>
+      ) : null}
+
       {/* Sets */}
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         {/* Animation, opened from the thumbnail: a 180px tile at the top of the
@@ -267,6 +314,7 @@ export function SessionExerciseView({
             <SessionSetRow
               key={set.id}
               programTarget={programSetTargets.get(set.id)}
+              suggestion={suggestions.get(set.setNumber)}
               set={set}
               setIndex={idx}
               weightUnit={weightUnit}

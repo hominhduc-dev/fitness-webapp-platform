@@ -615,6 +615,7 @@ type CoachExerciseImportRequest = {
 type AppNotificationType =
   | "check_in_reminder"
   | "coach_request"
+  | "coach_trainee_alert"
   | "coach_weekly_review"
   | "general"
   | "meal_reminder"
@@ -684,6 +685,7 @@ type VolumeRecommendationAction = "decrease" | "deload" | "increase" | "maintain
 
 type VolumeRecommendationReason =
   | "above_mrv"
+  | "below_mav"
   | "below_mev"
   | "collect_more_performance"
   | "inside_mav"
