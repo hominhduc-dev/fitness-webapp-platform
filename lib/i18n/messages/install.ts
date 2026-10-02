@@ -43,10 +43,10 @@ const vi: InstallCopy = {
   iosSteps: [
     { title: "Mở trang này bằng Safari", body: "Safari là trình duyệt có biểu tượng la bàn màu xanh." },
     {
-      title: "Nhấn nút Chia sẻ",
-      body: "Biểu tượng hình vuông có mũi tên hướng lên, ở thanh dưới cùng (iPad: góc trên bên phải). Nếu không thấy, nhấn nút ••• trước rồi chọn Chia sẻ.",
+      title: "Mở menu Chia sẻ",
+      body: "iOS 26 trở lên: nhấn nút menu (≡ hoặc •••) ở bên trái thanh địa chỉ dưới cùng, rồi chọn Chia sẻ. iOS cũ hơn: nhấn biểu tượng hình vuông có mũi tên hướng lên ở thanh dưới cùng (iPad: góc trên bên phải).",
     },
-    { title: "Chọn “Thêm vào MH chính”", body: "Kéo danh sách lên nếu chưa thấy dòng này." },
+    { title: "Chọn “Thêm vào MH chính”", body: "Kéo danh sách lên, hoặc nhấn “Xem thêm”, nếu chưa thấy dòng này." },
     { title: "Nhấn “Thêm”", body: "Nếu có tuỳ chọn mở dưới dạng ứng dụng web, hãy giữ nó bật." },
     {
       title: "Mở YeahBuddy từ icon mới",
@@ -54,7 +54,7 @@ const vi: InstallCopy = {
     },
   ],
   iosOtherNote:
-    "Bạn đang dùng trình duyệt khác Safari. Trên iOS 16.4 trở lên vẫn làm được: nhấn nút Chia sẻ cạnh thanh địa chỉ rồi chọn “Thêm vào MH chính”. Nếu không thấy, hãy sao chép link và mở bằng Safari.",
+    "Bạn đang dùng trình duyệt khác Safari. Trên iOS 16.4 trở lên vẫn làm được: nhấn nút Chia sẻ (thường cạnh thanh địa chỉ hoặc trong menu) rồi chọn “Thêm vào MH chính”. Nếu không thấy, hãy sao chép link và mở bằng Safari.",
   androidTitle: "Trên Android (Chrome)",
   androidButton: "Cài đặt YeahBuddy",
   androidSteps: [
@@ -79,7 +79,7 @@ const vi: InstallCopy = {
   troubleshooting: [
     {
       question: "Không thấy “Thêm vào MH chính”",
-      answer: "Kiểm tra bạn đang dùng Safari, không phải trình duyệt trong Zalo hay Facebook. Kéo danh sách chia sẻ lên hết, hoặc nhấn “Sửa tác vụ” để bật mục này.",
+      answer: "Kiểm tra bạn đang dùng Safari, không phải trình duyệt trong Zalo hay Facebook. Trên iOS 26 trở lên, nút Chia sẻ nằm trong menu ≡ / ••• cạnh thanh địa chỉ. Trong danh sách chia sẻ, kéo lên hết hoặc nhấn “Xem thêm” / “Sửa tác vụ” để tìm mục này.",
     },
     {
       question: "Mở app từ icon lại bắt đăng nhập",
@@ -109,15 +109,15 @@ const en: InstallCopy = {
   iosSteps: [
     { title: "Open this page in Safari", body: "Safari is the browser with the blue compass icon." },
     {
-      title: "Tap the Share button",
-      body: "The square with an arrow pointing up, in the bottom bar (iPad: top right). If you don't see it, tap ••• first, then Share.",
+      title: "Open the Share menu",
+      body: "iOS 26 and later: tap the menu button (≡ or •••) on the left of the address bar at the bottom, then Share. Older iOS: tap the square with an arrow pointing up in the bottom bar (iPad: top right).",
     },
-    { title: "Choose “Add to Home Screen”", body: "Scroll the list up if you can't see it yet." },
+    { title: "Choose “Add to Home Screen”", body: "Scroll the list up, or tap “View More”, if you can't see it yet." },
     { title: "Tap “Add”", body: "If there is an option to open as a web app, keep it on." },
     { title: "Open YeahBuddy from the new icon", body: "Sign in if asked, then turn on notifications in Profile." },
   ],
   iosOtherNote:
-    "You're not using Safari. On iOS 16.4 and later it still works: tap the Share button next to the address bar, then “Add to Home Screen”. If it isn't there, copy the link and open it in Safari.",
+    "You're not using Safari. On iOS 16.4 and later it still works: tap the Share button (usually next to the address bar or in its menu), then “Add to Home Screen”. If it isn't there, copy the link and open it in Safari.",
   androidTitle: "On Android (Chrome)",
   androidButton: "Install YeahBuddy",
   androidSteps: [
@@ -142,7 +142,7 @@ const en: InstallCopy = {
   troubleshooting: [
     {
       question: "I can't find “Add to Home Screen”",
-      answer: "Make sure you're in Safari, not the browser inside Zalo or Facebook. Scroll the share sheet all the way up, or tap “Edit Actions” to turn it on.",
+      answer: "Make sure you're in Safari, not the browser inside Zalo or Facebook. On iOS 26 and later, Share is inside the ≡ / ••• menu next to the address bar. In the share sheet, scroll all the way up or tap “View More” / “Edit Actions” to find it.",
     },
     {
       question: "The icon asks me to sign in again",
