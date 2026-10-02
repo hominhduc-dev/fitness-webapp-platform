@@ -72,7 +72,11 @@ describe("Google export batch across weeks", () => {
     expect(mocks.batch).toHaveBeenCalledTimes(1)
     const requests = mocks.batch.mock.calls[0][2] as BatchRequest[]
     expect(requests.slice(0, 2).map((request) => request.duplicateSheet?.newSheetName)).toEqual(["Week 2", "Week 3"])
-    expect(requests.find((request) => request.insertDimension?.range?.dimension === "COLUMNS")?.insertDimension?.range).toMatchObject({ sheetId: 1, startIndex: 14, endIndex: 16 })
+    const resultColumnInsert = requests.find((request) => {
+      const range = request.insertDimension?.range
+      return range?.dimension === "COLUMNS" && typeof range.startIndex === "number" && typeof range.endIndex === "number" && range.endIndex - range.startIndex > 1
+    })
+    expect(resultColumnInsert?.insertDimension?.range).toMatchObject({ sheetId: 1, startIndex: 14, endIndex: 16 })
     expect(requests.slice(2).some((request) => request.duplicateSheet)).toBe(false)
   })
   it("writes the app's plan into the tab before the results, so an edited program still exports", async () => {
@@ -89,6 +93,20 @@ describe("Google export batch across weeks", () => {
     expect(writes[plan]?.rows?.[0]?.values?.[1]?.userEnteredValue?.stringValue).toBe("Bench")
     expect(writes[results]?.rows?.[0]?.values?.[0]?.userEnteredValue?.stringValue).toBe("Old Bench / Default")
     expect(plan).toBeLessThan(results)
+  })
+  it("refreshes the Exercise Table so dropdown validation accepts the current plan", async () => {
+    mocks.values.mockResolvedValue([["Week 1"], headers, ["1", "Chest", "Old Bench", "Default", "v-old", "3", "10"]])
+    mocks.workouts.mockResolvedValue([benchWorkout()])
+
+    await exportGoogleProgramLogs({ id: "coach", role: "coach" } as SerializedProfile, "trainee", ["a"])
+
+    const requests = mocks.batch.mock.calls[0][2] as BatchRequest[]
+    const referenceWrite = requests.find((request) =>
+      request.updateCells?.start?.sheetId === 2 &&
+      request.updateCells.start.rowIndex === 0 &&
+      request.updateCells.start.columnIndex === 0,
+    )
+    expect(referenceWrite?.updateCells?.rows?.[1]?.values?.[0]?.userEnteredValue?.stringValue).toBe("v1")
   })
   it("creates and remembers a replacement spreadsheet when the linked sheet is gone", async () => {
     mocks.batch
