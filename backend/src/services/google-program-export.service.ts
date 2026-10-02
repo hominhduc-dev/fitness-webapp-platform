@@ -4,7 +4,8 @@ import { getGoogleAccessToken } from "./google-connection.service"
 import { parseGoogleProgramRows } from "./google-program-import.service"
 import { assertCoach, assertCoachOwnsTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 import { BadRequestError, ExternalServiceError } from "./errors"
-import { buildReferenceRows, WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
+import { buildReferenceRows, REFERENCE_SHEET_TITLE, WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
+import { formatSetIntensityMethodCell, isSetIntensityTag, type SetIntensityAssignment } from "../domain/set-intensity-tag"
 import type { PlanDay } from "./google-program-plan.service"
 import { refreshWeekPlan } from "./google-program-plan-refresh"
 import { createProgramTemplateSpreadsheet } from "./google-program-template.service"
@@ -13,7 +14,15 @@ import type { SerializedProfile } from "./auth.service"
 
 type ExportDb = ReturnType<typeof ensurePrisma>
 
-export type ExportExercise = { order?: number; originalVariationId?: string; variation?: { id?: string; name?: string }; exercise?: { name?: string; muscleGroup?: string }; sets: Array<{ setNumber: number; completed: boolean; actualReps?: number; weight?: number }> }
+export type ExportExercise = {
+  notes?: string
+  order?: number
+  originalVariationId?: string
+  restTime?: number
+  variation?: { id?: string; name?: string }
+  exercise?: { name?: string; muscleGroup?: string }
+  sets: Array<{ setNumber: number; completed: boolean; actualReps?: number; intensityTag?: string | null; notes?: string; rir?: number; weight?: number }>
+}
 type ExportSession = { day: number; week: number; exercises: ExportExercise[] }
 
 function isLostSpreadsheetAccess(error: unknown) {
@@ -52,6 +61,34 @@ export function formatSubstitute(exercise: ExportExercise) {
     ? [exercise.exercise?.name, exercise.variation?.name].filter(Boolean).join(" / ")
     : ""
 }
+
+function firstFiniteNumber(values: Array<number | null | undefined>) {
+  return values.find((value): value is number => typeof value === "number" && Number.isFinite(value))
+}
+
+function formatLoggedMethod(exercise: ExportExercise) {
+  const assignments: SetIntensityAssignment[] = exercise.sets.flatMap((set) =>
+    isSetIntensityTag(set.intensityTag)
+      ? [{ setNumber: set.setNumber, tag: set.intensityTag }]
+      : [],
+  )
+  return formatSetIntensityMethodCell(assignments, exercise.sets.length) || undefined
+}
+
+function loggedTailCells(exercise: ExportExercise, columns: { method: number; note: number; rest: number; rir: number }, startColumn: number) {
+  const length = Math.max(columns.rir, columns.method, columns.rest, columns.note) - startColumn + 1
+  const cells: unknown[] = Array.from({ length }, () => ({}))
+  const put = (column: number, value: string | number | undefined) => {
+    if (column < startColumn) return
+    cells[column - startColumn] = cellValue(value)
+  }
+
+  put(columns.rir, firstFiniteNumber(exercise.sets.map((set) => set.rir)))
+  put(columns.method, formatLoggedMethod(exercise))
+  put(columns.rest, exercise.restTime)
+  put(columns.note, exercise.notes)
+  return cells
+}
 /**
  * `lenient` is for a sheet the app built itself from the program's current plan
  * (the trainee's own file). A log trained against an older version of the plan
@@ -79,6 +116,12 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
   const rows = parseGoogleProgramRows(values)
   const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
   const oldRirColumn = values[headerIndex].indexOf("RIR")
+  const tailColumns = {
+    method: values[headerIndex].indexOf("Method"),
+    note: values[headerIndex].indexOf("Note"),
+    rest: values[headerIndex].indexOf("Rest (s)"),
+    rir: oldRirColumn,
+  }
   const oldSetCount = oldRirColumn - 9
   let setCount = oldSetCount
   const updates: Array<{ row: number; exercise: ExportExercise; substitute: string }> = []
@@ -143,8 +186,38 @@ export function buildGoogleResultRequests(values: string[][], sessions: ExportSe
     const cells: string[] = [substitute, ...Array<string>(setCount).fill("")]
     for (const set of exercise.sets) if (set.completed) cells[set.setNumber] = formatSetResult(set)
     requests.push({ updateCells: { start: { sheetId, rowIndex: row, columnIndex: 8 }, rows: [{ values: cells.map((value) => value ? { userEnteredValue: { stringValue: value } } : {}) }], fields: "userEnteredValue" } })
+    requests.push({ updateCells: {
+      fields: "userEnteredValue",
+      rows: [{ values: loggedTailCells(exercise, tailColumns, oldRirColumn) }],
+      start: { sheetId, rowIndex: row, columnIndex: oldRirColumn },
+    } })
   }
   return { requests, rowCount: updates.length, skippedExerciseCount }
+}
+
+function cellValue(value: string | number | null | undefined) {
+  if (typeof value === "number" && Number.isFinite(value)) return { userEnteredValue: { numberValue: value } }
+  const text = value == null ? "" : String(value)
+  return text ? { userEnteredValue: { stringValue: text } } : {}
+}
+
+function buildReferenceTableRefreshRequests(
+  sheetId: number,
+  rowCount: number,
+  referenceRows: string[][],
+) {
+  return [
+    { repeatCell: {
+      cell: {},
+      fields: "userEnteredValue",
+      range: { endColumnIndex: 6, endRowIndex: Math.max(rowCount, referenceRows.length), sheetId, startColumnIndex: 0, startRowIndex: 0 },
+    } },
+    { updateCells: {
+      fields: "userEnteredValue",
+      rows: referenceRows.map((row) => ({ values: row.map(cellValue) })),
+      start: { columnIndex: 0, rowIndex: 0, sheetId },
+    } },
+  ]
 }
 
 /**
@@ -295,18 +368,27 @@ export async function writeSessionsToSpreadsheet(
     lenient?: boolean
     /** The program's plan for a week; when given, each tab is rewritten to it before results go in. */
     planForWeek?: (weekIndex: number) => PlanDay[]
+    referenceRows?: string[][]
   } = {},
 ) {
   const meta = await fetchSpreadsheetMeta(token, spreadsheetId)
   const source = meta.sheetProperties.find((sheet) => sheet.title === sourceSheetName)
   if (!source) throw new BadRequestError("Sheet tuần mẫu không còn tồn tại.")
-  if (!meta.sheetProperties.some((sheet) => sheet.title === "Exercise Table")) throw new BadRequestError("Thiếu sheet Exercise Table để khôi phục dropdown bài tập.")
+  const reference = meta.sheetProperties.find((sheet) => sheet.title === REFERENCE_SHEET_TITLE)
+  if (!reference) throw new BadRequestError("Thiếu sheet Exercise Table để khôi phục dropdown bài tập.")
   const sourceValues = await fetchSheetValues(token, spreadsheetId, source.title)
   // Every new week must copy the same source layout used during preflight.
   // Duplicating after a Week 1 column insertion would shift the copied RIR/merge
   // ranges before the new week's independently planned requests are applied.
   const duplicateRequests: unknown[] = []
   const requests: unknown[] = []
+  if (options.referenceRows) {
+    requests.push(...buildReferenceTableRefreshRequests(
+      reference.sheetId,
+      reference.gridProperties?.rowCount ?? options.referenceRows.length,
+      options.referenceRows,
+    ))
+  }
   let rowCount = 0
   let skippedExerciseCount = 0
   const ids = new Set(meta.sheetProperties.map((sheet) => sheet.sheetId))
@@ -332,7 +414,7 @@ export async function writeSessionsToSpreadsheet(
     const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
     requests.push({ setDataValidation: {
       range: { sheetId, startRowIndex: headerIndex + 1, endRowIndex: gridRowCount, startColumnIndex: 2, endColumnIndex: 3 },
-      rule: { condition: { type: "ONE_OF_RANGE", values: [{ userEnteredValue: "='Exercise Table'!$D$2:$D" }] }, strict: true, showCustomUi: true },
+      rule: { condition: { type: "ONE_OF_RANGE", values: [{ userEnteredValue: `='${REFERENCE_SHEET_TITLE}'!$D$2:$D` }] }, strict: true, showCustomUi: true },
     } })
   }
   await batchUpdateSpreadsheet(token, spreadsheetId, [...duplicateRequests, ...requests])
@@ -377,7 +459,7 @@ export async function exportGoogleProgramLogs(profile: SerializedProfile, traine
   }) as SourceWorkout[]
   const token = await getGoogleAccessToken(profile)
   const planForWeek = (weekIndex: number) => toPlanDays(selectProgramWeekWorkouts(workouts, weekIndex))
-  const writeOptions = { planForWeek }
+  const writeOptions = { planForWeek, referenceRows: programReferenceRows(workouts) }
 
   try {
     const { rowCount, skippedExerciseCount, spreadsheetUrl } = await writeSessionsToSpreadsheet(token, spreadsheetId, sourceNames[0], sessions, writeOptions)

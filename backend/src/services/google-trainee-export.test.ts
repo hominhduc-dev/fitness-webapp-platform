@@ -39,6 +39,7 @@ vi.mock("./google-program-export.service", async (importOriginal) => ({
 
 import { exportTraineeLogsToGoogleDrive } from "./google-trainee-export.service"
 import type { SerializedProfile } from "./auth.service"
+import { ExternalServiceError } from "./errors"
 
 const trainee = { email: "an@example.com", id: "trainee", name: "An", role: "trainee" } as SerializedProfile
 const range = { from: new Date("2026-09-21"), to: new Date("2026-09-28") }
@@ -96,6 +97,7 @@ describe("exportTraineeLogsToGoogleDrive", () => {
     mocks.updateAssignment.mockResolvedValue({ count: 1 })
     mocks.write.mockResolvedValue({
       rowCount: 3,
+      skippedExerciseCount: 0,
       spreadsheetUrl: "https://docs.google.com/spreadsheets/d/trainee-sheet/edit",
     })
   })
@@ -108,8 +110,18 @@ describe("exportTraineeLogsToGoogleDrive", () => {
       expect.objectContaining({ title: "Push Pull Legs — An" }),
     )
     expect(mocks.fillWeeks).toHaveBeenCalledWith("trainee-token", expect.anything(), expect.anything(), 4)
-    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "trainee-sheet", "Week 1", expect.any(Map), { lenient: true })
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "trainee-sheet", "Week 1", expect.any(Map), {
+      planForWeek: expect.any(Function),
+      referenceRows: expect.arrayContaining([expect.arrayContaining(["var-1"])]),
+    })
     expect(result).toMatchObject({ exported: true, logCount: 1, rowCount: 3 })
+  })
+
+  it("refreshes the sheet tab from the current program plan before writing results", async () => {
+    await exportTraineeLogsToGoogleDrive(trainee, range)
+
+    const options = mocks.write.mock.calls[0][4] as { planForWeek: (week: number) => Array<{ day: number }> }
+    expect(options.planForWeek(0).map((day) => day.day)).toEqual([1])
   })
 
   it("runs on the trainee's own token, never the coach's", async () => {
@@ -142,7 +154,10 @@ describe("exportTraineeLogsToGoogleDrive", () => {
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
     expect(mocks.createTemplate).not.toHaveBeenCalled()
-    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-old", "Week 1", expect.any(Map), { lenient: true })
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-old", "Week 1", expect.any(Map), {
+      planForWeek: expect.any(Function),
+      referenceRows: expect.arrayContaining([expect.arrayContaining(["var-1"])]),
+    })
   })
 
   it("adopts the winner's sheet when another export claimed the assignment first", async () => {
@@ -151,7 +166,34 @@ describe("exportTraineeLogsToGoogleDrive", () => {
 
     await exportTraineeLogsToGoogleDrive(trainee, range)
 
-    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-winner", "Week 1", expect.any(Map), { lenient: true })
+    expect(mocks.write).toHaveBeenCalledWith("trainee-token", "sheet-winner", "Week 1", expect.any(Map), {
+      planForWeek: expect.any(Function),
+      referenceRows: expect.arrayContaining([expect.arrayContaining(["var-1"])]),
+    })
+  })
+
+  it("creates and remembers a replacement sheet when the saved one is gone", async () => {
+    mocks.assignments.mockResolvedValue([assignment({ traineeGoogleSpreadsheetId: "sheet-deleted" })])
+    mocks.write
+      .mockRejectedValueOnce(new ExternalServiceError("not found", { code: "GOOGLE_REQUEST_FAILED", details: { status: 404 } }))
+      .mockResolvedValueOnce({
+        rowCount: 3,
+        skippedExerciseCount: 0,
+        spreadsheetUrl: "https://docs.google.com/spreadsheets/d/trainee-sheet/edit",
+      })
+
+    const result = await exportTraineeLogsToGoogleDrive(trainee, range)
+
+    expect(mocks.createTemplate).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAssignment).toHaveBeenCalledWith({
+      data: { traineeGoogleSpreadsheetId: "trainee-sheet" },
+      where: { id: "a1", userId: "trainee" },
+    })
+    expect(mocks.write).toHaveBeenNthCalledWith(2, "trainee-token", "trainee-sheet", "Week 1", expect.any(Map), {
+      planForWeek: expect.any(Function),
+      referenceRows: expect.arrayContaining([expect.arrayContaining(["var-1"])]),
+    })
+    expect(result).toMatchObject({ exported: true, rowCount: 3 })
   })
 
   it("refuses a program with no sessions to build a sheet from", async () => {

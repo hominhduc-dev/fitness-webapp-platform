@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useCoachLogs, useCoachLogComment } from "@/lib/queries/coach-logs"
 import { useExportQueries, useCoachSheetsExport } from "@/lib/queries/exports"
-import { ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, FileSpreadsheet, Loader2, MessageSquare, Pencil, Save, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, ExternalLink, FileSpreadsheet, Loader2, MessageSquare, Pencil, Save, Trash2 } from "lucide-react"
 
 import { formatDateInputValue, startOfLocalWeek } from "@/components/coach/trainee-workout-log-dates"
 import type { CoachWorkoutLogsWorkbookPreview } from "@/components/coach/trainee-workout-logs-excel"
@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
+import type { SheetsExportResult } from "@/lib/fitness/api"
 import type { WorkoutLog } from "@/lib/types"
 import { formatRepTarget } from "@/lib/workout-reps"
 
@@ -79,6 +80,17 @@ function isLogInSelectedWeek(log: WorkoutLog, weekStart: string) {
   end.setDate(end.getDate() + 7)
 
   return log.startedAt >= start && log.startedAt < end
+}
+
+function buildSheetsExportLinks(result: SheetsExportResult | null) {
+  if (!result) return []
+  if (result.files?.length) {
+    return result.files.map((file) => ({
+      label: `Open ${file.name}${file.weeks?.length ? ` · ${file.weeks.map((week) => `W${week}`).join(", ")}` : ""}`,
+      url: file.url,
+    }))
+  }
+  return result.spreadsheetUrl ? [{ label: "Open Google Sheet", url: result.spreadsheetUrl }] : []
 }
 
 function getWeekEndDateInput(weekStart: string) {
@@ -295,6 +307,7 @@ export function TraineeWorkoutLogsPanel({
   const [previewWorkbook, setPreviewWorkbook] = useState<CoachWorkoutLogsWorkbookPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [sheetsResult, setSheetsResult] = useState<SheetsExportResult | null>(null)
   const [draftByLogId, setDraftByLogId] = useState<Record<string, string>>({})
   const savingLogId = commentMutation.isPending && commentMutation.variables.action !== "delete" ? commentMutation.variables.logId : null
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
@@ -345,7 +358,7 @@ export function TraineeWorkoutLogsPanel({
         weekStart,
       })
     },
-    onMutate: () => { setError(null); setNotice(null) },
+    onMutate: () => { setError(null); setNotice(null); setSheetsResult(null) },
     onError: (error) => setError(error.message),
   })
   const isExporting = excelExport.isPending
@@ -354,8 +367,12 @@ export function TraineeWorkoutLogsPanel({
   const handleExportGoogleSheets = () => {
     setError(null)
     setNotice(null)
+    setSheetsResult(null)
     sheetsExport.mutate({ traineeId, options: { label: `${traineeName ?? "Trainee"} week ${weekStart}`, weekStart } }, {
-      onSuccess: (result) => setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`),
+      onSuccess: (result) => {
+        setNotice(`Exported ${result.logCount} workout logs (${result.rowCount} rows) to Google Sheets.`)
+        setSheetsResult(result)
+      },
       onError: (error) => setError(error.message),
     })
   }
@@ -411,6 +428,7 @@ export function TraineeWorkoutLogsPanel({
     setWeekStart(nextWeekStart)
     setExpandedDayKeys([])
     setNotice(null)
+    setSheetsResult(null)
     previewMutation.mutate(nextWeekStart)
   }
 
@@ -759,6 +777,7 @@ export function TraineeWorkoutLogsPanel({
       </div>
     </div>
   )
+  const sheetsLinks = buildSheetsExportLinks(sheetsResult)
 
   return (
     <div className="space-y-4">
@@ -769,7 +788,24 @@ export function TraineeWorkoutLogsPanel({
       ) : null}
       {notice ? (
         <div className="rounded-xl border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
-          {notice}
+          <p>{notice}</p>
+          {sheetsLinks.length > 0 ? (
+            <ul className="mt-2 flex flex-col gap-1">
+              {sheetsLinks.map((link) => (
+                <li key={`${link.label}-${link.url}`}>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
+                  >
+                    {link.label}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
@@ -789,7 +825,7 @@ export function TraineeWorkoutLogsPanel({
             <Input
               type="date"
               value={weekStart}
-              onChange={(event) => { setWeekStart(event.target.value); setExpandedDayKeys([]); setError(null); setNotice(null) }}
+              onChange={(event) => { setWeekStart(event.target.value); setExpandedDayKeys([]); setError(null); setNotice(null); setSheetsResult(null) }}
               className="w-full bg-background"
             />
           </div>

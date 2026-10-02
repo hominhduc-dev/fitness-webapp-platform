@@ -29,6 +29,7 @@ const SETS_COLUMN = 5
 const REPS_COLUMN = 6
 const WEIGHT_COLUMN = 7
 const SUBSTITUTE_COLUMN = 8
+const DEFAULT_RIR_COLUMN = 14
 
 const textCell = (value: string | undefined): Cell =>
   value?.trim() ? { userEnteredValue: { stringValue: value.trim() } } : {}
@@ -43,6 +44,38 @@ function hasPlanContent(row: readonly string[] | undefined) {
   return Boolean(row?.slice(1).some((cell) => cell?.trim()))
 }
 
+function ensureHeaderColumn(
+  next: string[][],
+  requests: unknown[],
+  sheetId: number,
+  headerIndex: number,
+  headerName: string,
+  options: { after?: string; fallbackIndex: number },
+) {
+  const header = next[headerIndex]
+  const existing = header.indexOf(headerName)
+  if (existing >= 0) return existing
+
+  const afterIndex = options.after ? header.indexOf(options.after) : -1
+  const insertAt = afterIndex >= 0 ? afterIndex + 1 : Math.min(options.fallbackIndex, header.length)
+  requests.push({ insertDimension: {
+    inheritFromBefore: true,
+    range: { dimension: "COLUMNS", endIndex: insertAt + 1, sheetId, startIndex: insertAt },
+  } })
+
+  for (const row of next) {
+    row.splice(insertAt, 0, "")
+  }
+  next[headerIndex][insertAt] = headerName
+  requests.push({ updateCells: {
+    fields: "userEnteredValue",
+    rows: [{ values: [textCell(headerName)] }],
+    start: { columnIndex: insertAt, rowIndex: headerIndex, sheetId },
+  } })
+
+  return insertAt
+}
+
 export function refreshWeekPlan(
   values: readonly (readonly string[])[],
   sheetId: number,
@@ -52,15 +85,14 @@ export function refreshWeekPlan(
 ) {
   const headerIndex = values.findIndex((row) => row[0]?.trim() === "Day" && row[2]?.trim() === "Exercise")
   if (headerIndex < 0) throw new BadRequestError("Không tìm thấy bảng Day / Exercise trong sheet.")
-  const header = values[headerIndex]
-  const rirColumn = header.indexOf("RIR")
-  const methodColumn = header.indexOf("Method")
-  const restColumn = header.indexOf("Rest (s)")
-  const noteColumn = header.indexOf("Note")
-  const lastColumn = Math.max(rirColumn, methodColumn, restColumn, noteColumn)
 
   const next = values.map((row) => [...row])
   const requests: unknown[] = []
+  const rirColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "RIR", { fallbackIndex: DEFAULT_RIR_COLUMN })
+  const methodColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Method", { after: "RIR", fallbackIndex: rirColumn + 1 })
+  const restColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Rest (s)", { after: "Method", fallbackIndex: methodColumn + 1 })
+  const noteColumn = ensureHeaderColumn(next, requests, sheetId, headerIndex, "Note", { after: "Rest (s)", fallbackIndex: restColumn + 1 })
+  const lastColumn = Math.max(rirColumn, methodColumn, restColumn, noteColumn)
 
   if (weekTitle && /^Week\s*\d+$/i.test(next[0]?.[0]?.trim() ?? "")) {
     next[0][0] = weekTitle
