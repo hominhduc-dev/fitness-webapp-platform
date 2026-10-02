@@ -8,12 +8,15 @@ import {
   startOfUtcWeek,
 } from "./dates"
 import {
+  getSnapshotExerciseId,
   getSnapshotExerciseName,
   getSnapshotExerciseVolume,
   getSnapshotMaxE1RM,
   getSnapshotMaxWeight,
   getSnapshotMuscleGroup,
+  getSnapshotVariationId,
   parseWorkoutLogSnapshotExercises,
+  type WorkoutLogSnapshotExercise,
 } from "./workout-snapshot"
 
 /**
@@ -202,26 +205,53 @@ function buildMuscleGroupDistribution(
 }
 
 
+/**
+ * What a record belongs to: the variation, then the exercise, and the display
+ * name only for snapshots too old to carry either. Keyed by name, a record was
+ * lost the moment a coach renamed the exercise.
+ */
+function exerciseRecordKey(exercise: WorkoutLogSnapshotExercise) {
+  const variationId = getSnapshotVariationId(exercise)
+  if (variationId) return `variation:${variationId}`
+  const exerciseId = getSnapshotExerciseId(exercise)
+  if (exerciseId) return `exercise:${exerciseId}`
+  const name = getSnapshotExerciseName(exercise)
+  return name ? `name:${name}` : null
+}
+
 function buildPersonalRecords(logs: ProgressAnalyticsLogRecord[]) {
   const recordByExercise = new Map<string, { date: Date; weight: number }>()
+  // A record is labelled with the exercise's latest name, not the one it had
+  // when the record was set.
+  const latestName = new Map<string, { date: Date; name: string }>()
 
   logs.forEach((log) => {
     parseWorkoutLogSnapshotExercises(log.exerciseSnapshot).forEach((exercise) => {
+      const key = exerciseRecordKey(exercise)
       const exerciseName = getSnapshotExerciseName(exercise)
       const weight = getSnapshotMaxWeight(exercise)
 
-      if (!exerciseName || weight == null) {
+      if (!key || !exerciseName) {
         return
       }
 
-      const existingRecord = recordByExercise.get(exerciseName)
+      const named = latestName.get(key)
+      if (!named || log.startedAt.getTime() >= named.date.getTime()) {
+        latestName.set(key, { date: log.startedAt, name: exerciseName })
+      }
+
+      if (weight == null) {
+        return
+      }
+
+      const existingRecord = recordByExercise.get(key)
 
       if (
         !existingRecord ||
         weight > existingRecord.weight ||
         (weight === existingRecord.weight && log.startedAt.getTime() > existingRecord.date.getTime())
       ) {
-        recordByExercise.set(exerciseName, {
+        recordByExercise.set(key, {
           date: log.startedAt,
           weight,
         })
@@ -230,9 +260,9 @@ function buildPersonalRecords(logs: ProgressAnalyticsLogRecord[]) {
   })
 
   return Array.from(recordByExercise.entries())
-    .map(([exercise, record]) => ({
+    .map(([key, record]) => ({
       date: record.date,
-      exercise,
+      exercise: latestName.get(key)?.name ?? key,
       weight: record.weight,
     }))
     .sort((left, right) => right.weight - left.weight || right.date.getTime() - left.date.getTime())
@@ -514,44 +544,53 @@ function buildStrengthProgressionE1RM(
 /**
  * Detect personal records set within a date range.
  *
- * Compares the best e1RM per exercise before `startDate` (baseline) with the
- * best e1RM within `[startDate, endDate]`. Any improvement is a "new PR".
+ * Compares the best set per exercise before `startDate` (baseline) with the
+ * best within `[startDate, endDate]`. A higher e1RM is an e1RM PR. A heavier
+ * top weight that did not lift the e1RM — a heavier single after a run of
+ * eights — still counts, as a weight PR.
  */
 function detectRecentPRs(
   allLogs: ProgressAnalyticsLogRecord[],
   startDate: Date,
   endDate: Date,
 ) {
-  // Baseline: best e1RM per exercise from all logs before startDate
-  const baselineByExercise = new Map<string, number>()
-  // Current period: best e1RM per exercise within date range
-  const currentByExercise = new Map<string, { date: Date; e1rm: number; reps: number; weight: number }>()
+  type Best = { date: Date; e1rm: number; reps: number; weight: number }
+
+  const baselineE1RM = new Map<string, number>()
+  const baselineWeight = new Map<string, number>()
+  const currentE1RM = new Map<string, Best>()
+  const currentWeight = new Map<string, { date: Date; weight: number }>()
+  const latestName = new Map<string, { date: Date; name: string }>()
 
   allLogs.forEach((log) => {
     const isBefore = log.startedAt < startDate
     const isInRange = log.startedAt >= startDate && log.startedAt < endDate
 
     parseWorkoutLogSnapshotExercises(log.exerciseSnapshot).forEach((exercise) => {
+      const key = exerciseRecordKey(exercise)
       const exerciseName = getSnapshotExerciseName(exercise)
       const e1rmResult = getSnapshotMaxE1RM(exercise)
+      const maxWeight = getSnapshotMaxWeight(exercise)
 
-      if (!exerciseName || !e1rmResult) return
+      if (!key || !exerciseName || !e1rmResult) return
+
+      const named = latestName.get(key)
+      if (!named || log.startedAt.getTime() >= named.date.getTime()) {
+        latestName.set(key, { date: log.startedAt, name: exerciseName })
+      }
 
       if (isBefore) {
-        baselineByExercise.set(
-          exerciseName,
-          Math.max(baselineByExercise.get(exerciseName) ?? 0, e1rmResult.e1rm),
-        )
+        baselineE1RM.set(key, Math.max(baselineE1RM.get(key) ?? 0, e1rmResult.e1rm))
+        if (maxWeight != null) baselineWeight.set(key, Math.max(baselineWeight.get(key) ?? 0, maxWeight))
       } else if (isInRange) {
-        const current = currentByExercise.get(exerciseName)
-
+        const current = currentE1RM.get(key)
         if (!current || e1rmResult.e1rm > current.e1rm) {
-          currentByExercise.set(exerciseName, {
-            date: log.startedAt,
-            e1rm: e1rmResult.e1rm,
-            reps: e1rmResult.reps,
-            weight: e1rmResult.weight,
-          })
+          currentE1RM.set(key, { date: log.startedAt, ...e1rmResult })
+        }
+
+        const heaviest = currentWeight.get(key)
+        if (maxWeight != null && (!heaviest || maxWeight > heaviest.weight)) {
+          currentWeight.set(key, { date: log.startedAt, weight: maxWeight })
         }
       }
     })
@@ -566,19 +605,33 @@ function detectRecentPRs(
     value: number
   }> = []
 
-  currentByExercise.forEach((current, exerciseName) => {
-    const baseline = baselineByExercise.get(exerciseName) ?? 0
-    const delta = Math.round((current.e1rm - baseline) * 10) / 10
+  currentE1RM.forEach((current, key) => {
+    const exerciseName = latestName.get(key)?.name ?? key
+    const e1rmDelta = Math.round((current.e1rm - (baselineE1RM.get(key) ?? 0)) * 10) / 10
 
     // Only count as a PR if there is measurable improvement
-    if (delta > 0) {
+    if (e1rmDelta > 0) {
       prs.push({
         date: current.date,
-        delta,
+        delta: e1rmDelta,
         exerciseName,
         type: "e1rm",
         unit: "kg",
         value: current.weight,
+      })
+      return
+    }
+
+    const heaviest = currentWeight.get(key)
+    const weightDelta = heaviest ? Math.round((heaviest.weight - (baselineWeight.get(key) ?? 0)) * 10) / 10 : 0
+    if (heaviest && weightDelta > 0) {
+      prs.push({
+        date: heaviest.date,
+        delta: weightDelta,
+        exerciseName,
+        type: "weight",
+        unit: "kg",
+        value: heaviest.weight,
       })
     }
   })
