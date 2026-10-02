@@ -194,6 +194,7 @@ enum NotificationType {
   workout_session_open
   weight_reminder
   coach_weekly_review
+  coach_trainee_alert
   general
 }
 

@@ -615,6 +615,7 @@ type CoachExerciseImportRequest = {
 type AppNotificationType =
   | "check_in_reminder"
   | "coach_request"
+  | "coach_trainee_alert"
   | "coach_weekly_review"
   | "general"
   | "meal_reminder"

@@ -15,6 +15,14 @@ export const notificationsMessages = {
       mealLabels: { breakfast: "Breakfast", dinner: "Dinner", lunch: "Lunch", snack: "Snack" } satisfies MealLabels,
       copy: {
         checkInReminder: { message: "How are you feeling today?", title: "Morning check-in" },
+        coachTraineeAlert: {
+          lowReadiness: (days: number, average: number) =>
+            `Readiness below 50 for ${days} days (avg ${average}). Consider easing the load.`,
+          missedWorkouts: (completed: number, planned: number) =>
+            `Completed ${completed} of ${planned} planned sessions in the last 7 days.`,
+          plateau: (exercises: string) => `No progress on ${exercises} in 3 weeks.`,
+          title: (trainee: string) => `${trainee} needs a look`,
+        },
         coachWeeklyReview: {
           idle: (count: number, names: string) =>
             count === 1 ? ` 1 hasn't trained yet: ${names}.` : ` ${count} haven't trained yet: ${names}.`,
@@ -115,6 +123,14 @@ export const notificationsMessages = {
       mealLabels: { breakfast: "Bữa sáng", dinner: "Bữa tối", lunch: "Bữa trưa", snack: "Bữa phụ" } satisfies MealLabels,
       copy: {
         checkInReminder: { message: "Hôm nay bạn cảm thấy thế nào?", title: "Check-in buổi sáng" },
+        coachTraineeAlert: {
+          lowReadiness: (days: number, average: number) =>
+            `Readiness dưới 50 suốt ${days} ngày (trung bình ${average}). Cân nhắc giảm tải.`,
+          missedWorkouts: (completed: number, planned: number) =>
+            `Hoàn thành ${completed}/${planned} buổi theo kế hoạch trong 7 ngày qua.`,
+          plateau: (exercises: string) => `Không tiến bộ ở ${exercises} trong 3 tuần.`,
+          title: (trainee: string) => `${trainee} cần bạn xem`,
+        },
         coachWeeklyReview: {
           idle: (count: number, names: string) => ` ${count} học viên chưa tập: ${names}.`,
           message: (trainees: number, workouts: number) =>

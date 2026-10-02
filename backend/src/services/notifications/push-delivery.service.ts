@@ -45,6 +45,9 @@ function notificationPushTag(notification: Pick<Notification, "id" | "metadata" 
       return "workout-reminder"
     case NotificationType.coach_weekly_review:
       return "coach-weekly-review"
+    case NotificationType.coach_trainee_alert:
+      // One alert per trainee and kind on the device; a newer one replaces it.
+      return `coach-trainee-alert:${notification.relatedEntityId ?? notification.id}:${metadataText(notification.metadata, "kind") ?? "alert"}`
     case NotificationType.general:
       // Each admin queue keeps one notice on the device: the latest carries the count.
       switch (metadataText(notification.metadata, "kind")) {

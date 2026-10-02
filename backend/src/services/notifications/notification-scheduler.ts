@@ -5,6 +5,7 @@ import { env } from "../../config/env"
 import { logger, withRequestContext } from "../../lib/logger"
 import { findTodayScheduleEntryForTrainee } from "../fitness-data/core"
 import { ensurePrisma } from "../fitness-data/shared/guards"
+import { buildCoachTraineeAlertDraft, detectCoachTraineeAlerts } from "./coach-trainee-alerts"
 import { buildCoachWeeklyReviewDraft } from "./coach-weekly-review"
 import { createAndPushNotification, findUsedDedupeKeys, type NotificationDraft } from "./notification-dispatch.service"
 import { processPushDeliveries } from "./push-delivery.service"
@@ -392,7 +393,71 @@ async function runCoachWeeklyReviewJob(now: Date) {
   return sendNewDrafts(drafts)
 }
 
+const ALERT_LOOKBACK_DAYS = 28
+
+/**
+ * Daily, at the coach's review time: which trainees need a look today. Shares
+ * the weekly review's switch and clock, and each alert's dedupe key carries the
+ * week, so a coach hears about one trainee's one problem at most once a week.
+ */
+async function runCoachTraineeAlertJob(now: Date) {
+  const db = ensurePrisma()
+  const activeTrainee = { isActive: true, role: UserRole.trainee }
+  const coaches = await db.user.findMany({
+    select: {
+      id: true,
+      notificationPreference: {
+        select: { coachWeeklyReviewEnabled: true, coachWeeklyReviewTime: true, timeZone: true },
+      },
+      trainees: { select: { id: true, name: true }, where: activeTrainee },
+    },
+    where: { isActive: true, role: UserRole.coach, trainees: { some: activeTrainee } },
+  })
+
+  const due = coaches.flatMap((coach) => {
+    const preference = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...coach.notificationPreference }
+    if (!preference.coachWeeklyReviewEnabled) return []
+    const clock = getLocalClock(now, preference.timeZone)
+    return isDailyReminderDue(clock, preference.coachWeeklyReviewTime)
+      ? [{ clock, coach }]
+      : []
+  })
+  if (due.length === 0) return { candidates: 0, sent: 0 }
+
+  const traineeIds = due.flatMap(({ coach }) => coach.trainees.map((trainee) => trainee.id))
+  const since = new Date(now.getTime() - ALERT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+  const [logs, checkIns, assignments] = await Promise.all([
+    db.workoutLog.findMany({
+      select: { exerciseSnapshot: true, startedAt: true, userId: true },
+      where: { completedAt: { not: null }, startedAt: { gte: since, lte: now }, userId: { in: traineeIds } },
+    }),
+    db.recoveryCheckIn.findMany({
+      select: { checkInDate: true, readinessScore: true, userId: true },
+      where: { checkInDate: { gte: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000) }, userId: { in: traineeIds } },
+    }),
+    db.programAssignment.findMany({
+      orderBy: { assignedAt: "desc" },
+      select: { program: { select: { workoutsPerWeek: true } }, userId: true },
+      where: { program: { archivedAt: null }, userId: { in: traineeIds } },
+    }),
+  ])
+
+  const drafts = due.flatMap(({ clock, coach }) => coach.trainees.flatMap((trainee) => {
+    const alerts = detectCoachTraineeAlerts({
+      checkIns: checkIns.filter((checkIn) => checkIn.userId === trainee.id),
+      logs: logs.filter((log) => log.userId === trainee.id),
+      now,
+      // The latest assignment is the program the trainee is on.
+      workoutsPerWeek: assignments.find((assignment) => assignment.userId === trainee.id)?.program.workoutsPerWeek ?? 0,
+    })
+    return alerts.map((alert) => buildCoachTraineeAlertDraft({ alert, coachId: coach.id, trainee, weekStartKey: clock.weekStartKey }))
+  }))
+
+  return sendNewDrafts(drafts)
+}
+
 const JOBS = {
+  coachTraineeAlert: runCoachTraineeAlertJob,
   coachWeeklyReview: runCoachWeeklyReviewJob,
   dailyCheckIn: runDailyCheckInJob,
   mealReminder: runMealReminderJob,
@@ -452,6 +517,7 @@ function stopNotificationScheduler() {
 }
 
 export {
+  runCoachTraineeAlertJob,
   runCoachWeeklyReviewJob,
   runDailyCheckInJob,
   runMealReminderJob,

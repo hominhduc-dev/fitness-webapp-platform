@@ -61,6 +61,7 @@ function isPushAllowed(type: NotificationType, preference: NotificationPreferenc
     case NotificationType.workout_reminder:
       return preference.workoutReminderEnabled
     case NotificationType.coach_weekly_review:
+    case NotificationType.coach_trainee_alert:
       return preference.coachWeeklyReviewEnabled
     // Meal reminders are gated per meal by the job that creates them.
     default:
