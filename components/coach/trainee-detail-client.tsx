@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import type { LucideIcon } from "lucide-react"
 import {
   ChevronDown,
@@ -61,6 +62,8 @@ type CoachTraineeDetailClientProps = {
   coachPrograms: CoachProgram[]
   initialDetail: CoachTraineeDetail
 }
+
+type WorkspaceTab = "overview" | "training" | "nutrition"
 
 function formatNumber(value?: number, suffix = "") {
   return value != null ? `${value}${suffix}` : "--"
@@ -207,6 +210,11 @@ export function CoachTraineeDetailClient({
 }: CoachTraineeDetailClientProps) {
   const { data: coachPrograms = initialCoachPrograms } = useCoachData(queryKeys.coach.programs(), fetchCoachPrograms, initialCoachPrograms)
   const { locale, messages } = useLocale()
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get("tab")
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(
+    requestedTab === "training" || requestedTab === "nutrition" ? requestedTab : "overview",
+  )
   const dateLocale = locale === "vi" ? "vi-VN" : "en-US"
   const integerFormatter = new Intl.NumberFormat(dateLocale, { maximumFractionDigits: 0 })
   const assignProgram = useAssignCoachProgram()
@@ -255,7 +263,14 @@ export function CoachTraineeDetailClient({
   })
 
   // Latest coach note from most recent check-in feedback
-  const latestNote = detail.checkIns[0]?.feedback ?? null
+  const latestCheckIn = detail.checkIns[0] ?? null
+  const latestNote = latestCheckIn?.feedback ?? null
+  const planAdherence = week.plannedSessions > 0
+    ? Math.round((week.completedSessions / week.plannedSessions) * 100)
+    : 0
+  const sortedBodyMetrics = [...detail.bodyMetrics].sort(
+    (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
+  )
 
   async function handleAssignProgram() {
     if (!selectedProgramId) {
@@ -320,8 +335,25 @@ export function CoachTraineeDetailClient({
     snack: messages.meals.snack,
   }
 
+  function handleTabChange(value: string) {
+    const nextTab: WorkspaceTab =
+      value === "training" || value === "nutrition" ? value : "overview"
+
+    setActiveTab(nextTab)
+
+    const params = new URLSearchParams(window.location.search)
+    if (nextTab === "overview") {
+      params.delete("tab")
+    } else {
+      params.set("tab", nextTab)
+    }
+
+    const query = params.toString()
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`)
+  }
+
   return (
-    <Tabs defaultValue="overview" className="space-y-6">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
       <div className="sticky top-0 z-10 rounded-2xl border border-border/80 bg-card p-1.5 shadow-md shadow-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/90">
         <TabsList
           data-tour="coach-client-tabs"
@@ -332,8 +364,8 @@ export function CoachTraineeDetailClient({
         >
         {[
           ["overview", messages.coach.tabOverview],
-          ["nutrition", messages.coach.tabNutrition],
-          ["logs", messages.coach.tabWorkoutLogs],
+          ["training", messages.coach.tabTraining],
+          ["nutrition", messages.coach.tabNutritionBody],
         ].map(([value, label]) => (
           <TabsTrigger
             key={value}
@@ -351,7 +383,31 @@ export function CoachTraineeDetailClient({
       </div>
 
       {/* ── Overview ──────────────────────────────────────────────────────── */}
-      <TabsContent value="overview" className="space-y-6">
+      <TabsContent value="overview" className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            hint={week.plannedSessions > 0 ? messages.coach.complianceSessions(week.completedSessions, week.plannedSessions) : messages.coach.statusRestWeek}
+            label={messages.coach.completion}
+            unit="%"
+            value={planAdherence}
+          />
+          <StatCard
+            hint={messages.coach.weekTotals(week.totalSets, integerFormatter.format(week.totalVolume))}
+            label={messages.coach.sessionsThisWeek}
+            value={week.completedSessions}
+          />
+          <StatCard
+            hint={latestCheckIn?.feedback || messages.coach.noCheckIns}
+            label={messages.coach.checkInDateLabel}
+            value={latestCheckIn ? latestCheckIn.checkInDate.toLocaleDateString(dateLocale, { month: "short", day: "numeric" }) : "--"}
+          />
+          <StatCard
+            hint={latestCheckIn ? messages.coach.avgScoreLabel(latestCheckIn.recoveryScore ?? "--") : messages.coach.notRecorded}
+            label={messages.coach.recoveryScoreLabel}
+            unit={latestCheckIn?.recoveryScore != null ? "/10" : undefined}
+            value={latestCheckIn?.recoveryScore ?? "--"}
+          />
+        </div>
         {/* Coach note */}
         {latestNote && (
           <div className="flex items-start gap-3 rounded-2xl border border-border bg-primary-soft/50 px-4 py-3">
@@ -450,118 +506,6 @@ export function CoachTraineeDetailClient({
           </section>
         </div>
 
-        {/* Assigned programs */}
-        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70" data-tour="coach-client-actions">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold">{messages.coach.assignedProgramsTitle}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {messages.coach.assignedProgramsDesc}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Select value={selectedProgramId} onValueChange={setSelectedProgramId}>
-                <SelectTrigger className="w-full min-w-[240px] rounded-xl bg-background/70">
-                  <SelectValue placeholder={messages.coach.selectProgramPlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignablePrograms.map((program) => (
-                    <SelectItem key={program.id} value={program.id}>
-                      {program.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                className="rounded-xl"
-                onClick={() => void handleAssignProgram()}
-                disabled={!selectedProgramId || isAssigning}
-              >
-                {isAssigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {messages.coach.assignProgram}
-              </Button>
-            </div>
-          </div>
-
-          {assignError ? (
-            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
-              {assignError}
-            </div>
-          ) : null}
-          {assignNotice ? (
-            <div className="mt-4 rounded-lg border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
-              {assignNotice}
-            </div>
-          ) : null}
-
-          {detail.programs.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              {messages.coach.noProgramsAssigned}
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {detail.programs.map((program) => (
-                <div
-                  key={program.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{program.name}</p>
-                      {program.forkedFromProgramId ? (
-                        <Badge variant="micro" className="border-primary/20 bg-primary-soft text-primary">
-                          {locale === "en" ? "Personalized copy" : "Bản cá nhân hoá"}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 font-mono text-xs text-muted-foreground">
-                      {program.workoutsPerWeek} workouts/week · {program.duration} weeks · {program.difficulty}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/coach/programs/${program.id}?adjustTrainee=${detail.trainee.id}`} className="flex-1 sm:flex-none">
-                      <Button className="w-full">
-                        {messages.coach.adjustPlan}
-                      </Button>
-                    </Link>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="shrink-0 bg-transparent"
-                          disabled={removingProgramId === program.id}
-                        >
-                          {removingProgramId === program.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <MoreHorizontal className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/coach/programs/${program.id}`}>
-                            <ExternalLink />
-                            {messages.coach.openPlan}
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onSelect={() => void handleUnassignProgram(program.id)}
-                        >
-                          <Trash2 />
-                          {messages.coach.removeProgram}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       </TabsContent>
 
       {/* ── Nutrition ─────────────────────────────────────────────────────── */}
@@ -783,10 +727,203 @@ export function CoachTraineeDetailClient({
             )}
           </section>
         </div>
+
+        <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">{messages.coach.measurementHistory}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{messages.coach.measurementHistoryDesc}</p>
+            </div>
+            {sortedBodyMetrics[0] ? (
+              <span className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
+                {sortedBodyMetrics[0].recordedAt.toLocaleDateString(dateLocale, { month: "short", day: "numeric", year: "numeric" })}
+              </span>
+            ) : null}
+          </div>
+
+          {sortedBodyMetrics.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+              {messages.coach.noBodyMetrics}
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  [messages.coach.weightKgLabel, sortedBodyMetrics[0].weightKg, "kg"],
+                  [messages.coach.bodyFatPctLabel, sortedBodyMetrics[0].bodyFatPct, "%"],
+                  [messages.coach.waistCmLabel, sortedBodyMetrics[0].waistCm, "cm"],
+                  [messages.coach.chestCmLabel, sortedBodyMetrics[0].chestCm, "cm"],
+                  [messages.coach.hipsCmLabel, sortedBodyMetrics[0].hipsCm, "cm"],
+                  [messages.coach.thighCmLabel, sortedBodyMetrics[0].thighCm, "cm"],
+                ].map(([label, value, unit]) => (
+                  <div key={String(label)} className="rounded-xl border border-border bg-muted/20 px-3 py-3">
+                    <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+                    <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-foreground">
+                      {typeof value === "number" ? `${value} ${unit}` : "--"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border border-border">
+                {sortedBodyMetrics.slice(0, 8).map((entry, index) => (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      "grid gap-2 px-3 py-3 sm:grid-cols-[110px_1fr_auto] sm:items-center",
+                      index > 0 && "border-t border-border",
+                    )}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {entry.recordedAt.toLocaleDateString(dateLocale, { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                    <span className="text-sm text-foreground">
+                      {[
+                        entry.weightKg != null ? `${entry.weightKg} kg` : null,
+                        entry.bodyFatPct != null ? `${entry.bodyFatPct}% BF` : null,
+                        entry.waistCm != null ? `${entry.waistCm} cm waist` : null,
+                      ].filter(Boolean).join(" · ") || messages.coach.notRecorded}
+                    </span>
+                    <span className="font-mono text-micro text-muted-foreground">
+                      {entry.source === "huawei" ? "Huawei" : entry.coachName ?? messages.coach.coachEntry}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
       </TabsContent>
 
-      {/* ── Workout logs ──────────────────────────────────────────────────── */}
-      <TabsContent value="logs" className="space-y-6">
+      {/* ── Training ──────────────────────────────────────────────────────── */}
+      <TabsContent value="training" className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label={messages.coach.progress30DaySessionsLabel} value={overview.last30Days.sessions} />
+          <StatCard label={messages.coach.progress30DayVolumeLabel} unit="kg" value={integerFormatter.format(overview.last30Days.volume)} />
+          <StatCard
+            hint={messages.coach.bestStreak(overview.streaks.bestDays)}
+            label={messages.coach.streakLabel}
+            value={messages.coach.streakValue(overview.streaks.currentDays)}
+          />
+          <StatCard
+            label={messages.coach.recentPRsTitle}
+            value={overview.recentPRs.length}
+          />
+        </div>
+
+        {/* Assigned programs */}
+        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70" data-tour="coach-client-actions">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold">{messages.coach.assignedProgramsTitle}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {messages.coach.assignedProgramsDesc}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Select value={selectedProgramId} onValueChange={setSelectedProgramId}>
+                <SelectTrigger className="w-full min-w-[240px] rounded-xl bg-background/70">
+                  <SelectValue placeholder={messages.coach.selectProgramPlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignablePrograms.map((program) => (
+                    <SelectItem key={program.id} value={program.id}>
+                      {program.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                className="rounded-xl"
+                onClick={() => void handleAssignProgram()}
+                disabled={!selectedProgramId || isAssigning}
+              >
+                {isAssigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {messages.coach.assignProgram}
+              </Button>
+            </div>
+          </div>
+
+          {assignError ? (
+            <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
+              {assignError}
+            </div>
+          ) : null}
+          {assignNotice ? (
+            <div className="mt-4 rounded-lg border border-primary/20 bg-primary-soft px-4 py-3 text-sm text-primary">
+              {assignNotice}
+            </div>
+          ) : null}
+
+          {detail.programs.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+              {messages.coach.noProgramsAssigned}
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {detail.programs.map((program) => (
+                <div
+                  key={program.id}
+                  className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{program.name}</p>
+                      {program.forkedFromProgramId ? (
+                        <Badge variant="micro" className="border-primary/20 bg-primary-soft text-primary">
+                          {locale === "en" ? "Personalized copy" : "Bản cá nhân hoá"}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">
+                      {program.workoutsPerWeek} workouts/week · {program.duration} weeks · {program.difficulty}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/coach/programs/${program.id}?adjustTrainee=${detail.trainee.id}`} className="flex-1 sm:flex-none">
+                      <Button className="w-full">
+                        {messages.coach.adjustPlan}
+                      </Button>
+                    </Link>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0 bg-transparent"
+                          disabled={removingProgramId === program.id}
+                        >
+                          {removingProgramId === program.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MoreHorizontal className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/coach/programs/${program.id}`}>
+                            <ExternalLink />
+                            {messages.coach.openPlan}
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() => void handleUnassignProgram(program.id)}
+                        >
+                          <Trash2 />
+                          {messages.coach.removeProgram}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70">
           <div>
             <h2 className="text-base font-semibold">{messages.coach.workoutLogHistoryTitle}</h2>
