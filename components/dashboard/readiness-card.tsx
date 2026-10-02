@@ -6,6 +6,7 @@ import { Activity, ChevronRight, Heart, Moon, Zap } from "lucide-react"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatReadinessScore, readinessRingProgress } from "@/lib/fitness/readiness"
+import { formatStress } from "@/lib/fitness/stress"
 import type { fetchVolumeRecovery } from "@/lib/fitness/api"
 import { useHydrationSafeQuery } from "@/lib/queries/hydration"
 import { useVolumeRecovery } from "@/lib/queries/progress"
@@ -77,7 +78,7 @@ export function ReadinessCard({ seed }: { seed?: Awaited<ReturnType<typeof fetch
     {
       icon: Heart,
       label: messages.volumeRecovery.stress,
-      value: checkIn?.stress == null ? "—" : `${checkIn.stress}/99`,
+      value: checkIn?.stress == null ? "—" : formatStress(checkIn.stress, messages.volumeRecovery.stressLevels),
     },
     {
       icon: Activity,
