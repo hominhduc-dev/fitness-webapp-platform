@@ -27,3 +27,18 @@ export const coachNoteBodySchema = z.object({
 export const coachExerciseParamsSchema = z.object({
   exerciseId: z.uuid("exerciseId không hợp lệ."),
 })
+
+/** The AI trainee report covers the last 7, 14 or 28 days. */
+const insightDays = z.coerce
+  .number()
+  .refine((value) => value === 7 || value === 14 || value === 28, "Khoảng phân tích chỉ có thể là 7, 14 hoặc 28 ngày.")
+  .transform((value) => value as 7 | 14 | 28)
+
+export const coachTraineeInsightQuerySchema = z.object({
+  days: insightDays.default(14),
+})
+
+export const coachTraineeInsightBodySchema = z.object({
+  days: insightDays.default(14),
+  locale: z.enum(["vi", "en"]).optional(),
+})
