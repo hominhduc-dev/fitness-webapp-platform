@@ -70,7 +70,15 @@ import {
   traineeMealPlanParamsSchema,
 } from "./meal.schemas"
 import { sendData, sendApiError } from "./route.utils"
-import { coachExerciseParamsSchema, coachRequestAnswerSchema, coachRequestParamsSchema } from "./coach.schemas"
+import {
+  coachExerciseParamsSchema,
+  coachNoteBodySchema,
+  coachNoteParamsSchema,
+  coachNoteTraineeParamsSchema,
+  coachRequestAnswerSchema,
+  coachRequestParamsSchema,
+} from "./coach.schemas"
+import { createCoachNote, deleteCoachNote, updateCoachNote } from "../services/fitness-data/coach-notes"
 
 const coachRouter = Router()
 coachRouter.use("/google", googleRouter)
@@ -702,6 +710,31 @@ coachRouter.get("/trainees/:traineeId", async (req, res) => {
     sendError(res, error)
   }
 })
+
+// A coach's private notes about a trainee; the trainee detail lists them.
+coachRouter.post(
+  "/trainees/:traineeId/notes",
+  validated({ body: coachNoteBodySchema, params: coachNoteTraineeParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { note: await createCoachNote(profile, req.params.traineeId, req.body.body) }, { status: 201 })
+  }),
+)
+
+coachRouter.patch(
+  "/trainees/:traineeId/notes/:noteId",
+  validated({ body: coachNoteBodySchema, params: coachNoteParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { note: await updateCoachNote(profile, req.params.traineeId, req.params.noteId, req.body.body) })
+  }),
+)
+
+coachRouter.delete(
+  "/trainees/:traineeId/notes/:noteId",
+  validated({ params: coachNoteParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await deleteCoachNote(profile, req.params.traineeId, req.params.noteId))
+  }),
+)
 
 coachRouter.get("/trainees/:traineeId/body-metrics", async (req, res) => {
   try {

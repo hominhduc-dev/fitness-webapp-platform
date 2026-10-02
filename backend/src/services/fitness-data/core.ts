@@ -111,6 +111,7 @@ import {
   type DashboardLogRecord,
   type ProgressAnalyticsLogRecord,
 } from "./shared/analytics"
+import { serializeCoachNote } from "./coach-notes"
 import { buildBodyMetricOverview, buildTraineeWeekOverview } from "./shared/coach-trainee-overview"
 import { readExternalSourceMetadata } from "../../lib/exercise-media"
 import { assertCoach, assertCoachOwnsTrainee, assertTrainee, ensurePrisma } from "./shared/guards"
@@ -8180,12 +8181,14 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
       programAssignments: {
         include: {
           program: {
-            // Only what countPlannedSessionsForWeek reads, so the roster stays light.
+            // Only what countPlannedSessionsForWeek reads, plus the name the roster
+            // shows, so the roster stays light.
             select: {
               archivedAt: true,
               createdById: true,
               duration: true,
               id: true,
+              name: true,
               startDate: true,
               workouts: { select: { scheduledDate: true, weekIndex: true } },
             },
@@ -8302,8 +8305,11 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
   return filteredTrainees.map((trainee) => {
     const plannedSessionsPerWeek = countPlannedSessionsForWeek(trainee.programAssignments, trainee.id, weekStart)
     const thisWeekWorkouts = thisWeekByUser.get(trainee.id) ?? 0
+    // Assignments are oldest first, so the newest live one is what they train on now.
+    const activeProgram = trainee.programAssignments.filter((assignment) => !assignment.program.archivedAt).at(-1)?.program
 
     return {
+      activeProgramName: activeProgram?.name,
       assignedProgramIds: trainee.programAssignments.map((assignment) => assignment.programId),
       avatar: trainee.avatar,
       completionRate: toWeekCompletionRate(thisWeekWorkouts, plannedSessionsPerWeek),
@@ -8378,7 +8384,20 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
   const today = clientCalendarDay()
   const weekStart = startOfUtcWeek(today)
   const weekEnd = addUtcDays(weekStart, 7)
-  const [weekLogs, allLogs, bodyMetrics, checkIns, recentMeals, latestWeights, latestBodyFat, latestWaist] = await Promise.all([
+  const lastWeekStart = addUtcDays(weekStart, -7)
+  const [
+    weekLogs,
+    allLogs,
+    bodyMetrics,
+    checkIns,
+    recentMeals,
+    latestWeights,
+    latestBodyFat,
+    latestWaist,
+    lastWeekCompletedSessions,
+    latestRecovery,
+    coachNotes,
+  ] = await Promise.all([
     db.workoutLog.findMany({
       include: WORKOUT_LOG_INCLUDE,
       orderBy: { startedAt: "asc" },
@@ -8459,6 +8478,34 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
       select: { recordedAt: true, waistCm: true },
       where: { traineeId: trainee.id, waistCm: { not: null } },
+    }),
+    // Counted the way the week overview counts: finished sessions of this coach's programs.
+    db.workoutLog.count({
+      where: {
+        completedAt: { not: null },
+        startedAt: { gte: clientDayStart(lastWeekStart), lt: clientDayStart(weekStart) },
+        userId: trainee.id,
+        workout: { program: { createdById: profile.id } },
+      },
+    }),
+    db.recoveryCheckIn.findFirst({
+      orderBy: { checkInDate: "desc" },
+      select: { checkInDate: true, fatigue: true, note: true, readinessScore: true, sleepMinutes: true, sleepQuality: true },
+      where: { userId: trainee.id },
+    }),
+    db.coachNote.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { body: true, createdAt: true, id: true, updatedAt: true },
+      take: 20,
+      where: { coachId: profile.id, traineeId: trainee.id },
+    }).catch((error: unknown) => {
+      // Before migration 20261007_coach_notes runs (P2021: table missing), the
+      // rest of the page still loads; only the notes are empty.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+        logger.warn("CoachNote table missing; run prisma migrate deploy", { traineeId: trainee.id })
+        return []
+      }
+      throw error
     }),
   ])
 
@@ -8571,7 +8618,24 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       })),
       streaks: { bestDays: streaks.bestStreakDays, currentDays: streaks.currentStreakDays },
       week,
+      lastWeekCompletedSessions,
     },
+    // Strings and numbers only, like overview, so the client needs no date revival.
+    about: {
+      birthDate: trainee.birthDate ? formatUtcDateOnly(trainee.birthDate) : null,
+      targetWeightKg: trainee.targetWeightKg ?? null,
+    },
+    recovery: latestRecovery
+      ? {
+          checkInDate: formatUtcDateOnly(latestRecovery.checkInDate),
+          fatigue: latestRecovery.fatigue,
+          note: latestRecovery.note,
+          readinessScore: latestRecovery.readinessScore,
+          sleepMinutes: latestRecovery.sleepMinutes,
+          sleepQuality: latestRecovery.sleepQuality,
+        }
+      : null,
+    notes: coachNotes.map((note) => serializeCoachNote(note, profile.name)),
     recentLogs: trainee.workoutLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     trainee: {
       assignedProgramIds: trainee.programAssignments.map((assignment) => assignment.programId),

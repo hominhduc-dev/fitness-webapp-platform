@@ -38,9 +38,11 @@ import type {
   CoachNutritionSummary,
   CoachProgressSummary,
   CoachProgram,
+  CoachNote,
   CoachTrainee,
   CoachTraineeDetail,
   CoachTraineeOverview,
+  CoachTraineeRecovery,
   CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,
@@ -430,6 +432,7 @@ type SerializedCoachProgram = Omit<Program, "archivedAt" | "createdAt" | "workou
 }
 
 type SerializedCoachTrainee = {
+  activeProgramName?: string
   assignedProgramIds?: string[]
   avatar?: string | null
   completionRate?: number
@@ -941,6 +944,7 @@ function mapCoachProgram(program: SerializedCoachProgram): CoachProgram {
 
 function mapCoachTrainee(trainee: SerializedCoachTrainee): CoachTrainee {
   return {
+    activeProgramName: trainee.activeProgramName,
     assignedProgramIds: trainee.assignedProgramIds,
     avatar: trainee.avatar,
     completionRate: trainee.completionRate ?? undefined,
@@ -2012,27 +2016,51 @@ async function fetchCoachTrainees(accessToken: string, options?: { phone?: strin
 
 async function fetchCoachTraineeDetail(accessToken: string, traineeId: string): Promise<CoachTraineeDetail> {
   const response = await request<{
+    // about, notes, overview and recovery are strings and numbers only, so they need no date revival.
+    about?: CoachTraineeDetail["about"]
     bodyMetrics: SerializedBodyMetricEntry[]
     checkIns: SerializedCoachCheckIn[]
+    notes?: CoachNote[]
     nutritionSummary?: SerializedCoachNutritionSummary
-    // Only strings and numbers, so it needs no date revival.
     overview: CoachTraineeOverview
     programs: SerializedCoachProgram[]
     progressSummary: SerializedCoachProgressSummary
     recentLogs: SerializedWorkoutLog[]
+    recovery?: CoachTraineeRecovery | null
     trainee: SerializedCoachTrainee
   }>(`/api/coach/trainees/${traineeId}`, accessToken)
 
   return {
+    about: response.about ?? { birthDate: null, targetWeightKg: null },
     bodyMetrics: response.bodyMetrics.map(mapBodyMetricEntry),
     checkIns: response.checkIns.map(mapCoachCheckIn),
+    notes: response.notes ?? [],
     nutritionSummary: response.nutritionSummary ? mapCoachNutritionSummary(response.nutritionSummary) : undefined,
     overview: response.overview,
     programs: response.programs.map(mapCoachProgram),
     progressSummary: mapCoachProgressSummary(response.progressSummary),
     recentLogs: response.recentLogs.map(mapWorkoutLog),
+    recovery: response.recovery ?? null,
     trainee: mapCoachTrainee(response.trainee),
   }
+}
+
+async function createCoachNote(accessToken: string, traineeId: string, body: string) {
+  return (await request<ApiEnvelope<{ note: CoachNote }>>(`/api/coach/trainees/${traineeId}/notes`, accessToken, {
+    body: JSON.stringify({ body }),
+    method: "POST",
+  })).data.note
+}
+
+async function updateCoachNote(accessToken: string, traineeId: string, noteId: string, body: string) {
+  return (await request<ApiEnvelope<{ note: CoachNote }>>(`/api/coach/trainees/${traineeId}/notes/${noteId}`, accessToken, {
+    body: JSON.stringify({ body }),
+    method: "PATCH",
+  })).data.note
+}
+
+async function deleteCoachNote(accessToken: string, traineeId: string, noteId: string) {
+  await request<ApiEnvelope<{ deleted: boolean }>>(`/api/coach/trainees/${traineeId}/notes/${noteId}`, accessToken, { method: "DELETE" })
 }
 
 async function fetchCoachDashboard(accessToken: string): Promise<CoachDashboardData> {
@@ -2933,6 +2961,9 @@ export {
   fetchCoachPrograms,
   fetchCoachBodyMetrics,
   fetchCoachTraineeDetail,
+  createCoachNote,
+  updateCoachNote,
+  deleteCoachNote,
   fetchCoachWorkoutLogs,
   fetchCoachTrainees,
   fetchExerciseLibrary,
