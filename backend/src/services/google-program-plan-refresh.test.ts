@@ -68,10 +68,33 @@ describe("refreshWeekPlan", () => {
   it("refuses a day the sheet has no block for", () => {
     expect(() => refreshWeekPlan(sheet(), 7, 50, [{ day: 5, exercises: [planned("v", "X")] }])).toThrow(/Day 5/)
   })
+
+  it("adds missing prescription tail columns on older sheets", () => {
+    const legacyHeaders = ["Day", "Muscle Group", "Exercise", "Variation", "", "Sets", "Rep Range", "Weight (kg)", "Substitute Exercise", "Actual rep per weight", "", "", "", "", "RIR", "Rest (s)", "Note"]
+    const legacySheet = [
+      ["Week 1"],
+      legacyHeaders,
+      ["1", "Legs", "Leg Press", "Default", "v-press", "3", "10", "200"],
+    ]
+
+    const result = refreshWeekPlan(legacySheet, 7, 50, [{
+      day: 1,
+      exercises: [planned("v-press", "Leg Press", { method: "3:mrm", restTime: 90, rir: 2 })],
+    }])
+
+    expect(result.values[1].slice(14, 18)).toEqual(["RIR", "Method", "Rest (s)", "Note"])
+    expect(result.values[2].slice(14, 17)).toEqual(["2", "3:mrm", "90"])
+    expect(result.requests).toContainEqual({
+      insertDimension: {
+        inheritFromBefore: true,
+        range: { dimension: "COLUMNS", endIndex: 16, sheetId: 7, startIndex: 15 },
+      },
+    })
+  })
 })
 
 describe("results against a refreshed plan", () => {
-  const set = { setNumber: 1, completed: true, actualReps: 10, weight: 40 }
+  const set = { setNumber: 1, completed: true, actualReps: 10, intensityTag: "mrm", rir: 1, weight: 40 }
 
   it("places an exercise the coach has since replaced on its row, naming what was trained", () => {
     const { values } = refreshWeekPlan(sheet(), 7, 50, [{ day: 1, exercises: [
@@ -89,11 +112,21 @@ describe("results against a refreshed plan", () => {
     const result = buildGoogleResultRequests(values, [session], 7, 50, false, false, true)
 
     expect(result).toMatchObject({ rowCount: 2, skippedExerciseCount: 1 })
-    const writes = result.requests.map((request) => (request as { updateCells: { start: { rowIndex: number }; rows: Array<{ values: Array<{ userEnteredValue?: { stringValue?: string } }> }> } }).updateCells)
+    const writes = result.requests.map((request) => (request as { updateCells: { start: { columnIndex?: number; rowIndex: number }; rows: Array<{ values: Array<{ userEnteredValue?: { numberValue?: number; stringValue?: string } }> }> } }).updateCells)
+    const resultWrites = writes.filter((write) => write.start.columnIndex === 8)
     expect(writes.map((write) => [write.start.rowIndex, write.rows[0].values[0].userEnteredValue?.stringValue])).toEqual([
+      [4, "Leg Curl / Default"],
+      [4, undefined],
+      [3, undefined],
+      [3, undefined],
+    ])
+    expect(resultWrites.map((write) => [write.start.rowIndex, write.rows[0].values[0].userEnteredValue?.stringValue])).toEqual([
       [4, "Leg Curl / Default"],
       [3, undefined],
     ])
+    const tailWrite = writes.find((write) => write.start.columnIndex === 15 && write.start.rowIndex === 4)
+    expect(tailWrite?.rows[0].values[0].userEnteredValue?.numberValue).toBe(1)
+    expect(tailWrite?.rows[0].values[1].userEnteredValue?.stringValue).toBe("all:mrm")
   })
 
   it("still refuses two logs of the same day in one week", () => {

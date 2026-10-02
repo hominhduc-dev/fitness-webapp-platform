@@ -56,6 +56,8 @@ type TraineeProgram = {
 }
 
 type CoachTrainee = {
+  /** The program they train on now, when the roster lists it. */
+  activeProgramName?: string
   assignedProgramIds?: string[]
   avatar?: string | null
   completionRate?: number
@@ -431,20 +433,46 @@ type CoachTraineeOverview = {
     totalVolume: number
     weekStart: string
   }
+  /** Finished sessions in the Monday–Sunday week before this one; absent from an older backend. */
+  lastWeekCompletedSessions?: number
+}
+
+/** A coach's private note about a trainee. Dates stay ISO strings. */
+type CoachNote = {
+  body: string
+  coachName: string
+  createdAt: string
+  id: string
+  updatedAt: string
+}
+
+/** The trainee's latest recovery check-in; readiness is on 0–100. */
+type CoachTraineeRecovery = {
+  checkInDate: string
+  fatigue: number
+  note: string | null
+  readinessScore: number | null
+  sleepMinutes: number | null
+  sleepQuality: number | null
 }
 
 type CoachTraineeDetail = {
+  about: { birthDate: string | null; targetWeightKg: number | null }
   bodyMetrics: BodyMetricEntry[]
   checkIns: CoachCheckIn[]
+  notes: CoachNote[]
   nutritionSummary?: CoachNutritionSummary
   overview: CoachTraineeOverview
   programs: CoachProgram[]
   progressSummary: CoachProgressSummary
   recentLogs: WorkoutLog[]
+  recovery: CoachTraineeRecovery | null
   trainee: CoachTrainee
 }
 
 type CreateCoachProgramInput = {
+  /** The AI draft the program was edited from; the server marks it used. */
+  aiGenerationId?: string
   assignToUserIds?: string[]
   description?: string
   difficulty: CoachProgram["difficulty"]
@@ -813,8 +841,10 @@ export type {
   CoachProgram,
   CoachRequestSummary,
   CoachTrainee,
+  CoachNote,
   CoachTraineeDetail,
   CoachTraineeOverview,
+  CoachTraineeRecovery,
   CoachWorkoutLogPage,
   CreateCoachProgramInput,
   CreateWorkoutInput,

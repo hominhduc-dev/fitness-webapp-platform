@@ -1,5 +1,6 @@
 import {
   $Enums,
+  AIGenerationType,
   Prisma,
   type BodyMetricEntry,
   CoachApprovalStatus,
@@ -26,6 +27,7 @@ import {
 import { randomUUID } from "node:crypto"
 
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
+import { claimGeneration } from "../ai/acceptance"
 import { ConflictError } from "../errors"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
 import {
@@ -109,6 +111,7 @@ import {
   type DashboardLogRecord,
   type ProgressAnalyticsLogRecord,
 } from "./shared/analytics"
+import { serializeCoachNote } from "./coach-notes"
 import { buildBodyMetricOverview, buildTraineeWeekOverview } from "./shared/coach-trainee-overview"
 import { readExternalSourceMetadata } from "../../lib/exercise-media"
 import { assertCoach, assertCoachOwnsTrainee, assertTrainee, ensurePrisma } from "./shared/guards"
@@ -5653,6 +5656,13 @@ function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>)
   return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
 }
 
+/** A program belongs to a single trainee; see assignCoachProgramToTrainee. */
+function assertSingleAssignee(userIds: string[]) {
+  if (userIds.length > 1) {
+    throw new AuthServiceError("Mỗi program chỉ gán cho một học viên.", 400)
+  }
+}
+
 /**
  * One spreadsheet backs one program, which the `Program_googleSpreadsheetId_key`
  * index enforces. This is the same rule stated in the language of the app, so a
@@ -5692,6 +5702,8 @@ async function assertGoogleSpreadsheetNotInUse(
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
+    /** The AI draft this program was edited from; marked accepted with it. */
+    aiGenerationId?: string
     assignToUserIds?: string[]
     description?: string | null
     difficulty: ProgramDifficulty
@@ -5731,6 +5743,7 @@ async function createCoachProgram(
   }
 
   const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+  assertSingleAssignee(assignToUserIds)
 
   if (assignToUserIds.length > 0) {
     const validTrainees = await db.user.count({
@@ -5777,6 +5790,12 @@ async function createCoachProgram(
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
 
+    // Claimed first, so a draft is used once even if the coach saves twice; a
+    // failed save rolls the claim back and the draft stays usable.
+    if (input.aiGenerationId) {
+      await claimGeneration(tx, input.aiGenerationId, profile.id, AIGenerationType.workout_program)
+    }
+
     await tx.program.create({
       data: {
         createdById: profile.id,
@@ -5785,6 +5804,7 @@ async function createCoachProgram(
         duration: Math.max(1, Math.round(input.duration)),
         goal: programGoal,
         id: programId,
+        isAIGenerated: Boolean(input.aiGenerationId),
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
         googleSpreadsheetId,
@@ -5829,6 +5849,10 @@ async function createCoachProgram(
 
     if (!createdProgram) {
       throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
+    }
+
+    if (input.aiGenerationId) {
+      await tx.aIGeneration.update({ data: { programId }, where: { id: input.aiGenerationId } })
     }
 
     const assignedNotifications = assignToUserIds.length > 0
@@ -5886,6 +5910,7 @@ async function updateCoachProgram(
   }
 
   const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+  assertSingleAssignee(assignToUserIds)
 
   if (assignToUserIds.length > 0) {
     const validTrainees = await db.user.count({
@@ -6426,7 +6451,7 @@ async function notifyCoachOfTraineeSwap(input: {
   program: { createdById: string; id: string; name: string }
   swappedWorkoutIds: string[]
   targetOrder: number
-  workout: { id: string; scheduledDay: number | null; weekIndex: number | null }
+  workout: { id: string; name: string; scheduledDay: number | null; weekIndex: number | null }
   workoutExerciseId: string
 }) {
   const db = ensurePrisma()
@@ -6495,6 +6520,10 @@ async function notifyCoachOfTraineeSwap(input: {
         swappedWorkoutIds: input.swappedWorkoutIds,
         traineeId: input.profile.id,
         traineeName: input.profile.name,
+        // Which session it was, so the coach can see what approval changes.
+        workoutName: input.workout.name,
+        workoutScheduledDay: input.workout.scheduledDay,
+        workoutWeekIndex: input.workout.weekIndex,
       },
       relatedEntityId: input.program.id,
       relatedEntityType: "program",
@@ -6663,44 +6692,22 @@ async function swapExerciseForTraineeFromWorkout(
     return swapResult
   }
 
-  // A coach's program. The slot stays the coach's and their other trainees keep
-  // seeing their choice; this trainee gets a private substitution instead, and
-  // the coach decides whether it becomes part of the program.
+  // A coach's program. The finished log already records what the trainee did
+  // today, so nothing else changes yet: the coach decides whether the swap
+  // carries over to the same session in the weeks ahead.
   //
   // This is deliberately not a fork. Forking copied the coach's whole program
   // per swap, moved the trainee's assignment and logs onto the copy, and left
   // the coach owning program rows nobody could reach.
-  const { slots, swappedWorkoutIds } = await resolveSwapScope()
-
-  await db.$transaction(async (tx) => {
-    for (const slot of slots) {
-      // replacedVariationId records the coach's row as it stands, not the
-      // variation the trainee is coming from: it exists so a later coach edit
-      // to the slot can be detected as having moved past this override.
-      await tx.traineeExerciseOverride.upsert({
-        create: {
-          replacedVariationId: slot.variationId,
-          userId: profile.id,
-          variationId: input.newVariationId,
-          workoutExerciseId: slot.id,
-        },
-        update: { replacedVariationId: slot.variationId, variationId: input.newVariationId },
-        where: {
-          userId_workoutExerciseId: { userId: profile.id, workoutExerciseId: slot.id },
-        },
-      })
-    }
-  })
+  const { swappedWorkoutIds } = await resolveSwapScope()
 
   await notifyCoachOfTraineeSwap({
     isPersonalizedCopy: Boolean(workout.program.forkedFromProgramId),
     newExerciseName: newVariation.exercise.name,
     newVariationId: input.newVariationId,
     oldExerciseName: targetExercise.variation.exercise.name,
-    // The coach's own row, not what the trainee was substituting. Approving
-    // rewrites the coach's program, and on a second swap their row still holds
-    // the original — matching on the trainee's previous substitute would find
-    // nothing there and fail the approval.
+    // The coach's own row, not what the trainee was substituting: approval
+    // finds the future slots that still hold it.
     oldVariationId: targetExercise.variationId,
     profile,
     program: workout.program,
@@ -6749,7 +6756,6 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
   const oldVariationId = readNotificationMetadataString(notification.metadata, "oldVariationId")
   const newVariationId = readNotificationMetadataString(notification.metadata, "newVariationId")
   const targetOrder = readNotificationMetadataNumber(notification.metadata, "targetOrder")
-  const traineeId = readNotificationMetadataString(notification.metadata, "traineeId")
 
   if (kind !== "trainee_swapped_exercise") {
     throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
@@ -6759,11 +6765,31 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
     return { approved: true, alreadyApproved: true, notificationId, updatedExerciseCount: 0 }
   }
 
+  if (readNotificationMetadataString(notification.metadata, "rejectedAt")) {
+    throw new AuthServiceError("Yêu cầu đổi bài này đã được đóng.", 409)
+  }
+
   if (readNotificationMetadataString(notification.metadata, "supersededAt")) {
     throw new AuthServiceError("Trainee đã đổi bài này thêm lần nữa. Hãy duyệt yêu cầu mới nhất.", 409)
   }
 
+  // A request that can never be approved is closed, so it stops asking.
+  const closeUnapprovable = (reason: "missing_approval_metadata" | "missing_future_workout") =>
+    db.notification.update({
+      data: {
+        metadata: {
+          ...(notification.metadata as Prisma.JsonObject),
+          rejectedAt: new Date().toISOString(),
+          rejectedByCoachId: profile.id,
+          rejectionReason: reason,
+        },
+        readAt: notification.readAt ?? new Date(),
+      },
+      where: { id: notification.id },
+    })
+
   if (!originalProgramId || !originalWorkoutId || !oldVariationId || !newVariationId || targetOrder == null) {
+    await closeUnapprovable("missing_approval_metadata")
     throw new AuthServiceError("Thông báo đổi bài này thiếu dữ liệu để duyệt. Hãy yêu cầu trainee đổi lại bài để tạo thông báo mới.", 409)
   }
 
@@ -6791,24 +6817,20 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
     throw new AuthServiceError("Không tìm thấy workout gốc trong program.", 404)
   }
 
-  const targetExerciseIds = originalProgram.workouts.flatMap((workout) => {
-    const shouldUpdateWholeWorkout = isFutureWorkout(workout, referenceWorkout)
-    const isReferenceWorkout = workout.id === referenceWorkout.id
-
-    if (!shouldUpdateWholeWorkout && !isReferenceWorkout) {
-      return []
-    }
-
-    return workout.exercises
-      .filter((exercise) =>
-        exercise.variationId === oldVariationId &&
-        (shouldUpdateWholeWorkout || exercise.order >= targetOrder),
-      )
-      .map((exercise) => exercise.id)
-  })
+  // The same session (weekday) in every later week, at the same position, still
+  // holding the exercise the trainee replaced. A program belongs to a single
+  // trainee, so the coach's rows are edited directly.
+  const targetExerciseIds = originalProgram.workouts.flatMap((workout) =>
+    isMatchingFutureWorkout(workout, referenceWorkout)
+      ? workout.exercises
+          .filter((exercise) => exercise.variationId === oldVariationId && exercise.order === targetOrder)
+          .map((exercise) => exercise.id)
+      : [],
+  )
 
   if (targetExerciseIds.length === 0) {
-    throw new AuthServiceError("Không còn bài tập phù hợp để thay trong program gốc.", 409)
+    await closeUnapprovable("missing_future_workout")
+    throw new AuthServiceError("Không tìm thấy buổi tương ứng trong tương lai để áp dụng đổi bài.", 409)
   }
 
   const nextMetadata = {
@@ -6837,24 +6859,6 @@ async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, no
         id: { in: targetExerciseIds },
       },
     })
-
-    // The coach's own rows now hold the trainee's choice, so the substitution
-    // that stood in for it has nothing left to do. Leaving it would also make
-    // it stale the moment the coach next edits the slot. Rejecting, by
-    // contrast, keeps the override — that is the trainee's personalized change
-    // surviving a "no", exactly as the notification copy promises.
-    if (traineeId) {
-      await tx.traineeExerciseOverride.deleteMany({
-        where: { userId: traineeId, variationId: newVariationId, workoutExerciseId: { in: targetExerciseIds } },
-      })
-      // A slot the trainee has since swapped to something else keeps that
-      // choice. It now stands in for the approved exercise, and has to say so,
-      // or it would read as stale against the row and silently drop out.
-      await tx.traineeExerciseOverride.updateMany({
-        data: { replacedVariationId: newVariationId },
-        where: { userId: traineeId, workoutExerciseId: { in: targetExerciseIds } },
-      })
-    }
 
     await tx.notification.update({
       data: {
@@ -6891,6 +6895,9 @@ async function rejectTraineeExerciseSwapForCoach(profile: SerializedProfile, not
   if (rejectedAt) {
     return { rejected: true, alreadyRejected: true, notificationId }
   }
+  if (readNotificationMetadataString(notification.metadata, "approvedAt")) {
+    throw new AuthServiceError("Yêu cầu đổi bài này đã được duyệt.", 409)
+  }
 
   const nextMetadata = {
     ...(notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
@@ -6919,6 +6926,14 @@ function isFutureWorkout(
   const candidateDay = candidate.scheduledDay ?? 0
   const referenceDay = reference.scheduledDay ?? 0
   return candidateDay > referenceDay
+}
+
+function isMatchingFutureWorkout(
+  candidate: { scheduledDay: number | null; weekIndex: number | null },
+  reference: { scheduledDay: number | null; weekIndex: number | null },
+) {
+  return candidate.scheduledDay === reference.scheduledDay &&
+    (candidate.weekIndex ?? 0) > (reference.weekIndex ?? 0)
 }
 
 async function deleteCoachProgram(profile: SerializedProfile, programId: string) {
@@ -7030,24 +7045,22 @@ async function assignCoachProgramToTrainee(profile: SerializedProfile, programId
     throw new AuthServiceError("Program đã archive — hãy restore trước khi gán.", 409)
   }
 
-  // A spreadsheet carries one result block, so a Sheets-backed program belongs to a
-  // single trainee. Refusing here rather than at export time means the coach finds
-  // out while they can still fix it, instead of after a week of logged sessions.
-  if (program.googleSpreadsheetId) {
-    const otherAssignee = await db.programAssignment.findFirst({
-      select: { user: { select: { name: true } } },
-      where: {
-        programId,
-        userId: { not: traineeId },
-      },
-    })
+  // A program belongs to a single trainee: approving a swap and exporting logs
+  // both edit it as theirs. Refusing here means the coach finds out while they
+  // can still fix it.
+  const otherAssignee = await db.programAssignment.findFirst({
+    select: { user: { select: { name: true } } },
+    where: {
+      programId,
+      userId: { not: traineeId },
+    },
+  })
 
-    if (otherAssignee) {
-      throw new AuthServiceError(
-        `Program này import từ Google Sheets nên chỉ gán được cho một học viên. Hiện đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
-        409,
-      )
-    }
+  if (otherAssignee) {
+    throw new AuthServiceError(
+      `Mỗi program chỉ gán cho một học viên. Program này đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
+      409,
+    )
   }
 
   const assignmentKey = {
@@ -8168,12 +8181,14 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
       programAssignments: {
         include: {
           program: {
-            // Only what countPlannedSessionsForWeek reads, so the roster stays light.
+            // Only what countPlannedSessionsForWeek reads, plus the name the roster
+            // shows, so the roster stays light.
             select: {
               archivedAt: true,
               createdById: true,
               duration: true,
               id: true,
+              name: true,
               startDate: true,
               workouts: { select: { scheduledDate: true, weekIndex: true } },
             },
@@ -8290,8 +8305,11 @@ async function listCoachTrainees(profile: SerializedProfile, options?: { phone?:
   return filteredTrainees.map((trainee) => {
     const plannedSessionsPerWeek = countPlannedSessionsForWeek(trainee.programAssignments, trainee.id, weekStart)
     const thisWeekWorkouts = thisWeekByUser.get(trainee.id) ?? 0
+    // Assignments are oldest first, so the newest live one is what they train on now.
+    const activeProgram = trainee.programAssignments.filter((assignment) => !assignment.program.archivedAt).at(-1)?.program
 
     return {
+      activeProgramName: activeProgram?.name,
       assignedProgramIds: trainee.programAssignments.map((assignment) => assignment.programId),
       avatar: trainee.avatar,
       completionRate: toWeekCompletionRate(thisWeekWorkouts, plannedSessionsPerWeek),
@@ -8366,7 +8384,20 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
   const today = clientCalendarDay()
   const weekStart = startOfUtcWeek(today)
   const weekEnd = addUtcDays(weekStart, 7)
-  const [weekLogs, allLogs, bodyMetrics, checkIns, recentMeals, latestWeights, latestBodyFat, latestWaist] = await Promise.all([
+  const lastWeekStart = addUtcDays(weekStart, -7)
+  const [
+    weekLogs,
+    allLogs,
+    bodyMetrics,
+    checkIns,
+    recentMeals,
+    latestWeights,
+    latestBodyFat,
+    latestWaist,
+    lastWeekCompletedSessions,
+    latestRecovery,
+    coachNotes,
+  ] = await Promise.all([
     db.workoutLog.findMany({
       include: WORKOUT_LOG_INCLUDE,
       orderBy: { startedAt: "asc" },
@@ -8447,6 +8478,34 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
       select: { recordedAt: true, waistCm: true },
       where: { traineeId: trainee.id, waistCm: { not: null } },
+    }),
+    // Counted the way the week overview counts: finished sessions of this coach's programs.
+    db.workoutLog.count({
+      where: {
+        completedAt: { not: null },
+        startedAt: { gte: clientDayStart(lastWeekStart), lt: clientDayStart(weekStart) },
+        userId: trainee.id,
+        workout: { program: { createdById: profile.id } },
+      },
+    }),
+    db.recoveryCheckIn.findFirst({
+      orderBy: { checkInDate: "desc" },
+      select: { checkInDate: true, fatigue: true, note: true, readinessScore: true, sleepMinutes: true, sleepQuality: true },
+      where: { userId: trainee.id },
+    }),
+    db.coachNote.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { body: true, createdAt: true, id: true, updatedAt: true },
+      take: 20,
+      where: { coachId: profile.id, traineeId: trainee.id },
+    }).catch((error: unknown) => {
+      // Before migration 20261007_coach_notes runs (P2021: table missing), the
+      // rest of the page still loads; only the notes are empty.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+        logger.warn("CoachNote table missing; run prisma migrate deploy", { traineeId: trainee.id })
+        return []
+      }
+      throw error
     }),
   ])
 
@@ -8559,7 +8618,24 @@ async function getCoachTraineeDetail(profile: SerializedProfile, traineeId: stri
       })),
       streaks: { bestDays: streaks.bestStreakDays, currentDays: streaks.currentStreakDays },
       week,
+      lastWeekCompletedSessions,
     },
+    // Strings and numbers only, like overview, so the client needs no date revival.
+    about: {
+      birthDate: trainee.birthDate ? formatUtcDateOnly(trainee.birthDate) : null,
+      targetWeightKg: trainee.targetWeightKg ?? null,
+    },
+    recovery: latestRecovery
+      ? {
+          checkInDate: formatUtcDateOnly(latestRecovery.checkInDate),
+          fatigue: latestRecovery.fatigue,
+          note: latestRecovery.note,
+          readinessScore: latestRecovery.readinessScore,
+          sleepMinutes: latestRecovery.sleepMinutes,
+          sleepQuality: latestRecovery.sleepQuality,
+        }
+      : null,
+    notes: coachNotes.map((note) => serializeCoachNote(note, profile.name)),
     recentLogs: trainee.workoutLogs.map((log) => serializeWorkoutLog(log as WorkoutLogRecord)),
     trainee: {
       assignedProgramIds: trainee.programAssignments.map((assignment) => assignment.programId),

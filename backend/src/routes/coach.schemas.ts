@@ -11,6 +11,18 @@ export const coachRequestAnswerSchema = z.object({
   status: z.enum([CoachRequestStatus.approved, CoachRequestStatus.rejected], "Trạng thái trả lời không hợp lệ."),
 })
 
+/** A trainee's notes, and one note among them, named in the URL. */
+export const coachNoteTraineeParamsSchema = z.object({
+  traineeId: z.uuid("traineeId không hợp lệ."),
+})
+export const coachNoteParamsSchema = coachNoteTraineeParamsSchema.extend({
+  noteId: z.uuid("noteId không hợp lệ."),
+})
+
+export const coachNoteBodySchema = z.object({
+  body: z.string().trim().min(1, "Ghi chú không được để trống.").max(2000, "Ghi chú tối đa 2000 ký tự."),
+})
+
 /** A coach's own exercise named in the URL. */
 export const coachExerciseParamsSchema = z.object({
   exerciseId: z.uuid("exerciseId không hợp lệ."),

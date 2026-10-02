@@ -1,5 +1,5 @@
 import type { SerializedProfile } from "./auth.service"
-import { BadRequestError } from "./errors"
+import { BadRequestError, ExternalServiceError } from "./errors"
 import { getGoogleAccessToken } from "./google-connection.service"
 import { groupLogsIntoSessions, hasSheetPlacement, writeSessionsToSpreadsheet } from "./google-program-export.service"
 import {
@@ -8,6 +8,7 @@ import {
   type SourceWorkout,
 } from "./google-program-generate.service"
 import { createProgramTemplateSpreadsheet } from "./google-program-template.service"
+import { selectProgramWeekWorkouts, toPlanDays } from "./google-program-week-plan"
 import { WEEK_SHEET_TITLE } from "../domain/google-program-sheet"
 import { assertTrainee, ensurePrisma } from "./fitness-data/shared/guards"
 import { startOfUtcWeek } from "./fitness-data/shared/dates"
@@ -105,6 +106,13 @@ export async function ensureTraineeProgramSheet(
  */
 function trainedOnceStarted(log: { startedAt: Date }, startDate: Date | null | undefined) {
   return !startDate || log.startedAt >= startOfUtcWeek(startDate)
+}
+
+function isLostSpreadsheetAccess(error: unknown) {
+  if (!(error instanceof ExternalServiceError) || error.code !== "GOOGLE_REQUEST_FAILED") return false
+
+  const status = (error.details as { status?: unknown } | undefined)?.status
+  return status === 403 || status === 404
 }
 
 async function exportTraineeLogsToGoogleDrive(
@@ -221,15 +229,33 @@ async function exportTraineeLogsToGoogleDrive(
     if (logs.length === 0) continue
 
     const sessions = groupLogsIntoSessions(logs)
-    const spreadsheetId = await ensureTraineeProgramSheet(traineeToken, assignment, {
+    let spreadsheetId = await ensureTraineeProgramSheet(traineeToken, assignment, {
       email: profile.email,
       name: profile.name,
     })
-    // Lenient: this file is built from the plan as it is now, so a log trained
-    // against an earlier version of it may have rows the sheet no longer has.
-    const written = await writeSessionsToSpreadsheet(traineeToken, spreadsheetId, WEEK_SHEET_TITLE, sessions, {
-      lenient: true,
-    })
+    const writeOptions = {
+      planForWeek: (weekIndex: number) => toPlanDays(selectProgramWeekWorkouts(assignment.program.workouts, weekIndex)),
+      referenceRows: programReferenceRows(assignment.program.workouts),
+    }
+    let written: Awaited<ReturnType<typeof writeSessionsToSpreadsheet>>
+    try {
+      written = await writeSessionsToSpreadsheet(traineeToken, spreadsheetId, WEEK_SHEET_TITLE, sessions, writeOptions)
+    } catch (error) {
+      if (!isLostSpreadsheetAccess(error)) throw error
+
+      const created = await createProgramTemplateSpreadsheet(traineeToken, {
+        referenceRows: programReferenceRows(assignment.program.workouts),
+        title: `${assignment.program.name} — ${profile.name}`,
+        trainees: [{ email: profile.email, name: profile.name }],
+      })
+      await fillProgramWeeks(traineeToken, created, assignment.program.workouts, Math.max(1, Math.round(assignment.program.duration)))
+      await db.programAssignment.updateMany({
+        data: { traineeGoogleSpreadsheetId: created.spreadsheetId },
+        where: { id: assignment.id, userId: profile.id },
+      })
+      spreadsheetId = created.spreadsheetId
+      written = await writeSessionsToSpreadsheet(traineeToken, spreadsheetId, WEEK_SHEET_TITLE, sessions, writeOptions)
+    }
 
     files.push({
       name: assignment.program.name,

@@ -22,16 +22,16 @@ interface AssignClientsDialogProps {
 }
 
 /**
- * Multi-select roster. Pre-checks already-assigned trainees, then on save
- * diffs the selection and calls assignCoachProgram / unassignCoachProgram
- * for the added / removed ids.
+ * Picks the one trainee a program belongs to. Pre-selects the current one, then
+ * on save unassigns whoever it replaces before assigning the new trainee — the
+ * server refuses a second assignee, so the order matters.
  */
 export function AssignClientsDialog({ program, trainees: initialTrainees, onClose, onAssigned }: AssignClientsDialogProps) {
   const { data: trainees = initialTrainees } = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
   const { messages } = useLocale()
   const assignProgram = useAssignCoachProgram()
   const unassignProgram = useUnassignCoachProgram()
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [initialised, setInitialised] = useState<string | null>(null)
@@ -39,37 +39,27 @@ export function AssignClientsDialog({ program, trainees: initialTrainees, onClos
   // Seed selection from the program's current assignments when it opens,
   // and reset once it closes so reopening re-seeds from fresh assignments.
   if (program && initialised !== program.id) {
-    setSelected(new Set((program.assignedTrainees ?? []).map((t) => t.id)))
+    setSelectedId(program.assignedTrainees?.[0]?.id ?? null)
     setInitialised(program.id)
     setError(null)
   } else if (!program && initialised !== null) {
     setInitialised(null)
   }
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
   const handleSave = async () => {
     if (!program) return
-    const current = new Set((program.assignedTrainees ?? []).map((t) => t.id))
-    const toAdd = [...selected].filter((id) => !current.has(id))
-    const toRemove = [...current].filter((id) => !selected.has(id))
+    const current = (program.assignedTrainees ?? []).map((t) => t.id)
+    const toRemove = current.filter((id) => id !== selectedId)
+    const toAdd = selectedId && !current.includes(selectedId) ? selectedId : null
 
     setSaving(true)
     setError(null)
     try {
-      await Promise.all([
-        ...toAdd.map((id) => assignProgram.mutateAsync({ programId: program.id, traineeId: id })),
-        ...toRemove.map((id) => unassignProgram.mutateAsync({ programId: program.id, traineeId: id })),
-      ])
+      await Promise.all(toRemove.map((id) => unassignProgram.mutateAsync({ programId: program.id, traineeId: id })))
+      if (toAdd) await assignProgram.mutateAsync({ programId: program.id, traineeId: toAdd })
 
       const nextAssigned: AssignedTrainee[] = trainees
-        .filter((t) => selected.has(t.id))
+        .filter((t) => t.id === selectedId)
         .map((t) => ({ assignedAt: new Date(), id: t.id, name: t.name, email: t.email, avatar: t.avatar, fitnessGoals: t.fitnessGoals }))
 
       onAssigned(program.id, nextAssigned)
@@ -101,20 +91,20 @@ export function AssignClientsDialog({ program, trainees: initialTrainees, onClos
         <TraineeSelectList
           className="px-5 py-3"
           listClassName="max-h-[44vh]"
-          onToggle={toggle}
-          selectedIds={[...selected]}
+          onSelect={setSelectedId}
+          selectedId={selectedId}
           trainees={trainees}
         />
 
         <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
-          <span className="font-mono text-xs tnum text-muted-foreground">{messages.coach.selectedCount(selected.size)}</span>
+          <span className="text-xs text-muted-foreground">{messages.coach.oneTraineePerProgram}</span>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose} disabled={saving}>
               {messages.common.cancel}
             </Button>
             <Button className="gap-1.5" onClick={() => void handleSave()} disabled={saving}>
               <Check className="h-3.5 w-3.5" />
-              {saving ? messages.coach.saving : selected.size === 0 ? messages.coach.clearAssignments : messages.coach.assignCount(selected.size)}
+              {saving ? messages.coach.saving : selectedId ? messages.coach.assign : messages.coach.clearAssignments}
             </Button>
           </div>
         </div>

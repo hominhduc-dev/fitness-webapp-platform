@@ -31,7 +31,18 @@ describe("Google sheet export planning", () => {
   it("matches the original exercise after a swap and writes result columns only", () => {
     const result = buildGoogleResultRequests(grid(), [{ day: 1, week: 1, exercises: [exercise] }], 5, 50)
     expect(result.rowCount).toBe(1)
-    expect(result.requests).toEqual([{ updateCells: { start: { sheetId: 5, rowIndex: 2, columnIndex: 8 }, rows: [{ values: [{ userEnteredValue: { stringValue: "Press / Incline" } }, { userEnteredValue: { stringValue: "10 × 35 kg" } }, {}, {}, {}, {}] }], fields: "userEnteredValue" } }])
+    expect(result.requests).toEqual([{ updateCells: { start: { sheetId: 5, rowIndex: 2, columnIndex: 8 }, rows: [{ values: [{ userEnteredValue: { stringValue: "Press / Incline" } }, { userEnteredValue: { stringValue: "10 × 35 kg" } }, {}, {}, {}, {}] }], fields: "userEnteredValue" } }, { updateCells: { start: { sheetId: 5, rowIndex: 2, columnIndex: 14 }, rows: [{ values: [{}, {}, {}, {}] }], fields: "userEnteredValue" } }])
+  })
+  it("overwrites the planned RIR, method, rest and note with what the trainee logged", () => {
+    const logged = { ...exercise, notes: "Đau vai", restTime: 120, sets: [{ setNumber: 1, completed: true, actualReps: 10, weight: 35, rir: 2, intensityTag: "mrm" }] }
+    const result = buildGoogleResultRequests(grid(), [{ day: 1, week: 1, exercises: [logged] }], 5, 50)
+    const tail = result.requests[1] as { updateCells: { rows: Array<{ values: unknown[] }>; start: { columnIndex: number } } }
+    // RIR 0, Method 3:mrm and Rest 90 in the sheet are the plan; the log replaces them.
+    expect(tail.updateCells.start.columnIndex).toBe(14)
+    expect(tail.updateCells.rows[0].values[0]).toEqual({ userEnteredValue: { numberValue: 2 } })
+    expect(tail.updateCells.rows[0].values[1]).toHaveProperty("userEnteredValue.stringValue")
+    expect(tail.updateCells.rows[0].values[2]).toEqual({ userEnteredValue: { numberValue: 120 } })
+    expect(tail.updateCells.rows[0].values[3]).toEqual({ userEnteredValue: { stringValue: "Đau vai" } })
   })
   it("inserts extra sets before RIR and clears copied results on a new week", () => {
     const result = buildGoogleResultRequests(grid(), [{ day: 1, week: 2, exercises: [{ ...exercise, sets: [{ setNumber: 7, completed: true, actualReps: 5, weight: 45 }] }] }], 9, 50, true)
@@ -53,7 +64,8 @@ describe("Google sheet export planning", () => {
     expect(() => buildGoogleResultRequests(grid(), session, 5, 50)).toThrow(/Không khớp/)
     const result = buildGoogleResultRequests(grid(), session, 5, 50, false, true)
     expect(result).toMatchObject({ rowCount: 2, skippedExerciseCount: 1 })
-    expect(result.requests.map((request) => (request as { updateCells: { start: { rowIndex: number } } }).updateCells.start.rowIndex)).toEqual([2, 3])
+    // Each matched row gets its result cells and its logged RIR/method/rest/note cells.
+    expect(result.requests.map((request) => (request as { updateCells: { start: { rowIndex: number } } }).updateCells.start.rowIndex)).toEqual([2, 2, 3, 3])
   })
 })
 describe("Google OAuth boundary", () => {

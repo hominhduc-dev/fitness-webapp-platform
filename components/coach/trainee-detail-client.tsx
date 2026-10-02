@@ -9,13 +9,13 @@ import {
   ExternalLink,
   Loader2,
   MoreHorizontal,
-  StickyNote,
   Sun,
   Sunrise,
   Sunset,
   Trash2,
 } from "lucide-react"
-import { useState, useSyncExternalStore } from "react"
+import { useState } from "react"
+import { TraineeOverview } from "@/components/coach/trainee-hub/trainee-overview"
 import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
 import { useCoachData } from "@/lib/queries/coach-data"
@@ -66,138 +66,9 @@ function formatNumber(value?: number, suffix = "") {
   return value != null ? `${value}${suffix}` : "--"
 }
 
-/* ─── Weekly bar chart (pure CSS, no Recharts) ───────────────────────────── */
-type WeekDay = CoachTraineeDetail["overview"]["week"]["days"][number]
-
 /** Overview day keys are UTC, like the backend week and the trainee's schedule. */
 function parseDayKey(dateKey: string) {
   return new Date(`${dateKey}T00:00:00.000Z`)
-}
-
-function subscribeToNothing() {
-  return () => {}
-}
-
-function WeeklyBarChart({ dateLocale, days }: { dateLocale: string; days: WeekDay[] }) {
-  const max = Math.max(...days.map((day) => day.sets), 1)
-  // The user's today, read in the browser only: a server render has no user zone,
-  // so it highlights nothing rather than a day the client would then disagree with.
-  const todayKey = useSyncExternalStore(subscribeToNothing, () => formatDateKey(new Date()), () => null)
-  const weekdayFormatter = new Intl.DateTimeFormat(dateLocale, { timeZone: "UTC", weekday: "short" })
-
-  return (
-    <div className="grid grid-cols-7 items-end gap-2" style={{ height: 84 }}>
-      {days.map((day) => {
-        const isToday = day.date === todayKey
-        const date = parseDayKey(day.date)
-        const heightPct = day.sets === 0 ? 4 : Math.max(8, (day.sets / max) * 100)
-
-        return (
-          <div key={day.date} className="flex h-full flex-col items-center justify-end gap-1.5">
-            <span className="h-3 font-mono text-micro tabular-nums text-muted-foreground">
-              {day.sets > 0 ? day.sets : ""}
-            </span>
-            <div className="relative flex w-full flex-1 items-end">
-              <div
-                className={cn(
-                  "w-full rounded-sm transition-all",
-                  day.sets === 0 ? "bg-border" : isToday ? "bg-primary" : "bg-foreground",
-                  todayKey != null && day.date > todayKey && "opacity-40",
-                )}
-                style={{ height: `${heightPct}%` }}
-              />
-            </div>
-            <span
-              className={cn(
-                "flex flex-col items-center font-mono text-micro leading-tight tabular-nums",
-                isToday ? "font-semibold text-primary" : "text-muted-foreground",
-              )}
-            >
-              <span className="uppercase">{weekdayFormatter.format(date)}</span>
-              <span>{date.getUTCDate()}</span>
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* ─── Stat card ─────────────────────────────────────────────────────────── */
-function StatCard({ hint, label, unit, value }: { hint?: string; label: string; unit?: string; value: string | number }) {
-  return (
-    <div className="min-h-[88px] rounded-2xl border border-border/80 bg-card px-4 py-3 shadow-md shadow-foreground/5 ring-1 ring-card/70">
-      <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
-      <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-foreground">
-        {value}
-        {unit ? <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span> : null}
-      </p>
-      {hint ? <p className="mt-1 truncate font-mono text-micro text-muted-foreground">{hint}</p> : null}
-    </div>
-  )
-}
-
-/* ─── Recent sessions table ─────────────────────────────────────────────── */
-type RecentSession = {
-  date: string
-  kind: string
-  volume: number
-  complete: number
-}
-
-type RecentSessionsTableProps = {
-  sessions: RecentSession[]
-}
-
-function RecentSessionsTable({ sessions }: RecentSessionsTableProps) {
-  const { messages } = useLocale()
-
-  if (sessions.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-        {messages.coach.noSessionsYet}
-      </div>
-    )
-  }
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      {/* Header */}
-      <div className="hidden grid-cols-[80px_1fr_100px_80px] gap-3 border-b border-border bg-muted/30 px-4 py-2 sm:grid">
-        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDateCol}</span>
-        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionTypeCol}</span>
-        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionVolumeCol}</span>
-        <span className="font-mono text-micro uppercase tracking-[0.1em] text-muted-foreground">{messages.coach.sessionDoneCol}</span>
-      </div>
-      {sessions.map((s, i) => (
-        <div
-          key={i}
-          className={cn(
-            "grid gap-2 px-4 py-3 sm:grid-cols-[80px_1fr_100px_80px] sm:items-center sm:gap-3",
-            i < sessions.length - 1 && "border-b border-border",
-          )}
-        >
-          <span className="font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            {s.date}
-          </span>
-          <div className="text-sm font-medium text-foreground">{s.kind}</div>
-          <div className="flex flex-wrap gap-2 sm:contents">
-            <span className="rounded-full bg-muted px-2.5 py-1 font-mono text-xs tabular-nums text-foreground sm:rounded-none sm:bg-transparent sm:p-0 sm:text-sm">
-              {(s.volume / 1000).toFixed(1)}k kg
-            </span>
-            <span
-              className={cn(
-                "rounded-full bg-muted px-2.5 py-1 font-mono text-xs tabular-nums sm:rounded-none sm:bg-transparent sm:p-0 sm:text-sm",
-                s.complete >= 1 ? "text-success-text" : "text-warning-text",
-              )}
-            >
-              {Math.round(s.complete * 100)}%
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 /* ─── Main export ────────────────────────────────────────────────────────── */
@@ -219,43 +90,13 @@ export function CoachTraineeDetailClient({
   const [isAssigning, setIsAssigning] = useState(false)
   const [removingProgramId, setRemovingProgramId] = useState<string | null>(null)
   const [expandedNutritionDate, setExpandedNutritionDate] = useState<string | null>(null)
+  // Controlled, so the overview's "View all" can open the workout logs.
+  const [tab, setTab] = useState("overview")
 
   const assignedProgramIds = new Set(detail.programs.map((program) => program.id))
   const assignablePrograms = coachPrograms.filter((program) => !assignedProgramIds.has(program.id))
-  // Every overview number is computed by the backend from the trainee's own logs
-  // and schedule, so the coach sees what the trainee sees.
-  const { overview } = detail
-  const { body, week } = overview
   const dayKeyFormatter = new Intl.DateTimeFormat(dateLocale, { day: "numeric", month: "short", timeZone: "UTC" })
   const formatDayKey = (dateKey: string) => dayKeyFormatter.format(parseDayKey(dateKey))
-  const weightDelta = body.weightKg?.deltaKg
-  const weightHint = body.weightKg
-    ? [
-        weightDelta != null ? `${weightDelta > 0 ? "+" : ""}${weightDelta} kg` : null,
-        messages.coach.recordedOn(formatDayKey(body.weightKg.recordedAt)),
-      ].filter(Boolean).join(" · ")
-    : messages.coach.notRecorded
-
-  // Build recent sessions from recentLogs
-  const recentSessions: RecentSession[] = detail.recentLogs.slice(0, 6).map((log) => {
-    const completedSets = log.exercises.reduce(
-      (sum, ex) => sum + ex.sets.filter((s) => s.completed).length,
-      0,
-    )
-    const totalSets = log.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
-    return {
-      date: (log.startedAt instanceof Date ? log.startedAt : new Date(log.startedAt)).toLocaleDateString(
-        dateLocale,
-        { month: "short", day: "numeric" },
-      ),
-      kind: log.workout?.name ?? "Workout",
-      volume: Number(log.totalVolume ?? 0),
-      complete: totalSets > 0 ? completedSets / totalSets : 1,
-    }
-  })
-
-  // Latest coach note from most recent check-in feedback
-  const latestNote = detail.checkIns[0]?.feedback ?? null
 
   async function handleAssignProgram() {
     if (!selectedProgramId) {
@@ -321,7 +162,7 @@ export function CoachTraineeDetailClient({
   }
 
   return (
-    <Tabs defaultValue="overview" className="space-y-6">
+    <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <div className="sticky top-0 z-10 rounded-2xl border border-border/80 bg-card p-1.5 shadow-md shadow-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/90">
         <TabsList
           data-tour="coach-client-tabs"
@@ -351,117 +192,25 @@ export function CoachTraineeDetailClient({
       </div>
 
       {/* ── Overview ──────────────────────────────────────────────────────── */}
-      <TabsContent value="overview" className="space-y-6">
-        {/* Coach note */}
-        {latestNote && (
-          <div className="flex items-start gap-3 rounded-2xl border border-border bg-primary-soft/50 px-4 py-3">
-            <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <p className="text-sm text-foreground">{latestNote}</p>
-          </div>
-        )}
-
-        {/* Compact snapshot: week, consistency, and body metrics */}
-        <div className="space-y-4">
-          <div className="flex min-h-[220px] flex-col rounded-2xl border border-border/80 bg-card p-5 shadow-lg shadow-foreground/5 ring-1 ring-card/80">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                  {messages.coach.thisWeekRange(formatDayKey(week.days[0].date), formatDayKey(week.days[week.days.length - 1].date))}
-                </p>
-                <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-foreground">
-                  {messages.coach.complianceSessions(week.completedSessions, week.plannedSessions)}
-                </p>
-              </div>
-              <span className="rounded-full border border-primary/15 bg-primary-soft/60 px-3 py-1.5 font-mono text-xs tabular-nums text-primary">
-                {messages.coach.weekTotals(week.totalSets, integerFormatter.format(week.totalVolume))}
-              </span>
-            </div>
-            <div className="mt-auto">
-              <WeeklyBarChart dateLocale={dateLocale} days={week.days} />
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            <StatCard label={messages.coach.progress30DaySessionsLabel} value={overview.last30Days.sessions} />
-            <StatCard label={messages.coach.progress30DayVolumeLabel} unit="kg" value={integerFormatter.format(overview.last30Days.volume)} />
-            <StatCard
-              hint={messages.coach.bestStreak(overview.streaks.bestDays)}
-              label={messages.coach.streakLabel}
-              value={messages.coach.streakValue(overview.streaks.currentDays)}
-            />
-            <StatCard
-              label={messages.coach.lastWorkoutLabel}
-              value={overview.lastWorkoutAt ? formatDayKey(overview.lastWorkoutAt) : messages.coach.noWorkoutsYet}
-            />
-            <StatCard
-              hint={weightHint}
-              label={messages.coach.weightStatLabel}
-              unit={body.weightKg ? "kg" : undefined}
-              value={body.weightKg?.value ?? "--"}
-            />
-            <StatCard
-              hint={body.bodyFatPct ? messages.coach.recordedOn(formatDayKey(body.bodyFatPct.recordedAt)) : messages.coach.notRecorded}
-              label={messages.coach.bodyFatStatLabel}
-              unit={body.bodyFatPct ? "%" : undefined}
-              value={body.bodyFatPct?.value ?? "--"}
-            />
-            <StatCard
-              hint={body.waistCm ? messages.coach.recordedOn(formatDayKey(body.waistCm.recordedAt)) : messages.coach.notRecorded}
-              label={messages.coach.waistStatLabel}
-              unit={body.waistCm ? "cm" : undefined}
-              value={body.waistCm?.value ?? "--"}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          {/* Personal records */}
-          {overview.recentPRs.length > 0 ? (
-            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70">
-              <p className="mb-2 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                {messages.coach.recentPRsTitle}
-              </p>
-              <div className="overflow-hidden rounded-lg border border-border">
-                {overview.recentPRs.map((pr, index) => (
-                  <div
-                    key={`${pr.exerciseName}-${pr.date}`}
-                    className={cn("flex items-center justify-between gap-3 px-3 py-2.5", index > 0 && "border-t border-border")}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{pr.exerciseName}</p>
-                      <p className="font-mono text-micro text-muted-foreground">{formatDayKey(pr.date)}</p>
-                    </div>
-                    <div className="shrink-0 text-right font-mono tabular-nums">
-                      <p className="text-sm text-foreground">{pr.weightKg} kg</p>
-                      <p className="text-micro text-success-text">{messages.coach.prDelta(pr.deltaKg)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {/* Recent sessions */}
-          <section className={cn("rounded-2xl border border-border/80 bg-card p-4 shadow-md shadow-foreground/5 ring-1 ring-card/70", overview.recentPRs.length === 0 && "xl:col-span-2")}>
-            <p className="mb-2 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-              {messages.coach.recentSessions}
-            </p>
-            <RecentSessionsTable sessions={recentSessions} />
-          </section>
-        </div>
+      <TabsContent value="overview" className="space-y-4">
+        <TraineeOverview
+          detail={detail}
+          onNotesChange={(notes) => setDetail((current) => ({ ...current, notes }))}
+          onViewLogs={() => setTab("logs")}
+        />
 
         {/* Assigned programs */}
-        <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-md shadow-foreground/5 ring-1 ring-card/70" data-tour="coach-client-actions">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <section id="assigned-programs" className="scroll-mt-4 rounded-2xl border border-border bg-card p-5 shadow-sm" data-tour="coach-client-actions">
+          <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-end @3xl:justify-between">
             <div>
               <h2 className="text-base font-semibold">{messages.coach.assignedProgramsTitle}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {messages.coach.assignedProgramsDesc}
               </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-2 @md:flex-row">
               <Select value={selectedProgramId} onValueChange={setSelectedProgramId}>
-                <SelectTrigger className="w-full min-w-[240px] rounded-xl bg-background/70">
+                <SelectTrigger className="w-full @md:min-w-[240px] rounded-xl bg-background/70">
                   <SelectValue placeholder={messages.coach.selectProgramPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
@@ -503,7 +252,7 @@ export function CoachTraineeDetailClient({
               {detail.programs.map((program) => (
                 <div
                   key={program.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 px-4 py-4 @xl:flex-row @xl:items-center @xl:justify-between"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">

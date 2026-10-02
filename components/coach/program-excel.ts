@@ -337,6 +337,9 @@ function parseProgramSheet(
     if (missingEmails.length > 0) {
       throw new Error(`Không tìm thấy trainee theo email: ${missingEmails.join(", ")}.`)
     }
+    if (emails.length > 1) {
+      throw new Error(`Mỗi program chỉ gán cho một học viên; assign_to_emails đang có ${emails.length} email.`)
+    }
 
     draft.assignToUserIds = emails.map((email) => traineeIdByEmail.get(email) as string)
   }

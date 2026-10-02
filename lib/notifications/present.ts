@@ -169,6 +169,13 @@ function localizeCopy(
         if (decision === "merged") return { message: reviewed.merged(exercise, readString(notification, "targetName")), title: reviewed.sharedTitle }
         return { message: reviewed.rejected(exercise, readString(notification, "note")), title: reviewed.notSharedTitle }
       }
+      const trainee = readString(notification, "traineeName")
+      const from = readString(notification, "oldExerciseName")
+      const to = readString(notification, "newExerciseName")
+      const where = readString(notification, "workoutName") ?? readString(notification, "programName")
+      if (readString(notification, "kind") === "trainee_swapped_exercise" && trainee && from && to && where) {
+        return { message: copy.exerciseSwap.message(trainee, from, to, where), title: copy.exerciseSwap.title }
+      }
       return null
     }
     case "workout_logged": {

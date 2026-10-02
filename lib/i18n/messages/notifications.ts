@@ -58,6 +58,10 @@ export const notificationsMessages = {
           sharedTitle: "Exercise shared",
           notSharedTitle: "Exercise not shared",
         },
+        exerciseSwap: {
+          message: (trainee: string, from: string, to: string, where: string) => `${trainee} swapped ${from} → ${to} in ${where}.`,
+          title: "Exercise swap to review",
+        },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} completed ${workout}.`,
           notes: (notes: string) => ` Notes: ${notes}`,
@@ -71,6 +75,23 @@ export const notificationsMessages = {
           message: (workout: string, elapsed: string) => `You started ${workout} ${elapsed}. Finish or resume it?`,
           title: "Workout still open",
         },
+      },
+      swapReview: {
+        afterApprove: (day: string | null, nextWeek: number | null, to: string) =>
+          day && nextWeek ? `${day} sessions from week ${nextWeek} on use ${to}.` : `The matching future sessions use ${to}.`,
+        afterReject: (from: string) => `Only the completed session keeps the swap; the weeks ahead stay on ${from}.`,
+        approve: "Approve",
+        approved: (count: number) => `Swap approved: ${count} upcoming session${count === 1 ? "" : "s"} updated.`,
+        description: (trainee: string, program: string | null) => (program ? `${trainee} · ${program}` : trainee),
+        ifApprove: "If you approve",
+        ifReject: "If you decline",
+        reject: "Decline",
+        rejected: "Swap declined.",
+        session: (workout: string, week: number | null, day: string | null) =>
+          [workout, week ? `Week ${week}` : null, day].filter(Boolean).join(" · "),
+        status: { approved: "Approved", closed: "Closed", pending: "Needs review", rejected: "Declined", superseded: "Replaced by a newer swap" },
+        title: "Exercise swap request",
+        viewTrainee: "View trainee",
       },
     },
     pushPrompt: {
@@ -139,6 +160,10 @@ export const notificationsMessages = {
           sharedTitle: "Bài tập đã được dùng chung",
           notSharedTitle: "Bài tập chưa được dùng chung",
         },
+        exerciseSwap: {
+          message: (trainee: string, from: string, to: string, where: string) => `${trainee} đã đổi ${from} → ${to} trong ${where}.`,
+          title: "Yêu cầu đổi bài cần duyệt",
+        },
         workoutLogged: {
           message: (trainee: string, workout: string) => `${trainee} đã hoàn thành ${workout}.`,
           notes: (notes: string) => ` Ghi chú: ${notes}`,
@@ -152,6 +177,23 @@ export const notificationsMessages = {
           message: (workout: string, elapsed: string) => `Bạn đã bắt đầu ${workout} ${elapsed}. Hoàn thành hoặc tiếp tục nhé?`,
           title: "Buổi tập chưa hoàn thành",
         },
+      },
+      swapReview: {
+        afterApprove: (day: string | null, nextWeek: number | null, to: string) =>
+          day && nextWeek ? `Các buổi ${day} từ tuần ${nextWeek} trở đi sẽ dùng ${to}.` : `Các buổi tương ứng trong những tuần sau sẽ dùng ${to}.`,
+        afterReject: (from: string) => `Chỉ buổi đã tập giữ bài đã đổi; các tuần sau vẫn là ${from}.`,
+        approve: "Duyệt",
+        approved: (count: number) => `Đã duyệt: cập nhật ${count} buổi sắp tới.`,
+        description: (trainee: string, program: string | null) => (program ? `${trainee} · ${program}` : trainee),
+        ifApprove: "Nếu duyệt",
+        ifReject: "Nếu từ chối",
+        reject: "Từ chối",
+        rejected: "Đã từ chối yêu cầu đổi bài.",
+        session: (workout: string, week: number | null, day: string | null) =>
+          [workout, week ? `Tuần ${week}` : null, day].filter(Boolean).join(" · "),
+        status: { approved: "Đã duyệt", closed: "Đã đóng", pending: "Chờ duyệt", rejected: "Đã từ chối", superseded: "Đã có yêu cầu mới hơn" },
+        title: "Yêu cầu đổi bài tập",
+        viewTrainee: "Xem trainee",
       },
     },
     pushPrompt: {

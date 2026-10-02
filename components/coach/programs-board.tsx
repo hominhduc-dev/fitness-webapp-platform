@@ -10,16 +10,14 @@ import { useQueryClient } from "@tanstack/react-query"
 import { userQueryKey } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { useAuth } from "@/components/providers/auth-provider"
-import { useLocale } from "@/components/providers/locale-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
-import { CoachAIProgramAssistant } from "@/components/coach/coach-ai-program-assistant"
+import { CoachAIProgramDialog, type AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
 import { ProgramViewerDialog } from "@/components/coach/program-viewer-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   archiveCoachProgram,
@@ -91,8 +89,15 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [showArchived, setShowArchived] = useState(false)
   const [viewMode, setViewMode] = useState<"library" | "clients">("library")
   const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
-  const [aiTraineeId, setAiTraineeId] = useState("")
-  const { messages } = useLocale()
+  // Open with the trainee the editor had picked (null when none); undefined when closed.
+  const [aiDialogTraineeId, setAiDialogTraineeId] = useState<string | null | undefined>(undefined)
+  // The AI draft the import dialog reviews, until that dialog closes.
+  const [aiDraft, setAiDraft] = useState<AIProgramDraft | null>(null)
+  const closeEditor = () => setEditorTarget(null)
+  const closeImport = () => {
+    setImportOpen(false)
+    setAiDraft(null)
+  }
   const includePersonalized = viewMode === "clients"
 
   const programsQuery = useCoachData(
@@ -104,7 +109,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const setPrograms = programsQuery.setData
   const traineesQuery = useCoachData(queryKeys.coach.trainees(), fetchCoachTrainees, initialTrainees)
   const trainees = traineesQuery.data ?? []
-  const selectedAITrainee = trainees.find((trainee) => trainee.id === aiTraineeId) ?? trainees[0]
   // The 4k+ exercise catalogue is only needed by the import dialog. Program
   // cards and assignment actions should not pay that cost during initial load.
   const importExercisesQuery = useExercises(undefined, undefined, importOpen)
@@ -241,10 +245,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     setPrograms((prev) => [program, ...prev.filter((item) => item.id !== program.id)])
   }
 
-  const handleAIProgramAccepted = () => {
-    void programsQuery.refetch()
-    void traineesQuery.refetch()
-  }
 
   const toggleClientPrograms = (traineeId: string) => {
     setExpandedClientIds((current) => {
@@ -277,17 +277,39 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     />
   )
 
+  const aiDialog = (
+    <CoachAIProgramDialog
+      initialTraineeId={aiDialogTraineeId}
+      onClose={() => setAiDialogTraineeId(undefined)}
+      onEditDraft={(draft) => {
+        setAiDialogTraineeId(undefined)
+        setAiDraft(draft)
+        setImportOpen(true)
+      }}
+      open={aiDialogTraineeId !== undefined}
+      trainees={trainees}
+    />
+  )
+
   const editor =
     editorTarget === null ? null : (
       <ProgramEditorLazy
         initialExerciseOptions={exerciseOptions}
         initialTraineeOptions={trainees}
         programId={editorTarget === "new" ? undefined : editorTarget}
-        onClose={() => setEditorTarget(null)}
+        onClose={closeEditor}
+        onGenerateWithAI={
+          editorTarget === "new"
+            ? (traineeId) => {
+                closeEditor()
+                setAiDialogTraineeId(traineeId)
+              }
+            : undefined
+        }
         onImportProgram={
           editorTarget === "new"
             ? () => {
-                setEditorTarget(null)
+                closeEditor()
                 setImportOpen(true)
               }
             : undefined
@@ -335,45 +357,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     </div>
   )
 
-  const aiProgramPanel = (
-    <section className="mb-5 rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="label-micro text-muted-foreground">{messages.coach.aiProgramEyebrow}</p>
-          <h2 className="mt-2 text-xl font-semibold tracking-tight">{messages.coach.aiProgramTitle}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {messages.coach.aiProgramDescription}
-          </p>
-        </div>
-        <Select value={selectedAITrainee?.id ?? ""} onValueChange={setAiTraineeId} disabled={trainees.length === 0}>
-          <SelectTrigger className="w-full rounded-xl bg-background/70 lg:w-[280px]">
-            <SelectValue placeholder={messages.coach.aiProgramSelectClient} />
-          </SelectTrigger>
-          <SelectContent>
-            {trainees.map((trainee) => (
-              <SelectItem key={trainee.id} value={trainee.id}>
-                {trainee.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {selectedAITrainee ? (
-        <CoachAIProgramAssistant
-          key={selectedAITrainee.id}
-          onAccepted={handleAIProgramAccepted}
-          traineeId={selectedAITrainee.id}
-          traineeName={selectedAITrainee.name}
-        />
-      ) : (
-        <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-          {messages.coach.aiProgramNoClients}
-        </div>
-      )}
-    </section>
-  )
-
   if (programsQuery.isPending) {
     return (
       <>
@@ -404,7 +387,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     return (
       <>
         {header}
-        {aiProgramPanel}
         <div className="rounded-lg border border-dashed border-border py-12 text-center">
           <h3 className="mb-2 text-lg font-semibold">No programs yet</h3>
           <p className="mb-4 text-sm text-muted-foreground">
@@ -415,9 +397,11 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
           </Button>
         </div>
         {editor}
+        {aiDialog}
         <ImportProgramDialog
+          aiDraft={aiDraft}
           exerciseOptions={exerciseOptions}
-          onClose={() => setImportOpen(false)}
+          onClose={closeImport}
           onImported={handleImported}
           open={importOpen}
           trainees={trainees}
@@ -433,8 +417,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       {error ? (
         <div className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-text">{error}</div>
       ) : null}
-
-      {aiProgramPanel}
 
       {viewMode === "library" ? (
         <div
@@ -524,10 +506,12 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
       />
 
       {editor}
+      {aiDialog}
 
       <ImportProgramDialog
+        aiDraft={aiDraft}
         exerciseOptions={exerciseOptions}
-        onClose={() => setImportOpen(false)}
+        onClose={closeImport}
         onImported={handleImported}
         open={importOpen}
         token={session?.access_token ?? ""}
