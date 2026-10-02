@@ -26,7 +26,7 @@ export function PrTimeline({ prs }: { prs: PR[] }) {
             <span
               className={cn(
                 "absolute -left-5 top-0.5 flex size-[15px] items-center justify-center rounded-full ring-2 ring-card",
-                pr.type === "weight" ? "bg-warning text-white" : "bg-primary text-primary-foreground",
+                pr.type === "weight" ? "bg-warning text-warning-foreground" : "bg-primary text-primary-foreground",
               )}
               aria-hidden="true"
             >
