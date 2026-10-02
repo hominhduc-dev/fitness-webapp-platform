@@ -25,7 +25,7 @@ export function useApproveTraineeExerciseSwap() {
   return useMutation({
     mutationFn: async (notificationId: string) =>
       approveTraineeExerciseSwap(await requireAccessToken(), notificationId),
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
       void queryClient.invalidateQueries({ queryKey: queryKeys.workouts.all })
@@ -39,7 +39,7 @@ export function useRejectTraineeExerciseSwap() {
   return useMutation({
     mutationFn: async (notificationId: string) =>
       rejectTraineeExerciseSwap(await requireAccessToken(), notificationId),
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all })
     },
   })
