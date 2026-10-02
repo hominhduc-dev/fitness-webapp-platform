@@ -40,7 +40,7 @@ const STATUS_DOT_CLASS: Record<RosterStatus, string> = {
 }
 
 export function TraineeRosterPanel({ activeTraineeId, trainees }: TraineeRosterPanelProps) {
-  const { locale, messages } = useLocale()
+  const { messages } = useLocale()
   const searchParams = useSearchParams()
   const [query, setQuery] = useState("")
 
