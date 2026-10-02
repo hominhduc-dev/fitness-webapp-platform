@@ -5653,6 +5653,13 @@ function countProgramWorkoutsPerWeek(workouts: Array<{ scheduledDay?: number }>)
   return scheduledDays.size > 0 ? scheduledDays.size : workouts.length
 }
 
+/** A program belongs to a single trainee; see assignCoachProgramToTrainee. */
+function assertSingleAssignee(userIds: string[]) {
+  if (userIds.length > 1) {
+    throw new AuthServiceError("Mỗi program chỉ gán cho một học viên.", 400)
+  }
+}
+
 /**
  * One spreadsheet backs one program, which the `Program_googleSpreadsheetId_key`
  * index enforces. This is the same rule stated in the language of the app, so a
@@ -5731,6 +5738,7 @@ async function createCoachProgram(
   }
 
   const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+  assertSingleAssignee(assignToUserIds)
 
   if (assignToUserIds.length > 0) {
     const validTrainees = await db.user.count({
@@ -5886,6 +5894,7 @@ async function updateCoachProgram(
   }
 
   const assignToUserIds = Array.from(new Set((input.assignToUserIds ?? []).filter(Boolean)))
+  assertSingleAssignee(assignToUserIds)
 
   if (assignToUserIds.length > 0) {
     const validTrainees = await db.user.count({
@@ -7030,24 +7039,22 @@ async function assignCoachProgramToTrainee(profile: SerializedProfile, programId
     throw new AuthServiceError("Program đã archive — hãy restore trước khi gán.", 409)
   }
 
-  // A spreadsheet carries one result block, so a Sheets-backed program belongs to a
-  // single trainee. Refusing here rather than at export time means the coach finds
-  // out while they can still fix it, instead of after a week of logged sessions.
-  if (program.googleSpreadsheetId) {
-    const otherAssignee = await db.programAssignment.findFirst({
-      select: { user: { select: { name: true } } },
-      where: {
-        programId,
-        userId: { not: traineeId },
-      },
-    })
+  // A program belongs to a single trainee: approving a swap and exporting logs
+  // both edit it as theirs. Refusing here means the coach finds out while they
+  // can still fix it.
+  const otherAssignee = await db.programAssignment.findFirst({
+    select: { user: { select: { name: true } } },
+    where: {
+      programId,
+      userId: { not: traineeId },
+    },
+  })
 
-    if (otherAssignee) {
-      throw new AuthServiceError(
-        `Program này import từ Google Sheets nên chỉ gán được cho một học viên. Hiện đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
-        409,
-      )
-    }
+  if (otherAssignee) {
+    throw new AuthServiceError(
+      `Mỗi program chỉ gán cho một học viên. Program này đang gán cho ${otherAssignee.user.name}; hãy gỡ trước khi gán người khác.`,
+      409,
+    )
   }
 
   const assignmentKey = {

@@ -49,9 +49,7 @@ import { useExercises } from "@/lib/queries/exercises"
 import { queryKeys } from "@/lib/queries/keys"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -993,10 +991,10 @@ export function ProgramEditor({
       return
     }
 
-    setSelectedTraineeIds((current) =>
-      checked ? Array.from(new Set([...current, traineeId])) : current.filter((id) => id !== traineeId),
-    )
+    // A program belongs to a single trainee: picking one replaces the other.
+    setSelectedTraineeIds(checked ? [traineeId] : [])
   }
+  const selectedTraineeName = traineeOptions.find((trainee) => trainee.id === selectedTraineeIds[0])?.name
 
   const buildProgramPayload = (): CreateCoachProgramInput => {
     const workouts = schedule.flatMap((week, weekIndex) =>
@@ -1273,12 +1271,7 @@ export function ProgramEditor({
                 onClick={() => setIsAssignDialogOpen(true)}
               >
                 <UserPlus className="h-4 w-4" />
-                {messages.coach.assignClients}
-                {selectedTraineeIds.length > 0 ? (
-                  <Badge variant="micro" className="ml-1 bg-background">
-                    {selectedTraineeIds.length}
-                  </Badge>
-                ) : null}
+                {selectedTraineeName ?? messages.coach.assignClients}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -1463,12 +1456,7 @@ export function ProgramEditor({
               )}
               <Button type="button" variant="outline" className="bg-transparent" disabled={isArchived} onClick={() => setIsAssignDialogOpen(true)}>
                 <UserPlus className="h-4 w-4" />
-                {messages.coach.assignClients}
-                {selectedTraineeIds.length > 0 ? (
-                  <Badge variant="micro" className="ml-1 bg-muted">
-                    {selectedTraineeIds.length}
-                  </Badge>
-                ) : null}
+                {selectedTraineeName ?? messages.coach.assignClients}
               </Button>
             </div>
           </div>
@@ -1672,19 +1660,31 @@ export function ProgramEditor({
             {filteredTrainees.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">{messages.coach.noClientsFound}</div>
             ) : (
-              <div className="space-y-2">
+              <div role="radiogroup" aria-label={messages.coach.assignClients} className="space-y-2">
                 {filteredTrainees.map((trainee) => {
                   const checked = selectedTraineeIds.includes(trainee.id)
 
                   return (
-                    <label
+                    <button
                       key={trainee.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-muted"
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      onClick={() => toggleTraineeAssignment(trainee.id, !checked)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-muted",
+                        checked ? "border-primary/40 bg-primary-soft/40" : "border-border",
+                      )}
                     >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(value) => toggleTraineeAssignment(trainee.id, Boolean(value))}
-                      />
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex size-5 shrink-0 items-center justify-center rounded-full border",
+                          checked ? "border-primary" : "border-input",
+                        )}
+                      >
+                        {checked ? <span className="size-2.5 rounded-full bg-primary" /> : null}
+                      </span>
                       <Avatar className="h-9 w-9">
                         <AvatarImage src={trainee.avatar ?? undefined} alt={trainee.name} />
                         <AvatarFallback className="bg-foreground text-micro text-background">
@@ -1695,22 +1695,21 @@ export function ProgramEditor({
                         <span className="block truncate text-sm font-medium">{trainee.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">{trainee.email}</span>
                       </span>
-                      {checked ? <Check className="h-4 w-4 text-primary" /> : null}
-                    </label>
+                    </button>
                   )
                 })}
               </div>
             )}
           </div>
           <DialogFooter className="border-t border-border px-6 py-4">
-            <span className="mr-auto self-center font-mono text-xs text-muted-foreground tnum">
-              {messages.coach.selectedCount(selectedTraineeIds.length)}
+            <span className="mr-auto self-center text-xs text-muted-foreground">
+              {messages.coach.oneTraineePerProgram}
             </span>
             <Button type="button" variant="ghost" onClick={() => setIsAssignDialogOpen(false)}>
               {messages.common.cancel}
             </Button>
             <Button type="button" onClick={() => setIsAssignDialogOpen(false)}>
-              {messages.coach.assignCount(selectedTraineeIds.length)}
+              {selectedTraineeIds.length > 0 ? messages.coach.assign : messages.coach.clearAssignments}
             </Button>
           </DialogFooter>
         </DialogContent>

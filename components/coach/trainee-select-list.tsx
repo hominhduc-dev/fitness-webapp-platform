@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Check, Search } from "lucide-react"
+import { Search } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -19,29 +19,29 @@ function getInitials(name: string) {
 }
 
 /**
- * Searchable roster of the coach's trainees with a checkbox per row. Purely a
- * selection surface: the caller owns the ids and decides what saving means,
- * which is what lets the assign dialog (existing program) and the import review
- * (program that does not exist yet) share the same list.
+ * Searchable roster of the coach's trainees, one of whom can be picked: a
+ * program belongs to a single trainee. Picking the selected row again clears it.
+ * Purely a selection surface: the caller owns the id and decides what saving
+ * means, which is what lets the assign dialog (existing program) and the import
+ * review (program that does not exist yet) share the same list.
  */
 export function TraineeSelectList({
   className,
   disabled,
   listClassName,
-  onToggle,
-  selectedIds,
+  onSelect,
+  selectedId,
   trainees,
 }: {
   className?: string
   disabled?: boolean
   listClassName?: string
-  onToggle: (traineeId: string) => void
-  selectedIds: string[]
+  onSelect: (traineeId: string | null) => void
+  selectedId: string | null
   trainees: CoachTrainee[]
 }) {
   const { messages } = useLocale()
   const [query, setQuery] = useState("")
-  const selected = useMemo(() => new Set(selectedIds), [selectedIds])
   const normalizedQuery = query.trim().toLowerCase()
   const visible = useMemo(
     () =>
@@ -66,17 +66,18 @@ export function TraineeSelectList({
         />
       </div>
 
-      <div className={cn("mt-2 overflow-y-auto", listClassName)}>
+      <div role="radiogroup" aria-label={messages.coach.assignClients} className={cn("mt-2 overflow-y-auto", listClassName)}>
         {visible.map((trainee) => {
-          const isSelected = selected.has(trainee.id)
+          const isSelected = trainee.id === selectedId
 
           return (
             <button
               key={trainee.id}
               type="button"
-              aria-pressed={isSelected}
+              role="radio"
+              aria-checked={isSelected}
               disabled={disabled}
-              onClick={() => onToggle(trainee.id)}
+              onClick={() => onSelect(isSelected ? null : trainee.id)}
               className={cn(
                 "flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left transition-colors hover:bg-muted disabled:opacity-60",
                 isSelected && "bg-muted",
@@ -95,11 +96,11 @@ export function TraineeSelectList({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
-                  isSelected ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                  isSelected ? "border-primary" : "border-input",
                 )}
               >
-                {isSelected ? <Check className="h-3 w-3" /> : null}
+                {isSelected ? <span className="size-2.5 rounded-full bg-primary" /> : null}
               </span>
             </button>
           )

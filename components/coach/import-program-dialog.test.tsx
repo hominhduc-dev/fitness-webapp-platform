@@ -164,8 +164,10 @@ describe("import review program details", () => {
     fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-10-05" } })
     fireEvent.change(screen.getByLabelText("Training focus"), { target: { value: "Push volume block" } })
     // The disclosure header carries its summary line into the accessible name.
-    fireEvent.click(screen.getByRole("button", { name: /Assign clients/ }))
-    fireEvent.click(await screen.findByRole("button", { name: /Minh Duc/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Assign trainee/ }))
+    // One trainee per program: the roster is a radio group.
+    fireEvent.click(await screen.findByRole("radio", { name: /Minh Duc/ }))
+    expect(screen.getByRole("radio", { name: /Minh Duc/ })).toHaveAttribute("aria-checked", "true")
 
     fireEvent.click(screen.getByRole("button", { name: "Create program" }))
     await waitFor(() => expect(save).toHaveBeenCalledOnce())

@@ -185,7 +185,7 @@ export function ImportProgramDialog({
   const [programGoal, setProgramGoal] = useState("hypertrophy")
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
-  const [selectedTraineeIds, setSelectedTraineeIds] = useState<string[]>([])
+  const [selectedTraineeId, setSelectedTraineeId] = useState<string | null>(null)
   const [source, setSource] = useState<ImportSource>("excel")
   const [didOverwrite, setDidOverwrite] = useState(false)
   const sourceText = t.sources[source]
@@ -211,7 +211,7 @@ export function ImportProgramDialog({
     if (!draft) return null
     const name = programName.trim() || draft.name?.trim() || fileName.replace(/\.[^.]+$/, "") || "Imported program"
     return {
-      assignToUserIds: selectedTraineeIds,
+      assignToUserIds: selectedTraineeId ? [selectedTraineeId] : [],
       description: description.trim() || undefined,
       difficulty,
       duration,
@@ -223,7 +223,7 @@ export function ImportProgramDialog({
         .map(editableToPayloadWorkout)
         .filter((w) => w.exercises.length > 0),
     }
-  }, [description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeIds, startDate])
+  }, [description, difficulty, draft, duration, editableWorkouts, fileName, googleSource, programGoal, programName, selectedTraineeId, startDate])
 
   const exerciseCount = useMemo(
     () => editableWorkouts.reduce((sum, w) => sum + w.exercises.length, 0),
@@ -256,7 +256,7 @@ export function ImportProgramDialog({
     setDescription("")
     setProgramGoal("hypertrophy")
     setStartDate("")
-    setSelectedTraineeIds([])
+    setSelectedTraineeId(null)
     setSource("excel")
     setDidOverwrite(false)
   }
@@ -287,9 +287,9 @@ export function ImportProgramDialog({
       setDuration(importedDraft.duration ?? 4)
       setProgramGoal(importedDraft.goal ?? "hypertrophy")
       setDescription(importedDraft.description?.trim() ?? "")
-      // The sheet's assign_to_emails column seeds the roster; the coach can
-      // still add or drop anyone before the program is created.
-      setSelectedTraineeIds(importedDraft.assignToUserIds ?? [])
+      // The sheet's assign_to_emails column seeds the trainee; the coach can
+      // still change it before the program is created.
+      setSelectedTraineeId(importedDraft.assignToUserIds?.[0] ?? null)
       setStep("review")
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : t.errors.excelRead)
@@ -313,7 +313,7 @@ export function ImportProgramDialog({
     setProgramName(name)
     setDuration(weeks)
     setDescription("")
-    setSelectedTraineeIds([])
+    setSelectedTraineeId(null)
     setStep("review")
   }
 
@@ -646,11 +646,10 @@ export function ImportProgramDialog({
 
                   {/* Who it goes to, straight from the coach's roster */}
                   <DisclosureCard
-                    defaultOpen={selectedTraineeIds.length > 0}
+                    defaultOpen={selectedTraineeId !== null}
                     description={
-                      selectedTraineeIds.length > 0
-                        ? t.review.assignCount(selectedTraineeIds.length)
-                        : messages.coach.noTrainees
+                      trainees.find((trainee) => trainee.id === selectedTraineeId)?.name
+                        ?? (trainees.length > 0 ? messages.coach.noTraineeSelected : messages.coach.noTrainees)
                     }
                     icon={<IconTile size="sm" tone="primary"><UserPlus /></IconTile>}
                     title={messages.coach.assignClients}
@@ -658,14 +657,8 @@ export function ImportProgramDialog({
                     <TraineeSelectList
                       disabled={isSaving}
                       listClassName="max-h-64"
-                      onToggle={(traineeId) =>
-                        setSelectedTraineeIds((current) =>
-                          current.includes(traineeId)
-                            ? current.filter((id) => id !== traineeId)
-                            : [...current, traineeId],
-                        )
-                      }
-                      selectedIds={selectedTraineeIds}
+                      onSelect={setSelectedTraineeId}
+                      selectedId={selectedTraineeId}
                       trainees={trainees}
                     />
                   </DisclosureCard>
