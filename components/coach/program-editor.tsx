@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Sparkles,
   Target,
   Trash2,
   Upload,
@@ -93,6 +94,8 @@ type ProgramEditorProps = {
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void
+  /** Offered on a new program: hands off to the AI draft, for the trainee picked so far. */
+  onGenerateWithAI?: (traineeId: string | null) => void
   onImportProgram?: () => void
   onSaved?: (program: CoachProgram) => void
   programId?: string
@@ -528,6 +531,7 @@ export function ProgramEditor({
   initialExerciseOptions = [],
   initialTraineeOptions = [],
   onClose,
+  onGenerateWithAI,
   onImportProgram,
   onSaved,
   programId,
@@ -1254,6 +1258,17 @@ export function ProgramEditor({
                   {messages.coach.importProgram}
                 </Button>
               ) : null}
+              {!programId && onGenerateWithAI ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl bg-transparent"
+                  onClick={() => onGenerateWithAI(selectedTraineeIds[0] ?? null)}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {messages.coach.generateWithAI}
+                </Button>
+              ) : null}
               {programId && assignedTrainees.length > 0 && (
                 <ExportProgramLogsDialog
                   assignedTrainees={assignedTrainees}
@@ -1443,6 +1458,12 @@ export function ProgramEditor({
                 <Button type="button" variant="outline" className="bg-transparent" onClick={onImportProgram}>
                   <Upload className="h-4 w-4" />
                   {messages.coach.importProgram}
+                </Button>
+              ) : null}
+              {!programId && onGenerateWithAI ? (
+                <Button type="button" variant="outline" className="bg-transparent" onClick={() => onGenerateWithAI(selectedTraineeIds[0] ?? null)}>
+                  <Sparkles className="h-4 w-4" />
+                  {messages.coach.generateWithAI}
                 </Button>
               ) : null}
               {programId && assignedTrainees.length > 0 && (
