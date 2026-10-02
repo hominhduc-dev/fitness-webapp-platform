@@ -232,6 +232,18 @@ enum ActivityLevel {
   very_active
 }
 
+/// Training intent a program is built for; drives its phase and RIR targets.
+enum TrainingGoal {
+  athletic_performance
+  endurance
+  fat_loss
+  general_fitness
+  hypertrophy
+  powerbuilding
+  rehab_corrective
+  strength
+}
+
 enum VolumeProfileSource {
   system
   coach
@@ -606,9 +618,9 @@ model Program {
   forks               Program[]           @relation("ProgramFork")
   googleSpreadsheetId String?
   googleSheetName     String?
-  /// Training intent for program-scoped analysis, e.g. build_muscle,
-  /// hypertrophy, strength, endurance. Null keeps legacy programs compatible.
-  goal                String?
+  /// Training intent for program-scoped analysis. Null keeps programs that
+  /// never named one, and those whose old free-text goal mapped to nothing.
+  goal                TrainingGoal?
   createdById         String              @db.Uuid
   createdBy           User                @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Cascade)
   workouts            Workout[]

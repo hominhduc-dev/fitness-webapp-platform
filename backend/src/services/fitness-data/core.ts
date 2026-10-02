@@ -5831,7 +5831,7 @@ async function createCoachProgram(
 
   const googleSpreadsheetId = input.googleSpreadsheetId?.trim() || undefined
   const googleSheetName = input.googleSheetName?.trim() || undefined
-  const programGoal = normalizeTrainingGoal(input.goal) ?? (input.goal?.trim() || undefined)
+  const programGoal = normalizeTrainingGoal(input.goal)
   await assertGoogleSpreadsheetNotInUse(db, profile.id, googleSpreadsheetId)
 
   const { notifications, program } = await retryTransaction(() => db.$transaction(async (tx) => {
@@ -5998,7 +5998,7 @@ async function updateCoachProgram(
 
   const notifications = await retryTransaction(() => db.$transaction(async (tx) => {
     const reusableWorkoutIds = buildReusableWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts)
-    const programGoal = normalizeTrainingGoal(input.goal) ?? (input.goal?.trim() || existingProgram.goal || undefined)
+    const programGoal = normalizeTrainingGoal(input.goal) ?? existingProgram.goal
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(
       existingProgram.id,
       input.workouts,
@@ -6294,7 +6294,7 @@ async function adjustCoachProgramForTrainee(
   const adjustedProgram = await retryTransaction(() => db.$transaction(async (transaction) => {
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
-    const programGoal = normalizeTrainingGoal(input.goal) ?? (input.goal?.trim() || existingProgram.goal || undefined)
+    const programGoal = normalizeTrainingGoal(input.goal) ?? existingProgram.goal
     const updatedWorkoutIds = buildUpdatedWorkoutIdsForProgramInput(existingProgram as ProgramRecord, input.workouts, workoutRows)
     const coachUpdatesByWorkoutId = buildCoachUpdatePayloadForProgramInput(
       existingProgram as ProgramRecord,
