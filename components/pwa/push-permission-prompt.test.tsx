@@ -95,12 +95,11 @@ describe("PushPermissionPrompt", () => {
     expect(canShowPushPrompt(Date.now() + 4 * 86_400_000)).toBe(true)
   })
 
-  it("explains the Home Screen install on iOS instead of asking for permission", async () => {
+  it("leaves iOS outside the Home Screen to the install prompt", async () => {
     state.push.state = "ios_install_required"
     await renderAfterDelay()
 
-    expect(screen.getByText("Add YeahBuddy to your Home Screen")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Turn on" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
   it("restores a lost subscription silently when permission is already granted", async () => {

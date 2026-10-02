@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Share } from "lucide-react"
+import { Bell } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -25,9 +25,8 @@ const WORKOUT_START_PATTERN = /^\/workout\/[^/]+\/start(\/|$)/
  * this banner supplies the gesture and the reason, which keeps the one-shot native
  * prompt for people who already said yes here.
  *
- * On iOS the banner explains the Home Screen install instead: Safari exposes Web
- * Push only to installed web apps, so `Notification.requestPermission()` in a tab
- * would fail no matter how it is triggered.
+ * On iOS, Safari exposes Web Push only to Home Screen web apps, so outside one
+ * this stays hidden and InstallPrompt asks the user to install first.
  */
 export function PushPermissionPrompt() {
   const { messages } = useLocale()
@@ -50,7 +49,9 @@ export function PushPermissionPrompt() {
     void subscribe().catch(() => undefined)
   }, [enabled, signedIn, state, subscribe])
 
-  const askable = state === "disabled" || state === "ios_install_required"
+  // On iOS outside the Home Screen there is nothing to ask yet: InstallPrompt
+  // walks the user through installing first, then this asks for permission.
+  const askable = state === "disabled"
   const onWorkoutStart = pathname ? WORKOUT_START_PATTERN.test(pathname) : false
   const eligible = signedIn && askable && !onWorkoutStart
 
@@ -98,12 +99,10 @@ export function PushPermissionPrompt() {
 
   if (!open) return null
 
-  const iosInstall = state === "ios_install_required"
-
   return (
     <div
       role="dialog"
-      aria-label={iosInstall ? copy.iosTitle : copy.title}
+      aria-label={copy.title}
       className={cn(
         "fixed z-40 pointer-events-auto",
         "bottom-[calc(var(--mobile-nav-offset)+4.25rem)] left-1/2 w-[calc(100%-2rem)] max-w-[390px] -translate-x-1/2",
@@ -117,33 +116,25 @@ export function PushPermissionPrompt() {
       >
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            {iosInstall ? <Share className="size-4" /> : <Bell className="size-4" />}
+            <Bell className="size-4" />
           </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-5 text-foreground">
-              {iosInstall ? copy.iosTitle : copy.title}
+              {copy.title}
             </p>
             <p className="mt-0.5 text-xs leading-4 text-muted-foreground sm:text-sm sm:leading-5">
-              {iosInstall ? copy.iosBody : copy.body}
+              {copy.body}
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-end gap-2">
-          {iosInstall ? (
-            <Button size="sm" onClick={handleDismiss}>
-              {copy.iosAction}
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={isBusy}>
-                {copy.dismiss}
-              </Button>
-              <Button size="sm" onClick={() => void handleEnable()} disabled={isBusy}>
-                {isBusy ? messages.common.loading : copy.enable}
-              </Button>
-            </>
-          )}
+          <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={isBusy}>
+            {copy.dismiss}
+          </Button>
+          <Button size="sm" onClick={() => void handleEnable()} disabled={isBusy}>
+            {isBusy ? messages.common.loading : copy.enable}
+          </Button>
         </div>
       </div>
     </div>
