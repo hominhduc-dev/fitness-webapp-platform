@@ -3,10 +3,12 @@
 import dynamic from "next/dynamic"
 import { createPortal } from "react-dom"
 
+import type { AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import type { CoachProgram, CoachTrainee } from "@/lib/fitness/types"
 import type { ExerciseVariationOption } from "@/lib/types"
 
 type ProgramEditorLazyProps = {
+  initialAIDraft?: AIProgramDraft
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void

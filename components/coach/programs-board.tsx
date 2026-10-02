@@ -11,7 +11,7 @@ import { userQueryKey } from "@/lib/queries/scoped"
 import { requireAccessToken } from "@/lib/queries/token"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AssignClientsDialog } from "@/components/coach/assign-clients-dialog"
-import { CoachAIProgramDialog } from "@/components/coach/coach-ai-program-assistant"
+import { CoachAIProgramDialog, type AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import { ExportProgramLogsDialog } from "@/components/coach/export-program-logs-dialog"
 import { ImportProgramDialog } from "@/components/coach/import-program-dialog"
 import { ProgramCard } from "@/components/coach/program-card"
@@ -91,6 +91,12 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
   // Open with the trainee the editor had picked (null when none); undefined when closed.
   const [aiDialogTraineeId, setAiDialogTraineeId] = useState<string | null | undefined>(undefined)
+  // The AI draft the new-program editor starts from, until it is closed or saved.
+  const [aiDraft, setAiDraft] = useState<AIProgramDraft | null>(null)
+  const closeEditor = () => {
+    setEditorTarget(null)
+    setAiDraft(null)
+  }
   const includePersonalized = viewMode === "clients"
 
   const programsQuery = useCoachData(
@@ -238,10 +244,6 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
     setPrograms((prev) => [program, ...prev.filter((item) => item.id !== program.id)])
   }
 
-  const handleAIProgramAccepted = () => {
-    void programsQuery.refetch()
-    void traineesQuery.refetch()
-  }
 
   const toggleClientPrograms = (traineeId: string) => {
     setExpandedClientIds((current) => {
@@ -277,8 +279,12 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const aiDialog = (
     <CoachAIProgramDialog
       initialTraineeId={aiDialogTraineeId}
-      onAccepted={handleAIProgramAccepted}
       onClose={() => setAiDialogTraineeId(undefined)}
+      onEditDraft={(draft) => {
+        setAiDialogTraineeId(undefined)
+        setAiDraft(draft)
+        setEditorTarget("new")
+      }}
       open={aiDialogTraineeId !== undefined}
       trainees={trainees}
     />
@@ -287,14 +293,15 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
   const editor =
     editorTarget === null ? null : (
       <ProgramEditorLazy
+        initialAIDraft={editorTarget === "new" ? (aiDraft ?? undefined) : undefined}
         initialExerciseOptions={exerciseOptions}
         initialTraineeOptions={trainees}
         programId={editorTarget === "new" ? undefined : editorTarget}
-        onClose={() => setEditorTarget(null)}
+        onClose={closeEditor}
         onGenerateWithAI={
           editorTarget === "new"
             ? (traineeId) => {
-                setEditorTarget(null)
+                closeEditor()
                 setAiDialogTraineeId(traineeId)
               }
             : undefined
@@ -302,7 +309,7 @@ export function ProgramsBoard({ exerciseOptions: initialExerciseOptions, initial
         onImportProgram={
           editorTarget === "new"
             ? () => {
-                setEditorTarget(null)
+                closeEditor()
                 setImportOpen(true)
               }
             : undefined

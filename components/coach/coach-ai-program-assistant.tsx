@@ -9,35 +9,43 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  useAcceptCoachTraineeAIProgram,
   useAIExerciseLibrary,
   useGenerateCoachTraineeAIProgram,
 } from "@/lib/queries/ai"
 import type { AIProgramGenerationResult } from "@/lib/fitness/api"
 import type { CoachTrainee } from "@/lib/fitness/types"
 
+/** A generated draft on its way into the program editor, to be edited before saving. */
+type AIProgramDraft = {
+  generationId: string
+  goal: string
+  program: AIProgramGenerationResult["program"]
+  traineeId: string
+}
+
 type CoachAIProgramDialogProps = {
   /** The trainee picked in the editor, if any; otherwise the first on the roster. */
   initialTraineeId?: string | null
-  onAccepted?: () => void
   onClose: () => void
+  /** Accepting does not save: the draft goes to the editor for review. */
+  onEditDraft: (draft: AIProgramDraft) => void
   open: boolean
   trainees: CoachTrainee[]
 }
 
 /**
- * Generates a personalized program draft for one trainee, previews it, and on
- * accept saves it and assigns it to them. Opened from the new-program editor.
+ * Generates a personalized program draft for one trainee and previews it. The
+ * coach then edits it in the program editor, where saving creates and assigns
+ * it. Opened from the new-program editor.
  */
-function CoachAIProgramDialog({ initialTraineeId, onAccepted, onClose, open, trainees }: CoachAIProgramDialogProps) {
+function CoachAIProgramDialog({ initialTraineeId, onClose, onEditDraft, open, trainees }: CoachAIProgramDialogProps) {
   const { locale, messages } = useLocale()
   const isVi = locale === "vi"
   const [traineeId, setTraineeId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<AIProgramGenerationResult | null>(null)
+  const [draft, setDraft] = useState<(AIProgramGenerationResult & { goal: string }) | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openedFor, setOpenedFor] = useState<string | null | undefined>(undefined)
   const generateProgram = useGenerateCoachTraineeAIProgram()
-  const acceptProgram = useAcceptCoachTraineeAIProgram()
   const libraryQuery = useAIExerciseLibrary()
   const exerciseNames = useMemo(() => {
     const names = new Map<string, string>()
@@ -61,7 +69,7 @@ function CoachAIProgramDialog({ initialTraineeId, onAccepted, onClose, open, tra
   }
 
   const trainee = trainees.find((candidate) => candidate.id === traineeId) ?? null
-  const busy = generateProgram.isPending || acceptProgram.isPending
+  const busy = generateProgram.isPending
 
   const handleGenerate = async (values: FormValues) => {
     if (!trainee) return
@@ -82,7 +90,7 @@ function CoachAIProgramDialog({ initialTraineeId, onAccepted, onClose, open, tra
           sessionDuration: values.sessionDuration,
         },
       ])
-      setDraft(result)
+      setDraft({ ...result, goal: values.goal })
     } catch (generateError) {
       setError(
         generateError instanceof Error
@@ -94,23 +102,9 @@ function CoachAIProgramDialog({ initialTraineeId, onAccepted, onClose, open, tra
     }
   }
 
-  const handleAccept = async () => {
+  const handleEditDraft = () => {
     if (!draft || !trainee) return
-
-    setError(null)
-    try {
-      await acceptProgram.mutateAsync([trainee.id, draft.generationId])
-      onAccepted?.()
-      onClose()
-    } catch (acceptError) {
-      setError(
-        acceptError instanceof Error
-          ? acceptError.message
-          : isVi
-            ? "Không thể lưu và gán program AI."
-            : "Unable to save and assign the AI program.",
-      )
-    }
+    onEditDraft({ generationId: draft.generationId, goal: draft.goal, program: draft.program, traineeId: trainee.id })
   }
 
   return (
@@ -157,9 +151,10 @@ function CoachAIProgramDialog({ initialTraineeId, onAccepted, onClose, open, tra
 
             {draft ? (
               <ProgramPreview
+                acceptLabel={messages.coach.aiProgramEditDraft}
                 exerciseNames={exerciseNames}
-                isAccepting={acceptProgram.isPending}
-                onAccept={() => void handleAccept()}
+                isAccepting={false}
+                onAccept={handleEditDraft}
                 onRegenerate={() => setDraft(null)}
                 program={draft.program}
               />
@@ -177,3 +172,4 @@ function CoachAIProgramDialog({ initialTraineeId, onAccepted, onClose, open, tra
 }
 
 export { CoachAIProgramDialog }
+export type { AIProgramDraft }

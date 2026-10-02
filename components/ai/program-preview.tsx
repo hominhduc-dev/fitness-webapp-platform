@@ -40,12 +40,15 @@ function ProgramPreview({
   onAccept,
   onRegenerate,
   isAccepting,
+  acceptLabel,
 }: {
   program: PreviewProgram
   exerciseNames: Map<string, string>
   onAccept: () => void
   onRegenerate: () => void
   isAccepting: boolean
+  /** Replaces "Save program" when accepting does something else, like opening the editor. */
+  acceptLabel?: string
 }) {
   const { locale } = useLocale()
   const isVi = locale === "vi"
@@ -144,7 +147,7 @@ function ProgramPreview({
           ) : (
             <>
               <Check className="size-4" />
-              {isVi ? "Lưu chương trình" : "Save program"}
+              {acceptLabel ?? (isVi ? "Lưu chương trình" : "Save program")}
             </>
           )}
         </Button>

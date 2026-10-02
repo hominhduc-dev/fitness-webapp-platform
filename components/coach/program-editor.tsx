@@ -43,6 +43,7 @@ import {
   type Schedule,
   type StoredProgramDraft,
 } from "@/components/coach/program-draft-storage"
+import type { AIProgramDraft } from "@/components/coach/coach-ai-program-assistant"
 import { layoutLoadedSchedule, makeEmptySchedule, resizeScheduleWeeks } from "@/components/coach/program-schedule"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useCoachData, useCoachMutation } from "@/lib/queries/coach-data"
@@ -88,9 +89,11 @@ import { RoutineBuilderDialog, type RoutineDraftData, type RoutineExerciseDraft 
 import { TAG_DOT_COLOR } from "@/lib/fitness/routine-tag"
 import { SessionSlotGrid, swapDaySlots, type SessionSlotView } from "@/components/coach/session-slot-grid"
 import { useBodyScrollLock } from "@/components/ui/use-body-scroll-lock"
-import { TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
+import { normalizeTrainingGoal, TRAINING_GOAL_OPTIONS } from "@/lib/training-goals"
 
 type ProgramEditorProps = {
+  /** A new program starts from this AI draft, to be reviewed and edited before saving. */
+  initialAIDraft?: AIProgramDraft
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void
@@ -331,6 +334,46 @@ function mapProgramToSchedule(
   }
 }
 
+/** An AI draft laid out like a loaded program: each session on its week and weekday. */
+function mapAIDraftToSchedule(
+  program: AIProgramDraft["program"],
+  weeks: number,
+  exerciseOptions: ExerciseVariationOption[],
+  messages: AppMessages,
+) {
+  const optionById = new Map(exerciseOptions.map((option) => [option.id, option] as const))
+  const schedule = makeEmptySchedule(weeks)
+  const routines = program.workouts.map((workout, index): Routine => ({
+    exercises: workout.exercises.map((exercise): RoutineExercise => {
+      const option = optionById.get(exercise.variationId)
+      return {
+        fallbackEquipment: option?.equipment,
+        fallbackExerciseName: option?.exerciseName,
+        fallbackIsDefault: option?.isDefault,
+        fallbackMuscleGroup: option?.muscleGroup,
+        fallbackVariationName: option?.variationName,
+        id: createFormId(),
+        rir: exercise.rir,
+        reps: formatRepTarget({ reps: exercise.reps, repsMin: exercise.repsMin }),
+        restTime: exercise.restTime != null ? String(exercise.restTime) : "",
+        sets: exercise.sets,
+        variationId: exercise.variationId,
+        weight: exercise.weight != null ? String(exercise.weight) : "",
+      }
+    }),
+    id: createFormId(),
+    name: workout.name || messages.coach.dayFallbackName(index + 1),
+    tag: inferTag(workout.name, index),
+  }))
+
+  program.workouts.forEach((workout, index) => {
+    const weekIndex = Math.max(0, Math.min(weeks - 1, Math.round(workout.weekIndex ?? 0)))
+    schedule[weekIndex][getDayIndexFromScheduledDay(workout.scheduledDay)] = { routine: routines[index] }
+  })
+
+  return { routines, schedule: layoutLoadedSchedule(schedule) }
+}
+
 function estimateWorkoutDuration(exercises: RoutineExercise[]) {
   if (exercises.length === 0) {
     return 30
@@ -528,6 +571,7 @@ function RoutinePickerDialog({
 }
 
 export function ProgramEditor({
+  initialAIDraft,
   initialExerciseOptions = [],
   initialTraineeOptions = [],
   onClose,
@@ -636,6 +680,30 @@ export function ProgramEditor({
           ))
   }
 
+  // A new program from an AI draft fills the form once, when the exercise list
+  // can name its picks (or has failed, and the ids stand in).
+  const aiDraftIdentity = !programId && initialAIDraft ? `ai:${initialAIDraft.generationId}` : null
+  if (aiDraftIdentity && initialAIDraft && initializedProgram !== aiDraftIdentity && (rawExercisesQuery.data || rawExercisesQuery.isError)) {
+    const draftProgram = initialAIDraft.program
+    const nextWeeks = clampWeeks(draftProgram.duration || 8)
+    const mapped = mapAIDraftToSchedule(draftProgram, nextWeeks, exercisesQuery.data, messages)
+
+    setInitializedProgram(aiDraftIdentity)
+    setProgramName(draftProgram.name)
+    setDescription(draftProgram.description ?? "")
+    setDuration(String(nextWeeks))
+    setDurationDraft(String(nextWeeks))
+    if ((["beginner", "intermediate", "advanced"] as const).some((value) => value === draftProgram.difficulty)) {
+      setDifficulty(draftProgram.difficulty as CoachProgram["difficulty"])
+    }
+    setProgramGoal(normalizeTrainingGoal(initialAIDraft.goal) ?? "hypertrophy")
+    setSelectedTraineeIds([initialAIDraft.traineeId])
+    setRoutineLibrary(mapped.routines)
+    setSchedule(mapped.schedule)
+    setActiveWeek(0)
+    setNotice(messages.coach.aiProgramDraftNotice)
+  }
+
   // ─── Unsaved draft ───────────────────────────────────────────────────────
   // Edits live in memory until "Save". A copy goes to localStorage on every
   // change, so closing the editor, a reload or leaving the page keeps them,
@@ -644,7 +712,8 @@ export function ProgramEditor({
   const [draftTracking, setDraftTracking] = useState<DraftTracking | null>(null)
   const [routineDrafts, setRoutineDrafts] = useState<Record<string, RoutineDraftData>>({})
   const lastWrittenDraftRef = useRef<{ content: string; key: string } | null>(null)
-  const draftStorageKey = profile?.id ? getProgramDraftStorageKey(profile.id, programId, adjustForTraineeId) : null
+  // An AI draft keeps its own unsaved copy, apart from the blank new-program one.
+  const draftStorageKey = profile?.id ? getProgramDraftStorageKey(profile.id, programId ?? aiDraftIdentity ?? undefined, adjustForTraineeId) : null
   const serverVersion = useMemo(
     () => (programId ? (programQuery.data ? getProgramServerVersion(programQuery.data) : null) : NEW_PROGRAM_SERVER_VERSION),
     [programId, programQuery.data],
@@ -681,7 +750,9 @@ export function ProgramEditor({
 
   // Runs once the form holds the server's program (the render after the
   // initialization above), so that form is the baseline a draft differs from.
-  const isFormInitialized = !programId || initializedProgram === draftIdentity
+  const isFormInitialized = programId
+    ? initializedProgram === draftIdentity
+    : !aiDraftIdentity || initializedProgram === aiDraftIdentity
   if (draftStorageKey && serverVersion && isFormInitialized && draftTracking?.key !== draftStorageKey) {
     const stored = readProgramDraft(draftStorageKey)
     const storedRoutineDrafts = stored ? pruneRoutineDrafts(stored.form, stored.routineDrafts) : {}
@@ -1122,7 +1193,9 @@ export function ProgramEditor({
           ? await adjustProgram.mutateAsync([programId, adjustForTraineeId, payload])
           : programId
             ? await updateProgram.mutateAsync([programId, payload])
-            : await createProgram.mutateAsync([payload])
+            : await createProgram.mutateAsync([
+                initialAIDraft ? { ...payload, aiGenerationId: initialAIDraft.generationId } : payload,
+              ])
 
       if (draftTracking) {
         clearProgramDraft(draftTracking.key)

@@ -1,5 +1,6 @@
 import {
   $Enums,
+  AIGenerationType,
   Prisma,
   type BodyMetricEntry,
   CoachApprovalStatus,
@@ -26,6 +27,7 @@ import {
 import { randomUUID } from "node:crypto"
 
 import { AuthServiceError, invalidateProfileContextCache, type SerializedProfile } from "../auth.service"
+import { claimGeneration } from "../ai/acceptance"
 import { ConflictError } from "../errors"
 import { MEAL_WITH_FOOD_INCLUDE, serializeMealRecord } from "../meal-log.service"
 import {
@@ -5699,6 +5701,8 @@ async function assertGoogleSpreadsheetNotInUse(
 async function createCoachProgram(
   profile: SerializedProfile,
   input: {
+    /** The AI draft this program was edited from; marked accepted with it. */
+    aiGenerationId?: string
     assignToUserIds?: string[]
     description?: string | null
     difficulty: ProgramDifficulty
@@ -5785,6 +5789,12 @@ async function createCoachProgram(
     const programId = randomUUID()
     const { exerciseRows, setRows, workoutRows } = buildProgramTreeCreateManyData(programId, input.workouts)
 
+    // Claimed first, so a draft is used once even if the coach saves twice; a
+    // failed save rolls the claim back and the draft stays usable.
+    if (input.aiGenerationId) {
+      await claimGeneration(tx, input.aiGenerationId, profile.id, AIGenerationType.workout_program)
+    }
+
     await tx.program.create({
       data: {
         createdById: profile.id,
@@ -5793,6 +5803,7 @@ async function createCoachProgram(
         duration: Math.max(1, Math.round(input.duration)),
         goal: programGoal,
         id: programId,
+        isAIGenerated: Boolean(input.aiGenerationId),
         name: input.name.trim(),
         startDate: normalizeProgramStartDateInput(input.startDate) ?? undefined,
         googleSpreadsheetId,
@@ -5837,6 +5848,10 @@ async function createCoachProgram(
 
     if (!createdProgram) {
       throw new AuthServiceError("Không tìm thấy chương trình vừa tạo.", 404)
+    }
+
+    if (input.aiGenerationId) {
+      await tx.aIGeneration.update({ data: { programId }, where: { id: input.aiGenerationId } })
     }
 
     const assignedNotifications = assignToUserIds.length > 0

@@ -445,6 +445,8 @@ type CoachTraineeDetail = {
 }
 
 type CreateCoachProgramInput = {
+  /** The AI draft the program was edited from; the server marks it used. */
+  aiGenerationId?: string
   assignToUserIds?: string[]
   description?: string
   difficulty: CoachProgram["difficulty"]
