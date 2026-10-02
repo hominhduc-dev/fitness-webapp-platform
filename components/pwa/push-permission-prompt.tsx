@@ -1,6 +1,7 @@
 "use client"
 
 import { Bell, Share } from "lucide-react"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -131,9 +132,16 @@ export function PushPermissionPrompt() {
 
         <div className="flex items-center justify-end gap-2">
           {iosInstall ? (
-            <Button size="sm" onClick={handleDismiss}>
-              {copy.iosAction}
-            </Button>
+            <>
+              <Button size="sm" variant="ghost" onClick={handleDismiss}>
+                {copy.iosAction}
+              </Button>
+              <Button size="sm" asChild>
+                <Link href="/install" onClick={handleDismiss}>
+                  {copy.iosGuide}
+                </Link>
+              </Button>
+            </>
           ) : (
             <>
               <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={isBusy}>

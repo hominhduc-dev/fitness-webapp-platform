@@ -929,7 +929,12 @@ export function ProfileClient({ initialData }: { initialData: ProfileClientIniti
               {pushNotifications.state === "unsupported" ? (
                 <p className="leading-5">{messages.profile.pushNotificationsUnsupported}</p>
               ) : pushNotifications.state === "ios_install_required" ? (
-                <p className="leading-5">{messages.profile.pushNotificationsIosHint}</p>
+                <p className="leading-5">
+                  {messages.profile.pushNotificationsIosHint}{" "}
+                  <Link href="/install" className="font-medium text-primary underline-offset-4 hover:underline">
+                    {messages.profile.pushNotificationsIosGuide}
+                  </Link>
+                </p>
               ) : pushNotifications.state === "denied" ? (
                 <p className="leading-5">{messages.profile.pushNotificationsDenied}</p>
               ) : null}
