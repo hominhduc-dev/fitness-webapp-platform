@@ -269,7 +269,10 @@ export const coachMessages = {
       workoutLoggingTrend: "Workout logging trend",
       workoutsLogged: "Workouts logged",
       // trainee-detail-client tabs
+      traineeList: "Trainee list",
       tabOverview: "Overview",
+      tabTraining: "Training",
+      tabNutritionBody: "Nutrition & Body",
       tabCheckIns: "Check-ins",
       tabNutrition: "Nutrition",
       tabWorkoutLogs: "Workout logs",
@@ -639,7 +642,10 @@ export const coachMessages = {
       workoutLoggingTrend: "Xu hướng log buổi tập",
       workoutsLogged: "Buổi tập đã log",
       // trainee-detail-client tabs
+      traineeList: "Danh sách học viên",
       tabOverview: "Tổng quan",
+      tabTraining: "Tập luyện",
+      tabNutritionBody: "Dinh dưỡng & cơ thể",
       tabCheckIns: "Check-in",
       tabNutrition: "Dinh dưỡng",
       tabWorkoutLogs: "Log buổi tập",
