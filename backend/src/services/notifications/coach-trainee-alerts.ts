@@ -6,6 +6,7 @@ import {
   getSnapshotMaxE1RM,
   getSnapshotVariationId,
   parseWorkoutLogSnapshotExercises,
+  type WorkoutLogSnapshotExercise,
 } from "../fitness-data/shared/workout-snapshot"
 import type { NotificationDraft } from "./notification-dispatch.service"
 
@@ -79,13 +80,41 @@ function detectLowReadiness(input: TraineeAlertInput): CoachTraineeAlert | null 
   }
 }
 
+type LiftWeek = { bestE1rm: number; repsByWeight: Map<number, number>; topWeight: number }
+
+/** Completed working sets as weight → most reps done at it. */
+function repsByWeight(exercise: WorkoutLogSnapshotExercise) {
+  const result = new Map<number, number>()
+  for (const set of exercise.sets ?? []) {
+    if (set?.completed !== true || set.intensityTag === "warmup") continue
+    if (typeof set.weight !== "number" || set.weight <= 0 || typeof set.actualReps !== "number" || set.actualReps <= 0) continue
+    result.set(set.weight, Math.max(result.get(set.weight) ?? 0, set.actualReps))
+  }
+  return result
+}
+
 /**
- * A lift trained in each of the last three weeks whose best e1RM in the two
- * later weeks did not beat the first. Fewer weeks of data is not a plateau.
+ * Any of three kinds of progress counts: a higher e1RM, a heavier top set (a
+ * weight PR), or more reps at a weight already used in the first week (a rep
+ * PR). The rep check matters because the e1RM credits logged RIR: 80×8 @2 RIR
+ * and 80×9 @1 RIR estimate the same, yet the second is a better set.
+ */
+function progressedSince(first: LiftWeek, later: readonly LiftWeek[]) {
+  return later.some((week) =>
+    week.bestE1rm > first.bestE1rm
+    || week.topWeight > first.topWeight
+    || Array.from(week.repsByWeight).some(([weight, reps]) => reps > (first.repsByWeight.get(weight) ?? Infinity)),
+  )
+}
+
+/**
+ * A lift trained in each of the last three weeks with no e1RM, weight or rep PR
+ * in the two later weeks against the first. Fewer weeks of data is not a
+ * plateau, and neither is a lift still adding reps at the same load.
  */
 function detectPlateau(input: TraineeAlertInput): CoachTraineeAlert | null {
   const weekOf = (date: Date) => Math.floor((input.now.getTime() - date.getTime()) / (7 * DAY_MS))
-  const byLift = new Map<string, { name: string; weeks: Map<number, number> }>()
+  const byLift = new Map<string, { name: string; weeks: Map<number, LiftWeek> }>()
 
   for (const log of input.logs) {
     const week = weekOf(log.startedAt)
@@ -97,8 +126,14 @@ function detectPlateau(input: TraineeAlertInput): CoachTraineeAlert | null {
       const name = getSnapshotExerciseName(exercise)
       if (!best || !key || !name) continue
 
-      const lift = byLift.get(key) ?? { name, weeks: new Map<number, number>() }
-      lift.weeks.set(week, Math.max(lift.weeks.get(week) ?? 0, best.e1rm))
+      const lift = byLift.get(key) ?? { name, weeks: new Map<number, LiftWeek>() }
+      const existing = lift.weeks.get(week) ?? { bestE1rm: 0, repsByWeight: new Map<number, number>(), topWeight: 0 }
+      for (const [weight, reps] of repsByWeight(exercise)) {
+        existing.repsByWeight.set(weight, Math.max(existing.repsByWeight.get(weight) ?? 0, reps))
+        existing.topWeight = Math.max(existing.topWeight, weight)
+      }
+      existing.bestE1rm = Math.max(existing.bestE1rm, best.e1rm)
+      lift.weeks.set(week, existing)
       byLift.set(key, lift)
     }
   }
@@ -106,8 +141,8 @@ function detectPlateau(input: TraineeAlertInput): CoachTraineeAlert | null {
   const stalled = Array.from(byLift.values()).flatMap((lift) => {
     if (lift.weeks.size < PLATEAU_WEEKS) return []
     const first = lift.weeks.get(PLATEAU_WEEKS - 1)!
-    const later = Math.max(...Array.from({ length: PLATEAU_WEEKS - 1 }, (_, week) => lift.weeks.get(week) ?? 0))
-    return later <= first ? [lift.name] : []
+    const later = Array.from({ length: PLATEAU_WEEKS - 1 }, (_, week) => lift.weeks.get(week)!)
+    return progressedSince(first, later) ? [] : [lift.name]
   })
 
   return stalled.length > 0
@@ -127,7 +162,7 @@ function describeAlert(alert: CoachTraineeAlert, traineeName: string) {
     case "low_readiness":
       return `${traineeName}'s readiness has been below ${LOW_READINESS} for ${alert.days} days (avg ${alert.averageReadiness}).`
     case "plateau":
-      return `${traineeName} has not progressed on ${alert.exercises.join(", ")} in ${PLATEAU_WEEKS} weeks.`
+      return `${traineeName} has set no e1RM, weight or rep PR on ${alert.exercises.join(", ")} in ${PLATEAU_WEEKS} weeks.`
   }
 }
 

@@ -20,7 +20,7 @@ export const notificationsMessages = {
             `Readiness below 50 for ${days} days (avg ${average}). Consider easing the load.`,
           missedWorkouts: (completed: number, planned: number) =>
             `Completed ${completed} of ${planned} planned sessions in the last 7 days.`,
-          plateau: (exercises: string) => `No progress on ${exercises} in 3 weeks.`,
+          plateau: (exercises: string) => `No e1RM, weight or rep PR on ${exercises} in 3 weeks.`,
           title: (trainee: string) => `${trainee} needs a look`,
         },
         coachWeeklyReview: {
@@ -128,7 +128,7 @@ export const notificationsMessages = {
             `Readiness dưới 50 suốt ${days} ngày (trung bình ${average}). Cân nhắc giảm tải.`,
           missedWorkouts: (completed: number, planned: number) =>
             `Hoàn thành ${completed}/${planned} buổi theo kế hoạch trong 7 ngày qua.`,
-          plateau: (exercises: string) => `Không tiến bộ ở ${exercises} trong 3 tuần.`,
+          plateau: (exercises: string) => `Không có PR e1RM, tạ hay rep ở ${exercises} trong 3 tuần.`,
           title: (trainee: string) => `${trainee} cần bạn xem`,
         },
         coachWeeklyReview: {

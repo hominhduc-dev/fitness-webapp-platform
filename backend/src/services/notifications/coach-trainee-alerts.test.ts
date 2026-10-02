@@ -5,12 +5,12 @@ import { buildCoachTraineeAlertDraft, detectCoachTraineeAlerts } from "./coach-t
 const now = new Date("2026-09-28T12:00:00.000Z")
 const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 
-function benchLog(day: number, weight: number) {
+function benchLog(day: number, weight: number, reps = 5, rir?: number) {
   return {
     exerciseSnapshot: [
       {
         exercise: { id: "exercise-bench", name: "Bench Press" },
-        sets: [{ actualReps: 5, completed: true, setNumber: 1, weight }],
+        sets: [{ actualReps: reps, completed: true, rir, setNumber: 1, weight }],
         variation: { id: "variation-bench", isDefault: true, name: "Default" },
       },
     ],
@@ -48,6 +48,17 @@ describe("coach trainee alerts", () => {
     expect(detectCoachTraineeAlerts({ checkIns: [], logs: progressing, now, workoutsPerWeek: 0 })).toEqual([])
     // Two weeks of data is too little to call a plateau.
     expect(detectCoachTraineeAlerts({ checkIns: [], logs: stalled.slice(1), now, workoutsPerWeek: 0 })).toEqual([])
+  })
+
+  it("does not call a lift still adding reps at the same load a plateau", () => {
+    // 80×8 @2, 80×9 @1, 80×10 @0 all estimate the same e1RM once RIR is counted.
+    const repProgress = [benchLog(16, 80, 8, 2), benchLog(9, 80, 9, 1), benchLog(2, 80, 10, 0)]
+    expect(detectCoachTraineeAlerts({ checkIns: [], logs: repProgress, now, workoutsPerWeek: 0 })).toEqual([])
+
+    // The same reps at the same load and effort for three weeks is.
+    const flat = [benchLog(16, 80, 8, 2), benchLog(9, 80, 8, 2), benchLog(2, 80, 8, 2)]
+    expect(detectCoachTraineeAlerts({ checkIns: [], logs: flat, now, workoutsPerWeek: 0 }))
+      .toEqual([{ exercises: ["Bench Press"], kind: "plateau" }])
   })
 
   it("dedupes each alert per coach, trainee, kind and week", () => {
