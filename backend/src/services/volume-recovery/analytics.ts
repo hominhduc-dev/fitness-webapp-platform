@@ -13,9 +13,11 @@ import {
 } from "../fitness-data/shared/workout-snapshot"
 
 // v2 folds sleep duration into the readiness score; v3 scores soreness by the
-// sorest muscle rather than the average. Check-ins keep the version they were
+// sorest muscle rather than the average; v4 gives each muscle its own default
+// landmarks, compares performance with the previous sessions rather than the
+// program's first week, and lets volume climb between MEV and MAV. Check-ins keep the version they were
 // scored with, so older rows stay explainable.
-const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v3"
+const VOLUME_RECOVERY_ALGORITHM_VERSION = "volume-recovery-v4"
 
 type VolumeLogRecord = {
   exerciseSnapshot: Prisma.JsonValue | null
@@ -60,6 +62,7 @@ type RecommendationAction = "decrease" | "deload" | "increase" | "maintain"
 
 type RecommendationReason =
   | "above_mrv"
+  | "below_mav"
   | "below_mev"
   | "collect_more_performance"
   | "inside_mav"
@@ -173,13 +176,25 @@ function aggregateWeeklyMuscleVolume(logs: readonly VolumeLogRecord[]) {
     .sort((left, right) => right.effectiveSets - left.effectiveSets || left.muscleSlug.localeCompare(right.muscleSlug))
 }
 
+/**
+ * Per-muscle performance change, as the average e1RM change of the variations
+ * that train it.
+ *
+ * This week's side takes each variation's best set. The earlier side takes the
+ * variation's most recent session rather than its best one, so the comparison
+ * is against where the trainee just was: measured against an old best — or
+ * against the first week of a program, as this used to be — a slide over the
+ * last fortnight hides behind the gains made before it.
+ */
 function buildMusclePerformanceTrend(currentLogs: readonly VolumeLogRecord[], previousLogs: readonly VolumeLogRecord[]) {
-  type ExercisePerformance = { e1rm: number; muscles: string[] }
+  type ExercisePerformance = { e1rm: number; muscles: string[]; startedAt: number }
 
-  function bestByVariation(logs: readonly VolumeLogRecord[]) {
+  function performanceByVariation(logs: readonly VolumeLogRecord[], pick: "best" | "latest") {
     const result = new Map<string, ExercisePerformance>()
 
     for (const log of logs) {
+      const startedAt = log.startedAt.getTime()
+
       for (const exercise of parseWorkoutLogSnapshotExercises(log.exerciseSnapshot)) {
         const best = getSnapshotMaxE1RM(exercise)
         const key = getSnapshotVariationId(exercise) ?? getSnapshotExerciseId(exercise)
@@ -188,15 +203,18 @@ function buildMusclePerformanceTrend(currentLogs: readonly VolumeLogRecord[], pr
         const targets = muscleTargets(exercise)
         const muscles = Array.from(new Set([...targets.primary, ...targets.secondary]))
         const existing = result.get(key)
-        if (!existing || best.e1rm > existing.e1rm) result.set(key, { e1rm: best.e1rm, muscles })
+        const replaces = !existing
+          || (pick === "best" && best.e1rm > existing.e1rm)
+          || (pick === "latest" && (startedAt > existing.startedAt || (startedAt === existing.startedAt && best.e1rm > existing.e1rm)))
+        if (replaces) result.set(key, { e1rm: best.e1rm, muscles, startedAt })
       }
     }
 
     return result
   }
 
-  const current = bestByVariation(currentLogs)
-  const previous = bestByVariation(previousLogs)
+  const current = performanceByVariation(currentLogs, "best")
+  const previous = performanceByVariation(previousLogs, "latest")
   const deltas = new Map<string, number[]>()
 
   current.forEach((currentValue, key) => {
@@ -275,9 +293,14 @@ function classifyVolumeZone(effectiveSets: number, landmarks: VolumeLandmarks): 
   return "above_mrv"
 }
 
+/** Most a recommendation's confidence drops when none of its sets carried an RIR. */
+const MISSING_RIR_CONFIDENCE_PENALTY = 0.2
+
 function buildVolumeRecommendation(input: {
   effectiveSets: number
   landmarks: VolumeLandmarks
+  /** Effective sets logged without an RIR; they count, but say less about effort. */
+  lowConfidenceSets?: number
   performanceChangePct: number | null
   readinessScore: number | null
   recoveryCheckInCount: number
@@ -298,6 +321,12 @@ function buildVolumeRecommendation(input: {
     action = "increase"
     recommendedSets = effectiveSets + 1
     reasons.push("below_mev", "recovery_good")
+  } else if (zone === "mev_to_mav" && recovered && performanceStableOrUp) {
+    // Growing but not yet in the productive range: one more set, and only on
+    // evidence that the current volume is being recovered from.
+    action = "increase"
+    recommendedSets = effectiveSets + 1
+    reasons.push("below_mav", "recovery_good")
   } else if (zone === "above_mrv" && recoveryPoor && performanceDown && hasEnoughRecovery) {
     action = "deload"
     recommendedSets = Math.max(0, round(effectiveSets * 0.6))
@@ -313,8 +342,12 @@ function buildVolumeRecommendation(input: {
     )
   }
 
+  const missingRirShare = effectiveSets > 0 ? clamp((input.lowConfidenceSets ?? 0) / effectiveSets, 0, 1) : 0
   const confidence = clamp(
-    input.landmarks.confidence + (performanceChangePct == null ? 0 : 0.2) + Math.min(recoveryCheckInCount, 3) * 0.1,
+    input.landmarks.confidence
+      + (performanceChangePct == null ? 0 : 0.2)
+      + Math.min(recoveryCheckInCount, 3) * 0.1
+      - missingRirShare * MISSING_RIR_CONFIDENCE_PENALTY,
     0.2,
     0.95,
   )

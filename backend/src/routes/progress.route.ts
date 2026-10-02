@@ -55,6 +55,7 @@ progressRouter.put(
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     sendData(res, await setVolumeRecommendationStatusForTrainee(profile, {
       muscleSlug: req.body.muscleSlug,
+      programId: req.body.programId,
       status: req.body.status,
       weekStart: req.body.weekStart ? new Date(`${req.body.weekStart}T00:00:00.000Z`) : undefined,
     }))

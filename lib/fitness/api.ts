@@ -1535,7 +1535,7 @@ async function fetchRecoveryHistory(accessToken: string, days = 30): Promise<Rec
 
 async function setVolumeRecommendationStatus(
   accessToken: string,
-  input: { muscleSlug: string; status: "accepted" | "applied" | "dismissed"; weekStart?: string },
+  input: { muscleSlug: string; programId?: string; status: "accepted" | "applied" | "dismissed"; weekStart?: string },
 ) {
   const response = await request<ApiEnvelope<{ muscleSlug: string | null; status: string; weekStart: string }>>(
     "/api/progress/volume-recommendation",

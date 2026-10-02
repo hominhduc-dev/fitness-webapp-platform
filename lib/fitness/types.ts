@@ -684,6 +684,7 @@ type VolumeRecommendationAction = "decrease" | "deload" | "increase" | "maintain
 
 type VolumeRecommendationReason =
   | "above_mrv"
+  | "below_mav"
   | "below_mev"
   | "collect_more_performance"
   | "inside_mav"

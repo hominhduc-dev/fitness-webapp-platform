@@ -806,6 +806,7 @@ function WorkoutSession() {
     handleAddSet(exerciseId)
     answerRecommendation.mutate({
       muscleSlug: hint.muscleSlug,
+      programId: volumeRecoveryQuery.data?.programContext?.programId,
       status: "applied",
       weekStart: volumeRecoveryQuery.data?.weekStart,
     })

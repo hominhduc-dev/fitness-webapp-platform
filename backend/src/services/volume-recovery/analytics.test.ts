@@ -191,4 +191,53 @@ describe("volume recovery analytics", () => {
     expect(trend.get("chest")).toBeCloseTo(3.1, 1)
     expect(trend.get("triceps")).toBeCloseTo(3.1, 1)
   })
+
+  it("adds a set between MEV and MAV only on evidence the volume is being recovered from", () => {
+    const base = {
+      effectiveSets: 9,
+      landmarks: DEFAULT_VOLUME_LANDMARKS,
+      recoveryCheckInCount: 2,
+      soreness: 1,
+      zone: "mev_to_mav" as const,
+    }
+
+    expect(buildVolumeRecommendation({ ...base, performanceChangePct: 1.5, readinessScore: 78 }))
+      .toMatchObject({ action: "increase", reasons: ["below_mav", "recovery_good"], recommendedSets: 10 })
+
+    // Recovered but nothing to compare against yet: hold.
+    expect(buildVolumeRecommendation({ ...base, performanceChangePct: null, readinessScore: 78 }).action).toBe("maintain")
+    // Performing but not recovered: hold.
+    expect(buildVolumeRecommendation({ ...base, performanceChangePct: 1.5, readinessScore: 60 }).action).toBe("maintain")
+  })
+
+  it("trusts a recommendation less when its sets were logged without an RIR", () => {
+    const base = {
+      effectiveSets: 12,
+      landmarks: DEFAULT_VOLUME_LANDMARKS,
+      performanceChangePct: 1,
+      readinessScore: 75,
+      recoveryCheckInCount: 3,
+      soreness: 1,
+      zone: "mav" as const,
+    }
+
+    const withRir = buildVolumeRecommendation({ ...base, lowConfidenceSets: 0 })
+    const halfMissing = buildVolumeRecommendation({ ...base, lowConfidenceSets: 6 })
+
+    expect(withRir.confidence).toBe(0.75)
+    expect(halfMissing.confidence).toBe(0.65)
+  })
+
+  it("compares with the most recent earlier session rather than an older best", () => {
+    const trend = buildMusclePerformanceTrend(
+      [log([exercise({ weight: 80 })], "2026-09-14")],
+      [
+        log([exercise({ weight: 85 })], "2026-09-01"),
+        log([exercise({ weight: 82.5 })], "2026-09-08"),
+      ],
+    )
+
+    // 80 vs the latest 82.5, not vs the 85 from two weeks back.
+    expect(trend.get("chest")).toBeCloseTo(-3, 0)
+  })
 })
