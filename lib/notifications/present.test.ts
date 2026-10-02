@@ -143,4 +143,29 @@ describe("presentNotification", () => {
       title: "Exercise not shared",
     })
   })
+
+  it("names the swap and the session it happened in", () => {
+    const swap = notification({
+      metadata: {
+        kind: "trainee_swapped_exercise",
+        newExerciseName: "Hack Squat",
+        oldExerciseName: "Barbell Squat",
+        programName: "Meso 4",
+        traineeId: "t1",
+        traineeName: "Linh",
+        workoutName: "Leg Day",
+      },
+      type: "general",
+    })
+
+    expect(presentNotification(swap, getMessages("vi"), "vi")).toEqual({
+      href: "/coach/trainees/t1",
+      message: "Linh đã đổi Barbell Squat → Hack Squat trong Leg Day.",
+      title: "Yêu cầu đổi bài cần duyệt",
+    })
+    // Requests sent before the session was recorded fall back to the program.
+    const { workoutName: _workoutName, ...older } = swap.metadata ?? {}
+    expect(presentNotification({ ...swap, metadata: older }, getMessages("en"), "en").message)
+      .toBe("Linh swapped Barbell Squat → Hack Squat in Meso 4.")
+  })
 })

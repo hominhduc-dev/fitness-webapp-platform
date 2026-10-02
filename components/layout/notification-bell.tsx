@@ -2,7 +2,7 @@
 
 import { formatDistanceToNow } from "date-fns"
 import { enUS, vi } from "date-fns/locale"
-import { Bell, Check, CheckCheck, Loader2, RotateCcw, Settings, X } from "lucide-react"
+import { ArrowRight, Bell, Check, CheckCheck, Loader2, RotateCcw, Settings, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -20,7 +20,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AppNotification } from "@/lib/fitness/types"
-import { presentNotification } from "@/lib/notifications/present"
+import type { AppMessages } from "@/lib/i18n/messages"
+import { presentNotification, resolveNotificationHref } from "@/lib/notifications/present"
 import { setAppBadge } from "@/lib/pwa/app-badge"
 import { useApproveTraineeExerciseSwap, useRejectTraineeExerciseSwap } from "@/lib/queries/coach"
 import {
@@ -35,13 +36,28 @@ function formatBadge(count: number) {
   return count > 9 ? "9+" : String(count)
 }
 
-function isPendingExerciseSwapApproval(notification: AppNotification) {
-  return notification.type === "general" &&
-    notification.metadata?.kind === "trainee_swapped_exercise" &&
-    typeof notification.metadata?.approvedAt !== "string" &&
-    typeof notification.metadata?.rejectedAt !== "string" &&
-    // The trainee swapped the same exercise again; only the newest request counts.
-    typeof notification.metadata?.supersededAt !== "string"
+type SwapStatus = "approved" | "closed" | "pending" | "rejected" | "superseded"
+
+/** Where a trainee's exercise swap request stands; null for any other notification. */
+function readSwapStatus(notification: AppNotification): SwapStatus | null {
+  const metadata = notification.metadata
+  if (notification.type !== "general" || metadata?.kind !== "trainee_swapped_exercise") return null
+  if (typeof metadata.approvedAt === "string") return "approved"
+  // The trainee swapped the same exercise again; only the newest request counts.
+  if (typeof metadata.supersededAt === "string") return "superseded"
+  if (typeof metadata.rejectedAt === "string") {
+    // Closed by the server because it could no longer be applied, not by the coach.
+    return typeof metadata.rejectionReason === "string" ? "closed" : "rejected"
+  }
+  return "pending"
+}
+
+const SWAP_STATUS_CLASS: Record<SwapStatus, string> = {
+  approved: "bg-success-soft text-success-text",
+  closed: "bg-muted text-muted-foreground",
+  pending: "bg-warning-soft text-warning-text",
+  rejected: "bg-muted text-muted-foreground",
+  superseded: "bg-muted text-muted-foreground",
 }
 
 /**
@@ -70,8 +86,12 @@ export function NotificationBell({
   const rejectExerciseSwap = useRejectTraineeExerciseSwap()
   const [selectedSwap, setSelectedSwap] = useState<AppNotification | null>(null)
   const { toast } = useToast()
-  // A refused approval or rejection must not look like it went through.
-  const reportSwapError = (error: Error) => toast({ title: error.message, tone: "error" })
+  // A refused approval or rejection must not look like it went through. The
+  // request is refetched either way, and its row shows where it now stands.
+  const reportSwapError = (error: Error) => {
+    toast({ title: error.message, tone: "error" })
+    setSelectedSwap(null)
+  }
 
   const notifications = query.data?.notifications ?? []
   const unreadCount = query.data?.unreadCount ?? 0
@@ -157,15 +177,13 @@ export function NotificationBell({
             notifications.map((notification) => {
               const view = presentNotification(notification, messages, locale, now)
               const unread = !notification.readAt
-              const canApproveSwap = isPendingExerciseSwapApproval(notification)
-              const isApprovingSwap =
-                approveExerciseSwap.isPending && approveExerciseSwap.variables === notification.id
+              const swapStatus = readSwapStatus(notification)
 
               return (
                 <DropdownMenuItem
                   key={notification.id}
                   onSelect={() => {
-                    if (canApproveSwap) {
+                    if (swapStatus === "pending") {
                       handleSelect(notification, null)
                       setSelectedSwap(notification)
                     } else {
@@ -187,31 +205,19 @@ export function NotificationBell({
                       {view.title}
                     </span>
                     <span className="line-clamp-3 text-xs text-muted-foreground">{view.message}</span>
-                    {canApproveSwap ? (
-                      <button
-                        type="button"
-                        disabled={isApprovingSwap}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          approveExerciseSwap.mutate(notification.id, { onError: reportSwapError })
-                        }}
-                        className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-md border border-primary/30 bg-primary-soft px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft/80 disabled:pointer-events-none disabled:opacity-70"
+                    <span className="flex items-center gap-2">
+                      {swapStatus ? (
+                        <span className={cn("rounded-sm px-1.5 py-0.5 text-micro font-medium", SWAP_STATUS_CLASS[swapStatus])}>
+                          {copy.swapReview.status[swapStatus]}
+                        </span>
+                      ) : null}
+                      <time
+                        dateTime={notification.createdAt.toISOString()}
+                        className="text-micro text-muted-foreground"
                       >
-                        {isApprovingSwap ? (
-                          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
-                        ) : (
-                          <Check className="size-3" aria-hidden="true" />
-                        )}
-                        {locale === "vi" ? "Duyệt đổi bài" : "Approve swap"}
-                      </button>
-                    ) : null}
-                    <time
-                      dateTime={notification.createdAt.toISOString()}
-                      className="text-micro text-muted-foreground"
-                    >
-                      {formatDistanceToNow(notification.createdAt, { addSuffix: true, locale: dateLocale })}
-                    </time>
+                        {formatDistanceToNow(notification.createdAt, { addSuffix: true, locale: dateLocale })}
+                      </time>
+                    </span>
                   </span>
                 </DropdownMenuItem>
               )
@@ -234,11 +240,29 @@ export function NotificationBell({
             <SwapDetailDialog
               notification={selectedSwap}
               locale={locale}
+              copy={copy.swapReview}
               onApprove={() => {
-                approveExerciseSwap.mutate(selectedSwap.id, { onError: reportSwapError, onSuccess: () => setSelectedSwap(null) })
+                approveExerciseSwap.mutate(selectedSwap.id, {
+                  onError: reportSwapError,
+                  onSuccess: (result) => {
+                    if (!result.alreadyApproved) toast({ title: copy.swapReview.approved(result.updatedExerciseCount), tone: "success" })
+                    setSelectedSwap(null)
+                  },
+                })
               }}
               onReject={() => {
-                rejectExerciseSwap.mutate(selectedSwap.id, { onError: reportSwapError, onSuccess: () => setSelectedSwap(null) })
+                rejectExerciseSwap.mutate(selectedSwap.id, {
+                  onError: reportSwapError,
+                  onSuccess: () => {
+                    toast({ title: copy.swapReview.rejected, tone: "success" })
+                    setSelectedSwap(null)
+                  },
+                })
+              }}
+              onViewTrainee={(href) => {
+                setSelectedSwap(null)
+                setOpen(false)
+                router.push(href)
               }}
               approving={approveExerciseSwap.isPending}
               rejecting={rejectExerciseSwap.isPending}
@@ -250,56 +274,86 @@ export function NotificationBell({
   )
 }
 
+/** 0 = Sunday, as programs store it; read as the locale's full weekday name. */
+function formatWeekday(day: unknown, locale: string) {
+  if (typeof day !== "number" || day < 0 || day > 6) return null
+  // 2024-01-07 was a Sunday.
+  return new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "long" }).format(new Date(Date.UTC(2024, 0, 7 + day)))
+}
+
 function SwapDetailDialog({
   approving,
+  copy,
   locale,
   notification,
   onApprove,
   onReject,
+  onViewTrainee,
   rejecting,
 }: {
   approving: boolean
+  copy: AppMessages["notificationCenter"]["swapReview"]
   locale: string
   notification: AppNotification
   onApprove: () => void
   onReject: () => void
+  onViewTrainee: (href: string) => void
   rejecting: boolean
 }) {
   const metadata = notification.metadata ?? {}
-  const oldExerciseName = typeof metadata.oldExerciseName === "string" ? metadata.oldExerciseName : "Bài tập hiện tại"
-  const newExerciseName = typeof metadata.newExerciseName === "string" ? metadata.newExerciseName : "Bài tập mới"
-  const traineeName = typeof metadata.traineeName === "string" ? metadata.traineeName : "Trainee"
-  const programName = typeof notification.message === "string" ? notification.message.split(" in ").at(1)?.replace(/\.$/, "") : null
+  const text = (key: string) => (typeof metadata[key] === "string" && metadata[key] ? (metadata[key] as string) : null)
+  const from = text("oldExerciseName") ?? "—"
+  const to = text("newExerciseName") ?? "—"
+  const workoutName = text("workoutName")
+  const weekIndex = typeof metadata.workoutWeekIndex === "number" ? metadata.workoutWeekIndex : null
+  const day = formatWeekday(metadata.workoutScheduledDay, locale)
+  const traineeHref = resolveNotificationHref(notification)
+  const busy = approving || rejecting
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{locale === "vi" ? "Yêu cầu đổi bài tập" : "Exercise replacement request"}</DialogTitle>
-        <DialogDescription>
-          {locale === "vi" ? `${traineeName} muốn thay đổi bài tập trong ${programName ?? "chương trình"}.` : `${traineeName} replaced an exercise in ${programName ?? "the program"}.`}
-        </DialogDescription>
+        <DialogTitle>{copy.title}</DialogTitle>
+        <DialogDescription>{copy.description(text("traineeName") ?? "Trainee", text("programName"))}</DialogDescription>
       </DialogHeader>
-      <div className="space-y-3 py-2">
-        <div className="rounded-xl border border-border bg-muted/20 p-4">
-          <p className="label-micro text-muted-foreground">{locale === "vi" ? "Bài tập thay đổi" : "Exercise change"}</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-            <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium">{oldExerciseName}</div>
-            <span className="text-center text-muted-foreground">→</span>
-            <div className="rounded-lg border border-primary/30 bg-primary-soft px-3 py-2 text-sm font-medium text-primary">{newExerciseName}</div>
+
+      <div className="min-w-0 space-y-4">
+        <div className="rounded-xl border border-border p-3">
+          {workoutName ? (
+            <p className="mb-2.5 text-xs text-muted-foreground">{copy.session(workoutName, weekIndex === null ? null : weekIndex + 1, day)}</p>
+          ) : null}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+            <p className="min-w-0 flex-1 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground line-through decoration-muted-foreground/50">{from}</p>
+            <ArrowRight className="size-4 shrink-0 self-center rotate-90 text-muted-foreground sm:rotate-0" aria-hidden="true" />
+            <p className="min-w-0 flex-1 rounded-lg bg-primary-soft px-3 py-2 text-sm font-medium text-primary">{to}</p>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {locale === "vi" ? "Duyệt sẽ cập nhật bài tập tương ứng trong chương trình gốc. Từ chối sẽ giữ thay đổi ở bản cá nhân hóa của trainee và đóng yêu cầu này." : "Approving updates the matching exercise in the original program. Rejecting keeps the trainee's personalized change and closes this request."}
-        </p>
+
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="label-micro text-primary">{copy.ifApprove}</dt>
+            <dd className="mt-1 text-muted-foreground">{copy.afterApprove(day, weekIndex === null ? null : weekIndex + 2, to)}</dd>
+          </div>
+          <div>
+            <dt className="label-micro text-muted-foreground">{copy.ifReject}</dt>
+            <dd className="mt-1 text-muted-foreground">{copy.afterReject(from)}</dd>
+          </div>
+        </dl>
       </div>
-      <DialogFooter className="gap-2 sm:justify-end">
-        <Button variant="outline" onClick={onReject} disabled={approving || rejecting}>
+
+      <DialogFooter className="gap-2 sm:items-center">
+        {traineeHref ? (
+          <Button variant="ghost" className="sm:mr-auto" disabled={busy} onClick={() => onViewTrainee(traineeHref)}>
+            {copy.viewTrainee}
+          </Button>
+        ) : null}
+        <Button variant="outline" onClick={onReject} disabled={busy}>
           {rejecting ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
-          {locale === "vi" ? "Từ chối" : "Reject"}
+          {copy.reject}
         </Button>
-        <Button onClick={onApprove} disabled={approving || rejecting}>
+        <Button onClick={onApprove} disabled={busy}>
           {approving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          {locale === "vi" ? "Duyệt đổi bài" : "Approve swap"}
+          {copy.approve}
         </Button>
       </DialogFooter>
     </>

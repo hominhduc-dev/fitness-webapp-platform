@@ -54,7 +54,12 @@ vi.mock("../notifications/notification-dispatch.service", async (importOriginal)
   queuePushForNotifications: mocks.queuePush,
 }))
 
-import { applyTraineeExerciseOverrides, approveTraineeExerciseSwapForCoach, swapExerciseForTraineeFromWorkout } from "./core"
+import {
+  applyTraineeExerciseOverrides,
+  approveTraineeExerciseSwapForCoach,
+  rejectTraineeExerciseSwapForCoach,
+  swapExerciseForTraineeFromWorkout,
+} from "./core"
 
 const COACH_ID = "00000000-0000-4000-8000-0000000000c0"
 const TRAINEE_ID = "00000000-0000-4000-8000-0000000000a0"
@@ -93,6 +98,7 @@ function arrangeCoachProgram({ createdById = COACH_ID } = {}) {
   mocks.workoutFindFirst.mockResolvedValue({
     exercises: [targetExercise],
     id: WORKOUT_ID,
+    name: "Leg Day",
     program,
     programId: PROGRAM_ID,
     scheduledDay: 0,
@@ -120,7 +126,7 @@ describe("trainee exercise swap", () => {
     vi.clearAllMocks()
   })
 
-  it("records an override per slot instead of copying the coach's program", async () => {
+  it("keeps a coach-program swap as a session change until the coach approves", async () => {
     arrangeCoachProgram()
 
     const result = await swapExerciseForTraineeFromWorkout(trainee, swapInput)
@@ -131,17 +137,9 @@ describe("trainee exercise swap", () => {
     expect(result.forkedProgramId).toBeNull()
     expect(result.workoutId).toBe(WORKOUT_ID)
 
-    // This slot and its later recurrence, and nothing else.
-    expect(mocks.overrideUpsert).toHaveBeenCalledTimes(2)
-    expect(mocks.overrideUpsert.mock.calls.map((call) => call[0].create.workoutExerciseId)).toEqual([
-      EXERCISE_ID,
-      LATER_EXERCISE_ID,
-    ])
-    expect(mocks.overrideUpsert.mock.calls[0][0].create).toMatchObject({
-      replacedVariationId: COACH_VARIATION_ID,
-      userId: TRAINEE_ID,
-      variationId: NEW_VARIATION_ID,
-    })
+    // The log for today keeps the swap. Nothing durable changes for future
+    // workouts until the coach approves the request.
+    expect(mocks.overrideUpsert).not.toHaveBeenCalled()
   })
 
   it("tells the coach, naming their own program and their own row", async () => {
@@ -163,11 +161,15 @@ describe("trainee exercise swap", () => {
     expect(notification.metadata).toMatchObject({
       kind: "trainee_swapped_exercise",
       newVariationId: NEW_VARIATION_ID,
-      // Approving edits the coach's rows in place, so there is no other program
-      // to resolve to any more.
+      // Approval uses the coach's original slot to find the trainee's matching
+      // future session.
       originalProgramId: PROGRAM_ID,
       originalWorkoutId: WORKOUT_ID,
       traineeId: TRAINEE_ID,
+      // Shown in the review dialog so the coach knows which session it was.
+      workoutName: "Leg Day",
+      workoutScheduledDay: 0,
+      workoutWeekIndex: 0,
     })
   })
 
@@ -189,15 +191,9 @@ describe("trainee exercise swap", () => {
 
     await swapExerciseForTraineeFromWorkout(trainee, swapInput)
 
-    expect(mocks.overrideUpsert).toHaveBeenCalledTimes(2)
-    // replacedVariationId still tracks the coach's row, not the substitute it
-    // is replacing, so a later coach edit can be told apart from this swap.
-    expect(mocks.overrideUpsert.mock.calls[0][0].update).toMatchObject({
-      replacedVariationId: COACH_VARIATION_ID,
-      variationId: NEW_VARIATION_ID,
-    })
+    expect(mocks.overrideUpsert).not.toHaveBeenCalled()
 
-    // The coach is asked to move their own row, which still holds the original.
+    // The coach is asked about their own row, which still holds the original.
     expect(mocks.notificationCreate.mock.calls[0][0].data.metadata).toMatchObject({
       oldVariationId: COACH_VARIATION_ID,
     })
@@ -341,25 +337,29 @@ describe("coach approving a trainee's swap", () => {
       id: PROGRAM_ID,
       workouts: [
         { exercises: [{ id: EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }], id: WORKOUT_ID, scheduledDay: 0, weekIndex: 0 },
-        { exercises: [{ id: LATER_EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }], id: LATER_WORKOUT_ID, scheduledDay: 3, weekIndex: 0 },
+        { exercises: [{ id: LATER_EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }], id: LATER_WORKOUT_ID, scheduledDay: 0, weekIndex: 1 },
       ],
     })
   })
 
-  it("keeps a slot the trainee has since swapped to something else", async () => {
+  it("applies an approved swap to the matching future session in the trainee's program", async () => {
     mocks.notificationFindFirst.mockResolvedValue({ id: "request", metadata: request, readAt: null })
 
     await approveTraineeExerciseSwapForCoach(coach, "request")
 
-    const slots = { in: [EXERCISE_ID, LATER_EXERCISE_ID] }
-    // Only overrides that already match the approved exercise are redundant.
-    expect(mocks.overrideDeleteMany).toHaveBeenCalledWith({
-      where: { userId: TRAINEE_ID, variationId: NEW_VARIATION_ID, workoutExerciseId: slots },
+    expect(mocks.overrideUpsert).not.toHaveBeenCalled()
+    expect(mocks.workoutExerciseUpdateMany).toHaveBeenCalledWith({
+      data: { originalVariationId: COACH_VARIATION_ID },
+      where: {
+        id: { in: [LATER_EXERCISE_ID] },
+        originalVariationId: null,
+      },
     })
-    // Any other substitution now stands in for the approved row, so it stays live.
-    expect(mocks.overrideUpdateMany).toHaveBeenCalledWith({
-      data: { replacedVariationId: NEW_VARIATION_ID },
-      where: { userId: TRAINEE_ID, workoutExerciseId: slots },
+    expect(mocks.workoutExerciseUpdateMany).toHaveBeenCalledWith({
+      data: { variationId: NEW_VARIATION_ID },
+      where: {
+        id: { in: [LATER_EXERCISE_ID] },
+      },
     })
   })
 
@@ -372,5 +372,43 @@ describe("coach approving a trainee's swap", () => {
 
     await expect(approveTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/yêu cầu mới nhất/)
     expect(mocks.workoutExerciseUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it("leaves other weekdays alone, even when they hold the same exercise", async () => {
+    mocks.programFindFirst.mockResolvedValue({
+      id: PROGRAM_ID,
+      workouts: [
+        { exercises: [{ id: EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }], id: WORKOUT_ID, scheduledDay: 0, weekIndex: 0 },
+        { exercises: [{ id: LATER_EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }], id: LATER_WORKOUT_ID, scheduledDay: 3, weekIndex: 1 },
+      ],
+    })
+    mocks.notificationFindFirst.mockResolvedValue({ id: "request", metadata: request, readAt: null })
+
+    await expect(approveTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/buổi tương ứng/)
+    expect(mocks.workoutExerciseUpdateMany).not.toHaveBeenCalled()
+    // Nothing left to apply it to, so the request is closed rather than left asking.
+    expect(mocks.notificationUpdate.mock.calls[0][0].data.metadata).toMatchObject({ rejectionReason: "missing_future_workout" })
+  })
+
+  it("refuses a request that was already declined or closed", async () => {
+    mocks.notificationFindFirst.mockResolvedValue({
+      id: "request",
+      metadata: { ...request, rejectedAt: "2026-09-30T00:00:00.000Z" },
+      readAt: null,
+    })
+
+    await expect(approveTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/đã được đóng/)
+    expect(mocks.workoutExerciseUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it("will not decline a request that was already approved", async () => {
+    mocks.notificationFindFirst.mockResolvedValue({
+      id: "request",
+      metadata: { ...request, approvedAt: "2026-09-30T00:00:00.000Z" },
+      readAt: null,
+    })
+
+    await expect(rejectTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/đã được duyệt/)
+    expect(mocks.notificationUpdate).not.toHaveBeenCalled()
   })
 })
