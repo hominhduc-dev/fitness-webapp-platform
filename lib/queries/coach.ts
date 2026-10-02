@@ -20,6 +20,9 @@ import {
   cancelCoachRequest,
   fetchCoachInvites,
   respondToCoachInvite,
+  createCoachTraineeInsight,
+  fetchCoachTraineeInsight,
+  type CoachInsightWindow,
 } from "@/lib/fitness/api"
 
 export function useApproveTraineeExerciseSwap() {
@@ -204,4 +207,24 @@ export function useCoachNoteMutations(traineeId: string) {
       onSettled: refresh,
     }),
   }
+}
+
+/** The saved AI report for a trainee and window; reading it never calls the AI. */
+export function useCoachTraineeInsight(traineeId: string, days: CoachInsightWindow) {
+  return useQuery({
+    queryFn: async () => fetchCoachTraineeInsight(await requireAccessToken(), traineeId, days),
+    queryKey: queryKeys.coach.traineeInsight(traineeId, days),
+  })
+}
+
+export function useCreateCoachTraineeInsight(traineeId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: { days: CoachInsightWindow; locale: "vi" | "en" }) =>
+      createCoachTraineeInsight(await requireAccessToken(), traineeId, input),
+    onSuccess: (insight) => {
+      queryClient.setQueryData(queryKeys.coach.traineeInsight(traineeId, insight.days), insight)
+    },
+  })
 }

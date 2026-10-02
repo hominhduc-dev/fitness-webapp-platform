@@ -161,6 +161,7 @@ enum AIGenerationType {
   workout_program
   meal_plan
   nutrition_insight
+  coach_trainee_insight
 }
 
 enum NutrientKind {

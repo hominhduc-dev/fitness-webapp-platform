@@ -77,7 +77,10 @@ import {
   coachNoteTraineeParamsSchema,
   coachRequestAnswerSchema,
   coachRequestParamsSchema,
+  coachTraineeInsightBodySchema,
+  coachTraineeInsightQuerySchema,
 } from "./coach.schemas"
+import { createCoachTraineeInsight, getCoachTraineeInsight } from "../services/coach-trainee-insight.service"
 import { createCoachNote, deleteCoachNote, updateCoachNote } from "../services/fitness-data/coach-notes"
 
 const coachRouter = Router()
@@ -411,6 +414,23 @@ coachRouter.post(
     const result = await acceptCoachTraineeAIProgram(profile.profile, String(req.params.traineeId), req.body.generationId)
 
     sendData(res, { program: result })
+  }),
+)
+
+// AI report on one trainee for their coach: the last saved one, and a new one.
+coachRouter.get(
+  "/trainees/:traineeId/ai-insight",
+  validated({ params: coachNoteTraineeParamsSchema, query: coachTraineeInsightQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { insight: await getCoachTraineeInsight(profile, req.params.traineeId, req.query.days) })
+  }),
+)
+
+coachRouter.post(
+  "/trainees/:traineeId/ai-insight",
+  validated({ body: coachTraineeInsightBodySchema, params: coachNoteTraineeParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, { insight: await createCoachTraineeInsight(profile, req.params.traineeId, req.body) }, { status: 201 })
   }),
 )
 

@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useState } from "react"
+import { TraineeAIInsightPanel } from "@/components/coach/trainee-ai-insight-panel"
 import { TraineeOverview } from "@/components/coach/trainee-hub/trainee-overview"
 import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
 import { TraineeWorkoutLogsPanel } from "@/components/coach/trainee-workout-logs-panel"
@@ -22,6 +23,7 @@ import { useCoachData } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
 import { fetchCoachTraineeDetail, fetchCoachPrograms } from "@/lib/fitness/api"
 import { useLocale } from "@/components/providers/locale-provider"
+import { coachInsightMessages } from "@/lib/i18n/messages/coach-insight"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -175,6 +177,7 @@ export function CoachTraineeDetailClient({
           ["overview", messages.coach.tabOverview],
           ["nutrition", messages.coach.tabNutrition],
           ["logs", messages.coach.tabWorkoutLogs],
+          ["ai", coachInsightMessages[locale].tab],
         ].map(([value, label]) => (
           <TabsTrigger
             key={value}
@@ -552,6 +555,10 @@ export function CoachTraineeDetailClient({
             />
           </div>
         </section>
+      </TabsContent>
+      {/* ── AI analysis ───────────────────────────────────────────────────── */}
+      <TabsContent value="ai" className="space-y-4">
+        <TraineeAIInsightPanel traineeId={detail.trainee.id} />
       </TabsContent>
       <Dialog open={Boolean(expandedNutritionLog)} onOpenChange={(open) => !open && setExpandedNutritionDate(null)}>
         <DialogContent className="max-h-[86dvh] max-w-[min(94vw,560px)] overflow-hidden p-0">

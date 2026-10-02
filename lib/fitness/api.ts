@@ -381,6 +381,54 @@ export type NutritionInsight = {
   suggestedFoods: Array<{ id: string; name: string; nameEn?: string }>
 }
 
+export type CoachInsightWindow = 7 | 14 | 28
+export type CoachInsightArea = "training" | "progression" | "weight" | "nutrition" | "recovery"
+
+type CoachInsightPeriod = {
+  start: string
+  end: string
+  training: {
+    planned: number
+    completed: number
+    adherencePct: number | null
+    extraSessions: number
+    setsCompleted: number
+    setsTotal: number
+    volumeKg: number
+  }
+  nutrition: { loggedDays: number; avgCalories: number | null; avgProtein: number | null; caloriePct: number | null; proteinPct: number | null }
+  weight: { entries: number; first: number | null; last: number | null; change: number | null }
+  recovery: { checkIns: number; avgReadiness: number | null; avgSleepHours: number | null; avgStress: number | null; avgFatigue: number | null }
+  wearable: { days: number; avgSteps: number | null; avgRestingHeartRate: number | null }
+}
+
+/** A saved AI report on one trainee for their coach. Every number is computed by the backend. */
+export type CoachTraineeInsight = {
+  id: string
+  days: CoachInsightWindow
+  generatedAt: string
+  /** The trainee's data has changed, or a day has passed, since it was written. */
+  stale: boolean
+  summary: string
+  sections: Array<{ area: CoachInsightArea; tone: "good" | "warn" | "info"; text: string }>
+  suggestions: string[]
+  programNames: string[]
+  findings: {
+    days: CoachInsightWindow
+    current: CoachInsightPeriod
+    previous: CoachInsightPeriod
+    lifts: Array<{
+      name: string
+      sets: number
+      best: { weight: number; reps: number; e1rm: number }
+      previousBest: { weight: number; reps: number; e1rm: number } | null
+      changePct: number | null
+    }>
+    goals: { calories: number; protein: number; targetWeightKg: number | null }
+    toTargetKg: number | null
+  }
+}
+
 type NutritionTotals = {
   calories: number
   carbs: number
@@ -2696,6 +2744,28 @@ async function generateCoachTraineeAIProgram(accessToken: string, traineeId: str
   return response.data
 }
 
+/** The last saved report for this trainee and window, or null. Free — no AI call. */
+async function fetchCoachTraineeInsight(accessToken: string, traineeId: string, days: CoachInsightWindow): Promise<CoachTraineeInsight | null> {
+  const response = await request<ApiEnvelope<{ insight: CoachTraineeInsight | null }>>(
+    `/api/coach/trainees/${traineeId}/ai-insight?days=${days}`,
+    accessToken,
+    { cache: "no-store" },
+  )
+  return response.data.insight
+}
+
+async function createCoachTraineeInsight(
+  accessToken: string,
+  traineeId: string,
+  input: { days: CoachInsightWindow; locale?: "vi" | "en" },
+): Promise<CoachTraineeInsight> {
+  const response = await request<ApiEnvelope<{ insight: CoachTraineeInsight }>>(`/api/coach/trainees/${traineeId}/ai-insight`, accessToken, {
+    body: JSON.stringify(input),
+    method: "POST",
+  })
+  return response.data.insight
+}
+
 async function acceptAIProgram(accessToken: string, generationId: string) {
   const response = await request<ApiEnvelope<unknown>>("/api/ai/accept-program", accessToken, {
     method: "POST",
@@ -2903,6 +2973,8 @@ async function sendAIChatMessage(accessToken: string, message: string, history: 
 
 export {
   acceptAIDailyWorkout,
+  createCoachTraineeInsight,
+  fetchCoachTraineeInsight,
   acceptAIMealPlan,
   acceptAIProgram,
   acceptCoachTraineeAIProgram,
