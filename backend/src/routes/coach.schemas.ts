@@ -36,6 +36,7 @@ const insightDays = z.coerce
 
 export const coachTraineeInsightQuerySchema = z.object({
   days: insightDays.default(14),
+  locale: z.enum(["vi", "en"]).optional(),
 })
 
 export const coachTraineeInsightBodySchema = z.object({

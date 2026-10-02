@@ -5,7 +5,7 @@ import { coachTraineeInsightBodySchema, coachTraineeInsightQuerySchema } from ".
 describe("coach trainee insight schemas", () => {
   it("defaults to 14 days and reads the window from a query string", () => {
     expect(coachTraineeInsightQuerySchema.parse({})).toEqual({ days: 14 })
-    expect(coachTraineeInsightQuerySchema.parse({ days: "28" })).toEqual({ days: 28 })
+    expect(coachTraineeInsightQuerySchema.parse({ days: "28", locale: "vi" })).toEqual({ days: 28, locale: "vi" })
     expect(coachTraineeInsightBodySchema.parse({ days: 7, locale: "en" })).toEqual({ days: 7, locale: "en" })
   })
 

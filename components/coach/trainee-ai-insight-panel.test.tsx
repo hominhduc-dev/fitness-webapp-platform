@@ -46,6 +46,7 @@ const insight: CoachTraineeInsight = {
   },
   generatedAt: "2026-09-28T08:00:00.000Z",
   id: "gen-1",
+  locale: "en",
   programNames: ["Upper/Lower"],
   sections: [{ area: "training", text: "Did 5 of 6 sessions.", tone: "good" }],
   stale: false,
@@ -66,7 +67,7 @@ describe("TraineeAIInsightPanel", () => {
     renderWithProviders(<TraineeAIInsightPanel traineeId="t-1" />)
 
     expect(await screen.findByText("A steady fortnight.")).toBeInTheDocument()
-    expect(api.fetch).toHaveBeenCalledWith("token", "t-1", 14)
+    expect(api.fetch).toHaveBeenCalledWith("token", "t-1", 14, "en")
     expect(screen.getByText("83%")).toBeInTheDocument()
     expect(screen.getByText("+16%")).toBeInTheDocument()
     expect(screen.getByText("5/6 sessions")).toBeInTheDocument()
@@ -83,11 +84,25 @@ describe("TraineeAIInsightPanel", () => {
     renderWithProviders(<TraineeAIInsightPanel traineeId="t-1" />)
 
     await user.click(screen.getByRole("radio", { name: "7 days" }))
-    await waitFor(() => expect(api.fetch).toHaveBeenCalledWith("token", "t-1", 7))
+    await waitFor(() => expect(api.fetch).toHaveBeenCalledWith("token", "t-1", 7, "en"))
     await user.click(await screen.findByRole("button", { name: "Analyze" }))
 
     expect(await screen.findByText("One good week.")).toBeInTheDocument()
     expect(api.create).toHaveBeenCalledWith("token", "t-1", { days: 7, locale: "en" })
+  })
+
+  it("offers to redo a report written in the other language", async () => {
+    api.fetch.mockResolvedValue({ ...insight, locale: "vi", summary: "Hai tuần ổn định." })
+    api.create.mockResolvedValue(insight)
+    const user = userEvent.setup()
+    renderWithProviders(<TraineeAIInsightPanel traineeId="t-1" />)
+
+    expect(await screen.findByText("Hai tuần ổn định.")).toBeInTheDocument()
+    expect(screen.getByText(/This report is in Vietnamese/)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Analyze again" }))
+
+    expect(api.create).toHaveBeenCalledWith("token", "t-1", { days: 14, locale: "en" })
+    expect(await screen.findByText("A steady fortnight.")).toBeInTheDocument()
   })
 
   it("shows why an analysis failed", async () => {

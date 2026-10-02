@@ -422,7 +422,7 @@ coachRouter.get(
   "/trainees/:traineeId/ai-insight",
   validated({ params: coachNoteTraineeParamsSchema, query: coachTraineeInsightQuerySchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    sendData(res, { insight: await getCoachTraineeInsight(profile, req.params.traineeId, req.query.days) })
+    sendData(res, { insight: await getCoachTraineeInsight(profile, req.params.traineeId, req.query.days, req.query.locale) })
   }),
 )
 
