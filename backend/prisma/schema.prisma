@@ -330,6 +330,7 @@ model User {
   recoveryCheckIns       RecoveryCheckIn[]
   muscleVolumeProfiles   UserMuscleVolumeProfile[]
   volumeRecommendations  VolumeRecommendation[]
+  weeklyMuscleSummaries  WeeklyMuscleSummary[]
   exerciseOverrides      TraineeExerciseOverride[]
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @updatedAt
@@ -404,6 +405,7 @@ model MuscleRegion {
   recoveryRatings       MuscleRecoveryRating[]
   userVolumeProfiles    UserMuscleVolumeProfile[]
   volumeRecommendations VolumeRecommendation[]
+  weeklySummaries       WeeklyMuscleSummary[]
   createdAt             DateTime                  @default(now())
 }
 
@@ -457,6 +459,35 @@ model UserMuscleVolumeProfile {
   updatedAt     DateTime            @updatedAt
 
   @@unique([userId, muscleSlug])
+  @@index([muscleSlug])
+}
+
+/// One trainee's training for one muscle in one completed week, stored so the
+/// volume engine can learn from months of history without re-reading every
+/// workout snapshot. Rewritten whole when the week is recomputed.
+model WeeklyMuscleSummary {
+  id                   String       @id @default(uuid()) @db.Uuid
+  userId               String       @db.Uuid
+  muscleSlug           String
+  /// Monday of the week, as a day key.
+  weekStart            DateTime     @db.Date
+  directSets           Int
+  indirectSets         Int
+  effectiveSets        Float
+  /// Effective sets logged without an RIR.
+  lowConfidenceSets    Float        @default(0)
+  averageRir           Float?
+  /// Mean e1RM change against each variation's previous session, in percent.
+  performanceChangePct Float?
+  averageReadiness     Float?
+  maxSoreness          Int?
+  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  muscle               MuscleRegion @relation(fields: [muscleSlug], references: [slug], onDelete: Restrict)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@unique([userId, muscleSlug, weekStart])
+  @@index([userId, weekStart])
   @@index([muscleSlug])
 }
 

@@ -83,12 +83,14 @@ const raw = {
   HUAWEI_CLIENT_SECRET: clean(process.env.HUAWEI_CLIENT_SECRET),
   HUAWEI_HEALTH_API_BASE: clean(process.env.HUAWEI_HEALTH_API_BASE),
   HUAWEI_HEALTH_SYNC_ENABLED: clean(process.env.HUAWEI_HEALTH_SYNC_ENABLED),
+  HUAWEI_HRV_DATA_TYPE: clean(process.env.HUAWEI_HRV_DATA_TYPE),
   HUAWEI_HEALTH_SYNC_INTERVAL_MS: clean(process.env.HUAWEI_HEALTH_SYNC_INTERVAL_MS),
   HUAWEI_OAUTH_REDIRECT_URI: clean(process.env.HUAWEI_OAUTH_REDIRECT_URI),
   HUAWEI_TOKEN_ENCRYPTION_KEY: clean(process.env.HUAWEI_TOKEN_ENCRYPTION_KEY),
   NODE_ENV: clean(process.env.NODE_ENV),
   NOTIFICATION_SCHEDULER_ENABLED: clean(process.env.NOTIFICATION_SCHEDULER_ENABLED),
   NOTIFICATION_SCHEDULER_INTERVAL_MS: clean(process.env.NOTIFICATION_SCHEDULER_INTERVAL_MS),
+  VOLUME_LEARNING_ENABLED: clean(process.env.VOLUME_LEARNING_ENABLED),
   OPENAI_API_KEY: clean(process.env.OPENAI_API_KEY),
   PORT: clean(process.env.PORT),
   PRISMA_SLOW_QUERY_MS: clean(process.env.PRISMA_SLOW_QUERY_MS),
@@ -168,6 +170,11 @@ const envSchema = z.object({
     z.int().min(10_000, "NOTIFICATION_SCHEDULER_INTERVAL_MS must be at least 10000"),
   ),
   OPENAI_API_KEY: z.string().optional(),
+  /** Background learning of each trainee's MEV/MAV/MRV from completed weeks. */
+  VOLUME_LEARNING_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value !== "false"),
   PORT: numberFromString(4000).pipe(z.int().positive("PORT must be a positive integer")),
   PRISMA_SLOW_QUERY_MS: numberFromString(0).pipe(z.number().min(0, "PRISMA_SLOW_QUERY_MS must be >= 0")),
   EMAIL_REPLY_TO: z.email("EMAIL_REPLY_TO must be an email address").optional(),
@@ -265,6 +272,7 @@ function loadEnv() {
     nodeEnv: parsed.NODE_ENV,
     notificationSchedulerEnabled: parsed.NOTIFICATION_SCHEDULER_ENABLED,
     notificationSchedulerIntervalMs: parsed.NOTIFICATION_SCHEDULER_INTERVAL_MS,
+    volumeLearningEnabled: parsed.VOLUME_LEARNING_ENABLED,
     openaiApiKey: parsed.OPENAI_API_KEY,
     port: parsed.PORT,
     // When > 0, Prisma logs every query whose DB execution time meets/exceeds this
