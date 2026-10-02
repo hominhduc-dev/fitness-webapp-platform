@@ -10,6 +10,9 @@ import {
   assignCoachProgram,
   createCoachBodyMetric,
   createCoachCheckIn,
+  createCoachNote,
+  deleteCoachNote,
+  updateCoachNote,
   createCoachRequest,
   inviteTrainee,
   unassignCoachProgram,
@@ -179,4 +182,26 @@ export function useCancelCoachRequest() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.coach.all })
     },
   })
+}
+
+/** A coach's private note about a trainee: add, edit or delete. Refreshes the trainee page. */
+export function useCoachNoteMutations(traineeId: string) {
+  const queryClient = useQueryClient()
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.coach.traineeDetail(traineeId) })
+
+  return {
+    create: useMutation({
+      mutationFn: async (body: string) => createCoachNote(await requireAccessToken(), traineeId, body),
+      onSettled: refresh,
+    }),
+    remove: useMutation({
+      mutationFn: async (noteId: string) => deleteCoachNote(await requireAccessToken(), traineeId, noteId),
+      onSettled: refresh,
+    }),
+    update: useMutation({
+      mutationFn: async ({ body, noteId }: { body: string; noteId: string }) =>
+        updateCoachNote(await requireAccessToken(), traineeId, noteId, body),
+      onSettled: refresh,
+    }),
+  }
 }
