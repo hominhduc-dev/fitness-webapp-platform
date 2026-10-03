@@ -92,6 +92,15 @@ describe("presentNotification", () => {
     ).message).toBe("Completed 1 of 4 planned sessions in the last 7 days.")
   })
 
+  it("opens a coach alert's own detail, even when it stored the trainee page", () => {
+    const alert = notification({
+      metadata: { exercises: ["Bench Press"], kind: "plateau", traineeId: "t1", traineeName: "An", url: "/coach/trainees/t1", weekStart: "2026-09-28" },
+      type: "coach_trainee_alert",
+    })
+
+    expect(presentNotification(alert, getMessages("en"), "en").href).toBe("/coach/trainees/t1/alerts/plateau?week=2026-09-28")
+  })
+
   it("falls back to stored text and derives links for older notifications", () => {
     const logged = notification({ metadata: { traineeId: "t1" }, type: "workout_logged" })
 

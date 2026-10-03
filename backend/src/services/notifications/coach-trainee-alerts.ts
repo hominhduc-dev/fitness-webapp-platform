@@ -185,10 +185,19 @@ function buildCoachTraineeAlertDraft(input: {
     relatedEntityType: "user",
     title: "Trainee needs attention",
     type: NotificationType.coach_trainee_alert,
-    url: `/coach/trainees/${input.trainee.id}`,
+    url: `/coach/trainees/${input.trainee.id}/alerts/${input.alert.kind}?week=${input.weekStartKey}`,
     userId: input.coachId,
   }
 }
 
-export { buildCoachTraineeAlertDraft, detectCoachTraineeAlerts, LOW_READINESS, PLATEAU_WEEKS }
-export type { CoachTraineeAlert, CoachTraineeAlertKind, TraineeAlertInput }
+export {
+  buildCoachTraineeAlertDraft,
+  detectCoachTraineeAlerts,
+  LOW_READINESS,
+  LOW_READINESS_STREAK,
+  MISSED_SESSIONS_THRESHOLD,
+  PLATEAU_WEEKS,
+  progressedSince,
+  repsByWeight,
+}
+export type { CoachTraineeAlert, CoachTraineeAlertKind, LiftWeek, TraineeAlertInput }

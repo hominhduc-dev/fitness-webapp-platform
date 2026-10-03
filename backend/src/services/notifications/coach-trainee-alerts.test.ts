@@ -61,7 +61,7 @@ describe("coach trainee alerts", () => {
       .toEqual([{ exercises: ["Bench Press"], kind: "plateau" }])
   })
 
-  it("dedupes each alert per coach, trainee, kind and week", () => {
+  it("dedupes each alert per coach, trainee, kind and week, and links to it", () => {
     const draft = buildCoachTraineeAlertDraft({
       alert: { exercises: ["Bench Press"], kind: "plateau" },
       coachId: "coach-1",
@@ -72,7 +72,8 @@ describe("coach trainee alerts", () => {
     expect(draft).toMatchObject({
       dedupeKey: "coach_trainee_alert:coach-1:trainee-1:plateau:2026-09-28",
       metadata: { exercises: ["Bench Press"], kind: "plateau", traineeName: "An" },
-      url: "/coach/trainees/trainee-1",
+      // Opens the alert itself, which the dedupe key names.
+      url: "/coach/trainees/trainee-1/alerts/plateau?week=2026-09-28",
     })
   })
 })

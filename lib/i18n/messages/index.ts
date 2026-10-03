@@ -2,6 +2,7 @@ import type { AppLocale } from "@/lib/i18n/config"
 import { adminMessages } from "@/lib/i18n/messages/admin"
 import { authMessages } from "@/lib/i18n/messages/auth"
 import { coachMessages } from "@/lib/i18n/messages/coach"
+import { coachAlertsMessages } from "@/lib/i18n/messages/coach-alerts"
 import { commonMessages } from "@/lib/i18n/messages/common"
 import { dashboardMessages } from "@/lib/i18n/messages/dashboard"
 import { landingMessages } from "@/lib/i18n/messages/landing"
@@ -38,6 +39,7 @@ const enMessages = {
   ...mealsMessages.en,
   ...profileMessages.en,
   ...coachMessages.en,
+  ...coachAlertsMessages.en,
   ...traineeHubMessages.en,
   ...adminMessages.en,
   ...notificationsMessages.en,
@@ -60,6 +62,7 @@ const viMessages: AppMessages = {
   ...mealsMessages.vi,
   ...profileMessages.vi,
   ...coachMessages.vi,
+  ...coachAlertsMessages.vi,
   ...traineeHubMessages.vi,
   ...adminMessages.vi,
   ...notificationsMessages.vi,

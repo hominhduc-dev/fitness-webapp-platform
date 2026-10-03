@@ -1,0 +1,161 @@
+type AlertKind = "low_readiness" | "missed_workouts" | "plateau"
+type Suggestion =
+  | "change_stimulus"
+  | "check_schedule"
+  | "lighter_session"
+  | "message_trainee"
+  | "read_notes"
+  | "reduce_volume"
+  | "resolved"
+  | "review_recovery"
+
+export const coachAlertsMessages = {
+  en: {
+    coachAlert: {
+      back: (name: string) => `Back to ${name}`,
+      kind: {
+        low_readiness: "Low readiness",
+        missed_workouts: "Missed sessions",
+        plateau: "Plateau",
+      } satisfies Record<AlertKind, string>,
+      raised: (date: string) => `Raised ${date}`,
+      headline: {
+        low_readiness: (name: string) => `${name} has been under-recovered for several days`,
+        missed_workouts: (name: string) => `${name} is falling behind the plan`,
+        plateau: (name: string, count: number) => `${name} has stalled on ${count} lift${count === 1 ? "" : "s"} for 3 weeks`,
+      },
+      why: {
+        low_readiness: (threshold: number) => `Raised when readiness stays under ${threshold} for 3 days in a row.`,
+        missed_workouts: "Raised when 2 or more planned sessions are missing over the last 7 days.",
+        plateau: "Raised when a lift trained in each of the last 3 weeks shows no e1RM, weight or rep PR.",
+      },
+      suggestionsTitle: "What to do",
+      suggestions: {
+        change_stimulus: { body: "Swap the variation, move the rep range or start a new block for these lifts.", title: "Change the stimulus" },
+        check_schedule: { body: "Check that the number of sessions a week still fits the trainee's schedule.", title: "Review the schedule" },
+        lighter_session: { body: "Cut sets or intensity for the next sessions until readiness recovers.", title: "Go lighter for a few days" },
+        message_trainee: { body: "Ask what is getting in the way: work, sleep, illness or motivation.", title: "Check in with the trainee" },
+        read_notes: { body: "The trainee left notes on these lifts; they may explain the stall.", title: "Read the trainee's notes" },
+        reduce_volume: { body: "Weekly sets sit near the muscle's MRV. Fewer sets may let it recover and grow.", title: "Reduce volume" },
+        resolved: { body: "The trainee has progressed or recovered since this alert was raised.", title: "Already back on track" },
+        review_recovery: { body: "Sleep, stress and soreness were poor over this window. Recovery may be the limit, not the program.", title: "Look at recovery" },
+      } satisfies Record<Suggestion, { body: string; title: string }>,
+      adjustPlan: "Adjust plan",
+      openTrainee: "Open trainee",
+      plateau: {
+        liftsTitle: "Lifts that stalled",
+        weeksAgo: (weeks: number) => (weeks === 0 ? "This week" : `${weeks} wk ago`),
+        noSession: "Not trained",
+        e1rm: "e1RM",
+        topSet: "Top set",
+        sessions: (count: number) => `${count} session${count === 1 ? "" : "s"}`,
+        since: "Since the alert",
+        sinceNone: "Not trained since the alert",
+        sinceProgressed: "New PR since the alert",
+        sinceFlat: "Still no PR",
+        notesTitle: "Trainee notes",
+        musclesTitle: "Weekly volume of the muscles involved",
+        musclesHint: "Effective sets per week against the trainee's landmarks.",
+        noVolume: "No weekly summary yet for this muscle.",
+        estimated: "Estimated landmarks",
+        readiness: (value: number) => `Average readiness over these 3 weeks: ${value}`,
+        noReadiness: "No readiness check-ins over these 3 weeks.",
+        setsWeek: (sets: number) => `${sets} sets`,
+      },
+      missed: {
+        title: "Sessions per week",
+        planned: (count: number) => `Plan: ${count} a week`,
+        weekLabel: (weeks: number) => (weeks === 0 ? "Last 7 days" : `${weeks} wk before`),
+        sessionsTitle: "Sessions in the last 7 days",
+        noSessions: "No sessions logged in these 7 days.",
+        since: (count: number) => `${count} session${count === 1 ? "" : "s"} logged since the alert.`,
+      },
+      readiness: {
+        title: "Check-ins over the last 2 weeks",
+        threshold: (value: number) => `Alert line: ${value}`,
+        sinceAlert: "after alert",
+        fatigue: "Fatigue",
+        sleep: "Sleep",
+        stress: "Stress",
+        soreness: "Soreness",
+        hours: (minutes: number) => `${Math.round((minutes / 60) * 10) / 10} h`,
+        noCheckIns: "No check-ins in this window.",
+      },
+      notFound: "This alert no longer exists.",
+    },
+  },
+  vi: {
+    coachAlert: {
+      back: (name: string) => `Quay lại ${name}`,
+      kind: {
+        low_readiness: "Readiness thấp",
+        missed_workouts: "Bỏ buổi tập",
+        plateau: "Chững lại",
+      } satisfies Record<AlertKind, string>,
+      raised: (date: string) => `Cảnh báo lúc ${date}`,
+      headline: {
+        low_readiness: (name: string) => `${name} chưa phục hồi tốt nhiều ngày liền`,
+        missed_workouts: (name: string) => `${name} đang tập ít hơn kế hoạch`,
+        plateau: (name: string, count: number) => `${name} chững lại ở ${count} bài trong 3 tuần`,
+      },
+      why: {
+        low_readiness: (threshold: number) => `Gửi khi readiness dưới ${threshold} trong 3 ngày liên tiếp.`,
+        missed_workouts: "Gửi khi thiếu từ 2 buổi trở lên so với kế hoạch trong 7 ngày gần nhất.",
+        plateau: "Gửi khi một bài được tập đủ 3 tuần liền mà không có PR e1RM, tạ hay rep.",
+      },
+      suggestionsTitle: "Nên làm gì",
+      suggestions: {
+        change_stimulus: { body: "Đổi biến thể, đổi rep range hoặc bắt đầu block mới cho các bài này.", title: "Thay đổi kích thích" },
+        check_schedule: { body: "Kiểm tra số buổi mỗi tuần còn phù hợp với lịch của trainee không.", title: "Xem lại lịch tập" },
+        lighter_session: { body: "Giảm set hoặc cường độ vài buổi tới cho đến khi readiness hồi lại.", title: "Tập nhẹ vài ngày" },
+        message_trainee: { body: "Hỏi trainee điều gì đang cản trở: công việc, giấc ngủ, ốm hay động lực.", title: "Hỏi thăm trainee" },
+        read_notes: { body: "Trainee có ghi chú ở các bài này; có thể giải thích vì sao chững.", title: "Đọc ghi chú của trainee" },
+        reduce_volume: { body: "Số set mỗi tuần đang sát MRV của nhóm cơ. Bớt set có thể giúp cơ phục hồi và phát triển.", title: "Giảm volume" },
+        resolved: { body: "Trainee đã tiến bộ hoặc phục hồi lại kể từ khi có cảnh báo này.", title: "Đã ổn trở lại" },
+        review_recovery: { body: "Giấc ngủ, căng thẳng và đau cơ kém trong giai đoạn này. Giới hạn có thể nằm ở phục hồi, không phải giáo án.", title: "Xem lại phục hồi" },
+      } satisfies Record<Suggestion, { body: string; title: string }>,
+      adjustPlan: "Điều chỉnh giáo án",
+      openTrainee: "Mở hồ sơ trainee",
+      plateau: {
+        liftsTitle: "Các bài đang chững",
+        weeksAgo: (weeks: number) => (weeks === 0 ? "Tuần này" : `${weeks} tuần trước`),
+        noSession: "Không tập",
+        e1rm: "e1RM",
+        topSet: "Set nặng nhất",
+        sessions: (count: number) => `${count} buổi`,
+        since: "Từ khi có cảnh báo",
+        sinceNone: "Chưa tập lại từ khi có cảnh báo",
+        sinceProgressed: "Đã có PR mới",
+        sinceFlat: "Vẫn chưa có PR",
+        notesTitle: "Ghi chú của trainee",
+        musclesTitle: "Volume tuần của các nhóm cơ liên quan",
+        musclesHint: "Số set hiệu quả mỗi tuần so với ngưỡng của trainee.",
+        noVolume: "Chưa có tóm tắt tuần cho nhóm cơ này.",
+        estimated: "Ngưỡng ước tính",
+        readiness: (value: number) => `Readiness trung bình 3 tuần này: ${value}`,
+        noReadiness: "Không có check-in readiness trong 3 tuần này.",
+        setsWeek: (sets: number) => `${sets} set`,
+      },
+      missed: {
+        title: "Số buổi mỗi tuần",
+        planned: (count: number) => `Kế hoạch: ${count} buổi/tuần`,
+        weekLabel: (weeks: number) => (weeks === 0 ? "7 ngày gần nhất" : `${weeks} tuần trước đó`),
+        sessionsTitle: "Các buổi trong 7 ngày gần nhất",
+        noSessions: "Không có buổi nào được ghi trong 7 ngày này.",
+        since: (count: number) => `Đã ghi ${count} buổi kể từ khi có cảnh báo.`,
+      },
+      readiness: {
+        title: "Check-in 2 tuần gần nhất",
+        threshold: (value: number) => `Ngưỡng cảnh báo: ${value}`,
+        sinceAlert: "sau cảnh báo",
+        fatigue: "Mệt mỏi",
+        sleep: "Ngủ",
+        stress: "Căng thẳng",
+        soreness: "Đau cơ",
+        hours: (minutes: number) => `${Math.round((minutes / 60) * 10) / 10} giờ`,
+        noCheckIns: "Không có check-in trong giai đoạn này.",
+      },
+      notFound: "Cảnh báo này không còn tồn tại.",
+    },
+  },
+}

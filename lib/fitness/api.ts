@@ -409,6 +409,65 @@ type CoachInsightPeriod = {
 }
 
 /** A saved AI report on one trainee for their coach. Every number is computed by the backend. */
+export type CoachAlertKind = "low_readiness" | "missed_workouts" | "plateau"
+export type CoachAlertSuggestion =
+  | "change_stimulus"
+  | "check_schedule"
+  | "lighter_session"
+  | "message_trainee"
+  | "read_notes"
+  | "reduce_volume"
+  | "resolved"
+  | "review_recovery"
+export type CoachAlertVolumeZone = "above_mrv" | "below_mev" | "insufficient_data" | "mav" | "mev_to_mav" | "near_mrv"
+
+/** One coach alert with the evidence it was raised on (see the backend's coach-alert-detail). */
+export type CoachAlertDetail = {
+  kind: CoachAlertKind
+  lowReadiness?: {
+    checkIns: Array<{
+      date: string
+      fatigue: number
+      maxSoreness: number | null
+      note: string | null
+      readiness: number | null
+      sinceAlert: boolean
+      sleepMinutes: number | null
+      sleepQuality: number | null
+      stress: number | null
+    }>
+    threshold: number
+  }
+  missedWorkouts?: {
+    planned: number
+    sessions: Array<{ date: string; workoutName: string | null }>
+    sinceAlert: number
+    weeks: Array<{ completed: number; weeksAgo: number }>
+  }
+  notificationId: string
+  plateau?: {
+    lifts: Array<{
+      key: string
+      name: string
+      notes: Array<{ date: string; note: string }>
+      primaryMuscles: string[]
+      sinceAlert: { bestE1rm: number | null; progressed: boolean; sessions: number; topWeight: number | null }
+      weeks: Array<{ bestE1rm: number | null; sessions: number; topReps: number | null; topWeight: number | null; weeksAgo: number }>
+    }>
+    muscles: Array<{
+      landmarks: { mavMaxSets: number; mavMinSets: number; mevSets: number; mrvSets: number; source: "coach" | "learned" | "system" }
+      muscleSlug: string
+      weeks: Array<{ averageRir: number | null; effectiveSets: number; weekStart: string; zone: CoachAlertVolumeZone }>
+    }>
+    readinessAverage: number | null
+  }
+  program: { id: string; name: string; workoutsPerWeek: number } | null
+  raisedAt: string
+  suggestions: CoachAlertSuggestion[]
+  trainee: { id: string; name: string }
+  weekStart: string
+}
+
 export type CoachTraineeInsight = {
   id: string
   days: CoachInsightWindow
@@ -2773,6 +2832,21 @@ async function fetchCoachTraineeInsight(
   return response.data.insight
 }
 
+async function fetchCoachTraineeAlertDetail(
+  accessToken: string,
+  traineeId: string,
+  kind: CoachAlertKind,
+  weekStart: string,
+): Promise<CoachAlertDetail> {
+  const response = await request<ApiEnvelope<CoachAlertDetail>>(
+    `/api/coach/trainees/${traineeId}/alerts/${kind}?week=${encodeURIComponent(weekStart)}`,
+    accessToken,
+    // What the trainee did since the alert is part of it, so it is read fresh.
+    { cache: "no-store" },
+  )
+  return response.data
+}
+
 async function createCoachTraineeInsight(
   accessToken: string,
   traineeId: string,
@@ -2993,6 +3067,7 @@ async function sendAIChatMessage(accessToken: string, message: string, history: 
 export {
   acceptAIDailyWorkout,
   createCoachTraineeInsight,
+  fetchCoachTraineeAlertDetail,
   fetchCoachTraineeInsight,
   acceptAIMealPlan,
   acceptAIProgram,
