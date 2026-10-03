@@ -42,7 +42,7 @@ import { describeGoogleSpreadsheetConflict, exportGoogleProgramLogs } from "../g
 import { hasGoogleConnection, isGoogleConfigured } from "../google-connection.service"
 import { exportTraineeLogsToGoogleDrive } from "../google-trainee-export.service"
 import { retryTransaction } from "../../lib/prisma"
-import { normalizeTrainingGoal } from "../../domain/training-goal-policy"
+import { normalizeTrainingGoal, policyForTrainingGoal } from "../../domain/training-goal-policy"
 import { resolveLoadIncrement } from "../../domain/load-increment"
 import { buildOverloadRecommendation, isLowerBodyExercise } from "../../domain/progressive-overload"
 import { reconcileWorkoutProgressions, type DayAction, type MuscleAction } from "../../domain/training-recommendation"
@@ -328,6 +328,8 @@ type PreviousSetPerformanceSource = "most_recent" | "same_weekday_last_week"
 
 type PreviousExerciseSetPerformance = {
   completedAt: Date
+  /** What that session asked of the set, so a changed prescription is not read as a regression. */
+  prescription?: { repMax: number | null; repMin: number | null; targetRir: number | null }
   reps?: number
   rir?: number
   source: PreviousSetPerformanceSource
@@ -721,7 +723,9 @@ function buildExerciseProgression(
         const previous = previousPerformanceBySetNumber.get(set.setNumber)
         return {
           isWarmup: set.intensityTag === "warmup",
-          previous: previous ? { reps: previous.reps, rir: previous.rir, weight: previous.weight } : null,
+          previous: previous
+            ? { prescription: previous.prescription, reps: previous.reps, rir: previous.rir, weight: previous.weight }
+            : null,
           setNumber: set.setNumber,
           targetReps: set.targetReps,
           targetRepsMin: set.targetRepsMin,
@@ -2072,6 +2076,27 @@ function normalizeProgramStartDateInput(value: string | null | undefined) {
  * The day key a program's week 1 is anchored to. `startDate` is already a day key;
  * `assignedAt` is an instant, so it becomes the client's calendar day it fell on.
  */
+/**
+ * The phase of the trainee's program in the week a session was trained, as the
+ * volume engine computes it. Null outside a program or without a goal.
+ */
+async function resolveSessionPhase(
+  program: { createdAt: Date; duration: number; goal: Parameters<typeof normalizeTrainingGoal>[0]; id: string; startDate: Date | null } | null,
+  profile: SerializedProfile,
+  startedAt: Date,
+) {
+  if (!program) return null
+  const assignment = await ensurePrisma().programAssignment.findUnique({
+    select: { assignedAt: true },
+    where: { programId_userId: { programId: program.id, userId: profile.id } },
+  })
+  const anchor = startOfUtcWeek(program.startDate ?? assignment?.assignedAt ?? program.createdAt)
+  const elapsedWeeks = Math.floor((startOfUtcWeek(clientCalendarDay(startedAt)).getTime() - anchor.getTime()) / (7 * 24 * 60 * 60 * 1000))
+  if (elapsedWeeks < 0) return null
+  const goal = normalizeTrainingGoal(program.goal, profile.fitnessGoals ?? [])
+  return policyForTrainingGoal(goal, elapsedWeeks, Math.max(1, Math.round(program.duration)))?.phase ?? null
+}
+
 function resolveProgramAnchorDate(startDate: Date | null | undefined, assignedAt: Date) {
   return startDate ?? clientCalendarDay(assignedAt)
 }
@@ -2880,6 +2905,14 @@ function buildPreviousSetPerformanceMap(
 
     previousPerformanceBySetNumber.set(setNumber, {
       completedAt: log.completedAt ?? log.startedAt,
+      prescription: targetReps != null
+        ? {
+            repMax: targetReps,
+            repMin: toFiniteNumber(snapshotSet.targetRepsMin) ?? null,
+            // Logs saved before the target was recorded leave it unknown, not mismatched.
+            targetRir: toFiniteNumber(snapshotSet.targetRir) ?? null,
+          }
+        : undefined,
       reps,
       rir: rir ?? undefined,
       source,
@@ -4597,6 +4630,14 @@ async function createWorkoutLogForTrainee(
     const prescribedTagBySetNumber = new Map(
       (prescribed?.sets ?? []).flatMap((set) => (set.intensityTag ? [[set.setNumber, set.intensityTag] as const] : [])),
     )
+    // The target effort too: the client's `rir` field is what the trainee logged.
+    const prescribedRirBySetNumber = new Map(
+      (prescribed?.sets ?? []).flatMap((set) => (typeof set.rir === "number" ? [[set.setNumber, set.rir] as const] : [])),
+    )
+    // The session opens with the coach's note in the same field, so only a
+    // changed note is the trainee's — kept apart so it can be read back later.
+    const note = typeof entry.notes === "string" ? entry.notes.trim() : ""
+    const traineeNote = note && note !== (prescribed?.notes ?? "").trim() ? note : undefined
     return {
       ...entry,
       // A swap made in this session is not applied yet, so the slot still
@@ -4604,9 +4645,16 @@ async function createWorkoutLogForTrainee(
       originalVariationId: prescribed?.originalVariationId ??
         (swappedExerciseIds.has(entry.id) ? prescribed?.variation.id : undefined),
       order: prescribed?.order,
-      sets: entry.sets.map((set) => ({ ...set, intensityTag: prescribedTagBySetNumber.get(set.setNumber) })),
+      sets: entry.sets.map((set) => ({
+        ...set,
+        intensityTag: prescribedTagBySetNumber.get(set.setNumber),
+        targetRir: prescribedRirBySetNumber.get(set.setNumber),
+      })),
+      traineeNote,
     }
   }), profilesByVariationId).snapshot
+
+  const phase = await resolveSessionPhase(workout.program, profile, startedAt)
 
   // A single insert needs no interactive transaction (which adds BEGIN/COMMIT
   // round-trips over PgBouncer); retryTransaction still guards against transient
@@ -4633,6 +4681,9 @@ async function createWorkoutLogForTrainee(
           scheduledDate: serializedWorkout.scheduledDate,
           scheduledDay: serializedWorkout.scheduledDay,
           weekIndex: serializedWorkout.weekIndex,
+          // The program phase the session fell in, so a deload week is not
+          // later read as a stall.
+          ...(phase ? { phase } : {}),
         } as Prisma.InputJsonObject,
       },
       include: WORKOUT_LOG_INCLUDE,

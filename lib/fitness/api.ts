@@ -419,6 +419,7 @@ export type CoachAlertSuggestion =
   | "reduce_volume"
   | "resolved"
   | "review_recovery"
+export type CoachAlertExposureStatus = "deload" | "earlier" | "intentional" | "judged" | "not_comparable"
 export type CoachAlertVolumeZone = "above_mrv" | "below_mev" | "insufficient_data" | "mav" | "mev_to_mav" | "near_mrv"
 
 /** One coach alert with the evidence it was raised on (see the backend's coach-alert-detail). */
@@ -446,13 +447,22 @@ export type CoachAlertDetail = {
   }
   notificationId: string
   plateau?: {
+    judgedSessions: number
     lifts: Array<{
+      /** Oldest first. */
+      exposures: Array<{
+        bestE1rm: number
+        date: string
+        prescription: { repMax: number | null; repMin: number | null; targetRir: number | null }
+        status: CoachAlertExposureStatus
+        topReps: number | null
+        topWeight: number | null
+      }>
       key: string
       name: string
       notes: Array<{ date: string; note: string }>
       primaryMuscles: string[]
       sinceAlert: { bestE1rm: number | null; progressed: boolean; sessions: number; topWeight: number | null }
-      weeks: Array<{ bestE1rm: number | null; sessions: number; topReps: number | null; topWeight: number | null; weeksAgo: number }>
     }>
     muscles: Array<{
       landmarks: { mavMaxSets: number; mavMinSets: number; mevSets: number; mrvSets: number; source: "coach" | "learned" | "system" }

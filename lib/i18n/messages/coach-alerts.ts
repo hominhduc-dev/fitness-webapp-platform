@@ -22,12 +22,12 @@ export const coachAlertsMessages = {
       headline: {
         low_readiness: (name: string) => `${name} has been under-recovered for several days`,
         missed_workouts: (name: string) => `${name} is falling behind the plan`,
-        plateau: (name: string, count: number) => `${name} has stalled on ${count} lift${count === 1 ? "" : "s"} for 3 weeks`,
+        plateau: (name: string, count: number) => `${name} has stalled on ${count} lift${count === 1 ? "" : "s"}`,
       },
       why: {
         low_readiness: (threshold: number) => `Raised when readiness stays under ${threshold} for 3 days in a row.`,
         missed_workouts: "Raised when 2 or more planned sessions are missing over the last 7 days.",
-        plateau: "Raised when a lift trained in each of the last 3 weeks shows no e1RM, weight or rep PR.",
+        plateau: "Raised when a lift's last 3 comparable sessions — same exercise, similar rep range and effort, spread over 10 days or more — show no e1RM, weight or rep PR. Deload weeks and sessions the plan made lighter are left out.",
       },
       suggestionsTitle: "What to do",
       suggestions: {
@@ -44,8 +44,14 @@ export const coachAlertsMessages = {
       openTrainee: "Open trainee",
       plateau: {
         liftsTitle: "Lifts that stalled",
-        weeksAgo: (weeks: number) => (weeks === 0 ? "This week" : `${weeks} wk ago`),
-        noSession: "Not trained",
+        sessionsHint: (count: number) => `The highlighted sessions are the ${count} comparable ones the alert was judged on.`,
+        status: {
+          deload: "Deload week",
+          earlier: "Earlier",
+          intentional: "Planned lighter",
+          judged: "Judged",
+          not_comparable: "Other block",
+        } satisfies Record<"deload" | "earlier" | "intentional" | "judged" | "not_comparable", string>,
         e1rm: "e1RM",
         topSet: "Top set",
         sessions: (count: number) => `${count} session${count === 1 ? "" : "s"}`,
@@ -58,8 +64,8 @@ export const coachAlertsMessages = {
         musclesHint: "Effective sets per week against the trainee's landmarks.",
         noVolume: "No weekly summary yet for this muscle.",
         estimated: "Estimated landmarks",
-        readiness: (value: number) => `Average readiness over these 3 weeks: ${value}`,
-        noReadiness: "No readiness check-ins over these 3 weeks.",
+        readiness: (value: number) => `Average readiness over the 3 weeks before the alert: ${value}`,
+        noReadiness: "No readiness check-ins in the 3 weeks before the alert.",
         setsWeek: (sets: number) => `${sets} sets`,
       },
       missed: {
@@ -96,12 +102,12 @@ export const coachAlertsMessages = {
       headline: {
         low_readiness: (name: string) => `${name} chưa phục hồi tốt nhiều ngày liền`,
         missed_workouts: (name: string) => `${name} đang tập ít hơn kế hoạch`,
-        plateau: (name: string, count: number) => `${name} chững lại ở ${count} bài trong 3 tuần`,
+        plateau: (name: string, count: number) => `${name} chững lại ở ${count} bài`,
       },
       why: {
         low_readiness: (threshold: number) => `Gửi khi readiness dưới ${threshold} trong 3 ngày liên tiếp.`,
         missed_workouts: "Gửi khi thiếu từ 2 buổi trở lên so với kế hoạch trong 7 ngày gần nhất.",
-        plateau: "Gửi khi một bài được tập đủ 3 tuần liền mà không có PR e1RM, tạ hay rep.",
+        plateau: "Gửi khi 3 buổi tập tương đương gần nhất của một bài (cùng bài, rep range và mức cố gắng gần giống nhau, trải trên ít nhất 10 ngày) không có PR e1RM, tạ hay rep. Tuần deload và các buổi giáo án chủ động cho nhẹ đi không được tính.",
       },
       suggestionsTitle: "Nên làm gì",
       suggestions: {
@@ -118,8 +124,14 @@ export const coachAlertsMessages = {
       openTrainee: "Mở hồ sơ trainee",
       plateau: {
         liftsTitle: "Các bài đang chững",
-        weeksAgo: (weeks: number) => (weeks === 0 ? "Tuần này" : `${weeks} tuần trước`),
-        noSession: "Không tập",
+        sessionsHint: (count: number) => `Các buổi được tô màu là ${count} buổi tương đương dùng để đánh giá.`,
+        status: {
+          deload: "Tuần deload",
+          earlier: "Trước đó",
+          intentional: "Chủ động nhẹ",
+          judged: "Được đánh giá",
+          not_comparable: "Block khác",
+        } satisfies Record<"deload" | "earlier" | "intentional" | "judged" | "not_comparable", string>,
         e1rm: "e1RM",
         topSet: "Set nặng nhất",
         sessions: (count: number) => `${count} buổi`,
@@ -132,8 +144,8 @@ export const coachAlertsMessages = {
         musclesHint: "Số set hiệu quả mỗi tuần so với ngưỡng của trainee.",
         noVolume: "Chưa có tóm tắt tuần cho nhóm cơ này.",
         estimated: "Ngưỡng ước tính",
-        readiness: (value: number) => `Readiness trung bình 3 tuần này: ${value}`,
-        noReadiness: "Không có check-in readiness trong 3 tuần này.",
+        readiness: (value: number) => `Readiness trung bình 3 tuần trước cảnh báo: ${value}`,
+        noReadiness: "Không có check-in readiness trong 3 tuần trước cảnh báo.",
         setsWeek: (sets: number) => `${sets} set`,
       },
       missed: {

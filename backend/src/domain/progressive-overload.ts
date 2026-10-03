@@ -14,6 +14,7 @@
  * Pure: no Prisma, no I/O. The caller supplies the history.
  */
 
+import { isComparablePrescription, type Prescription } from "./exercise-exposure"
 import { lowerLoad, nextLoad } from "./load-increment"
 
 type OverloadAction = "add_load" | "add_reps" | "maintain" | "reduce_load" | "establish_baseline"
@@ -27,6 +28,7 @@ type OverloadReason =
   | "mostly_below_range"
   | "readiness_low"
   | "no_load_increment"
+  | "prescription_changed"
 
 type OverloadSetInput = {
   setNumber: number
@@ -37,7 +39,13 @@ type OverloadSetInput = {
   targetRir?: number | null
   /** Warm-ups are not progressed. */
   isWarmup?: boolean
-  previous?: { reps?: number | null; rir?: number | null; weight?: number | null } | null
+  previous?: {
+    /** What that session asked for. Absent on older history, which is then taken as comparable. */
+    prescription?: Prescription | null
+    reps?: number | null
+    rir?: number | null
+    weight?: number | null
+  } | null
 }
 
 type OverloadSetSuggestion = {
@@ -83,12 +91,21 @@ function buildOverloadRecommendation(input: {
   sets: readonly OverloadSetInput[]
 }): OverloadRecommendation {
   const working = input.sets.filter((set) => !set.isWarmup)
-  const withHistory = working.filter(
+  const anyHistory = working.filter(
     (set) => typeof set.previous?.reps === "number" && set.previous.reps > 0,
+  )
+  // Last session only counts when it asked for the same thing: 10 reps in an
+  // 8–10 block is not "below range" once the coach moves the set to 15–20.
+  const withHistory = anyHistory.filter((set) =>
+    !set.previous?.prescription || isComparablePrescription(set.previous.prescription, {
+      repMax: set.targetReps,
+      repMin: set.targetRepsMin ?? null,
+      targetRir: set.targetRir ?? null,
+    }),
   )
 
   if (withHistory.length === 0) {
-    return { action: "establish_baseline", reasons: ["no_history"], sets: [] }
+    return { action: "establish_baseline", reasons: [anyHistory.length > 0 ? "prescription_changed" : "no_history"], sets: [] }
   }
 
   const lowerBody = input.lowerBody === true

@@ -61,6 +61,54 @@ describe("coach trainee alerts", () => {
       .toEqual([{ exercises: ["Bench Press"], kind: "plateau" }])
   })
 
+  describe("judged on comparable sessions, not calendar weeks", () => {
+    function session(day: number, options: {
+      phase?: string
+      progression?: { action: string; muscleAction?: string }
+      range?: [number, number]
+      variation?: string
+      weight?: number
+    } = {}) {
+      const [min, max] = options.range ?? [8, 10]
+      const variation = options.variation ?? "bench"
+      return {
+        exerciseSnapshot: [{
+          exercise: { id: `exercise-${variation}`, name: variation === "bench" ? "Bench Press" : "Machine Chest Press" },
+          progression: options.progression,
+          sets: [{ actualReps: 8, completed: true, rir: 2, setNumber: 1, targetReps: max, targetRepsMin: min, targetRir: 2, weight: options.weight ?? 80 }],
+          variation: { id: `variation-${variation}`, isDefault: true, name: "Default", primaryMuscles: ["chest"] },
+        }],
+        startedAt: daysAgo(day),
+        workoutSnapshot: options.phase ? { phase: options.phase } : null,
+      }
+    }
+    const detect = (logs: ReturnType<typeof session>[]) => detectCoachTraineeAlerts({ checkIns: [], logs, now, workoutsPerWeek: 0 })
+    const stalled = [{ exercises: ["Bench Press"], kind: "plateau" }]
+
+    it("waits for a third bench session when the gym's bench was taken one week", () => {
+      const swapped = [session(16), session(9, { variation: "machine", weight: 60 }), session(2)]
+      expect(detect(swapped)).toEqual([])
+      // The machine press is its own lift; the bench gets its third session a week later.
+      expect(detect([session(23), ...swapped])).toEqual(stalled)
+    })
+
+    it("starts over when the coach moves the rep range, but not when only the sets change", () => {
+      expect(detect([session(16, { range: [8, 10] }), session(9, { range: [15, 20] }), session(2, { range: [15, 20] })])).toEqual([])
+      expect(detect([session(16, { range: [8, 10] }), session(9, { range: [6, 8] }), session(2, { range: [8, 10] })])).toEqual(stalled)
+    })
+
+    it("skips deload sessions and the lighter ones the engine asked for, without breaking the run", () => {
+      expect(detect([session(16), session(12, { phase: "deload", weight: 70 }), session(9), session(2)])).toEqual(stalled)
+      expect(detect([session(16), session(9, { progression: { action: "reduce_load" }, weight: 72.5 }), session(2)])).toEqual([])
+      expect(detect([session(23), session(16), session(9, { progression: { action: "maintain", muscleAction: "deload" } }), session(2)])).toEqual(stalled)
+    })
+
+    it("needs the sessions spread out, and the latest one recent", () => {
+      expect(detect([session(6), session(4), session(2)])).toEqual([])
+      expect(detect([session(30), session(23), session(16)])).toEqual([])
+    })
+  })
+
   it("dedupes each alert per coach, trainee, kind and week, and links to it", () => {
     const draft = buildCoachTraineeAlertDraft({
       alert: { exercises: ["Bench Press"], kind: "plateau" },

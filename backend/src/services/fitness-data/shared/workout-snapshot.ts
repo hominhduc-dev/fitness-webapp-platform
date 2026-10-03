@@ -21,6 +21,8 @@ type WorkoutLogSnapshotSet = {
   setNumber?: number | null
   targetRepsMin?: number | null
   targetReps?: number | null
+  /** The effort the coach prescribed for this set, copied from the plan; `rir` is what was logged. */
+  targetRir?: number | null
   weight?: number | null
 }
 

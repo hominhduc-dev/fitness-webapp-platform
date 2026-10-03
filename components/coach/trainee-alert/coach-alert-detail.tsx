@@ -23,6 +23,15 @@ const formatDay = (day: string, locale: AppLocale) =>
 const formatNumber = (value: number, locale: AppLocale) =>
   new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US", { maximumFractionDigits: 1 }).format(value)
 
+/** "8–10 @2": the rep range and target RIR the session asked for. */
+function prescriptionLabel(prescription: { repMax: number | null; repMin: number | null; targetRir: number | null }) {
+  if (prescription.repMax == null) return ""
+  const range = prescription.repMin != null && prescription.repMin !== prescription.repMax
+    ? `${prescription.repMin}–${prescription.repMax}`
+    : `${prescription.repMax}`
+  return prescription.targetRir != null ? `${range} @${prescription.targetRir}` : range
+}
+
 function Section({ children, title, hint }: { children: ReactNode; hint?: string; title: string }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm @lg:p-5">
@@ -80,7 +89,7 @@ function PlateauEvidence({ detail, locale, messages }: Props) {
       <Section title={copy.liftsTitle} hint={plateau.readinessAverage != null ? copy.readiness(Math.round(plateau.readinessAverage)) : copy.noReadiness}>
         <ul className="space-y-4">
           {plateau.lifts.map((lift) => {
-            const peak = Math.max(0, ...lift.weeks.map((week) => week.bestE1rm ?? 0))
+            const peak = Math.max(0, ...lift.exposures.map((exposure) => exposure.bestE1rm))
             const since = lift.sinceAlert
             return (
               <li key={lift.key} className="rounded-xl bg-muted/50 p-3">
@@ -99,37 +108,35 @@ function PlateauEvidence({ detail, locale, messages }: Props) {
                   <p className="mt-0.5 text-xs text-muted-foreground">{lift.primaryMuscles.map(labelOf).join(" · ")}</p>
                 ) : null}
 
-                {/* e1RM per week from zero, so a flat lift reads flat. The oldest week is context, not judged. */}
-                <div className="mt-3 grid grid-cols-4 gap-2" role="list">
-                  {lift.weeks.map((week) => {
-                    const height = week.bestE1rm && peak > 0 ? Math.max(8, (week.bestE1rm / peak) * 100) : 0
-                    const context = week.weeksAgo >= 3
+                {/* e1RM per session from zero, so a flat lift reads flat. Only the judged sessions carry the colour. */}
+                <div className="mt-3 grid grid-flow-col auto-cols-[minmax(0,1fr)] gap-1.5" role="list">
+                  {lift.exposures.map((exposure, index) => {
+                    const height = peak > 0 ? Math.max(8, (exposure.bestE1rm / peak) * 100) : 0
+                    const judged = exposure.status === "judged"
                     return (
-                      <div key={week.weeksAgo} role="listitem" className="flex min-w-0 flex-col items-center gap-1 text-center">
-                        <span className="text-xs font-semibold tnum text-foreground">
-                          {week.bestE1rm != null ? formatNumber(week.bestE1rm, locale) : "–"}
+                      <div key={`${exposure.date}-${index}`} role="listitem" className="flex min-w-0 flex-col items-center gap-1 text-center">
+                        <span className={cn("text-xs tnum", judged ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                          {formatNumber(exposure.bestE1rm, locale)}
                         </span>
                         <div className="flex h-16 w-full items-end justify-center rounded-md bg-card">
-                          {height > 0 ? (
-                            <div
-                              className={cn("w-3/5 max-w-10 rounded-t-md", context ? "bg-muted-foreground/30" : "bg-warning")}
-                              style={{ height: `${height}%` }}
-                              aria-hidden="true"
-                            />
-                          ) : null}
+                          <div
+                            className={cn("w-3/5 max-w-10 rounded-t-md", judged ? "bg-warning" : "bg-muted-foreground/30")}
+                            style={{ height: `${height}%` }}
+                            aria-hidden="true"
+                          />
                         </div>
-                        <span className="text-[11px] text-muted-foreground">{copy.weeksAgo(week.weeksAgo)}</span>
-                        <span className="text-[11px] tnum text-muted-foreground">
-                          {week.topWeight != null && week.topReps != null
-                            ? `${formatNumber(week.topWeight, locale)} × ${week.topReps}`
-                            : week.sessions === 0 ? copy.noSession : "–"}
+                        <span className="text-[11px] tnum text-muted-foreground">{formatDay(exposure.date, locale)}</span>
+                        <span className="text-[11px] tnum text-foreground">
+                          {exposure.topWeight != null && exposure.topReps != null ? `${formatNumber(exposure.topWeight, locale)} × ${exposure.topReps}` : "–"}
                         </span>
+                        <span className="text-[10.5px] tnum text-muted-foreground">{prescriptionLabel(exposure.prescription)}</span>
+                        {!judged ? <span className="text-[10.5px] leading-tight text-muted-foreground">{copy.status[exposure.status]}</span> : null}
                       </div>
                     )
                   })}
                 </div>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  {copy.e1rm} (kg) · {copy.topSet} (kg × reps)
+                  {copy.e1rm} (kg) · {copy.topSet} (kg × reps) · {copy.sessionsHint(plateau.judgedSessions)}
                 </p>
 
                 {since.sessions > 0 ? (

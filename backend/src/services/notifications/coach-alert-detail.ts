@@ -1,20 +1,24 @@
 import type { Prisma } from "@prisma/client"
 
+import type { Prescription } from "../../domain/exercise-exposure"
 import {
   getSnapshotExerciseId,
-  getSnapshotExerciseName,
-  getSnapshotMaxE1RM,
-  getSnapshotPrimaryMuscles,
   getSnapshotVariationId,
   parseWorkoutLogSnapshotExercises,
 } from "../fitness-data/shared/workout-snapshot"
-import { classifyVolumeZone, type VolumeLandmarks, type VolumeZone } from "../volume-recovery/analytics"
 import {
+  aggregateWeeklyMuscleVolume,
+  classifyVolumeZone,
+  type VolumeLandmarks,
+  type VolumeZone,
+} from "../volume-recovery/analytics"
+import {
+  buildLiftHistories,
   LOW_READINESS,
-  PLATEAU_WEEKS,
+  PLATEAU_EXPOSURES,
   progressedSince,
-  repsByWeight,
   type CoachTraineeAlertKind,
+  type LiftExposure,
   type LiftWeek,
 } from "./coach-trainee-alerts"
 
@@ -22,23 +26,32 @@ import {
  * The evidence behind one coach alert, so the coach can see why it was raised
  * and what to do about it rather than only a sentence in the bell.
  *
- * Weeks are counted back from when the alert was raised, as the detection did,
- * and whatever was trained since is shown apart: it says whether the alert still
+ * Everything is read as of when the alert was raised, as the detection did, and
+ * whatever was trained since is shown apart: it says whether the alert still
  * stands. Pure: the service loads the rows.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
-/** Weeks of history drawn for a plateau: the three it was judged on and one before. */
-const PLATEAU_HISTORY_WEEKS = PLATEAU_WEEKS + 1
+/** Sessions of a stalled lift shown, newest last. */
+const MAX_EXPOSURES_SHOWN = 6
+/** Weeks of muscle volume shown around a plateau. */
+const VOLUME_WEEKS = 4
 const MISSED_HISTORY_WEEKS = 4
 const READINESS_HISTORY_DAYS = 14
+/** Readiness is averaged over the three weeks before a plateau alert. */
+const PLATEAU_READINESS_DAYS = 21
 /** Weekly sets at or above this share of MRV point at recovery, not stimulus. */
 const NEAR_MRV_SHARE = 0.9
 /** Average readiness under this over the window points at recovery. */
 const LOW_AVERAGE_READINESS = 60
 
-type DetailLog = { exerciseSnapshot: Prisma.JsonValue | null; startedAt: Date; workoutName: string | null }
+type DetailLog = {
+  exerciseSnapshot: Prisma.JsonValue | null
+  startedAt: Date
+  workoutName: string | null
+  workoutSnapshot?: Prisma.JsonValue | null
+}
 type DetailCheckIn = {
   checkInDate: Date
   fatigue: number
@@ -49,8 +62,6 @@ type DetailCheckIn = {
   sleepQuality: number | null
   stress: number | null
 }
-type WeeklySummary = { averageRir: number | null; effectiveSets: number; muscleSlug: string; weekStart: Date }
-type ExerciseNote = { date: Date; exerciseName: string; note: string }
 
 type Suggestion =
   | "change_stimulus"
@@ -62,22 +73,37 @@ type Suggestion =
   | "resolved"
   | "review_recovery"
 
-type LiftWeekView = { bestE1rm: number | null; sessions: number; topReps: number | null; topWeight: number | null; weeksAgo: number }
+/**
+ * - judged: one of the comparable sessions the plateau was called on
+ * - earlier: comparable, but older than the ones judged
+ * - not_comparable: under a different prescription, so another block
+ * - deload / intentional: a lighter session the plan asked for, left out
+ */
+type ExposureStatus = "deload" | "earlier" | "intentional" | "judged" | "not_comparable"
+
+type ExposureView = {
+  bestE1rm: number
+  date: string
+  prescription: Prescription
+  status: ExposureStatus
+  topReps: number | null
+  topWeight: number | null
+}
 
 type PlateauLift = {
+  /** Oldest first. */
+  exposures: ExposureView[]
   key: string
   name: string
   notes: Array<{ date: string; note: string }>
   primaryMuscles: string[]
   sinceAlert: { bestE1rm: number | null; progressed: boolean; sessions: number; topWeight: number | null }
-  /** Oldest first. */
-  weeks: LiftWeekView[]
 }
 
 type MuscleContext = {
   landmarks: { mavMaxSets: number; mavMinSets: number; mevSets: number; mrvSets: number; source: VolumeLandmarks["source"] }
   muscleSlug: string
-  /** Oldest first; weeks with no summary are left out. */
+  /** Oldest first; weeks the muscle was not trained are left out. */
   weeks: Array<{ averageRir: number | null; effectiveSets: number; weekStart: string; zone: VolumeZone }>
 }
 
@@ -106,6 +132,7 @@ type CoachAlertDetail = {
     weeks: Array<{ completed: number; weeksAgo: number }>
   }
   plateau?: {
+    judgedSessions: number
     lifts: PlateauLift[]
     muscles: MuscleContext[]
     readinessAverage: number | null
@@ -117,104 +144,125 @@ type CoachAlertDetail = {
 const round1 = (value: number) => Math.round(value * 10) / 10
 const dayKey = (date: Date) => date.toISOString().slice(0, 10)
 const weeksBefore = (anchor: Date, date: Date) => Math.floor((anchor.getTime() - date.getTime()) / WEEK_MS)
+const liftKey = (exercise: ReturnType<typeof parseWorkoutLogSnapshotExercises>[number]) =>
+  getSnapshotVariationId(exercise) ?? getSnapshotExerciseId(exercise)
 
 function average(values: readonly number[]) {
   return values.length > 0 ? round1(values.reduce((sum, value) => sum + value, 0) / values.length) : null
 }
 
-function emptyWeek(): LiftWeek & { sessions: number } {
-  return { bestE1rm: 0, repsByWeight: new Map(), sessions: 0, topWeight: 0 }
+function exposureStatus(exposure: LiftExposure, chain: readonly LiftExposure[]): ExposureStatus {
+  if (exposure.exclusion) return exposure.exclusion
+  const index = chain.indexOf(exposure)
+  if (index < 0) return "not_comparable"
+  return index < PLATEAU_EXPOSURES ? "judged" : "earlier"
 }
 
-function foldInto(week: LiftWeek & { sessions: number }, exercise: ReturnType<typeof parseWorkoutLogSnapshotExercises>[number]) {
-  for (const [weight, reps] of repsByWeight(exercise)) {
-    week.repsByWeight.set(weight, Math.max(week.repsByWeight.get(weight) ?? 0, reps))
-    week.topWeight = Math.max(week.topWeight, weight)
-  }
-  week.bestE1rm = Math.max(week.bestE1rm, getSnapshotMaxE1RM(exercise)?.e1rm ?? 0)
-  week.sessions += 1
-}
-
-function viewWeek(week: (LiftWeek & { sessions: number }) | undefined, weeksAgo: number): LiftWeekView {
-  if (!week || week.sessions === 0) return { bestE1rm: null, sessions: 0, topReps: null, topWeight: null, weeksAgo }
+function viewExposure(exposure: LiftExposure, status: ExposureStatus): ExposureView {
   return {
-    bestE1rm: week.bestE1rm > 0 ? round1(week.bestE1rm) : null,
-    sessions: week.sessions,
-    topReps: week.topWeight > 0 ? week.repsByWeight.get(week.topWeight) ?? null : null,
-    topWeight: week.topWeight > 0 ? week.topWeight : null,
-    weeksAgo,
+    bestE1rm: round1(exposure.bestE1rm),
+    date: dayKey(exposure.date),
+    prescription: exposure.prescription,
+    status,
+    topReps: exposure.topWeight > 0 ? exposure.repsByWeight.get(exposure.topWeight) ?? null : null,
+    topWeight: exposure.topWeight > 0 ? exposure.topWeight : null,
   }
 }
 
-/** The weeks of each named lift before the alert, and what it did since. */
-function buildPlateauLifts(input: { exercises: readonly string[]; logs: readonly DetailLog[]; notes: readonly ExerciseNote[]; raisedAt: Date }) {
-  const named = new Set(input.exercises)
-  const byLift = new Map<string, { name: string; primaryMuscles: Set<string>; since: LiftWeek & { sessions: number }; weeks: Map<number, LiftWeek & { sessions: number }> }>()
-
-  for (const log of input.logs) {
-    const weeksAgo = weeksBefore(input.raisedAt, log.startedAt)
-    const after = log.startedAt.getTime() > input.raisedAt.getTime()
-    if (!after && weeksAgo >= PLATEAU_HISTORY_WEEKS) continue
-
+/**
+ * The trainee's own note on each exercise of each session: recorded apart from
+ * the coach's since logs carry `traineeNote`; on older logs, a note that differs
+ * from the coach's current note for that slot.
+ */
+function traineeNotesByLift(logs: readonly DetailLog[], coachNotes: ReadonlyMap<string, string | null>) {
+  const notes = new Map<string, Array<{ date: string; note: string }>>()
+  for (const log of logs) {
     for (const exercise of parseWorkoutLogSnapshotExercises(log.exerciseSnapshot)) {
-      const name = getSnapshotExerciseName(exercise)
-      const key = getSnapshotVariationId(exercise) ?? getSnapshotExerciseId(exercise)
-      if (!name || !key || !named.has(name)) continue
-
-      const lift = byLift.get(key) ?? { name, primaryMuscles: new Set<string>(), since: emptyWeek(), weeks: new Map() }
-      for (const muscle of getSnapshotPrimaryMuscles(exercise) ?? []) lift.primaryMuscles.add(muscle)
-      if (after) {
-        foldInto(lift.since, exercise)
-      } else {
-        const week = lift.weeks.get(weeksAgo) ?? emptyWeek()
-        foldInto(week, exercise)
-        lift.weeks.set(weeksAgo, week)
-      }
-      byLift.set(key, lift)
+      const key = liftKey(exercise)
+      const entry = exercise as { id?: unknown; notes?: unknown; traineeNote?: unknown }
+      const recorded = typeof entry.traineeNote === "string" ? entry.traineeNote.trim() : null
+      const legacy = recorded == null && typeof entry.notes === "string" && typeof entry.id === "string"
+        && entry.notes.trim() && entry.notes.trim() !== (coachNotes.get(entry.id) ?? "").trim()
+        ? entry.notes.trim()
+        : null
+      const note = recorded || legacy
+      if (!key || !note) continue
+      notes.set(key, [...(notes.get(key) ?? []), { date: dayKey(log.startedAt), note }])
     }
   }
+  return notes
+}
 
-  return Array.from(byLift.entries())
-    .map(([key, lift]): PlateauLift => {
-      // The best of the weeks the alert was judged on: progress since means beating it.
-      const judged = emptyWeek()
-      for (let weeksAgo = 0; weeksAgo < PLATEAU_WEEKS; weeksAgo += 1) {
-        const week = lift.weeks.get(weeksAgo)
-        if (!week) continue
-        judged.bestE1rm = Math.max(judged.bestE1rm, week.bestE1rm)
-        judged.topWeight = Math.max(judged.topWeight, week.topWeight)
-        for (const [weight, reps] of week.repsByWeight) judged.repsByWeight.set(weight, Math.max(judged.repsByWeight.get(weight) ?? 0, reps))
+function buildPlateauLifts(input: {
+  coachNotes: ReadonlyMap<string, string | null>
+  exercises: readonly string[]
+  logs: readonly DetailLog[]
+  raisedAt: Date
+}): PlateauLift[] {
+  const named = new Set(input.exercises)
+  const before = input.logs.filter((log) => log.startedAt.getTime() <= input.raisedAt.getTime())
+  const after = input.logs.filter((log) => log.startedAt.getTime() > input.raisedAt.getTime())
+  const notes = traineeNotesByLift(input.logs, input.coachNotes)
+  // Every session since the alert, however long ago it was raised.
+  const latest = after.at(-1)?.startedAt
+  const sinceHistories = new Map(
+    (latest ? buildLiftHistories(after, latest, Number.POSITIVE_INFINITY) : []).map((history) => [history.key, history]),
+  )
+
+  return buildLiftHistories(before, input.raisedAt)
+    .filter((history) => named.has(history.name))
+    .map((history): PlateauLift => {
+      // Progress since means beating the best of the sessions it was judged on.
+      const judged = history.chain.slice(0, PLATEAU_EXPOSURES)
+      const best: LiftWeek = { bestE1rm: 0, repsByWeight: new Map(), topWeight: 0 }
+      for (const exposure of judged) {
+        best.bestE1rm = Math.max(best.bestE1rm, exposure.bestE1rm)
+        best.topWeight = Math.max(best.topWeight, exposure.topWeight)
+        for (const [weight, reps] of exposure.repsByWeight) best.repsByWeight.set(weight, Math.max(best.repsByWeight.get(weight) ?? 0, reps))
       }
-      const since = viewWeek(lift.since, -1)
+      const since = sinceHistories.get(history.key)?.exposures ?? []
       return {
-        key,
-        name: lift.name,
-        notes: input.notes
-          .filter((note) => note.exerciseName === lift.name)
-          .map((note) => ({ date: dayKey(note.date), note: note.note })),
-        primaryMuscles: Array.from(lift.primaryMuscles).sort(),
+        exposures: history.exposures
+          .slice(0, MAX_EXPOSURES_SHOWN)
+          .reverse()
+          .map((exposure) => viewExposure(exposure, exposureStatus(exposure, history.chain))),
+        key: history.key,
+        name: history.name,
+        notes: notes.get(history.key) ?? [],
+        primaryMuscles: history.primaryMuscles,
         sinceAlert: {
-          bestE1rm: since.bestE1rm,
-          progressed: lift.since.sessions > 0 && progressedSince(judged, [lift.since]),
-          sessions: lift.since.sessions,
-          topWeight: since.topWeight,
+          bestE1rm: since.length > 0 ? round1(Math.max(...since.map((exposure) => exposure.bestE1rm))) : null,
+          progressed: since.length > 0 && progressedSince(best, since),
+          sessions: since.length,
+          topWeight: since.length > 0 ? Math.max(...since.map((exposure) => exposure.topWeight)) || null : null,
         },
-        weeks: Array.from({ length: PLATEAU_HISTORY_WEEKS }, (_, index) => {
-          const weeksAgo = PLATEAU_HISTORY_WEEKS - 1 - index
-          return viewWeek(lift.weeks.get(weeksAgo), weeksAgo)
-        }),
       }
     })
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
+/**
+ * Weekly volume of the given muscles over the weeks before the alert, counted
+ * straight from the logs so it does not wait on the weekly summary job.
+ */
 function buildMuscleContext(input: {
   landmarksFor: (muscleSlug: string) => VolumeLandmarks
+  logs: readonly DetailLog[]
   muscles: readonly string[]
   raisedAt: Date
-  summaries: readonly WeeklySummary[]
+  weekStartOf: (date: Date) => string
 }): MuscleContext[] {
-  const from = input.raisedAt.getTime() - PLATEAU_HISTORY_WEEKS * WEEK_MS
+  const from = input.raisedAt.getTime() - VOLUME_WEEKS * WEEK_MS
+  const byWeek = new Map<string, DetailLog[]>()
+  for (const log of input.logs) {
+    if (log.startedAt.getTime() < from || log.startedAt.getTime() > input.raisedAt.getTime()) continue
+    const week = input.weekStartOf(log.startedAt)
+    byWeek.set(week, [...(byWeek.get(week) ?? []), log])
+  }
+  const volumeByWeek = Array.from(byWeek.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([weekStart, logs]) => ({ volume: aggregateWeeklyMuscleVolume(logs), weekStart }))
+
   return input.muscles.map((muscleSlug) => {
     const landmarks = input.landmarksFor(muscleSlug)
     return {
@@ -226,15 +274,12 @@ function buildMuscleContext(input: {
         source: landmarks.source,
       },
       muscleSlug,
-      weeks: input.summaries
-        .filter((summary) => summary.muscleSlug === muscleSlug && summary.weekStart.getTime() >= from && summary.weekStart.getTime() < input.raisedAt.getTime())
-        .sort((left, right) => left.weekStart.getTime() - right.weekStart.getTime())
-        .map((summary) => ({
-          averageRir: summary.averageRir,
-          effectiveSets: round1(summary.effectiveSets),
-          weekStart: dayKey(summary.weekStart),
-          zone: classifyVolumeZone(summary.effectiveSets, landmarks),
-        })),
+      weeks: volumeByWeek.flatMap(({ volume, weekStart }) => {
+        const muscle = volume.find((entry) => entry.muscleSlug === muscleSlug)
+        return muscle
+          ? [{ averageRir: muscle.averageRir, effectiveSets: round1(muscle.effectiveSets), weekStart, zone: classifyVolumeZone(muscle.effectiveSets, landmarks) }]
+          : []
+      }),
     }
   })
 }
@@ -243,8 +288,7 @@ function plateauSuggestions(plateau: NonNullable<CoachAlertDetail["plateau"]>): 
   const suggestions: Suggestion[] = []
   if (plateau.lifts.length > 0 && plateau.lifts.every((lift) => lift.sinceAlert.progressed)) suggestions.push("resolved")
   const nearMrv = plateau.muscles.some((muscle) => {
-    const sets = muscle.weeks.map((week) => week.effectiveSets)
-    const mean = average(sets)
+    const mean = average(muscle.weeks.map((week) => week.effectiveSets))
     return mean != null && mean >= muscle.landmarks.mrvSets * NEAR_MRV_SHARE
   })
   if (nearMrv) suggestions.push("reduce_volume")
@@ -256,14 +300,16 @@ function plateauSuggestions(plateau: NonNullable<CoachAlertDetail["plateau"]>): 
 
 function buildCoachAlertDetail(input: {
   checkIns: readonly DetailCheckIn[]
-  exerciseNotes: readonly ExerciseNote[]
+  /** The coach's current note per workout exercise, to tell older trainee notes apart. */
+  coachNotes: ReadonlyMap<string, string | null>
   kind: CoachTraineeAlertKind
   landmarksFor: (muscleSlug: string) => VolumeLandmarks
   logs: readonly DetailLog[]
   /** The alert's own metadata: the lifts a plateau named. */
   plateauExercises: readonly string[]
   raisedAt: Date
-  summaries: readonly WeeklySummary[]
+  /** The trainee's week a session falls in, as a day key. */
+  weekStartOf: (date: Date) => string
   workoutsPerWeek: number
 }): CoachAlertDetail {
   const raisedAt = input.raisedAt
@@ -272,12 +318,13 @@ function buildCoachAlertDetail(input: {
 
   switch (input.kind) {
     case "plateau": {
-      const lifts = buildPlateauLifts({ exercises: input.plateauExercises, logs: input.logs, notes: input.exerciseNotes, raisedAt })
+      const lifts = buildPlateauLifts({ coachNotes: input.coachNotes, exercises: input.plateauExercises, logs: input.logs, raisedAt })
       const muscles = Array.from(new Set(lifts.flatMap((lift) => lift.primaryMuscles))).sort()
-      const windowStart = raisedAt.getTime() - PLATEAU_WEEKS * WEEK_MS
+      const windowStart = raisedAt.getTime() - PLATEAU_READINESS_DAYS * DAY_MS
       const plateau = {
+        judgedSessions: PLATEAU_EXPOSURES,
         lifts,
-        muscles: buildMuscleContext({ landmarksFor: input.landmarksFor, muscles, raisedAt, summaries: input.summaries }),
+        muscles: buildMuscleContext({ landmarksFor: input.landmarksFor, logs: input.logs, muscles, raisedAt, weekStartOf: input.weekStartOf }),
         readinessAverage: average(input.checkIns.flatMap((checkIn) =>
           checkIn.readinessScore != null && before(checkIn.checkInDate) && checkIn.checkInDate.getTime() >= windowStart ? [checkIn.readinessScore] : [],
         )),
@@ -339,5 +386,5 @@ function buildCoachAlertDetail(input: {
   }
 }
 
-export { buildCoachAlertDetail, MISSED_HISTORY_WEEKS, PLATEAU_HISTORY_WEEKS, READINESS_HISTORY_DAYS }
-export type { CoachAlertDetail, DetailCheckIn, DetailLog, ExerciseNote, Suggestion, WeeklySummary }
+export { buildCoachAlertDetail, MISSED_HISTORY_WEEKS, READINESS_HISTORY_DAYS, VOLUME_WEEKS }
+export type { CoachAlertDetail, DetailCheckIn, DetailLog, ExposureStatus, Suggestion }

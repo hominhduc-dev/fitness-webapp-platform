@@ -78,7 +78,7 @@ describe("presentNotification", () => {
       "vi",
     )).toEqual({
       href: "/coach/trainees/t1",
-      message: "Không có PR e1RM, tạ hay rep ở Bench Press, Squat trong 3 tuần.",
+      message: "Không có PR e1RM, tạ hay rep ở Bench Press, Squat qua 3 buổi tập tương đương gần nhất.",
       title: "An cần bạn xem",
     })
 

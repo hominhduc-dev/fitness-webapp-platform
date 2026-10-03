@@ -95,3 +95,29 @@ describe("progressive overload", () => {
     expect(result.sets[0].reps).toBe(11)
   })
 })
+
+describe("a changed prescription", () => {
+  const history = (reps: number, prescription?: { repMax: number; repMin: number; targetRir: number | null }) =>
+    [1, 2, 3].map((setNumber) => ({
+      previous: { prescription, reps, rir: 2, weight: 80 },
+      setNumber,
+      targetReps: 20,
+      targetRepsMin: 15,
+    }))
+
+  it("sets a new baseline instead of reading the old block's reps against the new range", () => {
+    expect(buildOverloadRecommendation({ sets: history(10, { repMax: 10, repMin: 8, targetRir: 2 }) }))
+      .toEqual({ action: "establish_baseline", reasons: ["prescription_changed"], sets: [] })
+  })
+
+  it("still progresses a set whose range only moved a little, and older history with no prescription", () => {
+    const close = [1, 2, 3].map((setNumber) => ({
+      previous: { prescription: { repMax: 10, repMin: 8, targetRir: 2 }, reps: 10, rir: 2, weight: 80 },
+      setNumber,
+      targetReps: 12,
+      targetRepsMin: 10,
+    }))
+    expect(buildOverloadRecommendation({ sets: close }).action).toBe("add_reps")
+    expect(buildOverloadRecommendation({ sets: history(20) }).action).toBe("add_load")
+  })
+})
