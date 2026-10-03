@@ -14,12 +14,12 @@ describe("recommendation context", () => {
       workout: {
         exercises: [
           {
-            action: "add_load", engineAction: "add_load", heldBy: null, muscleAction: null, muscleSlug: null, name: "Bench Press",
+            action: "add_load", engineAction: "add_load", heldBy: null, muscleAction: null, muscleSlug: null, name: "Bench Press", workoutExerciseId: null,
             reasons: [], setDelta: 0, sets: [{ previousReps: 10, previousWeight: 80, reps: 8, setNumber: 1, weight: 82.5 }],
           },
-          { action: "maintain", engineAction: "add_reps", heldBy: "day", muscleAction: null, muscleSlug: null, name: "Squat", reasons: [], setDelta: 0, sets: [] },
+          { action: "maintain", engineAction: "add_reps", heldBy: "day", muscleAction: null, muscleSlug: null, name: "Squat", reasons: [], setDelta: 0, sets: [], workoutExerciseId: null },
           {
-            action: "maintain", engineAction: "add_load", heldBy: "muscle", muscleAction: "decrease", muscleSlug: "upper-back", name: "Row",
+            action: "maintain", engineAction: "add_load", heldBy: "muscle", muscleAction: "decrease", muscleSlug: "upper-back", name: "Row", workoutExerciseId: null,
             reasons: [], setDelta: -1, sets: [],
           },
         ],

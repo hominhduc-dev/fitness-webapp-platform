@@ -5,7 +5,6 @@ type MuscleAction = "decrease" | "deload" | "increase" | "maintain"
 export const trainingRecommendationMessages = {
   en: {
     trainingRecommendation: {
-      title: "Today's plan",
       day: {
         light_session: "Light session",
         proceed: "Train as planned",
@@ -31,23 +30,17 @@ export const trainingRecommendationMessages = {
       setDelta: (delta: number) => `${delta > 0 ? "+" : ""}${delta} set${Math.abs(delta) === 1 ? "" : "s"}`,
       heldByDay: "held for readiness",
       heldByMuscle: (muscle: string) => `${muscle} volume`,
+      /** Weekly volume change a muscle row carries on the dashboard. */
       muscle: {
         decrease: "Reduce",
         deload: "Deload",
         increase: "Add",
         maintain: "Keep",
       } satisfies Record<MuscleAction, string>,
-      weeklyVolume: "This week's volume",
-      noWorkout: "No session scheduled today.",
-      completed: "Done today",
-      moreExercises: (count: number) => `+${count} more`,
-      startWorkout: "Start",
-      unavailable: "Recommendation unavailable right now.",
     },
   },
   vi: {
     trainingRecommendation: {
-      title: "Kế hoạch hôm nay",
       day: {
         light_session: "Buổi nhẹ",
         proceed: "Tập theo kế hoạch",
@@ -73,18 +66,13 @@ export const trainingRecommendationMessages = {
       setDelta: (delta: number) => `${delta > 0 ? "+" : ""}${delta} set`,
       heldByDay: "giữ vì readiness",
       heldByMuscle: (muscle: string) => `theo volume ${muscle}`,
+      /** Weekly volume change a muscle row carries on the dashboard. */
       muscle: {
         decrease: "Giảm",
         deload: "Deload",
         increase: "Tăng",
         maintain: "Giữ",
       } satisfies Record<MuscleAction, string>,
-      weeklyVolume: "Volume tuần này",
-      noWorkout: "Hôm nay không có buổi tập theo lịch.",
-      completed: "Đã tập hôm nay",
-      moreExercises: (count: number) => `+${count} bài`,
-      startWorkout: "Bắt đầu",
-      unavailable: "Chưa lấy được đề xuất lúc này.",
     },
   },
 } as const

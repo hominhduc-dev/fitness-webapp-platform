@@ -131,6 +131,6 @@ describe("training recommendation", () => {
     })
 
     expect(result.muscles).toEqual([{ action: "decrease", currentSets: 18, muscleSlug: "chest", recommendedSets: 15.5 }])
-    expect(result.workout?.exercises).toEqual([{ ...reconciled, name: "Bench" }])
+    expect(result.workout?.exercises).toEqual([{ ...reconciled, name: "Bench", workoutExerciseId: null }])
   })
 })

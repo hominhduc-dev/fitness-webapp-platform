@@ -3,17 +3,40 @@
 import Link from "next/link"
 import type { ActiveWorkoutSession } from "@/lib/workout/session-storage"
 import { useActiveWorkoutSessionList } from "@/lib/workout/use-active-workout-sessions"
-import { ChevronRight, Clock, Dumbbell, Layers, Moon, Play, Sparkles } from "lucide-react"
+import { ChevronRight, Clock, Dumbbell, Layers, Minus, Moon, Play, TrendingDown, TrendingUp } from "lucide-react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
 import { WorkoutSessionLink } from "@/components/workout/workout-session-link"
 import { formatExerciseVariationLabel } from "@/lib/exercise-display"
-import { acceptedCoachHints, coachHintForProfiles } from "@/lib/fitness/coach-hints"
-import { muscleProfilesFromWorkout } from "@/lib/fitness/muscle-map"
-import { useVolumeRecovery } from "@/lib/queries/progress"
+import type { TrainingRecommendation } from "@/lib/fitness/types"
+import { useTrainingRecommendation } from "@/lib/queries/progress"
 import type { Workout } from "@/lib/types"
+import { cn } from "@/lib/utils"
 import { formatRepTarget } from "@/lib/workout-reps"
+
+type ExerciseRecommendation = NonNullable<TrainingRecommendation["workout"]>["exercises"][number]
+
+const DAY_TONE: Record<TrainingRecommendation["day"]["action"], string> = {
+  light_session: "bg-warning-soft text-warning-text",
+  proceed: "bg-[color-mix(in_srgb,var(--success)_14%,transparent)] text-success-text",
+  reduce_volume: "bg-warning-soft text-warning-text",
+  rest: "bg-destructive/10 text-destructive-text",
+}
+
+function direction(action: ExerciseRecommendation["action"]) {
+  if (action === "add_load" || action === "add_reps") return "up" as const
+  if (action === "reduce_load") return "down" as const
+  return "hold" as const
+}
+
+/** Today's adjusted target for an exercise: "82.5×8", or the first set's with "…" when sets differ. */
+function adjustedTarget(recommendation: ExerciseRecommendation) {
+  const [first] = recommendation.sets
+  if (!first) return null
+  const label = first.weight != null ? `${first.weight}×${first.reps}` : `${first.reps}`
+  return recommendation.sets.every((set) => set.weight === first.weight && set.reps === first.reps) ? label : `${label}…`
+}
 
 interface TodayWorkoutProps {
   workout: Workout | null
@@ -33,7 +56,9 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
   const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const { messages } = useLocale()
   const copy = messages.dashboard
-  const volumeRecoveryQuery = useVolumeRecovery()
+  const recommendationQuery = useTrainingRecommendation()
+  const recommendation = recommendationQuery.data
+  const planCopy = messages.trainingRecommendation
 
   const header = (
     <div className="flex items-center justify-between gap-3">
@@ -69,13 +94,18 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
     { icon: Dumbbell, label: `${workout.exercises.length} ${copy.exercises}` },
     { icon: Layers, label: `${totalSets} ${copy.sets}` },
   ]
-  // Only a recommendation today's exercises can actually act on is worth the
-  // space here.
-  const volumeCopy = messages.volumeRecovery
-  const coachHint = coachHintForProfiles(
-    acceptedCoachHints(volumeRecoveryQuery.data),
-    muscleProfilesFromWorkout(workout),
+  // The coach's plan, adjusted: the server reconciles today's readiness, the
+  // week's muscle volume and each exercise's history into one target per
+  // exercise. Only applied to the workout it was computed for — an active
+  // session on another workout shows its plan as programmed.
+  const plan = recommendation?.workout?.id === workout.id ? recommendation.workout : null
+  const adjustments = new Map(
+    (plan?.exercises ?? []).flatMap((exercise) =>
+      exercise.workoutExerciseId && exercise.action !== "establish_baseline" ? [[exercise.workoutExerciseId, exercise] as const] : [],
+    ),
   )
+  const muscleLabels = messages.volumeRecovery.muscleLabels
+  const phase = recommendation?.intensity.phase ? planCopy.phase[recommendation.intensity.phase] ?? recommendation.intensity.phase : null
 
   return (
       <section className="glass-card flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-4">
@@ -95,6 +125,24 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
         </div>
       </div>
 
+      {recommendation && !isCompleted ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", DAY_TONE[recommendation.day.action])}>
+            {planCopy.day[recommendation.day.action]}
+            {recommendation.day.setAdjustmentPct !== 0 && recommendation.day.action !== "rest"
+              ? ` · ${planCopy.setAdjustment(recommendation.day.setAdjustmentPct)}`
+              : ""}
+          </span>
+          {phase || recommendation.intensity.targetRir != null ? (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              {[phase, recommendation.intensity.targetRir != null ? planCopy.targetRir(recommendation.intensity.targetRir) : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       <ul className="mt-4 flex gap-2 md:flex-wrap">
         {stats.map((stat) => (
           <li
@@ -107,40 +155,75 @@ export function TodayWorkout({ activeSessions, workout: scheduledWorkout, comple
         ))}
       </ul>
 
-      {coachHint ? (
-        <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-primary-soft px-2.5 py-2 text-xs leading-[1.45] text-foreground">
-          <Sparkles className="mt-px size-3.5 shrink-0 text-primary" aria-hidden="true" />
-          <span className="min-w-0">
-            {volumeCopy.sessionHint(
-              coachHint.action,
-              volumeCopy.muscleLabels[coachHint.muscleSlug as keyof typeof volumeCopy.muscleLabels] ?? coachHint.muscleSlug,
-              coachHint.currentSets,
-              coachHint.recommendedSets,
-            )}
-          </span>
-        </p>
-      ) : null}
+      {/* Phones keep the card short unless there is an adjusted target to show. */}
+      <ul className={cn("mt-4 min-w-0 space-y-2", adjustments.size === 0 && "hidden md:block")}>
+        {workout.exercises.slice(0, 4).map((exercise) => {
+          const adjustment = isCompleted ? undefined : adjustments.get(exercise.id)
+          const target = adjustment ? adjustedTarget(adjustment) : null
+          const trend = adjustment ? direction(adjustment.action) : null
+          const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus
+          const muscleLabel = adjustment?.muscleSlug
+            ? muscleLabels[adjustment.muscleSlug as keyof typeof muscleLabels] ?? adjustment.muscleSlug
+            : null
+          const why = adjustment?.heldBy === "day"
+            ? planCopy.heldByDay
+            : adjustment && (adjustment.heldBy === "muscle" || adjustment.setDelta !== 0) && muscleLabel
+              ? planCopy.heldByMuscle(muscleLabel.toLowerCase())
+              : null
 
-      {/* The exercise list has room on wider screens; phones keep the card short. */}
-      <ul className="mt-4 hidden min-w-0 space-y-1.5 md:block">
-        {workout.exercises.slice(0, 4).map((exercise) => (
-          <li key={exercise.id} className="flex min-w-0 items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-sm leading-5 text-foreground">
-              {formatExerciseVariationLabel({
-                displayName: exercise.variation.displayName,
-                exerciseName: exercise.exercise.name,
-                isDefault: exercise.variation.isDefault,
-                variationName: exercise.variation.name,
-              })}
-            </span>
-            <span className="shrink-0 font-mono text-xs font-medium tnum text-muted-foreground">
-              {exercise.sets.length}×{formatRepTarget({
-                reps: exercise.sets[0]?.targetReps,
-                repsMin: exercise.sets[0]?.targetRepsMin,
-              })}
-            </span>
-          </li>
-        ))}
+          return (
+            <li key={exercise.id} className="flex min-w-0 items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block truncate text-sm leading-5 text-foreground">
+                  {formatExerciseVariationLabel({
+                    displayName: exercise.variation.displayName,
+                    exerciseName: exercise.exercise.name,
+                    isDefault: exercise.variation.isDefault,
+                    variationName: exercise.variation.name,
+                  })}
+                </span>
+                {adjustment ? (
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {planCopy.exercise[adjustment.action]}
+                    {why ? ` · ${why}` : ""}
+                  </span>
+                ) : null}
+              </span>
+              {adjustment && target ? (
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {adjustment.setDelta !== 0 ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-px font-mono text-[10px] font-semibold tnum",
+                        adjustment.setDelta > 0 ? "bg-primary/10 text-primary" : "bg-warning-soft text-warning-text",
+                      )}
+                    >
+                      {planCopy.setDelta(adjustment.setDelta)}
+                    </span>
+                  ) : null}
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 font-mono text-sm font-semibold tnum",
+                      trend === "up" && "text-success-text",
+                      trend === "down" && "text-warning-text",
+                      trend === "hold" && "text-foreground",
+                    )}
+                  >
+                    <TrendIcon className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
+                    {target}
+                  </span>
+                </span>
+              ) : (
+                <span className="shrink-0 font-mono text-xs font-medium tnum text-muted-foreground">
+                  {exercise.sets.length}×{formatRepTarget({
+                    reps: exercise.sets[0]?.targetReps,
+                    repsMin: exercise.sets[0]?.targetRepsMin,
+                  })}
+                </span>
+              )}
+            </li>
+          )
+        })}
         {workout.exercises.length > 4 ? (
           <li className="label-micro pt-1">{copy.moreExercises(workout.exercises.length - 4)}</li>
         ) : null}
