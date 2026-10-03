@@ -189,14 +189,15 @@ type TrainingRecommendationInput = {
   targetRir: number | null
   workout: {
     /** Progressions already reconciled with the day and the muscles. */
-    exercises: ReadonlyArray<{ name: string; progression?: ReconciledProgression | null }>
+    exercises: ReadonlyArray<{ name: string; progression?: ReconciledProgression | null; workoutExerciseId?: string | null }>
     id: string
     isCompleted: boolean
     name: string
   } | null
 }
 
-type ExerciseRecommendation = ReconciledProgression & { name: string }
+/** `workoutExerciseId` lets a client attach the recommendation to the exercise it already shows. */
+type ExerciseRecommendation = ReconciledProgression & { name: string; workoutExerciseId: string | null }
 
 type TrainingRecommendation = {
   day: TrainingRecommendationInput["guidance"]
@@ -207,7 +208,9 @@ type TrainingRecommendation = {
 
 function buildTrainingRecommendation(input: TrainingRecommendationInput): TrainingRecommendation {
   const exercises = (input.workout?.exercises ?? []).flatMap((exercise): ExerciseRecommendation[] =>
-    exercise.progression ? [{ ...exercise.progression, name: exercise.name }] : [],
+    exercise.progression
+      ? [{ ...exercise.progression, name: exercise.name, workoutExerciseId: exercise.workoutExerciseId ?? null }]
+      : [],
   )
 
   return {
