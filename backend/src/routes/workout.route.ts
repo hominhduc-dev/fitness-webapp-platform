@@ -27,6 +27,11 @@ import {
   updateTraineeProgramDetails,
   upsertWorkoutSessionDraftForTrainee,
 } from "../services/fitness-data.service"
+import {
+  trackSessionDiscarded,
+  trackSessionLogged,
+  trackSessionStarted,
+} from "../services/recommendation-telemetry/recommendation-telemetry.service"
 import { getAccessToken } from "./route.utils"
 import {
   copyProgramWeekSchema,
@@ -157,6 +162,8 @@ workoutRouter.put(
       req.params.workoutId,
       req.body as WorkoutSessionDraftInput,
     )
+    // A client's first save of a session: freeze what the engine suggests for it.
+    if (!req.body.baseUpdatedAt) trackSessionStarted(profile, req.params.workoutId, new Date(draft.startedAt))
 
     res.json({ data: draft, error: null, meta: null })
   }),
@@ -166,7 +173,9 @@ workoutRouter.delete(
   "/:workoutId/session-draft",
   validated({ params: workoutIdParams }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    res.json({ data: await deleteWorkoutSessionDraftForTrainee(profile, req.params.workoutId), error: null, meta: null })
+    const result = await deleteWorkoutSessionDraftForTrainee(profile, req.params.workoutId)
+    trackSessionDiscarded(profile.id, req.params.workoutId)
+    res.json({ data: result, error: null, meta: null })
   }),
 )
 
@@ -209,6 +218,7 @@ workoutRouter.post(
   validated({ body: createWorkoutLogSchema, params: workoutIdParams }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
     const log = await createWorkoutLogForTrainee(profile, req.params.workoutId, req.body as WorkoutLogInput)
+    trackSessionLogged(profile.id, req.params.workoutId, log)
 
     res.status(201).json({ log })
   }),

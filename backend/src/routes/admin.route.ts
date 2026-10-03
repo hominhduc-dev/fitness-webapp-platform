@@ -66,8 +66,10 @@ import {
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
   adminBroadcastSchema,
+  recommendationTelemetryQuery,
   reviewExerciseShareSchema,
 } from "./admin.schemas"
+import { getRecommendationTelemetrySummary } from "../services/recommendation-telemetry/recommendation-telemetry.service"
 import { getAccessToken, sendData, sendError } from "./route.utils"
 
 const adminRouter = Router()
@@ -121,6 +123,19 @@ function parseCoachRequestStatus(value: unknown) {
     ? value
     : undefined
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+adminRouter.get(
+  "/recommendation-telemetry",
+  validated({ query: recommendationTelemetryQuery }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    // `to` is inclusive: the window runs to the end of that day (UTC).
+    const to = req.query.to ? new Date(Date.parse(`${req.query.to}T00:00:00Z`) + DAY_MS) : new Date()
+    const from = req.query.from ? new Date(`${req.query.from}T00:00:00Z`) : new Date(to.getTime() - 28 * DAY_MS)
+    sendData(res, await getRecommendationTelemetrySummary(profile, { from, to }))
+  }),
+)
 
 adminRouter.get("/dashboard", async (req, res) => {
   try {
