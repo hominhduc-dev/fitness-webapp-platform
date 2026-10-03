@@ -170,11 +170,11 @@ export function useUpdateCustomFood() {
 }
 
 /** The cached insight for a day; reading it never calls the AI. */
-export function useNutritionInsight(dateKey: string, enabled = true) {
+export function useNutritionInsight(dateKey: string, locale: "vi" | "en", enabled = true) {
   return useQuery({
     enabled,
-    queryFn: async () => fetchNutritionInsight(await requireAccessToken(), dateKey),
-    queryKey: queryKeys.meals.nutritionInsight(dateKey),
+    queryFn: async () => fetchNutritionInsight(await requireAccessToken(), dateKey, locale),
+    queryKey: queryKeys.meals.nutritionInsight(dateKey, locale),
   })
 }
 
@@ -184,7 +184,7 @@ export function useCreateNutritionInsight(dateKey: string) {
   return useMutation({
     mutationFn: async (locale: "vi" | "en") => createNutritionInsight(await requireAccessToken(), { date: dateKey, locale }),
     onSuccess: (insight) => {
-      queryClient.setQueryData(userQueryKey(queryKeys.meals.nutritionInsight(dateKey), profile?.id), insight)
+      queryClient.setQueryData(userQueryKey(queryKeys.meals.nutritionInsight(dateKey, insight.locale), profile?.id), insight)
     },
   })
 }

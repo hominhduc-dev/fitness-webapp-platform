@@ -108,6 +108,34 @@ describe("insight output", () => {
     expect(prompts[1]).toContain("pizza")
   })
 
+  it("keeps the insight in the trainee's language", () => {
+    const english = { points: [{ text: "Add a banana for fiber.", tone: "info" }], suggestedFoodIds: [], summary: "Fiber is low this week." }
+    expect(() => validateInsight(english, new Set(), "vi")).toThrow(/tiếng Việt/)
+    expect(validateInsight(english, new Set(), "en").summary).toBe("Fiber is low this week.")
+    const vietnamese = { points: [{ text: "Ăn thêm chuối.", tone: "info" }], suggestedFoodIds: [], summary: "Tuần này thiếu chất xơ." }
+    expect(() => validateInsight(vietnamese, new Set(), "en")).toThrow(/English/)
+  })
+
+  it("asks again in English when an English insight comes back in Vietnamese", async () => {
+    const outputs = [
+      { points: [{ text: "Ăn thêm chuối.", tone: "info" }], suggestedFoodIds: [], summary: "Thiếu chất xơ." },
+      { points: [{ text: "Add a banana.", tone: "info" }], suggestedFoodIds: [], summary: "Fiber is low." },
+    ]
+    const requests: Array<{ systemPrompt: string; userPrompt: string }> = []
+    const provider = {
+      async generateStructuredJSON(request: { systemPrompt: string; userPrompt: string }) {
+        requests.push(request)
+        return { data: outputs.shift(), tokenUsage: 3 }
+      },
+      supportsTools: false,
+    } as unknown as AIProvider
+
+    const result = await generateNutritionInsight(provider, { findings: buildInsightFindings(input()), foods: [], locale: "en", names: input().names })
+    expect(result.summary).toBe("Fiber is low.")
+    expect(requests[0].systemPrompt).toContain("in English only")
+    expect(requests[1].userPrompt).toContain("written in English")
+  })
+
   it("changes the fingerprint when something new is logged", () => {
     const before = intakeFingerprint(input())
     const after = intakeFingerprint(input({ today: day("2026-09-23", { calories: 2600, items: 5 }) }))

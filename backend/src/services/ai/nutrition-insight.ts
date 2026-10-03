@@ -16,6 +16,7 @@ import { generateValidatedJSON } from "../../lib/ai/validated-generation"
 import type { NutrientTargets } from "../../lib/nutrition/nutrient-targets"
 import { NUTRIENT_CODES, roundNutrientAmount, type NutrientAmounts, type NutrientCode } from "../../lib/nutrition/nutrients"
 import { AppError } from "../errors"
+import { assertInsightLanguage, languageRule, type InsightLocale } from "./language-guard"
 import type { DayIntake } from "../nutrition-intake.service"
 import { sanitizeUserText } from "./prompts/shared"
 
@@ -149,8 +150,9 @@ const outputSchema = z.object({
 
 type InsightOutput = z.infer<typeof outputSchema>
 
-function validateInsight(value: unknown, allowedFoodIds: Set<string>): InsightOutput {
+function validateInsight(value: unknown, allowedFoodIds: Set<string>, locale: InsightLocale = "vi"): InsightOutput {
   const result = parseAI(outputSchema, value)
+  assertInsightLanguage(result.summary, result.points.map((point) => point.text), locale)
   const unknown = result.suggestedFoodIds.filter((id) => !allowedFoodIds.has(id))
   if (unknown.length > 0) {
     throw new AppError(`Dữ liệu AI không hợp lệ. suggestedFoodIds chỉ được lấy từ danh sách món đã cho; không có: ${unknown.join(", ")}.`, {
@@ -176,6 +178,10 @@ const SYSTEM_PROMPT = `Bạn là chuyên gia dinh dưỡng trong app theo dõi �
 ## Trả về
 Chỉ một JSON object, không markdown:
 {"summary": string, "points": [{"tone": "good"|"warn"|"info", "text": string}], "suggestedFoodIds": [string]}`
+
+function systemPromptFor(locale: InsightLocale) {
+  return `${SYSTEM_PROMPT}\n\n${languageRule(locale, { en: "summary and every point", vi: "summary và mọi point" })}`
+}
 
 function describeFinding(finding: Finding) {
   const scope = finding.scope === "week" ? "week" : "today"
@@ -217,12 +223,15 @@ async function generateNutritionInsight(
   const { data, tokenUsage } = await generateValidatedJSON(
     provider,
     {
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: systemPromptFor(input.locale),
       userPrompt,
       maxTokens: 700,
-      repairInstruction: "Trả về JSON đầy đủ đã sửa lỗi này, chỉ dùng id món trong danh sách đã cho.",
+      repairInstruction:
+        input.locale === "en"
+          ? "Return the full corrected JSON, written in English, using only food ids from the list given."
+          : "Trả về JSON đầy đủ đã sửa lỗi này, viết bằng tiếng Việt, chỉ dùng id món trong danh sách đã cho.",
     },
-    (value) => validateInsight(value, allowed),
+    (value) => validateInsight(value, allowed, input.locale),
   )
   return { ...data, promptVersion: NUTRITION_INSIGHT_PROMPT_VERSION, tokenUsage }
 }

@@ -97,7 +97,7 @@ const nutritionInsightSchema = z.object({
   locale: z.enum(["vi", "en"]).optional(),
 })
 
-const nutritionInsightQuerySchema = z.object({ date: isoDate })
+const nutritionInsightQuerySchema = z.object({ date: isoDate, locale: z.enum(["vi", "en"]).optional() })
 
 const foodNutritionLookupSchema = z.object({
   locale: z.enum(["vi", "en"]).optional(),
