@@ -1526,6 +1526,8 @@ type InsightLocale = "vi" | "en"
 
 type NutritionInsightResponse = {
   date: string
+  /** The language the insight was written in; may differ from the viewer's. */
+  locale: InsightLocale
   generatedAt: string
   /** What was logged has changed since this insight was written. */
   stale: boolean
@@ -1551,11 +1553,12 @@ async function loadInsightInput(db: ReturnType<typeof ensurePrisma>, profile: Se
 type StoredInsight = InsightOutput & { suggestedFoods: NutritionInsightResponse["suggestedFoods"] }
 
 function toInsightResponse(generation: { createdAt: Date; input: Prisma.JsonValue; output: Prisma.JsonValue }, currentFingerprint: string): NutritionInsightResponse | null {
-  const input = generation.input as { date?: string; fingerprint?: string } | null
+  const input = generation.input as { date?: string; fingerprint?: string; locale?: InsightLocale } | null
   const output = generation.output as StoredInsight | null
   if (!input?.date || !output?.summary) return null
   return {
     date: input.date,
+    locale: input.locale === "en" ? "en" : "vi",
     generatedAt: generation.createdAt.toISOString(),
     points: output.points,
     stale: input.fingerprint !== currentFingerprint,
@@ -1564,22 +1567,30 @@ function toInsightResponse(generation: { createdAt: Date; input: Prisma.JsonValu
   }
 }
 
-/** The insight already written for `date`, if any. Costs no tokens. */
-async function getNutritionInsight(profile: SerializedProfile, rawDate: string): Promise<NutritionInsightResponse | null> {
+/**
+ * The insight already written for `date`, preferably in the viewer's
+ * language. One written in the other language is still returned, with its
+ * `locale`, so the sheet can offer to redo it. Costs no tokens.
+ */
+async function getNutritionInsight(profile: SerializedProfile, rawDate: string, locale: InsightLocale = "vi"): Promise<NutritionInsightResponse | null> {
   const db = ensurePrisma()
   const dateKey = parseAI(dateSchema, rawDate, 400)
-  const generation = await db.aIGeneration.findFirst({
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true, input: true, output: true },
-    where: {
-      input: { equals: dateKey, path: ["date"] },
-      status: AIGenerationStatus.completed,
-      type: AIGenerationType.nutrition_insight,
-      userId: profile.id,
-    },
-  })
+  const findSaved = (inLocale?: InsightLocale) =>
+    db.aIGeneration.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true, input: true, output: true },
+      where: {
+        AND: [
+          { input: { equals: dateKey, path: ["date"] } },
+          ...(inLocale ? [{ input: { equals: inLocale, path: ["locale"] } }] : []),
+        ],
+        status: AIGenerationStatus.completed,
+        type: AIGenerationType.nutrition_insight,
+        userId: profile.id,
+      },
+    })
+  const generation = (await findSaved(locale)) ?? (await findSaved())
   if (!generation) return null
-  const locale = ((generation.input as { locale?: InsightLocale } | null)?.locale ?? "vi") as InsightLocale
   return toInsightResponse(generation, intakeFingerprint(await loadInsightInput(db, profile, dateKey, locale)))
 }
 

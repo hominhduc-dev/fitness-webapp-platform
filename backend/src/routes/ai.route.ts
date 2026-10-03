@@ -57,7 +57,7 @@ aiRouter.get(
   "/nutrition-insight",
   validated({ query: nutritionInsightQuerySchema }, async (req, res) => {
     const { profile } = await requireCurrentProfile(getAccessToken(req))
-    sendData(res, await getNutritionInsight(profile, req.query.date as string))
+    sendData(res, await getNutritionInsight(profile, req.query.date as string, req.query.locale))
   }),
 )
 

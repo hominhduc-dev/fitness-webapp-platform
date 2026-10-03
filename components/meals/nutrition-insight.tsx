@@ -37,13 +37,14 @@ export function NutritionInsightButton({
   const { locale, messages } = useLocale()
   const labels = messages.meals
   const [open, setOpen] = useState(false)
-  const insightQuery = useNutritionInsight(dateKey)
+  const language = locale === "en" ? "en" : "vi"
+  const insightQuery = useNutritionInsight(dateKey, language)
   const createInsight = useCreateNutritionInsight(dateKey)
   const insight = insightQuery.data
   const analyzing = createInsight.isPending
   const error = createInsight.error ? createInsight.error.message || labels.insightError : null
 
-  const analyze = () => createInsight.mutate(locale === "en" ? "en" : "vi")
+  const analyze = () => createInsight.mutate(language)
 
   return (
     <>
@@ -61,7 +62,7 @@ export function NutritionInsightButton({
         {insight ? (
           <span
             aria-hidden="true"
-            className={cn("absolute right-0.5 top-0.5 size-2 rounded-full ring-2 ring-card", insight.stale ? "bg-warning" : "bg-primary")}
+            className={cn("absolute right-0.5 top-0.5 size-2 rounded-full ring-2 ring-card", insight.stale || insight.locale !== language ? "bg-warning" : "bg-primary")}
           />
         ) : null}
       </button>
@@ -92,6 +93,7 @@ export function NutritionInsightButton({
                 insight={insight}
                 labels={labels}
                 locale={locale}
+                otherLanguage={insight.locale !== language}
                 onPickFood={(foodId) => {
                   setOpen(false)
                   onPickFood(foodId)
@@ -123,12 +125,14 @@ function InsightBody({
   locale,
   onPickFood,
   onReanalyze,
+  otherLanguage,
 }: {
   analyzing: boolean
   insight: NutritionInsightData
   labels: {
     insightAnalyzing: string
     insightGeneratedAt: (time: string) => string
+    insightOtherLanguage: string
     insightReanalyze: string
     insightStale: string
     insightSuggested: string
@@ -136,7 +140,10 @@ function InsightBody({
   locale: string
   onPickFood: (foodId: string) => void
   onReanalyze: () => void
+  /** Written in the other language; offer to redo it in the viewer's. */
+  otherLanguage: boolean
 }) {
+  const needsRedo = insight.stale || otherLanguage
   return (
     <div className={cn("space-y-4", analyzing && "opacity-60")}>
       <p className="text-sm font-medium text-foreground">{insight.summary}</p>
@@ -173,10 +180,14 @@ function InsightBody({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <p className={cn("text-xs", insight.stale ? "text-warning-text" : "text-muted-foreground")}>
-          {insight.stale ? labels.insightStale : labels.insightGeneratedAt(format(new Date(insight.generatedAt), "HH:mm"))}
+        <p className={cn("text-xs", needsRedo ? "text-warning-text" : "text-muted-foreground")}>
+          {otherLanguage
+            ? labels.insightOtherLanguage
+            : insight.stale
+              ? labels.insightStale
+              : labels.insightGeneratedAt(format(new Date(insight.generatedAt), "HH:mm"))}
         </p>
-        <Button disabled={analyzing} size="sm" type="button" variant={insight.stale ? "default" : "ghost"} onClick={onReanalyze}>
+        <Button disabled={analyzing} size="sm" type="button" variant={needsRedo ? "default" : "ghost"} onClick={onReanalyze}>
           {analyzing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
           {analyzing ? labels.insightAnalyzing : labels.insightReanalyze}
         </Button>

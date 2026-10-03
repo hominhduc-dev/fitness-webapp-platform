@@ -378,6 +378,8 @@ export type NutrientCoverage = { items: number; itemsWithData: number; aiEstimat
 
 export type NutritionInsight = {
   date: string
+  /** The language the insight was written in; may differ from the viewer's. */
+  locale: "vi" | "en"
   generatedAt: string
   stale: boolean
   summary: string
@@ -1415,8 +1417,8 @@ async function fetchNutritionWeek(accessToken: string, date: string): Promise<Nu
 }
 
 /** The insight already written for `date`, or null. Free — no AI call. */
-async function fetchNutritionInsight(accessToken: string, date: string): Promise<NutritionInsight | null> {
-  const response = await request<ApiEnvelope<NutritionInsight | null>>(`/api/ai/nutrition-insight?date=${encodeURIComponent(date)}`, accessToken, {
+async function fetchNutritionInsight(accessToken: string, date: string, locale: "vi" | "en"): Promise<NutritionInsight | null> {
+  const response = await request<ApiEnvelope<NutritionInsight | null>>(`/api/ai/nutrition-insight?date=${encodeURIComponent(date)}&locale=${locale}`, accessToken, {
     cache: "no-store",
   })
   return response.data

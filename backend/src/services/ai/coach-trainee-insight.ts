@@ -14,7 +14,7 @@ import { z } from "zod"
 import { parseAI } from "../../lib/ai/output-schemas"
 import type { AIProvider } from "../../lib/ai/types"
 import { generateValidatedJSON } from "../../lib/ai/validated-generation"
-import { AppError } from "../errors"
+import { assertInsightLanguage, languageRule } from "./language-guard"
 import { sanitizeUserText } from "./prompts/shared"
 
 const COACH_TRAINEE_INSIGHT_PROMPT_VERSION = "2026-10-02.1"
@@ -348,36 +348,9 @@ const outputSchema = z.object({
 
 type CoachInsightOutput = z.infer<typeof outputSchema>
 
-/** Letters only Vietnamese uses; tone marks on a bare vowel are left out because French names have them too. */
-const VIETNAMESE_LETTERS = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i
-/** Any Vietnamese diacritic, for telling a Vietnamese sentence from an English one. */
-const VIETNAMESE_MARKS = /[àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ]/i
-
-/**
- * Exercise names, codes and numbers are often English, so the model drifts
- * into English. Most of the texts, the summary always, must be in the
- * coach's language; a stray Vietnamese exercise name in English text is fine.
- */
-function assertInsightLanguage(output: CoachInsightOutput, locale: InsightLocale) {
-  const texts = [output.summary, ...output.sections.map((section) => section.text), ...output.suggestions]
-  const inVietnamese = texts.filter((text) => (locale === "vi" ? VIETNAMESE_MARKS : VIETNAMESE_LETTERS).test(text))
-  const wrong =
-    locale === "vi"
-      ? !VIETNAMESE_MARKS.test(output.summary) || inVietnamese.length < texts.length / 2
-      : VIETNAMESE_LETTERS.test(output.summary) || inVietnamese.length > texts.length / 2
-  if (wrong) {
-    throw new AppError(
-      locale === "vi"
-        ? "Dữ liệu AI không hợp lệ: nội dung phải viết bằng tiếng Việt có dấu, không dùng tiếng Anh."
-        : "Dữ liệu AI không hợp lệ: nội dung phải viết bằng tiếng Anh (English), không dùng tiếng Việt.",
-      { code: "AI_VALIDATION_ERROR", status: 422 },
-    )
-  }
-}
-
 function validateCoachInsight(value: unknown, locale: InsightLocale = "vi"): CoachInsightOutput {
   const output = parseAI(outputSchema, value)
-  assertInsightLanguage(output, locale)
+  assertInsightLanguage(output.summary, [...output.sections.map((section) => section.text), ...output.suggestions], locale)
   return output
 }
 
@@ -398,9 +371,10 @@ Chỉ một JSON object, không markdown:
 
 /** The language rule goes last in the system prompt, where it outweighs the English names and codes in the data. */
 function systemPromptFor(locale: InsightLocale) {
-  return locale === "en"
-    ? `${SYSTEM_PROMPT}\n\n## Ngôn ngữ\nWrite summary, every section text and every suggestion in English only.`
-    : `${SYSTEM_PROMPT}\n\n## Ngôn ngữ\nViết summary, mọi section text và mọi suggestion hoàn toàn bằng tiếng Việt có dấu. Giữ nguyên tên bài tập và con số, nhưng câu văn không được viết bằng tiếng Anh.`
+  return `${SYSTEM_PROMPT}\n\n${languageRule(locale, {
+    en: "summary, every section text and every suggestion",
+    vi: "summary, mọi section text và mọi suggestion",
+  })}`
 }
 
 const fmt = (value: number | null | undefined, unit = "") => (value == null ? "không có dữ liệu" : `${value}${unit}`)

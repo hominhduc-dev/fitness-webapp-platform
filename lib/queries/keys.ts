@@ -76,7 +76,9 @@ export const queryKeys = {
   meals: {
     all: ["meals"] as const,
     nutritionDay: (dateKey: string) => ["meals", "nutrition-day", dateKey] as const,
-    nutritionInsight: (dateKey: string) => ["meals", "nutrition-insight", dateKey] as const,
+    /** Without `locale` it is the prefix for every language, which is what invalidation wants. */
+    nutritionInsight: (dateKey: string, locale?: string) =>
+      (locale ? ["meals", "nutrition-insight", dateKey, locale] : ["meals", "nutrition-insight", dateKey]) as readonly string[],
     /** Keyed by the week's Monday, so every day of a week shares one entry. */
     nutritionWeek: (weekStartKey: string) => ["meals", "nutrition-week", weekStartKey] as const,
     foods: (options?: { category?: string; query?: string }) =>
