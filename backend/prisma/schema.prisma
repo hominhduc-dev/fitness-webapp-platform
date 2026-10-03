@@ -265,6 +265,47 @@ enum VolumeRecommendationStatus {
   applied
 }
 
+enum TrainingRecommendationType {
+  exercise_progression
+}
+
+enum TrainingRecommendationAction {
+  add_load
+  add_reps
+  maintain
+  reduce_load
+  establish_baseline
+}
+
+/// Where a recommendation snapshot came from: computed by the server when the
+/// session started, or read from the log when no session snapshot existed
+/// (a session done offline).
+enum TrainingRecommendationSource {
+  session_start
+  log_snapshot
+}
+
+enum RecommendationCompliance {
+  followed
+  partial
+  modified
+  not_attempted
+}
+
+enum RecommendationUserIntent {
+  accepted
+  dismissed
+  no_explicit_action
+}
+
+enum RecommendationOutcome {
+  successful
+  maintained
+  regressed
+  rolled_back
+  insufficient_data
+}
+
 model User {
   id                     String                    @id @default(uuid()) @db.Uuid
   supabaseAuthUserId     String?                   @unique @db.Uuid
@@ -332,6 +373,7 @@ model User {
   muscleVolumeProfiles   UserMuscleVolumeProfile[]
   volumeRecommendations  VolumeRecommendation[]
   weeklyMuscleSummaries  WeeklyMuscleSummary[]
+  trainingRecommendationEvents TrainingRecommendationEvent[]
   exerciseOverrides      TraineeExerciseOverride[]
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @updatedAt
@@ -470,6 +512,79 @@ model UserMuscleVolumeProfile {
 /// One trainee's training for one muscle in one completed week, stored so the
 /// volume engine can learn from months of history without re-reading every
 /// workout snapshot. Rewritten whole when the week is recomputed.
+/// One engine recommendation for one exercise in one session, frozen when it
+/// was put in front of the trainee, then completed with what they actually did
+/// and, once the exercise is trained again, how that next session went.
+/// The row id is the recommendation id.
+model TrainingRecommendationEvent {
+  id                String                        @id @default(uuid()) @db.Uuid
+  userId            String                        @db.Uuid
+  type              TrainingRecommendationType    @default(exercise_progression)
+  source            TrainingRecommendationSource
+  /// Progression and volume engine versions, e.g. "progression-v1/volume-recovery-v4".
+  algorithmVersion  String
+  programId         String?                       @db.Uuid
+  workoutId         String                        @db.Uuid
+  workoutExerciseId String                        @db.Uuid
+  variationId       String?                       @db.Uuid
+  /// The variation's equipment, so compliance and outcomes can be compared by it.
+  equipment         String?
+  /// The session's own start time, which ties the snapshot to its draft.
+  sessionStartedAt  DateTime
+  action            TrainingRecommendationAction
+  /// The exercise's own action before day and muscle reconciliation.
+  engineAction      TrainingRecommendationAction
+  heldBy            String?
+  muscleSlug        String?
+  muscleAction      String?
+  muscleVolumeZone  String?
+  setDelta          Int                           @default(0)
+  loadIncrementKg   Float?
+  previousWeight    Float?
+  previousReps      Int?
+  previousRir       Float?
+  suggestedWeight   Float?
+  suggestedReps     Int?
+  suggestedRir      Float?
+  suggestedSets     Int
+  readinessScore    Float?
+  dayAction         String?
+  phase             String?
+  confidence        Float?
+  /// Audit trail: everything the decision was made from, and its reasons.
+  inputs            Json
+  shownAt           DateTime                      @default(now())
+  /// Set when the session was discarded without being logged.
+  abandonedAt       DateTime?
+  workoutLogId      String?                       @db.Uuid
+  completedAt       DateTime?
+  actualWeight      Float?
+  actualReps        Int?
+  actualRir         Float?
+  actualSets        Int?
+  /// A different variation was done in this slot.
+  swapped           Boolean                       @default(false)
+  loadCompliance    RecommendationCompliance?
+  repCompliance     RecommendationCompliance?
+  rirCompliance     RecommendationCompliance?
+  setCompliance     RecommendationCompliance?
+  overallCompliance RecommendationCompliance?
+  userIntent        RecommendationUserIntent      @default(no_explicit_action)
+  outcome           RecommendationOutcome?
+  outcomeLogId      String?                       @db.Uuid
+  outcomeAt         DateTime?
+  user              User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutLog        WorkoutLog?                   @relation(fields: [workoutLogId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+
+  @@unique([userId, workoutId, sessionStartedAt, workoutExerciseId])
+  @@index([userId, workoutId, workoutLogId])
+  @@index([userId, variationId, completedAt])
+  @@index([workoutLogId])
+  @@index([shownAt])
+}
+
 model WeeklyMuscleSummary {
   id                   String       @id @default(uuid()) @db.Uuid
   userId               String       @db.Uuid
@@ -929,6 +1044,7 @@ model WorkoutLog {
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   workout          Workout?            @relation(fields: [workoutId], references: [id], onDelete: SetNull)
   comments         WorkoutLogComment[]
+  recommendationEvents TrainingRecommendationEvent[]
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 

@@ -97,6 +97,13 @@ const reviewCustomFoodSchema = z.object({
   reviewNote: z.string().trim().max(500).optional(),
 })
 
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày phải có dạng YYYY-MM-DD.")
+
+/** A window of shown recommendations; the last 28 days by default. */
+const recommendationTelemetryQuery = z
+  .object({ from: isoDay.optional(), to: isoDay.optional() })
+  .refine((value) => !value.from || !value.to || value.from <= value.to, "`from` phải trước `to`.")
+
 export {
   coachSignupParams,
   coachSignupQuery,
@@ -110,5 +117,6 @@ export {
   saveExerciseMediaSchema,
   transferExerciseMetadataSchema,
   adminBroadcastSchema,
+  recommendationTelemetryQuery,
   reviewExerciseShareSchema,
 }
