@@ -628,6 +628,24 @@ function failureCode(error: unknown) {
   return error instanceof AppError ? error.code : "UNKNOWN"
 }
 
+function failureDetails(error: unknown) {
+  if (!(error instanceof AppError) || !error.details || typeof error.details !== "object") return {}
+  const details = error.details as Record<string, unknown>
+
+  return {
+    huaweiCode: details.huaweiCode ?? undefined,
+    huaweiMessage: details.huaweiMessage ?? undefined,
+    path: details.path ?? undefined,
+    status: details.status ?? undefined,
+  }
+}
+
+function isInsufficientHuaweiScope(error: unknown) {
+  if (!(error instanceof AppError) || !error.details || typeof error.details !== "object") return false
+  const details = error.details as Record<string, unknown>
+  return details.status === 403 && String(details.huaweiMessage ?? "").toLowerCase().includes("insufficient")
+}
+
 /**
  * Pulls `days` of Huawei data for one user. Every source is fetched on its own,
  * so a type Huawei refuses (or a scope the user later revoked) does not stop the
@@ -651,6 +669,7 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
 
   let regionBaseUrl = connection.dataRegionBaseUrl
   const failedSources: string[] = []
+  let insufficientScopeFailures = 0
   const syncedColumns = new Set<SummaryColumn>()
   const valuesByDate = new Map<string, SummaryValues>()
 
@@ -661,7 +680,8 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
       return result.data
     } catch (error) {
       failedSources.push(source)
-      logger.warn("huawei health source failed", { code: failureCode(error), source, userId })
+      if (isInsufficientHuaweiScope(error)) insufficientScopeFailures += 1
+      logger.warn("huawei health source failed", { code: failureCode(error), source, userId, ...failureDetails(error) })
       return null
     }
   }
@@ -701,6 +721,13 @@ async function syncHuaweiHealthForUser(userId: string, options: { days: number; 
   )
 
   if (syncedColumns.size === 0 && !workouts) {
+    if (failedSources.length > 0 && insufficientScopeFailures === failedSources.length) {
+      throw new BadRequestError("Huawei Health chưa cấp đủ quyền đọc dữ liệu. Hãy ngắt kết nối rồi kết nối lại.", {
+        code: "HUAWEI_SCOPE_MISSING",
+        details: { failedSources },
+      })
+    }
+
     throw new ExternalServiceError("Không lấy được dữ liệu nào từ Huawei Health.", {
       code: "HUAWEI_HEALTH_SYNC_FAILED",
       details: { failedSources },

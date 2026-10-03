@@ -224,7 +224,8 @@ async function requestHuaweiHealth<T>(
     return { data: first.payload as T, baseUrl: initialBase }
   }
 
-  const errorCode = (first.payload as { error?: { code?: number } } | null)?.error?.code
+  const huaweiError = (first.payload as { error?: { code?: number; message?: string } } | null)?.error
+  const errorCode = huaweiError?.code
   const redirectLocation = first.response.headers.get("location")
 
   if (first.response.status === 403 && errorCode === 121001 && redirectLocation) {
@@ -239,7 +240,7 @@ async function requestHuaweiHealth<T>(
 
   throw new ExternalServiceError("Huawei Health không trả về dữ liệu hợp lệ.", {
     code: "HUAWEI_HEALTH_REQUEST_FAILED",
-    details: { huaweiCode: errorCode ?? null, path, status: first.response.status },
+    details: { huaweiCode: errorCode ?? null, huaweiMessage: huaweiError?.message ?? null, path, status: first.response.status },
   })
 }
 
