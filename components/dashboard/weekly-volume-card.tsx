@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ChevronRight, Info } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronRight, Info } from "lucide-react"
 import { useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
@@ -28,7 +28,13 @@ export function WeeklyVolumeCard({ seed }: { seed?: Awaited<ReturnType<typeof fe
     return <Skeleton className="min-h-[220px] rounded-3xl" />
   }
 
-  const muscles = query.data?.muscles.slice(0, VISIBLE_MUSCLES) ?? []
+  // Muscles whose weekly volume should change come first, so the rows that ask
+  // for something are never the ones cut off; the rest keep their order.
+  const needsChange = (muscle: NonNullable<typeof query.data>["muscles"][number]) =>
+    muscle.recommendation.action !== "maintain" && muscle.recommendation.status !== "dismissed"
+  const allMuscles = query.data?.muscles ?? []
+  const muscles = [...allMuscles.filter(needsChange), ...allMuscles.filter((muscle) => !needsChange(muscle))].slice(0, VISIBLE_MUSCLES)
+  const changeCopy = messages.trainingRecommendation.muscle
 
   return (
     <>
@@ -69,6 +75,21 @@ export function WeeklyVolumeCard({ seed }: { seed?: Awaited<ReturnType<typeof fe
                   {copy.muscleLabels[muscle.muscleSlug as keyof typeof copy.muscleLabels] ?? muscle.muscleSlug}
                 </span>
                 <span className="flex shrink-0 items-center gap-2 lg:col-start-3">
+                  {needsChange(muscle) ? (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-mono text-micro font-semibold tnum",
+                        muscle.recommendation.action === "increase" ? "bg-primary/10 text-primary" : "bg-warning-soft text-warning-text",
+                      )}
+                      title={`${changeCopy[muscle.recommendation.action]} ${muscle.recommendation.currentSets} → ${muscle.recommendation.recommendedSets}`}
+                    >
+                      {muscle.recommendation.action === "increase"
+                        ? <ArrowUp className="size-3" aria-hidden="true" />
+                        : <ArrowDown className="size-3" aria-hidden="true" />}
+                      <span className="sr-only">{changeCopy[muscle.recommendation.action]} </span>
+                      {muscle.recommendation.recommendedSets}
+                    </span>
+                  ) : null}
                   <span className="font-mono text-sm font-semibold tnum text-foreground">{muscle.effectiveSets}</span>
                   <span className={cn("rounded-full px-2 py-0.5 text-micro font-medium", volumeZoneClass(muscle.zone))}>
                     {copy.zones[muscle.zone]}

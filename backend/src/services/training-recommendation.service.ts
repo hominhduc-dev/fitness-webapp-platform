@@ -29,6 +29,7 @@ async function getTrainingRecommendationForTrainee(profile: SerializedProfile) {
           exercises: workout.exercises.map((exercise) => ({
             name: exercise.variation.displayName ?? exercise.exercise.name,
             progression: exercise.progression ?? null,
+            workoutExerciseId: exercise.id,
           })),
           id: workout.id,
           isCompleted: today.isCompleted,

@@ -802,7 +802,7 @@ type TrainingRecommendation = {
   intensity: { phase: string | null; targetRir: number | null }
   muscles: Array<{ action: VolumeRecommendationAction; currentSets: number; muscleSlug: string; recommendedSets: number }>
   workout: {
-    exercises: Array<import("@/lib/types").ExerciseProgression & { name: string }>
+    exercises: Array<import("@/lib/types").ExerciseProgression & { name: string; workoutExerciseId: string | null }>
     id: string
     isCompleted: boolean
     name: string
