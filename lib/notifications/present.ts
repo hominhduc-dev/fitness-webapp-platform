@@ -43,6 +43,13 @@ function resolveNotificationHref(notification: AppNotification) {
   const kind = readString(notification, "kind")
   const mealType = readString(notification, "mealType") as NotificationMealType | undefined
 
+  // An alert opens its own evidence. Older alerts stored the trainee page as
+  // their url, so the detail link is rebuilt from what names the alert.
+  const weekStart = readString(notification, "weekStart")
+  if (notification.type === "coach_trainee_alert" && traineeId && kind && weekStart) {
+    return `/coach/trainees/${traineeId}/alerts/${kind}?week=${weekStart}`
+  }
+
   if (notification.type === "meal_reminder") {
     return mealType && MEAL_TYPES.includes(mealType) ? `/meals?meal=${mealType}` : "/meals"
   }

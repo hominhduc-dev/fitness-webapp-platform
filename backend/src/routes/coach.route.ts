@@ -78,9 +78,12 @@ import {
   coachRequestAnswerSchema,
   coachRequestParamsSchema,
   coachTraineeInsightBodySchema,
+  coachTraineeAlertParamsSchema,
+  coachTraineeAlertQuerySchema,
   coachTraineeInsightQuerySchema,
 } from "./coach.schemas"
 import { createCoachTraineeInsight, getCoachTraineeInsight } from "../services/coach-trainee-insight.service"
+import { getCoachTraineeAlertDetail } from "../services/notifications/coach-alert-detail.service"
 import { createCoachNote, deleteCoachNote, updateCoachNote } from "../services/fitness-data/coach-notes"
 
 const coachRouter = Router()
@@ -414,6 +417,19 @@ coachRouter.post(
     const result = await acceptCoachTraineeAIProgram(profile.profile, String(req.params.traineeId), req.body.generationId)
 
     sendData(res, { program: result })
+  }),
+)
+
+// One coach alert about a trainee, with the evidence it was raised on.
+coachRouter.get(
+  "/trainees/:traineeId/alerts/:kind",
+  validated({ params: coachTraineeAlertParamsSchema, query: coachTraineeAlertQuerySchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getCoachTraineeAlertDetail(profile, {
+      kind: req.params.kind,
+      traineeId: req.params.traineeId,
+      weekStart: req.query.week,
+    }))
   }),
 )
 

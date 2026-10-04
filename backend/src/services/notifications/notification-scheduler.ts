@@ -5,7 +5,7 @@ import { env } from "../../config/env"
 import { logger, withRequestContext } from "../../lib/logger"
 import { findTodayScheduleEntryForTrainee } from "../fitness-data/core"
 import { ensurePrisma } from "../fitness-data/shared/guards"
-import { buildCoachTraineeAlertDraft, detectCoachTraineeAlerts } from "./coach-trainee-alerts"
+import { buildCoachTraineeAlertDraft, detectCoachTraineeAlerts, PLATEAU_LOOKBACK_DAYS } from "./coach-trainee-alerts"
 import { buildCoachWeeklyReviewDraft } from "./coach-weekly-review"
 import { createAndPushNotification, findUsedDedupeKeys, type NotificationDraft } from "./notification-dispatch.service"
 import { processPushDeliveries } from "./push-delivery.service"
@@ -393,7 +393,8 @@ async function runCoachWeeklyReviewJob(now: Date) {
   return sendNewDrafts(drafts)
 }
 
-const ALERT_LOOKBACK_DAYS = 28
+/** Plateaus read six weeks of sessions; the other alerts need less. */
+const ALERT_LOOKBACK_DAYS = PLATEAU_LOOKBACK_DAYS
 
 /**
  * Daily, at the coach's review time: which trainees need a look today. Shares
@@ -429,7 +430,7 @@ async function runCoachTraineeAlertJob(now: Date) {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const [logs, checkIns, assignments] = await Promise.all([
     db.workoutLog.findMany({
-      select: { exerciseSnapshot: true, startedAt: true, userId: true },
+      select: { exerciseSnapshot: true, startedAt: true, userId: true, workoutSnapshot: true },
       where: { completedAt: { not: null }, startedAt: { gte: since, lte: now }, userId: { in: traineeIds } },
     }),
     db.recoveryCheckIn.findMany({

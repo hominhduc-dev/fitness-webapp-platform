@@ -43,3 +43,11 @@ export const coachTraineeInsightBodySchema = z.object({
   days: insightDays.default(14),
   locale: z.enum(["vi", "en"]).optional(),
 })
+
+/** A coach alert, named by what its dedupe key holds: the trainee, the kind and the week it was raised for. */
+export const coachTraineeAlertParamsSchema = coachNoteTraineeParamsSchema.extend({
+  kind: z.enum(["low_readiness", "missed_workouts", "plateau"], "Loại cảnh báo không hợp lệ."),
+})
+export const coachTraineeAlertQuerySchema = z.object({
+  week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tuần phải có dạng YYYY-MM-DD."),
+})
