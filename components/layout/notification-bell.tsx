@@ -5,7 +5,7 @@ import { enUS, vi } from "date-fns/locale"
 import { ArrowRight, Bell, Check, CheckCheck, Loader2, RotateCcw, Settings, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { useLocale } from "@/components/providers/locale-provider"
 import { useToast } from "@/components/providers/toast-provider"
@@ -78,6 +78,8 @@ export function NotificationBell({
   const copy = messages.notificationCenter
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [sideOffset, setSideOffset] = useState(8)
   const query = useNotifications()
   const clearNotifications = useClearNotifications()
   const markRead = useMarkNotificationRead()
@@ -102,14 +104,29 @@ export function NotificationBell({
     if (query.data) void setAppBadge(unreadCount)
   }, [query.data, unreadCount])
 
+  // Opened to the right from a sidebar, the panel starts past the sidebar's
+  // edge rather than over it. Measured on open: the sidebar can be collapsed
+  // or expanded, which moves its edge relative to the bell.
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen && side === "right") {
+      const trigger = triggerRef.current
+      const sidebarEdge = trigger?.closest("aside")?.getBoundingClientRect().right
+      if (trigger && sidebarEdge != null) {
+        setSideOffset(Math.max(8, Math.round(sidebarEdge - trigger.getBoundingClientRect().right) + 12))
+      }
+    }
+    setOpen(nextOpen)
+  }
+
   const handleSelect = (notification: AppNotification, href: string | null) => {
     if (!notification.readAt) markRead.mutate(notification.id)
     if (href) router.push(href)
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger
+        ref={triggerRef}
         aria-label={copy.open(unreadCount)}
         className={cn(
           "relative inline-flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted data-[state=open]:text-foreground",
@@ -130,7 +147,7 @@ export function NotificationBell({
       <DropdownMenuContent
         align={align}
         side={side}
-        sideOffset={8}
+        sideOffset={sideOffset}
         collisionPadding={16}
         className="flex w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border-border bg-card p-0"
       >
