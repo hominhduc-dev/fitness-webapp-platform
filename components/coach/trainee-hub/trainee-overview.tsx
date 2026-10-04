@@ -23,6 +23,7 @@ import Link from "next/link"
 import { useState, useSyncExternalStore, type ReactNode } from "react"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
+import { TraineeProgressOverview } from "@/components/coach/trainee-hub/trainee-progress-overview"
 import { getInitials } from "@/components/coach/trainee-hub/trainee-status"
 import { useLocale } from "@/components/providers/locale-provider"
 import { Button } from "@/components/ui/button"
@@ -582,6 +583,8 @@ export function TraineeOverview({ detail, onNotesChange, onViewLogs }: {
   return (
     <div className="space-y-4">
       <KpiRow copy={copy} dateLocale={dateLocale} detail={detail} />
+      {/* Trends and alerts the coach acts on, before the program and history cards. */}
+      <TraineeProgressOverview traineeId={detail.trainee.id} />
       <div className="grid gap-4 @4xl:grid-cols-2">
         <TodayStatusCard copy={copy} dateLocale={dateLocale} detail={detail} />
         <CurrentProgramCard copy={copy} dateLocale={dateLocale} detail={detail} />

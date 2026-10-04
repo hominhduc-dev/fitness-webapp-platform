@@ -186,6 +186,20 @@ async function settleOutcomes(userId: string, logId: string, completedAt: Date, 
   return settled
 }
 
+/** Event counts grouped the way the summaries read them, live and abandoned apart. */
+async function groupedTelemetry(where: { shownAt: { gte: Date; lt: Date }; userId?: string }): Promise<GroupedCount[]> {
+  const db = ensurePrisma()
+  const by = ["algorithmVersion", "action", "equipment", "overallCompliance", "outcome"] as const
+  const [live, abandoned] = await Promise.all([
+    db.trainingRecommendationEvent.groupBy({ _count: { _all: true }, by: [...by], where: { ...where, abandonedAt: null } }),
+    db.trainingRecommendationEvent.groupBy({ _count: { _all: true }, by: [...by], where: { ...where, abandonedAt: { not: null } } }),
+  ])
+  return [
+    ...live.map((group) => ({ ...group, abandoned: false, count: group._count._all })),
+    ...abandoned.map((group) => ({ ...group, abandoned: true, count: group._count._all })),
+  ]
+}
+
 /**
  * Compliance and outcome rates per algorithm version and action, overall and
  * by equipment, for recommendations shown in [from, to).
@@ -193,24 +207,19 @@ async function settleOutcomes(userId: string, logId: string, completedAt: Date, 
 async function getRecommendationTelemetrySummary(profile: SerializedProfile, range: { from: Date; to: Date }) {
   if (profile.role !== UserRole.admin) throw new ForbiddenError("Chỉ admin mới có quyền truy cập dữ liệu này.")
 
-  const db = ensurePrisma()
-  const by = ["algorithmVersion", "action", "equipment", "overallCompliance", "outcome"] as const
-  const shownAt = { gte: range.from, lt: range.to }
-  const [live, abandoned] = await Promise.all([
-    db.trainingRecommendationEvent.groupBy({ _count: { _all: true }, by: [...by], where: { abandonedAt: null, shownAt } }),
-    db.trainingRecommendationEvent.groupBy({ _count: { _all: true }, by: [...by], where: { abandonedAt: { not: null }, shownAt } }),
-  ])
-  const groups: GroupedCount[] = [
-    ...live.map((group) => ({ ...group, abandoned: false, count: group._count._all })),
-    ...abandoned.map((group) => ({ ...group, abandoned: true, count: group._count._all })),
-  ]
-
+  const groups = await groupedTelemetry({ shownAt: { gte: range.from, lt: range.to } })
   return {
     byAction: summarizeTelemetry(groups, { byEquipment: false }),
     byEquipment: summarizeTelemetry(groups, { byEquipment: true }),
     from: range.from.toISOString(),
     to: range.to.toISOString(),
   }
+}
+
+/** The same rates for one trainee, for their coach. The caller checks the coach owns them. */
+async function getTraineeTelemetrySummary(userId: string, range: { from: Date; to: Date }) {
+  const groups = await groupedTelemetry({ shownAt: { gte: range.from, lt: range.to }, userId })
+  return summarizeTelemetry(groups, { byEquipment: false })
 }
 
 /** Fire-and-forget wrappers for the request paths. */
@@ -235,6 +244,7 @@ function trackSessionLogged(userId: string, workoutId: string, log: LoggedSessio
 export {
   abandonOpenRecommendations,
   getRecommendationTelemetrySummary,
+  getTraineeTelemetrySummary,
   recordLoggedSession,
   snapshotSessionRecommendations,
   trackSessionDiscarded,

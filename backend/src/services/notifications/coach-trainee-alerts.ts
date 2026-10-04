@@ -218,6 +218,20 @@ function isPlateau(history: LiftHistory, now: Date) {
   return !progressedSince(first, judged.slice(0, -1))
 }
 
+type LiftStatus = "insufficient_data" | "progressing" | "stalled"
+
+/**
+ * Where a lift stands for its coach: stalled by the plateau rule; progressing
+ * when its latest comparable sessions beat the earliest of them; otherwise not
+ * enough comparable sessions to say.
+ */
+function classifyLift(history: LiftHistory, now: Date): LiftStatus {
+  if (isPlateau(history, now)) return "stalled"
+  const window = history.chain.slice(0, PLATEAU_EXPOSURES)
+  if (window.length >= 2 && progressedSince(window.at(-1)!, window.slice(0, -1))) return "progressing"
+  return "insufficient_data"
+}
+
 function detectPlateau(input: TraineeAlertInput): CoachTraineeAlert | null {
   const stalled = buildLiftHistories(input.logs, input.now)
     .filter((history) => isPlateau(history, input.now))
@@ -271,6 +285,7 @@ function buildCoachTraineeAlertDraft(input: {
 export {
   buildCoachTraineeAlertDraft,
   buildLiftHistories,
+  classifyLift,
   detectCoachTraineeAlerts,
   isPlateau,
   LOW_READINESS,
@@ -280,4 +295,4 @@ export {
   PLATEAU_LOOKBACK_DAYS,
   progressedSince,
 }
-export type { CoachTraineeAlert, CoachTraineeAlertKind, ExposureExclusion, LiftExposure, LiftHistory, LiftWeek, TraineeAlertInput }
+export type { CoachTraineeAlert, CoachTraineeAlertKind, ExposureExclusion, LiftStatus, LiftExposure, LiftHistory, LiftWeek, TraineeAlertInput }

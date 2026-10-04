@@ -120,6 +120,7 @@ export const queryKeys = {
       ["coach", "trainees", { phone: options?.phone ?? null }] as const,
     traineeDetail: (traineeId: string) => ["coach", "trainee-detail", traineeId] as const,
     traineeInsight: (traineeId: string, days: number, locale: string) => ["coach", "trainee-insight", traineeId, days, locale] as const,
+    traineeProgress: (traineeId: string) => ["coach", "trainee-progress", traineeId] as const,
     programs: (options?: { includeArchived?: boolean; includePersonalized?: boolean }) =>
       ["coach", "programs", {
         includeArchived: options?.includeArchived ?? false,

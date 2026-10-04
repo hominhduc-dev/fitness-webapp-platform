@@ -1414,6 +1414,7 @@ export {
   registerUser,
   requireCurrentProfile,
   requestPasswordReset,
+  serializeProfile,
   type AuthenticatedProfileContext,
   type SerializedProfile,
   uploadCurrentProfileAvatar,
