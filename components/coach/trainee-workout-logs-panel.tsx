@@ -280,6 +280,11 @@ export function TraineeWorkoutLogsPanel({
     noLogsThisWeek: locale === "en" ? "No workout logs this week." : "Tuần này không có workout log nào.",
     previewWeeklyReport: locale === "en" ? "Preview weekly report" : "Preview báo cáo tuần",
     sessions: (count: number) => (locale === "en" ? `${count} sessions` : `${count} buổi`),
+    sets: locale === "en" ? "sets" : "set",
+    volume: locale === "en" ? "volume" : "khối lượng",
+    weekStart: locale === "en" ? "Week start" : "Đầu tuần",
+    excelShort: locale === "en" ? "Excel" : "Excel",
+    sheetsShort: locale === "en" ? "Google Sheets" : "Google Sheets",
     sessionSummary: (count: number, completed: number, total: number, volume: number) => {
       const base =
         locale === "en"
@@ -318,6 +323,15 @@ export function TraineeWorkoutLogsPanel({
   const weekCompletedSets = daySections.reduce((sum, section) => sum + section.completedSets, 0)
   const weekTotalSets = daySections.reduce((sum, section) => sum + section.totalSets, 0)
   const weekTotalVolume = daySections.reduce((sum, section) => sum + section.totalVolume, 0)
+
+  const isAtCurrentWeek = weekStart >= defaultWeekStart
+  const changeWeek = (nextWeekStart: string) => {
+    setWeekStart(nextWeekStart)
+    setExpandedDayKeys([])
+    setError(null)
+    setNotice(null)
+    setSheetsResult(null)
+  }
 
   const toggleDaySection = (dayKey: string) => {
     setExpandedDayKeys((current) =>
@@ -425,10 +439,7 @@ export function TraineeWorkoutLogsPanel({
   const isPreviewAtCurrentWeek = previewWeekStart >= defaultWeekStart
   const showPreviewWeek = (weeks: number) => {
     const nextWeekStart = shiftWeekStart(previewWeekStart, weeks)
-    setWeekStart(nextWeekStart)
-    setExpandedDayKeys([])
-    setNotice(null)
-    setSheetsResult(null)
+    changeWeek(nextWeekStart)
     previewMutation.mutate(nextWeekStart)
   }
 
@@ -809,81 +820,102 @@ export function TraineeWorkoutLogsPanel({
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
-          <div>
-            <p className="text-sm font-semibold">Workout log details</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {logs.length > 0
-                ? `Loaded ${logs.length} sessions for the selected week.`
-                : "Pick a week to see full set detail and export reports."}
-            </p>
-          </div>
+      {/* One toolbar across the panel: the week, its totals and the exports sit
+          above the days instead of in a side column, which stacked on top of
+          the logs below xl and pushed them out of view. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border border-border bg-muted/10 px-3 py-2.5">
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="bg-transparent"
+            aria-label={copy.previousWeek}
+            title={copy.previousWeek}
+            onClick={() => changeWeek(shiftWeekStart(weekStart, -1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Input
+            type="date"
+            aria-label={copy.weekStart}
+            value={weekStart}
+            onChange={(event) => changeWeek(event.target.value)}
+            className="h-8 w-[9.5rem] bg-background pointer-coarse:h-11"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="bg-transparent"
+            aria-label={copy.nextWeek}
+            title={copy.nextWeek}
+            disabled={isAtCurrentWeek}
+            onClick={() => changeWeek(shiftWeekStart(weekStart, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
 
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Week start</p>
-            <Input
-              type="date"
-              value={weekStart}
-              onChange={(event) => { setWeekStart(event.target.value); setExpandedDayKeys([]); setError(null); setNotice(null); setSheetsResult(null) }}
-              className="w-full bg-background"
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs tabular-nums">
+          <span className="rounded-full bg-card px-2.5 py-1 font-semibold text-foreground ring-1 ring-border">
+            {copy.sessions(logs.length)}
+          </span>
+          <span className="rounded-full bg-card px-2.5 py-1 ring-1 ring-border">
+            <span className="font-semibold text-foreground">{weekCompletedSets}/{weekTotalSets}</span>{" "}
+            <span className="text-muted-foreground">{copy.sets}</span>
+          </span>
+          <span className="rounded-full bg-card px-2.5 py-1 ring-1 ring-border">
+            <span className="font-semibold text-foreground">
+              {Math.round(weekTotalVolume).toLocaleString(locale === "en" ? "en-US" : "vi-VN")} kg
+            </span>{" "}
+            <span className="text-muted-foreground">{copy.volume}</span>
+          </span>
+        </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-border bg-card px-3 py-2">
-              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">Sessions</p>
-              <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{logs.length}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-card px-3 py-2">
-              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">Sets</p>
-              <p className="mt-1 font-mono text-lg font-semibold tabular-nums">{weekCompletedSets}/{weekTotalSets}</p>
-            </div>
-            <div className="col-span-2 rounded-lg border border-border bg-card px-3 py-2">
-              <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">Volume</p>
-              <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
-                {Math.round(weekTotalVolume).toLocaleString(locale === "en" ? "en-US" : "vi-VN")} kg
-              </p>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 bg-transparent"
+            title={copy.previewReport}
+            onClick={() => void handlePreviewExcel()}
+            disabled={isPreviewLoading || isLoading || logs.length === 0}
+          >
+            {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+            {copy.previewReport}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 bg-transparent"
+            title={copy.exportWeeklyReport}
+            onClick={() => void handleExportExcel()}
+            disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {copy.excelShort}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 bg-transparent"
+            title={copy.exportGoogleSheets}
+            onClick={() => void handleExportGoogleSheets()}
+            disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
+          >
+            {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExportingToSheets ? copy.exportingGoogleSheets : copy.sheetsShort}
+          </Button>
+        </div>
+      </div>
 
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-start gap-2 bg-transparent"
-              onClick={() => void handlePreviewExcel()}
-              disabled={isPreviewLoading || isLoading || logs.length === 0}
-            >
-              {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-              {copy.previewReport}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-start gap-2 bg-transparent"
-              onClick={() => void handleExportExcel()}
-              disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
-            >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {copy.exportWeeklyReport}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-start gap-2 bg-transparent"
-              onClick={() => void handleExportGoogleSheets()}
-              disabled={isExporting || isExportingToSheets || isLoading || logs.length === 0}
-            >
-              {isExportingToSheets ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {isExportingToSheets ? copy.exportingGoogleSheets : copy.exportGoogleSheets}
-            </Button>
-          </div>
-        </aside>
-
-        <section className="min-w-0">
+      <section className="min-w-0">
           {isLoading ? (
-            <div className="flex min-h-[360px] items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground">
+            <div className="flex min-h-[240px] items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               {copy.loadingHistory}
             </div>
@@ -895,7 +927,7 @@ export function TraineeWorkoutLogsPanel({
             <>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground">
-                  {weekStart} – {getWeekEndDateInput(weekStart)}
+                  {formatWeekRangeLabel(weekStart)}
                 </p>
                 <div className="flex items-center gap-1">
                   <Button type="button" variant="ghost" size="sm" onClick={expandAllDays}>
@@ -907,7 +939,7 @@ export function TraineeWorkoutLogsPanel({
                 </div>
               </div>
 
-              <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[min(70dvh,760px)] space-y-2 overflow-y-auto pr-1">
                 {daySections.map((section) => {
                   const isExpanded = expandedDayKeys.includes(section.key)
 
@@ -955,8 +987,7 @@ export function TraineeWorkoutLogsPanel({
               </div>
             </>
           )}
-        </section>
-      </div>
+      </section>
 
       {nextCursor && logs.length > 0 ? (
         <div className="flex justify-center">

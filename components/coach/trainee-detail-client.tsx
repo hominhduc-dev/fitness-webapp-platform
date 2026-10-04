@@ -5,14 +5,18 @@ import type { LucideIcon } from "lucide-react"
 import {
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   Cookie,
   ExternalLink,
+  LayoutGrid,
   Loader2,
   MoreHorizontal,
+  Sparkles,
   Sun,
   Sunrise,
   Sunset,
   Trash2,
+  UtensilsCrossed,
 } from "lucide-react"
 import { useState } from "react"
 import { TraineeAIInsightPanel } from "@/components/coach/trainee-ai-insight-panel"
@@ -165,30 +169,36 @@ export function CoachTraineeDetailClient({
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-      <div className="sticky top-0 z-10 rounded-2xl border border-border/80 bg-card p-1.5 shadow-md shadow-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+      {/* Sticky from md only: on phones the app header is itself sticky and
+          sits over anything pinned at top-0. */}
+      <div className="z-10 rounded-2xl md:sticky md:top-0 border border-border/80 bg-card p-1.5 shadow-md shadow-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+        {/* Phones get four equal columns, icon over a small label, so every tab
+            is in reach; from sm the tabs sit in a row at their natural width. */}
         <TabsList
           data-tour="coach-client-tabs"
           className={cn(
-            "flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-transparent p-0",
-            "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            "grid h-auto w-full grid-cols-4 gap-1 rounded-xl bg-transparent p-0",
+            "sm:flex sm:justify-start sm:overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
         >
-        {[
-          ["overview", messages.coach.tabOverview],
-          ["nutrition", messages.coach.tabNutrition],
-          ["logs", messages.coach.tabWorkoutLogs],
-          ["ai", coachInsightMessages[locale].tab],
-        ].map(([value, label]) => (
+        {([
+          ["overview", messages.coach.tabOverview, LayoutGrid],
+          ["nutrition", messages.coach.tabNutrition, UtensilsCrossed],
+          ["logs", messages.coach.tabWorkoutLogs, ClipboardList],
+          ["ai", coachInsightMessages[locale].tab, Sparkles],
+        ] as const).map(([value, label, Icon]) => (
           <TabsTrigger
             key={value}
             value={value}
             className={cn(
-              "flex-none rounded-xl border border-transparent bg-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground shadow-none transition-colors",
+              "min-w-0 flex-col gap-1 rounded-xl border border-transparent bg-transparent px-1 py-2 text-[0.6875rem] leading-tight font-medium text-muted-foreground shadow-none transition-colors",
+              "sm:flex-none sm:flex-row sm:gap-1.5 sm:px-4 sm:py-2.5 sm:text-sm",
               "hover:text-foreground",
               "data-[state=active]:border-primary/25 data-[state=active]:bg-primary data-[state=active]:font-semibold data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/20",
             )}
           >
-            {label}
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
+            <span className="w-full truncate text-center sm:w-auto">{label}</span>
           </TabsTrigger>
         ))}
         </TabsList>
@@ -547,7 +557,7 @@ export function CoachTraineeDetailClient({
             </p>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-4">
             <TraineeWorkoutLogsPanel
               traineeId={detail.trainee.id}
               traineeName={detail.trainee.name}
