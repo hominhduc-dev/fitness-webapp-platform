@@ -25,10 +25,11 @@ import { useInviteTrainee } from "@/lib/queries/coach"
 import { useCoachData } from "@/lib/queries/coach-data"
 import { queryKeys } from "@/lib/queries/keys"
 import { cn } from "@/lib/utils"
+import { usePersistedCollapse } from "@/components/layout/use-persisted-collapse"
 
 type Filter = "all" | TraineeStatus
 
-function RosterRow({ active, trainee }: { active: boolean; trainee: CoachTrainee }) {
+function RosterRow({ active, trainee, compact = false }: { active: boolean; trainee: CoachTrainee; compact?: boolean }) {
   const { messages } = useLocale()
   const copy = messages.traineeHub
   const status = deriveTraineeStatus(trainee)
@@ -39,16 +40,19 @@ function RosterRow({ active, trainee }: { active: boolean; trainee: CoachTrainee
       href={`/coach/trainees/${trainee.id}`}
       prefetch
       aria-current={active ? "page" : undefined}
+      aria-label={compact ? trainee.name : undefined}
+      title={compact ? trainee.name : undefined}
       className={cn(
         "group flex items-center gap-3 rounded-xl border-l-[3px] px-3 py-3 transition-colors",
         active ? "border-l-primary bg-primary-soft/60" : "border-l-transparent hover:bg-muted/50",
+        compact && "lg:justify-center lg:px-1 lg:py-2",
       )}
     >
-      <Avatar className="size-11 shrink-0">
+      <Avatar className={cn("size-11 shrink-0", compact && "lg:size-9")}>
         <AvatarImage src={trainee.avatar ?? undefined} alt="" />
         <AvatarFallback className="bg-primary-soft text-sm font-semibold text-primary">{getInitials(trainee.name)}</AvatarFallback>
       </Avatar>
-      <span className="min-w-0 flex-1">
+      <span className={cn("min-w-0 flex-1", compact && "lg:hidden")}>
         <span className="flex items-center gap-2">
           <span className="truncate text-sm font-semibold text-foreground">{trainee.name}</span>
           <span
@@ -61,7 +65,7 @@ function RosterRow({ active, trainee }: { active: boolean; trainee: CoachTrainee
           {percent === null ? copy.noSessionsThisWeek : copy.percentThisWeek(percent)}
         </span>
       </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+      <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5", compact && "lg:hidden")} aria-hidden="true" />
     </Link>
   )
 }
@@ -87,6 +91,8 @@ export function TraineeRoster({ initialTrainees }: { initialTrainees?: CoachTrai
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
   const inviteOpen = manualInviteOpen || searchParams.get("add") === "1"
   const activeId = pathname.match(/^\/coach\/trainees\/([^/]+)/)?.[1] ?? null
+  const [collapsed] = usePersistedCollapse("yeahbuddy-coach-roster-collapsed")
+  const compact = Boolean(activeId && collapsed)
 
   const closeInvite = () => {
     setManualInviteOpen(false)
@@ -119,8 +125,8 @@ export function TraineeRoster({ initialTrainees }: { initialTrainees?: CoachTrai
   ]
 
   return (
-    <div className="flex flex-col rounded-2xl border border-border bg-card shadow-sm lg:max-h-[calc(100dvh-8rem)]">
-      <div className="space-y-3 border-b border-border p-4">
+    <div className="flex flex-col rounded-2xl border border-border bg-card shadow-sm lg:max-h-[calc(100dvh-8rem)] lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none">
+      <div className={cn("space-y-3 border-b border-border p-4", compact && "lg:hidden")}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-foreground">{copy.listTitle}</h2>
           <div className="flex items-center gap-2">
@@ -174,7 +180,7 @@ export function TraineeRoster({ initialTrainees }: { initialTrainees?: CoachTrai
           </p>
         ) : (
           <div className="space-y-0.5">
-            {visible.map((trainee) => <RosterRow key={trainee.id} active={trainee.id === activeId} trainee={trainee} />)}
+            {visible.map((trainee) => <RosterRow key={trainee.id} active={trainee.id === activeId} trainee={trainee} compact={compact} />)}
           </div>
         )}
       </div>

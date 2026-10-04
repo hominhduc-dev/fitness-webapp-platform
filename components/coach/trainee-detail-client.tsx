@@ -18,7 +18,7 @@ import {
   Trash2,
   UtensilsCrossed,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { TraineeAIInsightPanel } from "@/components/coach/trainee-ai-insight-panel"
 import { TraineeOverview } from "@/components/coach/trainee-hub/trainee-overview"
 import { TraineeMealPlanPanel } from "@/components/coach/trainee-meal-plan-panel"
@@ -64,6 +64,7 @@ const MEAL_SECTIONS: Array<{ icon: LucideIcon; type: MealType }> = [
 ]
 
 type CoachTraineeDetailClientProps = {
+  header?: ReactNode
   coachPrograms: CoachProgram[]
   initialDetail: CoachTraineeDetail
 }
@@ -79,6 +80,7 @@ function parseDayKey(dateKey: string) {
 
 /* ─── Main export ────────────────────────────────────────────────────────── */
 export function CoachTraineeDetailClient({
+  header,
   coachPrograms: initialCoachPrograms,
   initialDetail,
 }: CoachTraineeDetailClientProps) {
@@ -170,8 +172,12 @@ export function CoachTraineeDetailClient({
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       {/* Sticky from md only: on phones the app header is itself sticky and
-          sits over anything pinned at top-0. */}
-      <div className="z-10 rounded-2xl md:sticky md:top-0 border border-border/80 bg-card p-1.5 shadow-md shadow-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+          sits over anything pinned at top-0, and this block (photo, actions,
+          tabs) would hold half the screen while the coach scrolls. */}
+      <div className="z-20 bg-background pt-4 md:sticky md:top-0">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {header}
+        <div className={cn("p-2", header && "border-t border-border")}>
         {/* Phones get four equal columns, icon over a small label, so every tab
             is in reach; from sm the tabs sit in a row at their natural width. */}
         <TabsList
@@ -202,6 +208,8 @@ export function CoachTraineeDetailClient({
           </TabsTrigger>
         ))}
         </TabsList>
+        </div>
+      </div>
       </div>
 
       {/* ── Overview ──────────────────────────────────────────────────────── */}

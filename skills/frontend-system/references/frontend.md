@@ -121,6 +121,11 @@ app/layout.tsx
 
 Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ role })`. Page cần access token dùng `requireAppSession()`.
 
+- `/coach/programs/[id]?adjustTrainee=...` mở `ProgramEditorLazy` dạng modal qua `closeHref`, dùng cùng portal/layout với editor trong Programs board. Đóng, hủy hoặc lưu thành công quay về trang học viên; URL không có `adjustTrainee` giữ editor trong trang.
+- Trainee hub: danh sách ở cột trái bám khi cuộn trên desktop (`lg`), có nút thu gọn/mở rộng khi đang xem học viên. Thu gọn thành dải avatar 72px, vẫn chọn được học viên; hover/focus icon Users ở đầu hiện nút mở, chỉ bấm mới mở. Giữ roster mounted để bảo toàn tìm kiếm và bộ lọc, lưu trạng thái sau reload; mobile giữ luồng danh sách/chi tiết riêng.
+- `ShellMain` dùng `overflow-clip` tại `/coach/trainees` và các route con để sticky roster/tabs bám document scroll; không tạo scroll container `overflow-auto` không giới hạn chiều cao tại đây.
+- Trang chi tiết học viên truyền header SSR vào `CoachTraineeDetailClient`; thông tin học viên và thanh tab nằm chung một sticky wrapper, bám đầu viewport khi cuộn.
+
 ### Streaming/loading
 
 - Dùng `Suspense` quanh phần fetch chậm, không quanh toàn shell.
@@ -440,6 +445,10 @@ Nguồn duy nhất: `components/layout/shell-nav.ts`.
 - Desktop variants nằm trong `components/layout/sidebar.tsx`.
 - Mobile nav/More sheet nằm trong `components/layout/shell-header.tsx`.
 - Không hard-code nav item riêng trong page; cập nhật `shell-nav.ts` rồi kiểm tra cả desktop/mobile và role guard.
+- Coach desktop sidebar có nút thu gọn/mở rộng trong `BaseSidebar`: mở rộng 232px, thu gọn 72px với icon điều hướng và nhãn trợ năng. Nút Add client và menu tài khoản vẫn dùng được khi thu gọn; mobile giữ navigation hiện tại.
+- Nút thu gọn dùng `PanelLeftClose`/`PanelLeftOpen`; roster dùng Button outline, Coach sidebar dùng ghost. `usePersistedCollapse` lưu preference riêng cho sidebar Coach, sidebar Trainee và roster trong localStorage, khôi phục sau reload và đồng bộ giữa các tab; server snapshot mở rộng để tránh hydration mismatch.
+- Sidebar thu gọn thành dải icon 72px. Hover hoặc focus vào logo brand ở đầu chỉ đổi logo thành icon mở rộng; chỉ bấm nút mới mở sidebar 232px. Không tự mở hoặc overlay khi hover. Trạng thái mở/đóng được lưu sau reload.
+- Cả Trainee, Coach và Admin dùng cùng layout trong `BaseSidebar`, giữ active style và điều hướng theo role. Admin có preference `yeahbuddy-admin-sidebar-collapsed`; các role lưu trạng thái độc lập.
 
 ## 10. i18n, accessibility và PWA
 

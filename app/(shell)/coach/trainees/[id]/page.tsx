@@ -40,15 +40,8 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
   const memberSince = trainee.createdAt.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", { month: "short", year: "numeric" })
   const facts = [age ? copy.yearsOld(age) : null, copy.memberSince(memberSince)].filter(Boolean)
 
-  return (
-    <div className="space-y-4" data-tour="coach-client-overview">
-      {/* Phones show one screen at a time, so the way back to the roster is here. */}
-      <Link href="/coach/trainees" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground lg:hidden">
-        <ArrowLeft className="size-4" aria-hidden="true" />
-        {copy.backToList}
-      </Link>
-
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm @lg:p-5">
+  const header = (
+      <section key={trainee.id} className="p-4 @lg:p-5">
         <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-center @3xl:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <span className="relative shrink-0">
@@ -97,8 +90,19 @@ export default async function TraineeDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </section>
+  )
 
-      <CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} />
+  return (
+    <div className="space-y-4" data-tour="coach-client-overview">
+      {/* Phones show one screen at a time, so the way back to the roster is here. */}
+      <Link href="/coach/trainees" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground lg:hidden">
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        {copy.backToList}
+      </Link>
+
+
+
+      <CoachTraineeDetailClient coachPrograms={coachPrograms} initialDetail={detail} header={header} />
     </div>
   )
 }

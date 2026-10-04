@@ -7,7 +7,8 @@ import { BrandLogo } from "@/components/ui/brand-logo"
 import { Button } from "@/components/ui/button"
 import type { AppRole } from "@/lib/auth/types"
 import { getRoleLandingPath } from "@/lib/auth/roles"
-import { useState } from "react"
+import { usePersistedCollapse } from "@/components/layout/use-persisted-collapse"
+
 import { useLocale } from "@/components/providers/locale-provider"
 import { SidebarAccountMenu } from "@/components/layout/sidebar-account-menu"
 import { useCoachNavCounts } from "@/lib/queries/coach-data"
@@ -21,7 +22,7 @@ interface SidebarProps {
 
 export function Sidebar({ role = "trainee" }: SidebarProps) {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, toggleCollapsed] = usePersistedCollapse("yeahbuddy-trainee-sidebar-collapsed")
   const { messages } = useLocale()
 
   if (role === "coach") {
@@ -38,10 +39,11 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
     <BaseSidebar
       collapsible
       collapsed={collapsed}
-      onToggleCollapse={() => setCollapsed(!collapsed)}
+      onToggleCollapse={toggleCollapsed}
       sections={[{ items: traineeNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="primary"
+      compactBrand={<BrandLogo markClassName="size-6" textClassName="hidden" />}
       accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       headerAction={<NotificationBell align="start" side="right" />}
       brand={
@@ -61,6 +63,7 @@ export function Sidebar({ role = "trainee" }: SidebarProps) {
 
 function AdminSidebar({ pathname }: { pathname: string }) {
   const { messages } = useLocale()
+  const [collapsed, toggleCollapsed] = usePersistedCollapse("yeahbuddy-admin-sidebar-collapsed")
   const searchParams = useSearchParams()
   const currentSection = searchParams.get("s")
   const adminNavItems = getAdminNavItems(messages)
@@ -86,7 +89,10 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 
   return (
     <BaseSidebar
-      collapsible={false}
+      collapsible
+      collapsed={collapsed}
+      onToggleCollapse={toggleCollapsed}
+      compactBrand={<BrandLogo markClassName="size-6" textClassName="hidden" />}
       sections={sections}
       isActiveItem={isAdminItemActive}
       activeStyle="muted"
@@ -104,6 +110,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       }
       footer={
         <SidebarAccountMenu
+          collapsed={collapsed}
           avatarClassName="h-7 w-7"
           buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
           dropdownAlign="center"
@@ -115,6 +122,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 
 function CoachSidebar({ pathname }: { pathname: string }) {
   const { messages } = useLocale()
+  const [collapsed, toggleCollapsed] = usePersistedCollapse("yeahbuddy-coach-sidebar-collapsed")
   const countsQuery = useCoachNavCounts()
   const counts: { programs?: number; trainees?: number } = countsQuery.data ?? {}
 
@@ -122,11 +130,15 @@ function CoachSidebar({ pathname }: { pathname: string }) {
 
   return (
     <BaseSidebar
-      collapsible={false}
+      collapsible
+      collapsed={collapsed}
+      onToggleCollapse={toggleCollapsed}
+      accessibilityLabels={{ expand: messages.common.expandSidebar, collapse: messages.common.collapseSidebar }}
       sections={[{ title: messages.shell.coach, items: coachNavItems }]}
       isActiveItem={(item) => isNavItemActive(pathname, item)}
       activeStyle="muted"
       headerAction={<NotificationBell align="start" side="right" />}
+      compactBrand={<BrandLogo markClassName="size-6" textClassName="hidden" />}
       brand={
         <Link href={getRoleLandingPath("coach")} className="flex min-w-0 items-center">
           <BrandLogo />
@@ -138,15 +150,16 @@ function CoachSidebar({ pathname }: { pathname: string }) {
         </Link>
       }
       cta={
-        <Button asChild className="w-full justify-start gap-2">
-          <Link href="/coach/trainees?add=1">
+        <Button asChild variant={collapsed ? "ghost" : "default"} className={collapsed ? "h-11 w-full justify-center px-0" : "w-full justify-start gap-2"}>
+          <Link href="/coach/trainees?add=1" aria-label={messages.shell.addClient} title={collapsed ? messages.shell.addClient : undefined}>
             <UserPlus className="h-4 w-4" />
-            {messages.shell.addClient}
+            {!collapsed && messages.shell.addClient}
           </Link>
         </Button>
       }
       footer={
         <SidebarAccountMenu
+          collapsed={collapsed}
           avatarClassName="h-7 w-7"
           buttonClassName="gap-2.5 rounded-md px-0 py-2 hover:bg-muted/70"
           dropdownAlign="center"
