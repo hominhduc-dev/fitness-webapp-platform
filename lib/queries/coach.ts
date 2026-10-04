@@ -22,6 +22,7 @@ import {
   respondToCoachInvite,
   createCoachTraineeInsight,
   fetchCoachTraineeInsight,
+  fetchCoachTraineeProgressOverview,
   type CoachInsightWindow,
 } from "@/lib/fitness/api"
 
@@ -207,6 +208,15 @@ export function useCoachNoteMutations(traineeId: string) {
       onSettled: refresh,
     }),
   }
+}
+
+/** One trainee's trends, open alerts and engine compliance, for the coach's overview. */
+export function useCoachTraineeProgress(traineeId: string) {
+  return useQuery({
+    queryFn: async () => fetchCoachTraineeProgressOverview(await requireAccessToken(), traineeId),
+    queryKey: queryKeys.coach.traineeProgress(traineeId),
+    staleTime: 60_000,
+  })
 }
 
 /** The saved AI report for a trainee and window; reading it never calls the AI. */

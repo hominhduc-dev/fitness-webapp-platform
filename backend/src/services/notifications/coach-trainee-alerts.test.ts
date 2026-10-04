@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildCoachTraineeAlertDraft, detectCoachTraineeAlerts } from "./coach-trainee-alerts"
+import { buildCoachTraineeAlertDraft, buildLiftHistories, classifyLift, detectCoachTraineeAlerts } from "./coach-trainee-alerts"
 
 const now = new Date("2026-09-28T12:00:00.000Z")
 const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
@@ -101,6 +101,13 @@ describe("coach trainee alerts", () => {
       expect(detect([session(16), session(12, { phase: "deload", weight: 70 }), session(9), session(2)])).toEqual(stalled)
       expect(detect([session(16), session(9, { progression: { action: "reduce_load" }, weight: 72.5 }), session(2)])).toEqual([])
       expect(detect([session(23), session(16), session(9, { progression: { action: "maintain", muscleAction: "deload" } }), session(2)])).toEqual(stalled)
+    })
+
+    it("tells a coach which lifts progress, stall or lack data", () => {
+      const status = (logs: ReturnType<typeof session>[]) => buildLiftHistories(logs, now).map((history) => classifyLift(history, now))
+      expect(status([session(16), session(9), session(2)])).toEqual(["stalled"])
+      expect(status([session(16), session(9), session(2, { weight: 82.5 })])).toEqual(["progressing"])
+      expect(status([session(2)])).toEqual(["insufficient_data"])
     })
 
     it("needs the sessions spread out, and the latest one recent", () => {

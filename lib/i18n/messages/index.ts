@@ -3,6 +3,7 @@ import { adminMessages } from "@/lib/i18n/messages/admin"
 import { authMessages } from "@/lib/i18n/messages/auth"
 import { coachMessages } from "@/lib/i18n/messages/coach"
 import { coachAlertsMessages } from "@/lib/i18n/messages/coach-alerts"
+import { coachProgressMessages } from "@/lib/i18n/messages/coach-progress"
 import { commonMessages } from "@/lib/i18n/messages/common"
 import { dashboardMessages } from "@/lib/i18n/messages/dashboard"
 import { landingMessages } from "@/lib/i18n/messages/landing"
@@ -40,6 +41,7 @@ const enMessages = {
   ...profileMessages.en,
   ...coachMessages.en,
   ...coachAlertsMessages.en,
+  ...coachProgressMessages.en,
   ...traineeHubMessages.en,
   ...adminMessages.en,
   ...notificationsMessages.en,
@@ -63,6 +65,7 @@ const viMessages: AppMessages = {
   ...profileMessages.vi,
   ...coachMessages.vi,
   ...coachAlertsMessages.vi,
+  ...coachProgressMessages.vi,
   ...traineeHubMessages.vi,
   ...adminMessages.vi,
   ...notificationsMessages.vi,

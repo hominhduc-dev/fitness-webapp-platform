@@ -84,6 +84,7 @@ import {
 } from "./coach.schemas"
 import { createCoachTraineeInsight, getCoachTraineeInsight } from "../services/coach-trainee-insight.service"
 import { getCoachTraineeAlertDetail } from "../services/notifications/coach-alert-detail.service"
+import { getCoachTraineeProgressOverview } from "../services/coach-trainee-progress.service"
 import { createCoachNote, deleteCoachNote, updateCoachNote } from "../services/fitness-data/coach-notes"
 
 const coachRouter = Router()
@@ -417,6 +418,15 @@ coachRouter.post(
     const result = await acceptCoachTraineeAIProgram(profile.profile, String(req.params.traineeId), req.body.generationId)
 
     sendData(res, { program: result })
+  }),
+)
+
+// One trainee's progress for their coach: trends, open alerts, lift status and engine compliance.
+coachRouter.get(
+  "/trainees/:traineeId/progress-overview",
+  validated({ params: coachNoteTraineeParamsSchema }, async (req, res) => {
+    const { profile } = await requireCurrentProfile(getAccessToken(req))
+    sendData(res, await getCoachTraineeProgressOverview(profile, req.params.traineeId))
   }),
 )
 

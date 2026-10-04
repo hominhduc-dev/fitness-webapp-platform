@@ -478,6 +478,50 @@ export type CoachAlertDetail = {
   weekStart: string
 }
 
+export type CoachTraineeLiftStatus = "insufficient_data" | "progressing" | "stalled"
+
+/** One trainee's progress for their coach (GET /coach/trainees/:id/progress-overview). */
+export type CoachTraineeProgressOverview = {
+  /** Coach alerts about this trainee over the last three weeks, newest first. */
+  alerts: Array<{
+    averageReadiness: number | null
+    completed: number | null
+    days: number | null
+    exercises: string[]
+    id: string
+    kind: CoachAlertKind
+    planned: number | null
+    raisedAt: string
+    read: boolean
+    weekStart: string
+  }>
+  bodyMetrics: BodyMetricEntry[]
+  consistencyDays: ProgressYearView["days"]
+  dashboard: DashboardAnalytics
+  /** By exercise name, from the comparable-session plateau rule. */
+  liftStatuses: Record<string, CoachTraineeLiftStatus>
+  recovery: RecoveryHistory
+  targetWeightKg: number | null
+  /** How closely the trainee followed the engine's suggestions over the last four weeks, per action. */
+  telemetry: Array<{
+    action: string
+    algorithmVersion: string
+    compliance: { followed: number; modified: number; not_attempted: number; partial: number }
+    outcomes: { insufficient_data: number; maintained: number; regressed: number; rolled_back: number; successful: number }
+    rates: {
+      followedPct: number | null
+      modifiedPct: number | null
+      notAttemptedPct: number | null
+      partialPct: number | null
+      rollbackAfterFollowedPct: number | null
+      rollbackPct: number | null
+      successAfterFollowedPct: number | null
+    }
+    shown: number
+  }>
+  volume: VolumeRecoveryData | null
+}
+
 export type CoachTraineeInsight = {
   id: string
   days: CoachInsightWindow
@@ -2857,6 +2901,15 @@ async function fetchCoachTraineeAlertDetail(
   return response.data
 }
 
+async function fetchCoachTraineeProgressOverview(accessToken: string, traineeId: string): Promise<CoachTraineeProgressOverview> {
+  const response = await request<ApiEnvelope<Omit<CoachTraineeProgressOverview, "bodyMetrics"> & { bodyMetrics: SerializedBodyMetricEntry[] }>>(
+    `/api/coach/trainees/${traineeId}/progress-overview`,
+    accessToken,
+    { cache: "no-store" },
+  )
+  return { ...response.data, bodyMetrics: response.data.bodyMetrics.map(mapBodyMetricEntry) }
+}
+
 async function createCoachTraineeInsight(
   accessToken: string,
   traineeId: string,
@@ -3078,6 +3131,7 @@ export {
   acceptAIDailyWorkout,
   createCoachTraineeInsight,
   fetchCoachTraineeAlertDetail,
+  fetchCoachTraineeProgressOverview,
   fetchCoachTraineeInsight,
   acceptAIMealPlan,
   acceptAIProgram,
