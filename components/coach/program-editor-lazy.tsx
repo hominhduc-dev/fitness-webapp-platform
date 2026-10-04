@@ -1,12 +1,14 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
 import { createPortal } from "react-dom"
 
 import type { CoachProgram, CoachTrainee } from "@/lib/fitness/types"
 import type { ExerciseVariationOption } from "@/lib/types"
 
 type ProgramEditorLazyProps = {
+  closeHref?: string
   initialExerciseOptions?: ExerciseVariationOption[]
   initialTraineeOptions?: CoachTrainee[]
   onClose?: () => void
@@ -24,10 +26,12 @@ const ProgramEditor = dynamic(
   },
 )
 
-export function ProgramEditorLazy(props: ProgramEditorLazyProps) {
-  const editor = <ProgramEditor {...props} />
+export function ProgramEditorLazy({ closeHref, ...props }: ProgramEditorLazyProps) {
+  const router = useRouter()
+  const onClose = props.onClose ?? (closeHref ? () => router.push(closeHref) : undefined)
+  const editor = <ProgramEditor {...props} onClose={onClose} />
 
-  if (props.onClose && typeof document !== "undefined") {
+  if (onClose && typeof document !== "undefined") {
     return createPortal(editor, document.body)
   }
 
