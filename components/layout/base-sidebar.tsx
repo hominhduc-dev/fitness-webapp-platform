@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import type { ShellNavItem } from "@/components/layout/shell-nav"
@@ -19,6 +19,7 @@ export interface BaseSidebarProps {
   collapsed?: boolean
   onToggleCollapse?: () => void
   brand: React.ReactNode
+  compactBrand?: React.ReactNode
   /** Compact control beside the brand, e.g. the notification bell. */
   headerAction?: React.ReactNode
   footer: React.ReactNode
@@ -32,9 +33,10 @@ export function BaseSidebar({
   sections,
   isActiveItem,
   collapsible = false,
-  collapsed = false,
+  collapsed: persistedCollapsed = false,
   onToggleCollapse,
   brand,
+  compactBrand,
   headerAction,
   footer,
   cta,
@@ -42,7 +44,8 @@ export function BaseSidebar({
   activeStyle = "primary",
   accessibilityLabels = { expand: "Expand sidebar", collapse: "Collapse sidebar" },
 }: BaseSidebarProps) {
-  const isFixed = !collapsible;
+
+  const collapsed = persistedCollapsed
 
   const renderItem = (item: ShellNavItem, isCollapsed: boolean) => {
     const isActive = isActiveItem(item)
@@ -77,9 +80,12 @@ export function BaseSidebar({
           isActive
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+          isCollapsed && "h-11 justify-center px-2",
         )}
+        aria-label={isCollapsed ? item.label : undefined}
+        title={isCollapsed ? item.label : undefined}
       >
-        <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+        <item.icon className={cn("shrink-0", isCollapsed ? "h-5 w-5" : "h-4 w-4")} strokeWidth={1.5} />
         {!isCollapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
         {!isCollapsed && item.count != null ? (
           <span className="rounded-full bg-background px-2 py-0.5 font-mono text-micro leading-none text-muted-foreground">
@@ -94,34 +100,43 @@ export function BaseSidebar({
     <aside
       className={cn(
         "glass-surface sticky top-0 hidden h-dvh flex-col border-r border-border bg-sidebar md:flex",
-        isFixed ? "w-[232px] shrink-0" : "transition-all duration-300",
-        collapsible && collapsed ? "w-16" : "",
-        collapsible && !collapsed ? "w-64" : ""
+        "shrink-0 transition-[width] duration-300 motion-reduce:transition-none",
+        persistedCollapsed ? "w-[72px]" : "w-[232px]"
       )}
     >
-      {isFixed ? (
-        <div className="flex h-full min-h-0 flex-col px-3.5 py-6">
-          <div className="mb-4 flex items-center gap-2 px-1">
-            {brand}
-            {headerAction ? <div className="ml-auto">{headerAction}</div> : null}
+
+        <div className={cn("flex h-full min-h-0 flex-col py-6", collapsed ? "px-2" : "px-3.5")}>
+          <div className={cn("mb-4 flex gap-2", collapsed ? "flex-col items-center" : "flex-wrap items-center")}>
+            {!collapsed && brand}
+            {collapsible && (
+              <Button type="button" variant="ghost" size="icon" className={cn("group/sidebar-toggle relative shrink-0 rounded-xl", !collapsed && "ml-auto")} onClick={onToggleCollapse} aria-expanded={!persistedCollapsed} aria-label={persistedCollapsed ? accessibilityLabels.expand : accessibilityLabels.collapse} title={persistedCollapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}>
+                {collapsed && compactBrand ? (
+                  <>
+                    <span className="pointer-events-none group-hover/sidebar-toggle:opacity-0 group-focus-visible/sidebar-toggle:opacity-0">{compactBrand}</span>
+                    <PanelLeftOpen aria-hidden="true" className="absolute opacity-0 group-hover/sidebar-toggle:opacity-100 group-focus-visible/sidebar-toggle:opacity-100" />
+                  </>
+                ) : persistedCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
+              </Button>
+            )}
+            {headerAction ? <div className={cn(!collapsed && "flex w-full justify-end")}>{headerAction}</div> : null}
           </div>
-          {backLink && (
+          {backLink && !collapsed && (
             <div className="mb-6 px-1 text-micro text-muted-foreground transition-colors hover:text-foreground">
               {backLink}
             </div>
           )}
-          {cta && <div className="mb-7">{cta}</div>}
+          {cta && <div className={collapsed ? "mb-3" : "mb-7"}>{cta}</div>}
           
           <div className="min-h-0 flex-1 overflow-y-auto pb-4">
             {sections.map((section, idx) => (
               <React.Fragment key={idx}>
-                {section.title && (
+                {section.title && !collapsed && (
                   <p className={cn("label-micro mb-2 px-1 text-muted-foreground", idx > 0 && "mt-5")}>
                     {section.title}
                   </p>
                 )}
                 <nav className="flex flex-col gap-1">
-                  {section.items.map((item) => renderItem(item, false))}
+                  {section.items.map((item) => renderItem(item, collapsed))}
                 </nav>
               </React.Fragment>
             ))}
@@ -131,51 +146,7 @@ export function BaseSidebar({
             {footer}
           </div>
         </div>
-      ) : (
-        <>
-          <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-            {!collapsed && (
-              <div className="flex items-center gap-2">
-                {brand}
-              </div>
-            )}
-            <div className={cn("flex items-center gap-1", collapsed && "mx-auto")}>
-              {!collapsed ? headerAction : null}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onToggleCollapse}
-                aria-label={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
-                title={collapsed ? accessibilityLabels.expand : accessibilityLabels.collapse}
-              >
-                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-          {collapsed && headerAction ? (
-            <div className="flex justify-center border-b border-sidebar-border py-2">{headerAction}</div>
-          ) : null}
 
-          <nav className="min-h-0 flex-1 overflow-y-auto p-2">
-            {sections.map((section, idx) => (
-              <React.Fragment key={idx}>
-                {section.title && !collapsed && (
-                  <p className={cn("label-micro mb-2 px-3 text-muted-foreground", idx > 0 && "mt-5")}>
-                    {section.title}
-                  </p>
-                )}
-                <div className="space-y-1">
-                  {section.items.map((item) => renderItem(item, collapsed))}
-                </div>
-              </React.Fragment>
-            ))}
-          </nav>
-
-          <div className="shrink-0 border-t border-sidebar-border p-2">
-            {footer}
-          </div>
-        </>
-      )}
     </aside>
   )
 }
