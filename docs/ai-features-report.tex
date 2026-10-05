@@ -1,0 +1,365 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\geometry{margin=2.2cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!55!black,
+  urlcolor=blue!55!black
+}
+
+\definecolor{BrandBlue}{HTML}{174A7C}
+\definecolor{SoftBlue}{HTML}{EEF6FF}
+\definecolor{SoftGray}{HTML}{F5F7FA}
+
+\setlist[itemize]{leftmargin=1.3em,itemsep=0.25em,topsep=0.25em}
+\setlist[enumerate]{leftmargin=1.5em,itemsep=0.25em,topsep=0.25em}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\evidence}[1]{\small\path{#1}}
+
+\title{\textbf{Báo cáo các tính năng AI của hệ thống fitness-app}}
+\author{Phạm vi kiểm tra: mã nguồn local của hệ thống}
+\date{Ngày lập báo cáo: 29/09/2026}
+
+\begin{document}
+\maketitle
+
+\section*{Ghi chú phạm vi}
+
+Báo cáo này tổng hợp các tính năng AI đang có trong mã nguồn local của hệ thống \textit{fitness-app}. Tại thời điểm kiểm tra, đường dẫn \path{E:\fitness-app} không tồn tại trên máy này; repo thực tế nằm ở \path{D:\Source_code\fitness-app}. Nhánh local \code{main} đang chậm hơn \code{origin/main} 2 commit, vì vậy báo cáo phản ánh trạng thái local hiện tại, chưa khẳng định trạng thái mới nhất trên remote hoặc production.
+
+Các kết luận trong báo cáo dựa trên đọc mã nguồn, schema và tài liệu nội bộ. Chưa có kiểm thử live provider, E2E đăng nhập, hoặc kiểm thử production trong lần lập báo cáo này.
+
+\section{Tóm tắt điều hành}
+
+Hệ thống có một cụm tính năng AI tương đối đầy đủ cho trainee và coach, tập trung vào ba miền chính: tập luyện, dinh dưỡng và hội thoại tư vấn. Các chức năng AI không ghi thẳng dữ liệu quan trọng nếu chưa qua bước xác nhận của người dùng; kết quả thường được lưu dưới dạng bản nháp trong bảng \code{AIGeneration}, sau đó mới được accept để tạo program, workout hoặc planned meals.
+
+Các nhóm tính năng chính:
+
+\begin{itemize}
+  \item Tạo chương trình tập luyện nhiều tuần bằng AI cho trainee.
+  \item Tạo buổi tập hôm nay bằng AI theo năng lượng, mục tiêu và thiết bị.
+  \item Coach tạo program AI cá nhân hoá cho từng trainee.
+  \item AI gợi ý thực đơn 1--7 ngày, có lọc theo dị ứng, chế độ ăn, ngân sách và thời gian nấu.
+  \item Đổi một bữa trong bản nháp thực đơn bằng AI.
+  \item Lưu thực đơn AI ở trạng thái \code{planned}, chỉ chuyển sang \code{consumed} khi trainee xác nhận đã ăn.
+  \item Coach xem, chỉnh khẩu phần và duyệt thực đơn dự kiến của trainee.
+  \item AI Coach dạng chat, có ngữ cảnh cá nhân hoá và có thể tạo draft program hoặc meal plan qua tool-call.
+  \item AI phân tích dinh dưỡng trong ngày/tuần, phát hiện thiếu hoặc vượt mục tiêu và gợi ý món phù hợp.
+  \item AI tra cứu dinh dưỡng món chưa có trong thư viện, chỉ prefill form để người dùng duyệt trước khi lưu.
+  \item AI ước tính vi chất cho món Việt trong luồng bảo trì dữ liệu nội bộ.
+\end{itemize}
+
+\section{Ma trận feature AI}
+
+\begin{longtable}{p{0.22\linewidth}p{0.24\linewidth}p{0.29\linewidth}p{0.17\linewidth}}
+\toprule
+\textbf{Feature} & \textbf{Người dùng} & \textbf{Kết quả chính} & \textbf{Trạng thái mã nguồn} \\
+\midrule
+\endhead
+AI workout program & Trainee & Tạo draft program nhiều tuần, accept thành \code{Program}, \code{Workout}, \code{ExerciseSet}. & Đã triển khai \\
+AI daily workout & Trainee & Tạo một buổi tập theo ngày, năng lượng và thiết bị; accept thành program một buổi. & Đã triển khai \\
+Coach AI program & Coach & Tạo và gán program AI cá nhân hoá cho trainee thuộc coach. & Đã triển khai \\
+AI meal plan & Trainee & Tạo thực đơn 1--7 ngày, có shopping list và nutrition totals từ catalog. & Đã triển khai \\
+Regenerate meal & Trainee & Đổi riêng một bữa trong draft meal plan. & Đã triển khai \\
+Planned meal lifecycle & Trainee, Coach & Accept AI meal chỉ tạo bữa dự kiến; trainee xác nhận mới tính là đã ăn. & Đã triển khai \\
+Coach meal review & Coach & Coach chỉnh khẩu phần, xoá món, thêm ghi chú duyệt cho planned meals. & Đã triển khai \\
+AI Coach chat & Trainee & Chat hỏi đáp fitness/dinh dưỡng; có thể tạo draft program hoặc meal plan. & Đã triển khai \\
+Nutrition insight & Trainee & AI viết nhận xét dựa trên số liệu backend đã tính và gợi ý món từ catalog. & Đã triển khai trong local \\
+Food nutrition lookup & Trainee & AI ước tính dinh dưỡng món chưa có, chỉ prefill form tạo custom food. & Đã triển khai \\
+Dish micronutrient estimate & Nội bộ dữ liệu & Script ước tính vi chất cho món chế biến sẵn, có validator. & Đã triển khai dạng script \\
+\bottomrule
+\end{longtable}
+
+\section{Kiến trúc AI chung}
+
+\subsection{Provider và cấu hình}
+
+Backend dùng lớp provider chung, chọn OpenAI hoặc Anthropic theo cấu hình môi trường. Nếu thiếu API key, hệ thống trả lỗi \code{AI\_NOT\_CONFIGURED} thay vì gọi provider trong trạng thái không xác định.
+
+\begin{itemize}
+  \item OpenAI dùng \code{OPENAI\_API\_KEY} hoặc \code{AI\_API\_KEY}, có thể nhận \code{AI\_BASE\_URL} và chế độ JSON.
+  \item Anthropic dùng \code{ANTHROPIC\_API\_KEY}.
+  \item Provider được cache trong runtime để tránh khởi tạo lại nhiều lần.
+\end{itemize}
+
+\textbf{Bằng chứng:} \evidence{backend/src/lib/ai/ai-client.ts}
+
+\subsection{Lưu vết generation}
+
+Các kết quả AI quan trọng được lưu ở bảng \code{AIGeneration}. Schema hiện có các loại:
+
+\begin{itemize}
+  \item \code{workout\_program}
+  \item \code{meal\_plan}
+  \item \code{nutrition\_insight}
+\end{itemize}
+
+Trạng thái generation gồm \code{pending}, \code{completed}, \code{failed}, \code{accepted}, \code{discarded}. Bảng này lưu \code{input}, \code{output}, \code{tokenUsage}, và có thể liên kết \code{programId} sau khi accept.
+
+\textbf{Bằng chứng:} \evidence{backend/prisma/schema.prisma}
+
+\subsection{Validation hai lớp}
+
+Hệ thống kiểm soát AI ở hai lớp:
+
+\begin{enumerate}
+  \item Input từ client được validate bằng Zod tại route schema, có giới hạn độ dài text, số lượng phần tử và enum hợp lệ.
+  \item Output từ model phải parse qua schema backend. Với một số luồng, backend cho model một lần sửa JSON nếu output không hợp lệ, nhưng mọi business write chỉ xảy ra sau validation.
+\end{enumerate}
+
+\textbf{Bằng chứng:} \evidence{backend/src/routes/ai.schemas.ts}, \evidence{backend/src/lib/ai/output-schemas.ts}, \evidence{backend/src/lib/ai/validated-generation.ts}
+
+\section{Luồng tập luyện AI}
+
+\subsection{Tạo chương trình tập luyện nhiều tuần}
+
+Feature này cho trainee tạo chương trình theo mục tiêu, trình độ, số buổi mỗi tuần, thời lượng buổi tập, thiết bị, nhóm cơ ưu tiên, chấn thương và số tuần. Frontend dùng form \code{ProgramGeneratorForm}; backend nhận qua \code{POST /api/ai/generate-program}.
+
+Backend không để model tự do chọn bài tập tuỳ ý. Thay vào đó, hệ thống:
+
+\begin{itemize}
+  \item Tải exercise catalog gồm bài hệ thống và bài do user tạo.
+  \item Lọc catalog theo thiết bị, focus areas và lịch sử bài tập gần đây.
+  \item Thêm bối cảnh 30 ngày gần nhất và recovery/readiness nếu có.
+  \item Yêu cầu model trả JSON có \code{variationRef}; backend map lại sang \code{variationId}.
+  \item Kiểm tra số buổi, ngày tập không trùng, duration, workload và khả năng truy cập variation trước khi lưu.
+\end{itemize}
+
+Khi người dùng accept, backend tạo \code{Program}, \code{ProgramAssignment}, \code{Workout}, \code{WorkoutExercise}, \code{ExerciseSet}; generation chuyển sang \code{accepted}.
+
+\textbf{Bằng chứng:} \evidence{app/workout/ai-generate/page.tsx}, \evidence{components/ai/program-generator-form.tsx}, \evidence{backend/src/services/ai.service.ts}
+
+\subsection{Tạo buổi tập hôm nay}
+
+Feature này tạo một buổi tập độc lập cho ngày cụ thể. Input gồm mục tiêu hôm nay, mức năng lượng, thời lượng, thiết bị, focus areas và hạn chế/chấn thương. Backend dùng chung loại \code{workout\_program} nhưng lưu \code{input.mode = daily} và \code{output.mode = daily}.
+
+Khi accept, backend tạo một program một buổi, gán cho trainee và đặt \code{scheduledDate} theo ngày đã chọn. Đây là cách hệ thống biến draft AI thành dữ liệu workout thật nhưng vẫn giữ bước xác nhận rõ ràng.
+
+\textbf{Bằng chứng:} \evidence{components/ai/daily-workout-generator-form.tsx}, \evidence{backend/src/routes/ai.route.ts}, \evidence{backend/src/services/ai.service.ts}
+
+\subsection{Coach tạo program AI cho trainee}
+
+Coach có endpoint riêng:
+
+\begin{itemize}
+  \item \code{POST /api/coach/trainees/:traineeId/ai-program}
+  \item \code{POST /api/coach/trainees/:traineeId/ai-program/accept}
+\end{itemize}
+
+Backend bắt buộc requester là coach và trainee phải thuộc coach đó. Khi generate, input có metadata \code{coachGenerated} và \code{traineeId}. Khi accept, backend kiểm tra draft đúng trainee trước khi tạo/gán program.
+
+\textbf{Bằng chứng:} \evidence{backend/src/routes/coach.route.ts}, \evidence{components/coach/coach-ai-program-assistant.tsx}
+
+\section{Luồng dinh dưỡng AI}
+
+\subsection{AI gợi ý thực đơn}
+
+Feature meal plan nhận input ngày bắt đầu, số ngày 1--7, preferences, budget và cooking time. Ngoài input trực tiếp, hệ thống còn dùng dữ liệu profile như calorie/macro goals, food allergies và diet type.
+
+Backend xây dựng food catalog từ:
+
+\begin{itemize}
+  \item Food hệ thống.
+  \item Food do trainee tự tạo.
+  \item Bộ lọc dị ứng, diet type, ngân sách, thời gian nấu.
+  \item Món đã ăn gần đây để tăng đa dạng.
+  \item Các bữa đã consumed trong ngày để chỉ plan phần còn lại.
+\end{itemize}
+
+Model phải trả \code{foodId} từ catalog. Backend tự tính lại calories, protein, carbs, fat từ database và khẩu phần, sau đó validate target ngày. Shopping list được tạo từ plan đã map, không lấy nguyên xi từ model.
+
+\textbf{Bằng chứng:} \evidence{components/ai/meal-plan-generator.tsx}, \evidence{backend/src/services/ai/meal-plan.ts}, \evidence{backend/src/services/ai/food-catalog.ts}, \evidence{backend/src/services/ai.service.ts}
+
+\subsection{Draft, discard và regenerate một bữa}
+
+Sau khi generate meal plan, generation ở trạng thái \code{completed} đóng vai trò draft đang mở. Endpoint \code{GET /api/ai/meal-plan-draft} lấy draft mới nhất; \code{POST /api/ai/discard-meal-plan} đánh dấu \code{discarded} nhưng không xoá row, để lượt tạo vẫn được tính vào hạn mức.
+
+Trainee có thể đổi riêng một bữa bằng \code{POST /api/ai/regenerate-meal-plan-meal}. Backend lấy plan hiện tại, loại bữa đang đổi khỏi target, gọi AI để tạo bữa thay thế, validate lại cả ngày và chỉ update nếu draft vẫn còn \code{completed}.
+
+\textbf{Bằng chứng:} \evidence{backend/src/routes/ai.route.ts}, \evidence{backend/src/services/ai.service.ts}
+
+\subsection{Accept meal plan không tính là đã ăn}
+
+Đây là điểm quan trọng của lifecycle dinh dưỡng. Khi trainee accept meal plan, backend không ghi vào nhật ký consumed ngay. Hệ thống tạo các \code{Meal} có \code{status = planned}. Các planned meals:
+
+\begin{itemize}
+  \item Được hiển thị riêng trong ngày ăn.
+  \item Không được cộng vào totals consumed.
+  \item Không được đưa vào context dinh dưỡng đã ăn.
+  \item Chỉ chuyển sang \code{consumed} khi trainee gọi \code{POST /api/meals/plans/consume}.
+\end{itemize}
+
+Endpoint consume chuyển item từ planned meal sang consumed meal trong transaction, xoá planned meal cũ và tính lại totals.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai.service.ts}, \evidence{backend/src/routes/meal.route.ts}, \evidence{backend/src/services/nutrition.service.ts}
+
+\subsection{Coach review planned meals}
+
+Coach có thể xem planned meals của trainee, chỉnh khẩu phần, xoá món và gửi ghi chú duyệt. Các thao tác này chỉ áp dụng cho \code{planned} items; consumed meals vẫn là record của trainee.
+
+Khi coach duyệt, backend ghi \code{coachNote}, \code{coachReviewedAt} và tạo notification cho trainee.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/meal-plan-review.service.ts}, \evidence{components/coach/trainee-meal-plan-panel.tsx}
+
+\section{AI Coach dạng chat}
+
+Chat được mount trong dashboard qua \code{AIChatBubble}. Người dùng có thể hỏi về tập luyện và dinh dưỡng, hoặc dùng quick actions để đi tới trang tạo program/meal plan. Backend route là \code{POST /api/ai/chat}.
+
+\subsection{Context cá nhân hoá}
+
+Trước khi gọi model, backend xác định intent và chọn context theo ngân sách token. Các nhóm context gồm:
+
+\begin{itemize}
+  \item Profile.
+  \item Coach notes.
+  \item Recovery/readiness.
+  \item Recent workouts.
+  \item Body metrics.
+  \item Nutrition.
+  \item Program.
+  \item Progression.
+\end{itemize}
+
+Nếu context build lỗi, chat fallback về prompt chung thay vì làm hỏng toàn bộ trải nghiệm.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/context/builder.ts}, \evidence{backend/src/services/ai/context/chat-prompt.ts}
+
+\subsection{Tool-call tạo draft}
+
+Nếu provider hỗ trợ tools, AI chat có thể gọi hai tool nội bộ:
+
+\begin{itemize}
+  \item \code{create\_workout\_program}
+  \item \code{create\_meal\_plan}
+\end{itemize}
+
+Tool không lưu thẳng vào program hoặc nhật ký ăn. Nó tạo draft, trả \code{generationId} và payload về client. Người dùng vẫn phải bấm xác nhận trong app.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/chat-tools.ts}, \evidence{backend/src/services/ai.service.ts}, \evidence{components/ai/chat-program-card.tsx}, \evidence{components/ai/chat-meal-plan-card.tsx}
+
+\section{AI phân tích và tra cứu dinh dưỡng}
+
+\subsection{Nutrition insight}
+
+Nutrition insight phân tích bữa đã logged trong ngày và trung bình 7 ngày. Backend quyết định dữ liệu nào là đúng: calories, protein, nutrient targets, tình trạng low/good/high, độ phủ dữ liệu vi chất. Model chỉ viết lại thành nhận xét ngắn và chọn \code{suggestedFoodIds} từ danh sách được cấp.
+
+Feature này có cơ chế fingerprint. Nếu người dùng sửa nhật ký ăn sau khi insight được tạo, response có thể báo \code{stale = true}.
+
+\textbf{Bằng chứng:} \evidence{components/meals/nutrition-insight.tsx}, \evidence{backend/src/services/ai/nutrition-insight.ts}, \evidence{backend/src/services/ai.service.ts}
+
+\subsection{Food nutrition lookup}
+
+Khi trainee không tìm thấy món trong thư viện, hệ thống có endpoint \code{POST /api/ai/food-nutrition}. AI trả về thông tin dinh dưỡng ước tính gồm tên món, tên tiếng Anh, category, serving label/grams, calories, protein, carbs, fat, confidence và note.
+
+Backend không lưu trực tiếp kết quả này. Kết quả chỉ prefill form tạo custom food để trainee xem lại, sau đó vẫn đi qua luồng custom-food/admin review bình thường. Validator kiểm tra serving label, khối lượng khẩu phần, tổng macro so với khối lượng và năng lượng Atwater.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/food-nutrition.ts}, \evidence{lib/fitness/api.ts}, \evidence{lib/queries/meals.ts}
+
+\subsection{Ước tính vi chất món chế biến sẵn}
+
+Repo có script nội bộ \code{estimate:dish-nutrients} dùng AI để ước tính vi chất cho món Việt hoặc món chế biến sẵn. Prompt yêu cầu model tách món thành công thức chuẩn, cộng vi chất từ nguồn tham chiếu và trả JSON. Validator đặt trần hợp lý theo 100g và kiểm tra ràng buộc như saturated fat không vượt tổng fat, fiber + sugar không vượt carbs.
+
+Đây là tính năng bảo trì dữ liệu, không phải workflow trực tiếp của end user.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/dish-nutrients.ts}, \evidence{backend/src/scripts/estimate-dish-nutrients.ts}, \evidence{backend/package.json}
+
+\section{Rate limit và kiểm soát lạm dụng}
+
+\begin{longtable}{p{0.36\linewidth}p{0.18\linewidth}p{0.36\linewidth}}
+\toprule
+\textbf{Luồng} & \textbf{Hạn mức} & \textbf{Cách áp dụng} \\
+\midrule
+\endhead
+Workout program / daily workout & 5 lần/ngày & Đếm row \code{AIGeneration} loại \code{workout\_program}. \\
+Meal plan & 10 lần/ngày & Đếm row \code{AIGeneration} loại \code{meal\_plan}. \\
+Nutrition insight & 10 lần/ngày & Đếm row \code{AIGeneration} loại \code{nutrition\_insight}. \\
+AI chat message & 40 tin/ngày & \code{DailyCounter} in-memory theo user. \\
+Chat tạo program & 3 draft/ngày & Counter riêng để chat không đốt hết quota form chính. \\
+Chat tạo meal plan & 5 draft/ngày & Counter riêng cho tool-call meal plan trong chat. \\
+Regenerate một bữa & 20 lần/ngày & Counter riêng cho meal swap. \\
+Food nutrition lookup & 30 lần/ngày & Counter riêng; lỗi provider được release quota. \\
+\bottomrule
+\end{longtable}
+
+Ngoài hạn mức trong service, các route sinh token còn nằm sau \code{aiLimiter}. Một số read-only hoặc non-token operations như lấy draft hoặc discard draft không đi qua limiter AI chặt hơn.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai.service.ts}, \evidence{backend/src/routes/ai.route.ts}
+
+\section{Các điểm an toàn dữ liệu và nghiệp vụ}
+
+\begin{itemize}
+  \item \textbf{Không tin output model:} output phải qua schema, ID phải map về catalog thật.
+  \item \textbf{Không tin catalog cũ khi accept:} backend revalidate variation/food trong transaction trước khi write.
+  \item \textbf{Không ghi consumed nhầm:} AI meal accept chỉ tạo planned meals.
+  \item \textbf{Chống duplicate accept:} \code{claimGeneration} dùng conditional update trên row \code{AIGeneration}.
+  \item \textbf{Giới hạn prompt injection:} input text bị trim/max length; prompt đặt user text trong vùng dữ liệu; chat history được sanitize và cắt số turn.
+  \item \textbf{Không dùng model để tính số quyết định:} dinh dưỡng của meal plan và nutrition insight dựa trên số liệu backend tính, model chỉ chọn/diễn giải trong khung đã cho.
+  \item \textbf{Có fallback chat:} nếu context build lỗi hoặc follow-up call lỗi, hệ thống vẫn trả lời hoặc giữ draft đã tạo.
+\end{itemize}
+
+\section{Kiểm thử và tài liệu đã có}
+
+Repo có các test liên quan đến AI:
+
+\begin{itemize}
+  \item \code{backend/src/services/ai-hardening.integration.test.ts}
+  \item \code{backend/src/services/ai-workout-validation.test.ts}
+  \item \code{backend/src/services/ai-generations.test.ts}
+  \item \code{backend/src/services/ai/food-catalog.test.ts}
+  \item \code{backend/src/services/ai/exercise-catalog.test.ts}
+  \item \code{backend/src/services/ai/nutrition-insight.test.ts}
+  \item \code{backend/src/services/ai/food-nutrition.test.ts}
+  \item \code{backend/src/services/ai/dish-nutrients.test.ts}
+  \item \code{backend/src/routes/ai.schemas.test.ts}
+\end{itemize}
+
+Repo cũng có tài liệu và sơ đồ AI:
+
+\begin{itemize}
+  \item \path{docs/ai-hardening.md}
+  \item \path{docs/ai-ui-test-report.md}
+  \item \path{docs/ai-diagrams/}
+\end{itemize}
+
+Trong lần lập báo cáo này chưa chạy lại test suite, chưa gọi provider thật, và chưa xác minh UI bằng browser.
+
+\section{Khoảng trống và rủi ro cần xác nhận}
+
+\begin{enumerate}
+  \item \textbf{Local chưa đồng bộ remote:} nhánh local \code{main} đang behind \code{origin/main} 2 commit. Nếu báo cáo dùng cho nghiệm thu chính thức, nên fetch/pull fast-forward rồi rà lại.
+  \item \textbf{Chưa xác minh production:} báo cáo chưa kiểm tra env key, provider quota, Cloudflare/Vercel hay response thật trên production.
+  \item \textbf{Counter in-memory:} chat, meal swap và food lookup dùng \code{DailyCounter}; nếu backend nhiều instance hoặc restart, hạn mức này có thể không bền như DB-backed quota.
+  \item \textbf{Chat history ở client:} service ghi chú client có thể tự gửi transcript cũ; hệ thống sanitize nhưng không có conversation persistence server-side.
+  \item \textbf{Một số test integration cần database:} các test transaction và DB integration cần PostgreSQL local phù hợp.
+  \item \textbf{Medical/nutrition safety:} nutrition insight đã tránh chẩn đoán bệnh và supplement; tuy nhiên nên có copy cảnh báo rõ hơn ở UI nếu dùng cho người có bệnh nền.
+  \item \textbf{Feature flags/rollout:} báo cáo chưa xác nhận feature nào đang bật/tắt theo môi trường production.
+\end{enumerate}
+
+\section{Câu hỏi cần xác nhận trước bản cuối}
+
+\begin{itemize}
+  \item Báo cáo chính thức cần dựa trên local hiện tại, \code{origin/main}, hay production đang chạy?
+  \item Có cần thêm sơ đồ sequence/use-case vào phụ lục PDF không?
+  \item Đối tượng đọc là kỹ thuật, quản lý sản phẩm, hay hội đồng nghiệm thu?
+  \item Có cần đưa kết quả chạy test/build mới nhất vào báo cáo không?
+\end{itemize}
+
+\section{Kết luận}
+
+Hệ thống AI của \textit{fitness-app} không chỉ là một chatbot đơn lẻ mà là một tập hợp workflow có kiểm soát: tạo workout, tạo program, tạo meal plan, phân tích dinh dưỡng, tra cứu món ăn và hỗ trợ coach. Thiết kế hiện tại có điểm mạnh là tách rõ draft và accept, dùng catalog nội bộ để giới hạn output model, và để backend tính lại các số liệu quan trọng trước khi lưu. Các rủi ro còn lại chủ yếu nằm ở vận hành: xác minh production, độ bền của in-memory quota, và trạng thái mới nhất giữa local với remote.
+
+\end{document}
