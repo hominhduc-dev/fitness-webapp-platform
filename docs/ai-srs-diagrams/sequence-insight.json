@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-11 · Tạo và đọc insight dinh dưỡng",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      650
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API + service"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "Provider AI"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "POST nutrition-insight"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Intake + goals + foods"
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "y": 280,
+      "label": "Dữ liệu ngày / 7 ngày",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "db",
+      "y": 330,
+      "label": "Findings; pending"
+    },
+    {
+      "id": "m5",
+      "from": "api",
+      "to": "llm",
+      "y": 380,
+      "label": "Findings + candidate foods"
+    },
+    {
+      "id": "m6",
+      "from": "llm",
+      "to": "api",
+      "y": 430,
+      "label": "Nhận xét + food IDs",
+      "variant": "return"
+    },
+    {
+      "id": "m7",
+      "from": "api",
+      "to": "db",
+      "y": 480,
+      "label": "Validate; lưu insight"
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "ui",
+      "y": 530,
+      "label": "Insight + locale + stale",
+      "variant": "return"
+    }
+  ]
+}

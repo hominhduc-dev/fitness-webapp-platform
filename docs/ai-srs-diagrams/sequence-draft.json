@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-06 · Đọc, bỏ hoặc đổi một bữa trong draft",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      670
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API + service"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "Provider AI"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "GET meal-plan-draft"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Draft completed mới nhất"
+    },
+    {
+      "id": "m3",
+      "from": "api",
+      "to": "ui",
+      "y": 280,
+      "label": "Preview draft",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "ui",
+      "to": "api",
+      "y": 330,
+      "label": "POST regenerate một bữa"
+    },
+    {
+      "id": "m5",
+      "from": "api",
+      "to": "db",
+      "y": 380,
+      "label": "Check owner/status + foods"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "llm",
+      "y": 430,
+      "label": "Mục tiêu bữa còn lại"
+    },
+    {
+      "id": "m7",
+      "from": "llm",
+      "to": "api",
+      "y": 480,
+      "label": "JSON bữa thay thế",
+      "variant": "return"
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "db",
+      "y": 530,
+      "label": "Validate; update có điều kiện"
+    },
+    {
+      "id": "m9",
+      "from": "api",
+      "to": "ui",
+      "y": 580,
+      "label": "Draft cập nhật hoặc 409",
+      "variant": "return"
+    }
+  ]
+}

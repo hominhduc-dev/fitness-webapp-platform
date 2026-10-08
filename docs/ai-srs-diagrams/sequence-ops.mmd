@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  participant ui as Người vận hành
+  participant api as CLI + validator
+  participant db as File nutrients
+  participant llm as Provider AI
+  Note over ui,api: UC-AI-14 / FR-AI-14 — profile xác thực; quyền ở service
+  alt Tiền điều kiện và input hợp lệ
+    ui->>api: CLI estimate:dish-nutrients
+    api->>db: Đọc file; lọc row USDA
+    db-->>api: Món cần ước tính
+    api->>llm: Công thức + vi chất
+    llm-->>api: Nutrients + recipe
+    api->>db: Validate; checkpoint file
+    api-->>ui: Report; source ai
+  else Sai quyền/input/quota hoặc lỗi khi xử lý
+    api-->>ui: Lỗi; không ghi nghiệp vụ dở dang
+  end

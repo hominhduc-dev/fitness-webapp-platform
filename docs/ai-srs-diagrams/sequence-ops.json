@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-14 · Ước tính vi chất món ăn nội bộ",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      650
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người vận hành"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "CLI + validator"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "File nutrients"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "Provider AI"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "CLI estimate:dish-nutrients"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Đọc file; lọc row USDA"
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "y": 280,
+      "label": "Món cần ước tính",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "llm",
+      "y": 330,
+      "label": "Công thức + vi chất"
+    },
+    {
+      "id": "m5",
+      "from": "llm",
+      "to": "api",
+      "y": 380,
+      "label": "Nutrients + recipe",
+      "variant": "return"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "db",
+      "y": 430,
+      "label": "Validate; checkpoint file"
+    },
+    {
+      "id": "m7",
+      "from": "api",
+      "to": "ui",
+      "y": 480,
+      "label": "Report; source ai",
+      "variant": "return"
+    }
+  ]
+}

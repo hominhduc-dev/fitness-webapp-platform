@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  participant ui as Người dùng / UI
+  participant api as API + service
+  participant db as Prisma / DB
+  Note over ui,api: UC-AI-03 / FR-AI-03 — profile xác thực; quyền ở service
+  alt Tiền điều kiện và input hợp lệ
+    ui->>api: POST accept-program/workout
+    api->>db: Đọc draft đúng chủ/mode
+    db-->>api: Generation completed
+    api->>db: Transaction: claim draft
+    api->>db: Revalidate variations
+    api->>db: Program + assignment + sets
+    db-->>api: Commit accepted
+    api-->>ui: 200 · programId
+  else Sai quyền/input/quota hoặc lỗi khi xử lý
+    api-->>ui: Lỗi; không ghi nghiệp vụ dở dang
+  end

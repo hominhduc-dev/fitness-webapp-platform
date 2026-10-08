@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-15 · Phân loại muscle profile bài tập nội bộ",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      650
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người vận hành"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "CLI + validator"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "Provider AI"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "CLI dry-run hoặc apply"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Variation chưa có source"
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "y": 280,
+      "label": "Tên bài + equipment",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "llm",
+      "y": 330,
+      "label": "Phân loại batch"
+    },
+    {
+      "id": "m5",
+      "from": "llm",
+      "to": "api",
+      "y": 380,
+      "label": "Muscles + activity",
+      "variant": "return"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "db",
+      "y": 430,
+      "label": "Validate; report checkpoint"
+    },
+    {
+      "id": "m7",
+      "from": "api",
+      "to": "db",
+      "y": 480,
+      "label": "Chỉ apply: transaction DB"
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "ui",
+      "y": 530,
+      "label": "Report AI chưa reviewed",
+      "variant": "return"
+    }
+  ]
+}

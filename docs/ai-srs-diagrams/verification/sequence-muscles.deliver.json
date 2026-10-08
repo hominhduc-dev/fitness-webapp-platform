@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-muscles.json",
+  "output": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-muscles.html",
+  "specification": {
+    "sha256": "e083e60b379ce223b44e4c2e21cf3720d48cc148799b01806e769a457083f6e1",
+    "bytes": 1761
+  },
+  "artifact": {
+    "sha256": "61e1b826f3dd7cfb0f305bf49649305ef53413335571b3c3a4240506e213c32a",
+    "bytes": 703979
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

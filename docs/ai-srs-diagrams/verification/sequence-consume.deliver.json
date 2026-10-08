@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-consume.json",
+  "output": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-consume.html",
+  "specification": {
+    "sha256": "9adc3bbcb2dadbbc2647f52d8496e7867f35e69051b3a8e316824b5084bb30a2",
+    "bytes": 1510
+  },
+  "artifact": {
+    "sha256": "a5ef2841bfdeb76b9a86a825cd735202a2577771ed10826a8f570225f5ebfb40",
+    "bytes": 702240
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

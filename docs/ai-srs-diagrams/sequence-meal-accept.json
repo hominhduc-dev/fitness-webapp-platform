@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-07 · Xác nhận lưu thực đơn dự kiến",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      650
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API + service"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "POST accept-meal-plan"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Đọc draft + kiểm override"
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "y": 280,
+      "label": "Completed đúng chủ",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "db",
+      "y": 330,
+      "label": "Transaction: claim"
+    },
+    {
+      "id": "m5",
+      "from": "api",
+      "to": "db",
+      "y": 380,
+      "label": "Revalidate foods + portions"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "db",
+      "y": 430,
+      "label": "Thay planned của ngày plan"
+    },
+    {
+      "id": "m7",
+      "from": "db",
+      "to": "api",
+      "y": 480,
+      "label": "Commit accepted",
+      "variant": "return"
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "ui",
+      "y": 530,
+      "label": "200 · planned, chưa consumed",
+      "variant": "return"
+    }
+  ]
+}
