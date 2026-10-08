@@ -50,6 +50,7 @@ interface AIProvider {
   }): Promise<AIResponse<string>>
 
   generateWithTools(options: {
+    signal?: AbortSignal
     systemPrompt: string
     messages: AIConversationMessage[]
     tools: AIToolDefinition[]

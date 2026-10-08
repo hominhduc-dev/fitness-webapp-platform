@@ -118,6 +118,7 @@ app/layout.tsx
 | `/reset-password` | CSR auth recovery | `app/reset-password/page.tsx` |
 | `/dev/muscle-map` | CSR isolated preview | `app/dev/muscle-map/page.tsx` |
 | `/dev/design-system` | CSR visual contract lab, không cần session | `app/dev/design-system/page.tsx` |
+| `/agent` | SSR guard trainee/coach → CSR server-owned conversations, SSE progress and approvals | `components/ai/agent-workspace.tsx` |
 
 Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ role })`. Page cần access token dùng `requireAppSession()`.
 
@@ -150,6 +151,7 @@ Route-specific `layout.tsx` files enforce role early bằng `requireAppUser({ ro
 - Query/mutation lấy token mới trong callback bằng `requireAccessToken()`, không key theo token.
 - Browser server-state do TanStack Query cache; Next `revalidate` chỉ áp dụng server fetch.
 - Tái sử dụng API helper hiện có, không rải `fetch()` trực tiếp trong component.
+- AI Agent dùng helpers trong `lib/fitness/api.ts`, user-scoped TanStack keys `agent`, authenticated fetch streaming cho SSE (có Authorization), polling fallback và abort khi unmount. Tab Agent trong trainee chat và nút AI Agent ở coach dashboard dùng chung `AgentWorkspace`; chat/bản nháp cũ vẫn giữ riêng luồng acceptance. Copy agent nằm ở `lib/i18n/messages/agent.ts`. Xem `docs/ai-agent-phases-2-4.md` cho migration, worker flags và phạm vi ghi dữ liệu.
 - TanStack Query Devtools mặc định tắt kể cả local development; chỉ bật khi cần debug bằng `NEXT_PUBLIC_ENABLE_QUERY_DEVTOOLS=true` rồi restart frontend.
 
 ### State boundaries

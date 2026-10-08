@@ -1,0 +1,26 @@
+export const agentMessages = {
+  vi: {
+    title: "AI Agent", chat: "Chat & bản nháp", history: "Hội thoại", newChat: "Hội thoại mới", placeholder: "Phân tích tiến triển hoặc đề xuất điều chỉnh…",
+    send: "Gửi", cancel: "Dừng lượt xử lý", approve: "Duyệt thay đổi", reject: "Từ chối", before: "Trước", after: "Sau", reps: "Reps", weight: "Tạ", rir: "RIR", sets: "hiệp",
+    pending: "Chờ bạn duyệt", approved: "Đã duyệt", rejected: "Đã từ chối", expired: "Đã hết hạn", proposal: "Đề xuất điều chỉnh", note: "Ghi chú coach", revert: "Đề xuất hoàn tác", revertPrompt: "Tạo đề xuất hoàn tác thay đổi đã duyệt, approval ID: ",
+    error: "Không thực hiện được. Thử lại hoặc kiểm tra cấu hình agent trên máy chủ.", stale: "Program hoặc quyền truy cập có thể đã thay đổi. Hãy tạo đề xuất mới.",
+    memory: "Sở thích đã lưu", memoryHint: "Chỉ lưu thông tin bạn nhập. Dữ liệu tập luyện sẽ được đọc lại từ hệ thống.", save: "Lưu", remove: "Xóa", preferences: "Sở thích tập luyện", equipment: "Thiết bị", report: "Cách trình bày báo cáo", weekly: "Tự tạo báo cáo AI tuần theo lịch nhắc review trong Cài đặt thông báo. Báo cáo dùng quota và xuất hiện trong lịch sử hội thoại.",
+    empty: "Hỏi về progression, readiness, volume hoặc đề xuất thay đổi. Mọi thay đổi cần bạn duyệt.",
+    traineePrompt: "Phân tích hai giai đoạn 28 ngày gần nhất của tôi, đối chiếu readiness và nêu độ tin cậy.",
+    coachPrompt: "Rà soát học viên của tôi: ai cần theo dõi tiến triển và phục hồi? Nêu rõ phạm vi đã kiểm tra.",
+    states: { queued: "Đang chờ xử lý", running: "Đang phân tích", waiting_approval: "Đang chờ duyệt", completed: "Đã hoàn tất", failed: "Không hoàn tất", cancelled: "Đã dừng", budget_exceeded: "Đã chạm giới hạn" },
+    tools: { get_training_recommendation: "Đọc khuyến nghị tập luyện", get_readiness: "Đọc tình trạng phục hồi", get_muscle_volume: "Đọc volume nhóm cơ", get_workout_history: "Đọc lịch sử tập", get_progression_summary: "Đọc tiến triển", get_nutrition_summary: "Đọc dinh dưỡng", compare_training_periods: "So sánh các giai đoạn", analyze_plateau: "Kiểm tra dấu hiệu chững lại", list_my_trainees: "Đọc danh sách học viên", list_assigned_programs: "Đọc chương trình đang giao", get_program_for_proposal: "Đọc mục tiêu từng set", propose_program_changes: "Tạo đề xuất điều chỉnh", draft_coach_note: "Soạn ghi chú coach" },
+  },
+  en: {
+    title: "AI Agent", chat: "Chat & drafts", history: "Conversations", newChat: "New conversation", placeholder: "Analyze progress or propose changes…",
+    send: "Send", cancel: "Stop run", approve: "Approve changes", reject: "Reject", before: "Before", after: "After", reps: "Reps", weight: "Weight", rir: "RIR", sets: "sets",
+    pending: "Awaiting your approval", approved: "Approved", rejected: "Rejected", expired: "Expired", proposal: "Proposed changes", note: "Coach note", revert: "Propose revert", revertPrompt: "Propose reverting the approved change, approval ID: ",
+    error: "Unable to continue. Retry or check the server's agent configuration.", stale: "The program or your access may have changed. Create a new proposal.",
+    memory: "Saved preferences", memoryHint: "Only information you enter is saved. Training data is read fresh from the system.", save: "Save", remove: "Delete", preferences: "Training preferences", equipment: "Equipment", report: "Report format", weekly: "Automatically create a weekly AI review using the review schedule in notification settings. Reports use quota and appear in conversation history.",
+    empty: "Ask about progression, readiness, volume or proposed changes. All changes require your approval.",
+    traineePrompt: "Compare my two latest 28-day periods, check readiness and explain confidence.",
+    coachPrompt: "Review my trainees: who needs follow-up on progress and recovery? State exactly whom you reviewed.",
+    states: { queued: "Queued", running: "Analyzing", waiting_approval: "Awaiting approval", completed: "Completed", failed: "Failed", cancelled: "Stopped", budget_exceeded: "Budget reached" },
+    tools: { get_training_recommendation: "Reading training recommendations", get_readiness: "Reading readiness", get_muscle_volume: "Reading muscle volume", get_workout_history: "Reading workout history", get_progression_summary: "Reading progression", get_nutrition_summary: "Reading nutrition", compare_training_periods: "Comparing periods", analyze_plateau: "Checking plateau signals", list_my_trainees: "Reading trainee roster", list_assigned_programs: "Reading assigned programs", get_program_for_proposal: "Reading set targets", propose_program_changes: "Drafting program changes", draft_coach_note: "Drafting coach note" },
+  },
+}

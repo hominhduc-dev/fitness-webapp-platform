@@ -55,11 +55,13 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
     supportsTools: true,
 
     async generateWithTools({
+      signal,
       systemPrompt,
       messages,
       tools,
       maxTokens = 1024,
     }: {
+      signal?: AbortSignal
       systemPrompt: string
       messages: AIConversationMessage[]
       tools: AIToolDefinition[]
@@ -78,7 +80,7 @@ function createAnthropicProvider(apiKey: string, model: string): AIProvider {
             })),
             messages: toWireMessages(messages),
           },
-          { timeout: getAIRequestTimeoutMs() },
+          { timeout: getAIRequestTimeoutMs(), signal },
         ),
       )
 
