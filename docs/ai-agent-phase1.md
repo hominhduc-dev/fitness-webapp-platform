@@ -1,5 +1,7 @@
 # YeahBuddy Agent Runtime — Phase 1
 
+Follow-on implementation: [phases 2–4](ai-agent-phases-2-4.md). The Phase 1 legacy endpoint remains available; the durable agent uses separate authenticated routes and a restricted proposal workflow.
+
 The existing trainee chat now supports multiple dependent tool turns through a bounded foreground runtime. Fitness services remain authoritative for numbers. No new write tools, database schema, routes, worker or frontend are introduced.
 
 ## Flow

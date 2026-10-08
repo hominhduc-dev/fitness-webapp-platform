@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-chat.json",
+  "output": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-chat.html",
+  "specification": {
+    "sha256": "8aee9d0dbda35db78c11d0f6f1a4a6e8c28b875322b9f91b9a30f54bb4befb4c",
+    "bytes": 2139
+  },
+  "artifact": {
+    "sha256": "c9f0b72d65f20c09bd60e24dce1f637db9685c87603a80a53cbd5d8a663f2fe9",
+    "bytes": 705826
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

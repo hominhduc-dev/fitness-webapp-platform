@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-09 · Coach review thực đơn dự kiến",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      670
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API + service"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "Coach GET meal-plans"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Check coach–trainee"
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "y": 280,
+      "label": "Planned meals",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "ui",
+      "y": 330,
+      "label": "Bữa dự kiến",
+      "variant": "return"
+    },
+    {
+      "id": "m5",
+      "from": "ui",
+      "to": "api",
+      "y": 380,
+      "label": "PATCH/DELETE item"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "db",
+      "y": 430,
+      "label": "Check planned; cập nhật"
+    },
+    {
+      "id": "m7",
+      "from": "ui",
+      "to": "api",
+      "y": 480,
+      "label": "POST review + note"
+    },
+    {
+      "id": "m8",
+      "from": "api",
+      "to": "db",
+      "y": 530,
+      "label": "Lưu review + notification"
+    },
+    {
+      "id": "m9",
+      "from": "api",
+      "to": "ui",
+      "y": 580,
+      "label": "200 · review đã lưu",
+      "variant": "return"
+    }
+  ]
+}

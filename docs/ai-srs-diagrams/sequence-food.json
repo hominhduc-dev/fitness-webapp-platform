@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-13 · Ước tính dinh dưỡng món chưa có",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      650
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API + service"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "Provider AI"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "POST food-nutrition"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "llm",
+      "y": 230,
+      "label": "Tên món + locale"
+    },
+    {
+      "id": "m3",
+      "from": "llm",
+      "to": "api",
+      "y": 280,
+      "label": "Serving, macros, confidence",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "ui",
+      "y": 330,
+      "label": "Validate; prefill form",
+      "variant": "return"
+    },
+    {
+      "id": "m5",
+      "from": "ui",
+      "to": "api",
+      "y": 380,
+      "label": "Submit custom food riêng"
+    },
+    {
+      "id": "m6",
+      "from": "api",
+      "to": "db",
+      "y": 430,
+      "label": "Flow review food hiện có"
+    },
+    {
+      "id": "m7",
+      "from": "api",
+      "to": "ui",
+      "y": 480,
+      "label": "Kết quả submit",
+      "variant": "return"
+    }
+  ]
+}

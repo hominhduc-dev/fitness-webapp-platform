@@ -1,6 +1,7 @@
 import { Router } from "express"
 
 import { aiRouter } from "./ai.route"
+import { agentRouter } from "./agent.route"
 import { adminRouter } from "./admin.route"
 import { authRouter } from "./auth.route"
 import { coachRouter } from "./coach.route"
@@ -28,6 +29,7 @@ apiRouter.use("/health", healthRouter)
 apiRouter.use("/integrations", integrationsRouter)
 apiRouter.use("/auth", authRouter)
 apiRouter.use("/ai", aiRouter)
+apiRouter.use("/agent", agentRouter)
 apiRouter.use("/admin", adminRouter)
 apiRouter.use("/coach", coachRouter)
 apiRouter.use("/dashboard", dashboardRouter)

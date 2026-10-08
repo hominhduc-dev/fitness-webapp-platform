@@ -307,6 +307,8 @@ enum RecommendationOutcome {
 }
 
 model User {
+  agentConversations AgentConversation[]
+  agentMemories AgentMemory[]
   id                     String                    @id @default(uuid()) @db.Uuid
   supabaseAuthUserId     String?                   @unique @db.Uuid
   name                   String
@@ -382,6 +384,93 @@ model User {
   @@index([username])
   @@index([phone])
   @@index([role, coachApprovalStatus])
+}
+
+model AgentConversation {
+  id String @id @default(uuid()) @db.Uuid
+  actorId String @db.Uuid
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  title String
+  messages AgentMessage[]
+  runs AgentRun[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([actorId, updatedAt])
+}
+
+model AgentMessage {
+  id String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role String
+  content String
+  createdAt DateTime @default(now())
+  @@index([conversationId, createdAt])
+}
+
+model AgentRun {
+  id String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  status String @default("queued")
+  requestKey String @unique
+  subjectIds String[] @default([]) @db.Uuid
+  checkpoint Json
+  steps Int @default(0)
+  toolCalls Int @default(0)
+  tokenUsage Int @default(0)
+  costEstimateUsd Float?
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime?
+  reply String?
+  model String?
+  promptVersion String @default("agent-v2")
+  events AgentEvent[]
+  approvals AgentApproval[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, leaseUntil, createdAt])
+  @@index([conversationId, createdAt])
+}
+
+model AgentEvent {
+  id Int @id @default(autoincrement())
+  runId String @db.Uuid
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  type String
+  payload Json
+  createdAt DateTime @default(now())
+  @@index([runId, id])
+}
+
+model AgentApproval {
+  id String @id @default(uuid()) @db.Uuid
+  runId String @db.Uuid
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  callId String
+  kind String
+  subjectId String @db.Uuid
+  payload Json
+  payloadHash String
+  status String @default("pending")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  decidedAt DateTime?
+  @@unique([runId, callId])
+  @@index([runId, status])
+}
+
+model AgentMemory {
+  id String @id @default(uuid()) @db.Uuid
+  actorId String @db.Uuid
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  key String
+  content String
+  source String @default("user_explicit")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([actorId, key])
 }
 
 model Exercise {

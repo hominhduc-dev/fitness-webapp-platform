@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  participant ui as Người dùng / UI
+  participant api as API + service
+  participant db as Prisma / DB
+  participant llm as Provider AI
+  Note over ui,api: UC-AI-10 / FR-AI-10 — profile xác thực; quyền ở service
+  alt Tiền điều kiện và input hợp lệ
+    ui->>api: POST chat + history
+    api->>db: Profile + context theo intent
+    db-->>api: Context + recommendation
+    api->>llm: Chat + hai tool cho phép
+    llm-->>api: Text hoặc tool-call
+    api->>db: Tool: pending + catalog
+    api->>llm: Sinh draft qua service
+    llm-->>api: JSON draft
+    api->>db: Validate; lưu completed
+    api->>llm: Tool result; follow-up
+    api-->>ui: Reply + action draft
+  else Sai quyền/input/quota hoặc lỗi khi xử lý
+    api-->>ui: Lỗi; không ghi nghiệp vụ dở dang
+  end
+  Note over api,llm: Context lỗi: prompt chung. Follow-up lỗi: giữ draft action.

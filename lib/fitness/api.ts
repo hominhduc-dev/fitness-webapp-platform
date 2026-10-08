@@ -77,6 +77,43 @@ import type {
 
 type SerializedExerciseBase = ExerciseBase
 
+export type AgentApproval = { id: string; kind: string; status: string; payloadHash: string; expiresAt: string;
+  payload: { programName?: string; reason?: string; body?: string; setCountChanges?: Array<{ workoutExerciseId: string; label: string; beforeCount: number; afterCount: number }>; changes?: Array<{ setId: string; label: string; before: { targetReps: number; weight: number | null; rir: number | null }; after: { targetReps: number; weight: number | null; rir: number | null } }> } }
+export type AgentRun = { id: string; conversationId: string; status: string; reply: string | null; steps: number; toolCalls: number; tokenUsage: number; approvals: AgentApproval[] }
+export type AgentConversationSummary = { id: string; title: string; updatedAt: string }
+export type AgentConversation = AgentConversationSummary & { messages: Array<{ id: string; role: string; content: string }>; runs: Array<{ id: string; status: string }> }
+export type AgentMemory = { id: string; key: "report_format" | "training_preferences" | "equipment" | "weekly_review_enabled"; content: string; updatedAt: string }
+export async function fetchAgentConversations(token: string) { return (await request<ApiEnvelope<AgentConversationSummary[]>>("/api/agent/conversations", token, { cache: "no-store" })).data }
+export async function fetchAgentConversation(token: string, id: string) { return (await request<ApiEnvelope<AgentConversation>>(`/api/agent/conversations/${id}`, token, { cache: "no-store" })).data }
+export async function createAgentRun(token: string, input: { message: string; conversationId?: string; requestKey: string }) { return (await request<ApiEnvelope<Pick<AgentRun, "id" | "conversationId" | "status">>>("/api/agent/runs", token, { method: "POST", body: JSON.stringify(input) })).data }
+export async function fetchAgentRun(token: string, id: string) { return (await request<ApiEnvelope<AgentRun>>(`/api/agent/runs/${id}`, token, { cache: "no-store" })).data }
+export async function cancelAgentRun(token: string, id: string) { return (await request<ApiEnvelope<{ status: string }>>(`/api/agent/runs/${id}/cancel`, token, { method: "POST" })).data }
+export async function decideAgentApproval(token: string, id: string, payloadHash: string, approve: boolean) { return (await request<ApiEnvelope<{ status: string }>>(`/api/agent/approvals/${id}/decide`, token, { method: "POST", body: JSON.stringify({ payloadHash, approve }) })).data }
+export async function fetchAgentMemories(token: string) { return (await request<ApiEnvelope<AgentMemory[]>>("/api/agent/memories", token, { cache: "no-store" })).data }
+export async function saveAgentMemory(token: string, key: AgentMemory["key"], content: string) { return (await request<ApiEnvelope<AgentMemory>>("/api/agent/memories", token, { method: "PUT", body: JSON.stringify({ key, content }) })).data }
+export async function deleteAgentMemory(token: string, id: string) { return (await request<ApiEnvelope<{ deleted: boolean }>>(`/api/agent/memories/${id}`, token, { method: "DELETE" })).data }
+
+/** Fetch streaming supports Authorization headers; native EventSource does not. */
+export async function streamAgentEvents(token: string, id: string, signal: AbortSignal, onEvent: (event: { id: number; type: string; tool?: string; status: string }) => void, after = 0) {
+  const response = await fetch(`${getApiBaseUrl()}/api/agent/runs/${id}/events?after=${after}`, { headers: { Authorization: `Bearer ${token}` }, signal, cache: "no-store" })
+  if (!response.ok || !response.body) throw new ApiError("Unable to stream agent progress.", response.status)
+  const reader = response.body.getReader(), decoder = new TextDecoder()
+  let buffer = ""
+  try {
+    while (!signal.aborted) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, "\n")
+      let end: number
+      while ((end = buffer.indexOf("\n\n")) >= 0) {
+        const frame = buffer.slice(0, end); buffer = buffer.slice(end + 2)
+        const line = frame.split("\n").find(value => value.startsWith("data: "))
+        if (line) onEvent(JSON.parse(line.slice(6)).data)
+      }
+    }
+  } finally { await reader.cancel().catch(() => undefined); reader.releaseLock() }
+}
+
 type SerializedExerciseVariation = ExerciseVariation
 
 type SerializedExerciseVariationOption = ExerciseVariationOption

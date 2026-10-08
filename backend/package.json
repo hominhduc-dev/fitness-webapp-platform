@@ -26,6 +26,8 @@
     "import:usda-nutrients": "tsx src/scripts/import-usda-nutrients.ts",
     "estimate:dish-nutrients": "tsx src/scripts/estimate-dish-nutrients.ts",
     "start": "node dist/index.js",
+    "start:agent-worker": "node dist/agent/standalone-worker.js",
+    "dev:agent-worker": "tsx src/agent/standalone-worker.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",

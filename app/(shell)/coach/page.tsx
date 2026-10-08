@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, ArrowRight, BellRing, CalendarPlus, Dumbbell, TrendingUp, Users } from "lucide-react"
 
 import { PendingRequestsPanel } from "@/components/coach/pending-requests-panel"
+import { agentMessages } from "@/lib/i18n/messages/agent"
 import { CoachDashboardLoading } from "./loading"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -464,10 +465,12 @@ async function CoachDashboardContent() {
 
 export default async function CoachDashboardPage() {
   await requireAppUser({ role: "coach" })
+  const locale = await getServerLocale()
 
   return (
+    <><div className="mb-3 flex justify-end"><Link href="/agent"><Button variant="outline">{agentMessages[locale].title}</Button></Link></div>
     <Suspense fallback={<CoachDashboardLoading />}>
       <CoachDashboardContent />
-    </Suspense>
+    </Suspense></>
   )
 }

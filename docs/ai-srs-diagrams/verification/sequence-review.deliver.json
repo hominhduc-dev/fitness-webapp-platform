@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "sequence",
+  "input": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-review.json",
+  "output": "G:\\fitness-app\\docs\\ai-srs-diagrams\\sequence-review.html",
+  "specification": {
+    "sha256": "95912b5d4fe323407a3f3b1789801ac399d03c9ff34b4c40ff2829aac46e255b",
+    "bytes": 1758
+  },
+  "artifact": {
+    "sha256": "e88d2ed84b075e1a4f7bdfbb00bae6bb0f629289ec0329bbb52088e079a266b5",
+    "bytes": 703502
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

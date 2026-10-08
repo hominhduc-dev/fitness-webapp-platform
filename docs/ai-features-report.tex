@@ -1,7 +1,17 @@
 \documentclass[12pt,a4paper]{article}
 
-\usepackage[utf8]{inputenc}
-\usepackage[T5]{fontenc}
+% pdfLaTeX requires Vietnamese language support and T5 fonts (vntex).
+% XeLaTeX/LuaLaTeX use Unicode OpenType fonts instead.
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T5]{fontenc}
+\else
+  \usepackage{fontspec}
+  \setmainfont{Latin Modern Roman}
+  \setsansfont{Latin Modern Sans}
+  \setmonofont{Latin Modern Mono}
+\fi
 \usepackage[vietnamese]{babel}
 \usepackage{geometry}
 \usepackage{xcolor}
@@ -10,7 +20,9 @@
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{enumitem}
-\usepackage{hyperref}
+\usepackage{xurl} % Explicit \path support and line breaks in long paths.
+\usepackage{tikz}
+\usepackage[unicode]{hyperref}
 
 \geometry{margin=2.2cm}
 \hypersetup{
@@ -28,24 +40,612 @@
 \renewcommand{\arraystretch}{1.25}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcommand{\code}[1]{\texttt{#1}}
-\newcommand{\evidence}[1]{\small\path{#1}}
+\newcommand{\evidence}[1]{{\small\nolinkurl{#1}}}
+\newcommand{\reportcover}{%
+  \begin{titlepage}
+    \thispagestyle{empty}
+    \begin{tikzpicture}[remember picture,overlay]
+      \draw[line width=0.8pt]
+        ([xshift=1.7cm,yshift=-1.7cm]current page.north west)
+        rectangle
+        ([xshift=-1.7cm,yshift=1.7cm]current page.south east);
+    \end{tikzpicture}
+    \centering
+    \vspace*{0.7cm}
+    {\Large\bfseries TRƯỜNG ĐẠI HỌC\par}
+    \vspace{0.2cm}
+    {\Large\bfseries KIẾN TRÚC ĐÀ NẴNG\par}
+    \vspace{3cm}
+    {\Huge\bfseries BÁO CÁO\par}
+    \vspace{0.5cm}
+    {\LARGE\bfseries ĐỒ ÁN TRÍ TUỆ NHÂN TẠO\par}
+    \vspace{2cm}
+    {\large\bfseries TÊN ĐỀ TÀI\par}
+    \vspace{0.5cm}
+    {\Large\bfseries WEBAPP LẬP KẾ HOẠCH\par}
+    \vspace{0.2cm}
+    {\Large\bfseries LUYỆN TẬP \& DINH DƯỠNG\par}
+    \vspace{2cm}
+    {\large
+      \begin{tabular}{ll}
+        Sinh viên thực hiện: & Hồ Minh Đức \\
+        Lớp: & 24CT4
+      \end{tabular}\par
+    }
+    \vfill
+    {\large Đà Nẵng, tháng 10 năm 2026\par}
+    \vspace{0.7cm}
+  \end{titlepage}%
+}
 
-\title{\textbf{Báo cáo các tính năng AI của hệ thống fitness-app}}
-\author{Phạm vi kiểm tra: mã nguồn local của hệ thống}
-\date{Ngày lập báo cáo: 29/09/2026}
-
+\title{\textbf{SRS --- Các tính năng AI của YeahBuddy}}
+\author{Hồ Minh Đức --- Lớp 24CT4}
+\date{08/10/2026}
 \begin{document}
-\maketitle
+\reportcover
+\setcounter{page}{1}
+\tableofcontents
+\clearpage
+\section{Mục đích, phạm vi và căn cứ}
+Tài liệu đặc tả các yêu cầu AI của hệ thống để phục vụ phát triển, kiểm thử và đối chiếu sơ đồ. Baseline workflow/SRS: commit \code{772cb878}, ngày 05/10/2026; Phase 1: commit \code{bca86d8}; phần mở rộng Phase 2--4: nhánh \path{codex/ai-agent-phases}, cập nhật ngày 08/10/2026. Các yêu cầu ký hiệu FR/BR/IR/NFR mô tả mã nguồn; không đồng nghĩa đã nghiệm thu runtime. Các mục GAP là đề xuất chưa hoàn tất.
 
-\section*{Ghi chú phạm vi}
+Phạm vi gồm AI tập luyện, meal plan, chat/tool-call, insight dinh dưỡng, insight coach, food lookup và hai workflow AI nội bộ. Consume planned meals và coach meal review là chức năng nghiệp vụ nối tiếp AI, không gọi LLM. Ngoài phạm vi: đăng ký/đăng nhập tổng thể, tự huấn luyện model, vector RAG, triển khai production và các integration không trực tiếp gọi AI.
 
-Báo cáo này tổng hợp các tính năng AI đang có trong mã nguồn local của hệ thống \textit{fitness-app}. Tại thời điểm kiểm tra, đường dẫn \path{E:\fitness-app} không tồn tại trên máy này; repo thực tế nằm ở \path{D:\Source_code\fitness-app}. Nhánh local \code{main} đang chậm hơn \code{origin/main} 2 commit, vì vậy báo cáo phản ánh trạng thái local hiện tại, chưa khẳng định trạng thái mới nhất trên remote hoặc production.
+\section{Thuật ngữ và tác nhân}
+\begin{description}
+  \item[LLM/provider] Dịch vụ sinh text, JSON và tool-call; OpenAI-compatible hoặc Anthropic qua adapter.
+  \item[Draft] Generation completed chưa accept; khác với Program hay Meal đã được lưu nghiệp vụ.
+  \item[Catalog/context] Tập đối tượng được phép và dữ liệu được chọn để đưa vào prompt.
+  \item[Fingerprint/stale] Dấu dữ liệu để báo nhận xét đã cũ; không phải chứng nhận tính đúng.
+  \item[RIR/e1RM] Reps in reserve và ước lượng one-rep max; không phải chẩn đoán y tế.
+  \item[Trainee] Tác nhân chính cho workout, meal, chat và insight cá nhân.
+  \item[Coach] Quản lý trainee thuộc quyền, tạo/gán program, review planned meals và insight trainee.
+  \item[Người vận hành dữ liệu] Chạy CLI bảo trì; không suy diễn mọi admin đều có quyền hệ điều hành.
+  \item[Provider AI] Tác nhân hỗ trợ bên ngoài trong use case cần sinh nội dung; DB là thành phần nội bộ.
+\end{description}
+Các route AI chung yêu cầu profile xác thực nhưng không có role gate trainee trên toàn router; UI trainee và quyền service là hai lớp khác nhau. SRS không tuyên bố API đã chặn coach/admin cho mọi thao tác cá nhân. Coach routes kiểm tra role và quan hệ sở hữu trainee tại service.
 
-Các kết luận trong báo cáo dựa trên đọc mã nguồn, schema và tài liệu nội bộ. Chưa có kiểm thử live provider, E2E đăng nhập, hoặc kiểm thử production trong lần lập báo cáo này.
+\section{Quy tắc nghiệp vụ và giao diện chung}
+\begin{description}
+  \item[BR-AI-01] Sinh program/meal chỉ tạo draft; accept là request độc lập theo quyết định người dùng.
+  \item[BR-AI-02] Draft phải đúng requester, type/mode và completed trước accept; kiểm tra catalog lại trong transaction.
+  \item[BR-AI-03] Meal accept tạo planned; consume mới ghi consumed và tăng totals đã ăn.
+  \item[BR-AI-04] Backend quyết định ID, totals, workload, findings và recommendation; LLM sinh/chọn/diễn giải trong khung đó.
+  \item[BR-AI-05] Coach chỉ thao tác trainee thuộc quyền; program coach thuộc coach và được gán cho trainee.
+  \item[BR-AI-06] Lịch ngày theo X-Timezone của request, mặc định Việt Nam; date-only dùng khóa UTC midnight.
+  \item[BR-AI-07] Chat cũ cho phép tool đọc dữ liệu và hai tool tạo draft, tối đa một draft thành công mỗi message; không tự accept. Agent mới dùng giao diện và API riêng, mọi thay đổi nghiệp vụ cần approval.
+  \item[BR-AI-08] Insight có thể stale hoặc locale khác bản yêu cầu; trả metadata để UI yêu cầu tạo lại.
+  \item[BR-AI-09] CLI vi chất bảo vệ row USDA; CLI muscle dry-run không ghi DB, apply ghi dữ liệu AI chưa review.
+  \item[IR-AI-01] API dùng envelope \code{\{data, error, meta\}}; frontend gọi qua lớp API/proxy. Endpoint chi tiết ở từng use case.
+  \item[IR-AI-02] Input chịu schema bounds; provider text/JSON không phải dữ liệu đáng tin cho đến khi validator nhận.
+  \item[IR-AI-03] Thiếu key trả AI\_NOT\_CONFIGURED (503); generation/type-specific errors và HTTP status phải bám code, không gom mọi lỗi vào một status.
+\end{description}
+
+\section{Yêu cầu chức năng và đặc tả use case}
+Mỗi UC-AI-n tương ứng FR-AI-n và một sơ đồ sequence. Các bước dưới đây là hành vi yêu cầu theo hiện trạng; tiêu chí nghiệm thu là kịch bản cần kiểm thử, chưa đánh dấu đã pass.
+
+\subsection{UC-AI-01 --- Tạo chương trình tập nhiều tuần}
+\label{uc-ai-1}
+\textbf{Yêu cầu FR-AI-01:} Hệ thống phải hỗ trợ tạo chương trình tập nhiều tuần với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/generate-program}
+\item[Tiền điều kiện] Đã đăng nhập; cấu hình provider hợp lệ; còn quota và có catalog phù hợp.
+\item[Dữ liệu vào] Goal, experienceLevel, daysPerWeek 2–7, durationWeeks 1–16, sessionDuration 20–180 phút, equipment, focusAreas, injuries.
+\item[Hậu điều kiện] Có draft; chưa tạo Program/Workout nghiệp vụ.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Người dùng nhập mục tiêu và điều kiện tập.
+  \item API xác thực profile, validate input và quota ngày.
+  \item Service lọc catalog và bổ sung context tập luyện/phục hồi.
+  \item Tạo generation pending; gọi provider với refs bài tập.
+  \item Parse, map và validate output; có thể repair một lần.
+  \item Lưu completed và trả generationId cùng bản nháp để preview.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Input sai; quota hết; catalog thiếu; provider/JSON/validation lỗi: từ chối hoặc lưu failed, không tạo program.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-01:} Với output hợp lệ, preview chỉ chứa variation được phép; chưa có Program mới trước accept. Output không hợp lệ không được lưu completed.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-program.html}.
+
+\subsection{UC-AI-02 --- Tạo buổi tập theo ngày}
+\label{uc-ai-2}
+\textbf{Yêu cầu FR-AI-02:} Hệ thống phải hỗ trợ tạo buổi tập theo ngày với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/generate-workout}
+\item[Tiền điều kiện] Đã đăng nhập; ngày hợp lệ, có catalog và còn quota workout\_program.
+\item[Dữ liệu vào] Date, goal, experienceLevel, energyLevel low/normal/high, sessionDuration 20–120 phút, equipment, focusAreas, injuries.
+\item[Hậu điều kiện] Draft một buổi, dùng loại workout\_program và mode daily.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee chọn ngày, mức năng lượng và điều kiện tập.
+  \item Service validate input, lọc catalog và tạo generation pending.
+  \item Provider sinh một buổi tập; backend validate workload và variations.
+  \item Lưu completed với mode daily và trả preview.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Ngày/input sai; workload vượt giới hạn; output không map được; lỗi provider: không tạo workout thật.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-02:} Draft có mode daily; ngày và thiết bị được bảo toàn; request accept-workout không được nhận draft program nhiều tuần.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-daily.html}.
+
+\subsection{UC-AI-03 --- Xác nhận lưu chương trình hoặc buổi tập}
+\label{uc-ai-3}
+\textbf{Yêu cầu FR-AI-03:} Hệ thống phải hỗ trợ xác nhận lưu chương trình hoặc buổi tập với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/accept-program; POST /api/ai/accept-workout}
+\item[Tiền điều kiện] Draft thuộc requester, đúng loại/mode và trạng thái completed.
+\item[Dữ liệu vào] GenerationId UUID.
+\item[Hậu điều kiện] Dữ liệu nghiệp vụ tạo đúng một lần trên đường accept được bảo vệ.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee xem preview và bấm xác nhận.
+  \item Service đọc generation, kiểm tra chủ sở hữu, trạng thái và mode.
+  \item Transaction claim generation bằng conditional update.
+  \item Revalidate quyền truy cập variation và equipment trong transaction.
+  \item Tạo program, assignment, workout, exercises, sets; daily đặt scheduledDate.
+  \item Commit và trả programId; generation chuyển accepted.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Draft không tìm thấy/khác chủ; đã accepted; catalog đổi; transaction lỗi: trả lỗi, rollback toàn bộ.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-03:} Hai request accept cùng draft không tạo hai program; catalog mất quyền không để lại dữ liệu ghi dở; accept không gọi lại LLM.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai/acceptance.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-accept.html}.
+
+\subsection{UC-AI-04 --- Coach tạo và gán program AI}
+\label{uc-ai-4}
+\textbf{Yêu cầu FR-AI-04:} Hệ thống phải hỗ trợ coach tạo và gán program ai với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Coach.
+\item[Kích hoạt/API] \path{POST /api/coach/trainees/:traineeId/ai-program; POST /api/coach/trainees/:traineeId/ai-program/accept}
+\item[Tiền điều kiện] Requester là coach và trainee thuộc coach; draft accept đúng trainee.
+\item[Dữ liệu vào] TraineeId, input program; generationId khi accept.
+\item[Hậu điều kiện] Chương trình thuộc coach, được gán đúng trainee.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Coach chọn trainee và nhập điều kiện program.
+  \item Service kiểm tra role, quan hệ coach–trainee và quota.
+  \item Tạo draft với coachGenerated và traineeId.
+  \item Coach review rồi gửi request accept riêng.
+  \item Transaction tạo program thuộc coach và assignment cho trainee.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Sai role/quan hệ; draft dành trainee khác; catalog hoặc generation đổi: từ chối ghi.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-04:} Coach không tạo/gán program cho trainee ngoài quyền; ProgramAssignment.userId là trainee, không phải coach.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-coach-program.html}.
+
+\subsection{UC-AI-05 --- Tạo thực đơn AI nhiều ngày}
+\label{uc-ai-5}
+\textbf{Yêu cầu FR-AI-05:} Hệ thống phải hỗ trợ tạo thực đơn ai nhiều ngày với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/generate-meal-plan}
+\item[Tiền điều kiện] Có mục tiêu calories hợp lệ, phần mục tiêu còn cần plan và food catalog phù hợp.
+\item[Dữ liệu vào] Date, days 1–7, preferences, budget low/medium/high, cookingTime quick/normal; profile cung cấp goals/allergies/diet.
+\item[Hậu điều kiện] Một draft mới được trả; chưa ghi bữa consumed hay planned.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee yêu cầu thực đơn cho ngày bắt đầu và số ngày.
+  \item Backend tính phần goals/bữa còn lại từ consumed meals và lọc food catalog.
+  \item Tạo pending rồi gọi model bằng catalog IDs.
+  \item Map food, tính calories/macros và validate từng ngày.
+  \item Tạo shopping list từ dữ liệu đã map; lưu completed.
+  \item Loại các draft completed cũ bằng discarded; trả draft mới.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Thiếu/không an toàn calorie goal; không còn bữa cần plan; catalog quá nhỏ; provider/output lỗi.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-05:} Totals và shopping list dựa trên catalog backend; phần consumed không bị lập lại; draft cũ không hồi sinh sau discard draft mới.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-meal.html}.
+
+\subsection{UC-AI-06 --- Đọc, bỏ hoặc đổi một bữa trong draft}
+\label{uc-ai-6}
+\textbf{Yêu cầu FR-AI-06:} Hệ thống phải hỗ trợ đọc, bỏ hoặc đổi một bữa trong draft với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{GET /api/ai/meal-plan-draft; POST /api/ai/discard-meal-plan; POST /api/ai/regenerate-meal-plan-meal}
+\item[Tiền điều kiện] Draft meal\_plan thuộc requester; đổi bữa yêu cầu completed và còn quota swap.
+\item[Dữ liệu vào] GenerationId; date và mealType khi đổi bữa.
+\item[Hậu điều kiện] Draft giữ nguyên, discarded hoặc được thay đúng một bữa.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Đọc draft mới nhất để tiếp tục preview mà không generate lại.
+  \item Nếu bỏ draft, update completed sang discarded và giữ row quota.
+  \item Nếu đổi bữa, tính mục tiêu còn lại sau các bữa không đổi.
+  \item Gọi provider, validate bữa mới và cả ngày.
+  \item Update có điều kiện chỉ khi draft còn completed.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Draft cũ không parse được có thể trả không có draft; draft đã accept hoặc thay đổi đồng thời bị từ chối swap.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-06:} GET/discard không gọi LLM; swap không sửa bữa khác; accept đồng thời thắng thì swap không ghi đè draft accepted.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-draft.html}.
+
+\subsection{UC-AI-07 --- Xác nhận lưu thực đơn dự kiến}
+\label{uc-ai-7}
+\textbf{Yêu cầu FR-AI-07:} Hệ thống phải hỗ trợ xác nhận lưu thực đơn dự kiến với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/accept-meal-plan}
+\item[Tiền điều kiện] Generation meal\_plan completed thuộc requester; override chỉ dùng food có trong draft.
+\item[Dữ liệu vào] GenerationId, date và days/khẩu phần tùy chọn.
+\item[Hậu điều kiện] Chỉ có bữa dự kiến; nhật ký consumed không tăng.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee review và có thể chỉnh khẩu phần.
+  \item Service parse input, kiểm tra draft và các override.
+  \item Transaction claim generation rồi đọc catalog hiện tại.
+  \item Quy đổi khẩu phần và tính lại totals; validate draft chưa chỉnh theo targets.
+  \item Thay planned meals của những ngày trong plan, tạo Meal planned.
+  \item Commit generation accepted; trả kết quả.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Food xóa/đổi hoặc ngoài draft; đơn vị không quy đổi được; draft đã accept; transaction lỗi: rollback.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-07:} Accept không làm tăng consumed totals; phần ăn trainee tự sửa không bị ép giữ nguyên target AI; lỗi catalog không xóa planned meals hiện có.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-meal-accept.html}.
+
+\subsection{UC-AI-08 --- Xác nhận đã ăn bữa dự kiến}
+\label{uc-ai-8}
+\textbf{Yêu cầu FR-AI-08:} Hệ thống phải hỗ trợ xác nhận đã ăn bữa dự kiến với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/meals/plans/consume}
+\item[Tiền điều kiện] Planned meal thuộc trainee; thao tác nối tiếp AI meal lifecycle, không gọi AI.
+\item[Dữ liệu vào] Thông tin planned meal theo route consume.
+\item[Hậu điều kiện] Bữa chuyển vào dữ liệu đã ăn; context dinh dưỡng phản ánh consumed.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee chọn bữa dự kiến và xác nhận đã ăn.
+  \item Service xác thực quyền, đọc planned items.
+  \item Transaction ghi consumed, xóa planned meal cũ và tính lại totals.
+  \item UI hiển thị nhật ký và totals consumed mới.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Bữa không còn planned/khác chủ hoặc transaction lỗi: trả lỗi và không chuyển dở.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-08:} Chỉ thao tác consume mới tăng consumed totals; kiểm thử quyền và request lặp với fixture riêng.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/nutrition.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-consume.html}.
+
+\subsection{UC-AI-09 --- Coach review thực đơn dự kiến}
+\label{uc-ai-9}
+\textbf{Yêu cầu FR-AI-09:} Hệ thống phải hỗ trợ coach review thực đơn dự kiến với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Coach.
+\item[Kích hoạt/API] \path{GET /api/coach/trainees/:traineeId/meal-plans; PATCH/DELETE .../items/:itemId; POST .../review}
+\item[Tiền điều kiện] Coach sở hữu trainee và item đang planned.
+\item[Dữ liệu vào] Date, itemId, amountValue/amountUnit hoặc coachNote tùy thao tác.
+\item[Hậu điều kiện] Planned meals cập nhật; consumed là record của trainee.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Coach xem planned meals của trainee.
+  \item Coach chỉnh khẩu phần hoặc xóa planned item.
+  \item Service xác minh quyền và planned status trước ghi.
+  \item Khi duyệt, lưu coachNote/coachReviewedAt và tạo notification trainee.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Trainee ngoài quyền; item consumed/khác chủ; khẩu phần sai: từ chối.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-09:} Coach không sửa consumed item bằng các route planned; duyệt có timestamp/note và notification theo code.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/meal-plan-review.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-review.html}.
+
+\subsection{UC-AI-10 --- Chat AI và tạo draft qua tool}
+\label{uc-ai-10}
+\textbf{Yêu cầu FR-AI-10:} Hệ thống phải hỗ trợ chat ai và tạo draft qua tool với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/chat}
+\item[Tiền điều kiện] Profile xác thực, còn quota chat và provider cấu hình hợp lệ; UI chat dành trainee.
+\item[Dữ liệu vào] Message tối đa 2000 ký tự; history role user/assistant, schema tối đa 40 messages; service giữ 6 messages sau sanitize.
+\item[Hậu điều kiện] Có reply và có thể có generation draft; không tự accept.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee gửi câu hỏi.
+  \item Service sanitize history, phát hiện intent bằng luật và chọn context.
+  \item Gọi provider với allowlist tools đọc dữ liệu và hai tool tạo draft; fallback text nếu không hỗ trợ tools.
+  \item Nếu model yêu cầu tool, validate args và gọi service tạo draft.
+  \item Trả tool results cho follow-up; tối đa một draft thành công trong message.
+  \item Trả reply và action draft nếu có; trainee xác nhận riêng để lưu.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Context lỗi dùng prompt chung; tool không tồn tại bị từ chối; follow-up lỗi vẫn giữ action draft; provider chính lỗi trả lỗi.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-10:} Không thực thi tên tool tùy ý; reply chỉ dẫn không làm phát sinh business write; quota chat tool và quota generation đều áp dụng.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-chat.html}.
+
+\subsection{UC-AI-11 --- Tạo và đọc insight dinh dưỡng}
+\label{uc-ai-11}
+\textbf{Yêu cầu FR-AI-11:} Hệ thống phải hỗ trợ tạo và đọc insight dinh dưỡng với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{GET/POST /api/ai/nutrition-insight}
+\item[Tiền điều kiện] Profile xác thực; date và locale hợp lệ; tạo mới cần dữ liệu phù hợp và quota.
+\item[Dữ liệu vào] Date, locale vi/en.
+\item[Hậu điều kiện] Nhận xét lưu riêng; không tạo meal hoặc đổi mục tiêu.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item GET đọc insight gần nhất và so fingerprint để trả stale.
+  \item POST dựng findings từ intake/ngày và cửa sổ 7 ngày.
+  \item Backend tính status/coverage và chọn candidate foods.
+  \item Model viết summary/points và chọn suggestedFoodIds; backend validate cả ID và ngôn ngữ.
+  \item Lưu insight completed với fingerprint, promptVersion, locale, tokenUsage.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Không đủ dữ liệu; quota; sai locale/output; provider 429 được xử lý trả quota theo nhánh insight.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-11:} Dữ liệu ăn thay đổi làm báo stale; chỉ food ID trong candidates được trả; GET không gọi provider.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai/nutrition-insight.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-insight.html}.
+
+\subsection{UC-AI-12 --- Coach phân tích tiến độ trainee}
+\label{uc-ai-12}
+\textbf{Yêu cầu FR-AI-12:} Hệ thống phải hỗ trợ coach phân tích tiến độ trainee với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Coach.
+\item[Kích hoạt/API] \path{GET/POST /api/coach/trainees/:traineeId/ai-insight}
+\item[Tiền điều kiện] Coach sở hữu trainee; cửa sổ 7/14/28 ngày; tạo mới có dữ liệu và quota coach.
+\item[Dữ liệu vào] TraineeId, days, locale vi/en.
+\item[Hậu điều kiện] Báo cáo hỗ trợ quyết định; không tự sửa program/meals.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Kiểm tra role coach và quyền trainee.
+  \item Backend tính findings kỳ hiện tại và kỳ liền trước: adherence, e1RM, cân nặng, intake, recovery, wearable.
+  \item Nếu tạo mới, lưu pending và gọi provider nhận findings đã tính.
+  \item Validate summary, sections, suggestions và ngôn ngữ; lưu completed.
+  \item Nếu đọc, trả bản đúng locale ưu tiên và stale theo fingerprint.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Sai quyền; NO\_TRAINEE\_DATA; sai language/output; quota/provider lỗi.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-12:} Không truy cập trainee ngoài quyền; thiếu log không bị coi là ăn đủ; GET không tốn provider token; data đổi báo stale.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/coach-trainee-insight.service.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-coach-insight.html}.
+
+\subsection{UC-AI-13 --- Ước tính dinh dưỡng món chưa có}
+\label{uc-ai-13}
+\textbf{Yêu cầu FR-AI-13:} Hệ thống phải hỗ trợ ước tính dinh dưỡng món chưa có với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Trainee.
+\item[Kích hoạt/API] \path{POST /api/ai/food-nutrition}
+\item[Tiền điều kiện] Người dùng chưa tìm thấy món; còn quota lookup.
+\item[Dữ liệu vào] Query 2–120 ký tự, locale vi/en.
+\item[Hậu điều kiện] Kết quả ước tính chưa tự tạo Food trong lookup.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Trainee nhập tên món.
+  \item Provider ước tính serving, calories/macros và confidence.
+  \item Backend validate serving/khối lượng, macros và năng lượng Atwater.
+  \item Trả dữ liệu để prefill form custom food.
+  \item Trainee review và submit qua flow custom-food/admin review hiện có.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Input sai; output bất hợp lý; provider lỗi: từ chối, lượt lookup thất bại được release theo service.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-13:} Lookup không tạo row Food; UI cho người dùng review trước lưu; kết quả ghi rõ là ước tính.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/services/ai/food-nutrition.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-food.html}.
+
+\subsection{UC-AI-14 --- Ước tính vi chất món ăn nội bộ}
+\label{uc-ai-14}
+\textbf{Yêu cầu FR-AI-14:} Hệ thống phải hỗ trợ ước tính vi chất món ăn nội bộ với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Người vận hành dữ liệu.
+\item[Kích hoạt/API] \path{CLI estimate:dish-nutrients [--all]}
+\item[Tiền điều kiện] Có quyền chạy backend script, provider và file dữ liệu; không phải API end-user.
+\item[Dữ liệu vào] Danh sách món Việt chưa có dữ liệu, hoặc --all để ước tính lại các row AI.
+\item[Hậu điều kiện] File food-nutrients.data.json cập nhật, không ghi đè USDA.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Script chọn món không có mapping/row USDA được bảo vệ.
+  \item Gọi provider ước tính công thức chuẩn và nutrients.
+  \item Validate giới hạn vi chất/100g và quan hệ nutrients.
+  \item Ghi source ai và sourceRef recipe vào file dữ liệu sau mỗi món.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Provider 429 retry có backoff, tối đa 4 attempts; dừng lỗi vẫn giữ các món đã checkpoint.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-14:} Row USDA không bị ghi đè; kết quả giữ provenance ai; khởi chạy không tạo meal người dùng.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/scripts/estimate-dish-nutrients.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-ops.html}.
+
+\subsection{UC-AI-15 --- Phân loại muscle profile bài tập nội bộ}
+\label{uc-ai-15}
+\textbf{Yêu cầu FR-AI-15:} Hệ thống phải hỗ trợ phân loại muscle profile bài tập nội bộ với các kiểm tra và kết quả sau.
+
+\begin{description}
+\item[Tác nhân] Người vận hành dữ liệu.
+\item[Kích hoạt/API] \path{CLI classify:exercise-muscles --dry-run hoặc --apply}
+\item[Tiền điều kiện] Có quyền CLI/DB/provider; chọn đúng một mode; variation chưa có muscleProfileSource.
+\item[Dữ liệu vào] Batch-size, limit, delay, report, resume-after và mode.
+\item[Hậu điều kiện] Có report; chỉ mode apply cập nhật DB thành dữ liệu AI chưa review.
+\end{description}
+\textbf{Luồng chính:}
+\begin{enumerate}
+  \item Đọc variations cần phân loại, bỏ mục đã có report khi dry-run.
+  \item Provider phân loại activity và muscle targets theo batch.
+  \item Validator kiểm tra các classification và ghi report/checkpoint.
+  \item Dry-run chỉ ghi report; apply ghi profile trong transaction với source ai và reviewedAt null.
+\end{enumerate}
+\textbf{Luồng thay thế/ngoại lệ:} Output sai/variation thiếu được ghi failure; provider rate-limit theo classifier retry; cần review trước rollout.
+
+\textbf{Tiêu chí nghiệm thu AC-AI-15:} Dry-run không update variation; apply giữ source ai và chưa reviewed; report hỗ trợ resume và phân biệt failure.
+
+\textbf{Nguồn đối chiếu:} \evidence{backend/src/scripts/classify-exercise-muscles.ts}. \textbf{Sequence:} \path{docs/ai-srs-diagrams/sequence-muscles.html}.
+
+\section{Dữ liệu và vòng đời}
+\begin{description}
+  \item[DR-AI-01] AIGeneration giữ userId, type, status, input, output, tokenUsage, errorMsg và programId khi phù hợp; insight giữ locale, fingerprint và promptVersion trong payload.
+  \item[DR-AI-02] Types: workout\_program (program/daily), meal\_plan, nutrition\_insight, coach\_trainee\_insight. Trạng thái pending chuyển completed hoặc failed; completed có thể accepted/discarded tùy flow, không phải mọi type dùng mọi trạng thái.
+  \item[DR-AI-03] Claim accept trong transaction, rollback khôi phục trạng thái nếu business write lỗi. Insight không có bước accept. Food lookup và chat reply không lưu như mọi generation.
+  \item[DR-AI-04] Draft meal mới có thể discard draft cũ; discard giữ row quota. Insight provider 429 có nhánh xóa row; không nên giả định mọi generation thất bại đều giữ hoặc đều trả quota.
+  \item[DR-AI-05] Dữ liệu context có thể gồm profile, notes, recovery, lịch sử và catalog gửi provider; chính sách retention/consent phải xác minh riêng tại deployment.
+\end{description}
+
+\section{Yêu cầu phi chức năng và giới hạn hiện trạng}
+\begin{description}
+  \item[NFR-AI-01 --- Validation] JSON hợp lệ cú pháp vẫn phải qua schema/catalog/workload. Helper có tối đa một repair khi validator trả AppError 422; không phải retry vô hạn mọi lỗi.
+  \item[NFR-AI-02 --- Tính toàn vẹn] Accept không để lại business records ghi dở khi rollback; conditional claim bảo vệ cùng draft. Quota count-then-create chưa là reservation nguyên tử.
+  \item[NFR-AI-03 --- Timeout] Mỗi provider request mặc định 60000 ms, cấu hình bằng AI\_REQUEST\_TIMEOUT\_MS; không coi đây là SLA toàn flow vì có repair/follow-up/SDK retry.
+  \item[NFR-AI-04 --- Quota] Program/daily 5, meal plan 10, nutrition insight 10 theo user/ngày; coach insight 20 theo coach/ngày. Chat 40, chat program 3, chat meal 5, swap 20, lookup 30 theo counter instance/ngày. Tool draft còn chịu quota generation chung.
+  \item[NFR-AI-05 --- Middleware] AI router áp limiter 30 request/giờ cho đoạn sau middleware, kể cả accept; GET insight và đọc/discard meal draft nằm trước. Development bỏ qua limiter; coach insight route riêng chưa gắn aiLimiter.
+  \item[NFR-AI-06 --- Ngôn ngữ] Insight hỗ trợ vi/en và heuristic kiểm tra ngôn ngữ. Không suy diễn mọi chat/program đã có cùng locale contract.
+  \item[NFR-AI-07 --- Truy vết] Generation lưu tokenUsage và payload phù hợp; promptVersion cho các flow có hỗ trợ. Đây chưa là bảng chi phí hay audit toàn bộ hội thoại.
+  \item[NFR-AI-08 --- An toàn] Prompt có quy tắc tránh chẩn đoán/thuốc và red flags; sanitize input và allowlist tools là defense in depth. Chưa có chứng cứ đảm bảo mọi output y tế được kiểm duyệt bằng validator ngữ nghĩa.
+\end{description}
+
+\section{Yêu cầu đề xuất chưa được coi là đã triển khai}
+\begin{description}
+  \item[GAP-AI-01] Quota dùng shared store/reservation nguyên tử khi scale nhiều instance; mức tải và SLA cần thống nhất trước thiết kế.
+  \item[GAP-AI-02] Chốt consent, dữ liệu tối thiểu gửi provider, retention, log redaction và quy trình xóa dữ liệu.
+  \item[GAP-AI-03] Quyết định role gate cho API AI chung thay vì suy diễn từ visibility UI.
+  \item[GAP-AI-04] Đánh giá output bằng bộ fixture về chấn thương, an toàn, ngôn ngữ, prompt injection và tính đúng số liệu; định nghĩa ngưỡng pass trước nghiệm thu.
+  \item[GAP-AI-05] Theo dõi latency/token/cost/provider failure có dashboard và ngưỡng cảnh báo; không tự đặt một SLA chưa được đồng ý.
+\end{description}
+
+\section{Ma trận truy vết và kế hoạch nghiệm thu}
+\begin{longtable}{p{0.16\linewidth}p{0.16\linewidth}p{0.50\linewidth}}
+\toprule
+\textbf{Requirement} & \textbf{Use case} & \textbf{Sequence / tiêu chí} \\
+\midrule
+\endhead
+FR-AI-01 & UC-AI-01 & \path{sequence-program}; AC-AI-01 \\
+FR-AI-02 & UC-AI-02 & \path{sequence-daily}; AC-AI-02 \\
+FR-AI-03 & UC-AI-03 & \path{sequence-accept}; AC-AI-03 \\
+FR-AI-04 & UC-AI-04 & \path{sequence-coach-program}; AC-AI-04 \\
+FR-AI-05 & UC-AI-05 & \path{sequence-meal}; AC-AI-05 \\
+FR-AI-06 & UC-AI-06 & \path{sequence-draft}; AC-AI-06 \\
+FR-AI-07 & UC-AI-07 & \path{sequence-meal-accept}; AC-AI-07 \\
+FR-AI-08 & UC-AI-08 & \path{sequence-consume}; AC-AI-08 \\
+FR-AI-09 & UC-AI-09 & \path{sequence-review}; AC-AI-09 \\
+FR-AI-10 & UC-AI-10 & \path{sequence-chat}; AC-AI-10 \\
+FR-AI-11 & UC-AI-11 & \path{sequence-insight}; AC-AI-11 \\
+FR-AI-12 & UC-AI-12 & \path{sequence-coach-insight}; AC-AI-12 \\
+FR-AI-13 & UC-AI-13 & \path{sequence-food}; AC-AI-13 \\
+FR-AI-14 & UC-AI-14 & \path{sequence-ops}; AC-AI-14 \\
+FR-AI-15 & UC-AI-15 & \path{sequence-muscles}; AC-AI-15 \\
+\bottomrule
+\end{longtable}
+\begin{enumerate}
+  \item Rà các yêu cầu với code/fixtures: quyền, schema, output invalid, generation lifecycle, catalog đổi và concurrency accept.
+  \item Chạy test hiện có phù hợp từng use case; không dùng việc render sơ đồ làm bằng chứng nghiệp vụ pass.
+  \item Provider smoke test trong môi trường riêng: JSON/tools, locale, timeout và quota; ghi model/config mà không ghi secret.
+  \item Browser kiểm tra form, preview, draft restore, planned/consumed, coach panel và stale indicator.
+  \item Compile SRS và kiểm tra typography; kiểm tra use case/sequence khớp IDs, actors và nhánh ngoại lệ.
+\end{enumerate}
+Trạng thái: code review đã thực hiện; live provider, production, E2E/browser ứng dụng và nghiệm thu các AC chưa thực hiện. Compiler tích hợp từng báo lỗi môi trường trước khi compile tài liệu; trạng thái lần kiểm tra cuối phải ghi trong README bàn giao.
+
+\section{Chỉ dẫn đọc sơ đồ}
+Trang tổng hợp: \path{docs/ai-srs-diagrams/index.html}. Use case UML chia theo nhóm để giữ rõ tác nhân và system boundary. Provider chỉ nối các UC thực sự gọi LLM; consume/review/accept không nối provider. Không dùng include/extend để diễn tả tạo draft rồi accept vì đó là hai request độc lập. CLI nội bộ nằm trong boundary riêng.
+
+Sequence HTML mô tả đường chính; file Mermaid .mmd và đặc tả UC đi kèm thể hiện ngoại lệ với các nhánh alt/opt để chỉnh sửa và review chi tiết. Lifeline API gộp route/service, lifeline UI gộp actor/giao diện; xác thực Supabase được mô tả như tiền điều kiện và profile check, không vẽ DB tự quyết quyền. Viewer HTML Archify có các nút tiếng Anh, nội dung domain bằng tiếng Việt.
+
+\clearpage
+\section{AI Agent Phase 1--4: kiến trúc và yêu cầu mở rộng}
+\label{agent-phases}
+Phase 1 đưa vòng model/tool có giới hạn vào chat cũ. Phase 2 bổ sung phân tích tiến độ và proposal có approval. Phase 3 đưa hội thoại, run, checkpoint và memory lên server. Phase 4 bổ sung workspace coach và review tuần tự chọn bật. Các workflow generation/accept cũ vẫn sử dụng \code{AIGeneration}; agent mới sử dụng nhóm bảng riêng và \path{/api/agent/*}.
+
+\subsection{UC-AG-01 / FR-AG-01 --- So sánh tiến độ có bằng chứng}
+Trainee phân tích dữ liệu bản thân; coach chỉ phân tích trainee thuộc quyền. Tool đọc hai kỳ liền nhau, mỗi kỳ 7--60 ngày, nhóm theo programId và variationId ổn định. Chỉ dùng strength sets đã hoàn thành với tạ dương và 1--15 reps; lấy e1RM Epley cao nhất cho mỗi lần tập. Không ghép hai program hoặc hai biến thể chỉ vì tên giống nhau.
+
+Kết quả gồm tín hiệu cải thiện, giảm, có thể plateau hoặc thiếu dữ liệu; tối đa 120 log, 12 phép so sánh và ba mẫu bằng chứng mỗi kỳ. Độ tin cậy vừa cần ít nhất ba lần tập mỗi kỳ, có RIR, không bị lấy mẫu thiếu hay thay đổi prescription reps/RIR/cấu trúc sets. Đây là screening hỗ trợ coach, không phải kết luận plateau chắc chắn hoặc chẩn đoán.
+
+\textbf{AC-AG-01:} Fixture khác program/variation không bị gộp; thiếu exposure/RIR hoặc đổi prescription phải hạ độ tin cậy. \textbf{Truy vết:} \evidence{backend/src/agent/analytics.ts}, \evidence{backend/src/agent/analytics.test.ts}.
+
+\subsection{UC-AG-02 / FR-AG-02 --- Preview, approval và hoàn tác program}
+Model đề nghị sửa target reps, weight, RIR hoặc số sets; backend tạo preview trước/sau, chưa ghi program. Phạm vi ban đầu chỉ gồm program do actor tạo và gán riêng cho một subject. Program dùng chung, archived, sets đã hoàn thành hoặc program có session draft đang mở bị từ chối. Chưa hỗ trợ đổi bài, thay assignment hay sửa completed logs.
+
+\begin{enumerate}
+  \item Tool validate subject/program và giới hạn reps 1--50, weight 0--1000, RIR 0--10, số sets 1--10 mỗi bài.
+  \item Lưu approval có hash SHA256 payload với khóa chuẩn hóa, fingerprint toàn program và hạn 24 giờ.
+  \item UI hiển thị tên buổi, bài, biến thể, số set và giá trị trước/sau; actor approve hoặc reject bằng request riêng.
+  \item Transaction serializable kiểm tra lại quyền, hash, hạn, fingerprint, trạng thái run và sets; ghi thay đổi cùng audit trước/sau.
+  \item Tăng sets sao chép prescription của set cuối; giảm chỉ xóa tail chưa hoàn thành. Quyết định lặp không apply hai lần.
+  \item Hoàn tác tạo approval mới, yêu cầu xác nhận và từ chối nếu program đã bị chỉnh tiếp; phục hồi sets đã xóa bằng IDs và targets ban đầu.
+\end{enumerate}
+\textbf{AC-AG-02:} Hash sai, proposal hết hạn, dữ liệu cũ, mất quan hệ hoặc cancel phải chặn write; approve lặp idempotent. \textbf{Truy vết:} \evidence{backend/src/agent/approval.ts}, \evidence{backend/src/agent/approval.test.ts}.
+
+\subsection{UC-AG-03 / FR-AG-03 --- Hội thoại và agent run bền vững}
+\path{POST /api/agent/runs} trả 202 và runId. History do server sở hữu, dùng tối đa 12 messages gần nhất cho run mới; API không nhận transcript tùy ý từ client. Worker claim queue PostgreSQL bằng lease có token, thời hạn 90 giây và gia hạn khi chạy. Model batch được checkpoint trước dispatch; tool result được lưu để replay sau khi lease hết hạn, tránh gọi lại tool đã hoàn tất.
+
+SSE cung cấp metadata tiến độ và replay theo event ID, không phát reasoning hay raw tool results. UI có polling dự phòng mỗi năm giây, nút dừng và resume sau approval. Cancel hủy quyền claim và pending approvals, ngăn lưu/dispatch muộn. Run/history kiểm tra lại quyền trên các subject đã dùng; coach mất trainee không còn đọc báo cáo riêng tư cũ. Chủ run vẫn được cancel run của mình.
+
+\textbf{AC-AG-03:} Resume dùng checkpoint/cache, không vượt budget; không có write muộn sau cancel; lịch sử bị chặn khi coach reassignment. \textbf{Truy vết:} \evidence{backend/src/agent/service.ts}, \evidence{backend/src/agent/worker.ts}, \evidence{backend/src/agent/runtime/checkpoint.ts}, \evidence{backend/src/routes/agent.route.test.ts}.
+
+\subsection{UC-AG-04 / FR-AG-04 --- Memory do người dùng kiểm soát}
+Người dùng lưu, thay hoặc xóa report format, training preferences và equipment. Model không được tự ghi memory hoặc đọc memory của actor khác. Giá trị fitness thay đổi theo thời gian được truy xuất lại bằng tools. Context compaction loại tool data lớn có thể đọc lại và plain turns cũ, giữ request hiện tại, protocol tool-call, lỗi và approval payload. Chưa có tóm tắt history bằng model hay truy xuất vector memory.
+
+\textbf{AC-AG-04:} Memory sai actor bị chặn; xóa preference không còn đưa preference đó vào context mới. \textbf{Truy vết:} \evidence{backend/src/agent/service.test.ts}, \evidence{backend/src/agent/security.test.ts}, \evidence{components/ai/agent-workspace.tsx}.
+
+\subsection{UC-AG-05 / FR-AG-05 --- Workspace coach và review tuần}
+Coach xem roster theo trang 20 trainee, review tối đa năm trainee mỗi trang bằng hai kỳ 21 ngày và readiness. Báo cáo phải ghi coverage và cursor; không được coi trang đầu là toàn roster. Coach có thể tạo draft private note, lưu note chỉ sau approval.
+
+Review tự động mặc định tắt; coach chọn bật trong preferences. Scheduler kiểm tra mỗi 60 giây, dùng ngày/giờ/timezone của weekly review settings hiện có và khóa tuần xác định để chống tạo trùng. Mỗi tick quét tối đa 500 coach theo vòng. Báo cáo lưu trong conversation, tiêu thụ quota run bình thường; chưa gửi notification mới, chưa tự ghi note hoặc sửa program.
+
+\textbf{AC-AG-05:} Opt-out không sinh run; chạy scheduler lặp trong cùng tuần không tạo trùng; note và từng subject luôn kiểm tra quyền. \textbf{Truy vết:} \evidence{backend/src/agent/weekly-review.ts}, \evidence{backend/src/agent/weekly-review.test.ts}, \evidence{backend/src/agent/tools/registry.ts}.
+
+\subsection{Dữ liệu, ngân sách và giao diện}
+Migration tạo sáu bảng: \code{AgentConversation}, \code{AgentMessage}, \code{AgentRun}, \code{AgentEvent}, \code{AgentApproval}, \code{AgentMemory}. Run giữ counters, subjectIds, model, promptVersion, checkpoint và lease; events giữ audit tool/approval. Bảng bật RLS và thu hồi quyền Data API public, truy cập qua Express xác thực và Prisma bằng server role phù hợp.
+
+\begin{description}
+  \item[NFR-AG-01 --- Budget] Mỗi run tối đa 8 model turns, 20 tool attempts và 20000 tokens ước lượng/báo từ provider; mỗi worker attempt 180 giây, tối đa năm lần claim kể cả approval resume.
+  \item[NFR-AG-02 --- Quota] 30 runs mỗi actor trong cửa sổ 24 giờ trượt; reservation DB trong transaction serializable, một active run mỗi conversation. Counter RAM của chat cũ vẫn còn.
+  \item[NFR-AG-03 --- Timeout] Model nhận AbortSignal; chờ read thường 15 giây, review năm trainee 60 giây. Timeout không cưỡng chế hủy Prisma query nền; transaction proposal được await. Lỗi provider mơ hồ không tự retry model vì có thể đã tính phí.
+  \item[NFR-AG-04 --- Chi phí] Ghi tokens, model, version và steps; biến \path{AGENT_USD_PER_MILLION_TOKENS} cung cấp giá blended để ước tính. Không cấu hình thì estimate null; không phải hóa đơn provider.
+  \item[IR-AG-01 --- UI] \path{/agent} có guard trainee/coach; trainee có Agent tab trong chat, coach có liên kết dashboard. Workspace dùng query key theo user, SSE, polling và i18n vi/en; mutation invalidate dữ liệu sau approval.
+  \item[IR-AG-02 --- API] Conversations, memories, runs, cancel, event stream và approval decisions dùng envelope chung; response run loại checkpoint, lease và request key. SSE chỉ gửi metadata cần cho tiến độ.
+\end{description}
+\textbf{Truy vết dữ liệu:} \evidence{backend/prisma/migrations/20261008090000_agent_runtime/migration.sql}. \textbf{Truy vết runtime/UI:} \evidence{backend/src/agent/worker.test.ts}, \evidence{components/ai/agent-workspace.test.tsx}.
+
+\subsection{Vận hành và trạng thái xác minh ngày 08/10/2026}
+\begin{enumerate}
+  \item Review migration, chọn database development/staging rồi chạy \path{npm --prefix backend run prisma:deploy}; sau đó generate Prisma. Migration chưa được áp dụng vào database hiện cấu hình trong lần bàn giao này.
+  \item Cấu hình provider hiện có; bật \path{AGENT_ENABLED=true} cho API và \path{AGENT_WORKER_ENABLED=true} tại process worker. Inline worker cũng cho phép tạo run; hai flags mặc định false.
+  \item Worker riêng: \path{npm --prefix backend run dev:agent-worker}; production build rồi \path{npm --prefix backend run start:agent-worker}. API có thể chạy riêng với worker flag false.
+  \item Sau migration, kiểm tra live conversation, quyền, approval/revert, cancel, reconnect và review tuần trước rollout.
+\end{enumerate}
+Backend full suite: 878 tests pass, 8 skipped; backend build, frontend build/typecheck, Prisma generate/validate, changed-file ESLint và semantic color check đều pass. Workspace component suite: năm tests pass. Tests dùng mocks không chứng minh transaction trên PostgreSQL triển khai thật hay provider E2E.
+
+Read-only DB connectivity check không kết nối được \path{127.0.0.1:55432}; cần SSH tunnel của repo. Authenticated browser, live provider, migration deployment và production chưa xác minh. Chi tiết enable, giới hạn và test scope: \path{docs/ai-agent-phases-2-4.md}.
+
+Các sequence/use-case cũ trong \path{docs/ai-srs-diagrams/} là artifact HTML/JSON/Mermaid riêng, được tham chiếu bằng đường dẫn, không nhúng vào PDF. Baseline của chúng vẫn là 05/10/2026; sequence chat chưa mô tả loop Phase 1. UC-AG-01--05 được truy vết bằng code và tests trong mục này; chưa có bộ sequence mới tương ứng.
+
+\appendix
+% BEGIN TECHNICAL APPENDIX
+
+
 
 \section{Tóm tắt điều hành}
 
-Hệ thống có một cụm tính năng AI tương đối đầy đủ cho trainee và coach, tập trung vào ba miền chính: tập luyện, dinh dưỡng và hội thoại tư vấn. Các chức năng AI không ghi thẳng dữ liệu quan trọng nếu chưa qua bước xác nhận của người dùng; kết quả thường được lưu dưới dạng bản nháp trong bảng \code{AIGeneration}, sau đó mới được accept để tạo program, workout hoặc planned meals.
+Phụ lục này mô tả workflow generation/accept và chat cũ. Phần agent bền vững dùng dữ liệu, quota và API riêng tại mục~\ref{agent-phases}; các giới hạn của workflow cũ không được suy rộng sang agent mới.
+
+Hệ thống có một cụm tính năng AI tương đối đầy đủ cho trainee và coach, tập trung vào ba miền chính: tập luyện, dinh dưỡng và hội thoại tư vấn. Các luồng tạo program/meal cho người dùng yêu cầu xác nhận trước khi ghi dữ liệu nghiệp vụ; CLI nội bộ có thể ghi file hoặc DB theo mode được chọn; kết quả thường được lưu dưới dạng bản nháp trong bảng \code{AIGeneration}, sau đó mới được accept để tạo program, workout hoặc planned meals.
 
 Các nhóm tính năng chính:
 
@@ -61,11 +661,12 @@ Các nhóm tính năng chính:
   \item AI phân tích dinh dưỡng trong ngày/tuần, phát hiện thiếu hoặc vượt mục tiêu và gợi ý món phù hợp.
   \item AI tra cứu dinh dưỡng món chưa có trong thư viện, chỉ prefill form để người dùng duyệt trước khi lưu.
   \item AI ước tính vi chất cho món Việt trong luồng bảo trì dữ liệu nội bộ.
+  \item AI phân tích tiến độ trainee theo cửa sổ 7, 14 hoặc 28 ngày để coach ra quyết định.
 \end{itemize}
 
 \section{Ma trận feature AI}
 
-\begin{longtable}{p{0.22\linewidth}p{0.24\linewidth}p{0.29\linewidth}p{0.17\linewidth}}
+\begin{longtable}{>{\raggedright\arraybackslash}p{\dimexpr0.22\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{\dimexpr0.24\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{\dimexpr0.34\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{\dimexpr0.20\linewidth-2\tabcolsep\relax}}
 \toprule
 \textbf{Feature} & \textbf{Người dùng} & \textbf{Kết quả chính} & \textbf{Trạng thái mã nguồn} \\
 \midrule
@@ -80,6 +681,7 @@ Coach meal review & Coach & Coach chỉnh khẩu phần, xoá món, thêm ghi ch
 AI Coach chat & Trainee & Chat hỏi đáp fitness/dinh dưỡng; có thể tạo draft program hoặc meal plan. & Đã triển khai \\
 Nutrition insight & Trainee & AI viết nhận xét dựa trên số liệu backend đã tính và gợi ý món từ catalog. & Đã triển khai trong local \\
 Food nutrition lookup & Trainee & AI ước tính dinh dưỡng món chưa có, chỉ prefill form tạo custom food. & Đã triển khai \\
+Coach trainee insight & Coach & So sánh tiến độ hai kỳ, nhận xét và gợi ý hành động; không tự sửa program. & Đã triển khai \\
 Dish micronutrient estimate & Nội bộ dữ liệu & Script ước tính vi chất cho món chế biến sẵn, có validator. & Đã triển khai dạng script \\
 \bottomrule
 \end{longtable}
@@ -106,6 +708,7 @@ Các kết quả AI quan trọng được lưu ở bảng \code{AIGeneration}. S
   \item \code{workout\_program}
   \item \code{meal\_plan}
   \item \code{nutrition\_insight}
+  \item \code{coach\_trainee\_insight}
 \end{itemize}
 
 Trạng thái generation gồm \code{pending}, \code{completed}, \code{failed}, \code{accepted}, \code{discarded}. Bảng này lưu \code{input}, \code{output}, \code{tokenUsage}, và có thể liên kết \code{programId} sau khi accept.
@@ -279,13 +882,14 @@ Repo có script nội bộ \code{estimate:dish-nutrients} dùng AI để ước 
 
 \section{Rate limit và kiểm soát lạm dụng}
 
-\begin{longtable}{p{0.36\linewidth}p{0.18\linewidth}p{0.36\linewidth}}
+\begin{longtable}{>{\raggedright\arraybackslash}p{\dimexpr0.36\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{\dimexpr0.20\linewidth-2\tabcolsep\relax}>{\raggedright\arraybackslash}p{\dimexpr0.44\linewidth-2\tabcolsep\relax}}
 \toprule
 \textbf{Luồng} & \textbf{Hạn mức} & \textbf{Cách áp dụng} \\
 \midrule
 \endhead
 Workout program / daily workout & 5 lần/ngày & Đếm row \code{AIGeneration} loại \code{workout\_program}. \\
 Meal plan & 10 lần/ngày & Đếm row \code{AIGeneration} loại \code{meal\_plan}. \\
+Coach trainee insight & 20 lần/ngày & Quota theo coach, loại \code{coach\_trainee\_insight}. \\
 Nutrition insight & 10 lần/ngày & Đếm row \code{AIGeneration} loại \code{nutrition\_insight}. \\
 AI chat message & 40 tin/ngày & \code{DailyCounter} in-memory theo user. \\
 Chat tạo program & 3 draft/ngày & Counter riêng để chat không đốt hết quota form chính. \\
@@ -316,15 +920,19 @@ Ngoài hạn mức trong service, các route sinh token còn nằm sau \code{aiL
 Repo có các test liên quan đến AI:
 
 \begin{itemize}
-  \item \code{backend/src/services/ai-hardening.integration.test.ts}
-  \item \code{backend/src/services/ai-workout-validation.test.ts}
-  \item \code{backend/src/services/ai-generations.test.ts}
-  \item \code{backend/src/services/ai/food-catalog.test.ts}
-  \item \code{backend/src/services/ai/exercise-catalog.test.ts}
-  \item \code{backend/src/services/ai/nutrition-insight.test.ts}
-  \item \code{backend/src/services/ai/food-nutrition.test.ts}
-  \item \code{backend/src/services/ai/dish-nutrients.test.ts}
-  \item \code{backend/src/routes/ai.schemas.test.ts}
+  \item \path{backend/src/services/ai-hardening.integration.test.ts}
+  \item \path{backend/src/services/ai-workout-validation.test.ts}
+  \item \path{backend/src/services/ai-generations.test.ts}
+  \item \path{backend/src/services/ai/food-catalog.test.ts}
+  \item \path{backend/src/services/ai/exercise-catalog.test.ts}
+  \item \path{backend/src/services/ai/nutrition-insight.test.ts}
+  \item \path{backend/src/services/ai/food-nutrition.test.ts}
+  \item \path{backend/src/services/ai/dish-nutrients.test.ts}
+  \item \path{backend/src/routes/ai.schemas.test.ts}
+  \item \path{backend/src/services/ai/coach-trainee-insight.test.ts}
+  \item \path{backend/src/services/coach-trainee-insight.service.test.ts}
+  \item \path{backend/src/services/ai/context/recommendation-context.test.ts}
+  \item \path{backend/src/lib/ai/calendar.test.ts}
 \end{itemize}
 
 Repo cũng có tài liệu và sơ đồ AI:
@@ -335,31 +943,126 @@ Repo cũng có tài liệu và sơ đồ AI:
   \item \path{docs/ai-diagrams/}
 \end{itemize}
 
-Trong lần lập báo cáo này chưa chạy lại test suite, chưa gọi provider thật, và chưa xác minh UI bằng browser.
+Kết quả build/tests ngày 08/10/2026 ghi tại mục~\ref{agent-phases}; chưa gọi provider thật hoặc xác minh UI bằng authenticated browser.
 
 \section{Khoảng trống và rủi ro cần xác nhận}
 
 \begin{enumerate}
-  \item \textbf{Local chưa đồng bộ remote:} nhánh local \code{main} đang behind \code{origin/main} 2 commit. Nếu báo cáo dùng cho nghiệm thu chính thức, nên fetch/pull fast-forward rồi rà lại.
+  \item \textbf{Phạm vi snapshot:} workflow/SRS cũ dùng baseline \code{772cb878}; agent được đối chiếu thêm Phase 1 và nhánh Phase 2--4 tại mục~\ref{agent-phases}.
   \item \textbf{Chưa xác minh production:} báo cáo chưa kiểm tra env key, provider quota, Cloudflare/Vercel hay response thật trên production.
   \item \textbf{Counter in-memory:} chat, meal swap và food lookup dùng \code{DailyCounter}; nếu backend nhiều instance hoặc restart, hạn mức này có thể không bền như DB-backed quota.
-  \item \textbf{Chat history ở client:} service ghi chú client có thể tự gửi transcript cũ; hệ thống sanitize nhưng không có conversation persistence server-side.
+  \item \textbf{Chat history cũ ở client:} legacy chat sanitize transcript gửi lên; API agent mới lưu conversation/history trên server và kiểm tra lại quyền subject.
   \item \textbf{Một số test integration cần database:} các test transaction và DB integration cần PostgreSQL local phù hợp.
   \item \textbf{Medical/nutrition safety:} nutrition insight đã tránh chẩn đoán bệnh và supplement; tuy nhiên nên có copy cảnh báo rõ hơn ở UI nếu dùng cho người có bệnh nền.
   \item \textbf{Feature flags/rollout:} báo cáo chưa xác nhận feature nào đang bật/tắt theo môi trường production.
 \end{enumerate}
 
-\section{Câu hỏi cần xác nhận trước bản cuối}
+\section{Phạm vi nghiệm thu còn lại}
 
 \begin{itemize}
-  \item Báo cáo chính thức cần dựa trên local hiện tại, \code{origin/main}, hay production đang chạy?
-  \item Có cần thêm sơ đồ sequence/use-case vào phụ lục PDF không?
-  \item Đối tượng đọc là kỹ thuật, quản lý sản phẩm, hay hội đồng nghiệm thu?
-  \item Có cần đưa kết quả chạy test/build mới nhất vào báo cáo không?
+  \item Đối chiếu deployment production với commit và feature flags sau khi migration được review/apply.
+  \item Bổ sung sequence cho UC-AG khi cập nhật bộ sơ đồ; các sơ đồ hiện tại là artifact riêng.
+  \item Kiểm tra PDF trực quan sau khi compiler hoạt động; chưa có PDF đã nghiệm thu cho bản này.
+  \item Chạy provider/database E2E và authenticated UI theo AC, bên cạnh tests đã pass.
 \end{itemize}
+
+\section{Kiến thức nền và ranh giới của AI trong hệ thống}
+
+\subsection{LLM, prompt, catalog và engine nghiệp vụ}
+LLM là mô hình ngôn ngữ sinh nội dung từ system prompt, yêu cầu người dùng và dữ liệu context. Prompt quy định vai trò, định dạng và giới hạn, nhưng không thay thế kiểm tra quyền hay validation. JSON mode chỉ hỗ trợ định dạng JSON; không bảo đảm ID có thật, số liệu đúng hay output hợp lệ theo nghiệp vụ.
+
+Catalog là tập bài tập hoặc thực phẩm mà requester được phép sử dụng. Model chọn từ tập này; backend map ID và tính lại dữ liệu. Đây là cách bổ sung dữ liệu tại thời điểm gọi model. Các file đã rà thể hiện truy xuất Prisma và lựa chọn context bằng luật; không đủ căn cứ để gọi cơ chế này là vector RAG, fine-tuning hay mô hình tự học từ dữ liệu người dùng.
+
+Engine đề xuất tập luyện là logic nghiệp vụ có quy tắc, khác với LLM. Context \code{recommendation} mang quyết định tập/nghỉ, điều chỉnh set, tạ, rep, volume tuần và RIR vào chat. Prompt yêu cầu AI giải thích các con số engine đã chốt, không tự đề xuất con số trái với kết quả trong app. Đây là ràng buộc prompt, chưa phải bảo đảm tuyệt đối bằng validator cho mọi câu chat.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/context/recommendation-context.ts}, \evidence{backend/src/services/training-recommendation.service.ts}
+
+\subsection{Cách chọn context và giới hạn hội thoại}
+Intent được phát hiện bằng keyword theo cụm từ, kết hợp câu hiện tại và hai message lịch sử gần nhất; không gọi thêm LLM để phân loại. Các intent gồm tập hôm nay, review program, progression, dinh dưỡng ngày/xu hướng, cân nặng, coach feedback và fitness tổng quát.
+
+Builder tải các nhóm context theo intent, sắp theo priority và chọn trong ngân sách mặc định 2200 token ước lượng. Nhóm đầu tiên vẫn được giữ ngay cả khi vượt ngân sách; đây không phải giới hạn token tuyệt đối của provider. Chat giới hạn 2000 ký tự mỗi message và giữ tối đa 6 message lịch sử sau khi sanitize; chúng không nhất thiết tương đương 6 cặp hỏi--đáp.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/context/intent.ts}, \evidence{backend/src/services/ai/context/builder.ts}, \evidence{backend/src/services/ai.service.ts}
+
+\subsection{Tool-call là yêu cầu có kiểm soát}
+Hai adapter OpenAI và Anthropic khai báo hỗ trợ tools. Khả năng hoạt động thực tế phụ thuộc model và endpoint cấu hình. Model đề nghị tên tool và arguments; backend dispatch theo allowlist và schema, kiểm tra quyền ở mỗi tool. Phase 1 bổ sung tools đọc profile, log, recovery và program bên cạnh hai tool tạo draft; không cho thực thi lệnh tùy ý.
+
+Một message chat cũ vẫn chỉ tạo tối đa một draft thành công. Phase 1 chạy vòng model/tool giới hạn tám model turns, 20 tool calls, 20000 tokens và deadline hợp tác 45 giây; draft đã lưu vẫn được trả nếu lượt model sau lỗi. Quota draft trong chat là giới hạn bổ sung cho quota generation chung. Vòng bền vững, approval và checkpoint của API agent mới được mô tả tại mục~\ref{agent-phases}.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/chat-tools.ts}, \evidence{backend/src/services/ai.service.ts}
+
+\section{AI phân tích trainee cho coach}
+
+\subsection{Dữ liệu, phép tính và kết quả}
+Coach dùng GET hoặc POST \path{/api/coach/trainees/:traineeId/ai-insight} để đọc báo cáo đã lưu hoặc tạo báo cáo mới. Service kiểm tra role coach và quan hệ sở hữu trainee ở cả hai thao tác. Cửa sổ phân tích là 7, 14 hoặc 28 ngày, so sánh với kỳ liền trước có cùng độ dài.
+
+Backend tính số buổi theo program đến hạn/hoàn thành, tỷ lệ bám program, set hoàn thành, volume, xu hướng sức mạnh, cân nặng, calories/protein, recovery và dữ liệu wearable nếu có. e1RM được ước lượng theo Epley từ set đã hoàn thành; đây là chỉ số ước lượng, không phải kết quả kiểm tra 1RM trực tiếp. Trung bình dinh dưỡng lấy trên ngày có ghi nhận; ngày thiếu log không được mặc nhiên hiểu là đã ăn đủ hoặc không ăn.
+
+Backend tạo signals theo luật; LLM nhận findings đã tính để viết \code{summary}, \code{sections} và \code{suggestions}. Model không tự chỉnh program, khẩu phần hoặc lịch tập. Nếu không có dữ liệu phù hợp, service trả lỗi \code{NO\_TRAINEE\_DATA} trước khi gọi provider.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/ai/coach-trainee-insight.ts}, \evidence{backend/src/services/coach-trainee-insight.service.ts}, \evidence{components/coach/trainee-ai-insight-panel.tsx}
+
+\subsection{Lưu báo cáo, ngôn ngữ và độ mới}
+Báo cáo lưu trong \code{AIGeneration} loại \code{coach\_trainee\_insight}, thuộc coach; input giữ traineeId, cửa sổ, locale, fingerprint, findings và promptVersion. Output là nhận xét; tokenUsage được lưu riêng. Quota hiện tại là 20 lần/ngày cho coach, không phải 20 lần mỗi trainee.
+
+GET ưu tiên báo cáo đúng locale, có thể trả báo cáo ngôn ngữ khác nếu chưa có bản phù hợp. Fingerprint so sánh findings hiện tại với input đã lưu để báo \code{stale}. Nó không chứng minh nội dung AI đúng và không thay thế việc tạo lại báo cáo sau thay đổi dữ liệu. Insight dinh dưỡng và insight coach hỗ trợ \code{vi}/\code{en}, có kiểm tra ngôn ngữ bằng heuristic dấu tiếng Việt; kiểm tra này chưa bảo đảm chất lượng dịch hoàn toàn.
+
+\textbf{Bằng chứng:} \evidence{backend/src/services/coach-trainee-insight.service.ts}, \evidence{backend/src/services/ai/language-guard.ts}
+
+\section{Cấu hình, lỗi và vận hành AI}
+
+\subsection{Các cấu hình cần hiểu}
+\begin{itemize}
+  \item \code{AI\_PROVIDER}: \code{anthropic} hoặc \code{openai}; mặc định trong config hiện tại là Anthropic.
+  \item \code{AI\_MODEL}: tên model; mặc định là \code{claude-haiku-4-5-20251001}. Khi đổi provider, cần chọn model tương thích thay vì giữ mặc định này.
+  \item \code{AI\_BASE\_URL}: endpoint OpenAI-compatible; không được adapter Anthropic sử dụng.
+  \item \code{AI\_JSON\_MODE}: mặc định bật; giá trị \code{false} bỏ \code{response\_format} cho endpoint không hỗ trợ. Validation backend vẫn giữ nguyên.
+  \item \code{AI\_REASONING\_EFFORT}: tùy chọn cho adapter OpenAI; model/endpoint phải hỗ trợ giá trị được gửi.
+  \item \code{AI\_REQUEST\_TIMEOUT\_MS}: timeout mỗi request, mặc định 60000 ms. Một flow có nhiều request hoặc repair nên tổng thời gian có thể dài hơn 60 giây.
+\end{itemize}
+Provider được cache trong process. Sau khi thay cấu hình môi trường cần restart backend để instance provider nhận cấu hình mới. Các tên biến trên là tài liệu cấu hình; không đưa giá trị API key vào báo cáo.
+
+\textbf{Bằng chứng:} \evidence{backend/src/config/env.ts}, \evidence{backend/src/lib/ai/ai-client.ts}, \evidence{backend/src/lib/ai/openai-provider.ts}, \evidence{backend/src/lib/ai/request-timeout.ts}
+
+\subsection{Parse, repair và xử lý lỗi}
+Parser loại các block reasoning dạng think/thought, rồi thử JSON thuần, JSON trong code fence hoặc object trong đoạn văn. Parse thành công vẫn phải qua schema và validation nghiệp vụ. Helper \code{generateValidatedJSON} gọi tối đa hai lần: lần đầu và một lần repair nếu validator ném \code{AppError} status 422. Lỗi network hoặc lỗi parse trước bước validator không tự động được sửa bởi vòng này; retry của SDK là lớp khác.
+
+TokenUsage cộng các response nhận được qua vòng repair. Đây là số token do provider báo, chưa phải số tiền hóa đơn hay hệ thống đo chi phí đầy đủ cho mọi lượt chat. Lỗi generation thường đánh dấu failed; riêng insight có xử lý nhận diện provider 429 và xóa row để không tính lượt đó vào quota ngày.
+
+\textbf{Bằng chứng:} \evidence{backend/src/lib/ai/response-parsing.ts}, \evidence{backend/src/lib/ai/validated-generation.ts}, \evidence{backend/src/services/ai.service.ts}, \evidence{backend/src/services/coach-trainee-insight.service.ts}
+
+\subsection{Quota, timezone và tính đồng thời}
+Quota ngày dùng ngày của client qua \code{X-Timezone}, mặc định Việt Nam. Date-only được lưu bằng khóa UTC midnight; cửa sổ timestamp bắt đầu tại thời điểm nửa đêm theo timezone client. Không nên coi mọi ngày quota là UTC.
+
+Middleware \code{aiLimiter} hiện giới hạn 30 request/giờ theo bucket access token đã hash hoặc IP, chạy trong production/test và được bỏ qua ở development. Trong AI router, GET insight và đọc/discard draft nằm trước limiter; các route accept nằm sau limiter dù không trực tiếp gọi provider. Coach insight có quota ngày trong service; route riêng hiện không gắn \code{aiLimiter}. Vì vậy không thể nói mọi endpoint AI có cùng hạn mức theo giờ.
+
+Quota generation cũ kiểm tra count trước khi tạo row; việc dùng DB không tự biến phép kiểm tra này thành reservation nguyên tử khi có request đồng thời. DailyCounter chỉ nằm trong bộ nhớ mỗi instance. Agent mới có reservation serializable và request key riêng. Chống accept draft cũ dùng conditional update generation trong transaction, rollback nếu ghi dữ liệu lỗi; không phải mọi retry HTTP đều có idempotency key tổng quát.
+
+\textbf{Bằng chứng:} \evidence{backend/src/middleware/rate-limit.ts}, \evidence{backend/src/lib/ai/calendar.ts}, \evidence{backend/src/routes/ai.route.ts}, \evidence{backend/src/routes/coach.route.ts}, \evidence{backend/src/services/ai/acceptance.ts}
+
+\subsection{Dữ liệu gửi provider và giới hạn xác minh}
+Provider nhận prompt chứa dữ liệu đã chọn: profile, log tổng hợp, mục tiêu, recovery, coach notes hoặc catalog tùy flow. Dữ liệu vì thế có thể rời backend để được provider xử lý. Cần xác minh chính sách lưu giữ dữ liệu, consent và log ở deployment thực tế; báo cáo mã nguồn không xác nhận các chính sách đó.
+
+Prompt injection được giảm bằng sanitize, giới hạn input, allowlist tool và kiểm tra quyền ở service; không thể kết luận đã loại bỏ hoàn toàn. Chưa có căn cứ trong các flow đã rà để tuyên bố hệ thống có agent tự học, vector database hoặc tự triển khai thay đổi dữ liệu mà không cần người dùng xác nhận.
+
+\section{Checklist xác minh cho bản cập nhật}
+\begin{enumerate}
+  \item Compile LaTeX bằng pdfLaTeX hoặc XeLaTeX; kiểm tra dấu tiếng Việt, đường dẫn dài và bảng nhiều trang. Nếu dùng latexmk, chọn \code{-pdf} hoặc \code{-xelatex}.
+  \item Chạy các test có sẵn về coach insight, language guard qua insight tests, recommendation context, output validation, calendar và acceptance; ghi rõ command và kết quả thực tế.
+  \item Với tài khoản thử nghiệm, kiểm tra quyền coach--trainee, draft/accept/discard, accept đồng thời, stale report và locale.
+  \item Smoke test provider đã cấu hình: JSON, tools, timeout và lỗi quota; không dùng dữ liệu cá nhân thật nếu chưa xác nhận chính sách.
+  \item Kiểm tra browser cho chat, form/preview và panel insight; đối chiếu deployment production với commit báo cáo.
+\end{enumerate}
+Bản cập nhật ngày 08/10/2026 đã chạy build và tests với kết quả ghi tại mục~\ref{agent-phases}; live provider và authenticated browser chưa xác minh. Lần compile tích hợp ngày 08/10/2026 lỗi chuẩn bị preview: \code{helper\_unknown\_error: setup refresh had errors}. Lần trước có lỗi \code{Unable to find standard directories for platform}; chưa xác nhận biên dịch và kiểm tra trực quan PDF thành công.
 
 \section{Kết luận}
 
 Hệ thống AI của \textit{fitness-app} không chỉ là một chatbot đơn lẻ mà là một tập hợp workflow có kiểm soát: tạo workout, tạo program, tạo meal plan, phân tích dinh dưỡng, tra cứu món ăn và hỗ trợ coach. Thiết kế hiện tại có điểm mạnh là tách rõ draft và accept, dùng catalog nội bộ để giới hạn output model, và để backend tính lại các số liệu quan trọng trước khi lưu. Các rủi ro còn lại chủ yếu nằm ở vận hành: xác minh production, độ bền của in-memory quota, và trạng thái mới nhất giữa local với remote.
+
+Phase 1--4 bổ sung vòng tool có budget, phân tích có bằng chứng, preview/approval/revert, hội thoại và checkpoint bền vững, memory do người dùng quản lý và review tuần của coach. Code/build/tests đã kiểm tra; migration, provider E2E, authenticated UI và PDF còn cần nghiệm thu trước khi kết luận feature hoạt động tại deployment.
+
+
+
+
 
 \end{document}

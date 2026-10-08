@@ -80,11 +80,13 @@ function createOpenAIProvider(
     supportsTools: true,
 
     async generateWithTools({
+      signal,
       systemPrompt,
       messages,
       tools,
       maxTokens = 1024,
     }: {
+      signal?: AbortSignal
       systemPrompt: string
       messages: AIConversationMessage[]
       tools: AIToolDefinition[]
@@ -109,7 +111,7 @@ function createOpenAIProvider(
               ...toWireMessages(messages),
             ],
           },
-          { timeout: getAIRequestTimeoutMs() },
+          { timeout: getAIRequestTimeoutMs(), signal },
         ),
       )
 

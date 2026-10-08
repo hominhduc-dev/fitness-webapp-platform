@@ -1,4 +1,5 @@
 import { app } from "./app"
+import { startAgentWorker, stopAgentWorker } from "./agent/worker"
 import { env } from "./config/env"
 import { logger } from "./lib/logger"
 import { prisma } from "./lib/prisma"
@@ -9,6 +10,7 @@ import { startVolumeLearningScheduler, stopVolumeLearningScheduler } from "./ser
 const server = app.listen(env.port, () => {
   logger.info("backend started", { environment: env.nodeEnv, port: env.port, url: `http://localhost:${env.port}` })
   startNotificationScheduler()
+  startAgentWorker()
   startHuaweiSyncScheduler()
   startVolumeLearningScheduler()
 })
@@ -42,6 +44,7 @@ async function shutdown(signal: NodeJS.Signals) {
   shuttingDown = true
   logger.info("shutting down", { signal })
   stopNotificationScheduler()
+  stopAgentWorker()
   stopHuaweiSyncScheduler()
   stopVolumeLearningScheduler()
 

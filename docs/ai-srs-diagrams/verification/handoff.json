@@ -1,0 +1,137 @@
+[
+  {
+    "name": "sequence-accept",
+    "specification_sha256": "fbd45c5dfbbf8667ef2ec8db0634ad32f2971af0e46d78e8c24a4b140c412265",
+    "artifact_sha256": "ca7e8bc8204c83e82b760f3b65ed7ee881ee15f241e2d3abeff9bcb83cda0c20",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-chat",
+    "specification_sha256": "8aee9d0dbda35db78c11d0f6f1a4a6e8c28b875322b9f91b9a30f54bb4befb4c",
+    "artifact_sha256": "c9f0b72d65f20c09bd60e24dce1f637db9685c87603a80a53cbd5d8a663f2fe9",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-coach-insight",
+    "specification_sha256": "91096a1bacd33e759451939fb9e85b677cf3d210e79d862057ef42f221076ff2",
+    "artifact_sha256": "db31b2fac2967d3eb8b29b8c2622a22a68ff7f92fbd926ee3102a3a7b3c8ca81",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-coach-program",
+    "specification_sha256": "ddac5ac46ab0d47826c0020fef8ab9268fee8b168494f8cf78bccb184cd1b1b6",
+    "artifact_sha256": "37778cf535a5d8119c71568cf17079e241c2b5d93aad07257d7d7138b81b2bb7",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-consume",
+    "specification_sha256": "9adc3bbcb2dadbbc2647f52d8496e7867f35e69051b3a8e316824b5084bb30a2",
+    "artifact_sha256": "a5ef2841bfdeb76b9a86a825cd735202a2577771ed10826a8f570225f5ebfb40",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-daily",
+    "specification_sha256": "b5ed5b2fc4ef7d4bdc51e8b7d5fd182eed2b3d642bc692beec15ab4039a3443a",
+    "artifact_sha256": "d59ce4aec5d81ef017e5b65b49047341ad5991699ba987000c4f6ad10e71a70f",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-draft",
+    "specification_sha256": "f5d77c6fb4a223b749e3f5e1e20a3f51a56e29cbd128576c25210a8425988379",
+    "artifact_sha256": "4e2bf29bb87e05d1b3383137aaacdb905b93a5e79354ba12c8b518d8f7950c66",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-food",
+    "specification_sha256": "562beef7fd1c956121bb4c3e39773a169a84e0a6d85fd7ef59d86c9e4c4d7c49",
+    "artifact_sha256": "0e3f5026d34a98b8d295f7d93f8de8f4b8ffcc6395946648840c31e65f8e6c17",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-insight",
+    "specification_sha256": "958fc838653cfd9bc11c81ec687f266ccf72392114d1e8fe2874f38f7a61fef1",
+    "artifact_sha256": "6800888b85488a90bd40e9ebbee0b55faf3b35982e592886231aa4567b269f5c",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-meal-accept",
+    "specification_sha256": "a3503708f97deb7e49d27f124718384c5071e544ef9e18bc3c54d7485c7e3034",
+    "artifact_sha256": "34009207b2ccb79826e5a3c793d48e02092429d22955d79bd23928de97b8576b",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-meal",
+    "specification_sha256": "b97214c8a02022a0d7eadde5058e68af562bb337d017c89aa4dfd94bcc35f0c0",
+    "artifact_sha256": "458fb0cd2a0877fb4422fe1908168ca386f1f3ac7aef6d69df0ba2f6aa8bea51",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-muscles",
+    "specification_sha256": "e083e60b379ce223b44e4c2e21cf3720d48cc148799b01806e769a457083f6e1",
+    "artifact_sha256": "61e1b826f3dd7cfb0f305bf49649305ef53413335571b3c3a4240506e213c32a",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-ops",
+    "specification_sha256": "fde5e0813d4beb1b1ffe39dd4178134b3678fb9e3f74126142a2c163b5b9a17e",
+    "artifact_sha256": "226aab0a5acafa75fa5b2b1b879b2c434bcd0bdf632054873c28fffbdba0abec",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-program",
+    "specification_sha256": "58ba6cf916b8a7a4d9b17a480aac46961b88ef22136360038895897e6bc60906",
+    "artifact_sha256": "8ecac1f15f5ca7a54f00648a4692a12f0cc5e52b71adf206c90b741e1d8decc3",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  },
+  {
+    "name": "sequence-review",
+    "specification_sha256": "95912b5d4fe323407a3f3b1789801ac399d03c9ff34b4c40ff2829aac46e255b",
+    "artifact_sha256": "e88d2ed84b075e1a4f7bdfbb00bae6bb0f629289ec0329bbb52088e079a266b5",
+    "validation": "9/9 showcase, 0 errors, 0 warnings",
+    "browser_evidence": "pass",
+    "visual_review": "sampled; see README",
+    "correction_rounds": 1
+  }
+]

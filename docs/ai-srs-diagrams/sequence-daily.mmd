@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  participant ui as Người dùng / UI
+  participant api as API + service
+  participant db as Prisma / DB
+  participant llm as Provider AI
+  Note over ui,api: UC-AI-02 / FR-AI-02 — profile xác thực; quyền ở service
+  alt Tiền điều kiện và input hợp lệ
+    ui->>api: POST generate-workout
+    api->>db: Quota và catalog theo ngày
+    db-->>api: Context + equipment
+    api->>db: Pending; mode daily
+    api->>llm: Ngày + energy + catalog
+    llm-->>api: JSON một buổi tập
+    opt Validator AppError 422 ở lần đầu
+      api->>llm: Một repair với feedback
+      llm-->>api: Output sửa, vẫn phải validate trước lưu
+    end
+    api->>db: Validate; completed daily
+    api-->>ui: 201 · preview buổi tập
+  else Sai quyền/input/quota hoặc lỗi khi xử lý
+    api-->>ui: Lỗi; không ghi nghiệp vụ dở dang
+  end

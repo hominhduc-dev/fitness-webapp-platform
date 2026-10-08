@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "UC-AI-08 · Xác nhận đã ăn bữa dự kiến",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1600,
+      650
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Người dùng / UI"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API + service"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Prisma / DB"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "ui",
+      "to": "api",
+      "y": 180,
+      "label": "POST plans/consume"
+    },
+    {
+      "id": "m2",
+      "from": "api",
+      "to": "db",
+      "y": 230,
+      "label": "Đọc planned đúng chủ"
+    },
+    {
+      "id": "m3",
+      "from": "db",
+      "to": "api",
+      "y": 280,
+      "label": "Planned items",
+      "variant": "return"
+    },
+    {
+      "id": "m4",
+      "from": "api",
+      "to": "db",
+      "y": 330,
+      "label": "Transaction: ghi consumed"
+    },
+    {
+      "id": "m5",
+      "from": "api",
+      "to": "db",
+      "y": 380,
+      "label": "Xóa planned; tính totals"
+    },
+    {
+      "id": "m6",
+      "from": "db",
+      "to": "api",
+      "y": 430,
+      "label": "Commit",
+      "variant": "return"
+    },
+    {
+      "id": "m7",
+      "from": "api",
+      "to": "ui",
+      "y": 480,
+      "label": "200 · nhật ký đã ăn",
+      "variant": "return"
+    }
+  ]
+}
