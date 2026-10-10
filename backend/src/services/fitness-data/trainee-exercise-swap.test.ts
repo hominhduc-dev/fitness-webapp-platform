@@ -1,9 +1,12 @@
-import { UserRole } from "@prisma/client"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { Prisma, UserRole } from "@prisma/client"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { SerializedProfile } from "../auth.service"
 
 const mocks = vi.hoisted(() => ({
+  db: undefined as unknown,
+  transaction: vi.fn(),
+  assignmentFindFirst: vi.fn(),
   notificationCreate: vi.fn(),
   notificationFindFirst: vi.fn(),
   notificationFindMany: vi.fn(),
@@ -24,9 +27,11 @@ const mocks = vi.hoisted(() => ({
   workoutFindMany: vi.fn(),
 }))
 
-vi.mock("../../lib/prisma", () => {
+vi.mock("../../lib/prisma", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/prisma")>()
   const db = {
-    $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback(db)),
+    $transaction: mocks.transaction,
+    programAssignment: { findFirst: mocks.assignmentFindFirst },
     notification: {
       create: mocks.notificationCreate,
       findFirst: mocks.notificationFindFirst,
@@ -46,7 +51,9 @@ vi.mock("../../lib/prisma", () => {
     workoutExercise: { findMany: mocks.workoutExerciseFindMany, updateMany: mocks.workoutExerciseUpdateMany },
   }
 
-  return { prisma: db, retryTransaction: (fn: () => Promise<unknown>) => fn() }
+  mocks.db = db
+  mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(db))
+  return { prisma: db, retryTransaction: actual.retryTransaction }
 })
 
 vi.mock("../notifications/notification-dispatch.service", async (importOriginal) => ({
@@ -201,7 +208,8 @@ describe("trainee exercise swap", () => {
 
   it("retires the trainee's unanswered request for the same exercise", async () => {
     arrangeCoachProgram()
-    const pending = { kind: "trainee_swapped_exercise", oldVariationId: COACH_VARIATION_ID, traineeId: TRAINEE_ID }
+    const pending = { kind: "trainee_swapped_exercise", oldVariationId: COACH_VARIATION_ID, traineeId: TRAINEE_ID, originalProgramId: PROGRAM_ID, targetOrder: 0, workoutScheduledDay: 0, workoutWeekIndex: 0 }
+    mocks.workoutFindMany.mockResolvedValue([{ id: LATER_WORKOUT_ID, scheduledDay: 0, weekIndex: 1 }])
     mocks.notificationFindMany.mockResolvedValue([
       { id: "older", metadata: pending, readAt: null },
       { id: "answered", metadata: { ...pending, approvedAt: "2026-09-01T00:00:00.000Z" }, readAt: null },
@@ -219,6 +227,29 @@ describe("trainee exercise swap", () => {
       },
       where: { id: "older" },
     })
+  })
+
+  it("preserves requests from another weekday or position", async () => {
+    arrangeCoachProgram()
+    const pending = { kind: "trainee_swapped_exercise", oldVariationId: COACH_VARIATION_ID, traineeId: TRAINEE_ID,
+      originalProgramId: PROGRAM_ID, targetOrder: 0, workoutScheduledDay: 0, workoutWeekIndex: 0 }
+    mocks.notificationFindMany.mockResolvedValue([
+      { id: "other-day", metadata: { ...pending, workoutScheduledDay: 3 }, readAt: null },
+      { id: "other-position", metadata: { ...pending, targetOrder: 1 }, readAt: null },
+    ])
+    await swapExerciseForTraineeFromWorkout(trainee, swapInput)
+    expect(mocks.notificationUpdate).not.toHaveBeenCalled()
+  })
+
+  it("preserves an earlier request when there is no overlapping future slot", async () => {
+    arrangeCoachProgram()
+    mocks.notificationFindMany.mockResolvedValue([{ id: "earlier", readAt: null, metadata: {
+      kind: "trainee_swapped_exercise", oldVariationId: COACH_VARIATION_ID, traineeId: TRAINEE_ID,
+      originalProgramId: PROGRAM_ID, targetOrder: 0, workoutScheduledDay: 0, workoutWeekIndex: 0,
+    } }])
+    mocks.workoutFindMany.mockResolvedValueOnce([{ id: WORKOUT_ID, scheduledDay: 0, weekIndex: 0 }]).mockResolvedValueOnce([])
+    await swapExerciseForTraineeFromWorkout(trainee, swapInput)
+    expect(mocks.notificationUpdate).not.toHaveBeenCalled()
   })
 
   it("refuses a swap to the variation the trainee is already doing", async () => {
@@ -333,6 +364,7 @@ describe("coach approving a trainee's swap", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.assignmentFindFirst.mockResolvedValue({ id: "assignment" })
     mocks.programFindFirst.mockResolvedValue({
       id: PROGRAM_ID,
       workouts: [
@@ -359,6 +391,7 @@ describe("coach approving a trainee's swap", () => {
       data: { variationId: NEW_VARIATION_ID },
       where: {
         id: { in: [LATER_EXERCISE_ID] },
+        variationId: COACH_VARIATION_ID,
       },
     })
   })
@@ -411,4 +444,108 @@ describe("coach approving a trainee's swap", () => {
     await expect(rejectTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/đã được duyệt/)
     expect(mocks.notificationUpdate).not.toHaveBeenCalled()
   })
+})
+
+describe("swap decision authorization and contention", () => {
+  const coach = { id: COACH_ID, name: "Coach", role: UserRole.coach } as SerializedProfile
+  const request = {
+    kind: "trainee_swapped_exercise", newVariationId: NEW_VARIATION_ID, oldVariationId: COACH_VARIATION_ID,
+    originalProgramId: PROGRAM_ID, originalWorkoutId: WORKOUT_ID, targetOrder: 0, traineeId: TRAINEE_ID,
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.assignmentFindFirst.mockResolvedValue({ id: "assignment" })
+    mocks.notificationFindFirst.mockResolvedValue({ id: "request", metadata: request, readAt: null })
+  })
+  afterEach(() => {
+    mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.db))
+  })
+
+  it("closes a stale request after the program was unassigned or reassigned", async () => {
+    mocks.assignmentFindFirst.mockResolvedValue(null)
+    await expect(approveTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/không còn được gán/)
+    expect(mocks.workoutExerciseUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.notificationUpdate.mock.calls[0][0].data.metadata).toMatchObject({ rejectionReason: "trainee_no_longer_assigned" })
+    // Commit Closed first, then raise the HTTP error outside the transaction.
+    await expect(mocks.transaction.mock.results[0].value).resolves.toMatchObject({ error: expect.any(Error) })
+  })
+
+  it("cannot use a valid fork assignment to edit a root assigned to another trainee", async () => {
+    mocks.notificationFindFirst.mockResolvedValue({ id: "request", metadata: { ...request, personalizedProgramId: "fork" }, readAt: null })
+    mocks.assignmentFindFirst.mockResolvedValueOnce({ id: "fork-assignment" }).mockResolvedValueOnce(null)
+    await expect(approveTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/không còn được gán/)
+    expect(mocks.assignmentFindFirst.mock.calls.map(([args]) => args.where.programId)).toEqual(["fork", PROGRAM_ID])
+    expect(mocks.workoutExerciseUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it("refuses rejection of a superseded request", async () => {
+    mocks.notificationFindFirst.mockResolvedValue({ id: "request", metadata: { ...request, supersededAt: new Date().toISOString() }, readAt: null })
+    await expect(rejectTraineeExerciseSwapForCoach(coach, "request")).rejects.toThrow(/yêu cầu mới nhất/)
+    expect(mocks.notificationUpdate).not.toHaveBeenCalled()
+  })
+
+  for (const winner of ["reject", "supersede", "coach-edit"] as const) {
+    it("retries a conflicting approval and preserves a concurrent " + winner, async () => {
+      let state = { metadata: { ...request } as Record<string, unknown>, variationId: COACH_VARIATION_ID, readAt: null as Date | null }
+      let version = 0
+      let attempts = 0
+      let pauseApproval!: () => void
+      let resumeApproval!: () => void
+      const approvalPaused = new Promise<void>((resolve) => { pauseApproval = resolve })
+      const approvalMayContinue = new Promise<void>((resolve) => { resumeApproval = resolve })
+      // Stateful Serializable model: buffer writes, reject stale snapshots
+      // at commit, and exercise the real Prisma P2034 retry helper.
+      mocks.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>, options: { isolationLevel: string }) => {
+        expect(options.isolationLevel).toBe(Prisma.TransactionIsolationLevel.Serializable)
+        attempts++
+        const snapshotVersion = version
+        const snapshot = structuredClone(state)
+        let wrote = false
+        const tx = {
+          programAssignment: { findFirst: async () => ({ id: "assignment" }) },
+          program: { findFirst: async () => ({ id: PROGRAM_ID, workouts: [
+            { id: WORKOUT_ID, scheduledDay: 0, weekIndex: 0, exercises: [{ id: EXERCISE_ID, order: 0, variationId: COACH_VARIATION_ID }] },
+            { id: LATER_WORKOUT_ID, scheduledDay: 0, weekIndex: 1, exercises: [{ id: LATER_EXERCISE_ID, order: 0, variationId: snapshot.variationId }] },
+          ] }) },
+          notification: {
+            findFirst: async () => ({ id: "request", metadata: snapshot.metadata, readAt: snapshot.readAt }),
+            update: async ({ data }: { data: { metadata: Record<string, unknown>; readAt: Date } }) => {
+              snapshot.metadata = data.metadata; snapshot.readAt = data.readAt; wrote = true
+            },
+          },
+          workoutExercise: { updateMany: async ({ data }: { data: { variationId?: string } }) => {
+            if (snapshotVersion === 0 && !wrote) { pauseApproval(); await approvalMayContinue }
+            if (data.variationId) snapshot.variationId = data.variationId
+            wrote = true
+            return { count: 1 }
+          } },
+        }
+        const result = await callback(tx)
+        if (wrote) {
+          if (version !== snapshotVersion) throw new Prisma.PrismaClientKnownRequestError("serialization conflict", { code: "P2034", clientVersion: "test" })
+          state = snapshot; version++
+        }
+        return result
+      })
+      const approval = approveTraineeExerciseSwapForCoach(coach, "request").then(() => null, (error: unknown) => error)
+      await approvalPaused
+      if (winner === "reject") {
+        await rejectTraineeExerciseSwapForCoach(coach, "request")
+      } else if (winner === "supersede") {
+        state.metadata = { ...state.metadata, supersededAt: new Date().toISOString(), supersededByNotificationId: "newer" }
+        version++
+      } else {
+        state.variationId = SUBSTITUTE_VARIATION_ID
+        version++
+      }
+      resumeApproval()
+      expect(await approval).toBeInstanceOf(Error)
+      expect(attempts).toBeGreaterThanOrEqual(2)
+      expect(state.metadata.approvedAt).toBeUndefined()
+      expect(state.variationId).toBe(winner === "coach-edit" ? SUBSTITUTE_VARIATION_ID : COACH_VARIATION_ID)
+      if (winner === "reject") expect(state.metadata.rejectedAt).toEqual(expect.any(String))
+      if (winner === "supersede") expect(state.metadata.supersededByNotificationId).toBe("newer")
+      if (winner === "coach-edit") expect(state.metadata.rejectionReason).toBe("missing_future_workout")
+    })
+  }
 })

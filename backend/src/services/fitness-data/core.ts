@@ -6606,100 +6606,126 @@ async function notifyCoachOfTraineeSwap(input: {
   workout: { id: string; name: string; scheduledDay: number | null; weekIndex: number | null }
   workoutExerciseId: string
 }) {
-  const db = ensurePrisma()
+  const prisma = ensurePrisma()
+  const created = await retryTransaction(() => prisma.$transaction(async (db) => {
 
-  const rootProgramId = input.isPersonalizedCopy
-    ? await resolveProgramForkRoot(input.program.id)
-    : input.program.id
+    const rootProgramId = input.isPersonalizedCopy
+      ? await resolveProgramForkRoot(input.program.id)
+      : input.program.id
 
-  const rootWorkout = rootProgramId === input.program.id
-    ? { id: input.workout.id }
-    : await db.workout.findFirst({
-        select: { id: true },
-        where: {
-          programId: rootProgramId,
-          scheduledDay: input.workout.scheduledDay,
-          weekIndex: input.workout.weekIndex,
-        },
-      })
+    const rootWorkout = rootProgramId === input.program.id
+      ? { id: input.workout.id }
+      : await db.workout.findFirst({
+          select: { id: true },
+          where: {
+            programId: rootProgramId,
+            scheduledDay: input.workout.scheduledDay,
+            weekIndex: input.workout.weekIndex,
+          },
+        })
 
-  const approvable = rootWorkout
-    ? {
-        originalProgramId: rootProgramId,
-        originalWorkoutExerciseId: input.workoutExerciseId,
-        originalWorkoutId: rootWorkout.id,
-        targetOrder: input.targetOrder,
-      }
-    : {}
+    const approvable = rootWorkout
+      ? {
+          originalProgramId: rootProgramId,
+          originalWorkoutExerciseId: input.workoutExerciseId,
+          originalWorkoutId: rootWorkout.id,
+          targetOrder: input.targetOrder,
+        }
+      : {}
 
-  // Requests from this trainee for the same exercise that the coach has not
-  // answered yet. The newer swap replaces them: approving an older one would
-  // rewrite the program to an exercise the trainee has already moved on from.
-  const programNotifications = await db.notification.findMany({
-    select: { id: true, metadata: true, readAt: true },
-    where: {
-      relatedEntityId: input.program.id,
-      relatedEntityType: "program",
-      type: NotificationType.general,
-      userId: input.program.createdById,
-    },
-  })
-  const superseded = programNotifications.filter((notification) =>
-    readNotificationMetadataString(notification.metadata, "kind") === "trainee_swapped_exercise" &&
-    readNotificationMetadataString(notification.metadata, "traineeId") === input.profile.id &&
-    readNotificationMetadataString(notification.metadata, "oldVariationId") === input.oldVariationId &&
-    !readNotificationMetadataString(notification.metadata, "approvedAt") &&
-    !readNotificationMetadataString(notification.metadata, "rejectedAt") &&
-    !readNotificationMetadataString(notification.metadata, "supersededAt"),
-  )
-
-  const created = await db.notification.create({
-    data: buildNotificationData({
-      message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
-      metadata: {
-        ...approvable,
-        kind: "trainee_swapped_exercise",
-        newExerciseName: input.newExerciseName,
-        newVariationId: input.newVariationId,
-        oldExerciseName: input.oldExerciseName,
-        oldVariationId: input.oldVariationId,
-        // The program the trainee is actually on. Same as originalProgramId
-        // now that swaps do not copy; different only for a legacy copy.
-        personalizedProgramId: input.program.id,
-        // For the push copy, which has no other way to name the program.
-        programName: input.program.name,
-        swappedAt: new Date().toISOString(),
-        swappedWorkoutIds: input.swappedWorkoutIds,
-        traineeId: input.profile.id,
-        traineeName: input.profile.name,
-        // Which session it was, so the coach can see what approval changes.
-        workoutName: input.workout.name,
-        workoutScheduledDay: input.workout.scheduledDay,
-        workoutWeekIndex: input.workout.weekIndex,
+    // Requests from this trainee for the same exercise that the coach has not
+    // answered yet. The newer swap replaces them: approving an older one would
+    // rewrite the program to an exercise the trainee has already moved on from.
+    const programNotifications = await db.notification.findMany({
+      select: { id: true, metadata: true, readAt: true },
+      where: {
+        relatedEntityId: input.program.id,
+        relatedEntityType: "program",
+        type: NotificationType.general,
+        userId: input.program.createdById,
       },
-      relatedEntityId: input.program.id,
-      relatedEntityType: "program",
-      title: "Trainee replaced an exercise",
-      type: NotificationType.general,
-      url: `/coach/trainees/${input.profile.id}`,
-      userId: input.program.createdById,
-    }),
-  })
-
-  const supersededAt = new Date()
-  for (const notification of superseded) {
-    await db.notification.update({
-      data: {
-        metadata: {
-          ...(notification.metadata as Prisma.JsonObject),
-          supersededAt: supersededAt.toISOString(),
-          supersededByNotificationId: created.id,
-        },
-        readAt: notification.readAt ?? supersededAt,
-      },
-      where: { id: notification.id },
     })
-  }
+    const scopedPending = programNotifications.filter((notification) =>
+      readNotificationMetadataString(notification.metadata, "kind") === "trainee_swapped_exercise" &&
+      readNotificationMetadataString(notification.metadata, "traineeId") === input.profile.id &&
+      readNotificationMetadataString(notification.metadata, "oldVariationId") === input.oldVariationId &&
+      readNotificationMetadataString(notification.metadata, "originalProgramId") === rootProgramId &&
+      readNotificationMetadataNumber(notification.metadata, "targetOrder") === input.targetOrder &&
+      (readNotificationMetadataNumber(notification.metadata, "workoutScheduledDay") ?? null) === input.workout.scheduledDay &&
+      // The same weekday/order in later weeks overlaps even across reference weeks.
+      !readNotificationMetadataString(notification.metadata, "approvedAt") &&
+      !readNotificationMetadataString(notification.metadata, "rejectedAt") &&
+      !readNotificationMetadataString(notification.metadata, "supersededAt"),
+    )
+
+    const matchingFutureWorkouts = rootWorkout && scopedPending.length > 0
+      ? await db.workout.findMany({
+          select: { scheduledDay: true, weekIndex: true },
+          where: {
+            programId: rootProgramId,
+            scheduledDay: input.workout.scheduledDay,
+            weekIndex: { gt: input.workout.weekIndex ?? 0 },
+            exercises: { some: { order: input.targetOrder, variationId: input.oldVariationId } },
+          },
+        })
+      : []
+    const superseded = scopedPending.filter((notification) => matchingFutureWorkouts.some((candidate) =>
+      isMatchingFutureWorkout(candidate, {
+        scheduledDay: input.workout.scheduledDay,
+        weekIndex: readNotificationMetadataNumber(notification.metadata, "workoutWeekIndex") ?? 0,
+      }),
+    ))
+
+    const created = await db.notification.create({
+      data: buildNotificationData({
+        message: `Trainee ${input.profile.name} swapped an exercise in ${input.program.name}.`,
+        metadata: {
+          ...approvable,
+          kind: "trainee_swapped_exercise",
+          newExerciseName: input.newExerciseName,
+          newVariationId: input.newVariationId,
+          oldExerciseName: input.oldExerciseName,
+          oldVariationId: input.oldVariationId,
+          // The program the trainee is actually on. Same as originalProgramId
+          // now that swaps do not copy; different only for a legacy copy.
+          personalizedProgramId: input.program.id,
+          // For the push copy, which has no other way to name the program.
+          programName: input.program.name,
+          swappedAt: new Date().toISOString(),
+          swappedWorkoutIds: input.swappedWorkoutIds,
+          traineeId: input.profile.id,
+          traineeName: input.profile.name,
+          // Which session it was, so the coach can see what approval changes.
+          workoutName: input.workout.name,
+          workoutScheduledDay: input.workout.scheduledDay,
+          workoutWeekIndex: input.workout.weekIndex,
+        },
+        relatedEntityId: input.program.id,
+        relatedEntityType: "program",
+        title: "Trainee replaced an exercise",
+        type: NotificationType.general,
+        url: `/coach/trainees/${input.profile.id}`,
+        userId: input.program.createdById,
+      }),
+    })
+
+    const supersededAt = new Date()
+    for (const notification of superseded) {
+      await db.notification.update({
+        data: {
+          metadata: {
+            ...(notification.metadata as Prisma.JsonObject),
+            supersededAt: supersededAt.toISOString(),
+            supersededByNotificationId: created.id,
+          },
+          readAt: notification.readAt ?? supersededAt,
+        },
+        where: { id: notification.id },
+      })
+    }
+
+    return created
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }))
 
   await queuePushForNotifications([created])
 }
@@ -6887,184 +6913,213 @@ function readNotificationMetadataNumber(metadata: Prisma.JsonValue | null, key: 
 }
 
 async function approveTraineeExerciseSwapForCoach(profile: SerializedProfile, notificationId: string) {
-  const db = ensurePrisma()
+  const prisma = ensurePrisma()
   assertCoach(profile)
+  const outcome = await retryTransaction(() => prisma.$transaction(async (db) => {
 
-  const notification = await db.notification.findFirst({
-    where: {
-      id: notificationId,
-      userId: profile.id,
-    },
-  })
-
-  if (!notification) {
-    throw new AuthServiceError("Không tìm thấy thông báo đổi bài.", 404)
-  }
-
-  const kind = readNotificationMetadataString(notification.metadata, "kind")
-  const approvedAt = readNotificationMetadataString(notification.metadata, "approvedAt")
-  const originalProgramId = readNotificationMetadataString(notification.metadata, "originalProgramId")
-  const originalWorkoutId = readNotificationMetadataString(notification.metadata, "originalWorkoutId")
-  const oldVariationId = readNotificationMetadataString(notification.metadata, "oldVariationId")
-  const newVariationId = readNotificationMetadataString(notification.metadata, "newVariationId")
-  const targetOrder = readNotificationMetadataNumber(notification.metadata, "targetOrder")
-
-  if (kind !== "trainee_swapped_exercise") {
-    throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
-  }
-
-  if (approvedAt) {
-    return { approved: true, alreadyApproved: true, notificationId, updatedExerciseCount: 0 }
-  }
-
-  if (readNotificationMetadataString(notification.metadata, "rejectedAt")) {
-    throw new AuthServiceError("Yêu cầu đổi bài này đã được đóng.", 409)
-  }
-
-  if (readNotificationMetadataString(notification.metadata, "supersededAt")) {
-    throw new AuthServiceError("Trainee đã đổi bài này thêm lần nữa. Hãy duyệt yêu cầu mới nhất.", 409)
-  }
-
-  // A request that can never be approved is closed, so it stops asking.
-  const closeUnapprovable = (reason: "missing_approval_metadata" | "missing_future_workout") =>
-    db.notification.update({
-      data: {
-        metadata: {
-          ...(notification.metadata as Prisma.JsonObject),
-          rejectedAt: new Date().toISOString(),
-          rejectedByCoachId: profile.id,
-          rejectionReason: reason,
-        },
-        readAt: notification.readAt ?? new Date(),
-      },
-      where: { id: notification.id },
-    })
-
-  if (!originalProgramId || !originalWorkoutId || !oldVariationId || !newVariationId || targetOrder == null) {
-    await closeUnapprovable("missing_approval_metadata")
-    throw new AuthServiceError("Thông báo đổi bài này thiếu dữ liệu để duyệt. Hãy yêu cầu trainee đổi lại bài để tạo thông báo mới.", 409)
-  }
-
-  const originalProgram = await db.program.findFirst({
-    include: {
-      workouts: {
-        include: {
-          exercises: true,
-        },
-      },
-    },
-    where: {
-      createdById: profile.id,
-      id: originalProgramId,
-    },
-  })
-
-  if (!originalProgram) {
-    throw new AuthServiceError("Không tìm thấy program gốc của coach.", 404)
-  }
-
-  const referenceWorkout = originalProgram.workouts.find((workout) => workout.id === originalWorkoutId)
-
-  if (!referenceWorkout) {
-    throw new AuthServiceError("Không tìm thấy workout gốc trong program.", 404)
-  }
-
-  // The same session (weekday) in every later week, at the same position, still
-  // holding the exercise the trainee replaced. A program belongs to a single
-  // trainee, so the coach's rows are edited directly.
-  const targetExerciseIds = originalProgram.workouts.flatMap((workout) =>
-    isMatchingFutureWorkout(workout, referenceWorkout)
-      ? workout.exercises
-          .filter((exercise) => exercise.variationId === oldVariationId && exercise.order === targetOrder)
-          .map((exercise) => exercise.id)
-      : [],
-  )
-
-  if (targetExerciseIds.length === 0) {
-    await closeUnapprovable("missing_future_workout")
-    throw new AuthServiceError("Không tìm thấy buổi tương ứng trong tương lai để áp dụng đổi bài.", 409)
-  }
-
-  const nextMetadata = {
-    ...(
-      notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
-        ? (notification.metadata as Record<string, unknown>)
-        : {}
-    ),
-    approvedAt: new Date().toISOString(),
-    approvedByCoachId: profile.id,
-    approvedTargetExerciseIds: targetExerciseIds,
-  }
-
-  await db.$transaction(async (tx) => {
-    await tx.workoutExercise.updateMany({
-      data: { originalVariationId: oldVariationId },
+    const notification = await db.notification.findFirst({
       where: {
-        id: { in: targetExerciseIds },
-        originalVariationId: null,
+        id: notificationId,
+        userId: profile.id,
       },
     })
 
-    await tx.workoutExercise.updateMany({
-      data: { variationId: newVariationId },
+    if (!notification) {
+      throw new AuthServiceError("Không tìm thấy thông báo đổi bài.", 404)
+    }
+
+    const kind = readNotificationMetadataString(notification.metadata, "kind")
+    const approvedAt = readNotificationMetadataString(notification.metadata, "approvedAt")
+    const originalProgramId = readNotificationMetadataString(notification.metadata, "originalProgramId")
+    const originalWorkoutId = readNotificationMetadataString(notification.metadata, "originalWorkoutId")
+    const oldVariationId = readNotificationMetadataString(notification.metadata, "oldVariationId")
+    const newVariationId = readNotificationMetadataString(notification.metadata, "newVariationId")
+    const targetOrder = readNotificationMetadataNumber(notification.metadata, "targetOrder")
+    const traineeId = readNotificationMetadataString(notification.metadata, "traineeId")
+    const assignedProgramId = readNotificationMetadataString(notification.metadata, "personalizedProgramId") ?? originalProgramId
+
+    if (kind !== "trainee_swapped_exercise") {
+      throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
+    }
+
+    if (approvedAt) {
+      return { approved: true, alreadyApproved: true, notificationId, updatedExerciseCount: 0 }
+    }
+
+    if (readNotificationMetadataString(notification.metadata, "rejectedAt")) {
+      throw new AuthServiceError("Yêu cầu đổi bài này đã được đóng.", 409)
+    }
+
+    if (readNotificationMetadataString(notification.metadata, "supersededAt")) {
+      throw new AuthServiceError("Trainee đã đổi bài này thêm lần nữa. Hãy duyệt yêu cầu mới nhất.", 409)
+    }
+
+    // A request that can never be approved is closed, so it stops asking.
+    const closeUnapprovable = (reason: "missing_approval_metadata" | "missing_future_workout" | "trainee_no_longer_assigned") =>
+      db.notification.update({
+        data: {
+          metadata: {
+            ...(notification.metadata as Prisma.JsonObject),
+            rejectedAt: new Date().toISOString(),
+            rejectedByCoachId: profile.id,
+            rejectionReason: reason,
+          },
+          readAt: notification.readAt ?? new Date(),
+        },
+        where: { id: notification.id },
+      })
+
+    if (!originalProgramId || !originalWorkoutId || !oldVariationId || !newVariationId || !traineeId || targetOrder == null) {
+      await closeUnapprovable("missing_approval_metadata")
+      return { error: new AuthServiceError("Thông báo đổi bài này thiếu dữ liệu để duyệt. Hãy yêu cầu trainee đổi lại bài để tạo thông báo mới.", 409) }
+    }
+
+    const assignment = await db.programAssignment.findFirst({
+      select: { id: true },
+      where: { programId: assignedProgramId, userId: traineeId, program: { createdById: profile.id } },
+    })
+    // Approval mutates root rows. A legacy fork assignment cannot authorize
+    // changing a root program that has since been assigned to somebody else.
+    const rootAssignment = assignedProgramId === originalProgramId ? assignment : await db.programAssignment.findFirst({
+      select: { id: true },
+      where: { programId: originalProgramId, userId: traineeId, program: { createdById: profile.id } },
+    })
+    if (!assignment || !rootAssignment) {
+      await closeUnapprovable("trainee_no_longer_assigned")
+      return { error: new AuthServiceError("Học viên không còn được gán program của yêu cầu đổi bài này.", 409) }
+    }
+
+    const originalProgram = await db.program.findFirst({
+      include: {
+        workouts: {
+          include: {
+            exercises: true,
+          },
+        },
+      },
       where: {
-        id: { in: targetExerciseIds },
+        createdById: profile.id,
+        id: originalProgramId,
       },
     })
 
-    await tx.notification.update({
-      data: {
-        metadata: nextMetadata as Prisma.InputJsonValue,
-        readAt: notification.readAt ?? new Date(),
-      },
-      where: { id: notification.id },
-    })
-  })
+    if (!originalProgram) {
+      throw new AuthServiceError("Không tìm thấy program gốc của coach.", 404)
+    }
 
-  return {
-    approved: true,
-    alreadyApproved: false,
-    notificationId,
-    originalProgramId,
-    updatedExerciseCount: targetExerciseIds.length,
-  }
+    const referenceWorkout = originalProgram.workouts.find((workout) => workout.id === originalWorkoutId)
+
+    if (!referenceWorkout) {
+      throw new AuthServiceError("Không tìm thấy workout gốc trong program.", 404)
+    }
+
+    // The same session (weekday) in every later week, at the same position, still
+    // holding the exercise the trainee replaced. A program belongs to a single
+    // trainee, so the coach's rows are edited directly.
+    const targetExerciseIds = originalProgram.workouts.flatMap((workout) =>
+      isMatchingFutureWorkout(workout, referenceWorkout)
+        ? workout.exercises
+            .filter((exercise) => exercise.variationId === oldVariationId && exercise.order === targetOrder)
+            .map((exercise) => exercise.id)
+        : [],
+    )
+
+    if (targetExerciseIds.length === 0) {
+      await closeUnapprovable("missing_future_workout")
+      return { error: new AuthServiceError("Không tìm thấy buổi tương ứng trong tương lai để áp dụng đổi bài.", 409) }
+    }
+
+    const nextMetadata = {
+      ...(
+        notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
+          ? (notification.metadata as Record<string, unknown>)
+          : {}
+      ),
+      approvedAt: new Date().toISOString(),
+      approvedByCoachId: profile.id,
+      approvedTargetExerciseIds: targetExerciseIds,
+    }
+
+    {
+      const tx = db
+      await tx.workoutExercise.updateMany({
+        data: { originalVariationId: oldVariationId },
+        where: {
+          id: { in: targetExerciseIds },
+          originalVariationId: null,
+        },
+      })
+
+      await tx.workoutExercise.updateMany({
+        data: { variationId: newVariationId },
+        where: {
+          id: { in: targetExerciseIds },
+          variationId: oldVariationId,
+        },
+      })
+
+      await tx.notification.update({
+        data: {
+          metadata: nextMetadata as Prisma.InputJsonValue,
+          readAt: notification.readAt ?? new Date(),
+        },
+        where: { id: notification.id },
+      })
+    }
+
+    return {
+      approved: true,
+      alreadyApproved: false,
+      notificationId,
+      originalProgramId,
+      updatedExerciseCount: targetExerciseIds.length,
+    }
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }))
+  if ("error" in outcome) throw outcome.error
+  return outcome
 }
 
 async function rejectTraineeExerciseSwapForCoach(profile: SerializedProfile, notificationId: string) {
-  const db = ensurePrisma()
+  const prisma = ensurePrisma()
   assertCoach(profile)
+  return retryTransaction(() => prisma.$transaction(async (db) => {
 
-  const notification = await db.notification.findFirst({
-    where: { id: notificationId, userId: profile.id },
-  })
-  if (!notification) throw new AuthServiceError("Không tìm thấy thông báo đổi bài.", 404)
+    const notification = await db.notification.findFirst({
+      where: { id: notificationId, userId: profile.id },
+    })
+    if (!notification) throw new AuthServiceError("Không tìm thấy thông báo đổi bài.", 404)
 
-  const kind = readNotificationMetadataString(notification.metadata, "kind")
-  const rejectedAt = readNotificationMetadataString(notification.metadata, "rejectedAt")
-  if (kind !== "trainee_swapped_exercise") {
-    throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
-  }
-  if (rejectedAt) {
-    return { rejected: true, alreadyRejected: true, notificationId }
-  }
-  if (readNotificationMetadataString(notification.metadata, "approvedAt")) {
-    throw new AuthServiceError("Yêu cầu đổi bài này đã được duyệt.", 409)
-  }
+    const kind = readNotificationMetadataString(notification.metadata, "kind")
+    const rejectedAt = readNotificationMetadataString(notification.metadata, "rejectedAt")
+    if (kind !== "trainee_swapped_exercise") {
+      throw new AuthServiceError("Thông báo này không phải yêu cầu đổi bài tập.", 400)
+    }
+    if (rejectedAt) {
+      return { rejected: true, alreadyRejected: true, notificationId }
+    }
+    if (readNotificationMetadataString(notification.metadata, "approvedAt")) {
+      throw new AuthServiceError("Yêu cầu đổi bài này đã được duyệt.", 409)
+    }
 
-  const nextMetadata = {
-    ...(notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
-      ? (notification.metadata as Record<string, unknown>)
-      : {}),
-    rejectedAt: new Date().toISOString(),
-    rejectedByCoachId: profile.id,
-  }
+    if (readNotificationMetadataString(notification.metadata, "supersededAt")) {
+      throw new AuthServiceError("Trainee đã đổi bài này thêm lần nữa. Hãy xử lý yêu cầu mới nhất.", 409)
+    }
 
-  await db.notification.update({
-    data: { metadata: nextMetadata as Prisma.InputJsonValue, readAt: notification.readAt ?? new Date() },
-    where: { id: notification.id },
-  })
+    const nextMetadata = {
+      ...(notification.metadata && typeof notification.metadata === "object" && !Array.isArray(notification.metadata)
+        ? (notification.metadata as Record<string, unknown>)
+        : {}),
+      rejectedAt: new Date().toISOString(),
+      rejectedByCoachId: profile.id,
+    }
 
-  return { rejected: true, alreadyRejected: false, notificationId }
+    await db.notification.update({
+      data: { metadata: nextMetadata as Prisma.InputJsonValue, readAt: notification.readAt ?? new Date() },
+      where: { id: notification.id },
+    })
+
+    return { rejected: true, alreadyRejected: false, notificationId }
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }))
 }
 
 function isFutureWorkout(
