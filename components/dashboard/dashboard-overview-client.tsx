@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
 
-import { AIChatBubble } from "@/components/ai/chat-bubble"
+
 import { WorkoutCelebration } from "@/components/workout/workout-celebration"
 import { CoachInviteCard } from "./coach-invite-card"
 import { NutritionSummary } from "./nutrition-summary"
@@ -63,7 +63,7 @@ export function DashboardOverviewClient({
   preferredWeightUnit?: "kg" | "lbs"
   seeds?: DashboardSeeds
 }) {
-  const [aiChatOpen, setAIChatOpen] = useState(false)
+  const router = useRouter()
   const hasHydrated = useHasHydrated()
   const { messages } = useLocale()
   const dashboardQuery = useUserQuery({
@@ -116,7 +116,7 @@ export function DashboardOverviewClient({
 
       <TodayTasks />
 
-      <div data-tour="dashboard-quick-actions"><QuickActions onOpenAIChat={() => setAIChatOpen(true)} /></div>
+      <div data-tour="dashboard-quick-actions"><QuickActions onOpenAIChat={() => router.push("/chat")} /></div>
 
       {/* Mobile keeps the task-first reading order. Desktop follows the
           overview matrix from the dashboard mockup. */}
@@ -161,7 +161,7 @@ export function DashboardOverviewClient({
         </div>
       </div>
 
-      <AIChatBubble open={aiChatOpen} onOpenChange={setAIChatOpen} />
+
     </div>
   )
 }

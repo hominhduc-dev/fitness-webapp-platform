@@ -54,7 +54,7 @@ export function ResumeWorkoutCard() {
   }, [pathname, refresh])
 
   const onStartPage = pathname ? START_PATH_PATTERN.test(pathname) : false
-  const shouldShow = !!session && !onStartPage
+  const shouldShow = !!session && !onStartPage && pathname !== "/chat"
 
   // Drive the fade transition
   useEffect(() => {
@@ -73,7 +73,7 @@ export function ResumeWorkoutCard() {
     return () => clearInterval(id)
   }, [shouldShow])
 
-  if (!session || onStartPage) return null
+  if (!session || onStartPage || pathname === "/chat") return null
 
   const handleResume = () => {
     const href = `/workout/${session.workoutId}/start`

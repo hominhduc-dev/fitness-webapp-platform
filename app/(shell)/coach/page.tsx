@@ -1,463 +1,228 @@
 import Link from "next/link"
 import { Suspense } from "react"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, ArrowRight, BellRing, CalendarPlus, Dumbbell, TrendingUp, Users } from "lucide-react"
+import { ArrowRight, CalendarPlus, CheckCheck, Dumbbell, Sparkles, TrendingUp, Users, AlertTriangle } from "lucide-react"
 
 import { PendingRequestsPanel } from "@/components/coach/pending-requests-panel"
-import { agentMessages } from "@/lib/i18n/messages/agent"
-import { CoachDashboardLoading } from "./loading"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { requireAppSession, requireAppUser } from "@/lib/auth/server"
 import { fetchCoachDashboard } from "@/lib/fitness/api"
+import { agentMessages } from "@/lib/i18n/messages/agent"
+import { coachDashboardMessages } from "@/lib/i18n/messages/coach-dashboard"
 import { getServerLocale, getServerMessages } from "@/lib/i18n/server"
 import { formatDateKey } from "@/lib/time-zone"
 import { getServerTimeZone } from "@/lib/time-zone-server"
 import { cn } from "@/lib/utils"
+import { CoachDashboardLoading } from "./loading"
 
 export const revalidate = 30
 
-type CoachDashboardMessages = Awaited<ReturnType<typeof getServerMessages>>
-
-type CoachStatTone = "blue" | "green" | "orange" | "violet"
-
-const coachStatTone = {
-  blue: {
-    accent: "bg-primary",
-    glow: "bg-primary/15",
-    icon: "border-primary/25 bg-primary/12 text-primary",
-    value: "text-primary",
-  },
-  green: {
-    accent: "bg-success",
-    glow: "bg-success/15",
-    icon: "border-success/25 bg-success/12 text-success-text",
-    value: "text-success-text",
-  },
-  orange: {
-    accent: "bg-warning",
-    glow: "bg-warning/15",
-    icon: "border-warning/25 bg-warning/12 text-warning-text",
-    value: "text-warning-text",
-  },
-  violet: {
-    accent: "bg-chart-4",
-    glow: "bg-chart-4/15",
-    icon: "border-chart-4/25 bg-chart-4/10 text-chart-4",
-    value: "text-chart-4",
-  },
-} satisfies Record<CoachStatTone, Record<string, string>>
-
-function CoachStatCard({
-  icon: Icon,
-  progress,
-  subtitle,
-  title,
-  tone,
-  value,
-}: {
-  icon: LucideIcon
-  progress?: number
-  subtitle: string
-  title: string
-  tone: CoachStatTone
-  value: number | string
-}) {
-  const palette = coachStatTone[tone]
-  const safeProgress = Math.max(0, Math.min(100, progress ?? 0))
-
-  return (
-    <article className="group relative min-h-[158px] overflow-hidden rounded-3xl border border-border/75 bg-card/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-lg sm:min-h-[170px] sm:p-5">
-      <span className={cn("absolute inset-x-0 top-0 h-0.5", palette.accent)} />
-      <span className={cn("pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-opacity group-hover:opacity-100", palette.glow)} />
-
-      <div className="relative flex h-full flex-col">
-        <div className="flex items-start justify-between gap-2">
-          <p className="label-micro max-w-[8.5rem] leading-snug text-muted-foreground">{title}</p>
-          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border", palette.icon)}>
-            <Icon className="h-[17px] w-[17px]" strokeWidth={2.2} />
-          </span>
-        </div>
-
-        <p className={cn("mt-2 font-mono text-4xl font-bold leading-none tracking-[-0.06em] tnum sm:text-5xl", palette.value)}>
-          {value}
-        </p>
-        <p className="mt-2 line-clamp-2 text-micro leading-snug text-muted-foreground sm:text-xs">{subtitle}</p>
-
-        <div className="mt-auto flex items-center gap-1 pt-3" aria-hidden="true">
-          {progress === undefined ? (
-            Array.from({ length: 5 }).map((_, index) => (
-              <span key={index} className={cn("h-1 flex-1 rounded-full", index < 3 ? palette.accent : "bg-border")} />
-            ))
-          ) : (
-            <span className="h-1 w-full overflow-hidden rounded-full bg-border/80">
-              <span className={cn("block h-full rounded-full transition-[width] duration-500", palette.accent)} style={{ width: `${safeProgress}%` }} />
-            </span>
-          )}
-        </div>
-      </div>
-    </article>
-  )
-}
+type Dashboard = Awaited<ReturnType<typeof fetchCoachDashboard>>
+type Trainee = Dashboard["trainees"][number]
+type Locale = Awaited<ReturnType<typeof getServerLocale>>
 
 function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((value) => value[0])
-    .join("")
-    .slice(0, 2)
+  return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2)
 }
 
 function formatPercent(value: number) {
   return `${Math.max(0, Math.round(value))}%`
 }
 
-function formatDateTime(value: Date, locale: Awaited<ReturnType<typeof getServerLocale>>) {
+function getAdjustHref(trainee: Trainee) {
+  const programId = trainee.assignedProgramIds?.[0]
+  return programId ? `/coach/programs/${programId}?adjustTrainee=${trainee.id}` : `/coach/trainees/${trainee.id}`
+}
+
+function formatDateTime(value: Date, locale: Locale, timeZone: string | undefined) {
   return value.toLocaleString(locale === "vi" ? "vi-VN" : "en-US", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone,
   })
 }
 
-function formatDate(value: Date, locale: Awaited<ReturnType<typeof getServerLocale>>) {
-  return value.toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", {
-    day: "2-digit",
-    month: "short",
-  })
-}
-
-function getAdjustHref(trainee: Awaited<ReturnType<typeof fetchCoachDashboard>>["trainees"][number]) {
-  const firstProgramId = trainee.assignedProgramIds?.[0]
-
-  if (firstProgramId) {
-    return `/coach/programs/${firstProgramId}?adjustTrainee=${trainee.id}`
-  }
-
-  return `/coach/trainees/${trainee.id}`
+function CoachStatCard({ icon: Icon, title, value, subtitle, warning = false }: {
+  icon: LucideIcon; title: string; value: number | string; subtitle: string; warning?: boolean
+}) {
+  return (
+    <article className="min-w-0 rounded-2xl border border-border bg-card p-4 md:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <Icon aria-hidden="true" className={cn("size-4 shrink-0", warning ? "text-warning-text" : "text-muted-foreground")} />
+      </div>
+      <p className={cn("mt-3 font-mono text-3xl font-semibold tracking-tight tnum md:text-4xl", warning ? "text-warning-text" : "text-foreground")}>{value}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
+    </article>
+  )
 }
 
 async function CoachDashboardContent() {
   const [{ accessToken }, locale, messages, timeZone] = await Promise.all([
-    requireAppSession({ role: "coach" }),
-    getServerLocale(),
-    getServerMessages(),
-    getServerTimeZone(),
+    requireAppSession({ role: "coach" }), getServerLocale(), getServerMessages(), getServerTimeZone(),
   ])
   const dashboard = await fetchCoachDashboard(accessToken)
-  // The chart's days are the user's calendar days, so "today" must be too.
+  const copy = coachDashboardMessages[locale]
+  const coach = messages.coach
   const todayKey = formatDateKey(new Date(), timeZone)
-  const maxWorkouts = Math.max(...dashboard.activityByDay.map((point) => point.workouts), 1)
-  const coachMessages: CoachDashboardMessages["coach"] = messages.coach
-  const plannedSessions = dashboard.summary.totalPlannedSessions
-  const weeklyOutputRate = plannedSessions > 0
-    ? (dashboard.summary.workoutsThisWeek / plannedSessions) * 100
-    : 0
-  const attentionRate = dashboard.summary.totalTrainees > 0
-    ? (dashboard.summary.atRiskTraineeCount / dashboard.summary.totalTrainees) * 100
-    : 0
+  const maxWorkouts = Math.max(...dashboard.activityByDay.map((day) => day.workouts), 1)
+  const weekStart = dashboard.activityByDay[0]?.label
+  const weekEnd = dashboard.activityByDay.at(-1)?.label
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-6 pt-page md:px-6 md:pb-8">
-      <div className="space-y-6">
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <CoachStatCard
-            title={coachMessages.totalTrainees}
-            value={dashboard.summary.totalTrainees}
-            subtitle={coachMessages.totalPlannedSessionsThisWeek(dashboard.summary.totalPlannedSessions)}
-            icon={Users}
-            tone="blue"
-          />
-          <CoachStatCard
-            title={coachMessages.workoutsLogged}
-            value={dashboard.summary.workoutsThisWeek}
-            subtitle={coachMessages.acrossAllTrainees}
-            icon={Dumbbell}
-            progress={weeklyOutputRate}
-            tone="violet"
-          />
-          <CoachStatCard
-            title={coachMessages.averageCompletion}
-            value={formatPercent(dashboard.summary.averageCompletionRate)}
-            subtitle={coachMessages.basedOnAssignedWorkload}
-            icon={TrendingUp}
-            progress={dashboard.summary.averageCompletionRate}
-            tone="green"
-          />
-          <CoachStatCard
-            title={coachMessages.needAttention}
-            value={dashboard.summary.atRiskTraineeCount}
-            subtitle={coachMessages.unreadNotifications(dashboard.summary.unreadNotificationCount)}
-            icon={BellRing}
-            progress={attentionRate}
-            tone="orange"
-          />
-        </section>
-
-        <PendingRequestsPanel initialRequests={dashboard.pendingRequests} />
-
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
-          <div className="space-y-6">
-            {/* 7-day bar chart */}
-            <div className="rounded-lg border border-border bg-card p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="label-micro text-muted-foreground">{coachMessages.weeklyActivity}</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.workoutLoggingTrend}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {coachMessages.weeklyActivityCopy}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm">
-                  <p className="font-semibold text-foreground">
-                    {coachMessages.sessionsLogged(dashboard.summary.workoutsThisWeek)}
-                  </p>
-                  <p className="mt-1 text-muted-foreground">{coachMessages.coachWorkspaceAggregate}</p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-7 gap-2" style={{ height: 110, alignItems: "end" }}>
-                {dashboard.activityByDay.map((point) => {
-                  // Each point's date is a day key (UTC midnight) of the user's calendar day.
-                  const isToday = point.date.toISOString().slice(0, 10) === todayKey
-                  const h =
-                    point.workouts === 0 ? 4 : Math.max(8, Math.round((point.workouts / maxWorkouts) * 90))
-
-                  return (
-                    <div key={point.label} className="flex h-full flex-col items-center gap-1.5">
-                      <div className="flex w-full flex-1 items-end">
-                        <div
-                          className={isToday ? "w-full rounded-sm bg-primary" : "w-full rounded-sm bg-foreground"}
-                          style={{ height: `${h}%` }}
-                        />
-                      </div>
-                      <p className="label-micro text-muted-foreground">{point.label}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-2">
-              {/* Recent logs */}
-              <div className="rounded-lg border border-border bg-card p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="label-micro text-muted-foreground">{coachMessages.recentLogs}</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.sessionsCompletedRecently}</h2>
-                  </div>
-                  <Link href="/coach/trainees">
-                    <Button variant="outline" className="bg-transparent">
-                      {coachMessages.viewTrainees}
-                    </Button>
-                  </Link>
-                </div>
-
-                <div className="mt-5 space-y-2">
-                  {dashboard.recentWorkoutLogs.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                      {coachMessages.noRecentWorkoutLogs}
-                    </div>
-                  ) : (
-                    dashboard.recentWorkoutLogs.map((log) => (
-                      <Link
-                        key={log.id}
-                        href={`/coach/trainees/${log.trainee.id}`}
-                        className="block rounded-lg border border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/25 hover:bg-muted/40"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-semibold">{log.workout.name}</p>
-                              {log.commentCount > 0 ? (
-                                <span className="label-micro rounded-full bg-primary-soft px-2 py-0.5 text-primary">
-                                  {coachMessages.feedbackCount(log.commentCount)}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="mt-1 font-mono text-xs text-muted-foreground tnum">
-                              {log.trainee.name} · {formatDateTime(log.startedAt, locale)}
-                            </p>
-                          </div>
-                          <div className="font-mono text-xs text-muted-foreground tnum sm:text-right">
-                            <p>{log.totalVolume?.toLocaleString() ?? 0} kg</p>
-                            <p>{log.completedAt ? formatDate(log.completedAt, locale) : coachMessages.inProgress}</p>
-                          </div>
-                        </div>
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* All trainees table */}
-              <section className="rounded-lg border border-border bg-card p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="label-micro text-muted-foreground">{coachMessages.allTrainees}</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.progressOverview}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {coachMessages.traineesOverviewCopy}
-                    </p>
-                  </div>
-                  <Link href="/coach/trainees" className="shrink-0">
-                    <Button variant="outline" className="bg-transparent">
-                      {coachMessages.openFullList}
-                    </Button>
-                  </Link>
-                </div>
-
-                <div className="mt-5 space-y-2">
-                  {dashboard.trainees.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                      {coachMessages.noTraineesAssignedToCoach}
-                    </div>
-                  ) : (
-                    dashboard.trainees.map((trainee) => (
-                      <div
-                        key={trainee.id}
-                        className="grid gap-3 rounded-lg border border-border bg-card px-4 py-3.5 lg:grid-cols-[minmax(0,1fr)_86px_86px] xl:grid-cols-[minmax(0,1fr)_82px_82px]"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar className="h-9 w-9 border border-border">
-                            <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
-                              {getInitials(trainee.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">{trainee.name}</p>
-                            <p className="truncate font-mono text-xs text-muted-foreground">{trainee.email}</p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="label-micro text-muted-foreground">{coachMessages.thisWeek}</p>
-                          <p className="mt-1 font-mono text-lg font-semibold tnum">
-                            {trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="label-micro text-muted-foreground">{coachMessages.completion}</p>
-                          <p className="mt-1 font-mono text-lg font-semibold tnum">
-                            {formatPercent(trainee.completionRate ?? 0)}
-                          </p>
-                        </div>
-
-                        <div className="flex gap-2 lg:col-span-3 xl:col-span-3">
-                          <Link href={`/coach/trainees/${trainee.id}`} className="flex-1">
-                            <Button variant="outline" className="w-full bg-transparent">
-                              {coachMessages.open}
-                            </Button>
-                          </Link>
-                          <Link href={getAdjustHref(trainee)} className="flex-1">
-                            <Button className="w-full">{coachMessages.adjustPlan}</Button>
-                          </Link>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
+    <div className="mx-auto max-w-7xl space-y-5 px-4 pb-6 pt-page md:space-y-6 md:px-6 md:pb-8">
+      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-primary-soft p-5 md:p-7">
+        <div className="pointer-events-none absolute -right-12 -top-20 size-64 rounded-full border-[32px] border-primary/5" aria-hidden="true" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="label-micro text-primary">{copy.eyebrow}</p>
+            <h1 className="mt-3 max-w-xl text-3xl font-semibold leading-tight tracking-tight md:text-4xl">{copy.title}</h1>
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">{copy.subtitle}</p>
           </div>
+          <Button asChild variant="outline" size="icon" className="size-11 shrink-0 rounded-xl border-primary/20 bg-card text-primary">
+            <Link href="/chat" aria-label={agentMessages[locale].title} title={agentMessages[locale].title}>
+              <Sparkles className="size-5" aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
+        <div className="relative mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-primary/15 pt-4 text-xs">
+          <span className="font-medium text-primary">{copy.week}</span>
+          {weekStart && weekEnd ? <span className="font-mono text-muted-foreground tnum">{weekStart} — {weekEnd}</span> : null}
+        </div>
+      </section>
 
-          <div className="space-y-6">
-            {/* Quick actions */}
-            <div className="rounded-lg border border-border bg-card p-5">
-              <p className="label-micro text-muted-foreground">{coachMessages.quickActionsTitle}</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.coachControls}</h2>
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label={copy.week}>
+        <CoachStatCard title={coach.totalTrainees} value={dashboard.summary.totalTrainees} subtitle={coach.totalPlannedSessionsThisWeek(dashboard.summary.totalPlannedSessions)} icon={Users} />
+        <CoachStatCard title={coach.workoutsLogged} value={dashboard.summary.workoutsThisWeek} subtitle={coach.acrossAllTrainees} icon={Dumbbell} />
+        <CoachStatCard title={coach.averageCompletion} value={formatPercent(dashboard.summary.averageCompletionRate)} subtitle={coach.basedOnAssignedWorkload} icon={TrendingUp} />
+        <CoachStatCard title={coach.needAttention} value={dashboard.summary.atRiskTraineeCount} subtitle={coach.unreadNotifications(dashboard.summary.unreadNotificationCount)} icon={AlertTriangle} warning={dashboard.summary.atRiskTraineeCount > 0} />
+      </section>
 
-              <div className="mt-5 space-y-2">
-                <Link href="/coach/programs/new" className="block">
-                  <Button variant="outline" className="w-full justify-between bg-transparent">
-                    <span className="inline-flex items-center gap-2">
-                      <CalendarPlus className="h-4 w-4" />
-                      {coachMessages.createWorkoutPlan}
-                    </span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="/coach/exercises" className="block">
-                  <Button variant="outline" className="w-full justify-between bg-transparent">
-                    <span className="inline-flex items-center gap-2">
-                      <Dumbbell className="h-4 w-4" />
-                      {coachMessages.manageExerciseLibrary}
-                    </span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="/coach/trainees" className="block">
-                  <Button variant="outline" className="w-full justify-between bg-transparent">
-                    <span className="inline-flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      {coachMessages.openTraineeWorkspace}
-                    </span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
+      <nav className="grid grid-cols-3 gap-2" aria-label={coach.quickActionsTitle}>
+        {[
+          { href: "/coach/programs/new", label: coach.createProgram, icon: CalendarPlus },
+          { href: "/coach/trainees", label: coach.clients, icon: Users },
+          { href: "/coach/exercises", label: coach.exerciseLibraryTitle, icon: Dumbbell },
+        ].map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className="flex min-h-16 min-w-0 flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card px-2 py-3 text-center text-xs font-medium transition-colors hover:border-primary/30 hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:text-sm">
+            <Icon className="size-4 shrink-0 text-primary" aria-hidden="true" />{label}
+          </Link>
+        ))}
+      </nav>
+
+      <PendingRequestsPanel initialRequests={dashboard.pendingRequests} />
+
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-6">
+        <section className="order-1 rounded-2xl border border-border bg-card p-5 xl:col-start-2 xl:row-start-1">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold tracking-tight">{coach.needAttention}</h2>
+              <span className={cn("flex size-8 items-center justify-center rounded-xl", dashboard.atRiskTrainees.length > 0 ? "bg-warning-soft text-warning-text" : "bg-success-soft text-success-text")}>
+                {dashboard.atRiskTrainees.length > 0 ? <AlertTriangle className="size-4" aria-hidden="true" /> : <CheckCheck className="size-4" aria-hidden="true" />}
+              </span>
             </div>
-
-            {/* At-risk trainees */}
-            <div className="rounded-lg border border-border bg-card p-5">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning-text" />
-                <p className="label-micro text-muted-foreground">{coachMessages.needAttention}</p>
+            {dashboard.atRiskTrainees.length === 0 ? (
+              <div className="mt-4 rounded-xl bg-success-soft p-4">
+                <p className="text-sm font-medium text-success-text">{copy.onTrack}</p>
+                <p className="mt-1 text-xs leading-relaxed text-success-text">{copy.onTrackCopy}</p>
               </div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight">{coachMessages.needAttention}</h2>
-
-              <div className="mt-5 space-y-3">
-                {dashboard.atRiskTrainees.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                    {coachMessages.noTraineesNeedAttention}
-                  </div>
-                ) : (
-                  dashboard.atRiskTrainees.map((trainee) => (
-                    <div key={trainee.id} className="rounded-lg border border-border bg-card p-4">
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-9 w-9 border border-border">
-                          <AvatarImage src={trainee.avatar || "/placeholder.svg"} />
-                          <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
-                            {getInitials(trainee.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">{trainee.name}</p>
-                          <p className="label-micro mt-1 text-muted-foreground">
-                            <span className="tnum">
-                              {trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0}
-                            </span>{" "}
-                            {coachMessages.sessionsThisWeek}
-                          </p>
-                        </div>
-                      </div>
-                      <Progress
-                        value={Math.max(0, Math.min(100, trainee.completionRate ?? 0))}
-                        className="mt-3 h-1.5 bg-muted [&_[data-slot=progress-indicator]]:bg-warning"
-                      />
-                      <div className="mt-3 flex gap-2">
-                        <Link href={`/coach/trainees/${trainee.id}`} className="flex-1">
-                          <Button variant="outline" className="w-full bg-transparent">
-                            {coachMessages.viewDetail}
-                          </Button>
-                        </Link>
-                        <Link href={getAdjustHref(trainee)} className="flex-1">
-                          <Button className="w-full">{coachMessages.adjustPlan}</Button>
-                        </Link>
-                      </div>
+            ) : (
+              <div className="mt-4 divide-y divide-border">
+                {dashboard.atRiskTrainees.map((trainee) => (
+                  <div key={trainee.id} className="py-4 first:pt-0 last:pb-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <Link href={`/coach/trainees/${trainee.id}`} className="truncate text-sm font-semibold hover:underline">{trainee.name}</Link>
+                      <span className="shrink-0 font-mono text-xs text-muted-foreground tnum">{trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0} {coach.workouts}</span>
                     </div>
-                  ))
-                )}
+                    <Progress value={Math.max(0, Math.min(100, trainee.completionRate ?? 0))} className="mt-3 h-1.5 bg-muted [&_[data-slot=progress-indicator]]:bg-warning" />
+                    <div className="mt-3 flex gap-2">
+                      <Button asChild variant="outline" size="sm" className="flex-1"><Link href={`/coach/trainees/${trainee.id}`}>{coach.viewDetail}</Link></Button>
+                      <Button asChild size="sm" className="flex-1"><Link href={getAdjustHref(trainee)}>{coach.adjustPlan}</Link></Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </div>
-        </section>
+            )}
+          </section>
 
+        <section className="order-2 rounded-2xl border border-border bg-card p-5 md:p-6 xl:col-start-1 xl:row-start-1">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">{copy.activity}</h2>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{copy.activityCopy}</p>
+              </div>
+
+
+
+              <span className="shrink-0 rounded-full bg-primary-soft px-3 py-1.5 font-mono text-xs font-medium text-primary tnum">{dashboard.summary.workoutsThisWeek} {coach.workouts}</span>
+            </div>
+            <div className="mt-6 grid h-40 grid-cols-7 gap-3 sm:gap-5">
+              {dashboard.activityByDay.map((point) => {
+                const isToday = point.date.toISOString().slice(0, 10) === todayKey
+                return (
+                  <div key={point.date.toISOString()} className="flex min-w-0 flex-col items-center gap-2" role="img" aria-label={copy.chartDay(point.label, point.workouts)}>
+                    <div className="flex w-full flex-1 flex-col items-center justify-end gap-2">
+                      <span className={cn("font-mono text-xs tnum", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{point.workouts}</span>
+                      <div className={cn("w-full max-w-12 rounded-t-lg", isToday ? "bg-primary" : point.workouts > 0 ? "bg-primary/30" : "bg-muted")} style={{ height: `${point.workouts === 0 ? 4 : Math.max(12, (point.workouts / maxWorkouts) * 96)}px` }} />
+                    </div>
+                    <span className={cn("font-mono text-micro tnum", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{point.label}</span>
+                    <span className={cn("size-1 rounded-full", isToday ? "bg-primary" : "bg-transparent")} aria-hidden="true" />
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="order-3 overflow-hidden rounded-2xl border border-border bg-card xl:col-start-1 xl:row-start-2">
+            <div className="flex items-start justify-between gap-3 p-5 md:p-6">
+              <div><h2 className="text-lg font-semibold tracking-tight">{copy.roster}</h2><p className="mt-1 text-xs text-muted-foreground">{copy.rosterCopy}</p></div>
+              <Link href="/coach/trainees" className="flex min-h-11 shrink-0 items-center gap-1 text-xs font-medium text-primary">{coach.viewAll}<ArrowRight className="size-3.5" aria-hidden="true" /></Link>
+            </div>
+            {dashboard.trainees.length === 0 ? <p className="px-5 pb-6 text-sm text-muted-foreground">{coach.noTraineesAssignedToCoach}</p> : (
+              <div className="divide-y divide-border">
+                {dashboard.trainees.map((trainee) => (
+                  <div key={trainee.id} className="space-y-3 px-5 py-4 md:px-6">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="size-10 shrink-0 border border-border">
+                        <AvatarImage src={trainee.avatar || undefined} alt="" />
+                        <AvatarFallback className="bg-primary-soft text-xs font-medium text-primary">{getInitials(trainee.name)}</AvatarFallback>
+                      </Avatar>
+                      <Link href={`/coach/trainees/${trainee.id}`} className="min-w-0 flex-1 hover:underline"><p className="truncate text-sm font-semibold">{trainee.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{trainee.email}</p></Link>
+                      <span className="shrink-0 font-mono text-sm font-semibold tnum">{formatPercent(trainee.completionRate ?? 0)}</span>
+                    </div>
+                    <Progress value={Math.max(0, Math.min(100, trainee.completionRate ?? 0))} className="h-1.5" />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground"><span className="font-mono tnum">{trainee.thisWeekWorkouts}/{trainee.plannedSessionsPerWeek ?? 0}</span> {coach.sessionsThisWeek}</p>
+                      <Button asChild variant="ghost" size="sm" className="text-primary"><Link href={getAdjustHref(trainee)}>{coach.adjustPlan}<ArrowRight className="size-3.5" aria-hidden="true" /></Link></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+        <section className="order-4 rounded-2xl border border-border bg-card p-5 xl:col-start-2 xl:row-start-2">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold tracking-tight">{copy.latest}</h2>
+              <Link href="/coach/trainees" className="flex min-h-11 items-center gap-1 text-xs font-medium text-primary">{coach.viewAll}<ArrowRight className="size-3.5" aria-hidden="true" /></Link>
+            </div>
+            <div className="mt-2 divide-y divide-border">
+              {dashboard.recentWorkoutLogs.length === 0 ? <p className="py-6 text-sm text-muted-foreground">{coach.noRecentWorkoutLogs}</p> : dashboard.recentWorkoutLogs.map((log) => (
+                <Link key={log.id} href={`/coach/trainees/${log.trainee.id}`} className="flex items-start gap-3 rounded-lg py-4 transition-colors hover:bg-muted/40">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary"><Dumbbell className="size-4" aria-hidden="true" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{log.trainee.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{log.workout.name}</p>
+                    <p className="mt-2 font-mono text-micro text-muted-foreground tnum">{formatDateTime(log.startedAt, locale, timeZone)}</p>
+                    {log.commentCount > 0 ? <p className="mt-1 text-xs text-primary">{coach.feedbackCount(log.commentCount)}</p> : null}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-mono text-xs font-medium tnum">{(log.totalVolume ?? 0).toLocaleString(locale === "vi" ? "vi-VN" : "en-US")} kg</p>
+                    {!log.completedAt ? <p className="mt-1 text-xs text-muted-foreground">{coach.inProgress}</p> : null}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
       </div>
     </div>
   )
@@ -465,12 +230,5 @@ async function CoachDashboardContent() {
 
 export default async function CoachDashboardPage() {
   await requireAppUser({ role: "coach" })
-  const locale = await getServerLocale()
-
-  return (
-    <><div className="mb-3 flex justify-end"><Link href="/agent"><Button variant="outline">{agentMessages[locale].title}</Button></Link></div>
-    <Suspense fallback={<CoachDashboardLoading />}>
-      <CoachDashboardContent />
-    </Suspense></>
-  )
+  return <Suspense fallback={<CoachDashboardLoading />}><CoachDashboardContent /></Suspense>
 }

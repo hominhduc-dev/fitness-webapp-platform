@@ -39,6 +39,25 @@ Three roles: **trainee**, **coach**, **admin** — enforced server-side via `req
 @.Codex/skills/git/README.md
 @.Codex/skills/seo-content/README.md
 
+## Sub-agent workflow (Codex)
+
+Custom roles are defined in `.codex/agents/*.toml`: `frontend`, `backend`,
+`database`, `fitness-ai`, and `reviewer`. Each inherits the parent model and reasoning.
+
+- For tasks with independent substantial parts, delegate to the relevant sub-agents.
+  Handle small local fixes directly. Use at most 3 concurrent sub-agents.
+- The primary agent owns requirements, API contracts, file assignments, integration,
+  final validation, and Git operations. Give each writer explicit file ownership.
+- Do not assign overlapping write scopes. Agents must preserve others' edits and
+  request coordination before changing shared files or crossing their scope.
+- Agree on schema/API contracts before parallel frontend/backend implementation.
+  Run the reviewer after implementation; it reports findings without editing source.
+- Wait for required results and integrate them before claiming completion.
+  Report actual test/runtime evidence and anything unverified.
+
+Example: "Use backend for the API, frontend for the UI in separate assigned files,
+then reviewer for the final diff. Wait for all results and run integration checks."
+
 ## Ground Rules
 1. All API responses use `{ data, error, meta }` format.
 2. Every API route uses `AppError` class — never throw raw `Error`.

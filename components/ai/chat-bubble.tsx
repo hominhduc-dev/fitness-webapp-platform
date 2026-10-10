@@ -2,7 +2,7 @@
 
 import { useSendAIChatMessage } from "@/lib/queries/ai"
 
-import { Bot, Dumbbell, Loader2, Send, UtensilsCrossed, X } from "lucide-react"
+import { ArrowLeft, Bot, Dumbbell, Loader2, Send, UtensilsCrossed, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
@@ -55,14 +55,16 @@ function getChatCopy(locale: "en" | "vi") {
   }
 }
 
-function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function AIChatPanelContent({ open = true, onOpenChange, presentation = "page", initialAgentMode = false }: { open?: boolean; onOpenChange?: (open: boolean) => void; presentation?: "page" | "bubble"; initialAgentMode?: boolean }) {
   const { mutateAsync: sendAIChatMessage, isPending: sendAIChatMessagePending } = useSendAIChatMessage()
   const { profile } = useAuth()
   const { locale } = useLocale()
-  const copy = getChatCopy(locale)
+  const traineeCopy = getChatCopy(locale)
+  const isCoach = profile?.role === "coach"
+  const copy = isCoach ? { ...traineeCopy, subtitle: locale === "vi" ? "Hỏi đáp fitness · dùng Agent để phân tích học viên" : "Fitness Q&A · use Agent to review trainees", actions: [{ label: locale === "vi" ? "Học viên" : "Clients", icon: Dumbbell, href: "/coach/trainees" }, { label: locale === "vi" ? "Chương trình tập" : "Programs", icon: UtensilsCrossed, href: "/coach/programs" }], suggestions: locale === "vi" ? ["Giải thích RIR và cách áp dụng", "Khi nào nên giảm volume tập luyện?"] : ["Explain RIR and how to use it", "When should training volume be reduced?"] } : traineeCopy
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
-  const [agentMode, setAgentMode] = useState(false)
+  const [agentMode, setAgentMode] = useState(initialAgentMode)
   const isLoading = sendAIChatMessagePending
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -72,24 +74,44 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
     if (open && inputRef.current) {
       inputRef.current.focus()
     }
-  }, [open])
+  }, [open, presentation])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || presentation !== "bubble") return
 
     const handleOutsidePointer = (event: PointerEvent) => {
       if (event.target instanceof Node && !panelRef.current?.contains(event.target)) {
-        onOpenChange(false)
+        onOpenChange?.(false)
       }
     }
 
     document.addEventListener("pointerdown", handleOutsidePointer)
     return () => document.removeEventListener("pointerdown", handleOutsidePointer)
-  }, [onOpenChange, open])
+  }, [onOpenChange, open, presentation])
+
+  useEffect(() => {
+    if (presentation !== "page") return
+    const panel = panelRef.current
+    if (!panel) return
+    const viewport = window.visualViewport
+    const update = () => {
+      panel.style.setProperty("--chat-viewport-height", String(viewport?.height ?? window.innerHeight) + "px")
+      panel.style.setProperty("--chat-viewport-top", String(viewport?.offsetTop ?? 0) + "px")
+    }
+    update()
+    viewport?.addEventListener("resize", update)
+    viewport?.addEventListener("scroll", update)
+    window.addEventListener("resize", update)
+    return () => {
+      viewport?.removeEventListener("resize", update)
+      viewport?.removeEventListener("scroll", update)
+      window.removeEventListener("resize", update)
+    }
+  }, [presentation])
 
   const handleSend = async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -117,10 +139,11 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
     <>
     {/* Phones: the page dims behind the chat so the panel reads as its own
         layer; a tap on it closes the chat like any tap outside the panel. */}
-    <div aria-hidden="true" className="fixed inset-0 z-[58] bg-overlay-soft backdrop-blur-[2px] md:hidden" />
-    <div ref={panelRef} role="dialog" aria-label="AI Coach" className="glass-sheet fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border md:bottom-5 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-40px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl">
+    {presentation === "bubble" && <div aria-hidden="true" className="fixed inset-0 z-[58] bg-overlay-soft backdrop-blur-[2px] md:hidden" />}
+    <div ref={panelRef} role={presentation === "bubble" ? "dialog" : undefined} aria-label="AI Coach" className={presentation === "page" ? "fixed left-0 right-0 top-[var(--chat-viewport-top,0px)] z-40 flex h-[var(--chat-viewport-height,100dvh)] w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] pb-[calc(var(--mobile-nav-offset)+5rem)] md:relative md:top-auto md:z-auto md:mx-auto md:h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] md:min-h-[420px] md:max-w-3xl md:rounded-2xl md:border md:border-border md:pt-0 md:pb-0" : "glass-sheet fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-[59] flex h-[min(600px,calc(100dvh-8rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] flex-col overflow-hidden rounded-3xl border md:bottom-5 md:left-auto md:right-5 md:z-40 md:h-[min(520px,calc(100vh-40px))] md:w-[min(380px,calc(100vw-40px))] md:rounded-2xl"}>
           {/* Header */}
-          <div className="flex items-center gap-2.5 border-b border-border bg-primary/5 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2.5 border-b border-border bg-primary/5 px-4 py-3">
+            {presentation === "page" && <Link href={isCoach ? "/coach" : "/dashboard"} aria-label={locale === "vi" ? "Quay về trang chủ" : "Back to home"} className="grid size-11 shrink-0 place-items-center rounded-lg text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"><ArrowLeft className="size-5" aria-hidden="true" /></Link>}
             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
               <Bot className="size-4 text-primary" />
             </div>
@@ -128,23 +151,23 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
               <p className="text-sm font-semibold">AI Coach</p>
               <p className="text-micro text-muted-foreground">{copy.subtitle}</p>
             </div>
-            <button
+            {presentation === "bubble" && <button
               type="button"
               aria-label={copy.ariaClose}
-              onClick={() => onOpenChange(false)}
+              onClick={() => onOpenChange?.(false)}
               className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="size-4" aria-hidden="true" />
-            </button>
+            </button>}
           </div>
 
-          <div className="flex gap-2 border-b border-border px-3 py-2">
+          <div className="flex shrink-0 gap-2 border-b border-border px-3 py-2">
             <Button size="sm" variant={agentMode ? "secondary" : "ghost"} onClick={() => setAgentMode(true)}>{agentMessages[locale].title}</Button>
             <Button size="sm" variant={!agentMode ? "secondary" : "ghost"} onClick={() => setAgentMode(false)}>{agentMessages[locale].chat}</Button>
           </div>
           {agentMode ? <AgentWorkspace key={profile.id} /> : <>
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
             {messages.length === 0 ? (
               <div className="space-y-4">
                 {/* Quick Actions */}
@@ -154,7 +177,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                     <Link
                       key={action.href}
                       href={action.href}
-                      onClick={() => onOpenChange(false)}
+                      onClick={() => onOpenChange?.(false)}
                       className="flex items-center gap-3 rounded-xl border border-border bg-surface-subtle p-3 transition-colors hover:bg-surface-hover"
                     >
                       <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
@@ -202,7 +225,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                     )}
                   >
                     {msg.role === "user" ? msg.content : <AIMessage content={msg.content} />}
-                    {msg.action && (
+                    {msg.action && !isCoach && (
                       msg.action.type === "program_draft" ? (
                         <ChatProgramCard action={msg.action} />
                       ) : (
@@ -223,7 +246,7 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
           </div>
 
           {/* Input */}
-          <div className="border-t border-border p-3">
+          <div className="shrink-0 border-t border-border p-3">
             <div className="flex items-center gap-2">
               <input
                 ref={inputRef}
@@ -236,11 +259,13 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                     void handleSend()
                   }
                 }}
+                aria-label={copy.placeholder}
                 placeholder={copy.placeholder}
-                className="flex-1 rounded-xl border border-border bg-surface-subtle px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+                className="min-w-0 flex-1 rounded-xl border border-border bg-surface-subtle px-3.5 py-2.5 text-sm outline-none focus:border-primary"
                 disabled={isLoading}
               />
               <Button
+                aria-label={locale === "vi" ? "Gửi tin nhắn" : "Send message"}
                 size="icon"
                 className="size-10 shrink-0 rounded-xl"
                 disabled={!input.trim() || isLoading}
@@ -256,4 +281,12 @@ function AIChatBubble({ open, onOpenChange }: { open: boolean; onOpenChange: (op
   )
 }
 
-export { AIChatBubble }
+export function AIChatBubble(props: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return <AIChatPanel {...props} presentation="bubble" />
+}
+
+export function AIChatPanel(props: { open?: boolean; onOpenChange?: (open: boolean) => void; presentation?: "page" | "bubble"; initialAgentMode?: boolean }) {
+  const { profile } = useAuth()
+  if (!profile || (profile.role !== "trainee" && profile.role !== "coach")) return null
+  return <AIChatPanelContent key={`${profile.id}:${profile.role}`} {...props} />
+}
