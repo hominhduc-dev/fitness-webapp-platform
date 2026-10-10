@@ -93,8 +93,10 @@ export function SessionSetRow({
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(set.notes ?? "")
   const previousSetIdRef = useRef(set.id)
+  const weightEditingRef = useRef(false)
 
   useEffect(() => {
+    if (weightEditingRef.current) return
     setWeight(set.weight?.toString() ?? "")
   }, [set.id, set.weight])
 
@@ -203,13 +205,22 @@ export function SessionSetRow({
         </span>
 
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
           value={weight}
           disabled={completed}
+          onFocus={() => { weightEditingRef.current = true }}
+          onBlur={() => {
+            weightEditingRef.current = false
+            const parsed = Number.parseFloat(weight.replace(",", "."))
+            setWeight(Number.isFinite(parsed) ? String(parsed) : "")
+          }}
           onChange={(e) => {
-            setWeight(e.target.value)
-            onChange({ weight: Number.parseFloat(e.target.value) || undefined })
+            const value = e.target.value.replace(",", ".")
+            if (!/^\d*(?:\.\d*)?$/.test(value)) return
+            setWeight(value)
+            const parsed = Number.parseFloat(value)
+            onChange({ weight: Number.isFinite(parsed) ? parsed : undefined })
           }}
           placeholder={suggestion?.weight != null ? String(suggestion.weight) : "—"}
           aria-label={messages.workoutPage.weightInUnit(weightUnit)}

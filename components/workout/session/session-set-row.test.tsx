@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { SessionSetRow } from "./session-set-row"
@@ -87,6 +87,28 @@ describe("SessionSetRow", () => {
 
     expect(screen.getByTitle("Suggested 82.5×8")).toBeInTheDocument()
     expect(screen.getByLabelText("Weight in kg")).toHaveAttribute("placeholder", "82.5")
-    expect(screen.getByLabelText("Weight in kg")).toHaveValue(null)
+    expect(screen.getByLabelText("Weight in kg")).toHaveValue("")
+  })
+
+  it.each(["12,5", "12.5"])("accepts decimal weight %s", (value) => {
+    const onChange = vi.fn()
+    const props = { canRemove: false, onChange, onRemove: vi.fn(), set: baseSet, setIndex: 0, weightUnit: "kg" as const }
+    const { rerender } = render(<SessionSetRow {...props} />)
+    const input = screen.getByLabelText("Weight in kg")
+    expect(input).toHaveAttribute("inputmode", "decimal")
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: "12" } })
+    rerender(<SessionSetRow {...props} set={{ ...baseSet, weight: 12 }} />)
+    fireEvent.change(input, { target: { value: value.slice(0, 3) } })
+    expect(input).toHaveValue("12.")
+    fireEvent.change(input, { target: { value } })
+    rerender(<SessionSetRow {...props} set={{ ...baseSet, weight: 12.5 }} />)
+    fireEvent.blur(input)
+    expect(input).toHaveValue("12.5")
+    expect(onChange).toHaveBeenLastCalledWith({ weight: 12.5 })
+    fireEvent.change(input, { target: { value: "0" } })
+    expect(onChange).toHaveBeenLastCalledWith({ weight: 0 })
+    fireEvent.change(input, { target: { value: "" } })
+    expect(onChange).toHaveBeenLastCalledWith({ weight: undefined })
   })
 })
