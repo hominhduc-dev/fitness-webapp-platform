@@ -7,7 +7,11 @@ backend/dist/
 .env.docker
 .env.local
 .claude/
-.codex/
+.codex/*
+!.codex/config.toml
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/*.toml
 .idea/
 .env.development.local
 .env.test.local
